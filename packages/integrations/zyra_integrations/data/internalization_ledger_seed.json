@@ -188244,27 +188244,617 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_causal_trace_index_analysis_and_cross_view_runtime",
+      "capability_summary": "A disposable task/run causal index over the canonical projection, strict typed joins, completeness diagnostics, SCC-safe critical path, search/filter/fold, variable-height virtualization, report pins and bidirectional terminal/browser/artifact/diff/timeline/topology focus.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-01",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_b3c6c167f0f6ee7ae097",
+      "license_notice": {
+        "license_hint": "M2 causal trace source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "zyra",
+        "source_url": "",
+        "status": "not_required"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}",
+          "/tasks/{task_id}/events",
+          "/tasks/{task_id}/artifacts"
+        ],
+        "artifact_kinds": [
+          "trace_report_reference",
+          "artifact_revision",
+          "diff_revision"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "task/session/worker lifecycle",
+          "tool and browser action",
+          "permission and compact/checkpoint",
+          "placement/provider retry",
+          "fault/recovery",
+          "MCP/skill/subagent",
+          "artifact and mutation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "causal_trace"
+        ],
+        "ui_panels": [
+          "causal_trace",
+          "critical_path",
+          "trace_diagnostics",
+          "timeline/topology/terminal/browser/artifact/diff focus"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> CausalTraceProjectionEngine -> CausalTraceController -> typed cross-view focus ports"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+        "migration_mode": "same_language_component_integration",
+        "owner_unit": "M2-S03B-03",
+        "rationale": "The existing Zyra canonical projection and timeline semantics remain the sole source of committed facts. The trace modules productize a derived index and interaction surface without creating another store.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S03B-03",
+        "source_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e; migration_mode=same_language_component_integration; The existing Zyra canonical projection and timeline semantics remain the sole source of committed facts. The trace modules productize a derived index and interaction surface without creating another store.",
+      "owner_unit": "M2-S03B-03",
+      "replacement_plan": "Replace behind CausalTraceController and typed focus ports without moving canonical projection, event, task, session or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "CanonicalProjectionStore remains the only committed browser projection owner.",
+        "Trace indexes, filters, folds, viewport and pins are disposable local state.",
+        "Typed IDs are required; display strings never create causal joins.",
+        "Closing the viewer cannot stop or mutate the task or a worker session."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/trace/contracts.ts",
+          "apps/web/src/features/trace/identity.ts",
+          "apps/web/src/features/trace/projector.ts",
+          "apps/web/src/features/trace/index/builder.ts",
+          "apps/web/src/features/trace/analysis/critical-path.ts",
+          "apps/web/src/features/trace/analysis/query.ts",
+          "apps/web/src/features/trace/analysis/fold.ts",
+          "apps/web/src/features/trace/scale/virtualizer.ts",
+          "apps/web/src/features/trace/report/pins.ts",
+          "apps/web/src/features/trace/view/controller.ts",
+          "apps/web/src/features/trace/view/trace-workbench.tsx",
+          "apps/web/src/components/tasks/task-detail.tsx"
+        ],
+        "environment_refs": [],
+        "function": "CausalTraceController/CausalTraceWorkbench",
+        "health_check": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts; python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+        "module": "apps.web.src.features.trace.view.controller",
+        "protocol": "zyra.causal-trace/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "apps/web/src/state/contracts.ts;apps/web/src/state/selectors.ts;apps/web/src/state/panel-selectors.ts;apps/web/src/features/timeline/projection/event-reader.ts;apps/web/src/features/timeline/projection/causal-graph.ts;apps/web/src/features/timeline/projection/critical-path.ts;apps/web/src/features/timeline/projection/drilldown.ts",
+          "source_repo": "zyra",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "apps/web/src/state/contracts.ts;apps/web/src/state/selectors.ts;apps/web/src/state/panel-selectors.ts;apps/web/src/features/timeline/projection/event-reader.ts;apps/web/src/features/timeline/projection/causal-graph.ts;apps/web/src/features/timeline/projection/critical-path.ts;apps/web/src/features/timeline/projection/drilldown.ts",
+      "source_repo": "zyra",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-03",
+        "causal-trace",
+        "cross-view",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/trace/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/identity.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/projector.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/index/builder.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/analysis/critical-path.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/analysis/query.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/analysis/fold.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/scale/virtualizer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/report/pins.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/view/controller.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/view/trace-workbench.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/tasks/task-detail.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "expected_signal": "typed index, critical path, filters, folds, large virtualization, late/orphan reconciliation, navigation, pins, close and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+          "expected_signal": "real scheduler fault/recovery events reach the TypeScript trace projection",
+          "kind": "integration",
+          "path": "tests/integration/test_causal_trace_cross_view_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_trace_settlement_reconnect_and_subagent_correlation",
+      "capability_summary": "Typed request identities, partial/final and late settlement, reconnect epochs, parent tool/subagent ownership, yield provenance and PTY selection correlation cropped into Zyra canonical trace identities.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-01",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_714e16b24f9e23395711",
+      "license_notice": {
+        "license_hint": "M2 causal trace source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}",
+          "/tasks/{task_id}/events",
+          "/tasks/{task_id}/artifacts"
+        ],
+        "artifact_kinds": [
+          "trace_report_reference",
+          "artifact_revision",
+          "diff_revision"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "task/session/worker lifecycle",
+          "tool and browser action",
+          "permission and compact/checkpoint",
+          "placement/provider retry",
+          "fault/recovery",
+          "MCP/skill/subagent",
+          "artifact and mutation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "causal_trace"
+        ],
+        "ui_panels": [
+          "causal_trace",
+          "critical_path",
+          "trace_diagnostics",
+          "timeline/topology/terminal/browser/artifact/diff focus"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> CausalTraceProjectionEngine -> CausalTraceController -> typed cross-view focus ports"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03B-03",
+        "rationale": "Only bounded correlation and settlement mechanics supplement the Zyra primary. OMP transport, agent loop, session files, provider runtime and task owner remain outside Zyra.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S03B-03",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=cropped_migration/same_language_component_integration; Only bounded correlation and settlement mechanics supplement the Zyra primary. OMP transport, agent loop, session files, provider runtime and task owner remain outside Zyra.",
+      "owner_unit": "M2-S03B-03",
+      "replacement_plan": "Replace behind CausalTraceController and typed focus ports without moving canonical projection, event, task, session or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "CanonicalProjectionStore remains the only committed browser projection owner.",
+        "Trace indexes, filters, folds, viewport and pins are disposable local state.",
+        "Typed IDs are required; display strings never create causal joins.",
+        "Closing the viewer cannot stop or mutate the task or a worker session."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/trace/identity.ts",
+          "apps/web/src/features/trace/index/builder.ts",
+          "apps/web/src/features/trace/index/reconciliation.ts",
+          "apps/web/src/features/trace/navigation/runtime.ts"
+        ],
+        "environment_refs": [],
+        "function": "CausalTraceController/CausalTraceWorkbench",
+        "health_check": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts; python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+        "module": "apps.web.src.features.trace.view.controller",
+        "protocol": "zyra.causal-trace/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts;packages/coding-agent/src/modes/rpc/rpc-subagents.ts;packages/coding-agent/src/task/yield-assembly.ts;packages/coding-agent/src/tools/bash-pty-selection.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts;packages/coding-agent/src/modes/rpc/rpc-subagents.ts;packages/coding-agent/src/task/yield-assembly.ts;packages/coding-agent/src/tools/bash-pty-selection.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-03",
+        "causal-trace",
+        "cross-view",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/trace/identity.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/index/builder.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/index/reconciliation.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/trace/navigation/runtime.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "expected_signal": "typed index, critical path, filters, folds, large virtualization, late/orphan reconciliation, navigation, pins, close and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+          "expected_signal": "real scheduler fault/recovery events reach the TypeScript trace projection",
+          "kind": "integration",
+          "path": "tests/integration/test_causal_trace_cross_view_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "trace_reconnect_auth_and_replay_conformance",
+      "capability_summary": "Authentication, correlation, reconnect and replay-negative behavior used only to challenge trace reconciliation and navigation tests.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-01",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_ea1a68f71ce1ca6e10ed",
+      "license_notice": {
+        "license_hint": "M2 causal trace source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}",
+          "/tasks/{task_id}/events",
+          "/tasks/{task_id}/artifacts"
+        ],
+        "artifact_kinds": [
+          "trace_report_reference",
+          "artifact_revision",
+          "diff_revision"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "task/session/worker lifecycle",
+          "tool and browser action",
+          "permission and compact/checkpoint",
+          "placement/provider retry",
+          "fault/recovery",
+          "MCP/skill/subagent",
+          "artifact and mutation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "causal_trace"
+        ],
+        "ui_panels": [
+          "causal_trace",
+          "critical_path",
+          "trace_diagnostics",
+          "timeline/topology/terminal/browser/artifact/diff focus"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03B-03",
+        "rationale": "Hermes contributes negative conformance only. It owns no gateway, session, replay store, causal index or production path in Zyra.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S03B-03",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=conformance_only; Hermes contributes negative conformance only. It owns no gateway, session, replay store, causal index or production path in Zyra.",
+      "owner_unit": "M2-S03B-03",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "CanonicalProjectionStore remains the only committed browser projection owner.",
+        "Trace indexes, filters, folds, viewport and pins are disposable local state.",
+        "Typed IDs are required; display strings never create causal joins.",
+        "Closing the viewer cannot stop or mutate the task or a worker session."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "tests/integration/test_causal_trace_cross_view_integration.py"
+        ],
+        "environment_refs": [],
+        "function": "causal trace conformance tests",
+        "health_check": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts; python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+        "module": "tests.causal_trace_conformance",
+        "protocol": "zyra.causal-trace/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-03",
+        "causal-trace",
+        "cross-view",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/causal-trace-cross-view-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_causal_trace_cross_view_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "expected_signal": "typed index, critical path, filters, folds, large virtualization, late/orphan reconciliation, navigation, pins, close and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/causal-trace-cross-view-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_causal_trace_cross_view_integration.py",
+          "expected_signal": "real scheduler fault/recovery events reach the TypeScript trace projection",
+          "kind": "integration",
+          "path": "tests/integration/test_causal_trace_cross_view_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 493,
+    "active_or_internalized": 495,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 57,
+      "candidate": 58,
       "deferred": 8,
       "planned": 698,
-      "productized": 438
+      "productized": 440
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 57,
+      "inventoried": 58,
       "planned": 503,
-      "tested_main_path": 199,
+      "tested_main_path": 201,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -188324,7 +188914,8 @@
       "M2-S03A-01": 5,
       "M2-S03A-02": 3,
       "M2-S03B-01": 5,
-      "M2-S03B-02": 4
+      "M2-S03B-02": 4,
+      "M2-S03B-03": 3
     },
     "by_source_repo": {
       "OpenHands": 100,
@@ -188332,27 +188923,27 @@
       "agentscope": 106,
       "browser-use": 114,
       "claude-code-best": 512,
-      "hermes-agent": 88,
+      "hermes-agent": 89,
       "langgraph": 89,
-      "oh-my-pi": 31,
+      "oh-my-pi": 32,
       "openclaw": 86,
       "opencode": 31,
-      "zyra": 2
+      "zyra": 3
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 20,
-      "direct_port": 57,
-      "not_selected": 35,
+      "direct_port": 59,
+      "not_selected": 36,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 755,
+    "planned_or_candidate": 756,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 93,
+      "apps/web": 96,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -188367,6 +188958,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1256
+    "total_entries": 1259
   }
 }

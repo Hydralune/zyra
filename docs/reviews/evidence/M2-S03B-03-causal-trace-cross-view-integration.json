@@ -1,0 +1,348 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M2-S03B-03",
+  "parent_unit": "M2-03B",
+  "numeric_stage": "M2-03",
+  "date": "2026-07-25",
+  "verdict": "passed_after_numeric_stage_regression_repair",
+  "baseline_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+  "parent_baseline_commit": "cc92c129ead234a82cf23dad5a1c32e3bf35f06f",
+  "numeric_stage_baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+  "preimplementation_decision_commit": "8984aa80596dc29097b13b8dad4723464bd1af57",
+  "main_implementation_commit": "d9c74dc78dd2338541d24625fbccf56fbbb88b1e",
+  "implementation_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e..2bc9604685cd7024825cf94a34c3fc507921d661",
+    "raw_additions": 9389,
+    "raw_deletions": 4,
+    "production_runtime": 5743,
+    "ui_behavior": 161,
+    "ui_presentation_excluded": 663,
+    "type_declaration_excluded": 1034,
+    "schema_dto_data_excluded": 104,
+    "python_canonical_owner_repair_excluded": 17,
+    "test_mock_fixture_excluded": 1471,
+    "docs_comments_blank_excluded": 196,
+    "adapter_only_excluded": 0,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 5904,
+    "minimum": 5500,
+    "margin": 404,
+    "passed": true
+  },
+  "parent_effective_line_count": {
+    "interval": "cc92c129ead234a82cf23dad5a1c32e3bf35f06f..2bc9604685cd7024825cf94a34c3fc507921d661",
+    "raw_additions": 43825,
+    "raw_deletions": 24,
+    "production_runtime": 20117,
+    "ui_behavior": 1035,
+    "effective_production": 21152,
+    "minimum": 17000,
+    "margin": 4152,
+    "direct_recompute": true,
+    "passed": true
+  },
+  "numeric_stage_effective_line_count": {
+    "interval": "1833319acdb8a09fac3438b12356da0e9c78d6bb..2bc9604685cd7024825cf94a34c3fc507921d661",
+    "raw_additions": 80786,
+    "raw_deletions": 142,
+    "production_runtime": 38235,
+    "ui_behavior": 2074,
+    "effective_production": 40309,
+    "minimum": 32000,
+    "margin": 8309,
+    "direct_recompute": true,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_commit": "ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "same_language_component_integration",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "hermes-agent",
+      "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "source_role": "conformance_only",
+      "source_language": "python",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "runtime_dependency": false
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/trace/contracts.ts",
+        "apps/web/src/features/trace/identity.ts",
+        "apps/web/src/features/trace/projector.ts",
+        "apps/web/src/features/trace/index/builder.ts",
+        "apps/web/src/features/trace/analysis/critical-path.ts",
+        "apps/web/src/features/trace/analysis/query.ts",
+        "apps/web/src/features/trace/analysis/fold.ts",
+        "apps/web/src/features/trace/scale/virtualizer.ts",
+        "apps/web/src/features/trace/report/pins.ts",
+        "apps/web/src/features/trace/view/controller.ts",
+        "apps/web/src/features/trace/view/trace-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/trace/identity.ts",
+        "apps/web/src/features/trace/index/builder.ts",
+        "apps/web/src/features/trace/index/reconciliation.ts",
+        "apps/web/src/features/trace/navigation/runtime.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "task_run_checkpoint_event": "python SQLiteStore plus canonical event spine",
+    "browser_projection": "typescript CanonicalProjectionStore",
+    "worker_attempt_lease_route": "python worker-pool and scheduler owners",
+    "permission": "existing permission runtime and PermissionCoordinator boundary",
+    "terminal_process_session_ticket": "python TerminalSessionRegistry",
+    "browser_process_session_action_history": "python BrowserRuntimeRegistry and BrowserWorker owners",
+    "artifact_bytes_revision": "python LocalArtifactStore plus TaskState",
+    "workspace_patch_transaction": "python workspace and patch transaction runtimes",
+    "transient_trace_view": "typescript CausalTraceController"
+  },
+  "semantic_evidence": {
+    "canonical_store_is_only_committed_projection_owner": true,
+    "second_replay_or_checkpoint_store": false,
+    "typed_identity_join_only": true,
+    "display_string_join": false,
+    "task_run_worker_tool_browser_artifact_mutation_chain": true,
+    "permission_compact_checkpoint_placement_provider_fault_recovery_mcp_skill_subagent_classified": true,
+    "partial_final_and_late_artifact_reconciled": true,
+    "missing_late_orphan_quarantine_visible": true,
+    "critical_path_scc_safe_and_deterministic": true,
+    "equal_critical_alternatives_preserved": true,
+    "search_filter_fold_preserve_evidence_boundaries": true,
+    "large_canonical_events": 2500,
+    "virtual_window_bounded": true,
+    "typed_cross_view_destinations": 6,
+    "reverse_navigation_uses_typed_bindings": true,
+    "pins_are_canonical_state": false,
+    "viewer_close_mutates_task_or_session": false,
+    "disabled_module_fallback": false
+  },
+  "numeric_stage_regression_repair": {
+    "finding": "task.terminals.ticket was a mutation with receipt none and made ProtocolCatalog.assertComplete reject the production client",
+    "repair_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+    "terminal_registry_owner_changed": false,
+    "typed_receipt_added": true,
+    "secret_ticket_embedded_in_receipt": false,
+    "receipt_uses_sha256_digest": true,
+    "fallback_added": false
+  },
+  "verification": {
+    "focused_trace_web": {
+      "passed": 12,
+      "failed": 0,
+      "assertions": 118
+    },
+    "focused_trace_python": {
+      "passed": 1,
+      "failed": 0
+    },
+    "adjacent_web": {
+      "passed": 145,
+      "failed": 0,
+      "assertions": 1006
+    },
+    "adjacent_python_before_aggregate": {
+      "passed": 8,
+      "failed": 0
+    },
+    "ticket_repair_web_and_typed_client": {
+      "passed": 32,
+      "failed": 0,
+      "assertions": 152
+    },
+    "ticket_repair_python": {
+      "passed": 32,
+      "failed": 0
+    },
+    "web_typecheck": true,
+    "production_build": true,
+    "slice_effective_line_audit": {
+      "passed": true,
+      "effective_production": 5904
+    },
+    "parent_direct_effective_line_audit": {
+      "passed": true,
+      "effective_production": 21152
+    },
+    "numeric_stage_direct_effective_line_audit": {
+      "passed": true,
+      "effective_production": 40309
+    },
+    "source_ledger_sync": {
+      "passed": true,
+      "decision_count": 3,
+      "entry_count": 3,
+      "missing_targets": 0
+    },
+    "focused_ledger_contracts": {
+      "passed": 6,
+      "failed": 0
+    },
+    "generic_ledger_suite": {
+      "passed": 25,
+      "failed": 2,
+      "claimed_as_passed": false,
+      "current_slice_failure_count": 0,
+      "disposition": "protected baseline seed assumptions; scope-specific rows and target checks pass"
+    },
+    "generic_ledger_verifier": {
+      "passed": false,
+      "current_slice_failure_count": 0,
+      "disposition": "reads protected tmp ledger and reports three pre-existing negative-audit literals"
+    }
+  },
+  "large_file_review": [
+    {
+      "path": "apps/web/src/features/trace/index/builder.ts",
+      "raw": 1340,
+      "effective": 1228,
+      "effective_share": 0.208,
+      "judgment": "atomic exact-identity index builder; concentration reviewed and accepted"
+    },
+    {
+      "path": "apps/web/src/features/trace/navigation/runtime.ts",
+      "raw": 854,
+      "effective": 780,
+      "judgment": "typed focus availability, settlement and reverse navigation"
+    },
+    {
+      "path": "apps/web/src/features/trace/analysis/query.ts",
+      "raw": 695,
+      "effective": 618,
+      "judgment": "indexed typed qualifiers and search consumed by controller"
+    },
+    {
+      "path": "apps/web/src/features/trace/contracts.ts",
+      "raw": 564,
+      "effective": 14,
+      "judgment": "444 declarations and 104 schema/DTO lines excluded"
+    },
+    {
+      "path": "apps/web/src/features/trace/analysis/critical-path.ts",
+      "raw": 546,
+      "effective": 497,
+      "judgment": "SCC condensation and deterministic critical-path analysis"
+    },
+    {
+      "path": "apps/web/src/features/trace/identity.ts",
+      "raw": 529,
+      "effective": 503,
+      "judgment": "strict typed identity and scope behavior"
+    },
+    {
+      "path": "apps/web/src/features/trace/view/trace-workbench.tsx",
+      "raw": 541,
+      "effective": 161,
+      "judgment": "only active handlers/effects count; static JSX and declarations excluded"
+    },
+    {
+      "path": "apps/web/test/causal-trace-cross-view-integration.test.ts",
+      "raw": 1018,
+      "effective": 0,
+      "judgment": "test-only"
+    }
+  ],
+  "cleanroom": {
+    "target_commit": "2bc9604685cd7024825cf94a34c3fc507921d661",
+    "source": "git archive",
+    "outside_parent_package_workspace": true,
+    "frozen_dependency_install": true,
+    "local_bun_binary_verified": true,
+    "web": {
+      "passed": 187,
+      "failed": 0,
+      "assertions": 1208
+    },
+    "python_process_isolated": {
+      "files": 15,
+      "passed": 78,
+      "failed": 0
+    },
+    "typecheck": true,
+    "build": true,
+    "bundled_modules": 243,
+    "external_manifest_path_matches": 0,
+    "slice_runtime_source_name_matches": 0,
+    "slice_openclaw_matches": 0
+  },
+  "ledger": {
+    "entry_count": 3,
+    "schema_errors": 0,
+    "missing_implementation_targets": 0,
+    "primary_count": 1,
+    "supplementary_count": 1,
+    "conformance_count": 1
+  },
+  "dependency_audit": {
+    "manifest_or_lockfile_change": false,
+    "new_dependency_process_port_mcp_plugin": false,
+    "parent_source_runtime_dependency_matches": 0,
+    "npm_link_or_editable_matches": 0,
+    "openclaw_matches": 0,
+    "second_canonical_store": false
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-TRACE-01",
+      "REQ-FAULT-01",
+      "REQ-TOPO-01",
+      "REQ-EDGE-01",
+      "REQ-CLOSE-01",
+      "SCORE-UX",
+      "SCORE-ROBUST"
+    ],
+    "closes": [],
+    "remaining_milestone_gates": [
+      "two cross-domain live tasks",
+      "one sealed run with at least 2000 effective canonical transitions",
+      "real local edge and cloud dispatch",
+      "multi-provider and multi-model evidence",
+      "formal topology and communication ablations",
+      "milestone visual, packaging and delivery evidence"
+    ]
+  },
+  "openclaw_forward_exclusion_preserved": true
+}
