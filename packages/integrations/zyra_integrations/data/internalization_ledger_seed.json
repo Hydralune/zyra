@@ -182967,27 +182967,980 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "worker_causal_timeline_projection_and_window",
+      "capability_summary": "Stable timeline row identity, incremental event reconciliation, active/visible row projection, causal inspection and bounded windowing over immutable canonical task events.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_d002757f98890900e355",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> selectWorkerCausalTimeline -> TimelineWorkbenchController -> task-detail timeline"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "The TypeScript timeline mechanisms are cropped into Zyra feature modules and rewritten against CanonicalProjectionState. No OpenCode store, session runtime, provider, command or tool owner is copied or invoked.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; The TypeScript timeline mechanisms are cropped into Zyra feature modules and rewritten against CanonicalProjectionState. No OpenCode store, session runtime, provider, command or tool owner is copied or invoked.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "Replace behind selectWorkerCausalTimeline without moving event, worker, lease, failure, recovery, scheduler or artifact custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/projection/contracts.ts",
+          "apps/web/src/features/timeline/projection/event-reader.ts",
+          "apps/web/src/features/timeline/projection/causal-graph.ts",
+          "apps/web/src/features/timeline/projection/worker-epochs.ts",
+          "apps/web/src/features/timeline/projection/critical-path.ts",
+          "apps/web/src/features/timeline/projection/drilldown.ts",
+          "apps/web/src/features/timeline/projection/windowing.ts",
+          "apps/web/src/features/timeline/projection/projector.ts",
+          "apps/web/src/features/timeline/view/controller.ts",
+          "apps/web/src/features/timeline/view/timeline-workbench.tsx",
+          "apps/web/src/components/tasks/task-detail.tsx"
+        ],
+        "environment_refs": [],
+        "function": "selectWorkerCausalTimeline",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.projection.projector",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/pages/session/timeline/{model.ts,projection.ts,rows.ts,timeline-row.ts,row-reconciliation.ts,virtual-items.ts,message-timeline.tsx}",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/pages/session/timeline/{model.ts,projection.ts,rows.ts,timeline-row.ts,row-reconciliation.ts,virtual-items.ts,message-timeline.tsx}",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/projection/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/event-reader.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/causal-graph.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/worker-epochs.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/critical-path.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/drilldown.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/windowing.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/projector.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/view/controller.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/tasks/task-detail.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "timeline_status_and_late_event_reconciliation",
+      "capability_summary": "Lifecycle precedence, action/observation replacement, late result reconciliation, deduplicated fold and filtered event gaps.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_c07a2b83e416aab16da4",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> selectWorkerCausalTimeline -> TimelineWorkbenchController -> task-detail timeline"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "cropped_migration",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "Only phase precedence and UI event-fold gaps supplement the OpenCode-derived row projection. OpenHands Redux, router, event client, conversation and sandbox owners remain excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration; Only phase precedence and UI event-fold gaps supplement the OpenCode-derived row projection. OpenHands Redux, router, event client, conversation and sandbox owners remain excluded.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "Replace behind selectWorkerCausalTimeline without moving event, worker, lease, failure, recovery, scheduler or artifact custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/projection/phase-machine.ts",
+          "apps/web/src/features/timeline/projection/event-reconciliation.ts",
+          "apps/web/src/features/timeline/projection/filtering.ts"
+        ],
+        "environment_refs": [],
+        "function": "selectWorkerCausalTimeline",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.projection.projector",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/utils/status.ts;frontend/src/utils/handle-event-for-ui.ts;frontend/src/hooks/use-filtered-events.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/utils/status.ts;frontend/src/utils/handle-event-for-ui.ts;frontend/src/hooks/use-filtered-events.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/projection/phase-machine.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/event-reconciliation.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/filtering.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_action_result_state_timeline_step",
+      "capability_summary": "Browser action, result and state grouping with ordered actions, partial-result handling and bounded error summaries.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_99bf2303e933b26f4614",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> selectWorkerCausalTimeline -> TimelineWorkbenchController -> task-detail timeline"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "semantic_port/production",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "A bounded Python-to-TypeScript semantic port is required at the browser-resident projection boundary. It consumes only safe canonical events and does not port the browser controller, DOM owner, action executor, retry loop or history persistence.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+        "source_language": "python",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "semantic_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=18484f23ac96bb955259a1c54530a7d265dfffdb; migration_mode=semantic_port/production; A bounded Python-to-TypeScript semantic port is required at the browser-resident projection boundary. It consumes only safe canonical events and does not port the browser controller, DOM owner, action executor, retry loop or history persistence.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "Replace behind selectWorkerCausalTimeline without moving event, worker, lease, failure, recovery, scheduler or artifact custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/projection/browser-step-adapter.ts"
+        ],
+        "environment_refs": [],
+        "function": "selectWorkerCausalTimeline",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.projection.projector",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "browser_use/agent/views.py::{AgentHistory,AgentHistoryList.errors,action_history,agent_steps}",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "browser_use/agent/views.py::{AgentHistory,AgentHistoryList.errors,action_history,agent_steps}",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/projection/browser-step-adapter.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "background_job_park_revive_timeline_lineage",
+      "capability_summary": "Background job status, park/revive lineage and recovery-attempt display over existing durable worker and recovery facts.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_bf60a4eb21ecc7ac8b57",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> selectWorkerCausalTimeline -> TimelineWorkbenchController -> task-detail timeline"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "cropped_migration",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "The original-language park/revive and job lineage mechanisms are cropped into a read-only derived projector. OMP process, session, agent loop, tool and task owners are not imported.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=cropped_migration; The original-language park/revive and job lineage mechanisms are cropped into a read-only derived projector. OMP process, session, agent loop, tool and task owners are not imported.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "Replace behind selectWorkerCausalTimeline without moving event, worker, lease, failure, recovery, scheduler or artifact custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/projection/background-lifecycle.ts",
+          "apps/web/src/features/timeline/projection/recovery-chain.ts"
+        ],
+        "environment_refs": [],
+        "function": "selectWorkerCausalTimeline",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.projection.projector",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/registry/agent-lifecycle.ts;packages/coding-agent/src/tools/job.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/registry/agent-lifecycle.ts;packages/coding-agent/src/tools/job.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/projection/background-lifecycle.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/projection/recovery-chain.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "worker_lifecycle_terminal_priority_conformance",
+      "capability_summary": "Lifecycle vocabulary and terminal/error priority conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_57067a94acf4631a7d66",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "Agent Framework contributes behavior comparison only. No workflow, executor, history, middleware or approval owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
+        "source_language": "python/dotnet",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=d50698bb797710bfd1ebf34eb621c905a4009b2d; migration_mode=conformance_only; Agent Framework contributes behavior comparison only. No workflow, executor, history, middleware or approval owner is migrated.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/worker-causal-timeline.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "worker causal timeline conformance tests",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.test.worker-causal-timeline",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "workflow/executor lifecycle contracts",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "workflow/executor lifecycle contracts",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/worker-causal-timeline.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "timeline_interrupt_resume_lineage_conformance",
+      "capability_summary": "Interrupt/resume correlation, stable task identity, pending versus committed writes and exact-resume lineage conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_0dfff77ef1d3d86e8bb5",
+      "license_notice": {
+        "license_hint": "M2 worker causal timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "timeline_projection",
+          "causal_evidence"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "worker.*",
+          "tool.*",
+          "permission.*",
+          "artifact.*",
+          "watchdog.*",
+          "recovery.*",
+          "scheduler.*",
+          "background.*",
+          "browser.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "worker_causal_timeline",
+          "timeline_inspector"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02B-01",
+        "rationale": "LangGraph remains limited to the narrow checkpoint contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-01",
+        "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_language": "python/typescript",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=5931a5f0b313feff24e2516a586c55601b868ac1; migration_mode=conformance_only; LangGraph remains limited to the narrow checkpoint contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+      "owner_unit": "M2-S02B-01",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/worker-causal-timeline.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "worker causal timeline conformance tests",
+        "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+        "module": "apps.web.test.worker-causal-timeline",
+        "protocol": "zyra.worker-causal-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "source-graphs/langgraph/source-graph.md#12 narrow checkpoint/interrupt contracts",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "source-graphs/langgraph/source-graph.md#12 narrow checkpoint/interrupt contracts",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-01",
+        "worker-causal-timeline",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/worker-causal-timeline.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
+          "expected_signal": "phase, causal join, critical path, filter gaps, late and partial reconciliation, replacement, background revival and disabled-projector behavior",
+          "kind": "unit",
+          "path": "apps/web/test/worker-causal-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_causal_timeline_projection.py",
+          "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_causal_timeline_projection.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 475,
+    "active_or_internalized": 479,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 46,
+      "candidate": 48,
       "deferred": 8,
       "planned": 698,
-      "productized": 420
+      "productized": 424
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 46,
+      "inventoried": 48,
       "planned": 503,
-      "tested_main_path": 181,
+      "tested_main_path": 185,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -183041,35 +183994,36 @@
       "M2-S01B-01": 5,
       "M2-S01B-02": 4,
       "M2-S02A-01": 5,
-      "M2-S02A-02": 4
+      "M2-S02A-02": 4,
+      "M2-S02B-01": 6
     },
     "by_source_repo": {
-      "OpenHands": 93,
-      "agent-framework": 94,
+      "OpenHands": 94,
+      "agent-framework": 95,
       "agentscope": 106,
-      "browser-use": 111,
+      "browser-use": 112,
       "claude-code-best": 512,
       "hermes-agent": 86,
-      "langgraph": 87,
-      "oh-my-pi": 24,
+      "langgraph": 88,
+      "oh-my-pi": 25,
       "openclaw": 86,
-      "opencode": 26,
+      "opencode": 27,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 7,
-      "direct_port": 52,
-      "not_selected": 24,
+      "candidate_review": 10,
+      "direct_port": 53,
+      "not_selected": 26,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 744,
+    "planned_or_candidate": 746,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 67,
+      "apps/web": 73,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -183084,6 +184038,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1227
+    "total_entries": 1233
   }
 }

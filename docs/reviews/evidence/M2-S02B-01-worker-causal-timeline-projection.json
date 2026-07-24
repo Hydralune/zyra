@@ -1,0 +1,325 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M2-S02B-01",
+  "parent_unit": "M2-02B",
+  "numeric_stage": "M2-02",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "0980c52e1a0624a06501ccd0c39a723e624c95e3",
+  "preimplementation_decision_commit": "9ce8748e05705809e40f581f8761f76dc26d007b",
+  "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "0980c52e1a0624a06501ccd0c39a723e624c95e3..636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+    "raw_additions": 10999,
+    "raw_deletions": 0,
+    "production_runtime": 6564,
+    "ui_behavior": 272,
+    "ui_presentation_excluded": 1040,
+    "type_declaration_excluded": 913,
+    "schema_data_excluded": 50,
+    "adapter_only_excluded": 0,
+    "generated_excluded": 0,
+    "test_fixture_probe_excluded": 1760,
+    "docs_comments_blank_excluded": 400,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 6836,
+    "minimum": 6000,
+    "margin": 836,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "browser-use",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "typescript",
+      "migration_mode": "semantic_port/production",
+      "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+      "cross_language_decision_id": "M2-S02B-01-browser-history-step-semantic-port"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+    },
+    {
+      "source_repo": "agent-framework",
+      "source_role": "conformance_only",
+      "source_language": "python/dotnet",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d"
+    },
+    {
+      "source_repo": "langgraph",
+      "source_role": "conformance_only",
+      "source_language": "python/typescript",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/projection/contracts.ts",
+        "apps/web/src/features/timeline/projection/event-reader.ts",
+        "apps/web/src/features/timeline/projection/causal-graph.ts",
+        "apps/web/src/features/timeline/projection/worker-epochs.ts",
+        "apps/web/src/features/timeline/projection/critical-path.ts",
+        "apps/web/src/features/timeline/projection/drilldown.ts",
+        "apps/web/src/features/timeline/projection/windowing.ts",
+        "apps/web/src/features/timeline/projection/projector.ts",
+        "apps/web/src/features/timeline/view/controller.ts",
+        "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/projection/phase-machine.ts",
+        "apps/web/src/features/timeline/projection/event-reconciliation.ts",
+        "apps/web/src/features/timeline/projection/filtering.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "browser-use",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "semantic_port/production",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/projection/browser-step-adapter.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": true,
+      "cross_language_decision_id": "M2-S02B-01-browser-history-step-semantic-port"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/projection/background-lifecycle.ts",
+        "apps/web/src/features/timeline/projection/recovery-chain.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "frontend_event_projection": "typescript.CanonicalProjectionStore",
+    "worker_and_lease": "python.WorkerPoolStore/worker runtime",
+    "failure_and_watchdog": "python.RuntimeWatchdog/fault runtime",
+    "recovery_plan_and_idempotency": "python.RecoveryPlanner/recovery stores",
+    "scheduler_route_and_placement": "python.ResourceScheduler/provider control",
+    "artifact_and_tool_facts": "existing M1 artifact/tool owners",
+    "derived_timeline": "typescript.selectWorkerCausalTimeline",
+    "transient_filter_window_selection": "typescript.TimelineWorkbenchController"
+  },
+  "read_path": [
+    "RuntimeEventSpine",
+    "TaskEventTransport/EventIngressCoordinator",
+    "CanonicalProjectionStore",
+    "selectWorkerCausalTimeline",
+    "TimelineWorkbenchController",
+    "task-detail WorkerCausalTimelineWorkbench"
+  ],
+  "verification": {
+    "focused_web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test/worker-causal-timeline.test.ts",
+      "passed": 12,
+      "failed": 0,
+      "assertions": 100
+    },
+    "adjacent_web_regression": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test/canonical-projection-store.test.ts ./apps/web/test/topology-projection.test.ts ./apps/web/test/topology-interaction.test.ts ./apps/web/test/workbench-shell.test.tsx",
+      "passed": 69,
+      "failed": 0,
+      "assertions": 382
+    },
+    "real_m1_integration_and_regression": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_worker_causal_timeline_projection.py tests/scenarios/test_m5_scheduler_fault_recovery.py -q",
+      "passed": 3,
+      "failed": 0
+    },
+    "web_typecheck": {
+      "command": "node_modules/.bin/bun.exe run typecheck:web",
+      "passed": true
+    },
+    "production_build": {
+      "command": "node_modules/.bin/bun.exe run build:web",
+      "passed": true,
+      "bundled_modules": 153
+    },
+    "effective_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s02b_01_effective_lines.mjs --summary",
+      "passed": true,
+      "effective_production": 6836
+    },
+    "source_ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_worker_causal_timeline_source_ledger.py --check",
+      "passed": true,
+      "decision_count": 6,
+      "entry_count": 6,
+      "missing_targets": 0
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S02B-01-worker-causal-timeline-projection.json --base 0980c52e1a0624a06501ccd0c39a723e624c95e3 --target 636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+      "passed": true,
+      "production_roles": 4
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "passed": true
+    }
+  },
+  "semantic_effects": [
+    "All ten required worker phases are derived from event-local facts and immutable worker epochs.",
+    "Explicit causation, span, tool, artifact, failure, recovery, mutation, sequence and replacement relations produce one guarded causal graph.",
+    "Failure and recovery retain separate stable rows even when the latest canonical recovery entity points back to the failure.",
+    "Critical path is computed over the full causal DAG with deterministic cycle breaking and never over the filtered subset.",
+    "Filters preserve hidden ancestor and descendant ranges as causal gap summaries.",
+    "Worker lease replacement creates a new epoch and never rewrites the terminal history of the previous epoch.",
+    "Browser action, result and state events group by stable step identity; missing results stay partial and errors stay attached.",
+    "Background jobs retain park and revive lineage; duplicate recovery terminals collapse without collapsing distinct attempts.",
+    "TaskDetail mounts the workbench on the production detail route and the controller changes only transient view state.",
+    "Disabling the dedicated projector throws timeline_projection_disabled while CanonicalProjectionStore remains available."
+  ],
+  "real_event_integration": {
+    "producer_path": "zyra_orchestration.run_task_graph + zyra_symbolic.apply_failure_injection",
+    "facts": [
+      "real topology_route and resource_decision worker dispatches",
+      "real execute node running and completed updates",
+      "real node_failed event",
+      "real replacement route and resource decision",
+      "real recovery_planned event from the recovery planner"
+    ],
+    "consumer_path": "normalizeEventFrame -> CanonicalProjectionStore.apply -> buildWorkerCausalTimeline",
+    "fixture_only": false,
+    "disabled_path_verified": true
+  },
+  "dependency_scan": {
+    "parent_source_runtime_dependencies_added": 0,
+    "npm_links_added": 0,
+    "editable_parent_paths_added": 0,
+    "external_docker_contexts_added": 0,
+    "package_or_lockfile_changes": 0,
+    "new_dependencies": 0,
+    "new_production_processes": 0,
+    "new_local_ports": 0,
+    "new_mcp_servers": 0,
+    "dynamic_package_imports": 0,
+    "cache_or_residual_state_dependencies": 0,
+    "openclaw_reads_or_dependencies": 0
+  },
+  "generic_ledger_verifier": {
+    "command": ".venv/Scripts/python.exe scripts/verify_internalization_ledger.py --base 0980c52e1a0624a06501ccd0c39a723e624c95e3 --unit M2-S02B-01 --minimum-effective-lines 6000 --json",
+    "slice_line_count_ok": true,
+    "repository_wide_ok": false,
+    "pre_existing_blockers": 3,
+    "unchanged_file": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+    "unchanged_tokens": [
+      "../OpenHands",
+      "../browser-use",
+      "../claude-code-best"
+    ],
+    "introduced_by_slice": false
+  },
+  "large_file_review": {
+    "over_500_raw_additions": [
+      "causal-graph.ts",
+      "contracts.ts",
+      "drilldown.ts",
+      "event-reader.ts",
+      "event-reconciliation.ts",
+      "recovery-chain.ts",
+      "controller.ts",
+      "timeline-workbench.tsx",
+      "styles.css",
+      "worker-causal-timeline-probe.ts",
+      "worker-causal-timeline.test.ts"
+    ],
+    "over_20_percent_effective": [],
+    "high_exclusion_files_reviewed": true,
+    "maximum_effective_file": {
+      "path": "apps/web/src/features/timeline/projection/event-reader.ts",
+      "effective_lines": 944,
+      "share_percent": 13.81
+    }
+  },
+  "high_risk_upgrade": {
+    "triggered": false,
+    "reasons": [
+      "No public schema, event or persistence contract changed.",
+      "No canonical owner or transaction, lease, idempotency or restore semantics moved.",
+      "No global permission, scheduler, recovery, compact or fallback default changed.",
+      "No external dependency, process, port, MCP server, plugin or dynamic import was added."
+    ]
+  },
+  "parent_status": {
+    "parent_complete": false,
+    "current_slice_effective_production": 6836,
+    "parent_minimum": 12000,
+    "remaining_slice": "M2-S02B-02",
+    "residual_effective_target": 5164
+  },
+  "deferred_verification": {
+    "layer": "M2-02 numeric-stage aggregate after M2-S02B-02",
+    "items": [
+      "full cleanroom",
+      "full repository test suite",
+      "numeric-stage source-to-target and ledger aggregation",
+      "independent aggregate critical review",
+      "parent M2-02B 12000-line closure"
+    ]
+  },
+  "next_entry": "M2-S02B-02"
+}
