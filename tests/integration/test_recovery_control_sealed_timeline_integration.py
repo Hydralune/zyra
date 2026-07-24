@@ -427,6 +427,7 @@ def _api(root: Path) -> Iterator[str]:
     api_main._WORKER_POOL_API = None
     api_main._WORKER_POOL_RUNTIME = None
     api_main._WORKER_POOL_KEY = None
+    api_main.reset_control_runtime()
     api_main.reset_subagent_runtime()
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0),
@@ -445,6 +446,7 @@ def _api(root: Path) -> Iterator[str]:
         api_main._WORKER_POOL_API = None
         api_main._WORKER_POOL_RUNTIME = None
         api_main._WORKER_POOL_KEY = None
+        api_main.reset_control_runtime()
         api_main.reset_subagent_runtime()
         for name, value in previous.items():
             if value is None:
