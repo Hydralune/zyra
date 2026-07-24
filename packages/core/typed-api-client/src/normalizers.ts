@@ -472,13 +472,32 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.taskArtifactMetadata,
     (value) => ({ ...responseRecord(value, "artifact metadata response") }),
   )
-  registry.register(
-    CONTRACT_NAMES.taskArtifactContent,
-    (value) => ({ ...responseRecord(value, "artifact content response") }),
-  )
+  // Metadata and ranged content intentionally share zyra.artifact-read.v2.
+  // One contract owns one normalizer; both endpoints receive the same bounded
+  // record projection without attempting a duplicate registry mutation.
   registry.register(
     CONTRACT_NAMES.taskArtifactReceipts,
     (value) => ({ ...responseRecord(value, "artifact receipts response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskDiffReviewManifest,
+    (value) => ({ ...responseRecord(value, "diff review manifest response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskDiffReviewPage,
+    (value) => ({ ...responseRecord(value, "diff review page response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskDiffReviewFileContent,
+    (value) => ({ ...responseRecord(value, "diff review file content response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskDiffReviewComment,
+    (value) => ({ ...responseRecord(value, "diff review comment response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskDiffReviewTransaction,
+    (value) => ({ ...responseRecord(value, "diff review transaction response") }),
   )
 }
 

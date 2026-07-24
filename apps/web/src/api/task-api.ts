@@ -116,6 +116,45 @@ export interface ArtifactReadApiOptions {
   timeoutMs?: number
 }
 
+export interface DiffReviewReadOptions {
+  revision?: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface DiffReviewPageOptions extends DiffReviewReadOptions {
+  page: number
+  maximumBytes: number
+  maximumLines: number
+}
+
+export interface DiffReviewFileContentOptions extends DiffReviewReadOptions {
+  version: "base" | "current"
+}
+
+export interface DiffReviewCommentInput {
+  revision: string
+  diffId: string
+  action: "select" | "comment" | "comment_update" | "comment_resolve"
+  selection: Readonly<Record<string, unknown>>
+  body: string
+  commentId?: string
+  expectedReviewRevision: number
+  actorId: string
+  causationId: string
+  sealed?: boolean
+  permissionPermitId?: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface DiffReviewMutationOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+  idempotencyKey: string
+  causationId: string
+}
+
 function normalizedLimit(value: number | undefined): number {
   if (value === undefined) return 100
   if (!Number.isFinite(value)) throw new TypeError("Task list limit must be finite")
@@ -129,6 +168,18 @@ function goalValue(value: string): string {
     throw new TypeError("Task goal exceeds 256 KiB")
   }
   return goal
+}
+
+function diffReviewIdentity(value: unknown, label: string): string {
+  const normalized = String(value ?? "").trim()
+  if (
+    normalized.length < 1
+    || normalized.length > 255
+    || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~-]*$/.test(normalized)
+  ) {
+    throw new TypeError(`${label} is not a valid diff-review identity`)
+  }
+  return normalized
 }
 
 function reasonValue(value: string | undefined): string {
@@ -296,6 +347,24 @@ function artifactCatalogKey(options: ArtifactCatalogApiOptions): string {
     createdBefore: options.createdBefore ?? "",
     includeDeleted: options.includeDeleted === true,
   })
+}
+
+function boundedDiffReviewInteger(
+  value: number,
+  name: string,
+  minimum: number,
+  maximum: number,
+): number {
+  if (
+    !Number.isSafeInteger(value)
+    || value < minimum
+    || value > maximum
+  ) {
+    throw new TypeError(
+      `${name} must be an integer from ${minimum} through ${maximum}`,
+    )
+  }
+  return value
 }
 
 export class TaskApi {
@@ -554,6 +623,272 @@ export class TaskApi {
         latestWins: true,
       },
     )
+    return response.data
+  }
+
+  async diffReviewManifest(
+    taskId: string,
+    artifactId: string,
+    options: DiffReviewReadOptions = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const revision = optionalArtifactRevision(options.revision)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskDiffReviewManifest,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+        },
+        query: { revision },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.diff-review.manifest:${normalizedTaskId}:`
+          + `${normalizedArtifactId}:${revision ?? "canonical"}`,
+        latestWins: true,
+      },
+    )
+    return response.data
+  }
+
+  async diffReviewPage(
+    taskId: string,
+    artifactId: string,
+    fileId: string,
+    options: DiffReviewPageOptions,
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const normalizedFileId = diffReviewIdentity(fileId, "Diff file")
+    const revision = optionalArtifactRevision(options.revision)
+    const page = boundedDiffReviewInteger(
+      options.page,
+      "diff page",
+      0,
+      100_000,
+    )
+    const maximumBytes = boundedDiffReviewInteger(
+      options.maximumBytes,
+      "diff page bytes",
+      1_024,
+      8 * 1_024 * 1_024,
+    )
+    const maximumLines = boundedDiffReviewInteger(
+      options.maximumLines,
+      "diff page lines",
+      1,
+      100_000,
+    )
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskDiffReviewPage,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+          file_id: normalizedFileId,
+        },
+        query: {
+          revision,
+          page,
+          maximum_bytes: maximumBytes,
+          maximum_lines: maximumLines,
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.diff-review.page:${normalizedTaskId}:${normalizedArtifactId}:`
+          + `${normalizedFileId}:${revision ?? "canonical"}:${page}:`
+          + `${maximumBytes}:${maximumLines}`,
+        deduplicate: true,
+      },
+    )
+    return response.data
+  }
+
+  async diffReviewFileContent(
+    taskId: string,
+    artifactId: string,
+    fileId: string,
+    options: DiffReviewFileContentOptions,
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const normalizedFileId = diffReviewIdentity(fileId, "Diff file")
+    const revision = optionalArtifactRevision(options.revision)
+    if (options.version !== "base" && options.version !== "current") {
+      throw new TypeError("Diff file content version is invalid")
+    }
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskDiffReviewFileContent,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+          file_id: normalizedFileId,
+        },
+        query: {
+          revision,
+          version: options.version,
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.diff-review.file-content:${normalizedTaskId}:`
+          + `${normalizedArtifactId}:${normalizedFileId}:`
+          + `${revision ?? "canonical"}:${options.version}`,
+        latestWins: options.version === "current",
+        deduplicate: options.version === "base",
+      },
+    )
+    return response.data
+  }
+
+  async diffReviewComment(
+    taskId: string,
+    artifactId: string,
+    input: DiffReviewCommentInput,
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const causationId = diffReviewIdentity(input.causationId, "Causation")
+    const idempotencyKey = normalizeIdempotencyKey(
+      createIdempotencyKey(
+        "task.diff-review.comment",
+        {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        `${input.diffId}:${input.action}:${input.expectedReviewRevision}:${causationId}`,
+      ),
+    )
+    const response = await this.#client.endpoint<
+      Record<string, unknown>,
+      Record<string, unknown>
+    >(OPERATION_NAMES.taskDiffReviewComment, {
+      path: {
+        task_id: normalizedTaskId,
+        artifact_id: normalizedArtifactId,
+      },
+      body: {
+        schema: "zyra.diff-review-comment-request.v1",
+        artifact_revision: optionalArtifactRevision(input.revision),
+        diff_id: diffReviewIdentity(input.diffId, "Diff"),
+        action: input.action,
+        selection: input.selection,
+        body: input.body,
+        comment_id: input.commentId,
+        expected_review_revision: boundedDiffReviewInteger(
+          input.expectedReviewRevision,
+          "review revision",
+          0,
+          Number.MAX_SAFE_INTEGER,
+        ),
+        actor_id: diffReviewIdentity(input.actorId, "Actor"),
+        causation_id: causationId,
+        session_id: `console:${normalizedTaskId}`,
+        session_revision: 0,
+        worker_request_id: `console-diff-review:${normalizedTaskId}`,
+        tool_call_id: causationId,
+        sealed: Boolean(input.sealed),
+        permission_permit_id: input.permissionPermitId,
+      },
+      binding: {
+        taskId: normalizedTaskId,
+        artifactId: normalizedArtifactId,
+      },
+      idempotencyKey,
+      causationId,
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
+      coordinationKey:
+        `task.diff-review.comment:${normalizedTaskId}:`
+        + `${normalizedArtifactId}:${idempotencyKey}`,
+      deduplicate: true,
+    })
+    return response.data
+  }
+
+  async diffReviewApply(
+    taskId: string,
+    artifactId: string,
+    body: unknown,
+    options: DiffReviewMutationOptions,
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const idempotencyKey = normalizeIdempotencyKey(options.idempotencyKey)
+    const causationId = diffReviewIdentity(options.causationId, "Causation")
+    const response = await this.#client.endpoint<
+      Record<string, unknown>,
+      unknown
+    >(OPERATION_NAMES.taskDiffReviewApply, {
+      path: {
+        task_id: normalizedTaskId,
+        artifact_id: normalizedArtifactId,
+      },
+      body,
+      binding: {
+        taskId: normalizedTaskId,
+        artifactId: normalizedArtifactId,
+      },
+      idempotencyKey,
+      causationId,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      coordinationKey:
+        `task.diff-review.apply:${normalizedTaskId}:`
+        + `${normalizedArtifactId}:${idempotencyKey}`,
+      deduplicate: true,
+    })
+    return response.data
+  }
+
+  async diffReviewRollback(
+    taskId: string,
+    transactionId: string,
+    body: unknown,
+    options: DiffReviewMutationOptions,
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedTransactionId = diffReviewIdentity(
+      transactionId,
+      "Workspace transaction",
+    )
+    const idempotencyKey = normalizeIdempotencyKey(options.idempotencyKey)
+    const causationId = diffReviewIdentity(options.causationId, "Causation")
+    const response = await this.#client.endpoint<
+      Record<string, unknown>,
+      unknown
+    >(OPERATION_NAMES.taskDiffReviewRollback, {
+      path: {
+        task_id: normalizedTaskId,
+        transaction_id: normalizedTransactionId,
+      },
+      body,
+      binding: { taskId: normalizedTaskId },
+      idempotencyKey,
+      causationId,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      coordinationKey:
+        `task.diff-review.rollback:${normalizedTaskId}:`
+        + `${normalizedTransactionId}:${idempotencyKey}`,
+      deduplicate: true,
+    })
     return response.data
   }
 

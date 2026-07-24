@@ -82,6 +82,12 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/content"),
     ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/download"),
     ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/receipts"),
+    ("GET", "/tasks/{task_id}/diff-reviews/{artifact_id}"),
+    ("GET", "/tasks/{task_id}/diff-reviews/{artifact_id}/files/{file_id}/hunks"),
+    ("GET", "/tasks/{task_id}/diff-reviews/{artifact_id}/files/{file_id}/content"),
+    ("POST", "/tasks/{task_id}/diff-reviews/{artifact_id}/comments"),
+    ("POST", "/tasks/{task_id}/diff-reviews/{artifact_id}/apply"),
+    ("POST", "/tasks/{task_id}/diff-reviews/transactions/{transaction_id}/rollback"),
     ("POST", "/tasks/{task_id}/faults/observations"),
     ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
     ("GET", "/tasks/{task_id}/recovery"),
@@ -117,6 +123,11 @@ from .artifact_api import (
     ArtifactReadAudit,
     ArtifactReadQuery,
     find_task_artifact,
+)
+from .diff_review_api import (
+    DiffReviewApiError,
+    DiffReviewApiService,
+    DiffReviewRegistry,
 )
 
 from zyra_core import (
@@ -2150,6 +2161,7 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     reset_memory_curator_runtime()
     reset_worker_pool_api()
     reset_runtime_event_spine_bridge()
+    reset_diff_review_api()
 
 
 def get_code_index_service() -> CodeIndexApiService:
@@ -2209,6 +2221,49 @@ def artifact_catalog_service() -> ArtifactCatalogService:
         store=LocalArtifactStore(artifact_root_path()),
         audit=_ARTIFACT_READ_AUDIT,
     )
+
+
+_DIFF_REVIEW_API_LOCK = threading.RLock()
+_DIFF_REVIEW_API_INSTANCE: DiffReviewApiService | None = None
+_DIFF_REVIEW_API_KEY: tuple[int, str, bool] | None = None
+
+
+def get_diff_review_api() -> DiffReviewApiService:
+    global _DIFF_REVIEW_API_INSTANCE, _DIFF_REVIEW_API_KEY
+    manager = get_workspace_manager()
+    disabled = os.environ.get("ZYRA_DIFF_REVIEW_DISABLED", "").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    root = str(artifact_root_path().resolve())
+    key = (id(manager), root, disabled)
+    with _DIFF_REVIEW_API_LOCK:
+        if _DIFF_REVIEW_API_INSTANCE is None or _DIFF_REVIEW_API_KEY != key:
+            artifact_store = LocalArtifactStore(artifact_root_path())
+            _DIFF_REVIEW_API_INSTANCE = DiffReviewApiService(
+                artifact_service=ArtifactCatalogService(
+                    store=artifact_store,
+                    audit=_ARTIFACT_READ_AUDIT,
+                ),
+                workspace_manager=manager,
+                permission_port=get_mcp_runtime(),
+                registry=DiffReviewRegistry(maximum_sessions=128),
+                artifact_store=artifact_store,
+                enabled=not disabled,
+            )
+            _DIFF_REVIEW_API_KEY = key
+        return _DIFF_REVIEW_API_INSTANCE
+
+
+def reset_diff_review_api() -> None:
+    global _DIFF_REVIEW_API_INSTANCE, _DIFF_REVIEW_API_KEY
+    with _DIFF_REVIEW_API_LOCK:
+        if _DIFF_REVIEW_API_INSTANCE is not None:
+            _DIFF_REVIEW_API_INSTANCE.registry.clear()
+        _DIFF_REVIEW_API_INSTANCE = None
+        _DIFF_REVIEW_API_KEY = None
 
 
 _M1_HARDENING_API_LOCK = threading.RLock()
@@ -6015,6 +6070,109 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, _scheduler_task_view(state, store))
             return
 
+        if len(parts) >= 4 and parts[0] == "tasks" and parts[2] == "diff-reviews":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            artifact_id = parts[3]
+            artifact = find_task_artifact(state.artifacts, artifact_id)
+            if artifact is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": "artifact_not_found",
+                        "task_id": state.task_id,
+                        "artifact_id": artifact_id,
+                    },
+                )
+                return
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            revision = _optional_query_value(query, "revision") or ""
+            try:
+                if len(parts) == 4:
+                    response = get_diff_review_api().manifest(
+                        task_id=state.task_id,
+                        run_id=state.run_id,
+                        artifact=artifact,
+                        revision=revision,
+                    )
+                elif (
+                    len(parts) == 7
+                    and parts[4] == "files"
+                    and parts[6] == "hunks"
+                ):
+                    response = get_diff_review_api().page(
+                        task_id=state.task_id,
+                        run_id=state.run_id,
+                        artifact=artifact,
+                        file_id=parts[5],
+                        revision=revision,
+                        page_index=max(
+                            0,
+                            int(_optional_query_value(query, "page") or 0),
+                        ),
+                        maximum_bytes=max(
+                            1_024,
+                            min(
+                                8 * 1_024 * 1_024,
+                                int(
+                                    _optional_query_value(query, "maximum_bytes")
+                                    or 8 * 1_024 * 1_024
+                                ),
+                            ),
+                        ),
+                        maximum_lines=max(
+                            1,
+                            min(
+                                100_000,
+                                int(
+                                    _optional_query_value(query, "maximum_lines")
+                                    or 100_000
+                                ),
+                            ),
+                        ),
+                    )
+                elif (
+                    len(parts) == 7
+                    and parts[4] == "files"
+                    and parts[6] == "content"
+                ):
+                    response = get_diff_review_api().file_content(
+                        task_id=state.task_id,
+                        run_id=state.run_id,
+                        artifact=artifact,
+                        file_id=parts[5],
+                        revision=revision,
+                        version=_optional_query_value(query, "version") or "",
+                    )
+                else:
+                    self._send_json(
+                        HTTPStatus.NOT_FOUND,
+                        {"error": "diff_review_route_not_found", "path": parsed.path},
+                    )
+                    return
+            except (DiffReviewApiError, ArtifactApiError) as error:
+                status = HTTPStatus(getattr(error, "status", HTTPStatus.BAD_REQUEST))
+                self._send_json(status, error.response())
+                return
+            except (ValueError, WorkspaceError) as error:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "diff_review_request_invalid",
+                        "message": str(error),
+                        "fallback": False,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus(response.status),
+                dict(response.body),
+                headers=dict(response.headers),
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "artifacts":
             state = store.load_task(parts[1])
             if state is None:
@@ -6178,6 +6336,83 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
+            return
+
+        if len(parts) >= 5 and parts[0] == "tasks" and parts[2] == "diff-reviews":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            try:
+                if (
+                    len(parts) == 5
+                    and parts[3] != "transactions"
+                    and parts[4] in {"comments", "apply"}
+                ):
+                    artifact = find_task_artifact(state.artifacts, parts[3])
+                    if artifact is None:
+                        self._send_json(
+                            HTTPStatus.NOT_FOUND,
+                            {
+                                "error": "artifact_not_found",
+                                "task_id": state.task_id,
+                                "artifact_id": parts[3],
+                            },
+                        )
+                        return
+                    response = (
+                        get_diff_review_api().review(
+                            task_id=state.task_id,
+                            run_id=state.run_id,
+                            artifact=artifact,
+                            payload=payload,
+                        )
+                        if parts[4] == "comments"
+                        else get_diff_review_api().apply(
+                            task_id=state.task_id,
+                            run_id=state.run_id,
+                            artifact=artifact,
+                            payload=payload,
+                        )
+                    )
+                elif (
+                    len(parts) == 6
+                    and parts[3] == "transactions"
+                    and parts[5] == "rollback"
+                ):
+                    response = get_diff_review_api().rollback(
+                        task_id=state.task_id,
+                        run_id=state.run_id,
+                        transaction_id=parts[4],
+                        payload=payload,
+                    )
+                else:
+                    self._send_json(
+                        HTTPStatus.NOT_FOUND,
+                        {"error": "diff_review_route_not_found", "path": parsed.path},
+                    )
+                    return
+            except (DiffReviewApiError, ArtifactApiError) as error:
+                status = HTTPStatus(getattr(error, "status", HTTPStatus.BAD_REQUEST))
+                self._send_json(status, error.response())
+                return
+            except WorkspaceError as error:
+                mapped = workspace_error_response(error)
+                self._send_json(mapped.status, mapped.body, headers=dict(mapped.headers))
+                return
+            if response.events:
+                persist_events(store, list(response.events))
+            response_headers = dict(response.headers)
+            receipt_id = str(response.body.get("receipt_id") or "")
+            if receipt_id:
+                response_headers["X-Zyra-Receipt-Id"] = receipt_id
+            if response.body.get("idempotent_replay") is True:
+                response_headers["X-Zyra-Receipt-Replayed"] = "true"
+            self._send_json(
+                HTTPStatus(response.status),
+                dict(response.body),
+                headers=response_headers,
+            )
             return
 
         worker_pool_task = (

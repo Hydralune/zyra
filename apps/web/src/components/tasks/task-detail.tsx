@@ -19,6 +19,7 @@ import { selectArtifactPanel } from "../../state/panel-selectors.ts"
 import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
 import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"
 import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbench.tsx"
+import { DiffReviewWorkbench } from "../../features/diff-review/view/diff-review-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -287,6 +288,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       >
         <ArtifactWorkbench runtime={runtime} taskId={task.taskId} />
       </section>
+
+      <DiffReviewWorkbench runtime={runtime} task={task} />
     </div>
   )
 }

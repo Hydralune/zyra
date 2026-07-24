@@ -3691,3 +3691,471 @@ kbd {
     grid-column: 1 / -1;
   }
 }
+
+.diff-review-workbench {
+  overflow: hidden;
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.diff-review-header,
+.diff-review-toolbar,
+.diff-review-sidebar-heading,
+.diff-review-comment-composer,
+.diff-review-transaction-actions,
+.diff-review-permit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.diff-review-header {
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-review-header h3,
+.diff-review-header p {
+  margin: 0;
+}
+
+.diff-review-header p,
+.diff-review-file-progress,
+.diff-review-empty {
+  color: var(--muted);
+}
+
+.diff-review-header-actions,
+.diff-review-transaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diff-review-artifact-selector {
+  display: grid;
+  min-width: min(360px, 45vw);
+  gap: 4px;
+}
+
+.diff-review-artifact-selector label,
+.diff-review-permit label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diff-review-artifact-selector select,
+.diff-review-search input,
+.diff-review-comment-composer textarea,
+.diff-review-permit input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.diff-review-artifact-selector select,
+.diff-review-search input,
+.diff-review-permit input {
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
+.diff-review-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  min-height: 620px;
+}
+
+.diff-review-sidebar {
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+
+.diff-review-sidebar-heading {
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-review-file-list {
+  display: grid;
+  overflow: auto;
+  max-height: 720px;
+}
+
+.diff-review-file {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.diff-review-file:hover,
+.diff-review-file.is-active {
+  background: color-mix(in srgb, var(--surface-raised) 78%, var(--accent) 22%);
+}
+
+.diff-review-file.is-active {
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.diff-kind {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  font-weight: 700;
+}
+
+.diff-kind-added {
+  color: var(--success);
+}
+
+.diff-kind-deleted {
+  color: var(--danger);
+}
+
+.diff-kind-renamed {
+  color: var(--warning);
+}
+
+.diff-review-file-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.diff-review-file-copy strong,
+.diff-review-file-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-review-main {
+  min-width: 0;
+}
+
+.diff-review-toolbar {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.diff-review-toggle-group {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.diff-review-toggle-group button {
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+}
+
+.diff-review-toggle-group button:last-child {
+  border-right: 0;
+}
+
+.diff-review-toggle-group button.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.diff-review-search {
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 6px;
+}
+
+.diff-review-search input {
+  width: 100%;
+}
+
+.diff-review-viewport {
+  position: relative;
+  overflow: auto;
+  height: min(70vh, 720px);
+  min-height: 420px;
+  background: var(--code-background, #101216);
+  color: var(--code-foreground, #e6e9ef);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  contain: strict;
+}
+
+.diff-review-virtual-canvas {
+  position: relative;
+  min-width: 720px;
+}
+
+.diff-row {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: grid;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+.diff-row.is-focused {
+  outline: 2px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  outline-offset: -2px;
+}
+
+.diff-file-header,
+.diff-hunk-header,
+.diff-fold-row,
+.diff-status-row {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.diff-file-header {
+  background: #1b2130;
+  font-weight: 700;
+}
+
+.diff-hunk-header {
+  background: #17253a;
+  color: #9fc9ff;
+}
+
+.diff-fold-row {
+  place-items: center;
+  background: #161b24;
+  color: #8792a5;
+}
+
+.diff-line-row {
+  grid-template-columns: 62px 62px 22px minmax(0, 1fr);
+  white-space: pre;
+}
+
+.diff-line-number {
+  overflow: hidden;
+  padding: 3px 8px;
+  border-right: 1px solid rgb(255 255 255 / 0.06);
+  color: #7f8a9d;
+  text-align: right;
+  user-select: none;
+}
+
+.diff-line-marker {
+  padding: 3px 7px;
+  text-align: center;
+  user-select: none;
+}
+
+.diff-line-row > code,
+.diff-split-cell > code {
+  overflow: hidden;
+  padding: 3px 8px;
+  text-overflow: ellipsis;
+}
+
+.diff-line-added,
+.diff-split-cell.diff-line-added {
+  background: rgb(54 179 126 / 0.18);
+}
+
+.diff-line-deleted,
+.diff-split-cell.diff-line-deleted {
+  background: rgb(255 86 86 / 0.17);
+}
+
+.diff-line-row.is-selected,
+.diff-split-cell.is-selected {
+  box-shadow: inset 0 0 0 2px rgb(91 158 255 / 0.85);
+}
+
+.diff-line-row.has-comment,
+.diff-split-cell.has-comment {
+  box-shadow: inset 4px 0 #d5a73d;
+}
+
+.diff-no-newline {
+  padding: 3px 8px;
+  color: var(--warning);
+  font-style: italic;
+}
+
+.diff-split-row {
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+}
+
+.diff-split-cell {
+  display: grid;
+  grid-template-columns: 62px 22px minmax(0, 1fr);
+  border-right: 1px solid rgb(255 255 255 / 0.12);
+  white-space: pre;
+}
+
+.diff-line-empty {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.02),
+    rgb(255 255 255 / 0.02) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.diff-review-comments,
+.diff-review-transaction {
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.diff-review-comments-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.diff-review-comment {
+  border-left: 3px solid var(--accent);
+  padding: 8px 10px;
+  background: var(--surface-raised);
+}
+
+.diff-review-comment-resolved {
+  opacity: 0.68;
+  border-left-color: var(--muted);
+}
+
+.diff-review-comment-composer {
+  align-items: flex-end;
+}
+
+.diff-review-comment-composer textarea {
+  flex: 1;
+  min-height: 72px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.diff-review-preflight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.diff-review-preflight-grid > div,
+.diff-review-transaction-facts,
+.diff-review-permit {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: var(--surface-raised);
+}
+
+.diff-review-transaction-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.diff-review-transaction-facts div {
+  min-width: 0;
+}
+
+.diff-review-transaction-facts dt {
+  color: var(--muted);
+}
+
+.diff-review-transaction-facts dd {
+  overflow-wrap: anywhere;
+  margin: 2px 0 0;
+}
+
+.diff-review-permit {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.diff-review-permit input {
+  flex: 1 1 240px;
+}
+
+.diff-review-status {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.diff-review-status-failed,
+.diff-review-status-disconnected {
+  color: var(--danger);
+}
+
+.diff-review-status-committed,
+.diff-review-status-rolled-back {
+  color: var(--success);
+}
+
+.diff-review-empty {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .diff-review-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .diff-review-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .diff-review-file-list {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    max-height: 280px;
+  }
+}
+
+@media (max-width: 620px) {
+  .diff-review-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .diff-review-artifact-selector {
+    min-width: 0;
+  }
+
+  .diff-review-toolbar {
+    align-items: stretch;
+  }
+
+  .diff-review-search {
+    flex-basis: 100%;
+  }
+}
