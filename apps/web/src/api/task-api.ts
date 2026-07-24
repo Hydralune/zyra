@@ -212,10 +212,103 @@ export interface TerminalKillInput {
   timeoutMs?: number
 }
 
+export interface BrowserObservabilityOptions {
+  view?:
+    | "summary"
+    | "history"
+    | "trace"
+    | "health"
+    | "downloads"
+    | "screenshots"
+    | "artifacts"
+    | "replay"
+    | "integration"
+    | "trajectory"
+    | "commits"
+  browserSessionId?: string
+  workerRequestId?: string
+  limit?: number
+  afterSequence?: number
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface BrowserControlInput {
+  taskId: string
+  runId: string
+  browserSessionId: string
+  workerRequestId?: string
+  actionId?: string
+  action: "navigate" | "stop" | "retry" | "inspect"
+  commandId: string
+  requestId: string
+  actorId: string
+  reason: string
+  url?: string
+  retryAction?: Readonly<Record<string, unknown>>
+  expectedGeneration?: number
+  expectedTaskRevision?: number
+  sealed?: boolean
+  idempotencyKey: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 function normalizedLimit(value: number | undefined): number {
   if (value === undefined) return 100
   if (!Number.isFinite(value)) throw new TypeError("Task list limit must be finite")
   return Math.min(1_000, Math.max(1, Math.floor(value)))
+}
+
+function browserObservabilityLimit(value: number | undefined): number {
+  if (value === undefined) return 100
+  if (!Number.isSafeInteger(value) || value < 0 || value > 5_000) {
+    throw new TypeError(
+      "Browser observability limit must be an integer from 0 through 5000.",
+    )
+  }
+  return value
+}
+
+function browserObservabilitySequence(value: number | undefined): number {
+  if (value === undefined) return 0
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError(
+      "Browser observability sequence must be a non-negative safe integer.",
+    )
+  }
+  return value
+}
+
+function browserControlRevision(
+  value: number | undefined,
+  label: string,
+): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError(`${label} must be a non-negative safe integer.`)
+  }
+  return value
+}
+
+function browserControlReason(value: string): string {
+  const normalized = String(value || "").trim()
+  if (!normalized) throw new TypeError("Browser control reason is required.")
+  if (new TextEncoder().encode(normalized).byteLength > 8 * 1024) {
+    throw new TypeError("Browser control reason exceeds 8 KiB.")
+  }
+  return normalized
+}
+
+function browserControlUrl(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const parsed = new URL(String(value).trim())
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new TypeError("Browser control URL must use http or https.")
+  }
+  parsed.username = ""
+  parsed.password = ""
+  return parsed.toString()
 }
 
 function goalValue(value: string): string {
@@ -681,6 +774,150 @@ export class TaskApi {
       },
     )
     return response.data
+  }
+
+  async browserObservability(
+    taskId: string,
+    options: BrowserObservabilityOptions = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const browserSessionId = options.browserSessionId
+      ? normalizeIdentity("session", options.browserSessionId)
+      : undefined
+    const workerRequestId = options.workerRequestId
+      ? normalizeIdentity("request", options.workerRequestId)
+      : undefined
+    const view = options.view ?? "summary"
+    const limit = browserObservabilityLimit(options.limit)
+    const afterSequence = browserObservabilitySequence(options.afterSequence)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskBrowserObservability,
+      {
+        path: { task_id: normalizedTaskId },
+        query: {
+          view,
+          browser_session_id: browserSessionId,
+          worker_request_id: workerRequestId,
+          limit,
+          after_sequence: afterSequence,
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          sessionId: browserSessionId,
+          requestId: workerRequestId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.browser-observability:${normalizedTaskId}:${view}:`
+          + `${browserSessionId ?? "*"}:${workerRequestId ?? "*"}:`
+          + `${afterSequence}:${limit}`,
+        latestWins: true,
+      },
+    )
+    return response.data
+  }
+
+  async browserControl(
+    input: BrowserControlInput,
+  ): Promise<Record<string, unknown>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const browserSessionId = normalizeIdentity(
+      "session",
+      input.browserSessionId,
+    )
+    const workerRequestId = input.workerRequestId
+      ? normalizeIdentity("request", input.workerRequestId)
+      : undefined
+    const actionId = input.actionId
+      ? diffReviewIdentity(input.actionId, "browser action")
+      : undefined
+    const commandId = diffReviewIdentity(input.commandId, "browser command")
+    const requestId = normalizeIdentity("request", input.requestId)
+    const actorId = diffReviewIdentity(input.actorId, "browser actor")
+    const expectedGeneration = browserControlRevision(
+      input.expectedGeneration,
+      "Browser expected generation",
+    )
+    const expectedTaskRevision = browserControlRevision(
+      input.expectedTaskRevision,
+      "Browser expected task revision",
+    )
+    const url =
+      input.action === "navigate"
+        ? browserControlUrl(input.url)
+        : undefined
+    if (input.action === "navigate" && !url) {
+      throw new TypeError("Navigate requires an http or https URL.")
+    }
+    const retryAction =
+      input.action === "retry"
+        ? input.retryAction
+        : undefined
+    if (
+      input.action === "retry"
+      && (
+        !retryAction
+        || typeof retryAction.action !== "string"
+        || !retryAction.arguments
+        || typeof retryAction.arguments !== "object"
+        || Array.isArray(retryAction.arguments)
+      )
+    ) {
+      throw new TypeError("Retry requires one bounded prior browser action.")
+    }
+    const binding: IdentityBinding = {
+      taskId,
+      runId,
+      sessionId: browserSessionId,
+      requestId,
+      controlCommandId: commandId,
+    }
+    const body = {
+      run_id: runId,
+      session_id: browserSessionId,
+      idempotency_key: normalizeIdempotencyKey(input.idempotencyKey),
+      sealed: input.sealed === true,
+      competition_mode:
+        input.sealed === true ? "sealed_autonomous" : "interactive",
+      browser_viewer_control: {
+        schema: "zyra.browser-viewer.control.v1",
+        action: input.action,
+        command_id: commandId,
+        request_id: requestId,
+        actor_id: actorId,
+        reason: browserControlReason(input.reason),
+        browser_session_id: browserSessionId,
+        worker_request_id: workerRequestId,
+        action_id: actionId,
+        url,
+        retry_action: retryAction,
+        expected_generation: expectedGeneration,
+        expected_task_revision: expectedTaskRevision,
+        sealed: input.sealed === true,
+      },
+    }
+    const response = await this.#client.endpoint<
+      Record<string, unknown>,
+      typeof body
+    >(OPERATION_NAMES.taskBrowserControl, {
+      path: { task_id: taskId },
+      body,
+      binding,
+      idempotencyKey: body.idempotency_key,
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
+      coordinationKey:
+        `task.browser-control:${taskId}:${body.idempotency_key}`,
+      deduplicate: true,
+    })
+    return Object.freeze({
+      ...response.data,
+      status_code: response.raw.status,
+      receipt_replayed:
+        response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
+    })
   }
 
   async diffReviewManifest(

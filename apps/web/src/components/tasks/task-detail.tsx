@@ -21,6 +21,7 @@ import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/time
 import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbench.tsx"
 import { DiffReviewWorkbench } from "../../features/diff-review/view/diff-review-workbench.tsx"
 import { TerminalWorkbench } from "../../features/terminal/view/terminal-workbench.tsx"
+import { BrowserWorkbench } from "../../features/browser/view/browser-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -291,6 +292,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </section>
 
       <DiffReviewWorkbench runtime={runtime} task={task} />
+
+      <BrowserWorkbench runtime={runtime} task={task} />
 
       <TerminalWorkbench runtime={runtime} task={task} />
     </div>

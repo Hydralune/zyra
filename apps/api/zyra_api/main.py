@@ -2909,9 +2909,16 @@ def get_browser_runtime_services(
     workspace_gateway_required = False
     if task_id:
         manager = get_workspace_manager()
+        # Browser session identity belongs to BrowserRuntimeRegistry, not to
+        # WorkspaceBindingStore.  A task workspace is created against the
+        # task/query session and must remain shared across Chrome reconnects,
+        # popups, replacement process epochs, and viewer-selected browser
+        # sessions.  Passing the browser session here would incorrectly turn
+        # it into a second workspace owner and reject an otherwise valid task
+        # with workspace_not_found.
         workspace_access = manager.acquire_for_worker(
             task_id=task_id,
-            session_id=session_id,
+            session_id="",
             worker_id=worker_id,
         )
         workspace_root = manager.internal_task_root(workspace_access)
@@ -2954,6 +2961,226 @@ def _browser_projection_payload(projection: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return {"value": value}
+
+
+def _task_is_sealed_browser_viewer_control(
+    state: Any,
+    payload: Mapping[str, Any],
+    control: Mapping[str, Any],
+) -> bool:
+    metadata = state.metadata if isinstance(getattr(state, "metadata", None), dict) else {}
+    mode = str(
+        control.get("competition_mode")
+        or payload.get("competition_mode")
+        or metadata.get("competition_mode")
+        or metadata.get("execution_mode")
+        or ""
+    ).strip().casefold()
+    return bool(
+        control.get("sealed")
+        or payload.get("sealed")
+        or metadata.get("sealed")
+        or metadata.get("sealed_autonomous")
+        or metadata.get("formal_benchmark")
+        or "sealed" in mode
+    )
+
+
+def _browser_viewer_control_request(
+    state: Any,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    raw = payload.get("browser_viewer_control")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("browser_viewer_control must be an object")
+    control = dict(raw)
+    if str(control.get("schema") or "") != "zyra.browser-viewer.control.v1":
+        raise ValueError("browser_viewer_control schema is unsupported")
+    action = str(control.get("action") or "").strip().casefold().replace("_", "-")
+    if action not in {"navigate", "stop", "retry", "inspect"}:
+        raise ValueError("browser_viewer_control action is unsupported")
+    command_id = str(control.get("command_id") or "").strip()
+    request_id = str(control.get("request_id") or "").strip()
+    actor_id = str(control.get("actor_id") or "zyra-web-browser").strip()
+    reason = str(control.get("reason") or "").strip()
+    browser_session_id = str(
+        control.get("browser_session_id")
+        or payload.get("session_id")
+        or state.metadata.get("query_session_id")
+        or f"task:{state.task_id}"
+    ).strip()
+    if not command_id or not request_id or not actor_id or not reason or not browser_session_id:
+        raise ValueError("browser_viewer_control identity and reason are required")
+    if any(len(value) > 512 for value in (command_id, request_id, actor_id, browser_session_id)):
+        raise ValueError("browser_viewer_control identity exceeds 512 characters")
+    if len(reason.encode("utf-8")) > 8 * 1024:
+        raise ValueError("browser_viewer_control reason exceeds 8 KiB")
+    url = str(control.get("url") or "").strip()
+    if action == "navigate":
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("browser_viewer_control navigate requires an http or https URL")
+        if parsed.username or parsed.password:
+            raise ValueError("browser_viewer_control URL credentials are forbidden")
+    retry_action = control.get("retry_action")
+    if action == "retry":
+        if not isinstance(retry_action, Mapping):
+            raise ValueError("browser_viewer_control retry requires one prior action")
+        retry_name = str(retry_action.get("action") or "").strip()
+        retry_arguments = retry_action.get("arguments")
+        if not retry_name or not isinstance(retry_arguments, Mapping):
+            raise ValueError("browser_viewer_control retry action is invalid")
+        if len(retry_arguments) > 128:
+            raise ValueError("browser_viewer_control retry arguments exceed 128 entries")
+        retry_action = {
+            "action": retry_name,
+            "arguments": dict(retry_arguments),
+            "retry_of_action_id": str(retry_action.get("retry_of_action_id") or "")[:512],
+            "expected_argument_digest": str(
+                retry_action.get("expected_argument_digest") or ""
+            )[:512],
+        }
+    expected_generation = control.get("expected_generation")
+    if expected_generation not in (None, ""):
+        expected_generation = int(expected_generation)
+        if expected_generation < 0:
+            raise ValueError("browser_viewer_control expected_generation cannot be negative")
+    else:
+        expected_generation = None
+    expected_task_revision = control.get("expected_task_revision")
+    if expected_task_revision not in (None, ""):
+        expected_task_revision = int(expected_task_revision)
+        if expected_task_revision < 0:
+            raise ValueError("browser_viewer_control expected_task_revision cannot be negative")
+    else:
+        expected_task_revision = None
+    normalized = {
+        "schema": "zyra.browser-viewer.control.v1",
+        "action": action,
+        "command_id": command_id,
+        "request_id": request_id,
+        "actor_id": actor_id,
+        "reason": reason,
+        "browser_session_id": browser_session_id,
+        "worker_request_id": str(control.get("worker_request_id") or "").strip()[:512],
+        "action_id": str(control.get("action_id") or "").strip()[:512],
+        "url": url,
+        "retry_action": retry_action,
+        "expected_generation": expected_generation,
+        "expected_task_revision": expected_task_revision,
+        "sealed": _task_is_sealed_browser_viewer_control(state, payload, control),
+    }
+    normalized["fingerprint"] = "sha256:" + hashlib.sha256(
+        json.dumps(
+            normalized,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    return normalized
+
+
+def _browser_viewer_execution_constraints(
+    control: Mapping[str, Any],
+) -> dict[str, Any]:
+    action = str(control["action"])
+    session_id = str(control["browser_session_id"])
+    constraints: dict[str, Any] = {
+        "session_id": session_id,
+        "canonical_session_id": session_id,
+        "browser_viewer_control_id": str(control["command_id"]),
+        "browser_viewer_control_request_id": str(control["request_id"]),
+        "browser_viewer_control_action": action,
+        "browser_viewer_control_actor_id": str(control["actor_id"]),
+        "browser_viewer_control_reason": str(control["reason"]),
+        "browser_viewer_control_fingerprint": str(control["fingerprint"]),
+    }
+    if control.get("expected_generation") is not None:
+        constraints["expected_generation"] = int(control["expected_generation"])
+    if action == "navigate":
+        constraints["browser_plan"] = [
+            {
+                "action": "open_url",
+                "arguments": {"url": str(control["url"])},
+            }
+        ]
+    elif action == "retry":
+        retry = control.get("retry_action")
+        if not isinstance(retry, Mapping):
+            raise ValueError("browser viewer retry payload disappeared after admission")
+        constraints["browser_plan"] = [
+            {
+                "action": str(retry["action"]),
+                "arguments": dict(retry["arguments"]),
+                "metadata": {
+                    "retry_of_action_id": str(retry.get("retry_of_action_id") or ""),
+                    "expected_argument_digest": str(
+                        retry.get("expected_argument_digest") or ""
+                    ),
+                    "bounded_retry": True,
+                },
+            }
+        ]
+    elif action == "stop":
+        constraints["browser_lifecycle_command"] = "stop"
+        constraints["browser_lifecycle_reason"] = str(control["reason"])
+    elif action == "inspect":
+        constraints["browser_lifecycle_command"] = "diagnose"
+    return constraints
+
+
+def _browser_viewer_receipt(
+    control: Mapping[str, Any],
+    *,
+    status: str,
+    event_ids: tuple[str, ...] = (),
+    mutation_ids: tuple[str, ...] = (),
+    artifact_ids: tuple[str, ...] = (),
+    worker_request_id: str = "",
+    lifecycle_receipt_id: str = "",
+    permission_request_id: str = "",
+    error_code: str = "",
+    error_message: str = "",
+    intervention_counted: bool = False,
+    human_intervention_count: int = 0,
+    manual_mutation_applied: bool = False,
+    approval_wait_entered: bool = False,
+    automatic_recovery_action: str = "",
+    replayed: bool = False,
+) -> dict[str, Any]:
+    return {
+        "schema": "zyra.browser-viewer.control.v1",
+        "action": str(control["action"]),
+        "command_id": str(control["command_id"]),
+        "request_id": str(control["request_id"]),
+        "idempotency_fingerprint": str(control["fingerprint"]),
+        "status": status,
+        "task_id": str(control.get("task_id") or ""),
+        "run_id": str(control.get("run_id") or ""),
+        "browser_session_id": str(control["browser_session_id"]),
+        "worker_request_id": worker_request_id or str(control.get("worker_request_id") or ""),
+        "action_id": str(control.get("action_id") or ""),
+        "event_ids": list(event_ids),
+        "mutation_ids": list(mutation_ids),
+        "artifact_ids": list(artifact_ids),
+        "lifecycle_receipt_id": lifecycle_receipt_id,
+        "permission_request_id": permission_request_id,
+        "error_code": error_code,
+        "error_message": error_message,
+        "retryable": status in {"timed_out", "stale"},
+        "sealed": bool(control.get("sealed")),
+        "intervention_counted": intervention_counted,
+        "human_intervention_count": max(0, int(human_intervention_count)),
+        "manual_mutation_applied": manual_mutation_applied,
+        "approval_wait_entered": approval_wait_entered,
+        "automatic_recovery_action": automatic_recovery_action,
+        "replayed": replayed,
+        "completed_at": now_iso(),
+    }
 
 
 def reset_browser_runtime(*, stop: bool = True) -> None:
@@ -8464,8 +8691,168 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
+            try:
+                viewer_control = _browser_viewer_control_request(state, payload)
+            except (TypeError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "invalid_browser_viewer_control",
+                        "message": str(error),
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            if viewer_control is not None:
+                viewer_control["task_id"] = state.task_id
+                viewer_control["run_id"] = state.run_id
+                sealed_receipts = state.metadata.setdefault(
+                    "sealed_browser_viewer_control_receipts",
+                    {},
+                )
+                if not isinstance(sealed_receipts, dict):
+                    sealed_receipts = {}
+                    state.metadata["sealed_browser_viewer_control_receipts"] = sealed_receipts
+                prior_sealed = sealed_receipts.get(viewer_control["command_id"])
+                if isinstance(prior_sealed, dict):
+                    if (
+                        str(prior_sealed.get("idempotency_fingerprint") or "")
+                        != str(viewer_control["fingerprint"])
+                    ):
+                        self._send_json(
+                            HTTPStatus.CONFLICT,
+                            {
+                                "error": "browser_viewer_control_idempotency_conflict",
+                                "browser_control_receipt": prior_sealed,
+                            },
+                            headers={"Cache-Control": "no-store, max-age=0"},
+                        )
+                        return
+                    replayed = dict(prior_sealed)
+                    replayed["replayed"] = True
+                    self._send_json(
+                        HTTPStatus.FORBIDDEN,
+                        {
+                            "ok": False,
+                            "sealed": True,
+                            "browser_control_receipt": replayed,
+                            "intervention_counted": True,
+                            "human_intervention_count": int(
+                                state.metadata.get("human_intervention_count") or 0
+                            ),
+                            "receipt_replayed": True,
+                        },
+                        headers={
+                            "Cache-Control": "no-store, max-age=0",
+                            "X-Zyra-Receipt-Replayed": "true",
+                        },
+                    )
+                    return
+                if bool(viewer_control["sealed"]):
+                    attempts = int(
+                        state.metadata.get("operator_intervention_attempt_count") or 0
+                    ) + 1
+                    state.metadata["operator_intervention_attempt_count"] = attempts
+                    human_count = int(
+                        state.metadata.get("human_intervention_count") or 0
+                    )
+                    event = EventRecord(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        node_id=state.root_node_id,
+                        event_type=EventType.CONTROL_COMMAND,
+                        payload={
+                            "browser_viewer_control": {
+                                **dict(viewer_control),
+                                "status": "denied",
+                                "error_code": "sealed_browser_viewer_control_denied",
+                                "error_message": (
+                                    "Sealed autonomous runs are read-only for "
+                                    "operator browser controls."
+                                ),
+                                "authorizes_execution": False,
+                                "manual_mutation_applied": False,
+                                "approval_wait_entered": False,
+                                "intervention_counted": True,
+                                "operator_intervention_attempt_count": attempts,
+                                "human_intervention_count": human_count,
+                                "automatic_recovery_action": "fail_closed",
+                                "fallback_allowed": False,
+                            }
+                        },
+                    )
+                    persist_events(store, [event])
+                    receipt = _browser_viewer_receipt(
+                        viewer_control,
+                        status="denied",
+                        event_ids=(event.event_id,),
+                        error_code="sealed_browser_viewer_control_denied",
+                        error_message=(
+                            "Sealed autonomous runs are read-only for operator "
+                            "browser controls."
+                        ),
+                        intervention_counted=True,
+                        human_intervention_count=human_count,
+                        manual_mutation_applied=False,
+                        approval_wait_entered=False,
+                        automatic_recovery_action="fail_closed",
+                    )
+                    sealed_receipts[viewer_control["command_id"]] = dict(receipt)
+                    while len(sealed_receipts) > 128:
+                        sealed_receipts.pop(next(iter(sealed_receipts)))
+                    state.metadata["last_sealed_browser_viewer_control_denial"] = {
+                        "command_id": viewer_control["command_id"],
+                        "request_id": viewer_control["request_id"],
+                        "action": viewer_control["action"],
+                        "event_id": event.event_id,
+                        "operator_intervention_attempt_count": attempts,
+                        "human_intervention_count": human_count,
+                        "manual_mutation_applied": False,
+                        "approval_wait_entered": False,
+                        "automatic_recovery_action": "fail_closed",
+                        "recorded_at": now_iso(),
+                    }
+                    state.updated_at = event.created_at
+                    store.save_checkpoint(state)
+                    self._send_json(
+                        HTTPStatus.FORBIDDEN,
+                        {
+                            "ok": False,
+                            "sealed": True,
+                            "event": to_jsonable(event),
+                            "event_ids": [event.event_id],
+                            "browser_control_receipt": receipt,
+                            "intervention_counted": True,
+                            "operator_intervention_attempt_count": attempts,
+                            "human_intervention_count": human_count,
+                            "manual_mutation_applied": False,
+                            "approval_wait_entered": False,
+                            "automatic_recovery_action": "fail_closed",
+                        },
+                        headers={
+                            "Cache-Control": "no-store, max-age=0",
+                            "Pragma": "no-cache",
+                            "X-Zyra-Browser-Control-State-Owner": "BrowserWorkerRuntime",
+                        },
+                    )
+                    return
             constraints = payload.get("constraints")
             constraints = dict(constraints) if isinstance(constraints, dict) else {}
+            if viewer_control is not None:
+                try:
+                    constraints.update(
+                        _browser_viewer_execution_constraints(viewer_control)
+                    )
+                except (TypeError, ValueError) as error:
+                    self._send_json(
+                        HTTPStatus.BAD_REQUEST,
+                        {
+                            "error": "invalid_browser_viewer_control",
+                            "message": str(error),
+                        },
+                        headers={"Cache-Control": "no-store, max-age=0"},
+                    )
+                    return
             if "browser_plan" in payload and "browser_plan" not in constraints:
                 constraints["browser_plan"] = payload["browser_plan"]
             session_id = str(
@@ -8554,6 +8941,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "skill_memory_context": prior.get("skill_memory_context", {}),
                         "worker_result": prior.get("worker_result", {}),
                         "event_ids": prior.get("event_ids", []),
+                        "browser_control_receipt": {
+                            **dict(prior.get("browser_control_receipt") or {}),
+                            "replayed": True,
+                        }
+                        if prior.get("browser_control_receipt")
+                        else {},
                         "permission_session": {
                             "created": False,
                             "custody_token": "",
@@ -8641,6 +9034,65 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 str(run_result.worker_result.metadata.get("browser_permission_pending") or "").lower()
                 == "true"
             )
+            viewer_control_receipt: dict[str, Any] = {}
+            if viewer_control is not None:
+                control_action = str(viewer_control["action"])
+                control_status = (
+                    "accepted"
+                    if browser_action_pending
+                    else "observed"
+                    if control_action == "inspect" and run_result.worker_result.ok
+                    else "applied"
+                    if run_result.worker_result.ok
+                    else "failed"
+                )
+                mutation_ids = tuple(
+                    str(event.payload.get("mutation_id") or "")
+                    for event in run_result.event_records
+                    if isinstance(event.payload, Mapping)
+                    and event.payload.get("mutation_id")
+                )
+                viewer_control_receipt = _browser_viewer_receipt(
+                    viewer_control,
+                    status=control_status,
+                    event_ids=tuple(
+                        event.event_id for event in run_result.event_records
+                    ),
+                    mutation_ids=mutation_ids,
+                    artifact_ids=tuple(
+                        artifact.artifact_id
+                        for artifact in run_result.worker_result.artifacts
+                    ),
+                    worker_request_id=request.request_id,
+                    lifecycle_receipt_id=str(
+                        run_result.worker_result.metadata.get(
+                            "browser_lifecycle_receipt_id",
+                            "",
+                        )
+                    ),
+                    permission_request_id=str(
+                        run_result.worker_result.metadata.get(
+                            "browser_pending_permission_request_id",
+                            "",
+                        )
+                    ),
+                    error_code=str(run_result.worker_result.error or ""),
+                    error_message=str(
+                        run_result.worker_result.metadata.get(
+                            "browser_error_message",
+                            "",
+                        )
+                    ),
+                    intervention_counted=False,
+                    human_intervention_count=int(
+                        state.metadata.get("human_intervention_count") or 0
+                    ),
+                    manual_mutation_applied=bool(
+                        run_result.worker_result.ok
+                        and control_action != "inspect"
+                    ),
+                    approval_wait_entered=browser_action_pending,
+                )
             if run_result.browser_context_checkpoint and not browser_action_pending:
                 restored = _BROWSER_CONTEXT_TASK_INTEGRATION.checkpoint_from_metadata(
                     {"browser_context_runtime_state": run_result.browser_context_checkpoint},
@@ -8695,6 +9147,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "browser_observability": run_result.browser_observability_projection,
                     "skill_memory_context": run_result.skill_memory_context_projection,
                     "event_ids": [event.event_id for event in run_result.event_records],
+                    "browser_control_receipt": viewer_control_receipt,
                     "created_at": now_iso(),
                 }
                 if len(idempotency_records) > 128:
@@ -8769,12 +9222,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         ),
                         "resume_method": "POST same endpoint with same Idempotency-Key after permission resolution",
                     },
+                    "browser_control_receipt": viewer_control_receipt,
                 },
                 headers={
                     "Cache-Control": "no-store, max-age=0",
                     "Pragma": "no-cache",
                     "X-Zyra-Permission-State-Owner": "PermissionStateStore",
                     "X-Zyra-Context-State-Owner": "ClaudeContextWindowManager/M1-02D",
+                    "X-Zyra-Browser-Control-State-Owner": "BrowserWorkerRuntime",
                 },
             )
 

@@ -511,6 +511,14 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.taskTerminalReceipt,
     (value) => ({ ...responseRecord(value, "terminal mutation response") }),
   )
+  registry.register(
+    CONTRACT_NAMES.taskBrowserObservability,
+    (value) => ({ ...responseRecord(value, "browser observability response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskBrowserControl,
+    (value) => ({ ...responseRecord(value, "browser control response") }),
+  )
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {
