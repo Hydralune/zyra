@@ -1,6 +1,5 @@
 import { useMemo } from "react"
 import type {
-  ArtifactProjection,
   PlanNodeProjection,
   TaskProjection,
 } from "../../../../../packages/core/typed-api-client/src/index.ts"
@@ -16,8 +15,10 @@ import {
   selectEventsForTask,
   selectRevision,
 } from "../../state/selectors.ts"
+import { selectArtifactPanel } from "../../state/panel-selectors.ts"
 import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
 import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"
+import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -64,26 +65,6 @@ function PlanNode({ entry, root }: { entry: TaskTreeNode; root: boolean }) {
         </dl>
       </div>
     </li>
-  )
-}
-
-function ArtifactCard({ artifact }: { artifact: ArtifactProjection }) {
-  const location = artifact.uri ?? artifact.path
-  return (
-    <article
-      className="artifact-card"
-      data-artifact-id={artifact.artifactId}
-      id={`artifact-${artifact.artifactId.replace(/[^\w-]+/g, "-")}`}
-      tabIndex={-1}
-    >
-      <div className="artifact-kind">{artifact.kind}</div>
-      <strong>{artifact.title ?? artifact.artifactId}</strong>
-      {location ? <code>{location}</code> : null}
-      <div className="artifact-meta">
-        {artifact.mediaType ? <span>{artifact.mediaType}</span> : null}
-        {artifact.sizeBytes !== undefined ? <span>{artifact.sizeBytes.toLocaleString()} bytes</span> : null}
-      </div>
-    </article>
   )
 }
 
@@ -161,6 +142,10 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
     selectEventsForTask(task.taskId, { limit: 8 }),
   )
   const projectionRevision = useProjectionSelector(runtime, selectRevision())
+  const artifactPanel = useProjectionSelector(
+    runtime,
+    selectArtifactPanel(task.taskId),
+  )
   return (
     <div className="task-detail-scroll">
       <header className="task-detail-header">
@@ -294,20 +279,13 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         )}
       </section>
 
-      <section className="detail-section" aria-labelledby="artifacts-heading">
-        <div className="section-heading">
-          <h3 id="artifacts-heading">Artifacts</h3>
-          <span>{task.artifacts.length}</span>
-        </div>
-        {task.artifacts.length ? (
-          <div className="artifact-grid">
-            {task.artifacts.map((artifact) => (
-              <ArtifactCard key={artifact.artifactId} artifact={artifact} />
-            ))}
-          </div>
-        ) : (
-          <p className="muted-copy">No artifacts have been committed for this task.</p>
-        )}
+      <section
+        className="detail-section"
+        aria-label="Artifact projection and viewer"
+        data-artifact-selector-count={artifactPanel.rows.length}
+        data-artifact-selector-missing-producers={artifactPanel.missingProducerIds.length}
+      >
+        <ArtifactWorkbench runtime={runtime} taskId={task.taskId} />
       </section>
     </div>
   )

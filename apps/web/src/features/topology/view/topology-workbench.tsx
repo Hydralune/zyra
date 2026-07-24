@@ -15,6 +15,7 @@ import { TopologyInspector } from "./inspector.tsx"
 import { TopologyMinimap } from "./minimap.tsx"
 import { TopologyToolbar } from "./toolbar.tsx"
 import { safeDomId } from "./accessibility.ts"
+import { dispatchArtifactNavigation } from "../../artifacts/catalog.ts"
 
 function scrollToTarget(selector: string): boolean {
   if (typeof document === "undefined") return false
@@ -38,9 +39,22 @@ function handleNavigation(
 ): void {
   let resolved = false
   if (intent.kind === "open-artifact" && intent.artifactId) {
-    resolved = scrollToTarget(
-      `[data-artifact-id="${domAttribute(intent.artifactId)}"]`,
-    )
+    if (typeof window !== "undefined") {
+      dispatchArtifactNavigation(
+        {
+          artifactId: intent.artifactId,
+          source: "topology",
+          sourceEventId: intent.eventId,
+          focus: true,
+        },
+        window,
+      )
+    }
+    resolved =
+      scrollToTarget(".artifact-workbench")
+      || scrollToTarget(
+        `[data-artifact-id="${domAttribute(intent.artifactId)}"]`,
+      )
   } else if (intent.kind === "open-timeline" && intent.eventId) {
     resolved = scrollToTarget(
       `[data-event-id="${domAttribute(intent.eventId)}"]`,

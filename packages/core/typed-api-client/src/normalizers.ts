@@ -464,6 +464,22 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskEventIngressSse, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskMutation, normalizeTaskMutation)
   registry.register(CONTRACT_NAMES.taskControlCommand, normalizeControlCommand)
+  registry.register(
+    CONTRACT_NAMES.taskArtifactCatalog,
+    (value) => ({ ...responseRecord(value, "artifact catalog response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskArtifactMetadata,
+    (value) => ({ ...responseRecord(value, "artifact metadata response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskArtifactContent,
+    (value) => ({ ...responseRecord(value, "artifact content response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskArtifactReceipts,
+    (value) => ({ ...responseRecord(value, "artifact receipts response") }),
+  )
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {

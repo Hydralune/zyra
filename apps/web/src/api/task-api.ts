@@ -92,6 +92,30 @@ export interface EventIngressPageOptions extends EventIngressFilterQuery {
   timeoutMs?: number
 }
 
+export interface ArtifactCatalogApiOptions {
+  cursor?: string
+  limit?: number
+  nodeIds?: readonly string[]
+  workerIds?: readonly string[]
+  mediaTypes?: readonly string[]
+  contentFamilies?: readonly string[]
+  revisions?: readonly string[]
+  createdAfter?: string
+  createdBefore?: string
+  includeDeleted?: boolean
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface ArtifactReadApiOptions {
+  revision?: string
+  offset?: number
+  length?: number
+  purpose?: "preview" | "search" | "media" | "download" | "metadata"
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 function normalizedLimit(value: number | undefined): number {
   if (value === undefined) return 100
   if (!Number.isFinite(value)) throw new TypeError("Task list limit must be finite")
@@ -169,6 +193,109 @@ function requiredCursor(value: string | undefined): string {
     throw new TypeError("Event ingress cursor exceeds 4096 bytes")
   }
   return cursor
+}
+
+function artifactFilter(
+  values: readonly string[] | undefined,
+  label: string,
+): string | undefined {
+  if (!values?.length) return undefined
+  if (values.length > 128) {
+    throw new TypeError(`Artifact ${label} filter exceeds 128 values`)
+  }
+  const normalized: string[] = []
+  for (const value of values) {
+    const selected = String(value || "").trim()
+    if (!selected) continue
+    if (
+      selected.includes(",")
+      || /[\r\n\u0000]/.test(selected)
+      || new TextEncoder().encode(selected).byteLength > 512
+    ) {
+      throw new TypeError(`Artifact ${label} filter contains an invalid value`)
+    }
+    if (!normalized.includes(selected)) normalized.push(selected)
+  }
+  return normalized.length ? normalized.join(",") : undefined
+}
+
+function boundedArtifactCursor(value: string | undefined): string | undefined {
+  const selected = String(value || "").trim()
+  if (!selected) return undefined
+  if (
+    new TextEncoder().encode(selected).byteLength > 4_096
+    || !/^[A-Za-z0-9_-]+$/.test(selected)
+  ) {
+    throw new TypeError("Artifact catalog cursor is invalid")
+  }
+  return selected
+}
+
+function optionalArtifactRevision(value: string | undefined): string | undefined {
+  const selected = String(value || "").trim().toLowerCase()
+  if (!selected) return undefined
+  if (!/^sha256:[0-9a-f]{64}$/.test(selected)) {
+    throw new TypeError("Artifact revision must be a SHA-256 revision")
+  }
+  return selected
+}
+
+function optionalArtifactTimestamp(
+  value: string | undefined,
+  label: string,
+): string | undefined {
+  const selected = String(value || "").trim()
+  if (!selected) return undefined
+  if (!Number.isFinite(Date.parse(selected))) {
+    throw new TypeError(`Artifact ${label} timestamp is invalid`)
+  }
+  return selected
+}
+
+function boundedArtifactOffset(value: number | undefined): number {
+  if (value === undefined) return 0
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError("Artifact byte offset must be a non-negative safe integer")
+  }
+  return value
+}
+
+function boundedArtifactLength(value: number | undefined): number {
+  if (value === undefined) return 256 * 1_024
+  if (!Number.isSafeInteger(value) || value < 1 || value > 1024 * 1024) {
+    throw new TypeError("Artifact byte range length must be between 1 and 1048576")
+  }
+  return value
+}
+
+function artifactReadPurpose(
+  value: ArtifactReadApiOptions["purpose"],
+): NonNullable<ArtifactReadApiOptions["purpose"]> {
+  const selected = value ?? "preview"
+  if (
+    selected !== "preview"
+    && selected !== "search"
+    && selected !== "media"
+    && selected !== "download"
+    && selected !== "metadata"
+  ) {
+    throw new TypeError("Artifact read purpose is invalid")
+  }
+  return selected
+}
+
+function artifactCatalogKey(options: ArtifactCatalogApiOptions): string {
+  return JSON.stringify({
+    limit: normalizedLimit(options.limit),
+    nodeIds: [...(options.nodeIds ?? [])].sort(),
+    workerIds: [...(options.workerIds ?? [])].sort(),
+    mediaTypes: [...(options.mediaTypes ?? [])].sort(),
+    contentFamilies: [...(options.contentFamilies ?? [])].sort(),
+    revisions: [...(options.revisions ?? [])].sort(),
+    createdAfter: options.createdAfter ?? "",
+    createdBefore: options.createdBefore ?? "",
+    includeDeleted: options.includeDeleted === true,
+  })
 }
 
 export class TaskApi {
@@ -283,6 +410,150 @@ export class TaskApi {
       coordinationKey: `task.events:${normalizedTaskId}:${options.after ?? options.cursor ?? "first"}`,
       latestWins: true,
     })
+    return response.data
+  }
+
+  async artifactCatalog(
+    taskId: string,
+    options: ArtifactCatalogApiOptions = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const limit = normalizedLimit(options.limit)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskArtifactCatalog,
+      {
+        path: { task_id: normalizedTaskId },
+        query: {
+          cursor: boundedArtifactCursor(options.cursor),
+          limit,
+          node_id: artifactFilter(options.nodeIds, "node"),
+          worker_id: artifactFilter(options.workerIds, "worker"),
+          media_type: artifactFilter(options.mediaTypes, "media type"),
+          content_family: artifactFilter(
+            options.contentFamilies,
+            "content family",
+          ),
+          revision: artifactFilter(options.revisions, "revision"),
+          created_after: optionalArtifactTimestamp(
+            options.createdAfter,
+            "created-after",
+          ),
+          created_before: optionalArtifactTimestamp(
+            options.createdBefore,
+            "created-before",
+          ),
+          include_deleted: options.includeDeleted ? "true" : undefined,
+        },
+        binding: { taskId: normalizedTaskId },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.artifacts.catalog:${normalizedTaskId}:`
+          + `${options.cursor ?? "first"}:${artifactCatalogKey(options)}`,
+        deduplicate: true,
+      },
+    )
+    return response.data
+  }
+
+  async artifactMetadata(
+    taskId: string,
+    artifactId: string,
+    options: ArtifactReadApiOptions = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const revision = optionalArtifactRevision(options.revision)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskArtifactMetadata,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+        },
+        query: {
+          revision,
+          purpose: "metadata",
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.artifacts.metadata:${normalizedTaskId}:`
+          + `${normalizedArtifactId}:${revision ?? "canonical"}`,
+        latestWins: true,
+      },
+    )
+    return response.data
+  }
+
+  async artifactContent(
+    taskId: string,
+    artifactId: string,
+    options: ArtifactReadApiOptions = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const revision = optionalArtifactRevision(options.revision)
+    const offset = boundedArtifactOffset(options.offset)
+    const length = boundedArtifactLength(options.length)
+    const purpose = artifactReadPurpose(options.purpose)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskArtifactContent,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+        },
+        query: {
+          revision,
+          offset,
+          length,
+          purpose,
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.artifacts.content:${normalizedTaskId}:${normalizedArtifactId}:`
+          + `${revision ?? "canonical"}:${offset}:${length}:${purpose}`,
+        deduplicate: true,
+      },
+    )
+    return response.data
+  }
+
+  async artifactReceipts(
+    taskId: string,
+    artifactId: string,
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ): Promise<Record<string, unknown>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const normalizedArtifactId = normalizeIdentity("artifact", artifactId)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskArtifactReceipts,
+      {
+        path: {
+          task_id: normalizedTaskId,
+          artifact_id: normalizedArtifactId,
+        },
+        binding: {
+          taskId: normalizedTaskId,
+          artifactId: normalizedArtifactId,
+        },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey:
+          `task.artifacts.receipts:${normalizedTaskId}:${normalizedArtifactId}`,
+        latestWins: true,
+      },
+    )
     return response.data
   }
 

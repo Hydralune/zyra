@@ -77,6 +77,11 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/tasks/{task_id}/event-ingress/snapshot"),
     ("GET", "/tasks/{task_id}/event-ingress/delta"),
     ("GET", "/tasks/{task_id}/event-ingress/sse"),
+    ("GET", "/tasks/{task_id}/artifacts"),
+    ("GET", "/tasks/{task_id}/artifacts/{artifact_id}"),
+    ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/content"),
+    ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/download"),
+    ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/receipts"),
     ("POST", "/tasks/{task_id}/faults/observations"),
     ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
     ("GET", "/tasks/{task_id}/recovery"),
@@ -104,6 +109,15 @@ ZYRA_DYNAMIC_API_ROUTES = (
 for package_path in PACKAGE_PATHS:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
+
+from .artifact_api import (
+    ArtifactApiError,
+    ArtifactCatalogQuery,
+    ArtifactCatalogService,
+    ArtifactReadAudit,
+    ArtifactReadQuery,
+    find_task_artifact,
+)
 
 from zyra_core import (
     AgentMessage,
@@ -2185,6 +2199,16 @@ def artifact_root_path() -> Path:
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+_ARTIFACT_READ_AUDIT = ArtifactReadAudit(maximum=16_384)
+
+
+def artifact_catalog_service() -> ArtifactCatalogService:
+    return ArtifactCatalogService(
+        store=LocalArtifactStore(artifact_root_path()),
+        audit=_ARTIFACT_READ_AUDIT,
+    )
 
 
 _M1_HARDENING_API_LOCK = threading.RLock()
@@ -5996,15 +6020,104 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
-            catalog = LocalArtifactStore(artifact_root_path())
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "artifact_root": str(catalog.root),
-                    "task_id": parts[1],
-                    "artifacts": [_artifact_entry(catalog, artifact) for artifact in state.artifacts],
-                },
-            )
+            try:
+                catalog_query = ArtifactCatalogQuery.from_query(
+                    task_id=parts[1],
+                    query=parse_qs(parsed.query, keep_blank_values=True),
+                )
+                payload = artifact_catalog_service().catalog(
+                    artifacts=state.artifacts,
+                    query=catalog_query,
+                )
+            except ArtifactApiError as error:
+                self._send_json(HTTPStatus(error.status), error.response())
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
+
+        if len(parts) >= 4 and parts[0] == "tasks" and parts[2] == "artifacts":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            artifact = find_task_artifact(state.artifacts, parts[3])
+            if artifact is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": "artifact_not_found",
+                        "task_id": parts[1],
+                        "artifact_id": parts[3],
+                    },
+                )
+                return
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            service = artifact_catalog_service()
+            try:
+                read_query = ArtifactReadQuery.from_query(
+                    task_id=parts[1],
+                    artifact_id=parts[3],
+                    query=query,
+                )
+                if len(parts) == 4:
+                    payload = service.metadata(
+                        task_id=parts[1],
+                        artifact=artifact,
+                        expected_revision=read_query.expected_revision,
+                    )
+                    self._send_json(HTTPStatus.OK, payload)
+                    return
+                if len(parts) == 5 and parts[4] == "content":
+                    payload = service.read(artifact=artifact, query=read_query)
+                    self._send_json(HTTPStatus.OK, payload)
+                    return
+                if len(parts) == 5 and parts[4] == "download":
+                    observed, selected, receipt = service.download(
+                        artifact=artifact,
+                        query=read_query,
+                    )
+                    self._send_bytes(
+                        HTTPStatus.PARTIAL_CONTENT
+                        if not selected.complete or selected.offset > 0
+                        else HTTPStatus.OK,
+                        selected.content,
+                        content_type=observed.content_type,
+                        headers={
+                            "Accept-Ranges": "bytes",
+                            "Content-Range":
+                                f"bytes {selected.offset}-{max(selected.offset, selected.end_exclusive - 1)}"
+                                f"/{selected.total_bytes}",
+                            "Content-Disposition":
+                                f'attachment; filename="{_safe_download_name(artifact)}"',
+                            "X-Zyra-Artifact-Revision": observed.revision,
+                            "X-Zyra-Artifact-Sha256": observed.sha256,
+                            "X-Zyra-Artifact-Receipt": str(receipt.get("receipt_digest") or ""),
+                            "Cache-Control": "private, no-store, max-age=0",
+                        },
+                    )
+                    return
+                if len(parts) == 5 and parts[4] == "receipts":
+                    self._send_json(
+                        HTTPStatus.OK,
+                        {
+                            "schema": "zyra.artifact-read-audit.v1",
+                            "task_id": parts[1],
+                            "artifact_id": parts[3],
+                            "receipts": _ARTIFACT_READ_AUDIT.entries(
+                                task_id=parts[1],
+                                artifact_id=parts[3],
+                            ),
+                        },
+                    )
+                    return
+            except ArtifactApiError as error:
+                try:
+                    status = HTTPStatus(error.status)
+                except ValueError:
+                    status = HTTPStatus.BAD_REQUEST
+                self._send_json(status, error.response())
+                return
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
             return
 
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "subagents":
@@ -8449,6 +8562,46 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_bytes(
+        self,
+        status: HTTPStatus,
+        payload: bytes,
+        *,
+        content_type: str,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        merged_headers = dict(getattr(self, "_zyra_typed_response_headers", {}) or {})
+        if not merged_headers:
+            try:
+                context = typed_request_context(self.headers)
+                merged_headers.update(context.response_headers())
+            except TypedTransportError as error:
+                _, _, fallback_headers = typed_error_context(error, self.headers)
+                merged_headers.update(fallback_headers)
+        merged_headers.update(dict(headers or {}))
+        selected_type = str(content_type or "application/octet-stream").strip().lower()
+        if "\r" in selected_type or "\n" in selected_type or "/" not in selected_type:
+            selected_type = "application/octet-stream"
+        body = bytes(payload)
+        self.send_response(status)
+        self._send_cors_headers()
+        self.send_header("Content-Type", selected_type)
+        self.send_header("Content-Length", str(len(body)))
+        for key, value in merged_headers.items():
+            normalized = str(key).strip()
+            rendered = str(value)
+            if (
+                not normalized
+                or "\r" in normalized
+                or "\n" in normalized
+                or "\r" in rendered
+                or "\n" in rendered
+            ):
+                continue
+            self.send_header(normalized, rendered)
+        self.end_headers()
+        self.wfile.write(body)
+
     def _send_sse_stream(self, chunks: Any) -> None:
         iterator = iter(chunks)
         first_chunk = next(iterator, None)
@@ -8904,6 +9057,26 @@ def _artifact_entry(catalog: LocalArtifactStore, artifact: ArtifactRef) -> dict[
             "previewable": False,
             "error": str(error),
         }
+
+
+def _safe_download_name(artifact: ArtifactRef) -> str:
+    relative_path = str(artifact.metadata.get("relative_path") or "")
+    suffix = Path(relative_path).suffix.lower()
+    if not suffix or len(suffix) > 32 or not suffix[1:].replace("_", "").replace("-", "").isalnum():
+        suffix = ".bin"
+    title = str(artifact.title or artifact.artifact_id or "artifact")
+    stem = "".join(
+        character
+        if character.isalnum() or character in {"-", "_", "."}
+        else "-"
+        for character in title
+    ).strip(".-_")
+    if not stem:
+        stem = "artifact"
+    stem = stem[:128]
+    if stem.lower().endswith(suffix):
+        return stem
+    return f"{stem}{suffix}"
 
 
 def _scheduler_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:

@@ -31,6 +31,7 @@ import {
   type TimelineWorkbenchSnapshot,
 } from "./controller.ts"
 import { RecoveryControlPanel } from "./recovery-control-panel.tsx"
+import { dispatchArtifactNavigation } from "../../artifacts/catalog.ts"
 
 function formatTime(value: string): string {
   const parsed = Date.parse(value)
@@ -490,7 +491,33 @@ function TimelineRowItem({
           {row.toolCallId ? <span>tool <code>{row.toolCallId}</code></span> : null}
           {row.failureId ? <span>failure <code>{row.failureId}</code></span> : null}
           {row.recoveryId ? <span>recovery <code>{row.recoveryId}</code></span> : null}
-          {row.artifactIds.length ? <span>{row.artifactIds.length} artifact{row.artifactIds.length === 1 ? "" : "s"}</span> : null}
+          {row.artifactIds.map((artifactId) => (
+            <button
+              key={artifactId}
+              type="button"
+              className="timeline-artifact-link"
+              data-artifact-id={artifactId}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (typeof window !== "undefined") {
+                  dispatchArtifactNavigation(
+                    {
+                      artifactId,
+                      source: "timeline",
+                      sourceEventId: row.primaryEventId,
+                      focus: true,
+                    },
+                    window,
+                  )
+                  document
+                    .querySelector<HTMLElement>(".artifact-workbench")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              }}
+            >
+              artifact <code>{artifactId}</code>
+            </button>
+          ))}
           <span>{row.eventIds.length} event{row.eventIds.length === 1 ? "" : "s"}</span>
         </div>
         {expanded ? <TimelineRowDetails row={row} /> : null}
