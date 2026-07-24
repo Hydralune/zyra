@@ -40,13 +40,12 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "zyra",
         "source_commit": BASELINE_COMMIT,
+        "source_language": "typescript",
+        "target_language": "typescript",
         "source_path": (
             "apps/web/src/features/topology/projection/**;"
             "apps/web/src/state/{store,selectors,panel-selectors}.ts;"
-            "packages/core/typed-api-client/src/**;"
-            "packages/commands/zyra_commands/runtime/**;"
-            "apps/api/zyra_api/{main,recovery_api}.py;"
-            "packages/scheduler/zyra_scheduler/recovery_runtime/**"
+            "packages/core/typed-api-client/src/**"
         ),
         "capability_name": "large_graph_topology_interaction_and_control_runtime",
         "capability_summary": (
@@ -77,8 +76,6 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "packages/core/typed-api-client/src/constants.ts",
             "packages/core/typed-api-client/src/protocol.ts",
             "packages/core/typed-api-client/src/normalizers.ts",
-            "packages/commands/zyra_commands/runtime/owner_handlers.py",
-            "apps/api/zyra_api/main.py",
         ],
         "source_role": "primary_implementation",
         "migration_mode": "same_language_component_integration",
@@ -98,6 +95,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "opencode",
         "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "target_language": "none",
         "source_path": (
             "packages/app/src/pages/session/**;"
             "packages/tui/src/routes/session/index.tsx"
@@ -122,6 +121,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "OpenHands",
         "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "target_language": "none",
         "source_path": (
             "frontend/src/routes/planner-tab.tsx;"
             "frontend/src/routes/task-list-tab.tsx"
@@ -146,6 +147,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "langgraph",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_language": "python",
+        "target_language": "none",
         "source_path": (
             "libs/checkpoint/langgraph/checkpoint/base/__init__.py;"
             "libs/langgraph/langgraph/pregel/_loop.py"
@@ -321,6 +324,8 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             "slice_id": SLICE_ID,
             "source_role": source_role,
             "source_commit": decision["source_commit"],
+            "source_language": decision["source_language"],
+            "target_language": decision["target_language"],
             "migration_mode": decision["migration_mode"],
             "canonical_graph_owner": "python.GraphStateCustody",
             "canonical_permission_owner": "python.RuntimeControlDispatcher",
@@ -341,13 +346,23 @@ def rewrite(document: Any) -> Any:
         entries = document["entries"]
     else:
         raise ValueError("ledger seed must be a list or contain entries")
-    retained = [
-        item
-        for item in entries
-        if str(item.get("owner_unit") or "") != OWNER_UNIT
-        and str((item.get("metadata") or {}).get("slice_id") or "") != SLICE_ID
-    ]
-    output = [*retained, *(entry(decision) for decision in DECISIONS)]
+    replacements = [entry(decision) for decision in DECISIONS]
+    output: list[dict[str, Any]] = []
+    inserted = False
+    for item in entries:
+        owned = (
+            str(item.get("owner_unit") or "") == OWNER_UNIT
+            or str((item.get("metadata") or {}).get("slice_id") or "")
+            == SLICE_ID
+        )
+        if owned:
+            if not inserted:
+                output.extend(replacements)
+                inserted = True
+            continue
+        output.append(item)
+    if not inserted:
+        output.extend(replacements)
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     if isinstance(document, list):
         return output

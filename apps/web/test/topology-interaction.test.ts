@@ -814,6 +814,17 @@ describe("topology interaction and large graph control", () => {
     expect(resume.commandName).toBe("/resume")
     expect(submitted.at(-1)?.text).toBe("/resume session-topology")
 
+    controller.project(projection(82, 3), { preserveFilters: true })
+    expect(controller.controls?.receipt(rewind.id)?.phase).toBe("pending")
+    expect(controller.controls?.receipt(resume.id)?.phase).toBe("pending")
+
+    controller.project(
+      projection(83, 4, { commandIds: [resume.commandId] }),
+      { preserveFilters: true },
+    )
+    expect(controller.controls?.receipt(rewind.id)?.phase).toBe("pending")
+    expect(controller.controls?.receipt(resume.id)?.phase).toBe("committed")
+
     const denied = await controller.submitControl({
       action: "local-update",
       nodeId: "node-17",

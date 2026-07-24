@@ -146,33 +146,36 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "source_repo": "oh-my-pi",
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
         "source_language": "typescript",
-        "target_language": "typescript",
+        "target_language": "none",
         "source_path": (
             "packages/coding-agent/src/registry/agent-lifecycle.ts;"
             "packages/coding-agent/src/tools/job.ts"
         ),
         "capability_name": "background_job_park_revive_timeline_lineage",
         "capability_summary": (
-            "Background job status, park/revive lineage and recovery-attempt "
-            "display over existing durable worker and recovery facts."
+            "Background job status and park/revive lineage conformance over "
+            "existing durable worker and recovery facts."
         ),
-        "targets": [
-            "apps/web/src/features/timeline/projection/background-lifecycle.ts",
-            "apps/web/src/features/timeline/projection/recovery-chain.ts",
-        ],
-        "source_role": "supplementary_implementation",
-        "migration_mode": "cropped_migration",
-        "migration_strategy": "selective_port",
+        "targets": [WEB_TEST],
+        "source_role": "conformance_only",
+        "migration_mode": "conformance_only",
+        "migration_strategy": "not_selected",
+        "original_source_role": "supplementary_implementation",
+        "aggregate_remediation": (
+            "M2-02 independent aggregate review: the parent role contract "
+            "permits only OpenHands and browser-use as supplementary sources."
+        ),
         "rationale": (
-            "The original-language park/revive and job lineage mechanisms are "
-            "cropped into a read-only derived projector. OMP process, session, "
-            "agent loop, tool and task owners are not imported."
+            "OMP is retained only as lifecycle/event conformance. Zyra-owned "
+            "background and recovery projection behavior remains production "
+            "code but receives no OMP migration credit and creates no OMP "
+            "runtime, state owner, process, session, tool or task dependency."
         ),
     },
     {
         "source_repo": "agent-framework",
         "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
-        "source_language": "python/dotnet",
+        "source_language": "python",
         "target_language": "none",
         "source_path": "workflow/executor lifecycle contracts",
         "capability_name": "worker_lifecycle_terminal_priority_conformance",
@@ -191,7 +194,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "langgraph",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
-        "source_language": "python/typescript",
+        "source_language": "python",
         "target_language": "none",
         "source_path": (
             "source-graphs/langgraph/source-graph.md#12 narrow "
@@ -412,6 +415,18 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             "root_source_runtime_dependency": False,
             "implementation_commit": IMPLEMENTATION_COMMIT,
             "rationale": decision["rationale"],
+            **(
+                {
+                    "original_source_role": decision[
+                        "original_source_role"
+                    ],
+                    "aggregate_remediation": decision[
+                        "aggregate_remediation"
+                    ],
+                }
+                if "original_source_role" in decision
+                else {}
+            ),
         },
     }
 
@@ -423,14 +438,23 @@ def rewrite(document: Any) -> Any:
         entries = document["entries"]
     else:
         raise ValueError("ledger seed must be a list or contain entries")
-    retained = [
-        item
-        for item in entries
-        if str(item.get("owner_unit") or "") != OWNER_UNIT
-        and str((item.get("metadata") or {}).get("slice_id") or "")
-        != SLICE_ID
-    ]
-    output = [*retained, *(entry(decision) for decision in DECISIONS)]
+    replacements = [entry(decision) for decision in DECISIONS]
+    output: list[dict[str, Any]] = []
+    inserted = False
+    for item in entries:
+        owned = (
+            str(item.get("owner_unit") or "") == OWNER_UNIT
+            or str((item.get("metadata") or {}).get("slice_id") or "")
+            == SLICE_ID
+        )
+        if owned:
+            if not inserted:
+                output.extend(replacements)
+                inserted = True
+            continue
+        output.append(item)
+    if not inserted:
+        output.extend(replacements)
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     if isinstance(document, list):
         return output

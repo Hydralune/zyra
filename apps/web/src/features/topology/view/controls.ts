@@ -598,8 +598,9 @@ function observedEffect(
     if (!checkpoint) return undefined
     const correlated =
       checkpoint.evidence.controlCommandIds.includes(receipt.commandId) ||
-      checkpoint.evidence.eventIds.some((id) => receipt.observedEventIds.includes(id)) ||
-      checkpoint.resumeCount > 0
+      checkpoint.evidence.eventIds.some((id) =>
+        receipt.observedEventIds.includes(id),
+      )
     if (!correlated) return undefined
     return {
       revision: Math.max(checkpoint.commitRevision, model.commitRevision),

@@ -10253,6 +10253,23 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         _descriptor: Any,
         _context: Any,
     ) -> ControlResult:
+        maximum_attempts_raw = request.arguments.get("maximum_attempts", 1)
+        if isinstance(maximum_attempts_raw, bool):
+            raise ValueError(
+                "retry maximum_attempts must be an integer between 1 and 8"
+            )
+        try:
+            maximum_attempts = int(maximum_attempts_raw)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "retry maximum_attempts must be an integer between 1 and 8"
+            ) from error
+        if maximum_attempts < 1 or maximum_attempts > 8:
+            raise ValueError(
+                "retry maximum_attempts must be an integer between 1 and 8"
+            )
+        if request.arguments.get("bounded_retry") is False:
+            raise ValueError("retry must remain bounded")
         control_owner_snapshot(
             request,
             require_worker=False,
@@ -10282,9 +10299,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             summary=reason,
             context_metadata={
                 "operator_retry": True,
-                "maximum_attempts": int(
-                    request.arguments.get("maximum_attempts") or 1
-                ),
+                "maximum_attempts": maximum_attempts,
             },
         )
 

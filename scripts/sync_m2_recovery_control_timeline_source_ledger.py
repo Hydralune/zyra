@@ -174,7 +174,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "agent-framework",
         "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
-        "source_language": "python/dotnet",
+        "source_language": "python",
         "target_language": "none",
         "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
         "capability_name": "control_approval_history_conformance",
@@ -212,7 +212,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
     {
         "source_repo": "langgraph",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
-        "source_language": "python/typescript",
+        "source_language": "python",
         "target_language": "none",
         "source_path": (
             "source-graphs/langgraph/source-graph.md#12 narrow "
@@ -395,14 +395,23 @@ def rewrite(document: Any) -> Any:
         entries = document["entries"]
     else:
         raise ValueError("ledger seed must be a list or contain entries")
-    retained = [
-        item
-        for item in entries
-        if str(item.get("owner_unit") or "") != OWNER_UNIT
-        and str((item.get("metadata") or {}).get("slice_id") or "")
-        != SLICE_ID
-    ]
-    output = [*retained, *(entry(decision) for decision in DECISIONS)]
+    replacements = [entry(decision) for decision in DECISIONS]
+    output: list[dict[str, Any]] = []
+    inserted = False
+    for item in entries:
+        owned = (
+            str(item.get("owner_unit") or "") == OWNER_UNIT
+            or str((item.get("metadata") or {}).get("slice_id") or "")
+            == SLICE_ID
+        )
+        if owned:
+            if not inserted:
+                output.extend(replacements)
+                inserted = True
+            continue
+        output.append(item)
+    if not inserted:
+        output.extend(replacements)
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     if isinstance(document, list):
         return output

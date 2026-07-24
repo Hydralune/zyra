@@ -181523,7 +181523,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-01",
         "source_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
-        "source_role": "primary_implementation"
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript"
       },
       "migration_strategy": "direct_port",
       "milestone": "M2",
@@ -181753,7 +181755,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-01",
         "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
-        "source_role": "reference_only"
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
       },
       "migration_strategy": "not_selected",
       "milestone": "M2",
@@ -181882,7 +181886,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-01",
         "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
-        "source_role": "reference_only"
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
       },
       "migration_strategy": "not_selected",
       "milestone": "M2",
@@ -182011,7 +182017,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-01",
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
-        "source_role": "reference_only"
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
       },
       "migration_strategy": "not_selected",
       "milestone": "M2",
@@ -182140,7 +182148,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-01",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
-        "source_role": "conformance_only"
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none"
       },
       "migration_strategy": "not_selected",
       "milestone": "M2",
@@ -182230,7 +182240,7 @@
         "M2-03A",
         "M2-04A"
       ],
-      "ledger_id": "ile_a848243f392b7ce74ddf",
+      "ledger_id": "ile_10eb29fbacf9f21f702b",
       "license_notice": {
         "license_hint": "M2 topology interaction source role recorded.",
         "notes": "No runtime dependency on a parent source repository.",
@@ -182286,7 +182296,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-02",
         "source_commit": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e",
+        "source_language": "typescript",
         "source_role": "primary_implementation",
+        "target_language": "typescript",
         "transient_view_owner": "typescript.TopologyWorkbenchController"
       },
       "migration_strategy": "direct_port",
@@ -182323,9 +182335,7 @@
           "apps/web/src/api/task-api.ts",
           "packages/core/typed-api-client/src/constants.ts",
           "packages/core/typed-api-client/src/protocol.ts",
-          "packages/core/typed-api-client/src/normalizers.ts",
-          "packages/commands/zyra_commands/runtime/owner_handlers.py",
-          "apps/api/zyra_api/main.py"
+          "packages/core/typed-api-client/src/normalizers.ts"
         ],
         "environment_refs": [],
         "function": "TopologyWorkbenchController",
@@ -182338,7 +182348,7 @@
           "exists_in_workspace": true,
           "reason": "M2-S02A-02 source-to-target decision",
           "source_kind": "file",
-          "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**;packages/commands/zyra_commands/runtime/**;apps/api/zyra_api/{main,recovery_api}.py;packages/scheduler/zyra_scheduler/recovery_runtime/**",
+          "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**",
           "source_repo": "zyra",
           "symbols": [],
           "tags": [
@@ -182347,7 +182357,7 @@
           ]
         }
       ],
-      "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**;packages/commands/zyra_commands/runtime/**;apps/api/zyra_api/{main,recovery_api}.py;packages/scheduler/zyra_scheduler/recovery_runtime/**",
+      "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**",
       "source_repo": "zyra",
       "tags": [
         "m2-02a",
@@ -182523,22 +182533,6 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/core/typed-api-client/src/normalizers.ts"
-        },
-        {
-          "must_exist_for_statuses": [
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/commands/zyra_commands/runtime/owner_handlers.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "apps/api/zyra_api/main.py"
         }
       ],
       "test_entries": [
@@ -182620,7 +182614,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-02",
         "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
         "source_role": "reference_only",
+        "target_language": "none",
         "transient_view_owner": "typescript.TopologyWorkbenchController"
       },
       "migration_strategy": "not_selected",
@@ -182754,7 +182750,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-02",
         "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
         "source_role": "reference_only",
+        "target_language": "none",
         "transient_view_owner": "typescript.TopologyWorkbenchController"
       },
       "migration_strategy": "not_selected",
@@ -182888,7 +182886,9 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02A-02",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_language": "python",
         "source_role": "conformance_only",
+        "target_language": "none",
         "transient_view_owner": "typescript.TopologyWorkbenchController"
       },
       "migration_strategy": "not_selected",
@@ -183499,7 +183499,7 @@
     {
       "blockers": [],
       "capability_name": "background_job_park_revive_timeline_lineage",
-      "capability_summary": "Background job status, park/revive lineage and recovery-attempt display over existing durable worker and recovery facts.",
+      "capability_summary": "Background job status and park/revive lineage conformance over existing durable worker and recovery facts.",
       "created_at": "2026-07-24T00:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
@@ -183516,8 +183516,8 @@
         "source_url": "",
         "status": "recorded"
       },
-      "lifecycle": "productized",
-      "line_count_policy": "counts_as_runtime",
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
         "api_routes": [],
         "artifact_kinds": [
@@ -183544,31 +183544,33 @@
           "worker_causal_timeline",
           "timeline_inspector"
         ],
-        "worker_runtime": "CanonicalProjectionStore -> selectWorkerCausalTimeline -> TimelineWorkbenchController -> task-detail timeline"
+        "worker_runtime": "conformance_only; behavior only"
       },
-      "main_path_status": "tested_main_path",
+      "main_path_status": "inventoried",
       "metadata": {
+        "aggregate_remediation": "M2-02 independent aggregate review: the parent role contract permits only OpenHands and browser-use as supplementary sources.",
         "canonical_event_owner": "typescript.CanonicalProjectionStore",
         "canonical_recovery_owner": "python.RecoveryPlanner",
         "canonical_worker_owner": "python.WorkerPoolStore",
         "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
         "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
-        "migration_mode": "cropped_migration",
+        "migration_mode": "conformance_only",
+        "original_source_role": "supplementary_implementation",
         "owner_unit": "M2-S02B-01",
-        "rationale": "The original-language park/revive and job lineage mechanisms are cropped into a read-only derived projector. OMP process, session, agent loop, tool and task owners are not imported.",
+        "rationale": "OMP is retained only as lifecycle/event conformance. Zyra-owned background and recovery projection behavior remains production code but receives no OMP migration credit and creates no OMP runtime, state owner, process, session, tool or task dependency.",
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02B-01",
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
         "source_language": "typescript",
-        "source_role": "supplementary_implementation",
-        "target_language": "typescript",
+        "source_role": "conformance_only",
+        "target_language": "none",
         "transient_view_owner": "typescript.TimelineWorkbenchController"
       },
-      "migration_strategy": "selective_port",
+      "migration_strategy": "not_selected",
       "milestone": "M2",
-      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=cropped_migration; The original-language park/revive and job lineage mechanisms are cropped into a read-only derived projector. OMP process, session, agent loop, tool and task owners are not imported.",
+      "notes": "source_role=conformance_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=conformance_only; OMP is retained only as lifecycle/event conformance. Zyra-owned background and recovery projection behavior remains production code but receives no OMP migration credit and creates no OMP runtime, state owner, process, session, tool or task dependency.",
       "owner_unit": "M2-S02B-01",
-      "replacement_plan": "Replace behind selectWorkerCausalTimeline without moving event, worker, lease, failure, recovery, scheduler or artifact custody.",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
       "risk_notes": [
         "No runtime path may depend on a parent source repository.",
         "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
@@ -183576,15 +183578,14 @@
         "The source cannot become a second canonical owner or command path."
       ],
       "runtime_entry": {
-        "command": "bun run build:web",
+        "command": "",
         "config_refs": [
-          "apps/web/src/features/timeline/projection/background-lifecycle.ts",
-          "apps/web/src/features/timeline/projection/recovery-chain.ts"
+          "apps/web/test/worker-causal-timeline.test.ts"
         ],
         "environment_refs": [],
-        "function": "selectWorkerCausalTimeline",
+        "function": "worker causal timeline conformance tests",
         "health_check": "bun test ./apps/web/test/worker-causal-timeline.test.ts",
-        "module": "apps.web.src.features.timeline.projection.projector",
+        "module": "apps.web.test.worker-causal-timeline",
         "protocol": "zyra.worker-causal-timeline/v1"
       },
       "source_evidence": [
@@ -183597,7 +183598,7 @@
           "symbols": [],
           "tags": [
             "m2-02b",
-            "supplementary_implementation"
+            "conformance_only"
           ]
         }
       ],
@@ -183607,24 +183608,14 @@
         "m2-02b",
         "m2-s02b-01",
         "worker-causal-timeline",
-        "supplementary_implementation"
+        "conformance_only"
       ],
       "target_bindings": [
         {
-          "must_exist_for_statuses": [
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "apps/web/src/features/timeline/projection/background-lifecycle.ts"
-        },
-        {
-          "must_exist_for_statuses": [
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "apps/web/src/features/timeline/projection/recovery-chain.ts"
+          "target_path": "apps/web/test/worker-causal-timeline.test.ts"
         }
       ],
       "test_entries": [
@@ -183640,7 +183631,7 @@
           "expected_signal": "real M1 worker dispatch, fault injection and recovery plan drive the canonical TypeScript timeline",
           "kind": "integration",
           "path": "tests/integration/test_worker_causal_timeline_projection.py",
-          "required": true
+          "required": false
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
@@ -183708,7 +183699,7 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02B-01",
         "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
-        "source_language": "python/dotnet",
+        "source_language": "python",
         "source_role": "conformance_only",
         "target_language": "none",
         "transient_view_owner": "typescript.TimelineWorkbenchController"
@@ -183846,7 +183837,7 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02B-01",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
-        "source_language": "python/typescript",
+        "source_language": "python",
         "source_role": "conformance_only",
         "target_language": "none",
         "transient_view_owner": "typescript.TimelineWorkbenchController"
@@ -184609,7 +184600,7 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02B-02",
         "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
-        "source_language": "python/dotnet",
+        "source_language": "python",
         "source_role": "conformance_only",
         "target_language": "none",
         "transient_control_owner": "typescript.RecoveryControlRuntime",
@@ -184939,7 +184930,7 @@
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S02B-02",
         "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
-        "source_language": "python/typescript",
+        "source_language": "python",
         "source_role": "conformance_only",
         "target_language": "none",
         "transient_control_owner": "typescript.RecoveryControlRuntime",
@@ -185035,22 +185026,22 @@
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 482,
+    "active_or_internalized": 481,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 51,
+      "candidate": 52,
       "deferred": 8,
       "planned": 698,
-      "productized": 427
+      "productized": 426
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 51,
+      "inventoried": 52,
       "planned": 503,
-      "tested_main_path": 188,
+      "tested_main_path": 187,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -185123,14 +185114,14 @@
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 12,
+      "candidate_review": 11,
       "direct_port": 54,
-      "not_selected": 29,
+      "not_selected": 30,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 749,
+    "planned_or_candidate": 750,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,

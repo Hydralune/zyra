@@ -121,6 +121,32 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
             == "retry"
         )
 
+        unbounded_retry_task = _create_task(
+            base_url,
+            "Reject an unbounded retry before recovery applies.",
+        )
+        unbounded_status, unbounded = _command(
+            base_url,
+            unbounded_retry_task,
+            "retry",
+            arguments={
+                **_owner(unbounded_retry_task),
+                "node_id": unbounded_retry_task["root_node_id"],
+                "tool_call_id": "tool-call-unbounded-retry",
+                "maximum_attempts": 9,
+                "bounded_retry": True,
+                "reason": "This direct API request exceeds the bounded policy.",
+            },
+        )
+        assert unbounded_status == 409, unbounded
+        assert unbounded["command_result"]["ok"] is False
+        assert "between 1 and 8" in unbounded["command_result"]["error"]["message"]
+        unbounded_state = api_main.get_store().load_task(
+            unbounded_retry_task["task_id"]
+        )
+        assert unbounded_state is not None
+        assert not unbounded_state.metadata.get("control_mutations")
+
         reassign_task = _create_task(
             base_url,
             "Reassign a lost worker without changing logical task ownership.",

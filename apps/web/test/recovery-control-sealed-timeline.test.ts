@@ -11,6 +11,9 @@ import {
   type RecoveryControlTransport,
   type RecoveryControlTransportInput,
 } from "../src/features/timeline/control/index.ts"
+import { recoveryControlOwnerExpectation } from "../src/features/timeline/view/recovery-control-panel.tsx"
+import type { WorkerCausalTimelineProjection } from "../src/features/timeline/projection/index.ts"
+import type { TaskProjection } from "../../../packages/core/typed-api-client/src/index.ts"
 
 const TASK = "task_timeline_control"
 const RUN = "run_timeline_control"
@@ -133,6 +136,60 @@ function deferred<T>(): {
 }
 
 describe("timeline recovery control contracts", () => {
+  test("fences worker controls with the physical attempt rather than a recovery attempt", () => {
+    const task = {
+      taskId: TASK,
+      runId: RUN,
+      sessionId: "session_timeline_control",
+      rootNodeId: "node_timeline_control",
+      metadata: {
+        worker_pool: {
+          worker_id: "worker_timeline_control",
+          lease_id: "lease_timeline_control",
+          attempt_id: "attempt_physical_worker",
+        },
+      },
+    } as unknown as TaskProjection
+    const projection = {
+      workerEpochs: [
+        {
+          workerId: "worker_timeline_control",
+          leaseId: "lease_timeline_control",
+          nodeId: "node_timeline_control",
+          terminal: false,
+        },
+      ],
+      recoveryChains: [
+        {
+          attempts: [
+            {
+              id: "recovery_attempt_is_not_a_worker_attempt",
+              checkpointId: "checkpoint_timeline_control",
+            },
+          ],
+        },
+      ],
+    } as unknown as WorkerCausalTimelineProjection
+
+    const owner = recoveryControlOwnerExpectation(task, projection)
+    expect(owner.attemptId).toBe("attempt_physical_worker")
+    expect(owner.checkpointId).toBe("checkpoint_timeline_control")
+
+    const changedProjection = {
+      ...projection,
+      workerEpochs: [
+        {
+          workerId: "worker_replaced_after_task_snapshot",
+          leaseId: "lease_replaced_after_task_snapshot",
+          terminal: false,
+        },
+      ],
+    } as unknown as WorkerCausalTimelineProjection
+    expect(
+      recoveryControlOwnerExpectation(task, changedProjection).attemptId,
+    ).toBeUndefined()
+  })
+
   test("production task timeline mounts the recovery panel and measured virtual viewport", async () => {
     const source = await Bun.file(
       new URL(

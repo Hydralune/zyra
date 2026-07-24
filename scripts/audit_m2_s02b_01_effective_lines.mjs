@@ -54,9 +54,9 @@ function sourceDecision(path) {
     path.endsWith("/recovery-chain.ts")
   ) {
     return {
-      source_role: "supplementary_implementation",
-      source_repo: "oh-my-pi",
-      migration_mode: "cropped_migration",
+      source_role: "zyra_owned_production",
+      source_repo: "zyra",
+      migration_mode: "same_language_component_integration",
     }
   }
   if (path.startsWith("apps/web/src/features/timeline/")) {

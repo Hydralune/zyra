@@ -91,7 +91,17 @@ function metadataNumber(
   return undefined
 }
 
-function canonicalOwner(
+function metadataRecord(
+  metadata: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> {
+  const value = metadata[key]
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+export function recoveryControlOwnerExpectation(
   task: TaskProjection,
   projection: WorkerCausalTimelineProjection,
 ): RecoveryControlOwnerExpectation {
@@ -100,6 +110,15 @@ function canonicalOwner(
       .reverse()
       .find((epoch) => !epoch.terminal && epoch.leaseId) ??
     projection.workerEpochs.at(-1)
+  const workerPool = metadataRecord(task.metadata, "worker_pool")
+  const poolWorkerId = metadataString(workerPool, "worker_id")
+  const poolLeaseId = metadataString(workerPool, "lease_id")
+  const workerId = worker?.workerId ?? poolWorkerId
+  const leaseId = worker?.leaseId ?? poolLeaseId
+  const poolOwnerMatchesProjection =
+    Boolean(poolWorkerId && poolLeaseId) &&
+    poolWorkerId === workerId &&
+    poolLeaseId === leaseId
   const attempt = projection.recoveryChains
     .flatMap((chain) => chain.attempts)
     .at(-1)
@@ -107,9 +126,11 @@ function canonicalOwner(
     taskId: task.taskId,
     runId: task.runId,
     sessionId: task.sessionId,
-    workerId: worker?.workerId,
-    leaseId: worker?.leaseId,
-    attemptId: attempt?.id,
+    workerId,
+    leaseId,
+    attemptId: poolOwnerMatchesProjection
+      ? metadataString(workerPool, "attempt_id")
+      : undefined,
     nodeId:
       worker?.nodeId ??
       metadataString(task.metadata, "node_id", "active_node_id") ??
@@ -236,7 +257,7 @@ export function RecoveryControlPanel({
 }) {
   const sealed = taskSealed(task)
   const owner = useMemo(
-    () => canonicalOwner(task, projection),
+    () => recoveryControlOwnerExpectation(task, projection),
     [task, projection],
   )
   const control = useMemo(
