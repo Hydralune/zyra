@@ -108,6 +108,11 @@
       "status": "passed"
     },
     {
+      "command": "bun run build:web",
+      "result": "passed; production bundle contains 213 modules",
+      "status": "passed"
+    },
+    {
       "command": "python -m compileall apps/api/zyra_api packages/workers/zyra_workers/terminal",
       "result": "passed",
       "status": "passed"
@@ -115,6 +120,11 @@
     {
       "command": "python -m pytest tests/unit/test_workspace_manager_integration.py tests/unit/test_permission_continuation.py tests/unit/test_sandbox_gateway_artifacts.py tests/unit/test_runtime_event_spine_foundation.py -q",
       "result": "30 passed, 14 subtests passed in 39.05s",
+      "status": "passed"
+    },
+    {
+      "command": "bun test ./apps/web/test/workbench-shell.test.tsx ./apps/web/test/artifact-custody-catalog-viewers.test.ts ./apps/web/test/diff-patch-review-integration.test.ts",
+      "result": "64 passed, 237 assertions",
       "status": "passed"
     }
   ],

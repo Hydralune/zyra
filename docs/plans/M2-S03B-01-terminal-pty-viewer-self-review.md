@@ -100,8 +100,10 @@ The implementation commit passed:
 | `bun test ./apps/web/test/terminal-pty-viewer.test.ts` | `17 passed`, `117 assertions` |
 | `bun x tsc -p packages/core/typed-api-client/tsconfig.json` | pass |
 | `bun x tsc -p apps/web/tsconfig.json` | pass |
+| `bun run build:web` | pass; production bundle contains `213` modules |
 | `python -m compileall apps/api/zyra_api packages/workers/zyra_workers/terminal` | pass |
 | adjacent workspace/permission/artifact/event-spine pytest set | `30 passed, 14 subtests passed` |
+| 01B workbench plus 03A artifact/diff Web regression | `64 passed`, `237 assertions` |
 
 The real-platform tests cover:
 
