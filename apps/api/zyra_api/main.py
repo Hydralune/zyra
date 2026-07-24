@@ -88,6 +88,12 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/diff-reviews/{artifact_id}/comments"),
     ("POST", "/tasks/{task_id}/diff-reviews/{artifact_id}/apply"),
     ("POST", "/tasks/{task_id}/diff-reviews/transactions/{transaction_id}/rollback"),
+    ("GET", "/tasks/{task_id}/terminals"),
+    ("GET", "/tasks/{task_id}/terminals/{terminal_id}"),
+    ("GET", "/tasks/{task_id}/terminals/{terminal_id}/connect"),
+    ("POST", "/tasks/{task_id}/terminals"),
+    ("POST", "/tasks/{task_id}/terminals/{terminal_id}/ticket"),
+    ("POST", "/tasks/{task_id}/terminals/{terminal_id}/kill"),
     ("POST", "/tasks/{task_id}/faults/observations"),
     ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
     ("GET", "/tasks/{task_id}/recovery"),
@@ -129,6 +135,7 @@ from .diff_review_api import (
     DiffReviewApiService,
     DiffReviewRegistry,
 )
+from .terminal_api import TerminalApiService
 
 from zyra_core import (
     AgentMessage,
@@ -328,6 +335,17 @@ from zyra_runtime import (
     default_tool_registry,
     default_worker_descriptors,
     tool_result_event,
+)
+from zyra_workers.terminal import (
+    TerminalBinding,
+    TerminalCreateRequest,
+    TerminalError,
+    TerminalPermission,
+    TerminalSessionRegistry,
+    TerminalSpill,
+    TerminalStateStore,
+    TerminalTicketAuthority,
+    TerminalWebSocketHandler,
 )
 from zyra_runtime.claude_session_api_projection import SessionApiProjectionBuilder
 from zyra_runtime.claude_session_lifecycle_state import SessionLifecycleRuntime
@@ -2162,6 +2180,7 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     reset_worker_pool_api()
     reset_runtime_event_spine_bridge()
     reset_diff_review_api()
+    reset_terminal_api()
 
 
 def get_code_index_service() -> CodeIndexApiService:
@@ -2264,6 +2283,314 @@ def reset_diff_review_api() -> None:
             _DIFF_REVIEW_API_INSTANCE.registry.clear()
         _DIFF_REVIEW_API_INSTANCE = None
         _DIFF_REVIEW_API_KEY = None
+
+
+_TERMINAL_API_LOCK = threading.RLock()
+_TERMINAL_API_INSTANCE: TerminalApiService | None = None
+_TERMINAL_API_KEY: tuple[int, str, str, bool] | None = None
+
+
+def terminal_state_path() -> Path:
+    configured = Path(
+        os.environ.get(
+            "ZYRA_TERMINAL_STATE",
+            str(artifact_root_path() / ".terminal" / "sessions.json"),
+        )
+    )
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
+def _terminal_workspace(request: TerminalCreateRequest) -> tuple[str, int, Path]:
+    manager = get_workspace_manager()
+    access = manager.acquire_for_worker(
+        task_id=request.task_id,
+        session_id="",
+        worker_id=request.worker_id,
+    )
+    binding = manager.store.require_binding(access.workspace_id)
+    root = manager.internal_task_root(access).resolve()
+    logical = request.cwd.strip() or "."
+    selected = Path(logical)
+    if selected.is_absolute():
+        raise TerminalError(
+            "terminal_cwd_absolute",
+            "Terminal cwd must be relative to the task workspace.",
+            status=400,
+        )
+    target = (root / selected).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as error:
+        raise TerminalError(
+            "terminal_cwd_escape",
+            "Terminal cwd escapes the task workspace.",
+            status=403,
+        ) from error
+    if not target.is_dir():
+        raise TerminalError(
+            "terminal_cwd_not_found",
+            "Terminal cwd is not an existing workspace directory.",
+            status=404,
+        )
+    return binding.workspace_id, binding.binding_revision, target
+
+
+def _terminal_permission(
+    action: str,
+    request: TerminalCreateRequest | Any,
+) -> TerminalPermission:
+    tool_call_id = str(request.tool_call_id or "")
+    material = {
+        "run_id": request.run_id,
+        "task_id": request.task_id,
+        "session_id": request.session_id,
+        "session_revision": 0,
+        "worker_request_id": (
+            str(getattr(request, "command_id", "") or "") or tool_call_id
+        ),
+        "tool_call_id": tool_call_id,
+        "tool_name": "terminal.pty",
+        "namespace": "builtin",
+        "server_id": "",
+        "operation": action,
+        "workspace_root": ".",
+        "arguments": {
+            "action": action,
+            "terminal_id": str(getattr(request, "terminal_id", "") or ""),
+            "command": (
+                str(getattr(request, "command", "") or "")[:4_096]
+                if action == "create"
+                else ""
+            ),
+            "cwd": str(getattr(request, "cwd", "") or ""),
+            "rows": int(getattr(request, "rows", 0) or 0),
+            "cols": int(getattr(request, "cols", 0) or 0),
+            "reason": str(getattr(request, "reason", "") or "")[:1_024],
+        },
+        "metadata": {
+            "canonical_terminal_owner": (
+                "zyra_workers.terminal.TerminalSessionRegistry"
+            ),
+            "canonical_permission_owner": "typescript.PermissionCoordinator",
+            "python_decision_fallback": False,
+            "span_id": request.span_id,
+            "actor_id": request.actor_id,
+            "competition_mode": request.competition_mode,
+            "annotations": {
+                "readOnlyHint": False,
+                "destructiveHint": action in {"create", "input", "kill"},
+                "openWorldHint": False,
+                "idempotentHint": action == "kill",
+            },
+        },
+        "await_approval_delivery": True,
+    }
+    permit_id = str(getattr(request, "permission_permit_id", "") or "")
+    if permit_id:
+        material["permit_id"] = permit_id
+    port = get_mcp_runtime()
+    claimed = dict(port.permission_claim(material))
+    response = (
+        claimed
+        if claimed.get("claimed") is True
+        else dict(port.permission_enforce(material))
+    )
+    decision = (
+        dict(response.get("decision") or {})
+        if isinstance(response.get("decision"), Mapping)
+        else {}
+    )
+    owner = str(
+        response.get("canonical_owner")
+        or response.get("canonicalOwner")
+        or decision.get("canonical_owner")
+        or decision.get("canonicalOwner")
+        or ""
+    )
+    if "typescript" not in owner.casefold():
+        raise TerminalError(
+            "terminal_permission_owner_invalid",
+            "Terminal permission response is not TypeScript-owned.",
+            status=503,
+        )
+    effect = str(decision.get("effect") or response.get("effect") or "").casefold()
+    if effect not in {"allow", "ask", "deny"}:
+        raise TerminalError(
+            "terminal_permission_effect_invalid",
+            "Terminal permission owner returned an invalid effect.",
+            status=503,
+        )
+    return TerminalPermission(
+        effect=effect,
+        decision_id=str(
+            decision.get("decision_id")
+            or decision.get("decisionId")
+            or new_id("terminal_permission")
+        ),
+        request_id=str(
+            decision.get("request_id")
+            or decision.get("requestId")
+            or response.get("request_id")
+            or ""
+        ),
+        permit_id=str(
+            response.get("permit_id")
+            or decision.get("permit_id")
+            or permit_id
+            or ""
+        ),
+        reason_code=str(
+            decision.get("reason_code")
+            or decision.get("reasonCode")
+            or f"permission.{effect}"
+        ),
+        reason=str(
+            decision.get("reason")
+            or response.get("message")
+            or f"Terminal {action} permission resolved as {effect}."
+        ),
+    )
+
+
+def _terminal_event(payload: Mapping[str, Any]) -> str:
+    binding = payload.get("binding")
+    if not isinstance(binding, Mapping):
+        raise TerminalError(
+            "terminal_event_binding_invalid",
+            "Terminal event has no canonical binding.",
+            status=500,
+        )
+    event_name = str(payload.get("event_type") or "")
+    event_type = (
+        EventType.TERMINAL_OUTPUT
+        if event_name == "terminal.output"
+        else EventType.TERMINAL_CONTROL
+        if event_name in {"terminal.input", "terminal.resize", "terminal.killed"}
+        else EventType.TERMINAL_SESSION_LIFECYCLE
+    )
+    event = EventRecord(
+        run_id=str(binding.get("run_id") or ""),
+        task_id=str(binding.get("task_id") or ""),
+        event_type=event_type,
+        payload=dict(payload),
+    )
+    persist_events(get_store(), [event])
+    return event.event_id
+
+
+def _terminal_spill_sink(binding: TerminalBinding) -> Any:
+    artifact_store = LocalArtifactStore(artifact_root_path())
+
+    def spill(
+        data: bytes,
+        first_cursor: int,
+        next_cursor: int,
+        binary: bool,
+        redacted: bool,
+    ) -> TerminalSpill:
+        artifact = artifact_store.write_bytes(
+            run_id=binding.run_id,
+            task_id=binding.task_id,
+            content=data,
+            title=(
+                f"Terminal {binding.terminal_id} output "
+                f"{first_cursor}-{next_cursor}"
+            ),
+            kind=ArtifactKind.TRACE,
+            extension=".bin" if binary else ".log",
+            metadata={
+                "contract": "zyra.terminal-spill.v1",
+                "terminal_id": binding.terminal_id,
+                "first_cursor": first_cursor,
+                "next_cursor": next_cursor,
+                "binary": binary,
+                "redacted": redacted,
+                "producer_span_id": binding.span_id,
+                "producer_tool_call_id": binding.tool_call_id,
+                "producer_worker_id": binding.worker_id,
+                "security_label": "internal",
+            },
+        )
+        store = get_store()
+        state = store.load_task(binding.task_id)
+        if state is None or state.run_id != binding.run_id:
+            raise TerminalError(
+                "terminal_spill_task_missing",
+                "Terminal spill cannot attach to its canonical task.",
+                status=500,
+            )
+        _attach_artifacts(state, [artifact])
+        store.save_checkpoint(state)
+        return TerminalSpill(
+            artifact_id=artifact.artifact_id,
+            revision=str(artifact.metadata.get("revision") or ""),
+            media_type=str(
+                artifact.metadata.get("media_type")
+                or ("application/octet-stream" if binary else "text/plain")
+            ),
+            sha256=str(artifact.metadata.get("sha256") or ""),
+            byte_length=next_cursor - first_cursor,
+            first_cursor=first_cursor,
+            next_cursor=next_cursor,
+            binary=binary,
+            redacted=redacted,
+        )
+
+    return spill
+
+
+def get_terminal_api() -> TerminalApiService:
+    global _TERMINAL_API_INSTANCE, _TERMINAL_API_KEY
+    manager = get_workspace_manager()
+    state_path = terminal_state_path().resolve()
+    disabled = os.environ.get("ZYRA_TERMINAL_DISABLED", "").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    key = (
+        id(manager),
+        str(state_path),
+        str(artifact_root_path().resolve()),
+        disabled,
+    )
+    with _TERMINAL_API_LOCK:
+        if _TERMINAL_API_INSTANCE is None or _TERMINAL_API_KEY != key:
+            if _TERMINAL_API_INSTANCE is not None:
+                _TERMINAL_API_INSTANCE.registry.shutdown()
+            registry = TerminalSessionRegistry(
+                state_store=TerminalStateStore(state_path),
+                workspace_resolver=_terminal_workspace,
+                permission_port=_terminal_permission,
+                event_sink=_terminal_event,
+                spill_sink_factory=_terminal_spill_sink,
+                ticket_authority=TerminalTicketAuthority.random(
+                    ttl_seconds=float(
+                        os.environ.get("ZYRA_TERMINAL_TICKET_TTL", "20")
+                    )
+                ),
+                maximum_sessions=max(
+                    1,
+                    min(
+                        1_024,
+                        int(os.environ.get("ZYRA_TERMINAL_MAX_SESSIONS", "128")),
+                    ),
+                ),
+                enabled=not disabled,
+            )
+            _TERMINAL_API_INSTANCE = TerminalApiService(registry)
+            _TERMINAL_API_KEY = key
+        return _TERMINAL_API_INSTANCE
+
+
+def reset_terminal_api() -> None:
+    global _TERMINAL_API_INSTANCE, _TERMINAL_API_KEY
+    with _TERMINAL_API_LOCK:
+        if _TERMINAL_API_INSTANCE is not None:
+            _TERMINAL_API_INSTANCE.registry.shutdown()
+        _TERMINAL_API_INSTANCE = None
+        _TERMINAL_API_KEY = None
 
 
 _M1_HARDENING_API_LOCK = threading.RLock()
@@ -3997,7 +4324,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             try:
                                 reset_mcp_runtime()
                             finally:
-                                reset_worker_pool_api()
+                                try:
+                                    reset_terminal_api()
+                                finally:
+                                    reset_worker_pool_api()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -4465,11 +4795,88 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
-        if not self._prepare_typed_transport():
-            return
         parsed = urlparse(self.path)
         parts = _path_parts(parsed.path)
+        if (
+            len(parts) == 5
+            and parts[0] == "tasks"
+            and parts[2] == "terminals"
+            and parts[4] == "connect"
+        ):
+            query = _flatten_query(
+                parse_qs(parsed.query, keep_blank_values=True)
+            )
+            try:
+                TerminalWebSocketHandler(get_terminal_api().registry).upgrade(
+                    self,
+                    task_id=parts[1],
+                    terminal_id=parts[3],
+                    ticket=str(query.get("ticket") or ""),
+                    cursor=int(query.get("cursor") or 0),
+                    protocol=str(
+                        query.get("protocol") or "zyra.terminal.v1"
+                    ),
+                )
+            except (TypeError, ValueError):
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "terminal_cursor_invalid",
+                        "message": "Terminal WebSocket cursor is invalid.",
+                        "fallback": False,
+                    },
+                )
+            except TerminalError as error:
+                try:
+                    status = HTTPStatus(error.status)
+                except ValueError:
+                    status = HTTPStatus.BAD_REQUEST
+                self._send_json(status, error.response())
+            return
+        if not self._prepare_typed_transport():
+            return
         store = get_store()
+
+        if (
+            len(parts) in {3, 4}
+            and parts[0] == "tasks"
+            and parts[2] == "terminals"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            query = _flatten_query(
+                parse_qs(parsed.query, keep_blank_values=True)
+            )
+            try:
+                response = (
+                    get_terminal_api().list(
+                        task_id=state.task_id,
+                        include_closed=str(
+                            query.get("include_closed") or ""
+                        ).casefold()
+                        in {"1", "true", "yes", "on"},
+                    )
+                    if len(parts) == 3
+                    else get_terminal_api().get(
+                        task_id=state.task_id,
+                        terminal_id=parts[3],
+                    )
+                )
+            except TerminalError as error:
+                try:
+                    status = HTTPStatus(error.status)
+                except ValueError:
+                    status = HTTPStatus.BAD_REQUEST
+                self._send_json(status, error.response())
+                return
+            self._send_json(
+                response.status,
+                response.body,
+                headers=dict(response.headers),
+            )
+            return
 
         hardening_response = get_m1_hardening_api().handle_get(
             tuple(parts),
@@ -6310,6 +6717,124 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
             return
+
+        if (
+            len(parts) in {3, 5}
+            and parts[0] == "tasks"
+            and parts[2] == "terminals"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            reservation: ReceiptReservation | None | bool = None
+            try:
+                if len(parts) == 3:
+                    reservation = self._begin_typed_receipt(
+                        operation="terminal.create",
+                        path=parsed.path,
+                        payload=payload,
+                    )
+                    if reservation is False:
+                        return
+                    response = get_terminal_api().create(
+                        task_id=state.task_id,
+                        run_id=state.run_id,
+                        payload=payload,
+                        actor_id=self._permission_actor_id(),
+                    )
+                    committed = self._commit_typed_receipt(
+                        reservation,
+                        status=response.status,
+                        body=response.body,
+                        binding={
+                            "session_id": str(payload.get("session_id") or ""),
+                            "run_id": state.run_id,
+                            "task_id": state.task_id,
+                        },
+                    )
+                    if committed is None:
+                        return
+                    body, receipt_headers = committed
+                    self._send_json(
+                        response.status,
+                        body,
+                        headers={
+                            **dict(response.headers),
+                            **receipt_headers,
+                        },
+                    )
+                    return
+                operation = parts[4]
+                terminal_id = parts[3]
+                if operation == "ticket":
+                    response = get_terminal_api().ticket(
+                        task_id=state.task_id,
+                        terminal_id=terminal_id,
+                        run_id=state.run_id,
+                        payload=payload,
+                        origin=str(self.headers.get("Origin") or ""),
+                    )
+                    self._send_json(
+                        response.status,
+                        response.body,
+                        headers=dict(response.headers),
+                    )
+                    return
+                if operation == "kill":
+                    reservation = self._begin_typed_receipt(
+                        operation="terminal.kill",
+                        path=parsed.path,
+                        payload=payload,
+                    )
+                    if reservation is False:
+                        return
+                    response = get_terminal_api().kill(
+                        task_id=state.task_id,
+                        terminal_id=terminal_id,
+                        run_id=state.run_id,
+                        payload=payload,
+                        actor_id=self._permission_actor_id(),
+                    )
+                    committed = self._commit_typed_receipt(
+                        reservation,
+                        status=response.status,
+                        body=response.body,
+                        binding={
+                            "session_id": str(payload.get("session_id") or ""),
+                            "run_id": state.run_id,
+                            "task_id": state.task_id,
+                        },
+                    )
+                    if committed is None:
+                        return
+                    body, receipt_headers = committed
+                    self._send_json(
+                        response.status,
+                        body,
+                        headers={
+                            **dict(response.headers),
+                            **receipt_headers,
+                        },
+                    )
+                    return
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": "terminal_route_not_found",
+                        "path": parsed.path,
+                    },
+                )
+                return
+            except TerminalError as error:
+                if isinstance(reservation, ReceiptReservation):
+                    self._typed_receipts().abandon(reservation)
+                try:
+                    status = HTTPStatus(error.status)
+                except ValueError:
+                    status = HTTPStatus.BAD_REQUEST
+                self._send_json(status, error.response())
+                return
 
         hardening_response = get_m1_hardening_api().handle_post(
             tuple(parts),

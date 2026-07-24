@@ -499,6 +499,18 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.taskDiffReviewTransaction,
     (value) => ({ ...responseRecord(value, "diff review transaction response") }),
   )
+  registry.register(
+    CONTRACT_NAMES.taskTerminalList,
+    (value) => ({ ...responseRecord(value, "terminal list response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskTerminalSession,
+    (value) => ({ ...responseRecord(value, "terminal session response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskTerminalReceipt,
+    (value) => ({ ...responseRecord(value, "terminal mutation response") }),
+  )
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {

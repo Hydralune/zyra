@@ -155,6 +155,63 @@ export interface DiffReviewMutationOptions {
   causationId: string
 }
 
+export interface TerminalListOptions {
+  includeClosed?: boolean
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface TerminalCreateInput {
+  taskId: string
+  runId: string
+  sessionId: string
+  workerId: string
+  commandId: string
+  toolCallId: string
+  spanId: string
+  command: string
+  title?: string
+  cwd?: string
+  shell?: string
+  rows?: number
+  cols?: number
+  actorId?: string
+  sealed?: boolean
+  permissionPermitId?: string
+  environment?: Readonly<Record<string, string>>
+  idempotencyKey?: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface TerminalTicketInput {
+  taskId: string
+  runId: string
+  terminalId: string
+  sessionId: string
+  cursor: number
+  origin: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface TerminalKillInput {
+  taskId: string
+  runId: string
+  terminalId: string
+  sessionId: string
+  workerId: string
+  toolCallId: string
+  spanId: string
+  actorId: string
+  reason: string
+  sealed?: boolean
+  permissionPermitId?: string
+  idempotencyKey?: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 function normalizedLimit(value: number | undefined): number {
   if (value === undefined) return 100
   if (!Number.isFinite(value)) throw new TypeError("Task list limit must be finite")
@@ -1031,6 +1088,215 @@ export class TaskApi {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value))
     }
+    return url.toString()
+  }
+
+  async terminalList(
+    taskId: string,
+    options: TerminalListOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskTerminalList,
+      {
+        path: { task_id: normalizedTaskId },
+        query: { include_closed: options.includeClosed === true },
+        binding: { taskId: normalizedTaskId },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey: `task.terminals.list:${normalizedTaskId}:${Boolean(options.includeClosed)}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
+  async terminalGet(
+    taskId: string,
+    terminalId: string,
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const selectedTerminal = diffReviewIdentity(terminalId, "terminal")
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskTerminalGet,
+      {
+        path: { task_id: normalizedTaskId, terminal_id: selectedTerminal },
+        binding: { taskId: normalizedTaskId },
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        coordinationKey: `task.terminals.get:${normalizedTaskId}:${selectedTerminal}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
+  async terminalCreate(
+    input: TerminalCreateInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const sessionId = normalizeIdentity("session", input.sessionId)
+    const command = String(input.command || "")
+    const commandBytes = new TextEncoder().encode(command).byteLength
+    if (!command.trim() || commandBytes > 256 * 1_024 || command.includes("\u0000")) {
+      throw new TypeError("Terminal command must contain 1..262144 non-NUL UTF-8 bytes.")
+    }
+    const dimension = (value: number | undefined, fallback: number, minimum: number, maximum: number) => {
+      const selected = value ?? fallback
+      if (!Number.isSafeInteger(selected) || selected < minimum || selected > maximum) {
+        throw new TypeError(`Terminal dimension must be in ${minimum}..${maximum}.`)
+      }
+      return selected
+    }
+    const body = {
+      run_id: runId,
+      session_id: sessionId,
+      worker_id: diffReviewIdentity(input.workerId, "terminal worker"),
+      command_id: diffReviewIdentity(input.commandId, "terminal command identity"),
+      tool_call_id: diffReviewIdentity(input.toolCallId, "terminal tool call"),
+      span_id: normalizeIdentity("span", input.spanId),
+      command,
+      title: String(input.title || "Terminal").slice(0, 256),
+      cwd: input.cwd ? String(input.cwd) : undefined,
+      shell: input.shell ? String(input.shell) : undefined,
+      rows: dimension(input.rows, 24, 2, 500),
+      cols: dimension(input.cols, 80, 2, 1_000),
+      actor_id: diffReviewIdentity(input.actorId || "zyra-web-terminal", "terminal actor"),
+      sealed: input.sealed === true,
+      competition_mode: input.sealed ? "sealed_autonomous" : "interactive",
+      permission_permit_id: input.permissionPermitId
+        ? diffReviewIdentity(input.permissionPermitId, "terminal permit")
+        : undefined,
+      environment: { ...(input.environment ?? {}) },
+    }
+    const binding: IdentityBinding = { taskId, runId, sessionId, spanId: input.spanId }
+    const idempotencyKey = normalizeIdempotencyKey(
+      input.idempotencyKey
+        ?? createIdempotencyKey(OPERATION_NAMES.taskTerminalCreate, binding, body),
+    )
+    const response = await this.#client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskTerminalCreate,
+      {
+        path: { task_id: taskId },
+        body,
+        binding,
+        idempotencyKey,
+        signal: input.signal,
+        timeoutMs: input.timeoutMs,
+        coordinationKey: `task.terminals.create:${taskId}:${idempotencyKey}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({
+      ...response.data,
+      receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
+    })
+  }
+
+  async terminalTicket(
+    input: TerminalTicketInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const sessionId = normalizeIdentity("session", input.sessionId)
+    const terminalId = diffReviewIdentity(input.terminalId, "terminal")
+    if (!Number.isSafeInteger(input.cursor) || input.cursor < 0) {
+      throw new TypeError("Terminal ticket cursor must be a non-negative safe integer.")
+    }
+    const origin = new URL(input.origin).origin
+    const body = {
+      run_id: runId,
+      session_id: sessionId,
+      cursor: input.cursor,
+      origin,
+      protocol: "zyra.terminal.v1",
+    }
+    const response = await this.#client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskTerminalTicket,
+      {
+        path: { task_id: taskId, terminal_id: terminalId },
+        body,
+        binding: { taskId, runId, sessionId },
+        signal: input.signal,
+        timeoutMs: input.timeoutMs,
+        coordinationKey: `task.terminals.ticket:${taskId}:${terminalId}:${input.cursor}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
+  async terminalKill(
+    input: TerminalKillInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const sessionId = normalizeIdentity("session", input.sessionId)
+    const terminalId = diffReviewIdentity(input.terminalId, "terminal")
+    const reason = String(input.reason || "Killed from Zyra terminal viewer.").trim()
+    if (!reason || new TextEncoder().encode(reason).byteLength > 2_048) {
+      throw new TypeError("Terminal kill reason must contain 1..2048 UTF-8 bytes.")
+    }
+    const body = {
+      run_id: runId,
+      session_id: sessionId,
+      worker_id: diffReviewIdentity(input.workerId, "terminal worker"),
+      tool_call_id: diffReviewIdentity(input.toolCallId, "terminal tool call"),
+      span_id: normalizeIdentity("span", input.spanId),
+      actor_id: diffReviewIdentity(input.actorId, "terminal actor"),
+      reason,
+      sealed: input.sealed === true,
+      competition_mode: input.sealed ? "sealed_autonomous" : "interactive",
+      permission_permit_id: input.permissionPermitId
+        ? diffReviewIdentity(input.permissionPermitId, "terminal permit")
+        : undefined,
+    }
+    const binding: IdentityBinding = { taskId, runId, sessionId, spanId: input.spanId }
+    const idempotencyKey = normalizeIdempotencyKey(
+      input.idempotencyKey
+        ?? createIdempotencyKey(OPERATION_NAMES.taskTerminalKill, binding, body),
+    )
+    const response = await this.#client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskTerminalKill,
+      {
+        path: { task_id: taskId, terminal_id: terminalId },
+        body,
+        binding,
+        idempotencyKey,
+        signal: input.signal,
+        timeoutMs: input.timeoutMs,
+        coordinationKey: `task.terminals.kill:${taskId}:${terminalId}:${idempotencyKey}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({
+      ...response.data,
+      receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
+    })
+  }
+
+  terminalWebSocketUrl(
+    taskId: string,
+    terminalId: string,
+    path: string,
+    query: { ticket: string; cursor: number; protocol: string },
+  ): string {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    const selectedTerminal = diffReviewIdentity(terminalId, "terminal")
+    const safePath = String(path || "").trim()
+    if (
+      !safePath.startsWith("/") || safePath.startsWith("//") || safePath.includes("\\")
+      || safePath.split("/").some((segment) => segment === "." || segment === "..")
+      || !safePath.includes(encodeURIComponent(normalizedTaskId))
+      || !safePath.includes(encodeURIComponent(selectedTerminal))
+    ) throw new TypeError("Terminal WebSocket path is unsafe or cross-bound.")
+    const url = new URL(safePath, this.#client.baseUrl)
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+    url.searchParams.set("ticket", query.ticket)
+    url.searchParams.set("cursor", String(query.cursor))
+    url.searchParams.set("protocol", query.protocol)
     return url.toString()
   }
 
