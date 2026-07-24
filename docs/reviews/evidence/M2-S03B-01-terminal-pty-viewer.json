@@ -1,0 +1,239 @@
+{
+  "schema_version": "1.0",
+  "kind": "zyra.slice_evidence",
+  "slice_id": "M2-S03B-01",
+  "title": "terminal PTY viewer",
+  "verdict": "passed",
+  "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+  "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+  "evidence_commit": "pending_at_commit_creation",
+  "effective_code": {
+    "minimum": 6000,
+    "effective_typescript_react": 6315,
+    "passed": true,
+    "raw_additions": 15688,
+    "raw_deletions": 3,
+    "buckets": {
+      "typescript_production_runtime": 5943,
+      "react_ui_behavior": 372,
+      "ui_presentation": 633,
+      "type_declaration": 1081,
+      "schema_dto_data": 5,
+      "python_production_excluded_from_floor": 4583,
+      "test_mock_fixture": 2860,
+      "docs_comments_blank": 211,
+      "adapter_only": 0,
+      "vendor_like_source_pool": 0
+    },
+    "audit_command": "bun scripts/audit_m2_s03b_01_effective_lines.mjs --summary",
+    "interval": "f54446ec7bcbec16f189c8f50d957bd67e76e94b..1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "opencode",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "mechanism": "terminal tabs, session projection, reconnect, writer and resize",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "mechanism": "terminal panel lifecycle and safe completed projection",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "mechanism": "input, ordered writes, bounded screen and backpressure",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "conformance_only",
+      "source_language": "rust",
+      "target_language": "none",
+      "mechanism": "native PTY lifecycle conformance",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "hermes-agent",
+      "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "role": "conformance_only",
+      "source_language": "python",
+      "target_language": "none",
+      "mechanism": "origin, ticket and reconnect negative conformance",
+      "runtime_dependency": false
+    }
+  ],
+  "state_custody": {
+    "pty_process_and_tree": "python platform PTY driver",
+    "terminal_session_and_recovery": "python TerminalSessionRegistry and TerminalStateStore",
+    "cursor_replay_redaction_spill": "python TerminalOutputJournal",
+    "connect_ticket": "python TerminalTicketAuthority",
+    "permission": "typescript PermissionCoordinator",
+    "workspace": "python WorkspaceManagerRuntime",
+    "artifact": "python LocalArtifactStore and canonical task state",
+    "event": "canonical runtime event spine",
+    "browser_view_reference": "typescript TerminalTabStore"
+  },
+  "behavior_tests": [
+    {
+      "command": "python -m pytest tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py -q",
+      "result": "31 passed in 6.08s",
+      "status": "passed"
+    },
+    {
+      "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+      "result": "17 passed, 117 assertions",
+      "status": "passed"
+    },
+    {
+      "command": "bun x tsc -p packages/core/typed-api-client/tsconfig.json",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "bun x tsc -p apps/web/tsconfig.json",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "python -m compileall apps/api/zyra_api packages/workers/zyra_workers/terminal",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "python -m pytest tests/unit/test_workspace_manager_integration.py tests/unit/test_permission_continuation.py tests/unit/test_sandbox_gateway_artifacts.py tests/unit/test_runtime_event_spine_foundation.py -q",
+      "result": "30 passed, 14 subtests passed in 39.05s",
+      "status": "passed"
+    }
+  ],
+  "subprocess_upgrade_gate": {
+    "real_platform_create_input_resize_exit": true,
+    "real_process_tree_kill": true,
+    "api_shutdown_and_orphan_recovery": true,
+    "fresh_temporary_state_integration": true,
+    "real_websocket_replay_and_detach": true,
+    "external_pty_package": false,
+    "source_repository_process": false,
+    "manifest_or_lockfile_change": false,
+    "production_dependency_scan_matches": 0,
+    "recent_cmd_ping_processes_after_tests": 0
+  },
+  "failure_and_security_evidence": {
+    "permission_deny_or_ask_never_spawns": true,
+    "sealed_human_action_denied_before_wait": true,
+    "one_use_origin_bound_ticket": true,
+    "binding_sequence_and_cursor_validation": true,
+    "viewer_detach_does_not_kill": true,
+    "input_rate_bytes_per_second": 131072,
+    "input_burst_bytes": 262144,
+    "cross_chunk_secret_redaction": true,
+    "binary_redacted_before_artifact": true,
+    "unsafe_ansi_osc_actions_blocked": true,
+    "owner_disable_fails_closed": true
+  },
+  "large_file_review": [
+    {
+      "path": "apps/api/zyra_api/main.py",
+      "raw": 528,
+      "effective": 0,
+      "judgment": "reachable API composition; Python excluded from TypeScript floor"
+    },
+    {
+      "path": "apps/web/src/features/terminal/ansi.ts",
+      "raw": 633,
+      "effective": 530,
+      "judgment": "stream parser reached by TerminalRuntime and fragmented-control tests"
+    },
+    {
+      "path": "apps/web/src/features/terminal/contracts.ts",
+      "raw": 925,
+      "effective": 670,
+      "judgment": "strict parser/encoder on every HTTP and socket boundary"
+    },
+    {
+      "path": "apps/web/src/features/terminal/runtime.ts",
+      "raw": 757,
+      "effective": 644,
+      "judgment": "workbench-mounted controller for ticket, replay, input, resize and kill"
+    },
+    {
+      "path": "apps/web/src/features/terminal/screen.ts",
+      "raw": 1127,
+      "effective": 969,
+      "judgment": "parser-driven cell, cursor, alternate-screen and scrollback state"
+    },
+    {
+      "path": "apps/web/src/features/terminal/view/terminal-workbench.tsx",
+      "raw": 603,
+      "effective": 372,
+      "judgment": "excluded ratio reviewed; 193 presentation and 37 declaration lines excluded; handlers are reachable from TaskDetail"
+    },
+    {
+      "path": "apps/web/test/terminal-pty-viewer.test.ts",
+      "raw": 973,
+      "effective": 0,
+      "judgment": "test-only"
+    },
+    {
+      "path": "packages/workers/zyra_workers/terminal/drivers.py",
+      "raw": 931,
+      "effective": 0,
+      "judgment": "real POSIX/Windows platform owner; Python excluded from floor"
+    },
+    {
+      "path": "packages/workers/zyra_workers/terminal/runtime.py",
+      "raw": 1037,
+      "effective": 0,
+      "judgment": "canonical lifecycle/replay/recovery owner; Python excluded from floor"
+    },
+    {
+      "path": "packages/workers/zyra_workers/terminal/websocket.py",
+      "raw": 572,
+      "effective": 0,
+      "judgment": "real WebSocket connection lease; Python excluded from floor"
+    },
+    {
+      "path": "tests/integration/test_terminal_websocket_integration.py",
+      "raw": 539,
+      "effective": 0,
+      "judgment": "test-only"
+    },
+    {
+      "path": "tests/unit/test_terminal_pty_runtime.py",
+      "raw": 943,
+      "effective": 0,
+      "judgment": "test-only"
+    }
+  ],
+  "ledger": {
+    "entry_count": 5,
+    "schema_errors": 0,
+    "missing_implementation_targets": 0,
+    "sync_check": "passed",
+    "contract_tests": "6 passed",
+    "non_regression_tests": "10 passed, 2 baseline-known cases deselected",
+    "full_two_file_result": "16 passed, 2 failed; both failures reproduce at baseline",
+    "baseline_known_failures": [
+      "retired M1-02B packages/workers query expectation conflicts with current-policy normalization",
+      "two pre-existing source_repo=zyra policy-validation errors prevent an all-seed clean audit"
+    ]
+  },
+  "deferred": {
+    "full_cleanroom": "M2-03 numeric-stage aggregate",
+    "broad_cross_unit_regression": "M2-03 numeric-stage aggregate",
+    "packaging_and_sustained_terminal_load": "M2-03 aggregate and milestone exit"
+  },
+  "openclaw_forward_exclusion_preserved": true
+}

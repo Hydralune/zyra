@@ -6,10 +6,10 @@
 - Parent: `M2-03B`
 - Decision status: `approved_before_production_change`
 - Baseline commit:
-  `cc92c129ead234a82cf23dad5a1c32e3bf35f06f`
+  `f54446ec7bcbec16f189c8f50d957bd67e76e94b`
 - Parent effective-code baseline:
   `cc92c129ead234a82cf23dad5a1c32e3bf35f06f`
-- Implementation commit: `pending`
+- Implementation commit: `1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8`
 - Evidence commit: `pending`
 - Required conservative effective TypeScript/React floor: `6,000`
 - Parent cumulative floor: `17,000`

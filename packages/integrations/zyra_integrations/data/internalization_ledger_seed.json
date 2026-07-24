@@ -186432,27 +186432,1005 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "terminal_tab_session_reconnect_runtime",
+      "capability_summary": "Workspace-scoped terminal tabs, one-ticket reconnect, cursor resume, resize coalescing and durable viewer-reference behavior.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-02",
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_c26745e79356ba3436d4",
+      "license_notice": {
+        "license_hint": "M2 terminal source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/terminals",
+          "/tasks/{task_id}/terminals/{terminal_id}",
+          "/tasks/{task_id}/terminals/{terminal_id}/ticket",
+          "/tasks/{task_id}/terminals/{terminal_id}/connect",
+          "/tasks/{task_id}/terminals/{terminal_id}/kill"
+        ],
+        "artifact_kinds": [
+          "trace terminal spill"
+        ],
+        "control_commands": [
+          "terminal input",
+          "terminal resize",
+          "terminal kill"
+        ],
+        "event_types": [
+          "terminal_session_lifecycle",
+          "terminal_output",
+          "terminal_control"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "websocket"
+        ],
+        "ui_panels": [
+          "terminal_tabs",
+          "terminal_screen",
+          "terminal_structured_output",
+          "terminal_diagnostics"
+        ],
+        "worker_runtime": "WorkspaceManagerRuntime -> PermissionCoordinator -> TerminalSessionRegistry -> platform PTY -> output journal -> ticketed WebSocket -> typed TaskApi -> TerminalRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_process_owner": "python.zyra-platform-pty",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_replay_owner": "python.TerminalOutputJournal",
+        "canonical_terminal_owner": "python.TerminalSessionRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "external_pty_package": false,
+        "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03B-01",
+        "rationale": "OpenCode terminal session/view mechanics were split into Zyra-owned browser contracts, reconnect, tabs and runtime. OpenCode server/session stores and PTY processes are not used.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TerminalRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode terminal session/view mechanics were split into Zyra-owned browser contracts, reconnect, tabs and runtime. OpenCode server/session stores and PTY processes are not used.",
+      "owner_unit": "M2-S03B-01",
+      "replacement_plan": "Replace behind TerminalRuntime and TerminalSessionRegistry without moving process, workspace, permission, event or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TerminalSessionRegistry, TerminalOutputJournal and the platform driver are the only PTY/session/replay owners.",
+        "PermissionCoordinator remains the sole create/input/kill decision and exact-permit owner.",
+        "Browser tabs retain view references only and closing a tab never terminates the PTY."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/terminal/contracts.ts",
+          "apps/web/src/features/terminal/runtime.ts",
+          "apps/web/src/features/terminal/reconnect.ts",
+          "apps/web/src/features/terminal/resize.ts",
+          "apps/web/src/features/terminal/tabs.ts",
+          "apps/web/src/features/terminal/diagnostics.ts",
+          "apps/web/src/features/terminal/protocol-audit.ts",
+          "apps/web/src/features/terminal/transcript.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_TERMINAL_STATE",
+          "ZYRA_TERMINAL_DISABLED",
+          "ZYRA_TERMINAL_TICKET_TTL",
+          "ZYRA_TERMINAL_MAX_SESSIONS"
+        ],
+        "function": "TerminalRuntime/TerminalSessionRegistry",
+        "health_check": "bun test ./apps/web/test/terminal-pty-viewer.test.ts; python -m pytest -q tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py",
+        "module": "apps.web.src.features.terminal.runtime",
+        "protocol": "zyra.terminal.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/terminal.tsx;packages/app/src/components/terminal.tsx;packages/app/src/pages/session/{terminal-panel.tsx,terminal-panel-v2.tsx};packages/app/src/utils/{terminal-writer.ts,terminal-websocket-url.ts}",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/terminal.tsx;packages/app/src/components/terminal.tsx;packages/app/src/pages/session/{terminal-panel.tsx,terminal-panel-v2.tsx};packages/app/src/utils/{terminal-writer.ts,terminal-websocket-url.ts}",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-01",
+        "terminal",
+        "pty",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/terminal/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/reconnect.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/resize.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/tabs.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/diagnostics.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/protocol-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/transcript.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+          "expected_signal": "strict protocol, ANSI screen, input, replay, reconnect, tabs, selection, diagnostics and explicit-kill-only behavior",
+          "kind": "unit",
+          "path": "apps/web/test/terminal-pty-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/unit/test_terminal_pty_runtime.py",
+          "expected_signal": "permission, sealed denial, tickets, redaction, spill, rate budget, state recovery and owner-disable behavior",
+          "kind": "unit",
+          "path": "tests/unit/test_terminal_pty_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_pty_platform_integration.py",
+          "expected_signal": "real temporary workspace PTY create/input/resize/exit/tree kill and fresh API state",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_pty_platform_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_websocket_integration.py",
+          "expected_signal": "real upgrade, origin, one-use ticket, replay, resync, input, resize and detach-without-kill",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_websocket_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "terminal_panel_lifecycle_and_safe_projection",
+      "capability_summary": "Dedicated terminal panel lifecycle, inactive/completed states, safe rendering and structured read-only output projection.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-02",
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_2d182dc1230fdb6a205b",
+      "license_notice": {
+        "license_hint": "M2 terminal source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/terminals",
+          "/tasks/{task_id}/terminals/{terminal_id}",
+          "/tasks/{task_id}/terminals/{terminal_id}/ticket",
+          "/tasks/{task_id}/terminals/{terminal_id}/connect",
+          "/tasks/{task_id}/terminals/{terminal_id}/kill"
+        ],
+        "artifact_kinds": [
+          "trace terminal spill"
+        ],
+        "control_commands": [
+          "terminal input",
+          "terminal resize",
+          "terminal kill"
+        ],
+        "event_types": [
+          "terminal_session_lifecycle",
+          "terminal_output",
+          "terminal_control"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "websocket"
+        ],
+        "ui_panels": [
+          "terminal_tabs",
+          "terminal_screen",
+          "terminal_structured_output",
+          "terminal_diagnostics"
+        ],
+        "worker_runtime": "WorkspaceManagerRuntime -> PermissionCoordinator -> TerminalSessionRegistry -> platform PTY -> output journal -> ticketed WebSocket -> typed TaskApi -> TerminalRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_process_owner": "python.zyra-platform-pty",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_replay_owner": "python.TerminalOutputJournal",
+        "canonical_terminal_owner": "python.TerminalSessionRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "external_pty_package": false,
+        "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03B-01",
+        "rationale": "Only panel and output-view behavior supplements the OpenCode primary chain. OpenHands RPC, Redux and terminal backend ownership remain excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03B-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TerminalRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration/same_language_component_integration; Only panel and output-view behavior supplements the OpenCode primary chain. OpenHands RPC, Redux and terminal backend ownership remain excluded.",
+      "owner_unit": "M2-S03B-01",
+      "replacement_plan": "Replace behind TerminalRuntime and TerminalSessionRegistry without moving process, workspace, permission, event or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TerminalSessionRegistry, TerminalOutputJournal and the platform driver are the only PTY/session/replay owners.",
+        "PermissionCoordinator remains the sole create/input/kill decision and exact-permit owner.",
+        "Browser tabs retain view references only and closing a tab never terminates the PTY."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/terminal/render.ts",
+          "apps/web/src/features/terminal/structured.ts",
+          "apps/web/src/features/terminal/view/terminal-workbench.tsx"
+        ],
+        "environment_refs": [
+          "ZYRA_TERMINAL_STATE",
+          "ZYRA_TERMINAL_DISABLED",
+          "ZYRA_TERMINAL_TICKET_TTL",
+          "ZYRA_TERMINAL_MAX_SESSIONS"
+        ],
+        "function": "TerminalRuntime/TerminalSessionRegistry",
+        "health_check": "bun test ./apps/web/test/terminal-pty-viewer.test.ts; python -m pytest -q tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py",
+        "module": "apps.web.src.features.terminal.runtime",
+        "protocol": "zyra.terminal.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/components/features/terminal/terminal.tsx;frontend/src/hooks/use-terminal.ts;frontend/src/services/terminal-service.ts;frontend/src/utils/parse-terminal-output.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/components/features/terminal/terminal.tsx;frontend/src/hooks/use-terminal.ts;frontend/src/services/terminal-service.ts;frontend/src/utils/parse-terminal-output.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-01",
+        "terminal",
+        "pty",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/terminal/render.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/structured.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/view/terminal-workbench.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+          "expected_signal": "strict protocol, ANSI screen, input, replay, reconnect, tabs, selection, diagnostics and explicit-kill-only behavior",
+          "kind": "unit",
+          "path": "apps/web/test/terminal-pty-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/unit/test_terminal_pty_runtime.py",
+          "expected_signal": "permission, sealed denial, tickets, redaction, spill, rate budget, state recovery and owner-disable behavior",
+          "kind": "unit",
+          "path": "tests/unit/test_terminal_pty_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_pty_platform_integration.py",
+          "expected_signal": "real temporary workspace PTY create/input/resize/exit/tree kill and fresh API state",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_pty_platform_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_websocket_integration.py",
+          "expected_signal": "real upgrade, origin, one-use ticket, replay, resync, input, resize and detach-without-kill",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_websocket_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "terminal_input_writer_screen_and_backpressure",
+      "capability_summary": "PTY input normalization, ordered writer queue, bounded output screen, explicit lifecycle and backpressure semantics.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-02",
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_4a5ffe9d13c1a5327879",
+      "license_notice": {
+        "license_hint": "M2 terminal source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/terminals",
+          "/tasks/{task_id}/terminals/{terminal_id}",
+          "/tasks/{task_id}/terminals/{terminal_id}/ticket",
+          "/tasks/{task_id}/terminals/{terminal_id}/connect",
+          "/tasks/{task_id}/terminals/{terminal_id}/kill"
+        ],
+        "artifact_kinds": [
+          "trace terminal spill"
+        ],
+        "control_commands": [
+          "terminal input",
+          "terminal resize",
+          "terminal kill"
+        ],
+        "event_types": [
+          "terminal_session_lifecycle",
+          "terminal_output",
+          "terminal_control"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "websocket"
+        ],
+        "ui_panels": [
+          "terminal_tabs",
+          "terminal_screen",
+          "terminal_structured_output",
+          "terminal_diagnostics"
+        ],
+        "worker_runtime": "WorkspaceManagerRuntime -> PermissionCoordinator -> TerminalSessionRegistry -> platform PTY -> output journal -> ticketed WebSocket -> typed TaskApi -> TerminalRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_process_owner": "python.zyra-platform-pty",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_replay_owner": "python.TerminalOutputJournal",
+        "canonical_terminal_owner": "python.TerminalSessionRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "external_pty_package": false,
+        "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+        "migration_mode": "bounded_same_language_semantic_integration",
+        "owner_unit": "M2-S03B-01",
+        "rationale": "OMP TypeScript interaction semantics were integrated into bounded browser modules. OMP does not own a Zyra process, session, permission or output journal.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03B-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.TerminalRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=bounded_same_language_semantic_integration; OMP TypeScript interaction semantics were integrated into bounded browser modules. OMP does not own a Zyra process, session, permission or output journal.",
+      "owner_unit": "M2-S03B-01",
+      "replacement_plan": "Replace behind TerminalRuntime and TerminalSessionRegistry without moving process, workspace, permission, event or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TerminalSessionRegistry, TerminalOutputJournal and the platform driver are the only PTY/session/replay owners.",
+        "PermissionCoordinator remains the sole create/input/kill decision and exact-permit owner.",
+        "Browser tabs retain view references only and closing a tab never terminates the PTY."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/terminal/input.ts",
+          "apps/web/src/features/terminal/writer.ts",
+          "apps/web/src/features/terminal/backpressure.ts",
+          "apps/web/src/features/terminal/screen.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_TERMINAL_STATE",
+          "ZYRA_TERMINAL_DISABLED",
+          "ZYRA_TERMINAL_TICKET_TTL",
+          "ZYRA_TERMINAL_MAX_SESSIONS"
+        ],
+        "function": "TerminalRuntime/TerminalSessionRegistry",
+        "health_check": "bun test ./apps/web/test/terminal-pty-viewer.test.ts; python -m pytest -q tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py",
+        "module": "apps.web.src.features.terminal.runtime",
+        "protocol": "zyra.terminal.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/tools/bash-interactive.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/tools/bash-interactive.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-01",
+        "terminal",
+        "pty",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/terminal/input.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/writer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/backpressure.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/terminal/screen.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+          "expected_signal": "strict protocol, ANSI screen, input, replay, reconnect, tabs, selection, diagnostics and explicit-kill-only behavior",
+          "kind": "unit",
+          "path": "apps/web/test/terminal-pty-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/unit/test_terminal_pty_runtime.py",
+          "expected_signal": "permission, sealed denial, tickets, redaction, spill, rate budget, state recovery and owner-disable behavior",
+          "kind": "unit",
+          "path": "tests/unit/test_terminal_pty_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_pty_platform_integration.py",
+          "expected_signal": "real temporary workspace PTY create/input/resize/exit/tree kill and fresh API state",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_pty_platform_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_websocket_integration.py",
+          "expected_signal": "real upgrade, origin, one-use ticket, replay, resync, input, resize and detach-without-kill",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_websocket_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "native_pty_lifecycle_conformance",
+      "capability_summary": "Native PTY input, resize, exit and process-tree termination semantics used only as platform conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-02",
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_2fc2b2d7804e9fd3f3ba",
+      "license_notice": {
+        "license_hint": "M2 terminal source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/terminals",
+          "/tasks/{task_id}/terminals/{terminal_id}",
+          "/tasks/{task_id}/terminals/{terminal_id}/ticket",
+          "/tasks/{task_id}/terminals/{terminal_id}/connect",
+          "/tasks/{task_id}/terminals/{terminal_id}/kill"
+        ],
+        "artifact_kinds": [
+          "trace terminal spill"
+        ],
+        "control_commands": [
+          "terminal input",
+          "terminal resize",
+          "terminal kill"
+        ],
+        "event_types": [
+          "terminal_session_lifecycle",
+          "terminal_output",
+          "terminal_control"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "websocket"
+        ],
+        "ui_panels": [
+          "terminal_tabs",
+          "terminal_screen",
+          "terminal_structured_output",
+          "terminal_diagnostics"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_process_owner": "python.zyra-platform-pty",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_replay_owner": "python.TerminalOutputJournal",
+        "canonical_terminal_owner": "python.TerminalSessionRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "external_pty_package": false,
+        "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03B-01",
+        "rationale": "No Rust code, native bundle or OMP process was migrated. Zyra's standard-library POSIX PTY and ctypes ConPTY driver is the only native process owner.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03B-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "rust",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_view_owner": "typescript.TerminalRuntime"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=conformance_only; No Rust code, native bundle or OMP process was migrated. Zyra's standard-library POSIX PTY and ctypes ConPTY driver is the only native process owner.",
+      "owner_unit": "M2-S03B-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TerminalSessionRegistry, TerminalOutputJournal and the platform driver are the only PTY/session/replay owners.",
+        "PermissionCoordinator remains the sole create/input/kill decision and exact-permit owner.",
+        "Browser tabs retain view references only and closing a tab never terminates the PTY."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "tests/integration/test_terminal_pty_platform_integration.py",
+          "tests/unit/test_terminal_pty_runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "terminal conformance tests",
+        "health_check": "bun test ./apps/web/test/terminal-pty-viewer.test.ts; python -m pytest -q tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py",
+        "module": "tests.terminal_conformance",
+        "protocol": "zyra.terminal.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "crates/pi-natives/src/pty.rs",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "crates/pi-natives/src/pty.rs",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-01",
+        "terminal",
+        "pty",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "tests/integration/test_terminal_pty_platform_integration.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/unit/test_terminal_pty_runtime.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+          "expected_signal": "strict protocol, ANSI screen, input, replay, reconnect, tabs, selection, diagnostics and explicit-kill-only behavior",
+          "kind": "unit",
+          "path": "apps/web/test/terminal-pty-viewer.test.ts",
+          "required": false
+        },
+        {
+          "command": "python -m pytest -q tests/unit/test_terminal_pty_runtime.py",
+          "expected_signal": "permission, sealed denial, tickets, redaction, spill, rate budget, state recovery and owner-disable behavior",
+          "kind": "unit",
+          "path": "tests/unit/test_terminal_pty_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_pty_platform_integration.py",
+          "expected_signal": "real temporary workspace PTY create/input/resize/exit/tree kill and fresh API state",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_pty_platform_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_websocket_integration.py",
+          "expected_signal": "real upgrade, origin, one-use ticket, replay, resync, input, resize and detach-without-kill",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_websocket_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "terminal_ticket_auth_reconnect_conformance",
+      "capability_summary": "Origin-bound authentication, reconnect and replay-negative behavior used only for protocol conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-02",
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_064cfbddee56a4b33817",
+      "license_notice": {
+        "license_hint": "M2 terminal source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/terminals",
+          "/tasks/{task_id}/terminals/{terminal_id}",
+          "/tasks/{task_id}/terminals/{terminal_id}/ticket",
+          "/tasks/{task_id}/terminals/{terminal_id}/connect",
+          "/tasks/{task_id}/terminals/{terminal_id}/kill"
+        ],
+        "artifact_kinds": [
+          "trace terminal spill"
+        ],
+        "control_commands": [
+          "terminal input",
+          "terminal resize",
+          "terminal kill"
+        ],
+        "event_types": [
+          "terminal_session_lifecycle",
+          "terminal_output",
+          "terminal_control"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "websocket"
+        ],
+        "ui_panels": [
+          "terminal_tabs",
+          "terminal_screen",
+          "terminal_structured_output",
+          "terminal_diagnostics"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "f54446ec7bcbec16f189c8f50d957bd67e76e94b",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_process_owner": "python.zyra-platform-pty",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_replay_owner": "python.TerminalOutputJournal",
+        "canonical_terminal_owner": "python.TerminalSessionRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "external_pty_package": false,
+        "implementation_commit": "1bb50e7cf3f5f784ba11a4d107f1ec7730b7b9d8",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03B-01",
+        "rationale": "Hermes contributes authentication/reconnect negative cases only. No Hermes gateway, process, token store or WebSocket owner is loaded by Zyra.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03B-01",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_view_owner": "typescript.TerminalRuntime"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=conformance_only; Hermes contributes authentication/reconnect negative cases only. No Hermes gateway, process, token store or WebSocket owner is loaded by Zyra.",
+      "owner_unit": "M2-S03B-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TerminalSessionRegistry, TerminalOutputJournal and the platform driver are the only PTY/session/replay owners.",
+        "PermissionCoordinator remains the sole create/input/kill decision and exact-permit owner.",
+        "Browser tabs retain view references only and closing a tab never terminates the PTY."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "tests/integration/test_terminal_websocket_integration.py",
+          "tests/unit/test_terminal_pty_runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "terminal conformance tests",
+        "health_check": "bun test ./apps/web/test/terminal-pty-viewer.test.ts; python -m pytest -q tests/unit/test_terminal_pty_runtime.py tests/integration/test_terminal_pty_platform_integration.py tests/integration/test_terminal_websocket_integration.py",
+        "module": "tests.terminal_conformance",
+        "protocol": "zyra.terminal.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "tui_gateway/server.py;tui_gateway/ws.py;hermes_cli/web_server.py",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "tui_gateway/server.py;tui_gateway/ws.py;hermes_cli/web_server.py",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-01",
+        "terminal",
+        "pty",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "tests/integration/test_terminal_websocket_integration.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/unit/test_terminal_pty_runtime.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/terminal-pty-viewer.test.ts",
+          "expected_signal": "strict protocol, ANSI screen, input, replay, reconnect, tabs, selection, diagnostics and explicit-kill-only behavior",
+          "kind": "unit",
+          "path": "apps/web/test/terminal-pty-viewer.test.ts",
+          "required": false
+        },
+        {
+          "command": "python -m pytest -q tests/unit/test_terminal_pty_runtime.py",
+          "expected_signal": "permission, sealed denial, tickets, redaction, spill, rate budget, state recovery and owner-disable behavior",
+          "kind": "unit",
+          "path": "tests/unit/test_terminal_pty_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_pty_platform_integration.py",
+          "expected_signal": "real temporary workspace PTY create/input/resize/exit/tree kill and fresh API state",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_pty_platform_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_terminal_websocket_integration.py",
+          "expected_signal": "real upgrade, origin, one-use ticket, replay, resync, input, resize and detach-without-kill",
+          "kind": "integration",
+          "path": "tests/integration/test_terminal_websocket_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 487,
+    "active_or_internalized": 490,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 54,
+      "candidate": 56,
       "deferred": 8,
       "planned": 698,
-      "productized": 432
+      "productized": 435
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 54,
+      "inventoried": 56,
       "planned": 503,
-      "tested_main_path": 193,
+      "tested_main_path": 196,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -186510,35 +187488,36 @@
       "M2-S02B-01": 6,
       "M2-S02B-02": 6,
       "M2-S03A-01": 5,
-      "M2-S03A-02": 3
+      "M2-S03A-02": 3,
+      "M2-S03B-01": 5
     },
     "by_source_repo": {
-      "OpenHands": 98,
+      "OpenHands": 99,
       "agent-framework": 97,
       "agentscope": 106,
       "browser-use": 113,
       "claude-code-best": 512,
-      "hermes-agent": 86,
+      "hermes-agent": 87,
       "langgraph": 89,
-      "oh-my-pi": 28,
+      "oh-my-pi": 30,
       "openclaw": 86,
-      "opencode": 30,
+      "opencode": 31,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 15,
-      "direct_port": 56,
-      "not_selected": 32,
+      "candidate_review": 17,
+      "direct_port": 57,
+      "not_selected": 34,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 752,
+    "planned_or_candidate": 754,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 86,
+      "apps/web": 89,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -186550,9 +187529,9 @@
       "packages/symbolic": 1,
       "packages/workers": 165,
       "packages/workspace": 8,
-      "tests/integration": 3,
+      "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1247
+    "total_entries": 1252
   }
 }
