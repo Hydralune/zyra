@@ -17,6 +17,7 @@ import {
   selectRevision,
 } from "../../state/selectors.ts"
 import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
+import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -261,6 +262,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </section>
 
       <TopologyWorkbench runtime={runtime} task={task} />
+
+      <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">
