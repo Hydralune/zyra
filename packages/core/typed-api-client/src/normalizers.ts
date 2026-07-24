@@ -113,6 +113,16 @@ export interface TaskMutationProjection {
   raw: Record<string, unknown>
 }
 
+export interface ControlCommandProjection {
+  task?: TaskProjection
+  controlRequest: Record<string, unknown>
+  command: Record<string, unknown>
+  commandResult: Record<string, unknown>
+  event?: Record<string, unknown>
+  interventionCounted: boolean
+  raw: Record<string, unknown>
+}
+
 function unknownRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -412,6 +422,36 @@ export function normalizeTaskMutation(value: unknown): TaskMutationProjection {
   }
 }
 
+export function normalizeControlCommand(value: unknown): ControlCommandProjection {
+  const body = objectBody(value, "control command response")
+  const task = body.task === undefined ? undefined : normalizeTask(body.task)
+  const controlRequest =
+    optionalResponseRecord(body.control_request, "control command.control_request") ?? {}
+  const command =
+    optionalResponseRecord(body.command, "control command.command") ?? {}
+  const commandResult =
+    optionalResponseRecord(body.command_result, "control command.command_result") ?? {}
+  const event = optionalResponseRecord(body.event, "control command.event")
+  const interventionCounted =
+    body.intervention_counted === true ||
+    commandResult.intervention_counted === true ||
+    Boolean(
+      commandResult.data &&
+      typeof commandResult.data === "object" &&
+      !Array.isArray(commandResult.data) &&
+      (commandResult.data as Record<string, unknown>).intervention_counted === true
+    )
+  return {
+    task,
+    controlRequest,
+    command,
+    commandResult,
+    event,
+    interventionCounted,
+    raw: { ...body },
+  }
+}
+
 export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.health, normalizeHealth)
   registry.register(CONTRACT_NAMES.readiness, normalizeReadiness)
@@ -423,6 +463,7 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskEventIngressDelta, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskEventIngressSse, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskMutation, normalizeTaskMutation)
+  registry.register(CONTRACT_NAMES.taskControlCommand, normalizeControlCommand)
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {

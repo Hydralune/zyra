@@ -173,6 +173,7 @@ export const OPERATION_NAMES = {
   taskCreate: "task.create",
   taskCancel: "task.cancel",
   taskResume: "task.resume",
+  taskControlCommand: "task.control-command",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -186,6 +187,7 @@ export const CONTRACT_NAMES = {
   taskEventIngressDelta: "zyra.event-ingress-delta.v1",
   taskEventIngressSse: "zyra.event-ingress-sse.v1",
   taskMutation: "zyra.task-mutation.v1",
+  taskControlCommand: "zyra.task-control-command.v1",
   error: "zyra.error.v1",
 } as const
 

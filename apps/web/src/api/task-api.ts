@@ -14,6 +14,7 @@ import {
   type TaskListProjection,
   type TaskMutationProjection,
   type TaskProjection,
+  type ControlCommandProjection,
 } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { ZyraApiClient } from "./client.ts"
 
@@ -47,6 +48,22 @@ export interface CancelTaskInput {
 export interface ResumeTaskInput {
   taskId: string
   runId?: string
+  idempotencyKey?: string
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface ControlCommandInput {
+  taskId: string
+  runId: string
+  text: string
+  arguments?: Readonly<Record<string, unknown>>
+  requestId: string
+  commandId: string
+  actorId?: string
+  sessionId?: string
+  expectedRevision?: number
+  sealed?: boolean
   idempotencyKey?: string
   signal?: AbortSignal
   timeoutMs?: number
@@ -503,5 +520,86 @@ export class TaskApi {
     })
     this.#client.receipts.remember(receipt)
     return { mutation: response.data, receipt }
+  }
+
+  async controlCommand(
+    input: ControlCommandInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const requestId = normalizeIdentity("request", input.requestId)
+    const commandId = normalizeIdentity("control_command", input.commandId)
+    const text = String(input.text || "").trim()
+    if (!text.startsWith("/")) {
+      throw new TypeError("Control command text must begin with a slash.")
+    }
+    if (new TextEncoder().encode(text).byteLength > 256 * 1_024) {
+      throw new TypeError("Control command text exceeds 256 KiB.")
+    }
+    const expectedRevision =
+      input.expectedRevision === undefined
+        ? undefined
+        : Number(input.expectedRevision)
+    if (
+      expectedRevision !== undefined &&
+      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+    ) {
+      throw new TypeError("Expected control revision must be a non-negative safe integer.")
+    }
+    const binding: IdentityBinding = {
+      taskId,
+      runId,
+      requestId,
+      controlCommandId: commandId,
+      sessionId: input.sessionId
+        ? normalizeIdentity("session", input.sessionId)
+        : undefined,
+    }
+    const commandBody = {
+      text,
+      arguments: { ...(input.arguments ?? {}) },
+      request_id: requestId,
+      command_id: commandId,
+      actor_id: String(input.actorId || "zyra-web-topology").trim(),
+      session_id: binding.sessionId,
+      expected_session_revision: expectedRevision,
+      sealed: input.sealed === true,
+      competition_mode: input.sealed ? "sealed_autonomous" : "interactive",
+    }
+    const idempotencyKey = normalizeIdempotencyKey(
+      input.idempotencyKey ??
+        createIdempotencyKey(
+          OPERATION_NAMES.taskControlCommand,
+          binding,
+          commandBody,
+        ),
+    )
+    const body = {
+      ...commandBody,
+      idempotency_key: idempotencyKey,
+    }
+    const response = await this.#client.endpoint<
+      ControlCommandProjection,
+      typeof body
+    >(OPERATION_NAMES.taskControlCommand, {
+      path: { task_id: taskId },
+      body,
+      binding,
+      idempotencyKey,
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
+      coordinationKey: `task.control-command:${taskId}:${idempotencyKey}`,
+      deduplicate: true,
+    })
+    return Object.freeze({
+      ...response.data.raw,
+      task: response.data.task,
+      control_request: response.data.controlRequest,
+      command: response.data.command,
+      command_result: response.data.commandResult,
+      event: response.data.event,
+      intervention_counted: response.data.interventionCounted,
+      receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
+    })
   }
 }

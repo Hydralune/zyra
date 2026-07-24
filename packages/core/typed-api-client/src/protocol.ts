@@ -322,6 +322,18 @@ export const CORE_ENDPOINTS = {
     pathParameters: ["task_id"],
     queryParameters: [],
   }),
+  taskControlCommand: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskControlCommand,
+    contract: CONTRACT_NAMES.taskControlCommand,
+    method: "POST",
+    pathTemplate: "/tasks/{task_id}/commands",
+    kind: "mutation",
+    receipt: "required",
+    auth: "optional",
+    expectedStatuses: [200, 201, 202, 403, 409],
+    pathParameters: ["task_id"],
+    queryParameters: [],
+  }),
 } as const
 
 export type CoreEndpointName = keyof typeof CORE_ENDPOINTS

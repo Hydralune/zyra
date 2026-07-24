@@ -16,6 +16,7 @@ import {
   selectEventsForTask,
   selectRevision,
 } from "../../state/selectors.ts"
+import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -68,7 +69,12 @@ function PlanNode({ entry, root }: { entry: TaskTreeNode; root: boolean }) {
 function ArtifactCard({ artifact }: { artifact: ArtifactProjection }) {
   const location = artifact.uri ?? artifact.path
   return (
-    <article className="artifact-card">
+    <article
+      className="artifact-card"
+      data-artifact-id={artifact.artifactId}
+      id={`artifact-${artifact.artifactId.replace(/[^\w-]+/g, "-")}`}
+      tabIndex={-1}
+    >
       <div className="artifact-kind">{artifact.kind}</div>
       <strong>{artifact.title ?? artifact.artifactId}</strong>
       {location ? <code>{location}</code> : null}
@@ -229,7 +235,13 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         {recentEvents.length ? (
           <ol className="plan-list">
             {recentEvents.map((event) => (
-              <li className="plan-node" key={event.eventId}>
+              <li
+                className="plan-node"
+                key={event.eventId}
+                data-event-id={event.eventId}
+                data-correlation-id={event.correlationId}
+                tabIndex={-1}
+              >
                 <span className="status-marker status-running" aria-hidden="true" />
                 <div>
                   <div className="plan-node-heading">
@@ -247,6 +259,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
           </p>
         )}
       </section>
+
+      <TopologyWorkbench runtime={runtime} task={task} />
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">

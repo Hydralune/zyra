@@ -7236,11 +7236,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if response.ok else HTTPStatus.ACCEPTED if response.status.value == "queued" else HTTPStatus.CONFLICT
             descriptor = get_control_command_registry().require(control_request.canonical_name)
+            intervention_counted = bool(
+                control_request.metadata.get("sealed", False)
+                and not response.ok
+                and response.error is not None
+                and str(
+                    getattr(response.error.code, "value", response.error.code)
+                )
+                == "permission_denied"
+            )
             compatibility_result = {
                 **response.to_dict(),
                 "name": control_request.canonical_name,
                 "summary": response.summary,
                 "data": response.result.data,
+                "intervention_counted": intervention_counted,
+                "operator_intervention_attempt_count": int(
+                    state.metadata.get("operator_intervention_attempt_count") or 0
+                ),
+                "human_intervention_count": int(
+                    state.metadata.get("human_intervention_count") or 0
+                ),
                 "runtime_status": (
                     str(response.result.metadata.get("runtime_status") or "stateful")
                     if descriptor.mutation_scope.value != "read_only"
@@ -7256,6 +7272,16 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "command": descriptor.to_dict(),
                     "command_result": compatibility_result,
                     "event": control_event,
+                    "intervention_counted": intervention_counted,
+                    "operator_intervention_attempt_count": int(
+                        state.metadata.get(
+                            "operator_intervention_attempt_count"
+                        )
+                        or 0
+                    ),
+                    "human_intervention_count": int(
+                        state.metadata.get("human_intervention_count") or 0
+                    ),
                     "event_only_stateful_fallback": False,
                 },
             )
@@ -8946,6 +8972,8 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
             "actor_id": str(payload.get("actor_id") or "api-user"),
             "permission_authority": "retained non-E02 task-control allowlist",
             "e02_command_dispatch": "typescript-only",
+            "sealed": bool(payload.get("sealed", False)),
+            "competition_mode": str(payload.get("competition_mode") or "interactive"),
         },
     )
 
@@ -8974,14 +9002,64 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             "skill_plugin.hooks",
         }:
             return False
+        sealed = bool(request.metadata.get("sealed", False))
+        mutation_scope = str(getattr(descriptor.mutation_scope, "value", descriptor.mutation_scope))
+        if sealed and mutation_scope != "read_only":
+            ledger = state.metadata.setdefault("operator_intervention_ledger", [])
+            already_counted = any(
+                str(item.get("request_id") or "") == request.request_id
+                for item in ledger
+                if isinstance(item, Mapping)
+            )
+            if not already_counted:
+                ledger.append({
+                    "request_id": request.request_id,
+                    "command_id": request.command_id,
+                    "canonical_name": request.canonical_name,
+                    "actor_id": str(request.metadata.get("actor_id") or "api-user"),
+                    "competition_mode": str(request.metadata.get("competition_mode") or "sealed_autonomous"),
+                    "decision": "denied",
+                    "reason": "sealed competition policy rejects manual topology mutation",
+                    "human_intervention_count": 0,
+                })
+                state.metadata["operator_intervention_attempt_count"] = len(ledger)
+                state.metadata["human_intervention_count"] = 0
+                store.save_checkpoint(state)
+            return False
         get_permission_control_plane().state_store.snapshot()
         raw = str(request.arguments.get("raw") or "").strip().lower()
         if descriptor.handler_id == "provider.model" and raw in {"", "status", "list", "show"}:
             return True
+        if descriptor.permission_action in {"session.rewind", "session.resume"}:
+            checkpoint_ref = str(
+                request.arguments.get("checkpoint_ref")
+                or request.arguments.get("target")
+                or (
+                    request.arguments.get("raw")
+                    if descriptor.permission_action == "session.rewind"
+                    else ""
+                )
+                or ""
+            ).strip()
+            if not checkpoint_ref:
+                return False
+            canonical_checkpoint = (
+                get_recovery_runtime_api(store)
+                .application.store.checkpoint(checkpoint_ref)
+            )
+            if canonical_checkpoint is None:
+                return False
+            return (
+                canonical_checkpoint.run_id == state.run_id
+                and canonical_checkpoint.task_id == state.task_id
+                and canonical_checkpoint.session_id == request.session_id
+            )
         return descriptor.permission_action in {
             "task.goal",
             "context.compact",
             "session.clear",
+            "session.rewind",
+            "session.resume",
             "artifact.write",
             "task.change",
             "task.inject",
@@ -9167,42 +9245,135 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             revision=session_revision,
             epoch=epoch,
             state=session_state,
-            checkpoint_ref=f"sqlite-session:{task_id}:{session_revision}:{epoch}",
+            checkpoint_ref=str(
+                state.metadata.get("session_checkpoint_ref")
+                or f"sqlite-session:{task_id}:{session_revision}:{epoch}"
+            ),
             transcript=tuple(state.metadata.get("main_messages") or ()),
             metadata={"owner": "SQLiteStore", "owner_unit": "M1-S03D-02"},
         )
 
     def session_mutation(request: Any, before: Any) -> dict[str, Any]:
-        if request.action is not SessionAction.CLEAR:
+        if request.action is SessionAction.CLEAR:
+            messages = list(state.metadata.get("main_messages") or ())
+            checkpoint = {
+                "checkpoint_ref": before.checkpoint_ref,
+                "session_id": before.session_id,
+                "revision": before.revision,
+                "epoch": before.epoch,
+                "messages": messages,
+                "context_epoch": int(state.metadata.get("context_epoch") or 0),
+                "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+            }
+            state.metadata.setdefault("session_control_checkpoints", []).append(checkpoint)
+            state.metadata["main_messages"] = []
+            state.metadata["session_epoch"] = before.epoch + 1
+            state.metadata["context_epoch"] = int(state.metadata.get("context_epoch") or 0) + 1
+            state.metadata["compact_boundary_id"] = ""
+            state.metadata["session_control_revision"] = before.revision + 1
+            after_ref = f"sqlite-session:{state.task_id}:{before.revision + 1}:{before.epoch + 1}"
+            state.metadata["session_checkpoint_ref"] = after_ref
+            event = EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                event_type=EventType.COMMAND_SUCCEEDED,
+                payload={
+                    "schema": "zyra.session-clear/v1",
+                    "request_id": request.request_id,
+                    "session_id": before.session_id,
+                    "before_checkpoint": before.checkpoint_ref,
+                    "before_message_count": len(messages),
+                    "after_epoch": before.epoch + 1,
+                },
+            )
+            persist_events(store, [event])
+            store.save_checkpoint(state)
+            return {
+                "changed": True,
+                "session_id": before.session_id,
+                "revision": before.revision + 1,
+                "checkpoint_ref": after_ref,
+                "result": {"cleared_messages": len(messages), "checkpoint": checkpoint},
+                "event_ids": [event.event_id],
+                "metadata": {"same_session_new_epoch": True, "state_owner": "SQLiteStore"},
+            }
+        if request.action not in {SessionAction.REWIND, SessionAction.RESUME}:
             raise RuntimeError(f"session action is not connected to this canonical owner: {request.action.value}")
-        messages = list(state.metadata.get("main_messages") or ())
-        checkpoint = {
-            "checkpoint_ref": before.checkpoint_ref,
-            "session_id": before.session_id,
-            "revision": before.revision,
-            "epoch": before.epoch,
-            "messages": messages,
-            "context_epoch": int(state.metadata.get("context_epoch") or 0),
-            "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
-        }
-        state.metadata.setdefault("session_control_checkpoints", []).append(checkpoint)
-        state.metadata["main_messages"] = []
-        state.metadata["session_epoch"] = before.epoch + 1
-        state.metadata["context_epoch"] = int(state.metadata.get("context_epoch") or 0) + 1
-        state.metadata["compact_boundary_id"] = ""
-        state.metadata["session_control_revision"] = before.revision + 1
+        checkpoint_ref = str(
+            request.arguments.get("checkpoint_ref")
+            or request.arguments.get("target")
+            or ""
+        ).strip()
+        if not checkpoint_ref:
+            raise RuntimeError(f"{request.action.value} requires an exact recovery checkpoint")
+        target_session_id = str(
+            request.arguments.get("target_session_id")
+            or before.session_id
+        ).strip()
+        if target_session_id != before.session_id:
+            raise RuntimeError("resume target is not owned by the active canonical session")
+        recovery_runtime = get_recovery_runtime_api(store)
+        canonical_checkpoint = recovery_runtime.application.store.checkpoint(
+            checkpoint_ref
+        )
+        if canonical_checkpoint is None:
+            raise RuntimeError(
+                f"canonical recovery checkpoint not found: {checkpoint_ref}"
+            )
+        if (
+            canonical_checkpoint.run_id != state.run_id
+            or canonical_checkpoint.task_id != state.task_id
+            or canonical_checkpoint.session_id != before.session_id
+        ):
+            raise RuntimeError(
+                "canonical recovery checkpoint identity does not match the active session"
+            )
+        recovery = recovery_runtime.application.resume_checkpoint(
+            checkpoint_ref,
+            {
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "session_id": before.session_id,
+                "workflow_signature": canonical_checkpoint.workflow_signature,
+                "graph_signature": canonical_checkpoint.graph_signature,
+                "topology_signature": canonical_checkpoint.topology_signature,
+                "owner_refs": dict(canonical_checkpoint.owner_refs),
+                "version_refs": dict(canonical_checkpoint.version_refs),
+                "candidate_step_ids": list(request.arguments.get("candidate_step_ids") or ()),
+                "compact_first": bool(request.arguments.get("compact_first", False)),
+                "rebind_worker": bool(request.arguments.get("rebind_worker", False)),
+                "rebind_graph": bool(request.arguments.get("rebind_graph", False)),
+                "idempotency_key": request.idempotency_key or request.request_id,
+            },
+        )
+        next_revision = before.revision + 1
+        state.metadata["session_control_revision"] = next_revision
+        state.metadata["session_checkpoint_ref"] = checkpoint_ref
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.action.value,
+            "checkpoint_ref": checkpoint_ref,
+            "recovery_owner": "RecoveryApplication.resume_checkpoint",
+        })
         event = EventRecord(
             run_id=state.run_id,
             task_id=state.task_id,
             node_id=state.root_node_id,
-            event_type=EventType.COMMAND_SUCCEEDED,
+            event_type=EventType.TOPOLOGY_ROUTE,
             payload={
-                "schema": "zyra.session-clear/v1",
-                "request_id": request.request_id,
-                "session_id": before.session_id,
-                "before_checkpoint": before.checkpoint_ref,
-                "before_message_count": len(messages),
-                "after_epoch": before.epoch + 1,
+                "schema": "zyra.topology-time-travel/v1",
+                "recovery_runtime": {
+                    "phase": "checkpoint_resumed",
+                    "request_id": request.request_id,
+                    "command_id": request.causation_id,
+                    "checkpoint_id": checkpoint_ref,
+                    "session_id": before.session_id,
+                    "action": request.action.value,
+                    "receipt": recovery.get("receipt"),
+                    "owner_receipts": recovery.get("owner_receipts"),
+                    "canonical_owner": "RecoveryApplication.resume_checkpoint",
+                },
             },
         )
         persist_events(store, [event])
@@ -9210,11 +9381,19 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         return {
             "changed": True,
             "session_id": before.session_id,
-            "revision": before.revision + 1,
-            "checkpoint_ref": f"sqlite-session:{state.task_id}:{before.revision + 1}:{before.epoch + 1}",
-            "result": {"cleared_messages": len(messages), "checkpoint": checkpoint},
+            "revision": next_revision,
+            "checkpoint_ref": checkpoint_ref,
+            "result": {
+                "rewound_to": checkpoint_ref,
+                "checkpoint_ref": checkpoint_ref,
+                "recovery": recovery,
+            },
             "event_ids": [event.event_id],
-            "metadata": {"same_session_new_epoch": True, "state_owner": "SQLiteStore"},
+            "metadata": {
+                "state_owner": "RecoveryApplication.resume_checkpoint",
+                "exact_resume": True,
+                "same_session": True,
+            },
         }
 
     session_runtime = SessionControlRuntime(
@@ -9223,7 +9402,16 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
     )
 
     def owner_authorizer(owner: str, action: str, request: Any, arguments: Any) -> Any:
-        granted = owner == "CanonicalSessionStore" and action == SessionAction.CLEAR.value and request.canonical_name == "/clear"
+        expected_command = {
+            SessionAction.CLEAR.value: "/clear",
+            SessionAction.REWIND.value: "/rewind",
+            SessionAction.RESUME.value: "/resume",
+        }.get(action)
+        granted = (
+            owner == "CanonicalSessionStore"
+            and expected_command == request.canonical_name
+            and not bool(request.metadata.get("sealed", False))
+        )
         return deterministic_owner_authorization(
             owner=owner,
             action=action,
@@ -9231,11 +9419,15 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             actor_id=str(request.metadata.get("actor_id") or "api-user"),
             authority={
                 "source": "RuntimeControlDispatcher.permission_authorize",
-                "permission_action": "session.clear",
+                "permission_action": f"session.{action}",
                 "request_id": request.request_id,
             },
             granted=granted,
-            reason="explicit /clear is a checkpoint-before-reset canonical session action" if granted else "owner action not granted",
+            reason=(
+                f"explicit {request.canonical_name} uses the canonical session/recovery owner"
+                if granted
+                else "owner action not granted"
+            ),
         )
 
     owner_handlers = CanonicalOwnerHandlerSet(CommandOwnerServices(
@@ -9253,6 +9445,8 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
     )).handlers()
     for handler_id in {
         "session.clear",
+        "session.rewind",
+        "session.resume",
         "mcp.control",
         "permission.control",
         "provider.model",

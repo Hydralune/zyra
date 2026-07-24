@@ -165,7 +165,15 @@ class CanonicalOwnerHandlerSet:
         target = str(parsed.get("target_session_id") or parsed.get("target") or parsed.get("raw") or "").strip()
         if not target:
             raise OwnerHandlerError("/resume requires a canonical session id")
-        return self._session(request, SessionAction.RESUME, {"target_session_id": target})
+        checkpoint_ref = str(parsed.get("checkpoint_ref") or "").strip()
+        return self._session(
+            request,
+            SessionAction.RESUME,
+            {
+                "target_session_id": target,
+                **({"checkpoint_ref": checkpoint_ref} if checkpoint_ref else {}),
+            },
+        )
 
     def mcp_control(self, request: ControlCommandRequest, _descriptor: ControlCommandDescriptor, _context: RuntimeControlContext) -> ControlResult:
         parsed = self._arguments(request)
