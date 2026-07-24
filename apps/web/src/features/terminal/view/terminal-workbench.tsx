@@ -450,6 +450,8 @@ export function TerminalWorkbench({
       className="terminal-workbench"
       aria-labelledby="terminal-workbench-heading"
       data-terminal-state-owner="zyra_workers.terminal.TerminalSessionRegistry"
+      data-terminal-session-id={active?.terminal?.binding.sessionId ?? active?.binding?.sessionId}
+      data-terminal-frame-id={active?.binding?.terminalId}
     >
       <header className="terminal-workbench-header">
         <div>

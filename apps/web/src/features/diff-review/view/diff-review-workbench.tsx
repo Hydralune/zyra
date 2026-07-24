@@ -337,7 +337,13 @@ export function DiffReviewWorkbench({
   }
 
   return (
-    <div className="diff-review-workbench" aria-labelledby="diff-review-heading">
+    <div
+      className="diff-review-workbench"
+      aria-labelledby="diff-review-heading"
+      data-task-id={task.taskId}
+      data-diff-review="true"
+      data-artifact-id={state.selectedArtifact?.artifactId}
+    >
       <header className="diff-review-header">
         <div>
           <h3 id="diff-review-heading">Patch review</h3>

@@ -230,6 +230,7 @@ export function TopologyWorkbench({
       aria-labelledby="topology-workbench-heading"
       data-topology-revision={snapshot.model.graphRevision}
       data-projection-revision={snapshot.model.projectionRevision}
+      data-task-id={task.taskId}
     >
       <header className="topology-workbench-heading">
         <div>

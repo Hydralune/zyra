@@ -22,6 +22,7 @@ import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbe
 import { DiffReviewWorkbench } from "../../features/diff-review/view/diff-review-workbench.tsx"
 import { TerminalWorkbench } from "../../features/terminal/view/terminal-workbench.tsx"
 import { BrowserWorkbench } from "../../features/browser/view/browser-workbench.tsx"
+import { CausalTraceWorkbench } from "../../features/trace/view/trace-workbench.tsx"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -150,7 +151,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
     selectArtifactPanel(task.taskId),
   )
   return (
-    <div className="task-detail-scroll">
+    <div className="task-detail-scroll" data-task-id={task.taskId}>
       <header className="task-detail-header">
         <div>
           <div className="task-identity">
@@ -252,6 +253,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       <TopologyWorkbench runtime={runtime} task={task} />
 
       <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
+
+      <CausalTraceWorkbench runtime={runtime} task={task} />
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">

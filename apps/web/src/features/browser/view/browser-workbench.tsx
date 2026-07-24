@@ -1247,6 +1247,12 @@ export function BrowserWorkbench({
       data-browser-state-owner="BrowserWorker"
       data-browser-viewer-state-owner="CanonicalProjectionStore+observability"
       data-browser-close-stops-worker="false"
+      data-browser-session-id={session?.scope.browserSessionId}
+      data-browser-step-id={step?.stepId}
+      data-browser-action-id={action?.actionId}
+      data-event-id={action?.sourceEventIds[0] ?? step?.eventIds[0]}
+      data-tool-call-id={action?.toolCallId}
+      data-span-id={action?.spanId}
     >
       <header className="browser-workbench-header">
         <div>
