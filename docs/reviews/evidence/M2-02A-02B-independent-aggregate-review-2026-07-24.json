@@ -1,0 +1,256 @@
+{
+  "schema": "zyra.m2-02-independent-aggregate-review/v1",
+  "date": "2026-07-24",
+  "scope": [
+    "M2-S02A-01",
+    "M2-S02A-02",
+    "M2-S02B-01",
+    "M2-S02B-02"
+  ],
+  "verdict": "passed_after_fixes",
+  "base_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "review_start_head": "44c9f1ac907f5cd16eeb972d332e8d6a44952ffa",
+  "review_fix_commit": "ef467642364a4eb2108160e16d25ab156d59d37c",
+  "final_target_commit": "ef467642364a4eb2108160e16d25ab156d59d37c",
+  "review_evidence_commit": "this_commit",
+  "cleanroom_target_commit": "ef467642364a4eb2108160e16d25ab156d59d37c",
+  "findings": [
+    {
+      "severity": "P1",
+      "first_implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+      "finding": "M2-S02B-01 registered three supplementary implementation sources and the aggregate audit downgraded the role-policy violation to a warning.",
+      "resolution": "oh-my-pi is now conformance_only; the independent role policy is fail-closed and mutation tested."
+    },
+    {
+      "severity": "P1",
+      "first_implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+      "finding": "The four slice ledger synchronizers were not mutually order-independent or idempotent.",
+      "resolution": "Owned rows are replaced in place and all four synchronizers remain aligned in every tested order."
+    },
+    {
+      "severity": "P1",
+      "first_implementation_commits": [
+        "7ea026f1de635197d84b3179d5494e96ca687577",
+        "6b15c5d8924a113553eac4d21922bc28239696dc",
+        "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "fdf82f2059153b917ca2486cdcbe1b8d68b790b9"
+      ],
+      "finding": "Source and target languages were missing or represented as slash-combined values, and A02 mixed TypeScript view custody with Python owner glue.",
+      "resolution": "Every role now has exact languages; A02 primary is TypeScript-only; the audit rejects mixed, unknown and slash-combined languages."
+    },
+    {
+      "severity": "P1",
+      "first_implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+      "finding": "Historical checkpoint resumeCount could incorrectly commit a current topology control receipt without command or event correlation.",
+      "resolution": "Only current command ids or overlapping observed event ids can commit the receipt."
+    },
+    {
+      "severity": "P1",
+      "first_implementation_commit": "fdf82f2059153b917ca2486cdcbe1b8d68b790b9",
+      "finding": "The recovery panel sent a recovery-chain attempt id as the worker-pool physical attempt fence.",
+      "resolution": "The physical worker_pool attempt is used only when worker and lease snapshots match the projection."
+    },
+    {
+      "severity": "P1",
+      "first_implementation_commit": "fdf82f2059153b917ca2486cdcbe1b8d68b790b9",
+      "finding": "Direct API callers could bypass the frontend retry bound.",
+      "resolution": "The backend rejects non-integer, boolean, out-of-range and explicitly unbounded retry requests before mutation."
+    }
+  ],
+  "unresolved_blockers": [],
+  "source_to_target": {
+    "entry_count": 21,
+    "unique_ledger_id_count": 21,
+    "production_target_binding_count": 66,
+    "conformance_or_reference_binding_count": 18,
+    "missing_target_count": 0,
+    "openclaw_forward_entry_count": 0,
+    "warnings": 0,
+    "errors": 0,
+    "role_counts": {
+      "M2-S02A-01": {
+        "primary_implementation": 1,
+        "reference_only": 3,
+        "conformance_only": 1
+      },
+      "M2-S02A-02": {
+        "primary_implementation": 1,
+        "reference_only": 2,
+        "conformance_only": 1
+      },
+      "M2-S02B-01": {
+        "primary_implementation": 1,
+        "supplementary_implementation": 2,
+        "conformance_only": 3
+      },
+      "M2-S02B-02": {
+        "primary_implementation": 1,
+        "supplementary_implementation": 2,
+        "reference_only": 1,
+        "conformance_only": 2
+      }
+    }
+  },
+  "effective_lines": {
+    "slices": [
+      {
+        "slice": "M2-S02A-01",
+        "interval": "f7fff49be91fb0f797260c03ff9cca76c06c5974..7ea026f1de635197d84b3179d5494e96ca687577",
+        "raw_additions": 9146,
+        "raw_deletions": 90,
+        "effective_production": 6658,
+        "minimum": 6500,
+        "passed": true
+      },
+      {
+        "slice": "M2-S02A-02",
+        "interval": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e..6b15c5d8924a113553eac4d21922bc28239696dc",
+        "raw_additions": 11848,
+        "raw_deletions": 35,
+        "effective_production": 7369,
+        "minimum": 6500,
+        "passed": true
+      },
+      {
+        "slice": "M2-S02B-01",
+        "interval": "0980c52e1a0624a06501ccd0c39a723e624c95e3..636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+        "raw_additions": 10999,
+        "raw_deletions": 0,
+        "effective_production": 6836,
+        "minimum": 6000,
+        "passed": true
+      },
+      {
+        "slice": "M2-S02B-02",
+        "interval": "46be71eb4ced2da38f5b05fce24907da7ffc8f6c..f3302a3c5366218068cb8acf9790c973e4b62033",
+        "raw_additions": 9808,
+        "raw_deletions": 24,
+        "effective_production": 6037,
+        "minimum": 6000,
+        "passed": true
+      }
+    ],
+    "M2-02A": {
+      "effective_production": 14027,
+      "minimum": 13000,
+      "passed": true
+    },
+    "M2-02B": {
+      "effective_production": 12873,
+      "minimum": 12000,
+      "passed": true
+    },
+    "numeric_stage": {
+      "effective_production": 26900,
+      "minimum": 25000,
+      "margin": 1900,
+      "passed": true
+    },
+    "review_fix_increment": {
+      "interval": "44c9f1ac907f5cd16eeb972d332e8d6a44952ffa..ef467642364a4eb2108160e16d25ab156d59d37c",
+      "raw_additions": 592,
+      "raw_deletions": 177,
+      "production_candidates": 47,
+      "conservative_effective_production": 46,
+      "tests": 218,
+      "ledger_data": 63,
+      "audit_and_sync_tooling": 264,
+      "retroactively_changes_slice_counts": false
+    }
+  },
+  "main_checkout_verification": {
+    "web_and_typed_api": {
+      "passed": 126,
+      "failed": 0,
+      "assertions": 803
+    },
+    "python_applicable_integration": {
+      "passed": 6,
+      "failed": 0
+    },
+    "source_audit_mutations": {
+      "passed": 4,
+      "failed": 0
+    },
+    "typecheck": true,
+    "production_build": true,
+    "bundled_modules": 172,
+    "ledger_sync_checks": 4,
+    "git_diff_check": true
+  },
+  "cleanroom": {
+    "source": "git archive ef467642364a4eb2108160e16d25ab156d59d37c",
+    "frozen_dependency_install": true,
+    "locked_packages_installed": 25,
+    "web_and_typed_api": {
+      "passed": 126,
+      "failed": 0,
+      "assertions": 803
+    },
+    "python_applicable_integration": {
+      "passed": 6,
+      "failed": 0,
+      "duration_seconds": 79.14
+    },
+    "source_audit_mutations": {
+      "passed": 4,
+      "failed": 0
+    },
+    "typecheck": true,
+    "production_build": true,
+    "bundled_modules": 172,
+    "source_to_target_passed": true,
+    "ledger_sync_checks": 4,
+    "forbidden_parent_source_directories": 0,
+    "package_or_lock_changes": 0,
+    "first_python_attempt": {
+      "classification": "infrastructure_setup",
+      "passed_before_setup_failure": 1,
+      "setup_errors": 5,
+      "cause": "git archive omitted ignored .tmp parent required by explicit pytest basetemp",
+      "resolution": "created an empty cleanroom-local .tmp and reran the identical test set"
+    }
+  },
+  "environment_limitations": [
+    {
+      "component": "in_app_browser",
+      "observation": "No browser instance was available.",
+      "impact": "No viewport screenshot claim was made.",
+      "blocking": false
+    },
+    {
+      "component": "generic_internalization_ledger_verifier",
+      "observation": "Three pre-existing static-literal findings remain in protected long_horizon_runtime.py.",
+      "impact": "The generic command remains non-green; scope-specific audit, path scan and cleanroom are green.",
+      "blocking": false
+    }
+  ],
+  "competition_evidence": {
+    "advances": [
+      "REQ-TOPO-01",
+      "REQ-EDGE-01",
+      "REQ-FAULT-01",
+      "REQ-TRACE-01",
+      "REQ-CLOSE-01",
+      "SCORE-ORG",
+      "SCORE-UX",
+      "SCORE-ROBUST",
+      "SCORE-EFF"
+    ],
+    "closes": [],
+    "remaining_stage_gates": [
+      "two cross-domain live tasks",
+      "one sealed run with at least 2000 effective canonical transitions",
+      "real local edge and cloud dispatch",
+      "multi-provider and multi-model evidence",
+      "formal topology and communication ablations",
+      "milestone-exit visual and delivery evidence"
+    ]
+  },
+  "execution_state_update": {
+    "when": "after review_evidence_commit",
+    "historical_slice_records_rewritten": false,
+    "next_slice_unchanged": "docs/milestones/M2-console-demo/slice-03a-01-artifact-custody-catalog-viewers.md",
+    "root_docs_git_boundary": "G:/agent-zoo is not the Zyra Git repository"
+  }
+}
