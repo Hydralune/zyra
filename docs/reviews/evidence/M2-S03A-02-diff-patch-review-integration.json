@@ -1,0 +1,276 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M2-S03A-02",
+  "parent_unit": "M2-03A",
+  "numeric_stage": "M2-03",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "5dec6715db9f35913acd1b3a078ce9bcde943a8a",
+  "parent_baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+  "preimplementation_decision_commit": "1ea59fbea021f2eee171b04e69957039c741657e",
+  "implementation_commit": "ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "5dec6715db9f35913acd1b3a078ce9bcde943a8a..ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+    "raw_additions": 17593,
+    "raw_deletions": 4,
+    "production_runtime": 9537,
+    "ui_behavior": 547,
+    "ui_presentation_excluded": 1021,
+    "type_declaration_excluded": 1299,
+    "schema_data_excluded": 5,
+    "adapter_only_excluded": 0,
+    "generated_and_python_owner_integration_excluded": 2824,
+    "test_fixture_probe_excluded": 2116,
+    "docs_comments_blank_excluded": 244,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 10084,
+    "minimum": 7500,
+    "margin": 2584,
+    "passed": true
+  },
+  "parent_effective_line_count": {
+    "interval": "1833319acdb8a09fac3438b12356da0e9c78d6bb..ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+    "raw_additions": 35255,
+    "raw_deletions": 134,
+    "production_runtime": 18118,
+    "ui_behavior": 1039,
+    "effective_production": 19157,
+    "minimum": 15000,
+    "margin": 4157,
+    "direct_recompute": true,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "bounded_same_language_semantic_integration",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/diff-review/contracts.ts",
+        "apps/web/src/features/diff-review/unified-diff.ts",
+        "apps/web/src/features/diff-review/virtualization.ts",
+        "apps/web/src/features/diff-review/search.ts",
+        "apps/web/src/features/diff-review/review-model.ts",
+        "apps/web/src/features/diff-review/runtime.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/diff-review/budget.ts",
+        "apps/web/src/features/diff-review/fetch-runtime.ts",
+        "apps/web/src/features/diff-review/view/diff-review-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "bounded_same_language_semantic_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/diff-review/hashline.ts",
+        "apps/web/src/features/diff-review/merge.ts",
+        "apps/web/src/features/diff-review/transactions.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "workspace_file_bytes_mode_mtime_binding": "python.WorkspaceManagerRuntime",
+    "patch_transaction_snapshot_idempotency_verification_rollback": "python.WorkspacePatchTransactionRuntime",
+    "workspace_transaction_durable_receipts": "python.WorkspaceIntegrationStore",
+    "dirty_and_nested_repository_facts": "python.WorkspaceDirtyStateRuntime/WorkspaceGitBoundary",
+    "permission_decision_and_exact_permit": "typescript.PermissionCoordinator",
+    "artifact_membership_and_revision": "python.TaskState.artifacts/LocalArtifactStore",
+    "canonical_review_and_patch_audit": "python canonical event log",
+    "bounded_transient_review_projection": "typescript.DiffReviewWorkbenchRuntime",
+    "bounded_page_cache_and_search": "typescript.DiffFetchRuntime/DiffSearchIndex"
+  },
+  "verification": {
+    "focused_backend_diff_patch": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_diff_patch_review_integration.py -q",
+      "passed": 17,
+      "failed": 0
+    },
+    "adjacent_python_workspace_artifact_patch": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_artifact_custody_catalog_viewers.py tests/integration/test_code_index_patch_event_integration.py tests/integration/test_workspace_worker_gateway.py tests/unit/test_workspace_git_dirty_boundary.py -q",
+      "passed": 21,
+      "failed": 0
+    },
+    "typed_client_embedded_http": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_m2_typed_api_client_transport.py -q",
+      "passed": 3,
+      "failed": 0
+    },
+    "focused_web_diff_behavior": {
+      "command": "npx --yes bun@1.2.15 test ./apps/web/test/diff-patch-review-integration.test.ts",
+      "passed": 20,
+      "failed": 0,
+      "assertions": 62
+    },
+    "all_web_and_typed_client": {
+      "command": "npx --yes bun@1.2.15 test ./apps/web/test ./packages/core/typed-api-client/test",
+      "passed": 159,
+      "failed": 0,
+      "assertions": 935
+    },
+    "web_typecheck": {
+      "command": "npx --yes bun@1.2.15 run typecheck:web",
+      "passed": true
+    },
+    "production_build": {
+      "command": "npx --yes bun@1.2.15 run build:web",
+      "passed": true,
+      "bundled_modules": 196
+    },
+    "slice_effective_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s03a_02_effective_lines.mjs --baseline=5dec6715db9f35913acd1b3a078ce9bcde943a8a --target=ae2a37849cf1099c03e62e7228bfecb478c2cd8a --minimum=7500 --summary",
+      "passed": true,
+      "effective_production": 10084
+    },
+    "parent_effective_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s03a_02_effective_lines.mjs --baseline=1833319acdb8a09fac3438b12356da0e9c78d6bb --target=ae2a37849cf1099c03e62e7228bfecb478c2cd8a --minimum=15000 --summary",
+      "passed": true,
+      "effective_production": 19157,
+      "direct_recompute": true
+    },
+    "source_ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_diff_review_source_ledger.py --check",
+      "passed": true,
+      "decision_count": 3,
+      "entry_count": 3,
+      "missing_targets": 0
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S03A-02-diff-patch-review-integration.json --base 5dec6715db9f35913acd1b3a078ce9bcde943a8a --target ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+      "passed": true,
+      "production_roles": 3,
+      "primary_opencode_typescript_added": 6305,
+      "supplementary_openhands_typescript_added": 2916,
+      "supplementary_oh_my_pi_typescript_added": 2323,
+      "violations": 0
+    },
+    "generic_ledger_unit_suite": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/unit/test_internalization_ledger.py tests/unit/test_internalization_ledger_policy_linecount.py -q",
+      "passed": 20,
+      "failed": 2,
+      "claimed_as_passed": false,
+      "current_slice_entry_failure_count": 0,
+      "disposition": "Both failures reproduce protected baseline seed assumptions: two pre-existing M2-S02 Zyra source_repo policy findings and a legacy M1-02B query expectation. The current slice-specific 3-entry sync/target/custody gates pass."
+    },
+    "production_dependency_scan": {
+      "scope": "current implementation production diff",
+      "root_source_path_hits": 0,
+      "npm_link_or_editable_hits": 0,
+      "package_or_lockfile_changes": 0,
+      "passed": true
+    },
+    "diff_check": {
+      "command": "git diff --check 5dec6715..ae2a378",
+      "passed": true
+    },
+    "browser_visual_control": {
+      "attempted": true,
+      "available_browser_instances": 0,
+      "screenshot_claimed": false,
+      "passed": false,
+      "disposition": "environment unavailable; no substitute browser result claimed"
+    }
+  },
+  "semantic_effects": [
+    "A task-scoped immutable patch artifact revision now projects bounded file, hunk and line pages without disclosing physical paths.",
+    "Modified, added, deleted, renamed, binary, CRLF and non-UTF-8 workspace inputs have explicit metadata and fail-closed text-apply boundaries.",
+    "The browser verifies page digest and immutable identity before admission, uses byte/line/request budgets, cancellation, stable paging and bounded cache state.",
+    "A 100,200-line projection materializes only the measured viewport window; folding, unified/split layout, keyboard navigation and loaded-range search remain deterministic.",
+    "Hashline-style base/current/proposed SHA-256, mtime, mode, revision and workspace binding preconditions reject stale or concurrent mutation.",
+    "Three-way merge is only an explicit browser proposal; overlapping changes remain conflicts and cannot silently become a patch.",
+    "Review selection and comments call the TypeScript permission owner and enter canonical event state only after ALLOW.",
+    "Apply and rollback use exact-call permission and delegate all file mutation, snapshot, verification and restore behavior to existing Zyra workspace owners.",
+    "Sealed comment, selection, apply and rollback attempts are read-only even if the permission result would otherwise be ALLOW; human intervention stays zero.",
+    "Committed, pending, denied, stale, conflicted, rolled-back and rollback-failed receipts preserve artifact, event, terminal, verification, timeline and causation identity.",
+    "TaskDetail mounts the diff workbench over the same artifact catalog and typed task API; no browser file or patch truth store was introduced."
+  ],
+  "disconnect_and_failure_evidence": [
+    "Disabling DiffReviewApiService returns diff_review_disabled before projection.",
+    "Binary and NUL content cannot enter text patch application.",
+    "A non-UTF-8 cp1252 file can be reviewed but is rejected before the UTF-8 mutation owner.",
+    "Permission ASK produces a pending non-mutation receipt; an exact permit can retry with a new exact idempotency identity.",
+    "Permission DENY and all sealed manual mutations return receipts without workspace change.",
+    "Concurrent workspace write produces a stale receipt before canonical patch commit.",
+    "Rollback restore failure produces rollback_failed plus canonical recovery event evidence.",
+    "Breaking typed normalizer uniqueness makes the embedded client fail at catalog initialization; the duplicate artifact-read registration was removed and all transport tests pass."
+  ],
+  "parent_close": {
+    "parent_unit": "M2-03A",
+    "slices": [
+      "M2-S03A-01",
+      "M2-S03A-02"
+    ],
+    "artifact_to_diff_main_path": "TaskState artifact -> ArtifactCatalogService -> immutable patch revision -> DiffReviewApiService -> typed TaskApi -> DiffReviewWorkbenchRuntime -> PermissionCoordinator -> WorkspacePatchTransactionRuntime -> event/artifact refresh",
+    "owner_consistency": true,
+    "source_to_target_complete": true,
+    "minimum_effective_code_passed": true,
+    "next_entry": "M2-S03B-01"
+  },
+  "competition_requirements": [
+    "REQ-TRACE-01",
+    "REQ-CLOSE-01",
+    "SCORE-UX",
+    "SCORE-ROBUST"
+  ],
+  "cleanroom": {
+    "required_for_ordinary_slice": false,
+    "high_risk_trigger_hit": false,
+    "numeric_stage_aggregate_deferred_until": "M2-03B completion",
+    "reason": "No incompatible schema/persistence migration, owner transfer, default global policy change, new dependency, product subprocess, port, MCP server, plugin, Docker or packaging boundary was introduced."
+  },
+  "openclaw_forward_status": "excluded_forward_only"
+}

@@ -185874,19 +185874,577 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "diff_review_runtime_and_stable_hunk_interaction",
+      "capability_summary": "Stable file focus, diff classification, hunk state, split/unified review interaction, filtering, navigation and refresh behavior.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03B",
+        "M2-04A",
+        "M2-04B"
+      ],
+      "ledger_id": "ile_016af5a275263769f181",
+      "license_notice": {
+        "license_hint": "M2 diff/review source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/diff-reviews/{artifact_id}",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/files/{file_id}/hunks",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/comments",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/apply",
+          "/tasks/{task_id}/diff-reviews/transactions/{transaction_id}/rollback"
+        ],
+        "artifact_kinds": [
+          "patch",
+          "text",
+          "verification",
+          "workspace_snapshot"
+        ],
+        "control_commands": [
+          "permission exact permit claim"
+        ],
+        "event_types": [
+          "diff_review",
+          "diff_patch_transaction",
+          "artifact.*",
+          "workspace.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api"
+        ],
+        "ui_panels": [
+          "diff_file_list",
+          "virtualized_diff",
+          "review_comments",
+          "patch_transaction_receipt"
+        ],
+        "worker_runtime": "TaskState artifact revision -> DiffReviewApiService -> typed TaskApi -> DiffReviewWorkbenchRuntime -> permission -> WorkspacePatchTransactionRuntime -> event/artifact refresh"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "5dec6715db9f35913acd1b3a078ce9bcde943a8a",
+        "canonical_artifact_owner": "python.TaskState.artifacts",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_patch_owner": "python.WorkspacePatchTransactionRuntime",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03A-02",
+        "rationale": "OpenCode review mechanics were split into Zyra-owned parser, virtualization, review-model and orchestration modules. Its session store, server and patch owner were not copied.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_review_owner": "typescript.DiffReviewWorkbenchRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode review mechanics were split into Zyra-owned parser, virtualization, review-model and orchestration modules. Its session store, server and patch owner were not copied.",
+      "owner_unit": "M2-S03A-02",
+      "replacement_plan": "Replace behind DiffReviewWorkbenchRuntime and the typed diff-review protocol without moving workspace, permission or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "WorkspacePatchTransactionRuntime remains the only file mutation, snapshot, verification and rollback owner.",
+        "PermissionCoordinator remains the only permission decision and exact-permit owner.",
+        "Browser diff pages, selection, comments and preflight are bounded projections, not canonical file truth."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/diff-review/contracts.ts",
+          "apps/web/src/features/diff-review/unified-diff.ts",
+          "apps/web/src/features/diff-review/virtualization.ts",
+          "apps/web/src/features/diff-review/search.ts",
+          "apps/web/src/features/diff-review/review-model.ts",
+          "apps/web/src/features/diff-review/runtime.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_WORKSPACE_STATE_ROOT",
+          "ZYRA_DIFF_REVIEW_DISABLED"
+        ],
+        "function": "DiffReviewWorkbenchRuntime/DiffReviewApiService",
+        "health_check": "bun test ./apps/web/test/diff-patch-review-integration.test.ts; python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+        "module": "apps.web.src.features.diff-review.runtime",
+        "protocol": "zyra.diff-review.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/pages/session/review-tab.tsx;packages/app/src/pages/session/v2/{review-panel-v2.tsx,review-panel-v2-state.ts,review-diff-kinds.ts};packages/app/src/utils/diffs.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/pages/session/review-tab.tsx;packages/app/src/pages/session/v2/{review-panel-v2.tsx,review-panel-v2-state.ts,review-diff-kinds.ts};packages/app/src/utils/diffs.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-02",
+        "diff-review",
+        "patch-transaction",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/diff-review/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/unified-diff.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/virtualization.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/search.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/review-model.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/runtime.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/diff-patch-review-integration.test.ts",
+          "expected_signal": "strict diff/page/receipt contracts, 100k-line virtualization, paging, cancellation, search, stale preflight, three-way conflict and transaction identity",
+          "kind": "unit",
+          "path": "apps/web/test/diff-patch-review-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+          "expected_signal": "real workspace/artifact/HTTP paths prove add/delete/rename/binary/encoding, permission, sealed denial, stale, apply, rollback, rollback failure and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_diff_patch_review_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "lazy_large_diff_view_and_fetch_lifecycle",
+      "capability_summary": "Lazy file loading, bounded request lifecycle, explicit loading/error/empty states and read-only diff presentation.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03B",
+        "M2-04A",
+        "M2-04B"
+      ],
+      "ledger_id": "ile_0230bdd90e44f86cb2db",
+      "license_notice": {
+        "license_hint": "M2 diff/review source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/diff-reviews/{artifact_id}",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/files/{file_id}/hunks",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/comments",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/apply",
+          "/tasks/{task_id}/diff-reviews/transactions/{transaction_id}/rollback"
+        ],
+        "artifact_kinds": [
+          "patch",
+          "text",
+          "verification",
+          "workspace_snapshot"
+        ],
+        "control_commands": [
+          "permission exact permit claim"
+        ],
+        "event_types": [
+          "diff_review",
+          "diff_patch_transaction",
+          "artifact.*",
+          "workspace.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api"
+        ],
+        "ui_panels": [
+          "diff_file_list",
+          "virtualized_diff",
+          "review_comments",
+          "patch_transaction_receipt"
+        ],
+        "worker_runtime": "TaskState artifact revision -> DiffReviewApiService -> typed TaskApi -> DiffReviewWorkbenchRuntime -> permission -> WorkspacePatchTransactionRuntime -> event/artifact refresh"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "5dec6715db9f35913acd1b3a078ce9bcde943a8a",
+        "canonical_artifact_owner": "python.TaskState.artifacts",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_patch_owner": "python.WorkspacePatchTransactionRuntime",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03A-02",
+        "rationale": "Only large diff loading and review-view lifecycle supplement the primary runtime. Monaco, Redux, sandbox and OpenHands server ownership remain excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-02",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_review_owner": "typescript.DiffReviewWorkbenchRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration/same_language_component_integration; Only large diff loading and review-view lifecycle supplement the primary runtime. Monaco, Redux, sandbox and OpenHands server ownership remain excluded.",
+      "owner_unit": "M2-S03A-02",
+      "replacement_plan": "Replace behind DiffReviewWorkbenchRuntime and the typed diff-review protocol without moving workspace, permission or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "WorkspacePatchTransactionRuntime remains the only file mutation, snapshot, verification and rollback owner.",
+        "PermissionCoordinator remains the only permission decision and exact-permit owner.",
+        "Browser diff pages, selection, comments and preflight are bounded projections, not canonical file truth."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/diff-review/budget.ts",
+          "apps/web/src/features/diff-review/fetch-runtime.ts",
+          "apps/web/src/features/diff-review/view/diff-review-workbench.tsx"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_WORKSPACE_STATE_ROOT",
+          "ZYRA_DIFF_REVIEW_DISABLED"
+        ],
+        "function": "DiffReviewWorkbenchRuntime/DiffReviewApiService",
+        "health_check": "bun test ./apps/web/test/diff-patch-review-integration.test.ts; python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+        "module": "apps.web.src.features.diff-review.runtime",
+        "protocol": "zyra.diff-review.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/components/features/diff-viewer/{file-diff-viewer.tsx,editor-container.tsx};frontend/src/hooks/query/use-unified-git-diff.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/components/features/diff-viewer/{file-diff-viewer.tsx,editor-container.tsx};frontend/src/hooks/query/use-unified-git-diff.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-02",
+        "diff-review",
+        "patch-transaction",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/diff-review/budget.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/fetch-runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/view/diff-review-workbench.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/diff-patch-review-integration.test.ts",
+          "expected_signal": "strict diff/page/receipt contracts, 100k-line virtualization, paging, cancellation, search, stale preflight, three-way conflict and transaction identity",
+          "kind": "unit",
+          "path": "apps/web/test/diff-patch-review-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+          "expected_signal": "real workspace/artifact/HTTP paths prove add/delete/rename/binary/encoding, permission, sealed denial, stale, apply, rollback, rollback failure and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_diff_patch_review_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "hashline_preflight_three_way_and_receipt_binding",
+      "capability_summary": "Snapshot-bound edit anchors, stale diagnostics, bounded three-way conflict projection and exact transaction receipts.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03B",
+        "M2-04A",
+        "M2-04B"
+      ],
+      "ledger_id": "ile_2be80965c8d754d88b8b",
+      "license_notice": {
+        "license_hint": "M2 diff/review source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/diff-reviews/{artifact_id}",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/files/{file_id}/hunks",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/comments",
+          "/tasks/{task_id}/diff-reviews/{artifact_id}/apply",
+          "/tasks/{task_id}/diff-reviews/transactions/{transaction_id}/rollback"
+        ],
+        "artifact_kinds": [
+          "patch",
+          "text",
+          "verification",
+          "workspace_snapshot"
+        ],
+        "control_commands": [
+          "permission exact permit claim"
+        ],
+        "event_types": [
+          "diff_review",
+          "diff_patch_transaction",
+          "artifact.*",
+          "workspace.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api"
+        ],
+        "ui_panels": [
+          "diff_file_list",
+          "virtualized_diff",
+          "review_comments",
+          "patch_transaction_receipt"
+        ],
+        "worker_runtime": "TaskState artifact revision -> DiffReviewApiService -> typed TaskApi -> DiffReviewWorkbenchRuntime -> permission -> WorkspacePatchTransactionRuntime -> event/artifact refresh"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "5dec6715db9f35913acd1b3a078ce9bcde943a8a",
+        "canonical_artifact_owner": "python.TaskState.artifacts",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_patch_owner": "python.WorkspacePatchTransactionRuntime",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "ae2a37849cf1099c03e62e7228bfecb478c2cd8a",
+        "migration_mode": "bounded_same_language_semantic_integration",
+        "owner_unit": "M2-S03A-02",
+        "rationale": "OMP hashline receipt semantics were integrated as browser preflight and conflict projections. Its filesystem patcher does not own or execute Zyra workspace mutations.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-02",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_review_owner": "typescript.DiffReviewWorkbenchRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=bounded_same_language_semantic_integration; OMP hashline receipt semantics were integrated as browser preflight and conflict projections. Its filesystem patcher does not own or execute Zyra workspace mutations.",
+      "owner_unit": "M2-S03A-02",
+      "replacement_plan": "Replace behind DiffReviewWorkbenchRuntime and the typed diff-review protocol without moving workspace, permission or artifact custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "WorkspacePatchTransactionRuntime remains the only file mutation, snapshot, verification and rollback owner.",
+        "PermissionCoordinator remains the only permission decision and exact-permit owner.",
+        "Browser diff pages, selection, comments and preflight are bounded projections, not canonical file truth."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/diff-review/hashline.ts",
+          "apps/web/src/features/diff-review/merge.ts",
+          "apps/web/src/features/diff-review/transactions.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_WORKSPACE_STATE_ROOT",
+          "ZYRA_DIFF_REVIEW_DISABLED"
+        ],
+        "function": "DiffReviewWorkbenchRuntime/DiffReviewApiService",
+        "health_check": "bun test ./apps/web/test/diff-patch-review-integration.test.ts; python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+        "module": "apps.web.src.features.diff-review.runtime",
+        "protocol": "zyra.diff-review.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/hashline/src/{mismatch.ts,diff-preview.ts,snapshots.ts,patcher.ts}",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/hashline/src/{mismatch.ts,diff-preview.ts,snapshots.ts,patcher.ts}",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-02",
+        "diff-review",
+        "patch-transaction",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/diff-review/hashline.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/merge.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/diff-review/transactions.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/diff-patch-review-integration.test.ts",
+          "expected_signal": "strict diff/page/receipt contracts, 100k-line virtualization, paging, cancellation, search, stale preflight, three-way conflict and transaction identity",
+          "kind": "unit",
+          "path": "apps/web/test/diff-patch-review-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_diff_patch_review_integration.py",
+          "expected_signal": "real workspace/artifact/HTTP paths prove add/delete/rename/binary/encoding, permission, sealed denial, stale, apply, rollback, rollback failure and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_diff_patch_review_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 484,
+    "active_or_internalized": 487,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 54,
       "deferred": 8,
       "planned": 698,
-      "productized": 429
+      "productized": 432
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -185894,7 +186452,7 @@
       "event_log_connected": 1,
       "inventoried": 54,
       "planned": 503,
-      "tested_main_path": 190,
+      "tested_main_path": 193,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -185951,25 +186509,26 @@
       "M2-S02A-02": 4,
       "M2-S02B-01": 6,
       "M2-S02B-02": 6,
-      "M2-S03A-01": 5
+      "M2-S03A-01": 5,
+      "M2-S03A-02": 3
     },
     "by_source_repo": {
-      "OpenHands": 97,
+      "OpenHands": 98,
       "agent-framework": 97,
       "agentscope": 106,
       "browser-use": 113,
       "claude-code-best": 512,
       "hermes-agent": 86,
       "langgraph": 89,
-      "oh-my-pi": 27,
+      "oh-my-pi": 28,
       "openclaw": 86,
-      "opencode": 29,
+      "opencode": 30,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 13,
-      "direct_port": 55,
+      "candidate_review": 15,
+      "direct_port": 56,
       "not_selected": 32,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
@@ -185979,7 +186538,7 @@
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 83,
+      "apps/web": 86,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -185994,6 +186553,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1244
+    "total_entries": 1247
   }
 }

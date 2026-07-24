@@ -9,8 +9,9 @@
   `5dec6715db9f35913acd1b3a078ce9bcde943a8a`
 - Parent effective-code baseline:
   `1833319acdb8a09fac3438b12356da0e9c78d6bb`
-- Implementation commit: `pending`
-- Evidence commit: `pending`
+- Implementation commit:
+  `ae2a37849cf1099c03e62e7228bfecb478c2cd8a`
+- Evidence commit: `this_commit`
 - Required conservative effective TypeScript/React floor: `7,500`
 - Parent cumulative floor: `15,000`
 - Protected predecessor: `M2-S03A-01`
