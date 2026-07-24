@@ -2,6 +2,8 @@ import {
   Fragment,
   useEffect,
   useMemo,
+  useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react"
@@ -20,9 +22,15 @@ import {
   type TimelineRow,
 } from "../projection/index.ts"
 import {
+  ScaledTimelineRuntime,
+  type TimelineMeasuredRow,
+  type TimelineRowOverlay,
+} from "../scale/index.ts"
+import {
   TimelineWorkbenchController,
   type TimelineWorkbenchSnapshot,
 } from "./controller.ts"
+import { RecoveryControlPanel } from "./recovery-control-panel.tsx"
 
 function formatTime(value: string): string {
   const parsed = Date.parse(value)
@@ -384,14 +392,25 @@ function TimelineRowItem({
   row,
   selected,
   expanded,
+  measured,
+  overlay,
+  onMeasure,
 }: {
   controller: TimelineWorkbenchController
   row: TimelineRow
   selected: boolean
   expanded: boolean
+  measured?: TimelineMeasuredRow
+  overlay?: TimelineRowOverlay
+  onMeasure?(rowKey: string, height: number): void
 }) {
   return (
     <li
+      ref={(element) => {
+        if (element && onMeasure) {
+          onMeasure(row.key, element.getBoundingClientRect().height)
+        }
+      }}
       id={`timeline-row-${row.key.replace(/[^\w-]+/g, "-")}`}
       className={[
         "timeline-row",
@@ -408,6 +427,17 @@ function TimelineRowItem({
       data-recovery-id={row.recoveryId}
       data-tool-call-id={row.toolCallId}
       data-span-id={row.spanId}
+      data-effective-step={overlay?.effectiveStep ? "true" : "false"}
+      style={
+        measured
+          ? {
+              position: "absolute",
+              transform: `translateY(${measured.offset}px)`,
+              width: "100%",
+              minHeight: `${measured.size}px`,
+            }
+          : undefined
+      }
       tabIndex={selected ? 0 : -1}
       onClick={() => controller.selectRow(row.key)}
       onKeyDown={(event) => {
@@ -433,6 +463,9 @@ function TimelineRowItem({
           {row.partial ? <span className="tag tag-danger">partial</span> : null}
           {row.late ? <span className="tag tag-muted">late</span> : null}
           {row.duplicateCount ? <span className="tag tag-muted">deduped {row.duplicateCount}</span> : null}
+          {overlay?.labels.slice(0, 4).map((label) => (
+            <span className="tag tag-muted" key={label}>{label}</span>
+          ))}
         </header>
         <div className="timeline-row-heading">
           <div>
@@ -473,12 +506,66 @@ function TimelineRows({
   controller: TimelineWorkbenchController
   snapshot: TimelineWorkbenchSnapshot
 }) {
-  const rows = snapshot.view.window.rows
-  const gapsByAfter = new Map(
-    snapshot.view.filtered.gaps.map((gap) => [gap.afterRowKey, gap] as const),
+  const scale = useMemo(
+    () =>
+      new ScaledTimelineRuntime({
+        viewportHeight: 720,
+        virtualizer: {
+          estimatedRowHeight: 138,
+          overscanPixels: 1000,
+          maximumRenderedRows: 180,
+          measurementCacheLimit: 50_000,
+        },
+      }),
+    [snapshot.taskId],
   )
-  const trailing = snapshot.view.filtered.gaps.find((gap) => !gap.afterRowKey)
-  if (!rows.length) {
+  const [scaled, setScaled] = useState(() =>
+    scale.setProjection(snapshot.projection),
+  )
+  const listRef = useRef<HTMLOListElement | null>(null)
+  useEffect(() => {
+    scale.setOptions({
+      selectedRowKey: snapshot.view.selectedRowKey,
+      criticalOnly: snapshot.view.filter.criticalOnly,
+      search: {
+        text: snapshot.view.filter.search ?? "",
+        workerIds: snapshot.view.filter.workerIds,
+        phases: snapshot.view.filter.phases,
+        kinds:
+          snapshot.view.filter.failuresOnly
+            ? [TimelineEventKind.FAILURE]
+            : snapshot.view.filter.kinds,
+        effectiveOnly: snapshot.view.filter.includeNonEffective === false,
+        limit: 10_000,
+      },
+    })
+    setScaled(scale.setProjection(snapshot.projection))
+  }, [
+    scale,
+    snapshot.projection,
+    snapshot.view.filter,
+    snapshot.view.selectedRowKey,
+  ])
+  useEffect(() => {
+    const element = listRef.current
+    if (!element) return
+    const update = () => {
+      const next = scale.setViewport(element.scrollTop, element.clientHeight)
+      if (next) setScaled(next)
+    }
+    update()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [scale])
+  useEffect(() => () => scale.close(), [scale])
+  const measure = (rowKey: string, height: number) => {
+    const next = scale.measureRow(rowKey, height)
+    if (next && next.revision !== scaled.revision) setScaled(next)
+  }
+  const rows = scaled.virtual.rows
+  if (!scaled.rows.length) {
     return (
       <div className="timeline-empty">
         <strong>No timeline rows match the current filters.</strong>
@@ -491,23 +578,75 @@ function TimelineRows({
     )
   }
   return (
-    <ol className="timeline-row-list" aria-label="Worker causal timeline">
-      {rows.map((row) => {
-        const gap = gapsByAfter.get(row.key)
-        return (
-          <Fragment key={row.key}>
-            {gap ? <HiddenGapRow gap={gap} /> : null}
+    <>
+      <div className="timeline-scale-summary" aria-label="Timeline scale summary">
+        <span>{scaled.totalRows.toLocaleString()} canonical rows</span>
+        <span>{scaled.effectiveSteps.toLocaleString()} effective steps</span>
+        <span>{scaled.hiddenByFolds.toLocaleString()} safely folded</span>
+        <span>{scaled.renderedRows} mounted</span>
+        {scaled.search ? <span>{scaled.search.totalMatches} search matches</span> : null}
+        {scaled.goalDrift.currentEpoch ? (
+          <span>
+            goal epoch {scaled.goalDrift.currentEpoch.ordinal + 1}
+            {" · "}
+            drift {(scaled.goalDrift.currentEpoch.driftScore * 100).toFixed(0)}%
+          </span>
+        ) : null}
+      </div>
+      {scaled.folds.folds.length ? (
+        <div className="timeline-fold-controls" aria-label="Causal fold controls">
+          {scaled.folds.folds.slice(0, 16).map((fold) => (
+            <button
+              key={fold.id}
+              type="button"
+              disabled={!fold.safeToCollapse}
+              aria-expanded={fold.expanded}
+              title={fold.reason}
+              onClick={() => {
+                const next = scale.toggleFold(fold.id)
+                if (next) setScaled(next)
+              }}
+            >
+              {fold.expanded ? "collapse" : "expand"} {fold.label}
+            </button>
+          ))}
+          {scaled.folds.folds.length > 16 ? (
+            <span>+{scaled.folds.folds.length - 16} more folds</span>
+          ) : null}
+        </div>
+      ) : null}
+      <ol
+        ref={listRef}
+        className="timeline-row-list timeline-virtual-list"
+        aria-label="Worker causal timeline"
+        onScroll={(event) => {
+          const target = event.currentTarget
+          const next = scale.setViewport(target.scrollTop, target.clientHeight)
+          if (next) setScaled(next)
+        }}
+      >
+        <li
+          className="timeline-virtual-spacer"
+          aria-hidden="true"
+          style={{ height: `${scaled.virtual.totalHeight}px` }}
+        />
+        {rows.map((measured) => {
+          const row = measured.row
+          return (
             <TimelineRowItem
+              key={row.key}
               controller={controller}
               row={row}
+              measured={measured}
+              overlay={scaled.overlays.byRowKey.get(row.key)}
+              onMeasure={measure}
               selected={snapshot.view.selectedRowKey === row.key}
               expanded={snapshot.view.expandedRowKeys.has(row.key)}
             />
-          </Fragment>
-        )
-      })}
-      {trailing ? <HiddenGapRow gap={trailing} /> : null}
-    </ol>
+          )
+        })}
+      </ol>
+    </>
   )
 }
 
@@ -733,6 +872,11 @@ export function WorkerCausalTimelineWorkbench({
       </header>
       <StatusBanner snapshot={snapshot} />
       <TimelineToolbar controller={controller} snapshot={snapshot} />
+      <RecoveryControlPanel
+        runtime={runtime}
+        task={task}
+        projection={projection}
+      />
       <div className="timeline-workspace">
         <div className="timeline-list-region">
           <TimelineRows controller={controller} snapshot={snapshot} />

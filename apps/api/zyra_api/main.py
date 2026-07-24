@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -8979,6 +8980,35 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
 
 
 def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlContext:
+    def synchronize_canonical_state() -> Any:
+        """Refresh the request-scoped object after a canonical owner commits.
+
+        The HTTP compatibility route checkpoints ``state`` after dispatch.
+        Recovery and worker-pool owners deliberately reload their own
+        transaction-scoped TaskState, so leaving this object stale would
+        overwrite their committed mutation at the route boundary.
+        """
+
+        latest = store.load_task(state.task_id)
+        if latest is None or latest is state:
+            return state
+        for field_name in (
+            "status",
+            "updated_at",
+            "constraints",
+            "plan_nodes",
+            "artifacts",
+            "decisions",
+            "budget",
+            "metadata",
+        ):
+            setattr(
+                state,
+                field_name,
+                copy.deepcopy(getattr(latest, field_name)),
+            )
+        return state
+
     def revision(_session_id: str) -> int:
         return len(store.task_events(state.task_id)) + len(state.metadata.get("control_mutations") or ())
 
@@ -9006,23 +9036,132 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         mutation_scope = str(getattr(descriptor.mutation_scope, "value", descriptor.mutation_scope))
         if sealed and mutation_scope != "read_only":
             ledger = state.metadata.setdefault("operator_intervention_ledger", [])
-            already_counted = any(
-                str(item.get("request_id") or "") == request.request_id
-                for item in ledger
-                if isinstance(item, Mapping)
+            existing_entry = next(
+                (
+                    item
+                    for item in ledger
+                    if isinstance(item, Mapping)
+                    and str(item.get("request_id") or "") == request.request_id
+                ),
+                None,
             )
+            already_counted = existing_entry is not None
             if not already_counted:
-                ledger.append({
+                entry = {
                     "request_id": request.request_id,
                     "command_id": request.command_id,
                     "canonical_name": request.canonical_name,
                     "actor_id": str(request.metadata.get("actor_id") or "api-user"),
                     "competition_mode": str(request.metadata.get("competition_mode") or "sealed_autonomous"),
                     "decision": "denied",
-                    "reason": "sealed competition policy rejects manual topology mutation",
+                    "reason": "sealed autonomous policy rejects manual runtime mutation",
                     "human_intervention_count": 0,
-                })
+                    "manual_command_applied": False,
+                    "human_wait_entered": False,
+                    "no_human_wait": True,
+                    "recovery_phase": "planning",
+                    "created_at": now_iso(),
+                }
+                ledger.append(entry)
                 state.metadata["operator_intervention_attempt_count"] = len(ledger)
+                state.metadata["human_intervention_count"] = 0
+                store.save_checkpoint(state)
+                try:
+                    worker_api = get_worker_pool_api()
+                    graph_id = worker_api.ensure_task_graph(state)
+                    result = get_recovery_runtime_api(store).application.recover(
+                        {
+                            "source": "permission_runtime",
+                            "source_kind": "permission_denied",
+                            "reason_code": "sealed.manual_control_denied",
+                            "summary": (
+                                f"Sealed autonomous mode denied "
+                                f"{request.canonical_name} from "
+                                f"{request.metadata.get('actor_id') or 'api-user'}."
+                            ),
+                            "refs": {
+                                "run_id": state.run_id,
+                                "task_id": state.task_id,
+                                "request_id": request.request_id,
+                                "node_id": str(
+                                    request.arguments.get("node_id")
+                                    or state.root_node_id
+                                ),
+                                "graph_id": graph_id,
+                            },
+                            "permission_effect": "deny",
+                            "retryable": False,
+                            "terminal": True,
+                            "recoverable": True,
+                            "causation_id": request.command_id,
+                            "correlation_id": request.request_id,
+                            "details": {
+                                "canonical_name": request.canonical_name,
+                                "actor_id": str(
+                                    request.metadata.get("actor_id")
+                                    or "api-user"
+                                ),
+                                "manual_command_applied": False,
+                                "human_intervention_count": 0,
+                            },
+                        },
+                        source="permission_runtime",
+                        context_overrides={
+                            "mode": "sealed_autonomous",
+                            "metadata": {
+                                "explicit_escalation": False,
+                                "sealed_control_denial": True,
+                                "human_intervention_count": 0,
+                            },
+                        },
+                        apply=True,
+                        idempotency_key=(
+                            f"sealed-control-denial:{request.request_id}"
+                        ),
+                    )
+                    synchronize_canonical_state()
+                    ledger = state.metadata.setdefault(
+                        "operator_intervention_ledger",
+                        [],
+                    )
+                    entry = next(
+                        item
+                        for item in ledger
+                        if isinstance(item, Mapping)
+                        and str(item.get("request_id") or "")
+                        == request.request_id
+                    )
+                    entry["recovery_phase"] = "applied"
+                    entry["recovery"] = result.to_dict()
+                    entry["recovery_plan_id"] = result.plan.plan_id
+                    entry["recovery_action"] = (
+                        result.plan.decision.selected.action.value
+                    )
+                    entry["no_human_wait"] = True
+                except Exception as error:
+                    # A sealed command must never become an approval wait or
+                    # fall through to the requested mutation.  If the
+                    # deterministic replan cannot commit, retain a terminal
+                    # fail-closed receipt for timeline/recovery diagnostics.
+                    synchronize_canonical_state()
+                    ledger = state.metadata.setdefault(
+                        "operator_intervention_ledger",
+                        [],
+                    )
+                    entry = next(
+                        item
+                        for item in ledger
+                        if isinstance(item, Mapping)
+                        and str(item.get("request_id") or "")
+                        == request.request_id
+                    )
+                    entry["recovery_phase"] = "failed_closed"
+                    entry["recovery_error"] = (
+                        f"{type(error).__name__}: {error}"
+                    )[:2000]
+                    entry["no_human_wait"] = True
+                    entry["manual_command_applied"] = False
+                state.metadata["last_sealed_control_denial"] = dict(entry)
                 state.metadata["human_intervention_count"] = 0
                 store.save_checkpoint(state)
             return False
@@ -9066,6 +9205,10 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             "watchdog.control",
             "artifact.export",
             "task.evaluate",
+            "worker.kill",
+            "recovery.steer",
+            "recovery.retry",
+            "worker.reassign",
         }
 
     handlers: dict[str, Any] = {}
@@ -9650,11 +9793,551 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             },
         )
 
+    def control_owner_snapshot(
+        request: ControlCommandRequest,
+        *,
+        require_worker: bool = False,
+        allow_terminal_lease: bool = False,
+    ) -> dict[str, Any]:
+        arguments = dict(request.arguments)
+        if request.task_id != state.task_id or request.run_id != state.run_id:
+            raise RuntimeError(
+                "timeline control request crossed canonical task/run ownership"
+            )
+        worker_api = get_worker_pool_api()
+        projection = dict(state.metadata.get("worker_pool") or {})
+        expected_task_id = str(arguments.get("expected_task_id") or "")
+        expected_run_id = str(arguments.get("expected_run_id") or "")
+        expected_worker_id = str(arguments.get("expected_worker_id") or "")
+        expected_lease_id = str(arguments.get("expected_lease_id") or "")
+        expected_attempt_id = str(arguments.get("expected_attempt_id") or "")
+        expected_owner_revision = arguments.get("expected_owner_revision")
+        if expected_task_id and expected_task_id != state.task_id:
+            raise RuntimeError(
+                "timeline control expected task is not owned by this request"
+            )
+        if expected_run_id and expected_run_id != state.run_id:
+            raise RuntimeError(
+                "timeline control expected run is not owned by this request"
+            )
+        actual_worker_id = str(projection.get("worker_id") or "")
+        actual_lease_id = str(projection.get("lease_id") or "")
+        actual_attempt_id = str(projection.get("attempt_id") or "")
+        if expected_worker_id and expected_worker_id != actual_worker_id:
+            raise RuntimeError(
+                "worker owner changed before timeline control execution"
+            )
+        if expected_lease_id and expected_lease_id != actual_lease_id:
+            raise RuntimeError(
+                "worker lease changed before timeline control execution"
+            )
+        if expected_attempt_id and expected_attempt_id != actual_attempt_id:
+            raise RuntimeError(
+                "worker attempt changed before timeline control execution"
+            )
+        if expected_owner_revision not in {None, ""}:
+            expected = int(expected_owner_revision)
+            actual = int(worker_api.pool.store.revision)
+            if expected != actual:
+                raise RuntimeError(
+                    "worker owner revision changed before timeline control "
+                    f"execution: expected={expected}, actual={actual}"
+                )
+        lease = (
+            worker_api.pool.store.get_lease(actual_lease_id)
+            if actual_lease_id
+            else None
+        )
+        worker = (
+            worker_api.pool.store.get_worker(actual_worker_id)
+            if actual_worker_id
+            else None
+        )
+        if require_worker and (worker is None or lease is None):
+            raise RuntimeError(
+                "canonical worker/lease owner is unavailable for timeline control"
+            )
+        if lease is not None:
+            if lease.task_id != state.task_id or lease.run_id != state.run_id:
+                raise RuntimeError(
+                    "canonical worker lease belongs to another task or run"
+                )
+            if not allow_terminal_lease and lease.terminal:
+                raise RuntimeError(
+                    "canonical worker lease is already terminal"
+                )
+        return {
+            "worker_api": worker_api,
+            "projection": projection,
+            "worker": worker,
+            "lease": lease,
+            "worker_id": actual_worker_id,
+            "lease_id": actual_lease_id,
+            "attempt_id": actual_attempt_id,
+            "owner_revision": int(worker_api.pool.store.revision),
+        }
+
+    def persist_timeline_control_effect(
+        request: ControlCommandRequest,
+        *,
+        action: str,
+        owner: str,
+        phase: str,
+        changed: bool,
+        receipt: Mapping[str, Any],
+        before: Mapping[str, Any] | None = None,
+        after: Mapping[str, Any] | None = None,
+    ) -> EventRecord:
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=str(
+                request.arguments.get("node_id")
+                or state.root_node_id
+            ),
+            event_type=EventType.TOPOLOGY_ROUTE,
+            payload={
+                "schema": "zyra.timeline-recovery-control-effect/v1",
+                "phase": phase,
+                "command": request.canonical_name,
+                "command_id": request.command_id,
+                "control_command_id": request.command_id,
+                "request_id": request.request_id,
+                "correlation_id": request.request_id,
+                "causation_id": request.command_id,
+                "control_runtime": {
+                    "action": action,
+                    "phase": phase,
+                    "owner": owner,
+                    "changed": changed,
+                    "receipt": copy.deepcopy(dict(receipt)),
+                    "before": copy.deepcopy(dict(before or {})),
+                    "after": copy.deepcopy(dict(after or {})),
+                    "manual": True,
+                    "sealed": False,
+                    "state_owner_unchanged": True,
+                },
+            },
+        )
+        persist_events(store, [event])
+        return event
+
+    def projected_worker_control_events(
+        worker_api: Any,
+        *,
+        after_sequence: int,
+    ) -> list[EventRecord]:
+        events = [
+            event
+            for event in worker_api.pool.events.project_after(
+                worker_api.pool.store,
+                after_sequence,
+            )
+            if event.task_id == state.task_id and event.run_id == state.run_id
+        ]
+        if events:
+            persist_events(store, events)
+        return events
+
+    def kill_control(
+        request: ControlCommandRequest,
+        _descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        owner = control_owner_snapshot(request, require_worker=True)
+        worker_api = owner["worker_api"]
+        journal = worker_api.pool.store.journal(limit=10000)
+        after_sequence = journal[-1].sequence if journal else 0
+        reason = str(
+            request.arguments.get("reason")
+            or request.arguments.get("raw")
+            or "Timeline operator requested a fenced kill."
+        ).strip()
+        if not reason:
+            raise ValueError("kill control requires a reason")
+        target = str(request.arguments.get("target") or "task").strip().lower()
+        cancel = worker_api.integration.control.submit_and_apply(
+            ControlKind.CANCEL,
+            claim_owner="timeline-control",
+            actor_id=str(request.metadata.get("actor_id") or "timeline-operator"),
+            reason=reason,
+            idempotency_key=f"{request.idempotency_key}:cancel",
+            task_id=state.task_id,
+            run_id=state.run_id,
+            worker_id=str(owner["worker_id"]),
+            attempt_id=str(owner["attempt_id"]),
+            lease_id=str(owner["lease_id"]),
+        )
+        controls = [cancel]
+        if target in {"worker", "worker-and-task", "worker_and_task"}:
+            stop = worker_api.integration.control.submit_and_apply(
+                ControlKind.STOP,
+                claim_owner="timeline-control",
+                actor_id=str(
+                    request.metadata.get("actor_id")
+                    or "timeline-operator"
+                ),
+                reason=reason,
+                idempotency_key=f"{request.idempotency_key}:stop",
+                task_id=state.task_id,
+                run_id=state.run_id,
+                worker_id=str(owner["worker_id"]),
+            )
+            controls.append(stop)
+        worker_events = projected_worker_control_events(
+            worker_api,
+            after_sequence=after_sequence,
+        )
+        after_projection = {
+            "worker": (
+                worker_api.pool.store.require_worker(
+                    str(owner["worker_id"])
+                ).to_dict()
+            ),
+            "lease": (
+                worker_api.pool.store.require_lease(
+                    str(owner["lease_id"])
+                ).to_dict()
+            ),
+            "owner_revision": worker_api.pool.store.revision,
+        }
+        effect = persist_timeline_control_effect(
+            request,
+            action="kill",
+            owner="WorkerControlRuntime",
+            phase="applied",
+            changed=any(
+                bool(item.effect.get("changed", True))
+                for item in controls
+            ),
+            receipt={
+                "controls": [item.to_dict() for item in controls],
+                "worker_event_ids": [event.event_id for event in worker_events],
+            },
+            before={
+                "worker_pool": owner["projection"],
+                "owner_revision": owner["owner_revision"],
+            },
+            after=after_projection,
+        )
+        state.metadata.setdefault("control_mutations", []).append(
+            {
+                "request_id": request.request_id,
+                "command": request.canonical_name,
+                "action": "kill",
+                "control_ids": [item.command_id for item in controls],
+                "event_id": effect.event_id,
+                "canonical_owner": "WorkerControlRuntime",
+            }
+        )
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text="Worker lease fenced by the canonical worker control runtime.",
+            data={
+                "action": "kill",
+                "phase": "applied",
+                "controls": [item.to_dict() for item in controls],
+                "before": {
+                    "worker_pool": owner["projection"],
+                    "owner_revision": owner["owner_revision"],
+                },
+                "after": after_projection,
+                "observed_event_ids": [
+                    *[event.event_id for event in worker_events],
+                    effect.event_id,
+                ],
+                "control_event": to_jsonable(effect),
+            },
+            metadata={
+                "runtime_status": "stateful",
+                "canonical_owner": "WorkerControlRuntime",
+                "old_fence_blocks_late_commit": True,
+            },
+        )
+
+    def recover_from_timeline_control(
+        request: ControlCommandRequest,
+        *,
+        action: str,
+        source: str,
+        source_kind: str,
+        refs: Mapping[str, Any],
+        summary: str,
+        context_metadata: Mapping[str, Any] | None = None,
+    ) -> ControlResult:
+        application = get_recovery_runtime_api(store).application
+        result = application.recover(
+            {
+                "source": source,
+                "source_kind": source_kind,
+                "reason_code": f"timeline.control.{action}",
+                "summary": summary,
+                "refs": {
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                    **{
+                        key: value
+                        for key, value in refs.items()
+                        if value not in {None, ""}
+                    },
+                },
+                "retryable": action == "retry",
+                "terminal": False,
+                "recoverable": True,
+                "causation_id": request.command_id,
+                "correlation_id": request.request_id,
+                "details": {
+                    "timeline_control": True,
+                    "manual_operator": True,
+                    "canonical_name": request.canonical_name,
+                    "instruction": str(
+                        request.arguments.get("instruction")
+                        or request.arguments.get("raw")
+                        or ""
+                    )[:8192],
+                },
+            },
+            source=source,
+            context_overrides={
+                "mode": "interactive",
+                "metadata": {
+                    "timeline_control": True,
+                    "control_command_id": request.command_id,
+                    "operator_actor_id": str(
+                        request.metadata.get("actor_id")
+                        or "timeline-operator"
+                    ),
+                    **dict(context_metadata or {}),
+                },
+            },
+            apply=True,
+            idempotency_key=request.idempotency_key,
+        )
+        value = result.to_dict()
+        execution = value.get("execution") or {}
+        outcome = (
+            execution.get("outcome")
+            if isinstance(execution, Mapping)
+            else {}
+        ) or {}
+        success = bool(outcome.get("success", False))
+        if not success:
+            raise RuntimeError(
+                f"canonical recovery action {action} did not apply successfully"
+            )
+        before = dict(
+            request.arguments.get("before")
+            if isinstance(request.arguments.get("before"), Mapping)
+            else {}
+        )
+        after = (
+            get_recovery_runtime_api(store)
+            .application.task_view(state.task_id)
+        )
+        effect = persist_timeline_control_effect(
+            request,
+            action=action,
+            owner="RecoveryApplication",
+            phase="applied",
+            changed=True,
+            receipt=value,
+            before=before,
+            after={
+                "plan_id": result.plan.plan_id,
+                "selected_action": result.plan.decision.selected.action.value,
+                "task_recovery": dict(
+                    (store.load_task(state.task_id) or state).metadata.get(
+                        "recovery_runtime"
+                    )
+                    or {}
+                ),
+            },
+        )
+        latest_state = store.load_task(state.task_id) or state
+        latest_state.metadata.setdefault("control_mutations", []).append(
+            {
+                "request_id": request.request_id,
+                "command": request.canonical_name,
+                "action": action,
+                "plan_id": result.plan.plan_id,
+                "selected_action": (
+                    result.plan.decision.selected.action.value
+                ),
+                "event_id": effect.event_id,
+                "canonical_owner": "RecoveryApplication",
+            }
+        )
+        store.save_checkpoint(latest_state)
+        synchronize_canonical_state()
+        event_ids = [
+            str(item.get("event_id") or "")
+            for item in value.get("event_receipts") or ()
+            if isinstance(item, Mapping) and item.get("event_id")
+        ]
+        return ControlResult(
+            display_text=(
+                f"Recovery control {action} applied through "
+                f"{result.plan.decision.selected.action.value}."
+            ),
+            data={
+                "action": action,
+                "phase": "applied",
+                "recovery": value,
+                "task_recovery": dict(
+                    latest_state.metadata.get("recovery_runtime") or {}
+                ),
+                "observed_event_ids": [*event_ids, effect.event_id],
+                "control_event": to_jsonable(effect),
+            },
+            metadata={
+                "runtime_status": "stateful",
+                "canonical_owner": "RecoveryApplication",
+                "policy_owner": "RecoveryDecisionRuntime",
+                "selected_action": (
+                    result.plan.decision.selected.action.value
+                ),
+            },
+        )
+
+    def steer_control(
+        request: ControlCommandRequest,
+        _descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        instruction = str(
+            request.arguments.get("instruction")
+            or request.arguments.get("requirement")
+            or request.arguments.get("raw")
+            or ""
+        ).strip()
+        if not instruction:
+            raise ValueError("steer control requires an instruction")
+        worker_api = get_worker_pool_api()
+        graph_id = worker_api.ensure_task_graph(state)
+        node_id = str(
+            request.arguments.get("node_id") or state.root_node_id
+        )
+        graph = worker_api.graph_custody.current(graph_id)
+        if node_id not in graph.node_map:
+            raise RuntimeError(
+                "steer target node is not owned by the canonical graph"
+            )
+        expected_graph_revision = request.arguments.get(
+            "expected_graph_revision"
+        )
+        if expected_graph_revision not in {None, ""}:
+            actual = worker_api.topology.version_ref(graph_id).revision
+            if int(expected_graph_revision) != int(actual):
+                raise RuntimeError(
+                    "graph owner revision changed before steer execution"
+                )
+        return recover_from_timeline_control(
+            request,
+            action="steer",
+            source="control_runtime",
+            source_kind="requirement_changed",
+            refs={
+                "request_id": request.request_id,
+                "node_id": node_id,
+                "graph_id": graph_id,
+            },
+            summary=instruction,
+            context_metadata={
+                "requirement_change_is_fault": False,
+                "operator_instruction": instruction,
+            },
+        )
+
+    def retry_control(
+        request: ControlCommandRequest,
+        _descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        control_owner_snapshot(
+            request,
+            require_worker=False,
+            allow_terminal_lease=True,
+        )
+        node_id = str(
+            request.arguments.get("node_id") or state.root_node_id
+        )
+        reason = str(
+            request.arguments.get("reason")
+            or request.arguments.get("raw")
+            or "Timeline operator requested one bounded retry."
+        ).strip()
+        return recover_from_timeline_control(
+            request,
+            action="retry",
+            source="tool_runtime",
+            source_kind="tool_error",
+            refs={
+                "request_id": request.request_id,
+                "tool_call_id": str(
+                    request.arguments.get("tool_call_id")
+                    or f"timeline-control:{request.command_id}"
+                ),
+                "node_id": node_id,
+            },
+            summary=reason,
+            context_metadata={
+                "operator_retry": True,
+                "maximum_attempts": int(
+                    request.arguments.get("maximum_attempts") or 1
+                ),
+            },
+        )
+
+    def reassign_control(
+        request: ControlCommandRequest,
+        _descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        owner = control_owner_snapshot(
+            request,
+            require_worker=True,
+            allow_terminal_lease=True,
+        )
+        worker_api = owner["worker_api"]
+        graph_id = worker_api.ensure_task_graph(state)
+        reason = str(
+            request.arguments.get("reason")
+            or request.arguments.get("raw")
+            or "Timeline operator requested worker reassignment."
+        ).strip()
+        return recover_from_timeline_control(
+            request,
+            action="reassign",
+            source="worker_handoff",
+            source_kind="worker_lost",
+            refs={
+                "request_id": request.request_id,
+                "worker_id": owner["worker_id"],
+                "worker_lease_id": owner["lease_id"],
+                "attempt_id": owner["attempt_id"],
+                "node_id": str(
+                    request.arguments.get("node_id")
+                    or state.root_node_id
+                ),
+                "graph_id": graph_id,
+            },
+            summary=reason,
+            context_metadata={
+                "operator_reassign": True,
+                "previous_worker_id": owner["worker_id"],
+                "previous_lease_id": owner["lease_id"],
+            },
+        )
+
     handlers["task.change"] = requirement_change
     handlers["task.inject"] = fault_inject
     handlers["watchdog.control"] = watchdog_control
     handlers["artifact.export"] = legacy_real_mutation
     handlers["task.evaluate"] = legacy_real_mutation
+    handlers["recovery.kill"] = kill_control
+    handlers["recovery.steer"] = steer_control
+    handlers["recovery.retry"] = retry_control
+    handlers["recovery.reassign"] = reassign_control
 
     def onboarding(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
         events = store.task_events(state.task_id)
