@@ -1,0 +1,278 @@
+{
+  "slice_id": "M2-S02A-02",
+  "parent_unit": "M2-02A",
+  "numeric_stage": "M2-02",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e",
+  "parent_baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "numeric_stage_baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "preimplementation_decision_commit": "dde72a7bb36d6431d4138ff176617687241dc791",
+  "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e..6b15c5d8924a113553eac4d21922bc28239696dc",
+    "raw_additions": 11848,
+    "raw_deletions": 35,
+    "production_runtime": 6814,
+    "ui_behavior": 555,
+    "ui_presentation_excluded": 1444,
+    "type_declaration_excluded": 1141,
+    "schema_data_excluded": 0,
+    "adapter_only_excluded": 153,
+    "generated_excluded": 235,
+    "test_fixture_excluded": 1160,
+    "docs_comments_blank_excluded": 346,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 7369,
+    "minimum": 6500,
+    "margin": 869,
+    "passed": true
+  },
+  "parent_effective_line_count": {
+    "interval": "f7fff49be91fb0f797260c03ff9cca76c06c5974..6b15c5d8924a113553eac4d21922bc28239696dc",
+    "raw_additions": 23030,
+    "raw_deletions": 140,
+    "production_runtime": 13472,
+    "ui_behavior": 555,
+    "ui_presentation_excluded": 1444,
+    "type_declaration_excluded": 2098,
+    "schema_data_excluded": 979,
+    "adapter_only_excluded": 153,
+    "generated_excluded": 949,
+    "test_fixture_excluded": 2452,
+    "docs_comments_blank_excluded": 928,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 14027,
+    "minimum": 13000,
+    "margin": 1027,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "source_language": "typescript/python",
+      "target_language": "typescript/python",
+      "migration_mode": "same_language_component_integration",
+      "source_commit": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e"
+    },
+    {
+      "source_repo": "opencode",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "none",
+      "migration_mode": "reference_only",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "none",
+      "migration_mode": "reference_only",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "langgraph",
+      "source_role": "conformance_only",
+      "source_language": "python",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_component_integration",
+      "expected_production_languages": [
+        "python",
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/api/zyra_api/main.py",
+        "apps/web/src/components/tasks/task-detail.tsx",
+        "apps/web/src/features/topology/view/accessibility.ts",
+        "apps/web/src/features/topology/view/clustering.ts",
+        "apps/web/src/features/topology/view/controller.ts",
+        "apps/web/src/features/topology/view/controls.ts",
+        "apps/web/src/features/topology/view/filtering.ts",
+        "apps/web/src/features/topology/view/geometry.ts",
+        "apps/web/src/features/topology/view/graph-canvas.tsx",
+        "apps/web/src/features/topology/view/inspector.tsx",
+        "apps/web/src/features/topology/view/interaction.ts",
+        "apps/web/src/features/topology/view/layers.ts",
+        "apps/web/src/features/topology/view/layout.ts",
+        "apps/web/src/features/topology/view/minimap.tsx",
+        "apps/web/src/features/topology/view/model.ts",
+        "apps/web/src/features/topology/view/navigation.ts",
+        "apps/web/src/features/topology/view/spatial-index.ts",
+        "apps/web/src/features/topology/view/toolbar.tsx",
+        "apps/web/src/features/topology/view/topology-workbench.tsx",
+        "packages/commands/zyra_commands/runtime/owner_handlers.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1,
+        "typescript": 6500
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "backend_graph": "python.GraphStateCustody/DynamicTopologyRuntime",
+    "backend_scheduler": "python.ResourceScheduler/worker-pool/provider-control",
+    "permission_and_intervention": "python.RuntimeControlDispatcher/permission runtime",
+    "checkpoint_and_exact_resume": "python.RecoveryApplication/existing checkpoint stores",
+    "session_control": "existing command/session owners",
+    "canonical_event_ingress": "typescript.RuntimeEventSpine/TaskEventTransport",
+    "browser_projection": "typescript.CanonicalProjectionStore",
+    "transient_view_state": "typescript.TopologyWorkbenchController",
+    "new_canonical_state_owners": 0
+  },
+  "verification": {
+    "focused_web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test/topology-interaction.test.ts",
+      "passed": 6,
+      "failed": 0,
+      "assertions": 84
+    },
+    "full_web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test",
+      "passed": 85,
+      "failed": 0,
+      "assertions": 450
+    },
+    "production_build": {
+      "command": "node_modules/.bin/bun.exe run --cwd apps/web build",
+      "typescript_passed": true,
+      "bundled_modules": 136,
+      "passed": true
+    },
+    "backend_control_integration": {
+      "command": ".venv/Scripts/python.exe -m pytest -q tests/integration/test_topology_interaction_control.py",
+      "passed": 1,
+      "failed": 0
+    },
+    "adjacent_backend_regression": {
+      "command": ".venv/Scripts/python.exe -m pytest -q tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_clear_uses_canonical_session_owner_and_rewind_fails_closed tests/integration/test_recovery_planner_routing_memory_api.py::RecoveryPlannerRoutingMemoryApiTests::test_real_api_recovery_mutates_task_persists_memory_and_disables_fail_closed tests/integration/test_topology_interaction_control.py",
+      "passed": 4,
+      "failed": 0
+    },
+    "line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s02a_02_effective_lines.mjs --summary --target=6b15c5d8924a113553eac4d21922bc28239696dc",
+      "effective_production": 7369,
+      "minimum": 6500,
+      "passed": true
+    },
+    "parent_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s02a_02_effective_lines.mjs --summary --baseline=f7fff49be91fb0f797260c03ff9cca76c06c5974 --target=6b15c5d8924a113553eac4d21922bc28239696dc --minimum=13000 --scope=M2-02A-parent",
+      "effective_production": 14027,
+      "minimum": 13000,
+      "passed": true
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S02A-02-topology-interaction-large-graph-control.json --base a2fa483a75ccae4c14bf9cd94aa0cda41346c28e --target 6b15c5d8924a113553eac4d21922bc28239696dc",
+      "actual_production_languages": [
+        "python",
+        "typescript"
+      ],
+      "minimum_raw_additions": {
+        "python": 1,
+        "typescript": 6500
+      },
+      "actual_raw_additions": {
+        "python": 235,
+        "typescript": 8950
+      },
+      "violations": [],
+      "passed": true
+    },
+    "ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_topology_interaction_source_ledger.py --check",
+      "aligned": true,
+      "entries": 4,
+      "missing_targets": 0
+    },
+    "dependency_scan": {
+      "parent_source_runtime_dependencies": 0,
+      "npm_links": 0,
+      "editable_parent_paths": 0,
+      "external_docker_contexts": 0,
+      "new_dependencies": 0,
+      "new_production_processes": 0,
+      "new_ports": 0,
+      "new_mcp_servers": 0,
+      "dynamic_package_imports": 0,
+      "excluded_forward_source_references": 0
+    },
+    "browser_visual_validation": {
+      "local_api_started": true,
+      "local_web_started": true,
+      "browser_instance_available": false,
+      "screenshots_claimed": false,
+      "passed": false,
+      "deferred_to": "M2-02 numeric-stage aggregate after M2-S02B-02"
+    },
+    "global_ledger_observation": {
+      "current_slice_ledger_validated_by_sync": true,
+      "repository_wide_verifier_passed": false,
+      "preexisting_blockers": 3,
+      "unchanged_path": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+      "unchanged_in_implementation_interval": true,
+      "current_slice_blocker": false
+    }
+  },
+  "concentration_audit": {
+    "files_over_20_percent_effective": [],
+    "type_only_fully_excluded": [
+      "apps/web/src/features/topology/view/contracts.ts"
+    ],
+    "presentation_or_test_fully_excluded": [
+      "apps/web/src/styles.css",
+      "apps/web/test/topology-interaction.test.ts",
+      "tests/integration/test_topology_interaction_control.py"
+    ],
+    "adapter_only_fully_excluded": [
+      "apps/web/src/api/task-api.ts",
+      "packages/core/typed-api-client/src/constants.ts",
+      "packages/core/typed-api-client/src/normalizers.ts",
+      "packages/core/typed-api-client/src/protocol.ts"
+    ],
+    "passed": true
+  },
+  "parent_closeout": {
+    "parent_unit": "M2-02A",
+    "effective_production": 14027,
+    "minimum": 13000,
+    "canonical_owner_consistent": true,
+    "cross_slice_main_path_passed": true,
+    "source_to_target_complete": true,
+    "passed": true
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-TOPO-01",
+      "REQ-EDGE-01",
+      "REQ-TRACE-01",
+      "SCORE-ORG",
+      "SCORE-UX",
+      "large-graph virtualized topology interaction",
+      "typed operator mutation and exact checkpoint control",
+      "sealed deterministic denial with zero human intervention"
+    ],
+    "closes": []
+  },
+  "deferred_verification": {
+    "layer": "M2-02 numeric-stage aggregate after M2-S02B-02",
+    "items": [
+      "browser viewport screenshot and manual click-through once a browser instance is available",
+      "full cleanroom",
+      "full repository tests",
+      "numeric-stage source-to-target and ledger aggregation",
+      "independent aggregate review"
+    ]
+  },
+  "next_slice": "docs/milestones/M2-console-demo/slice-02b-01-worker-causal-timeline-projection.md"
+}

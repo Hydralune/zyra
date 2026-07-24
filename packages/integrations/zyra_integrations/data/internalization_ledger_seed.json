@@ -182218,27 +182218,776 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "large_graph_topology_interaction_and_control_runtime",
+      "capability_summary": "Stable incremental layout, spatial virtualization, multilevel LOD clustering, search/filter layers, accessible navigation and evidence inspection over the immutable topology projection, plus typed control receipts, sealed denial and exact checkpoint rewind/resume.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-01",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_a848243f392b7ce74ddf",
+      "license_notice": {
+        "license_hint": "M2 topology interaction source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "zyra",
+        "source_url": "",
+        "status": "not_required"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "topology_projection",
+          "control_receipt"
+        ],
+        "control_commands": [
+          "/change",
+          "/rewind",
+          "/resume"
+        ],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "recovery.*",
+          "requirement_change",
+          "control_command"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "typed_control_api"
+        ],
+        "ui_panels": [
+          "topology",
+          "topology_inspector",
+          "topology_minimap"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> TopologyWorkbenchController -> typed command -> permission/session/recovery owner"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.RecoveryApplication",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.RuntimeControlDispatcher",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+        "migration_mode": "same_language_component_integration",
+        "owner_unit": "M2-S02A-02",
+        "rationale": "The M2-S02A-01 immutable projection is retained as the only graph-fact input. New layout, viewport, filter, selection and focus state is transient and cannot write the CanonicalProjectionStore or backend. The existing typed client, dispatcher, permission runtime, session runtime and RecoveryApplication remain canonical; bounded glue preserves checkpoint signatures and exposes immutable receipts.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-02",
+        "source_commit": "a2fa483a75ccae4c14bf9cd94aa0cda41346c28e",
+        "source_role": "primary_implementation",
+        "transient_view_owner": "typescript.TopologyWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=a2fa483a75ccae4c14bf9cd94aa0cda41346c28e; migration_mode=same_language_component_integration; The M2-S02A-01 immutable projection is retained as the only graph-fact input. New layout, viewport, filter, selection and focus state is transient and cannot write the CanonicalProjectionStore or backend. The existing typed client, dispatcher, permission runtime, session runtime and RecoveryApplication remain canonical; bounded glue preserves checkpoint signatures and exposes immutable receipts.",
+      "owner_unit": "M2-S02A-02",
+      "replacement_plan": "Replace behind TopologyProjectionView or typed control transport without moving canonical graph, permission, session or recovery ownership.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical graph, scheduler, permission, session and recovery stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection fact owner.",
+        "Transient interaction state cannot commit canonical graph or checkpoint facts."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/features/topology/view/model.ts",
+          "apps/web/src/features/topology/view/geometry.ts",
+          "apps/web/src/features/topology/view/layout.ts",
+          "apps/web/src/features/topology/view/spatial-index.ts",
+          "apps/web/src/features/topology/view/clustering.ts",
+          "apps/web/src/features/topology/view/filtering.ts",
+          "apps/web/src/features/topology/view/layers.ts",
+          "apps/web/src/features/topology/view/navigation.ts",
+          "apps/web/src/features/topology/view/accessibility.ts",
+          "apps/web/src/features/topology/view/interaction.ts",
+          "apps/web/src/features/topology/view/controller.ts",
+          "apps/web/src/features/topology/view/graph-canvas.tsx",
+          "apps/web/src/features/topology/view/minimap.tsx",
+          "apps/web/src/features/topology/view/toolbar.tsx",
+          "apps/web/src/features/topology/view/inspector.tsx",
+          "apps/web/src/features/topology/view/topology-workbench.tsx",
+          "apps/web/src/components/tasks/task-detail.tsx",
+          "apps/web/src/api/task-api.ts",
+          "packages/core/typed-api-client/src/constants.ts",
+          "packages/core/typed-api-client/src/protocol.ts",
+          "packages/core/typed-api-client/src/normalizers.ts",
+          "packages/commands/zyra_commands/runtime/owner_handlers.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "environment_refs": [],
+        "function": "TopologyWorkbenchController",
+        "health_check": "bun test ./apps/web/test/topology-interaction.test.ts",
+        "module": "apps.web.src.features.topology.view.controller",
+        "protocol": "zyra.topology-control/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**;packages/commands/zyra_commands/runtime/**;apps/api/zyra_api/{main,recovery_api}.py;packages/scheduler/zyra_scheduler/recovery_runtime/**",
+          "source_repo": "zyra",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "apps/web/src/features/topology/projection/**;apps/web/src/state/{store,selectors,panel-selectors}.ts;packages/core/typed-api-client/src/**;packages/commands/zyra_commands/runtime/**;apps/api/zyra_api/{main,recovery_api}.py;packages/scheduler/zyra_scheduler/recovery_runtime/**",
+      "source_repo": "zyra",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-02",
+        "topology-interaction",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/topology/view/model.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/geometry.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/layout.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/spatial-index.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/clustering.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/filtering.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/layers.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/navigation.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/accessibility.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/interaction.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/controller.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/graph-canvas.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/minimap.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/toolbar.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/inspector.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/view/topology-workbench.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/tasks/task-detail.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/task-api.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/constants.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/protocol.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/normalizers.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/zyra_commands/runtime/owner_handlers.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/main.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-interaction.test.ts",
+          "expected_signal": "2400-node virtualization, LOD, stable layout, filters, layers, accessibility, control receipts, stale fencing and disable failure",
+          "kind": "unit",
+          "path": "apps/web/test/topology-interaction.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_interaction_control.py",
+          "expected_signal": "real change, rewind, resume, sealed denial and intervention ledger",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_interaction_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "dense_session_graph_interaction_reference",
+      "capability_summary": "Dense session inspection, keyboard traversal and durable control-status presentation conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-01",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_eb980532cd4790d88c83",
+      "license_notice": {
+        "license_hint": "M2 topology interaction source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection",
+          "control_receipt"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "recovery.*",
+          "requirement_change",
+          "control_command"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "typed_control_api"
+        ],
+        "ui_panels": [
+          "topology",
+          "topology_inspector",
+          "topology_minimap"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.RecoveryApplication",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.RuntimeControlDispatcher",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02A-02",
+        "rationale": "OpenCode remains an interaction reference. No Solid store, session runtime, command owner, terminal or provider client is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "reference_only",
+        "transient_view_owner": "typescript.TopologyWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=reference_only; OpenCode remains an interaction reference. No Solid store, session runtime, command owner, terminal or provider client is migrated.",
+      "owner_unit": "M2-S02A-02",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical graph, scheduler, permission, session and recovery stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection fact owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-interaction.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "topology interaction conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-interaction.test.ts",
+        "module": "apps.web.test.topology-interaction",
+        "protocol": "zyra.topology-control/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/pages/session/**;packages/tui/src/routes/session/index.tsx",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/pages/session/**;packages/tui/src/routes/session/index.tsx",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-02",
+        "topology-interaction",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-interaction.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-interaction.test.ts",
+          "expected_signal": "2400-node virtualization, LOD, stable layout, filters, layers, accessibility, control receipts, stale fencing and disable failure",
+          "kind": "unit",
+          "path": "apps/web/test/topology-interaction.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_interaction_control.py",
+          "expected_signal": "real change, rewind, resume, sealed denial and intervention ledger",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_interaction_control.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "task_topology_panel_navigation_reference",
+      "capability_summary": "Task hierarchy, detail navigation, timeline jumps and loading/error operator-state presentation conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-01",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_1294c58e07e0dcc187a8",
+      "license_notice": {
+        "license_hint": "M2 topology interaction source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection",
+          "control_receipt"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "recovery.*",
+          "requirement_change",
+          "control_command"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "typed_control_api"
+        ],
+        "ui_panels": [
+          "topology",
+          "topology_inspector",
+          "topology_minimap"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.RecoveryApplication",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.RuntimeControlDispatcher",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02A-02",
+        "rationale": "OpenHands remains a panel behavior reference. No router, Redux state, conversation owner, sandbox service or event client is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-02",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "reference_only",
+        "transient_view_owner": "typescript.TopologyWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=reference_only; OpenHands remains a panel behavior reference. No router, Redux state, conversation owner, sandbox service or event client is migrated.",
+      "owner_unit": "M2-S02A-02",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical graph, scheduler, permission, session and recovery stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection fact owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-interaction.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "topology interaction conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-interaction.test.ts",
+        "module": "apps.web.test.topology-interaction",
+        "protocol": "zyra.topology-control/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/routes/planner-tab.tsx;frontend/src/routes/task-list-tab.tsx",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/routes/planner-tab.tsx;frontend/src/routes/task-list-tab.tsx",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-02",
+        "topology-interaction",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-interaction.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-interaction.test.ts",
+          "expected_signal": "2400-node virtualization, LOD, stable layout, filters, layers, accessibility, control receipts, stale fencing and disable failure",
+          "kind": "unit",
+          "path": "apps/web/test/topology-interaction.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_interaction_control.py",
+          "expected_signal": "real change, rewind, resume, sealed denial and intervention ledger",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_interaction_control.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "interactive_checkpoint_exact_resume_conformance",
+      "capability_summary": "Checkpoint identity and lineage, pending/committed writes, interrupt/resume correlation, stable task identity and exact-resume conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02B-01",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_de9cc60a0fb64fdec9a4",
+      "license_notice": {
+        "license_hint": "M2 topology interaction source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection",
+          "control_receipt"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "recovery.*",
+          "requirement_change",
+          "control_command"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "typed_control_api"
+        ],
+        "ui_panels": [
+          "topology",
+          "topology_inspector",
+          "topology_minimap"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.RecoveryApplication",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.RuntimeControlDispatcher",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02A-02",
+        "rationale": "LangGraph remains limited to the narrow checkpoint contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-02",
+        "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_role": "conformance_only",
+        "transient_view_owner": "typescript.TopologyWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=5931a5f0b313feff24e2516a586c55601b868ac1; migration_mode=conformance_only; LangGraph remains limited to the narrow checkpoint contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+      "owner_unit": "M2-S02A-02",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical graph, scheduler, permission, session and recovery stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection fact owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-interaction.test.ts",
+          "tests/integration/test_topology_interaction_control.py"
+        ],
+        "environment_refs": [],
+        "function": "topology interaction conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-interaction.test.ts",
+        "module": "apps.web.test.topology-interaction",
+        "protocol": "zyra.topology-control/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "libs/checkpoint/langgraph/checkpoint/base/__init__.py;libs/langgraph/langgraph/pregel/_loop.py",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "libs/checkpoint/langgraph/checkpoint/base/__init__.py;libs/langgraph/langgraph/pregel/_loop.py",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-02",
+        "topology-interaction",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-interaction.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_topology_interaction_control.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-interaction.test.ts",
+          "expected_signal": "2400-node virtualization, LOD, stable layout, filters, layers, accessibility, control receipts, stale fencing and disable failure",
+          "kind": "unit",
+          "path": "apps/web/test/topology-interaction.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_interaction_control.py",
+          "expected_signal": "real change, rewind, resume, sealed denial and intervention ledger",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_interaction_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 474,
+    "active_or_internalized": 475,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 43,
+      "candidate": 46,
       "deferred": 8,
       "planned": 698,
-      "productized": 419
+      "productized": 420
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 43,
+      "inventoried": 46,
       "planned": 503,
-      "tested_main_path": 180,
+      "tested_main_path": 181,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -182291,35 +183040,36 @@
       "M2-S01A-02": 3,
       "M2-S01B-01": 5,
       "M2-S01B-02": 4,
-      "M2-S02A-01": 5
+      "M2-S02A-01": 5,
+      "M2-S02A-02": 4
     },
     "by_source_repo": {
-      "OpenHands": 92,
+      "OpenHands": 93,
       "agent-framework": 94,
       "agentscope": 106,
       "browser-use": 111,
       "claude-code-best": 512,
       "hermes-agent": 86,
-      "langgraph": 86,
+      "langgraph": 87,
       "oh-my-pi": 24,
       "openclaw": 86,
-      "opencode": 25,
-      "zyra": 1
+      "opencode": 26,
+      "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 51,
-      "not_selected": 21,
+      "direct_port": 52,
+      "not_selected": 24,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 741,
+    "planned_or_candidate": 744,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 63,
+      "apps/web": 67,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -182334,6 +183084,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1223
+    "total_entries": 1227
   }
 }
