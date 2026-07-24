@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any, Mapping
@@ -274,6 +275,22 @@ class TerminalApiService:
                 "ticket": projection.ticket,
                 "expires_at": projection.ticket_expires_at,
                 "socket_path": projection.socket_path,
+                "receipt": {
+                    "schema": "zyra.terminal-ticket-receipt.v1",
+                    "operation": "terminal_ticket_issue",
+                    "outcome": "issued",
+                    "task_id": task_id,
+                    "run_id": run_id,
+                    "session_id": projection.binding.session_id,
+                    "terminal_id": terminal_id,
+                    "cursor": int(payload.get("cursor", 0)),
+                    "ticket_sha256": hashlib.sha256(
+                        projection.ticket.encode("utf-8")
+                    ).hexdigest(),
+                    "expires_at": projection.ticket_expires_at,
+                    "correlation_id": projection.correlation_id,
+                    "causation_id": projection.causation_id,
+                },
             },
             self._headers(),
         )

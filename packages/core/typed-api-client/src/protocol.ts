@@ -455,11 +455,11 @@ export const CORE_ENDPOINTS = {
   }),
   taskTerminalTicket: normalizeEndpoint({
     operation: OPERATION_NAMES.taskTerminalTicket,
-    contract: CONTRACT_NAMES.taskTerminalSession,
+    contract: CONTRACT_NAMES.taskTerminalReceipt,
     method: "POST",
     pathTemplate: "/tasks/{task_id}/terminals/{terminal_id}/ticket",
     kind: "mutation",
-    receipt: "none",
+    receipt: "required",
     auth: "optional",
     expectedStatuses: [200, 400, 403, 409, 410, 426],
     pathParameters: ["task_id", "terminal_id"],

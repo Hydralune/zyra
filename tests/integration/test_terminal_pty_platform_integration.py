@@ -343,6 +343,9 @@ def test_fresh_terminal_api_state_owns_real_platform_pty(
         )
         assert ticket.status == HTTPStatus.OK
         assert ticket.body["ticket"]
+        assert ticket.body["receipt"]["operation"] == "terminal_ticket_issue"
+        assert ticket.body["receipt"]["terminal_id"] == terminal_id
+        assert ticket.body["receipt"]["cursor"] == 0
         registry.control(
             TerminalControlRequest(
                 task_id="task-fresh-terminal",

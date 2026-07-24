@@ -797,6 +797,15 @@ def test_terminal_api_service_create_list_ticket_get_and_kill(
     assert ticket.status == HTTPStatus.OK
     assert ticket.body["ticket"]
     assert ticket.body["socket_path"].endswith(f"/{terminal_id}/connect")
+    receipt = ticket.body["receipt"]
+    assert receipt["schema"] == "zyra.terminal-ticket-receipt.v1"
+    assert receipt["operation"] == "terminal_ticket_issue"
+    assert receipt["outcome"] == "issued"
+    assert receipt["task_id"] == "task-terminal"
+    assert receipt["terminal_id"] == terminal_id
+    assert receipt["cursor"] == 0
+    assert len(receipt["ticket_sha256"]) == 64
+    assert ticket.body["ticket"] not in receipt["ticket_sha256"]
 
     killed = api.kill(
         task_id="task-terminal",
