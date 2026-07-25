@@ -57,6 +57,15 @@ PACKAGE_PATHS = [
 # comparisons.  This manifest is kept beside the handlers so submission and
 # reachability audits can verify the public surface without importing the API.
 ZYRA_DYNAMIC_API_ROUTES = (
+    ("GET", "/scenarios/registry"),
+    ("GET", "/scenarios/runs"),
+    ("GET", "/scenarios/runs/{scenario_run_id}"),
+    ("GET", "/scenarios/runs/{scenario_run_id}/evidence"),
+    ("POST", "/scenarios/runs"),
+    ("POST", "/scenarios/runs/{scenario_run_id}/start"),
+    ("POST", "/scenarios/runs/{scenario_run_id}/cancel"),
+    ("POST", "/scenarios/runs/{scenario_run_id}/archive"),
+    ("POST", "/scenarios/runs/{scenario_run_id}/verify"),
     ("POST", "/tasks/{task_id}/workers/browser"),
     ("GET", "/tasks/{task_id}/memory/curator"),
     ("POST", "/tasks/{task_id}/memory/curator"),
@@ -136,6 +145,7 @@ from .diff_review_api import (
     DiffReviewRegistry,
 )
 from .terminal_api import TerminalApiService
+from .scenario_api import get_scenario_runner_api, reset_scenario_runner_api
 
 from zyra_core import (
     AgentMessage,
@@ -4684,7 +4694,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                 try:
                                     reset_terminal_api()
                                 finally:
-                                    reset_worker_pool_api()
+                                    try:
+                                        reset_worker_pool_api()
+                                    finally:
+                                        reset_scenario_runner_api(wait=False)
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -5200,6 +5213,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if not self._prepare_typed_transport():
             return
         store = get_store()
+
+        scenario_response = get_scenario_runner_api().route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if scenario_response is not None:
+            self._send_json(
+                scenario_response.status,
+                scenario_response.body,
+                headers=dict(scenario_response.headers),
+            )
+            return
 
         if (
             len(parts) in {3, 4}
@@ -7128,6 +7153,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        scenario_response = get_scenario_runner_api().route_post(
+            tuple(parts),
+            payload,
+            actor_id=self._permission_actor_id(),
+        )
+        if scenario_response is not None:
+            self._send_json(
+                scenario_response.status,
+                scenario_response.body,
+                headers=dict(scenario_response.headers),
+            )
             return
 
         if (

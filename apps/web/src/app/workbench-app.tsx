@@ -14,6 +14,7 @@ import { TaskList } from "../components/tasks/task-list.tsx"
 import { EmptyState, ReconnectingState } from "../components/status/request-state.tsx"
 import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { PaneDivider } from "../components/layout/pane-divider.tsx"
+import { ScenarioWorkbench } from "../features/scenarios/index.ts"
 
 function AppNavigation({
   runtime,
@@ -53,8 +54,8 @@ function AppNavigation({
           aria-current={routeKind === "settings" ? "page" : undefined}
           onClick={() => runtime.router.openSettings()}
         >
-          <span aria-hidden="true">⚙</span>
-          <span>Settings</span>
+          <span aria-hidden="true">◎</span>
+          <span>Scenarios</span>
         </button>
       </div>
       <div className="nav-help">
@@ -143,6 +144,7 @@ function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
           </button>
         </article>
       </div>
+      <ScenarioWorkbench runtime={runtime.scenarioConsole} />
     </section>
   )
 }

@@ -1,4 +1,16 @@
 from .trace import evaluate_task_trace
+from .scenario_runner import (
+    CallbackScenarioExecutionPort,
+    EffectiveStepClassifier,
+    EvidenceCollector,
+    OwnerExecutionResult,
+    ScenarioRegistry,
+    ScenarioRunStore,
+    ScenarioRunnerApi,
+    ScenarioRunnerService,
+    SealedPolicyRuntime,
+    SourceRoleAuditor,
+)
 
 
 def run_m2_scenarios(*args, **kwargs):
@@ -7,4 +19,17 @@ def run_m2_scenarios(*args, **kwargs):
     return _run_m2_scenarios(*args, **kwargs)
 
 
-__all__ = ["evaluate_task_trace", "run_m2_scenarios"]
+__all__ = [
+    "CallbackScenarioExecutionPort",
+    "EffectiveStepClassifier",
+    "EvidenceCollector",
+    "OwnerExecutionResult",
+    "ScenarioRegistry",
+    "ScenarioRunStore",
+    "ScenarioRunnerApi",
+    "ScenarioRunnerService",
+    "SealedPolicyRuntime",
+    "SourceRoleAuditor",
+    "evaluate_task_trace",
+    "run_m2_scenarios",
+]

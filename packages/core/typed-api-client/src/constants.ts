@@ -203,6 +203,15 @@ export const OPERATION_NAMES = {
   permissionRules: "permission.rules",
   permissionMode: "permission.mode",
   permissionDecisions: "permission.decisions",
+  scenarioRegistry: "scenario.registry",
+  scenarioRunList: "scenario.run.list",
+  scenarioRunGet: "scenario.run.get",
+  scenarioRunEvidence: "scenario.run.evidence",
+  scenarioRunCreate: "scenario.run.create",
+  scenarioRunStart: "scenario.run.start",
+  scenarioRunCancel: "scenario.run.cancel",
+  scenarioRunArchive: "scenario.run.archive",
+  scenarioRunVerify: "scenario.run.verify",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -234,6 +243,10 @@ export const CONTRACT_NAMES = {
   taskCommandQueue: "zyra.command-queue.v1",
   taskCommandCancel: "zyra.command-cancel.v1",
   permissionControl: "zyra.permission-control.v2",
+  scenarioRegistry: "zyra.scenario-registry.v1",
+  scenarioRun: "zyra.scenario-run.v1",
+  scenarioEvidence: "zyra.scenario-evidence-manifest.v1",
+  scenarioMutation: "zyra.scenario-mutation.v1",
   error: "zyra.error.v1",
 } as const
 

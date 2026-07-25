@@ -1,0 +1,329 @@
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from uuid import uuid4
+from contextlib import contextmanager
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+from typing import Any, Iterator
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+@contextmanager
+def scenario_api(tmp_path: Path) -> Iterator[str]:
+    environment = {
+        "ZYRA_SQLITE_PATH": str(tmp_path / "api.sqlite3"),
+        "ZYRA_EVENT_LOG": str(tmp_path / "events.jsonl"),
+        "ZYRA_ARTIFACT_ROOT": str(tmp_path / "artifacts"),
+        "ZYRA_WORKER_POOL_STORE": str(tmp_path / "worker-pool.sqlite3"),
+        "ZYRA_GRAPH_STATE_STORE": str(tmp_path / "graph.sqlite3"),
+        "ZYRA_WORKSPACE_STATE_ROOT": str(tmp_path / "workspace-state"),
+        "ZYRA_WORKSPACE_DATA_ROOT": str(tmp_path / "workspace-data"),
+        "ZYRA_CONTROL_STATE": str(tmp_path / "control"),
+        "ZYRA_SUBAGENT_STATE": str(tmp_path / "subagents"),
+    }
+    previous = {key: os.environ.get(key) for key in environment}
+    os.environ.update(environment)
+    package_paths = [
+        ROOT,
+        ROOT / "apps" / "api",
+        ROOT / "packages" / "core",
+        ROOT / "packages" / "commands",
+        ROOT / "packages" / "orchestration",
+        ROOT / "packages" / "memory",
+        ROOT / "packages" / "runtime",
+        ROOT / "packages" / "integrations",
+        ROOT / "packages" / "workers",
+        ROOT / "packages" / "symbolic",
+        ROOT / "packages" / "scheduler",
+        ROOT / "packages" / "evaluation",
+        ROOT / "packages" / "workspace",
+        ROOT / "packages" / "code_index",
+    ]
+    for path in package_paths:
+        if str(path) not in sys.path:
+            sys.path.insert(0, str(path))
+    from apps.api.zyra_api import main as api_main
+
+    api_main = importlib.reload(api_main)
+    api_main.reset_scenario_runner_api(wait=True)
+    api_main.reset_runtime_event_spine_bridge()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), api_main.ZyraRequestHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=30)
+        api_main.reset_scenario_runner_api(wait=True)
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def request(
+    base: str,
+    method: str,
+    path: str,
+    body: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    payload = (
+        json.dumps(body, ensure_ascii=False).encode("utf-8")
+        if body is not None
+        else None
+    )
+    selected = urllib.request.Request(
+        base + path,
+        method=method,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Zyra-Api-Version": "1.0",
+            "X-Zyra-Client": "scenario-integration-test",
+            "X-Zyra-Client-Version": "0.1.0",
+            "X-Request-Id": f"request_{uuid4().hex}",
+            "Idempotency-Key": f"scenario-test-{uuid4().hex}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(selected, timeout=120) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        return error.code, json.loads(error.read().decode("utf-8"))
+
+
+def test_short_sealed_scenario_reaches_real_canonical_owners_and_evidence(
+    tmp_path: Path,
+) -> None:
+    with scenario_api(tmp_path) as base:
+        registry_status, registry = request(base, "GET", "/scenarios/registry")
+        assert registry_status == 200, registry
+        definition = registry["definitions"][0]
+        policy = registry["policies"][0]
+
+        create_status, created = request(
+            base,
+            "POST",
+            "/scenarios/runs",
+            {
+                "scenario_id": definition["scenario_id"],
+                "definition_version": definition["version"],
+                "profile_id": "foundation.local-sealed",
+                "policy_id": policy["policy_id"],
+                "policy_digest": policy["policy_digest"],
+                "mode": "sealed",
+                "input": "new cross-owner foundation input",
+                "seed": 25,
+                "labels": {"test": "real-api-owner-chain"},
+            },
+        )
+        assert create_status == 201, created
+        run_id = created["run"]["scenario_run_id"]
+        assert created["run"]["phase"] == "admitted"
+        assert created["run"]["preflight_receipt"]["clean"] is True
+        assert created["run"]["preflight_receipt"]["new_input"] is True
+
+        start_status, started = request(
+            base,
+            "POST",
+            f"/scenarios/runs/{run_id}/start",
+            {"wait": True, "timeout_seconds": 90},
+        )
+        assert start_status == 200, started
+        run = started["run"]
+        assert run["phase"] == "succeeded", run.get("failure")
+        assert run["human_intervention_count"] == 0
+        assert run["operator_intervention_attempt_count"] == 0
+        assert run["task_id"]
+        assert run["owner_run_id"]
+        assert run["verification_receipt"]["valid"] is True
+
+        manifest = run["evidence_manifest"]
+        effects = manifest["effective_steps"]["effect_counts"]
+        assert {
+            "state_mutation",
+            "route",
+            "memory",
+            "permission",
+            "fault",
+            "recovery",
+            "artifact",
+            "verification",
+        }.issubset(effects)
+        assert manifest["claims"]["legacy_demo_fallback"] is False
+        assert manifest["claims"]["long_live_scenario_complete"] is False
+        assert manifest["source_audit"]["openclaw"] == "excluded_forward_only"
+        assert manifest["source_audit"]["valid"] is True
+
+        task_status, task = request(base, "GET", f"/tasks/{run['task_id']}")
+        events_status, task_events = request(
+            base,
+            "GET",
+            f"/tasks/{run['task_id']}/events",
+        )
+        assert task_status == 200
+        assert events_status == 200
+        assert task["task"]["metadata"]["scenario_run_id"] == run_id
+        assert task["task"]["metadata"]["sealed_autonomous"] is True
+        assert task["task"]["metadata"]["human_intervention_count"] == 0
+        event_types = {item["event_type"] for item in task_events["events"]}
+        assert "task_created" in event_types
+        assert "resource_decision" in event_types or "topology_route" in event_types
+        assert "failure_injected" in event_types
+        assert "artifact_written" in event_types
+
+        evidence_status, evidence = request(
+            base,
+            "GET",
+            f"/scenarios/runs/{run_id}/evidence",
+        )
+        verify_status, verified = request(
+            base,
+            "POST",
+            f"/scenarios/runs/{run_id}/verify",
+            {},
+        )
+        assert evidence_status == 200
+        assert verify_status == 200
+        assert evidence["evidence_manifest"]["manifest_digest"]
+        assert verified["verification_receipt"]["valid"] is True
+
+
+def test_dirty_state_replay_policy_mismatch_manual_attempt_and_disable_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with scenario_api(tmp_path) as base:
+        status, registry = request(base, "GET", "/scenarios/registry")
+        assert status == 200
+        policy = registry["policies"][0]
+        base_body = {
+            "scenario_id": "foundation.short-owner-chain",
+            "profile_id": "foundation.local-sealed",
+            "policy_id": policy["policy_id"],
+            "policy_digest": policy["policy_digest"],
+            "mode": "sealed",
+            "input": "unique sealed rejection input",
+            "seed": 1,
+        }
+        wrong_status, wrong = request(
+            base,
+            "POST",
+            "/scenarios/runs",
+            {**base_body, "input": "wrong policy input", "policy_digest": "0" * 64},
+        )
+        assert wrong_status == 409
+        assert wrong["error"] == "scenario_policy_digest_mismatch"
+        assert wrong["fallback"] is False
+
+        create_status, created = request(base, "POST", "/scenarios/runs", base_body)
+        assert create_status == 201
+        run_id = created["run"]["scenario_run_id"]
+        cancel_status, cancelled = request(
+            base,
+            "POST",
+            f"/scenarios/runs/{run_id}/cancel",
+            {"reason": "manual sealed mutation"},
+        )
+        assert cancel_status == 200
+        assert cancelled["run"]["phase"] == "failed"
+        assert cancelled["run"]["human_intervention_count"] == 0
+        assert cancelled["run"]["operator_intervention_attempt_count"] == 1
+
+        replay_status, replay = request(base, "POST", "/scenarios/runs", base_body)
+        assert replay_status == 409
+        assert replay["error"] == "scenario_input_replayed"
+
+        monkeypatch.setenv("ZYRA_SCENARIO_RUNNER_DISABLED", "1")
+        disabled_status, disabled = request(
+            base,
+            "POST",
+            "/scenarios/runs",
+            {**base_body, "input": "disabled runner input"},
+        )
+        assert disabled_status == 503
+        assert disabled["error"] == "scenario_runner_disabled"
+        assert disabled["fallback"] is False
+
+
+def test_first_stage_cli_uses_same_registry_and_durable_lifecycle(
+    tmp_path: Path,
+) -> None:
+    with scenario_api(tmp_path) as base:
+        registry_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "run_first_stage_scenarios.py"),
+                "--api",
+                base,
+                "registry",
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert registry_result.returncode == 0, registry_result.stderr
+        registry = json.loads(registry_result.stdout)
+        assert registry["registry_digest"]
+
+        create_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "run_first_stage_scenarios.py"),
+                "--api",
+                base,
+                "create",
+                "--input",
+                "new CLI lifecycle input",
+                "--seed",
+                "75",
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert create_result.returncode == 0, create_result.stderr
+        created = json.loads(create_result.stdout)
+        run_id = created["run"]["scenario_run_id"]
+        assert created["run"]["phase"] == "admitted"
+
+        status_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "run_first_stage_scenarios.py"),
+                "--api",
+                base,
+                "status",
+                run_id,
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert status_result.returncode == 0, status_result.stderr
+        status = json.loads(status_result.stdout)
+        assert status["run"]["scenario_run_id"] == run_id
+        assert status["run"]["preflight_receipt"]["new_input"] is True

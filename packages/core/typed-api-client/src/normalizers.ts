@@ -576,6 +576,22 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.taskBrowserControl,
     (value) => ({ ...responseRecord(value, "browser control response") }),
   )
+  registry.register(
+    CONTRACT_NAMES.scenarioRegistry,
+    (value) => ({ ...responseRecord(value, "scenario registry response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.scenarioRun,
+    (value) => ({ ...responseRecord(value, "scenario run response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.scenarioEvidence,
+    (value) => ({ ...responseRecord(value, "scenario evidence response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.scenarioMutation,
+    (value) => ({ ...responseRecord(value, "scenario mutation response") }),
+  )
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {
