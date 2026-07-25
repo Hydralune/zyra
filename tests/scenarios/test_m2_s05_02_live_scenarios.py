@@ -465,6 +465,7 @@ def test_research_delivery_binds_claims_to_exact_acquired_bytes(
     assert verification["checks"]["citation_integrity"] is True
     assert verification["checks"]["authority_diversity"] is True
     assert verification["checks"]["report_input_bound"] is True
+    assert len(result.task["placement"]["migrated_routes"]) == 3
     assert result.task["causal_archive"]["manifest_digest"]
 
 

@@ -605,6 +605,7 @@ class FaultObservation:
             FaultKind.PROVIDER_FAILURE,
             FaultKind.PROVIDER_RATE_LIMIT,
             FaultKind.EDGE_NETWORK_LOSS,
+            FaultKind.NETWORK_LOSS,
         } and self.state is FaultState.RECOVERED:
             if not self.route_before or not self.route_after:
                 raise conflict(
