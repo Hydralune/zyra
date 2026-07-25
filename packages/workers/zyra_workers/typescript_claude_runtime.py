@@ -300,7 +300,11 @@ class TypeScriptClaudeQueryEngine:
             if isinstance(nested_session_snapshot, Mapping)
             else dict(raw_restored_runtime_state)
         )
-        durable_checkpoint = self._load_incremental_checkpoint(session_id)
+        durable_checkpoint = (
+            {}
+            if constraints.get("disable_incremental_checkpoint_restore") is True
+            else self._load_incremental_checkpoint(session_id)
+        )
         provided_revision = int(
             restored_runtime_state.get("host_checkpoint_revision")
             or restored_runtime_state.get("revision")
@@ -378,6 +382,11 @@ class TypeScriptClaudeQueryEngine:
             raw_agent_state_root,
             workspace_root=self.context.workspace_root,
             event_sink=self._append_host_event,
+        )
+        agent_parent_session_id = str(
+            constraints.get("typescriptAgentParentSessionId")
+            or constraints.get("typescript_agent_parent_session_id")
+            or session_id
         )
         receipt_port = TypeScriptPermissionReceiptPort(
             run_id=run_id,
@@ -814,7 +823,7 @@ class TypeScriptClaudeQueryEngine:
                     payload,
                     run_id=run_id,
                     parent_task_id=task_id,
-                    parent_session_id=session_id,
+                    parent_session_id=agent_parent_session_id,
                 )
                 self._write_frame(
                     process,

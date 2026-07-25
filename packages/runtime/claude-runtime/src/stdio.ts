@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 
 import {
+  asBoolean,
   asObject,
   asString,
   type AgentMutationReceipt,
@@ -535,14 +536,16 @@ export async function runStdioRuntimeWithStreams(
     };
     const permissionedHost = new PermissionedCapabilityHost(host, runtimeInput, activeCapabilities);
     const result = await new ClaudeRuntimeCore().run(runtimeInput, permissionedHost);
-    await activeCapabilities.drainBackground({
-      parentInput: runtimeInput,
-      host: permissionedHost,
-      runChild: async (childInput) => new ClaudeRuntimeCore().run(
-        childInput,
-        new PermissionedCapabilityHost(host, childInput, activeCapabilities),
-      ),
-    });
+    if (!asBoolean(runtimeConstraints.deferTypescriptAgentBackgroundDrain, false)) {
+      await activeCapabilities.drainBackground({
+        parentInput: runtimeInput,
+        host: permissionedHost,
+        runChild: async (childInput) => new ClaudeRuntimeCore().run(
+          childInput,
+          new PermissionedCapabilityHost(host, childInput, activeCapabilities),
+        ),
+      });
+    }
     capabilities = null;
     await activeCapabilities.close();
     terminalResultSent = true;

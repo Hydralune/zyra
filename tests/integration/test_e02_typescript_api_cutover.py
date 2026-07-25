@@ -64,7 +64,7 @@ def _get(
 
 
 class E02TypeScriptApiCutoverTests(unittest.TestCase):
-    def test_task_commands_enter_typescript_and_mutation_fails_closed(self) -> None:
+    def test_task_commands_enter_typescript_and_skill_mutation_reaches_real_owner(self) -> None:
         with tempfile.TemporaryDirectory(prefix="zyra-e02-api-cutover-") as directory:
             root = Path(directory)
             workspace = root / "workspace"
@@ -122,10 +122,43 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
                 self.assertEqual(second["command_result"]["status"], "completed")
                 self.assertEqual(second["command_result"]["receipt"]["owner"], "typescript-command")
 
+                sealed_status, sealed, _ = _post(
+                    base_url,
+                    f"/tasks/{state.task_id}/commands",
+                    {
+                        "text": "/mcp disable unavailable-server",
+                        "actor_id": "cutover-test",
+                        "sealed": True,
+                        "competition_mode": "sealed_autonomous",
+                    },
+                )
+                self.assertEqual(sealed_status, 409, sealed)
+                self.assertEqual(sealed["error"], "sealed_mcp_mutation_denied")
+                sealed_text = json.dumps(sealed, sort_keys=True)
+                self.assertIn('"owner_effect_started": false', sealed_text, sealed)
+                self.assertIn('"human_intervention_count": 0', sealed_text, sealed)
+
+                skills_status, skills_projection, _ = _get(base_url, "/skills")
+                self.assertEqual(skills_status, 200, skills_projection)
+                registry = skills_projection["registry"]
+                selected_skill = registry["revisions"][-1]["skills"][0]
+                skill_command = " ".join(
+                    (
+                        "/skills update",
+                        f'--skill "{selected_skill["name"]}"',
+                        f'--expected-hash "sha256:{selected_skill["bodyDigest"]}"',
+                        f'--expected-revision {registry["revision"]}',
+                        '--dependency-digest "api-cutover-dependency"',
+                        '--supply-digest "api-cutover-supply"',
+                        '--approval-id "api-cutover-approval"',
+                        '--nonce "api-cutover-nonce"',
+                        '--idempotency-key "api-cutover-skill-update"',
+                    )
+                )
                 denied_status, denied, denied_headers = _post(
                     base_url,
                     f"/tasks/{state.task_id}/commands",
-                    {"text": "/e02-reload", "actor_id": "cutover-test"},
+                    {"text": skill_command, "actor_id": "cutover-test"},
                 )
                 self.assertEqual(denied_status, 403, denied)
                 self.assertIn("permission", denied["error"])
@@ -178,7 +211,7 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
                     base_url,
                     f"/tasks/{state.task_id}/commands",
                     {
-                        "text": "/e02-reload",
+                        "text": skill_command,
                         "actor_id": "cutover-test",
                         "tool_call_id": denied["tool_call_id"],
                         "permit_id": decision_receipt["permit_id"],
@@ -190,6 +223,10 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
                     retry["command_result"]["permission"]["reasonCode"],
                     "outer_e02_permit_consumed",
                 )
+                update = retry["command_result"]["data"]
+                self.assertEqual(update["canonical_owner"], "typescript.SkillCoordinator")
+                self.assertEqual(update["action"], "update")
+                self.assertTrue(update["receipt_id"].startswith("skill-reload-receipt-"))
             finally:
                 server.shutdown()
                 server.server_close()

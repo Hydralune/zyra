@@ -324,11 +324,19 @@ function projection(): {
 
 class RecordingHandoff implements McpCommandHandoff {
   readonly commands: string[] = []
+  readonly submissions: Array<{
+    value: string
+    options?: Parameters<McpCommandHandoff["submit"]>[1]
+  }> = []
   readonly listeners = new Set<() => void>()
   last?: CommandReceipt
 
-  async submit(value: string): Promise<CommandReceipt> {
+  async submit(
+    value: string,
+    options?: Parameters<McpCommandHandoff["submit"]>[1],
+  ): Promise<CommandReceipt> {
     this.commands.push(value)
+    this.submissions.push({ value, options })
     this.last = receipt(value, this.commands.length)
     for (const listener of this.listeners) listener()
     return this.last
@@ -629,6 +637,32 @@ describe("MCP elicitation, effect reconciliation, and controller fail-closed beh
       sealed: true,
       now: new Date(NOW),
     }).code).toBe("sealed")
+  })
+
+  test("hands elicitation secrets through structured arguments while command memory stays redacted", async () => {
+    const store = projectionStore()
+    const commands = new RecordingHandoff()
+    const controller = new McpConsoleController({
+      projections: store,
+      commands,
+      online: () => true,
+      now: () => new Date(NOW),
+    })
+    controller.bind(TASK, RUN, SESSION)
+    const request = controller.getSnapshot().projection?.selected?.elicitations[0]
+    expect(request).toBeTruthy()
+    await controller.submitElicitation(request!.id, {
+      account: "work",
+      password: "secret-password",
+    })
+    const submitted = commands.submissions[0]
+    expect(submitted?.value).not.toContain("secret-password")
+    expect(submitted?.options?.displayValue).not.toContain("secret-password")
+    expect(JSON.stringify(submitted?.options?.argumentOverrides)).toContain(
+      "secret-password",
+    )
+    controller.close()
+    store.close()
   })
 
   test("requires a later canonical semantic effect rather than optimistic command receipt", () => {

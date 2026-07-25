@@ -1054,7 +1054,7 @@ function serializeError(error: unknown): JsonObject {
       name: asString(value.name) || "Error",
       code: asString(value.code) || "e02_api_runtime_error",
       message: asString(value.message) || String(error),
-      detail: asObject(value.detail),
+      detail: asObject(value.detail ?? value.details),
     };
   }
   return { name: "Error", code: "e02_api_runtime_error", message: String(error), detail: {} };

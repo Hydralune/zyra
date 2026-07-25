@@ -34,6 +34,8 @@ import { FocusManager } from "../src/shell/focus-manager.ts"
 import { LayoutRuntime, type LayoutWindow } from "../src/shell/layout-runtime.ts"
 import { NotificationCenter } from "../src/shell/notification-center.ts"
 import { OverlayRuntime } from "../src/shell/overlay-runtime.ts"
+import { CommandSurfaceRuntime } from "../src/features/commands/runtime.ts"
+import { CanonicalProjectionStore } from "../src/state/store.ts"
 import { RetrySupervisor } from "../src/shell/retry-supervisor.ts"
 import {
   WorkbenchRouter,
@@ -595,6 +597,59 @@ describe("command coordinator integration", () => {
       taskTerminal: true,
     })
     expect(value.workbench.selectedTask()?.status).toBe("running")
+  })
+
+  test("direct hybrid slash mutations inherit canonical sealed mode and record the attempt", async () => {
+    let transportCalls = 0
+    const api = {
+      ...fakeTaskApi(),
+      controlCommand: async () => {
+        transportCalls += 1
+        throw new Error("sealed mutation must not reach transport")
+      },
+      commandQueue: async () => ({
+        schema: "zyra.command-queue/v1",
+        task_id: "task_demo_001",
+        sequence: 0,
+        revision: 0,
+        entries: [],
+      }),
+      cancelControlCommand: async () => ({}),
+    } as unknown as TaskApi
+    const workbench = new WorkbenchController(api)
+    workbench.applyMutation({
+      ...task(),
+      metadata: {
+        sealed: true,
+        competition_mode: "sealed_autonomous",
+      },
+    })
+    const overlays = new OverlayRuntime()
+    const projections = new CanonicalProjectionStore({
+      id: "sealed-command-test",
+      autoPersist: false,
+      restore: false,
+    })
+    const attempts: Array<{ value: string; reason: string }> = []
+    const controls = new CommandSurfaceRuntime({
+      api,
+      workbench,
+      overlays,
+      projections,
+      recordSealedMutation(input) {
+        attempts.push(input)
+      },
+    })
+    await expect(
+      controls.submit("/mcp disable alpha"),
+    ).rejects.toThrow("Sealed autonomous")
+    expect(transportCalls).toBe(0)
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]?.value).toBe("/mcp disable alpha")
+    controls.close()
+    await projections.close()
+    overlays.closeRuntime()
+    workbench.close()
   })
 })
 

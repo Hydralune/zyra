@@ -116,6 +116,7 @@ export class CommandCoordinator {
       actorId?: string
       timeoutMs?: number
       retryOf?: string
+      argumentOverrides?: Readonly<Record<string, unknown>>
     } = {},
   ): Promise<CommandReceipt> {
     this.#assertAvailable()
@@ -137,7 +138,10 @@ export class CommandCoordinator {
       runId: context.runId ?? "",
       sessionId: context.sessionId ?? `task:${context.taskId ?? ""}`,
       text: parsed.normalized,
-      arguments: parsed.arguments.values,
+      arguments: {
+        ...parsed.arguments.values,
+        ...options.argumentOverrides,
+      },
       mode,
       retryOf: options.retryOf,
     })
@@ -153,6 +157,7 @@ export class CommandCoordinator {
       retryOf: options.retryOf,
       signal: controller.signal,
       timeoutMs: options.timeoutMs,
+      argumentOverrides: options.argumentOverrides,
     })
     const now = Date.now()
     const record: CommandCoordinatorRecord = {

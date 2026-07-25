@@ -27,6 +27,10 @@ import {
   type CommandTransport,
   type CommandTransportRequest,
 } from "../../../../../packages/commands/src/index.ts"
+import {
+  parseCommand,
+  sealedMutationReason,
+} from "../../../../../packages/commands/src/index.ts"
 import type { TaskApi } from "../../api/task-api.ts"
 import type { OverlayRuntime } from "../../shell/overlay-runtime.ts"
 import type { CanonicalProjectionStore } from "../../state/index.ts"
@@ -95,8 +99,23 @@ class TaskApiCommandTransport implements CommandTransport {
   }
 }
 
-function taskContext(workbench: WorkbenchController): CommandTaskContext {
+function taskContext(
+  workbench: WorkbenchController,
+  sealed: boolean,
+): CommandTaskContext {
   const selected = workbench.selectedTask()
+  const metadata = selected?.metadata ?? {}
+  const mode = String(
+    metadata.competition_mode
+      ?? metadata.permission_mode
+      ?? metadata.mode
+      ?? "",
+  ).trim().toLowerCase()
+  const canonicalSealed =
+    metadata.sealed === true
+    || metadata.sealed_autonomous === true
+    || mode === "sealed"
+    || mode === "sealed_autonomous"
   return {
     taskId: selected?.taskId,
     runId: selected?.runId,
@@ -105,7 +124,7 @@ function taskContext(workbench: WorkbenchController): CommandTaskContext {
     active: selected?.active ?? false,
     terminal: selected?.terminal ?? false,
     transportEnabled: workbench.getSnapshot().transportEnabled,
-    sealed: false,
+    sealed: sealed || canonicalSealed,
     remote: false,
   }
 }
@@ -172,6 +191,11 @@ export class CommandSurfaceRuntime {
   readonly #workbench: WorkbenchController
   readonly #overlays: OverlayRuntime
   readonly #projections: CanonicalProjectionStore
+  readonly #sealed: () => boolean
+  readonly #recordSealedMutation?: (input: {
+    value: string
+    reason: string
+  }) => Promise<void> | void
   readonly #listeners = new Set<() => void>()
   #snapshot: CommandSurfaceSnapshot
   #unsubscribeCoordinator: () => void
@@ -191,24 +215,31 @@ export class CommandSurfaceRuntime {
     workbench: WorkbenchController
     overlays: OverlayRuntime
     projections: CanonicalProjectionStore
+    sealed?: () => boolean
+    recordSealedMutation?: (input: {
+      value: string
+      reason: string
+    }) => Promise<void> | void
   }) {
     this.#workbench = options.workbench
     this.#overlays = options.overlays
     this.#projections = options.projections
+    this.#sealed = options.sealed ?? (() => false)
+    this.#recordSealedMutation = options.recordSealedMutation
     this.coordinator = new CommandCoordinator({
       registry: this.registry,
       transport: new TaskApiCommandTransport(options.api),
-      context: () => taskContext(this.#workbench),
+      context: () => taskContext(this.#workbench, this.#sealed()),
     })
     this.palette = new CommandPalette({
       registry: this.registry,
-      context: () => taskContext(this.#workbench),
+      context: () => taskContext(this.#workbench, this.#sealed()),
     })
     this.input = new CommandInputEngine({
       registry: this.registry,
       palette: this.palette,
       history: this.history,
-      context: () => taskContext(this.#workbench),
+      context: () => taskContext(this.#workbench, this.#sealed()),
     })
     this.#rebuildProjectionIndex()
     this.recovery = new CommandQueueRecovery({
@@ -328,19 +359,40 @@ export class CommandSurfaceRuntime {
     options: {
       mode?: CommandDeliveryMode
       sealed?: boolean
+      displayValue?: string
+      argumentOverrides?: Readonly<Record<string, unknown>>
     } = {},
   ): Promise<CommandReceipt> {
-    const context = taskContext(this.#workbench)
+    const context = taskContext(
+      this.#workbench,
+      options.sealed ?? this.#sealed(),
+    )
     const mode = options.mode ?? "enqueue"
-    const capture = this.input.beginSubmit(value, mode)
+    const submittedValue = options.displayValue ?? value
+    const parsed = parseCommand(submittedValue, this.registry)
+    const sealedReason = sealedMutationReason(parsed, context)
+    if (sealedReason) {
+      try {
+        await this.#recordSealedMutation?.({
+          value: submittedValue,
+          reason: sealedReason,
+        })
+      } catch {
+        // The command remains fail-closed even when the attempt ledger is
+        // temporarily unavailable or the permission session is not bound.
+      }
+      throw new TypeError(sealedReason)
+    }
+    const capture = this.input.beginSubmit(submittedValue, mode)
     let receipt: CommandReceipt
     try {
-      receipt = await this.coordinator.submit(value, {
+      receipt = await this.coordinator.submit(submittedValue, {
         mode,
         context: {
           ...context,
-          sealed: options.sealed ?? context.sealed,
+          sealed: context.sealed,
         },
+        argumentOverrides: options.argumentOverrides,
       })
       this.input.settle(capture.id, receipt)
     } catch (error) {
@@ -359,7 +411,7 @@ export class CommandSurfaceRuntime {
       signal?: AbortSignal
     } = {},
   ): Promise<CommandQueueSnapshot | undefined> {
-    const context = taskContext(this.#workbench)
+    const context = taskContext(this.#workbench, this.#sealed())
     if (!context.taskId) return undefined
     if (options.signal?.aborted) return undefined
     if (this.recovery.getSnapshot().taskId !== context.taskId) {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import shlex
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -272,15 +273,24 @@ class CanonicalOwnerHandlerSet:
 
     def subagent_control(self, request: ControlCommandRequest, _descriptor: ControlCommandDescriptor, _context: RuntimeControlContext) -> ControlResult:
         parsed = self._arguments(request)
-        action = str(parsed.get("action") or "status").casefold()
-        target = str(parsed.get("task_id") or request.target_subagent_task_id or "")
-        if not target:
+        action, target, arguments = self._subagent_action(parsed)
+        if target:
+            arguments["task_id"] = target
+        if request.target_subagent_task_id and target and request.target_subagent_task_id != target:
+            raise OwnerHandlerError("subagent control target differs from request target binding")
+        if action not in {"list", "inspect", "status"} and not target:
             raise OwnerHandlerError("subagent control requires target task_id")
         authorization = None
-        if action not in {"status", "inspect"}:
-            authorization = self._authorize("SubagentTaskStore", action, request, parsed)
+        if action not in {"list", "status", "inspect"}:
+            if not str(arguments.get("control_nonce") or ""):
+                raise OwnerHandlerError("mutating subagent control requires a control nonce")
+            if not str(arguments.get("owner_idempotency_key") or ""):
+                raise OwnerHandlerError("mutating subagent control requires an owner idempotency key")
+            if not isinstance(arguments.get("expected_revision"), int):
+                raise OwnerHandlerError("mutating subagent control requires an expected revision")
+            authorization = self._authorize("SubagentTaskStore", action, request, arguments)
         result = self._call(self.services.subagent, action, {
-            **parsed,
+            **arguments,
             "task_id": target,
             "authorization": authorization.to_dict() if authorization else {},
         }, request)
@@ -384,13 +394,120 @@ class CanonicalOwnerHandlerSet:
 
     @staticmethod
     def _argv(arguments: Mapping[str, Any]) -> list[str]:
+        raw = str(arguments.get("raw") or "")
+        if raw:
+            try:
+                return shlex.split(raw)
+            except ValueError as error:
+                raise OwnerHandlerError(f"invalid command arguments: {error}") from error
         raw_argv = arguments.get("argv")
         if isinstance(raw_argv, Sequence) and not isinstance(raw_argv, (str, bytes)):
             return [str(item) for item in raw_argv]
+        return []
+
+    @classmethod
+    def _subagent_action(cls, arguments: Mapping[str, Any]) -> tuple[str, str, dict[str, Any]]:
+        argv = cls._argv(arguments)
+        action = str(arguments.get("action") or (argv[0] if argv else "list")).casefold().replace("-", "_")
+        action = {
+            "ls": "list",
+            "show": "inspect",
+            "cancel": "kill",
+            "message": "steer",
+        }.get(action, action)
+        if action not in {"list", "inspect", "status", "kill", "steer"}:
+            raise OwnerHandlerError(f"unsupported subagent control action: {action}")
+        target = str(
+            arguments.get("task_id")
+            or arguments.get("agent_id")
+            or arguments.get("target")
+            or (argv[1] if len(argv) > 1 else "")
+        ).strip()
+        payload = {
+            key: value
+            for key, value in arguments.items()
+            if key not in {"raw", "argv", "action", "task_id", "agent_id", "target"}
+        }
+        position = 2
+        while position < len(argv):
+            token = argv[position]
+            if token in {"--reason", "--instruction"}:
+                if position + 1 >= len(argv):
+                    raise OwnerHandlerError(f"{token} requires a value")
+                payload[token[2:]] = argv[position + 1]
+                position += 2
+                continue
+            if token in {"--expected-revision", "--attempt"}:
+                if position + 1 >= len(argv):
+                    raise OwnerHandlerError(f"{token} requires a value")
+                try:
+                    payload[{
+                        "--expected-revision": "expected_revision",
+                        "--attempt": "expected_attempt",
+                    }[token]] = int(argv[position + 1])
+                except ValueError as error:
+                    raise OwnerHandlerError(f"{token} must be an integer") from error
+                position += 2
+                continue
+            if token in {"--nonce", "--idempotency-key", "--owner", "--parent"}:
+                if position + 1 >= len(argv):
+                    raise OwnerHandlerError(f"{token} requires a value")
+                payload[{
+                    "--nonce": "control_nonce",
+                    "--idempotency-key": "owner_idempotency_key",
+                    "--owner": "expected_owner",
+                    "--parent": "expected_parent_task_id",
+                }[token]] = argv[position + 1]
+                position += 2
+                continue
+            raise OwnerHandlerError(f"unsupported subagent control argument: {token}")
+        receipt = cls._subagent_binding_receipt(str(payload.get("reason") or ""))
+        for key, value in receipt.items():
+            prior = payload.get(key)
+            if prior not in {None, "", value}:
+                raise OwnerHandlerError(f"subagent control binding conflicts for {key}")
+            payload[key] = value
+        if receipt:
+            payload["reason"] = re.sub(
+                r"\s*\[zyra-control:[^\]]+\]\s*$",
+                "",
+                str(payload.get("reason") or ""),
+            ).strip()
+        if action == "steer" and not str(payload.get("instruction") or "").strip():
+            raise OwnerHandlerError("subagent steer requires an instruction")
+        if action == "kill" and not str(payload.get("reason") or "").strip():
+            payload["reason"] = "Killed by an explicit operator subagent control."
+        return action, target, payload
+
+    @staticmethod
+    def _subagent_binding_receipt(reason: str) -> dict[str, Any]:
+        match = re.search(r"\[zyra-control:([^\]]+)\]\s*$", reason)
+        if match is None:
+            return {}
+        values: dict[str, str] = {}
+        for item in match.group(1).split(";"):
+            key, separator, value = item.partition("=")
+            if not separator or not key.strip():
+                raise OwnerHandlerError("subagent control binding receipt is malformed")
+            values[key.strip()] = value.strip()
+        required = {"nonce", "idempotency", "revision", "attempt", "owner", "parent"}
+        if set(values) != required:
+            raise OwnerHandlerError("subagent control binding receipt is incomplete")
         try:
-            return shlex.split(str(arguments.get("raw") or ""))
+            revision = int(values["revision"])
+            attempt = int(values["attempt"])
         except ValueError as error:
-            raise OwnerHandlerError(f"invalid command arguments: {error}") from error
+            raise OwnerHandlerError("subagent control binding revision/attempt must be integers") from error
+        if revision < 0 or attempt < 0:
+            raise OwnerHandlerError("subagent control binding revision/attempt cannot be negative")
+        return {
+            "control_nonce": values["nonce"],
+            "owner_idempotency_key": values["idempotency"],
+            "expected_revision": revision,
+            "expected_attempt": attempt,
+            "expected_owner": values["owner"],
+            "expected_parent_task_id": values["parent"],
+        }
 
     @classmethod
     def _mcp_action(cls, arguments: Mapping[str, Any]) -> tuple[str, str, dict[str, Any]]:

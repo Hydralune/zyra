@@ -192,7 +192,7 @@ class CodeWorkerRuntime:
                 for key, value in constraints.items()
                 if "custody_token" not in str(key).casefold()
             }
-            constraints["permission_transport_queue_enabled"] = True
+            constraints.setdefault("permission_transport_queue_enabled", True)
         turns = self._query_turns(constraints)
         restored_state = self._restored_state(session_id, constraints)
         logical_worker_request_id = str(

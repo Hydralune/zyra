@@ -38,6 +38,8 @@ export interface McpCommandHandoff {
     options?: {
       mode?: "enqueue" | "steer" | "interrupt"
       sealed?: boolean
+      displayValue?: string
+      argumentOverrides?: Readonly<Record<string, unknown>>
     },
   ): Promise<CommandReceipt>
   subscribe?(listener: () => void): () => void
@@ -346,15 +348,6 @@ export class McpConsoleController {
       throw new Error(admission.reason)
     }
     const payload = elicitationCommandPayload(admission.answer)
-    const rawCommand = [
-      "/mcp",
-      "elicit",
-      quote(server.id),
-      "--request",
-      quote(request.id),
-      "--response",
-      payload.raw,
-    ]
     const displayCommand = [
       "/mcp",
       "elicit",
@@ -367,11 +360,14 @@ export class McpConsoleController {
     const receipt = await this.#submit(
       "elicit",
       server,
-      rawCommand,
+      displayCommand.split(" "),
       {
         elicitationId: request.id,
         responseDigest: payload.digest,
         displayCommand,
+        argumentOverrides: {
+          response: JSON.parse(payload.raw) as Readonly<Record<string, unknown>>,
+        },
       },
     )
     this.drafts.clear(request.id)
@@ -536,6 +532,7 @@ export class McpConsoleController {
       elicitationId?: string
       responseDigest?: string
       displayCommand?: string
+      argumentOverrides?: Readonly<Record<string, unknown>>
     } = {},
   ): Promise<CommandReceipt> {
     this.#assertAvailable(true)
@@ -545,8 +542,8 @@ export class McpConsoleController {
       throw new Error(reason)
     }
     this.#assertServerCurrent(server)
-    const rawCommand = parts.join(" ")
-    const displayCommand = options.displayCommand ?? rawCommand
+    const commandText = parts.join(" ")
+    const displayCommand = options.displayCommand ?? commandText
     const operation = this.#begin(
       action,
       server,
@@ -555,9 +552,11 @@ export class McpConsoleController {
       options.responseDigest,
     )
     try {
-      const receipt = await this.#commands.submit(rawCommand, {
+      const receipt = await this.#commands.submit(commandText, {
         mode: "enqueue",
         sealed: false,
+        displayValue: displayCommand,
+        argumentOverrides: options.argumentOverrides,
       })
       if (
         receipt.taskId !== operation.taskId ||

@@ -37,7 +37,10 @@ function boundedText(value: string): string {
   return normalized
 }
 
-function commandArguments(parsed: ParsedCommand): Readonly<Record<string, unknown>> {
+function commandArguments(
+  parsed: ParsedCommand,
+  overrides?: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
   const descriptor = parsed.descriptor
   if (!descriptor) {
     throw new TypeError("Cannot build a request for an unknown command.")
@@ -64,6 +67,15 @@ function commandArguments(parsed: ParsedCommand): Readonly<Record<string, unknow
   if (descriptor.name === "/change") {
     values.instruction = String(values.instruction ?? "").trim()
   }
+  for (const [name, value] of Object.entries(overrides ?? {})) {
+    if (name === "raw" || name === "argv") {
+      throw new TypeError(`Command argument override cannot replace ${name}.`)
+    }
+    if (!descriptor.arguments.some((argument) => argument.name === name)) {
+      throw new TypeError(`Unknown command argument override: ${name}.`)
+    }
+    values[name] = value
+  }
   return Object.freeze(values)
 }
 
@@ -76,10 +88,11 @@ export function buildCommandRequest(input: {
   retryOf?: string
   signal?: AbortSignal
   timeoutMs?: number
+  argumentOverrides?: Readonly<Record<string, unknown>>
 }): CommandTransportRequest {
   const context = requireContext(input.context)
   const text = boundedText(input.parsed.normalized)
-  const args = commandArguments(input.parsed)
+  const args = commandArguments(input.parsed, input.argumentOverrides)
   const identity =
     input.identity ??
     createCommandIdentity({
@@ -130,6 +143,18 @@ export function retryCommandRequest(input: {
   mode?: CommandDeliveryMode
   signal?: AbortSignal
 }): CommandTransportRequest {
+  const argumentOverrides = Object.fromEntries(
+    (input.parsed.descriptor?.arguments ?? [])
+      .filter((argument) =>
+        Object.prototype.hasOwnProperty.call(
+          input.previous.arguments,
+          argument.name,
+        ))
+      .map((argument) => [
+        argument.name,
+        input.previous.arguments[argument.name],
+      ]),
+  )
   return buildCommandRequest({
     parsed: input.parsed,
     context: input.context,
@@ -137,6 +162,7 @@ export function retryCommandRequest(input: {
     retryOf: input.previous.requestId,
     signal: input.signal,
     timeoutMs: input.previous.timeoutMs,
+    argumentOverrides,
   })
 }
 

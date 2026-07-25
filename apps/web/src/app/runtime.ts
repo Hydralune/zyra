@@ -98,15 +98,44 @@ export function createWorkbenchRuntime(
     overlays,
     controls: undefined,
   })
+  const permissionConsole = new PermissionConsoleRuntime({
+    api: api.permissions,
+    taskApi: api.tasks,
+  })
+  const selectedTaskIsSealed = () => {
+    const task = workbench.selectedTask()
+    const metadata = task?.metadata ?? {}
+    const mode = String(
+      metadata.competition_mode
+        ?? metadata.permission_mode
+        ?? metadata.mode
+        ?? "",
+    ).trim().toLowerCase()
+    return (
+      permissionConsole.getSnapshot().productMode === "sealed"
+      || metadata.sealed === true
+      || metadata.sealed_autonomous === true
+      || mode === "sealed"
+      || mode === "sealed_autonomous"
+    )
+  }
+  const recordSealedMutation = async (input: {
+    value: string
+    reason: string
+  }) => {
+    await permissionConsole.recordSealedAction({
+      action: "steer",
+      actorId: "zyra-web-command-surface",
+      reason: `${input.reason} Attempted command: ${input.value.split(/\s+/, 3).join(" ")}.`,
+    })
+  }
   const controlCommands = new CommandSurfaceRuntime({
     api: api.tasks,
     workbench,
     overlays,
     projections,
-  })
-  const permissionConsole = new PermissionConsoleRuntime({
-    api: api.permissions,
-    taskApi: api.tasks,
+    sealed: selectedTaskIsSealed,
+    recordSealedMutation,
   })
   const sessionConsole = new SessionConsoleRuntime({
     projections,
@@ -115,7 +144,17 @@ export function createWorkbenchRuntime(
   const mcpConsole = new McpConsoleController({
     projections,
     commands: controlCommands,
-    sealed: () => permissionConsole.getSnapshot().productMode === "sealed",
+    sealed: selectedTaskIsSealed,
+    sealedAttempts: {
+      record: async (input) => {
+        await permissionConsole.recordSealedAction({
+          action: "steer",
+          actorId: "zyra-web-mcp-panel",
+          requestId: input.requestId,
+          reason: `${input.reason} MCP ${input.action} on ${input.serverId}.`,
+        })
+      },
+    },
   })
   const skillConsole = new SkillWorkbenchController({
     projections,
@@ -125,14 +164,39 @@ export function createWorkbenchRuntime(
   const subagentConsole = new SubagentPanelController({
     projections,
     commands: controlCommands,
-    sealed: permissionConsole.getSnapshot().productMode === "sealed",
+    sealed: selectedTaskIsSealed(),
+    interventions: {
+      record: async (input) => {
+        const receipt = await permissionConsole.recordSealedAction({
+          action: "steer",
+          actorId: input.actorId,
+          requestId: input.nonce,
+          reason:
+            `${input.reason} Subagent ${input.action} on ${input.binding.childId}.`,
+        })
+        return {
+          id: receipt.interventionId,
+          interventionCounted: receipt.counted,
+          humanInterventionCount: 0,
+          operatorInterventionAttemptCount:
+            permissionConsole.getSnapshot().interventions.length,
+          eventIds: [],
+        }
+      },
+    },
   })
-  const unsubscribePanelPermissions = permissionConsole.subscribe(() => {
-    const sealed = permissionConsole.getSnapshot().productMode === "sealed"
+  const synchronizePanelSealedMode = () => {
+    const sealed = selectedTaskIsSealed()
     mcpConsole.setSealed(sealed)
     skillConsole.setSealed(sealed)
     subagentConsole.setSealed(sealed)
-  })
+  }
+  const unsubscribePanelPermissions = permissionConsole.subscribe(
+    synchronizePanelSealedMode,
+  )
+  const unsubscribePanelTaskMode = workbench.subscribe(
+    synchronizePanelSealedMode,
+  )
   commands.attachControls(controlCommands)
   const unsubscribeLifecycle = api.lifecycle.listen((record) => {
     if (record.phase === "committed") {
@@ -233,6 +297,7 @@ export function createWorkbenchRuntime(
       void projections.close(String(reason ?? "Workbench closed."))
       unsubscribeLifecycle()
       unsubscribePanelPermissions()
+      unsubscribePanelTaskMode()
       commands.close(String(reason ?? "Workbench closed."))
       controlCommands.close(String(reason ?? "Workbench closed."))
       permissionConsole.close(String(reason ?? "Workbench closed."))

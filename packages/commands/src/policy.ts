@@ -14,6 +14,25 @@ export interface CommandPolicyInput {
   busy: boolean
 }
 
+const SEALED_READ_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> =
+  Object.freeze({
+    "/mcp": new Set(["", "list", "show"]),
+    "/skills": new Set(["", "list", "show"]),
+    "/agents": new Set(["", "list", "show"]),
+  })
+
+export function sealedMutationReason(
+  parsed: ParsedCommand,
+  context: CommandTaskContext,
+): string | undefined {
+  if (!context.sealed || !parsed.descriptor) return undefined
+  const allowedActions = SEALED_READ_ACTIONS[parsed.descriptor.name]
+  if (!allowedActions) return undefined
+  const action = String(parsed.arguments.values.action ?? "").trim().toLowerCase()
+  if (allowedActions.has(action)) return undefined
+  return `Sealed autonomous mode rejects ${parsed.descriptor.name} ${action || "mutation"}.`
+}
+
 export class CommandExecutionPolicy {
   readonly #registry: CommandRegistry
   #enabled = true
@@ -57,6 +76,17 @@ export class CommandExecutionPolicy {
       }
     }
     const descriptor = input.parsed.descriptor
+    const sealedReason = sealedMutationReason(input.parsed, input.context)
+    if (sealedReason) {
+      return {
+        allowed: false,
+        queue: false,
+        priority: priorityFor(input.mode),
+        mode: input.mode,
+        code: "unavailable",
+        reason: sealedReason,
+      }
+    }
     const availability = this.#registry.availability(
       descriptor,
       input.context,

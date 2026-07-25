@@ -2839,6 +2839,10 @@ _E02_READ_COMMANDS = frozenset(
     }
 )
 _E02_MUTATING_COMMANDS = frozenset({"e02-reload"})
+_E02_MCP_MUTATIONS = frozenset(
+    {"enable", "disable", "reconnect", "refresh", "auth-refresh", "elicit"}
+)
+_E02_SKILL_MUTATIONS = frozenset({"update", "invoke"})
 
 
 def _e02_command_route(text: str) -> tuple[str, str] | None:
@@ -2848,6 +2852,12 @@ def _e02_command_route(text: str) -> tuple[str, str] | None:
     if not stripped.startswith("/"):
         return None
     name = stripped[1:].partition(" ")[0].strip().lower()
+    raw_arguments = stripped[1:].partition(" ")[2].strip()
+    action = raw_arguments.partition(" ")[0].strip().lower()
+    if name == "mcp" and action in _E02_MCP_MUTATIONS:
+        return name, "execute"
+    if name == "skills" and action in _E02_SKILL_MUTATIONS:
+        return name, "execute"
     if name in _E02_READ_COMMANDS:
         return name, "read"
     if name in _E02_MUTATING_COMMANDS:
@@ -3435,6 +3445,7 @@ def _run_typescript_agent_request(
     tool_name: str = "Agent",
     session_id: str = "",
     session_custody_token: str = "",
+    canonical_agent_parent_session_id: str = "",
 ) -> Any:
     parent_session_id = session_id or str(
         state.metadata.get("query_session_id") or f"task:{state.task_id}"
@@ -3450,10 +3461,16 @@ def _run_typescript_agent_request(
         state,
         tool_name=tool_name,
         arguments=arguments,
-        parent_session_id=parent_session_id,
+        parent_session_id=canonical_agent_parent_session_id or parent_session_id,
     )
+    owner_authorization = arguments.get("_canonical_control_authorization")
+    public_arguments = {
+        key: value
+        for key, value in arguments.items()
+        if key != "_canonical_control_authorization"
+    }
     bounded_arguments = {
-        **arguments,
+        **public_arguments,
         # The E03 physical isolation port is bound to this task workspace.  A
         # caller-supplied/project-root value must never escape that boundary.
         "workspace_root": str(worker_workspace_root),
@@ -3471,8 +3488,34 @@ def _run_typescript_agent_request(
         "session_id": parent_session_id,
         "workspace_ref": workspace_access.to_public_dict(),
     }
+    if tool_name in {
+        "agent_cancel",
+        "agent_kill",
+        "agent_message",
+        "agent_resume",
+        "agent_status",
+        "agent_list",
+    }:
+        # Control requests must execute a fresh bounded QueryEngine turn while
+        # E03 independently restores its durable SubagentTaskStore snapshot.
+        # Reusing the parent's terminal query checkpoint would report a
+        # successful zero-turn session without ever reaching the E03 owner.
+        constraints["restored_runtime_state"] = {}
+        constraints["disable_incremental_checkpoint_restore"] = True
+        constraints["permission_transport_queue_enabled"] = False
+        constraints["disable_retrieval_context"] = True
+        constraints["deferTypescriptAgentBackgroundDrain"] = True
+    if canonical_agent_parent_session_id:
+        # The bounded QueryEngine request has its own checkpoint/CAS identity,
+        # while E03 must restore and mutate the original parent session's
+        # canonical SubagentTaskStore partition.
+        constraints["typescriptAgentParentSessionId"] = (
+            canonical_agent_parent_session_id
+        )
     if arguments.get("disable_retrieval_context") is True:
         constraints["disable_retrieval_context"] = True
+    if arguments.get("defer_background_drain") is True:
+        constraints["deferTypescriptAgentBackgroundDrain"] = True
     if arguments.get("sealed_bounded_read_only_fanout") is True:
         constraints.update(
             {
@@ -3515,6 +3558,66 @@ def _run_typescript_agent_request(
                 },
             }
         )
+    if isinstance(owner_authorization, Mapping):
+        owner = str(owner_authorization.get("owner") or "")
+        action = str(owner_authorization.get("action") or "")
+        granted = owner_authorization.get("granted") is True
+        exact = owner_authorization.get("exact") is True
+        one_shot = owner_authorization.get("one_shot") is True
+        expected_action = {
+            "agent_kill": "kill",
+            "agent_message": "steer",
+        }.get(tool_name)
+        if (
+            owner != "SubagentTaskStore"
+            or action != expected_action
+            or not granted
+            or not exact
+            or not one_shot
+        ):
+            raise RuntimeError("invalid canonical subagent control authorization")
+        constraints.update(
+            {
+                "permission_mode": "default",
+                "permission_interactive": False,
+                "permission_headless": True,
+                "e02PermissionPolicy": {
+                    "version": "zyra.e02-typescript-permission-policy-input.v1",
+                    "canonical_owner": "typescript",
+                    "mode": "default",
+                    "mode_revision": 1,
+                    "interactive": False,
+                    "headless": True,
+                    "rules": [
+                        {
+                            "rule_id": (
+                                "canonical-subagent-control:"
+                                f"{request_id}:{tool_name}"
+                            ),
+                            "effect": "allow",
+                            "source": "managed",
+                            "tool_pattern": tool_name,
+                            "priority": 10_000,
+                            "enabled": True,
+                            "max_uses": 1,
+                            "reason": (
+                                "exact one-shot RuntimeControlDispatcher grant "
+                                "bridged to the canonical TypeScript subagent owner"
+                            ),
+                            "metadata": {
+                                "grant_receipt_id": str(
+                                    owner_authorization.get("authorization_id") or ""
+                                ),
+                                "owner": owner,
+                                "owner_action": action,
+                                "request_id": request_id,
+                            },
+                        }
+                    ],
+                    "python_policy_fallback": False,
+                },
+            }
+        )
     if session_custody_token:
         constraints["session_custody_token"] = session_custody_token
     request = WorkerRequest(
@@ -3531,11 +3634,15 @@ def _run_typescript_agent_request(
     )
     canonical_store = SQLiteStore(sqlite_path())
     canonical_store.initialize()
-    retrieval_context = _worker_retrieval_context(
-        canonical_store,
-        task_id=state.task_id,
-        workspace_manager=workspace_manager,
-        workspace_access=workspace_access,
+    retrieval_context = (
+        None
+        if constraints.get("disable_retrieval_context") is True
+        else _worker_retrieval_context(
+            canonical_store,
+            task_id=state.task_id,
+            workspace_manager=workspace_manager,
+            workspace_access=workspace_access,
+        )
     )
     return CodeWorkerRuntime(
         project_root=PROJECT_ROOT,
@@ -3748,7 +3855,6 @@ def _acquire_subagent_physical_dispatch(
         "attempt": binding.attempt_number,
         "lease_id": lease.lease_id,
         "worker_id": worker.worker_id,
-        "worker_location": worker.location.value,
         "backend_id": lease.backend_id,
         "fence_epoch": lease.fence_epoch,
         "manifest_digest": manifest.digest,
@@ -3760,7 +3866,6 @@ def _acquire_subagent_physical_dispatch(
         "workspace_ref": binding.foreign_refs.workspace.to_dict(),
         "gateway_ref": binding.foreign_refs.gateway.to_dict(),
         "route_ref": binding.foreign_refs.backend_route.to_dict(),
-        "edge_gateway_receipt": edge_receipt,
     }
     projection = {
         **unsigned_projection,
@@ -7780,10 +7885,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     for item in prepared_requests
                 ],
                 "failure_mode": str(payload.get("failure_policy") or "collect"),
-                "maximum_concurrency": max(
-                    1,
-                    min(len(prepared_requests), int(payload.get("maximum_concurrency") or 4)),
-                ),
+                # One stdio runtime owns one provider-stream supervisor.  It
+                # deliberately fences concurrent streams for the same provider,
+                # so fanout children are drained serially while their physical
+                # WorkerPool attempts remain independently admitted and fenced.
+                "maximum_concurrency": 1,
                 "idempotency_key": str(payload.get("idempotency_key") or request_id),
                 "budget": {"max_children": max(2, int(payload.get("maximum_concurrency") or 4))},
                 "disable_retrieval_context": payload.get("disable_retrieval_context") is True,
@@ -7909,6 +8015,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
                 },
                 "physical_dispatch": physical_dispatch,
+                "defer_background_drain": (
+                    payload.get("defer_background_drain") is True
+                ),
             }
             try:
                 run = _run_typescript_agent_request(
@@ -8289,9 +8398,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 command_name, operation = e02_route
                 tool_call_id = str(payload.get("tool_call_id") or new_id("e02command"))
                 try:
+                    command_arguments = {
+                        "input": text,
+                        "argument_overrides": dict(payload.get("arguments") or {}),
+                        "sealed": bool(payload.get("sealed", False)),
+                        "competition_mode": str(
+                            payload.get("competition_mode") or "interactive"
+                        ),
+                    }
                     execution = get_mcp_runtime().execute(
                         "command",
-                        {"input": text},
+                        command_arguments,
                         identity={
                             "tool_call_id": tool_call_id,
                             "command_name": command_name,
@@ -8299,6 +8416,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             "permit_id": str(payload.get("permit_id") or ""),
                             "actor_id": str(payload.get("actor_id") or "api-user"),
                             "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                            "sealed": bool(payload.get("sealed", False)),
+                            "competition_mode": str(
+                                payload.get("competition_mode") or "interactive"
+                            ),
                         },
                     )
                 except TypeScriptE02PortError as error:
@@ -8402,7 +8523,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             response = dispatcher.submit(
                 control_request,
-                _control_context_for_task(state, store),
+                _control_context_for_task(
+                    state,
+                    store,
+                    session_custody_token=extract_bearer_token(
+                        self.headers,
+                        payload,
+                    ),
+                ),
             )
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if response.ok else HTTPStatus.ACCEPTED if response.status.value == "queued" else HTTPStatus.CONFLICT
@@ -10495,7 +10623,12 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
     )
 
 
-def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlContext:
+def _control_context_for_task(
+    state: Any,
+    store: SQLiteStore,
+    *,
+    session_custody_token: str = "",
+) -> RuntimeControlContext:
     def synchronize_canonical_state() -> Any:
         """Refresh the request-scoped object after a canonical owner commits.
 
@@ -10548,6 +10681,13 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             "skill_plugin.hooks",
         }:
             return False
+        if descriptor.handler_id == "subagent.control":
+            raw = str(request.arguments.get("raw") or "").strip()
+            action = raw.split(maxsplit=1)[0].casefold() if raw else str(
+                request.arguments.get("action") or "list"
+            ).casefold()
+            if action in {"", "list", "ls", "show", "inspect", "status"}:
+                return True
         sealed = bool(request.metadata.get("sealed", False))
         mutation_scope = str(getattr(descriptor.mutation_scope, "value", descriptor.mutation_scope))
         if sealed and mutation_scope != "read_only":
@@ -10725,6 +10865,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             "recovery.steer",
             "recovery.retry",
             "worker.reassign",
+            "subagent.control",
         }
 
     handlers: dict[str, Any] = {}
@@ -10805,6 +10946,85 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     handlers["subagent.inspect"] = subagent_inspect
 
+    def subagent_tasks(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        snapshot = get_typescript_agent_port().snapshot()
+        tasks = [
+            item
+            for item in snapshot["tasks"]
+            if (
+                item.get("parent_task_id") == state.task_id
+                or state.task_id in tuple(item.get("lineage") or ())
+            )
+        ]
+        task_ids = {str(item.get("task_id") or "") for item in tasks}
+        children: dict[str, list[str]] = {state.task_id: []}
+        lifecycle: dict[str, int] = {}
+        nodes: list[dict[str, Any]] = []
+        for item in sorted(
+            tasks,
+            key=lambda value: (
+                len(tuple(value.get("lineage") or ())),
+                int(value.get("sequence") or 0),
+                str(value.get("task_id") or ""),
+            ),
+        ):
+            task_id = str(item.get("task_id") or "")
+            parent_id = str(item.get("parent_task_id") or state.task_id)
+            if parent_id not in task_ids and parent_id != state.task_id:
+                parent_id = state.task_id
+            status = str(item.get("status") or "unknown")
+            lifecycle[status] = lifecycle.get(status, 0) + 1
+            children.setdefault(parent_id, []).append(task_id)
+            children.setdefault(task_id, [])
+            nodes.append(
+                {
+                    **dict(item),
+                    "parent_id": parent_id,
+                    "depth": max(1, len(tuple(item.get("lineage") or ()))),
+                    "terminal": status in {"completed", "failed", "cancelled", "killed"},
+                }
+            )
+        hierarchy = [
+            {
+                "parent_id": parent_id,
+                "child_ids": sorted(child_ids),
+            }
+            for parent_id, child_ids in sorted(children.items())
+        ]
+        return ControlResult(
+            display_text=f"{len(nodes)} canonical subagent tasks.",
+            data={
+                "schema": "zyra.subagent-task-projection/v1",
+                "task_id": state.task_id,
+                "run_id": state.run_id,
+                "canonical_logical_owner": snapshot["canonical_logical_owner"],
+                "durable_owner": "SubagentTaskStore",
+                "registry_revision": snapshot["revision"],
+                "tasks": nodes,
+                "hierarchy": hierarchy,
+                "lifecycle_counts": lifecycle,
+                "active_task_ids": [
+                    str(item["task_id"])
+                    for item in nodes
+                    if not bool(item["terminal"])
+                ],
+                "terminal_task_ids": [
+                    str(item["task_id"])
+                    for item in nodes
+                    if bool(item["terminal"])
+                ],
+                "fixture_projection": False,
+                "python_logical_fallback": False,
+            },
+            metadata={
+                "state_owner": "SubagentTaskStore",
+                "canonical_logical_owner": snapshot["canonical_logical_owner"],
+                "read_only": True,
+            },
+        )
+
+    handlers["subagent.tasks"] = subagent_tasks
+
     def mcp_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"status", "health", "servers", "server", "catalog", "tools", "resources", "prompts", "tasks", "elicitations"}:
             raise RuntimeError("mutating MCP control requires E02CapabilityCoordinator.execute")
@@ -10871,14 +11091,192 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     def subagent_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         task_id = str(arguments.get("task_id") or "")
-        if action not in {"status", "inspect"}:
-            raise RuntimeError("mutating subagent control requires an exact SubagentTaskStore authorization")
-        record = get_typescript_agent_port().get_task(task_id)
-        if record is None:
-            raise RuntimeError(f"logical subagent task not found: {task_id}")
+        runtime = get_typescript_agent_port()
+        if action == "list":
+            snapshot = runtime.snapshot(parent_task_id=state.task_id)
+            return {
+                "ok": True,
+                "summary": f"{len(snapshot['tasks'])} logical subagent tasks.",
+                **snapshot,
+            }
+        try:
+            record = runtime.get_task(task_id)
+        except KeyError as error:
+            raise RuntimeError(f"logical subagent task not found: {task_id}") from error
         if record.parent_task_id != state.task_id:
             raise RuntimeError("logical subagent does not belong to this parent task")
-        return {"ok": True, "summary": "Logical subagent state.", "task": record.safe_dict()}
+        if record.run_id != state.run_id:
+            raise RuntimeError("logical subagent run authority mismatch")
+        if action in {"status", "inspect"}:
+            return {
+                "ok": True,
+                "summary": "Logical subagent state.",
+                "task": record.safe_dict(),
+                "canonical_logical_owner": "typescript.E03AgentControlCoordinator",
+                "durable_owner": "SubagentTaskStore",
+            }
+        if action not in {"kill", "steer"}:
+            raise RuntimeError(f"unsupported logical subagent owner action: {action}")
+        authorization = arguments.get("authorization")
+        if not isinstance(authorization, Mapping):
+            raise RuntimeError("mutating subagent control lacks an owner authorization")
+        if (
+            authorization.get("granted") is not True
+            or authorization.get("exact") is not True
+            or authorization.get("one_shot") is not True
+            or str(authorization.get("owner") or "") != "SubagentTaskStore"
+            or str(authorization.get("action") or "") != action
+        ):
+            raise RuntimeError("mutating subagent control authorization is invalid")
+        nonce = str(arguments.get("control_nonce") or "")
+        owner_idempotency_key = str(arguments.get("owner_idempotency_key") or "")
+        expected_revision = arguments.get("expected_revision")
+        expected_attempt = arguments.get("expected_attempt")
+        expected_owner = str(arguments.get("expected_owner") or "")
+        expected_parent = str(arguments.get("expected_parent_task_id") or "")
+        if not nonce or not owner_idempotency_key:
+            raise RuntimeError("subagent control nonce/idempotency binding is required")
+        if not isinstance(expected_revision, int) or expected_revision < 0:
+            raise RuntimeError("subagent control expected revision is invalid")
+        if record.revision != expected_revision:
+            # The E03 owner may still accept an exact idempotent replay with a
+            # stale expected revision. New operations must be bound to the
+            # current revision, while replay identity remains owner-decided.
+            prior_messages = tuple(record.payload.get("messages") or ())
+            replay_candidate = (
+                action == "steer"
+                and any(
+                    isinstance(item, Mapping)
+                    and str(item.get("idempotencyKey") or "") == owner_idempotency_key
+                    for item in prior_messages
+                )
+            )
+            terminal_replay = action == "kill" and record.status.value == "killed"
+            if not replay_candidate and not terminal_replay:
+                raise RuntimeError(
+                    f"subagent revision conflict: expected {expected_revision}, actual {record.revision}"
+                )
+        if not isinstance(expected_attempt, int) or record.payload.get("attempt") != expected_attempt:
+            raise RuntimeError("subagent attempt binding mismatch")
+        if expected_owner != "typescript.E03AgentControlCoordinator":
+            raise RuntimeError("subagent canonical owner binding mismatch")
+        if expected_parent != state.task_id:
+            raise RuntimeError("subagent parent binding mismatch")
+        tool_name = "agent_kill" if action == "kill" else "agent_message"
+        tool_arguments = {
+            "task_id": record.task_id,
+            "expected_revision": expected_revision,
+            "idempotency_key": owner_idempotency_key,
+            "_canonical_control_authorization": dict(authorization),
+        }
+        if action == "kill":
+            tool_arguments["reason"] = str(
+                arguments.get("reason") or "Killed by an explicit operator subagent control."
+            )
+        else:
+            tool_arguments["message"] = str(arguments.get("instruction") or "")
+        run = _run_typescript_agent_request(
+            state,
+            tool_name=tool_name,
+            arguments=tool_arguments,
+            request_id=f"{request.request_id}:{nonce}",
+            session_id=(
+                f"{record.parent_session_id}:control:"
+                f"{request.request_id}:{nonce}"
+            ),
+            canonical_agent_parent_session_id=record.parent_session_id,
+        )
+        persist_events(store, run.event_records)
+        updated = runtime.get_task(record.task_id)
+        if not run.worker_result.ok:
+            runtime_metadata = dict(run.worker_result.metadata or {})
+            runtime_event_message = next(
+                (
+                    str(query_session.get("message") or "")
+                    for event in reversed(run.event_records)
+                    if isinstance((payload := event.payload), Mapping)
+                    and isinstance(
+                        (query_session := payload.get("query_session")),
+                        Mapping,
+                    )
+                    and query_session.get("message")
+                ),
+                "",
+            )
+            raise RuntimeError(
+                str(
+                    runtime_event_message
+                    or
+                    runtime_metadata.get("typescript_runtime_error_message")
+                    or run.worker_result.error
+                    or f"typescript subagent {action} rejected"
+                )
+            )
+        if action == "kill" and updated.status.value != "killed":
+            raise RuntimeError(
+                "canonical subagent owner did not commit the killed state: "
+                f"status={updated.status.value}, task_error={updated.payload.get('error') or ''}, "
+                f"runtime_error={run.worker_result.error or ''}"
+            )
+        if action == "steer":
+            message = str(arguments.get("instruction") or "")
+            if not any(
+                isinstance(item, Mapping)
+                and str(item.get("body") or "") == message
+                for item in tuple(updated.payload.get("messages") or ())
+            ):
+                raise RuntimeError(
+                    "canonical subagent owner did not commit the steering message"
+                )
+        physical_control = None
+        if action == "kill":
+            physical = get_worker_pool_api().integration.control.submit_and_apply(
+                ControlKind.CANCEL,
+                claim_owner="subagent-control-command",
+                actor_id=str(request.metadata.get("actor_id") or "control-command"),
+                reason=str(arguments.get("reason") or "operator subagent kill"),
+                idempotency_key=(
+                    f"subagent-command-kill:{record.task_id}:{owner_idempotency_key}"
+                ),
+                task_id=record.task_id,
+                run_id=state.run_id,
+            )
+            physical_control = physical.to_dict()
+            if physical.phase.value != "applied":
+                raise RuntimeError(
+                    physical.error or "canonical physical subagent kill did not apply"
+                )
+        return {
+            "ok": True,
+            "summary": (
+                f"Subagent {record.task_id} killed by the canonical E03 owner."
+                if action == "kill"
+                else f"Steering message committed for subagent {record.task_id}."
+            ),
+            "task": updated.safe_dict(),
+            "action": action,
+            "revision": updated.revision,
+            "replayed": updated.revision == record.revision,
+            "canonical_logical_owner": "typescript.E03AgentControlCoordinator",
+            "durable_owner": "SubagentTaskStore",
+            "python_logical_fallback": False,
+            "physical_worker_control": physical_control,
+            "receipt": {
+                "owner": "SubagentTaskStore",
+                "canonical_logical_owner": "typescript.E03AgentControlCoordinator",
+                "authorization_id": str(authorization.get("authorization_id") or ""),
+                "nonce": nonce,
+                "idempotency_key": owner_idempotency_key,
+                "expected_revision": expected_revision,
+                "committed_revision": updated.revision,
+                "attempt": expected_attempt,
+                "parent_task_id": expected_parent,
+                "task_id": record.task_id,
+                "action": action,
+            },
+            "worker_result": to_jsonable(run.worker_result),
+            "event_ids": [item.event_id for item in run.event_records],
+        }
 
     def session_snapshot(*, run_id: str, task_id: str, session_id: str) -> Any:
         if run_id != state.run_id or task_id != state.task_id:
@@ -11066,10 +11464,29 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             SessionAction.REWIND.value: "/rewind",
             SessionAction.RESUME.value: "/resume",
         }.get(action)
-        granted = (
+        subagent_grant = (
+            owner == "SubagentTaskStore"
+            and request.canonical_name == "/agents"
+            and action in {"kill", "steer"}
+            and not bool(request.metadata.get("sealed", False))
+            and bool(str(arguments.get("task_id") or ""))
+            and bool(str(arguments.get("control_nonce") or ""))
+            and bool(str(arguments.get("owner_idempotency_key") or ""))
+            and isinstance(arguments.get("expected_revision"), int)
+            and isinstance(arguments.get("expected_attempt"), int)
+            and str(arguments.get("expected_owner") or "")
+            == "typescript.E03AgentControlCoordinator"
+            and str(arguments.get("expected_parent_task_id") or "") == state.task_id
+        )
+        granted = subagent_grant or (
             owner == "CanonicalSessionStore"
             and expected_command == request.canonical_name
             and not bool(request.metadata.get("sealed", False))
+        )
+        permission_action = (
+            f"subagent.{action}"
+            if owner == "SubagentTaskStore"
+            else f"session.{action}"
         )
         return deterministic_owner_authorization(
             owner=owner,
@@ -11078,12 +11495,21 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             actor_id=str(request.metadata.get("actor_id") or "api-user"),
             authority={
                 "source": "RuntimeControlDispatcher.permission_authorize",
-                "permission_action": f"session.{action}",
+                "permission_action": permission_action,
                 "request_id": request.request_id,
+                "target_task_id": str(arguments.get("task_id") or ""),
+                "control_nonce": str(arguments.get("control_nonce") or ""),
+                "owner_idempotency_key": str(
+                    arguments.get("owner_idempotency_key") or ""
+                ),
+                "expected_revision": arguments.get("expected_revision"),
             },
             granted=granted,
             reason=(
-                f"explicit {request.canonical_name} uses the canonical session/recovery owner"
+                (
+                    f"explicit {request.canonical_name} uses the canonical "
+                    f"{owner} owner for {action}"
+                )
                 if granted
                 else "owner action not granted"
             ),

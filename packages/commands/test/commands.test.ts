@@ -26,6 +26,7 @@ import {
   mergeQueueItems,
   parseCommand,
   queueItemFromProjection,
+  retryCommandRequest,
   sideQuestionAudit,
   tokenizeCommand,
   type CommandTaskContext,
@@ -284,6 +285,44 @@ describe("policy and request", () => {
     expect(change.priority).toBe("now")
   })
 
+  test("sealed hybrid commands admit reads and reject lifecycle mutations", () => {
+    const registry = createCommandRegistry()
+    const policy = new CommandExecutionPolicy(registry)
+    const sealedContext = { ...context, sealed: true }
+    for (const command of [
+      "/mcp list",
+      "/mcp show alpha",
+      "/skills list",
+      "/skills show research",
+      "/agents list",
+      "/agents show child-01",
+    ]) {
+      expect(policy.decide({
+        parsed: parseCommand(command, registry),
+        context: sealedContext,
+        mode: "enqueue",
+        busy: false,
+      }).allowed).toBe(true)
+    }
+    for (const command of [
+      "/mcp disable alpha",
+      "/mcp auth-refresh alpha",
+      "/skills update research",
+      "/skills invoke research",
+      "/agents kill child-01",
+      "/agents steer child-01 --instruction continue",
+    ]) {
+      const decision = policy.decide({
+        parsed: parseCommand(command, registry),
+        context: sealedContext,
+        mode: "enqueue",
+        busy: false,
+      })
+      expect(decision.allowed).toBe(false)
+      expect(decision.reason).toContain("Sealed autonomous")
+    }
+  })
+
   test("builds typed request with canonical arguments and a stable fingerprint", () => {
     const registry = createCommandRegistry()
     const parsed = parseCommand("/inject worker_failure --target worker_01", registry)
@@ -296,6 +335,39 @@ describe("policy and request", () => {
     })
     expect(first.priority).toBe("now")
     expect(first.idempotencyKey).not.toBe(second.idempotencyKey)
+  })
+
+  test("keeps sensitive structured overrides out of command text and raw argv", () => {
+    const registry = createCommandRegistry()
+    const display = JSON.stringify({
+      request_id: "prompt-01",
+      response: { token: "[present]" },
+    })
+    const parsed = parseCommand(
+      `/mcp elicit alpha --request prompt-01 --response '${display}'`,
+      registry,
+    )
+    const secret = {
+      request_id: "prompt-01",
+      response: { token: "not-for-command-history" },
+    }
+    const built = buildCommandRequest({
+      parsed,
+      context,
+      mode: "enqueue",
+      argumentOverrides: { response: secret },
+    })
+    expect(built.arguments.response).toEqual(secret)
+    expect(built.text).not.toContain("not-for-command-history")
+    expect(String(built.arguments.raw)).not.toContain("not-for-command-history")
+    expect(built.arguments.argv).not.toContain("not-for-command-history")
+    const retried = retryCommandRequest({
+      parsed,
+      context,
+      previous: built,
+    })
+    expect(retried.arguments.response).toEqual(secret)
+    expect(retried.text).not.toContain("not-for-command-history")
   })
 })
 

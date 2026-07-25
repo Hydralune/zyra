@@ -202,6 +202,19 @@ export class McpConnectionRuntime {
         metadata: { already_absent: true },
       };
     }
+    if (owner.record.phase === "closed") {
+      return {
+        serverId,
+        connectionId: owner.record.connectionId,
+        phase: "closed",
+        epoch: owner.record.epoch,
+        initialized: false,
+        reconnected: owner.record.reconnectAttempt > 0,
+        catalogRevision: owner.record.catalogRevision,
+        transitionId: "",
+        metadata: { already_closed: true, reason },
+      };
+    }
     if (owner.disconnectPromise) return owner.disconnectPromise;
     const promise = this.performDisconnect(owner, reason);
     owner.disconnectPromise = promise;

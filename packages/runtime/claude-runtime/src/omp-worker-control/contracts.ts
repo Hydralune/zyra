@@ -167,10 +167,12 @@ export function parsePhysicalDispatch(
       "physical projection cannot claim logical task ownership",
     );
   const { projection_digest: checksum, ...unsigned } = projection;
-  if (checksum !== digest(unsigned))
+  const observedDigest = digest(unsigned);
+  if (checksum !== observedDigest)
     throw new E03RuntimeError(
       "physical_dispatch_checksum_mismatch",
-      "physical dispatch projection changed after canonical lease admission",
+      "physical dispatch projection changed after canonical lease admission "
+        + `(expected ${checksum}, observed ${observedDigest})`,
     );
   return projection;
 }

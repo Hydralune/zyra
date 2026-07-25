@@ -748,21 +748,35 @@ export class E02CapabilityCoordinator {
         throw coordinatorError("command_name_missing", "command capability requires a slash command name");
       }
       const descriptor = this.commands.registry.resolve(requestedName);
+      const commandOperation = effectiveCommandOperation(
+        descriptor,
+        commandActionFromArguments(argumentsValue),
+      );
       effectiveContext = {
         ...contextValue,
         commandName: descriptor.name,
-        operation: descriptor.permission.operation,
+        operation: commandOperation,
         metadata: {
           ...contextValue.metadata,
           requested_command_name: contextValue.commandName ?? "",
           requested_operation: contextValue.operation ?? "",
           canonical_command_id: descriptor.commandId,
-          canonical_command_operation: descriptor.permission.operation,
+          canonical_command_operation: commandOperation,
         },
       };
     }
     const context = this.executionContext(toolName, effectiveContext);
-    let finalArguments = canonicalize(argumentsValue) as JsonObject;
+    if (toolName === "command") {
+      assertSealedCommandMutationInput(argumentsValue, context);
+    }
+    const commandArgumentOverrides = toolName === "command"
+      ? structuredCommandArgumentOverrides(argumentsValue)
+      : {};
+    let finalArguments = canonicalize(
+      toolName === "command"
+        ? durableCommandArguments(argumentsValue, commandArgumentOverrides)
+        : argumentsValue,
+    ) as JsonObject;
     const requestArgumentsDigest = digest(finalArguments);
     const idempotencyKey = capabilityIdempotencyKey(toolName, finalArguments, context);
     const priorExecution = this.executionLedger.executionByKey(idempotencyKey);
@@ -880,6 +894,7 @@ export class E02CapabilityCoordinator {
       domain,
       owner,
       idempotencyKey,
+      commandArgumentOverrides,
     );
     this.inFlight.set(ledgerRecord.executionId, promise);
     try {
@@ -1221,6 +1236,7 @@ export class E02CapabilityCoordinator {
     domain: E02Domain,
     owner: string,
     idempotencyKey: string,
+    commandArgumentOverrides: JsonObject,
   ): Promise<E02ExecutionReceipt> {
     const entityId = `e02-capability:${domain}:${toolName}`;
     const entity = this.journal.entityState(entityId);
@@ -1321,6 +1337,7 @@ export class E02CapabilityCoordinator {
         toolName,
         argumentsValue,
         context,
+        commandArgumentOverrides,
       );
       const resultObject = capabilityResultObject(result);
       this.executionLedger.recordEffect(ledgerRecord.executionId, resultObject);
@@ -1493,6 +1510,7 @@ export class E02CapabilityCoordinator {
     toolName: string,
     argumentsValue: JsonObject,
     context: RequiredExecutionContext,
+    commandArgumentOverrides: JsonObject = {},
   ): Promise<E02CapabilityResult> {
     const route = this.routes.resolve(toolName);
     const [custodyDomain, custodyOwner] = routeCustody(route.selectedDomain!, route.selectedOwner!);
@@ -1525,15 +1543,20 @@ export class E02CapabilityCoordinator {
       return this.plugins.execute(toolName, argumentsValue, context.signal);
     }
     if (route.selectedDomain === "command") {
-      return this.commands.execute(toolName, argumentsValue, {
+      const sealedAutonomous = this.permission.evaluator.modes.mode === "sealed"
+        || commandSealedAutonomous(argumentsValue, context);
+      return this.commands.execute(toolName, commandExecutionArguments(
+        argumentsValue,
+        commandArgumentOverrides,
+      ), {
         runId: context.runId,
         taskId: context.taskId,
         sessionId: context.sessionId,
         sessionRevision: context.sessionRevision,
         workerRequestId: context.workerRequestId,
         toolCallId: context.toolCallId,
-        interactive: this.permission.evaluator.modes.canAsk(),
-        sealedAutonomous: this.permission.evaluator.modes.mode === "sealed",
+        interactive: this.permission.evaluator.modes.canAsk() && !sealedAutonomous,
+        sealedAutonomous,
       }, context.signal);
     }
     if (route.selectedDomain === "agent") {
@@ -1543,7 +1566,20 @@ export class E02CapabilityCoordinator {
           `agent capability ${toolName} requires a child QueryEngine execution context`,
         );
       }
-      return this.agents.execute(toolName, argumentsValue, context.agentContext);
+      const ownerSessionId = asString(
+        this.input.config.runtimeConstraints?.typescriptAgentParentSessionId
+          ?? this.input.config.runtimeConstraints?.typescript_agent_parent_session_id,
+      );
+      const agentContext = ownerSessionId
+        ? {
+            ...context.agentContext,
+            parentInput: {
+              ...context.agentContext.parentInput,
+              sessionId: ownerSessionId,
+            },
+          }
+        : context.agentContext;
+      return this.agents.execute(toolName, argumentsValue, agentContext);
     }
     if (toolName === "e02_health") {
       return capabilityResult("E02 runtime health", this.health() as unknown as JsonObject, {
@@ -1982,16 +2018,20 @@ export class E02CapabilityCoordinator {
     request: CommandInvocationRequest,
     argumentsValue: JsonObject,
   ): Promise<CommandPermissionDecision> {
+    const commandOperation = effectiveCommandOperation(
+      descriptor,
+      asString(argumentsValue.action),
+    );
     const active = this.activeCommandAuthorizations.get(request.identity.commandCallId);
     if (active) {
-      if (active.commandName !== descriptor.name || active.operation !== descriptor.permission.operation) {
+      if (active.commandName !== descriptor.name || active.operation !== commandOperation) {
         throw coordinatorError(
           "command_permission_binding_mismatch",
           `outer permission binding does not match command ${descriptor.name}`,
           {
             outer_command_name: active.commandName,
             outer_operation: active.operation,
-            descriptor_operation: descriptor.permission.operation,
+            command_operation: commandOperation,
           },
         );
       }
@@ -2007,8 +2047,8 @@ export class E02CapabilityCoordinator {
           permit_id: active.permitId,
           outer_arguments_digest: active.outerArgumentsDigest,
           original_arguments_digest: digest(argumentsValue),
-          final_arguments_digest: digest(argumentsValue),
-          final_arguments: cloneJson(argumentsValue),
+          arguments_unchanged: true,
+          sensitive_arguments_projected: false,
           canonical_permission_owner: "typescript.PermissionCoordinator",
           nested_permission_bypass: false,
         },
@@ -2024,7 +2064,7 @@ export class E02CapabilityCoordinator {
       toolName: "command",
       namespace: "command",
       commandName: descriptor.name,
-      operation: descriptor.permission.operation,
+      operation: commandOperation,
       workspaceRoot: request.workspaceRoot,
       arguments: argumentsValue,
       metadata: {
@@ -2185,10 +2225,19 @@ export class E02CapabilityCoordinator {
       const action = asString(argumentsValue.action).toLowerCase() || "health";
       const snapshot = this.mcp.snapshot();
       if (action === "health" || action === "status") return this.mcp.health();
-      if (action === "servers") {
+      if (action === "servers" || action === "list") {
         return {
           servers: canonicalize(this.mcp.config.list()),
           connections: canonicalize(this.mcp.connections.list()),
+        };
+      }
+      if (action === "server" || action === "show") {
+        const serverId = requiredCommandString(argumentsValue, "server");
+        return {
+          server: canonicalize(this.mcp.config.require(serverId)),
+          connection: canonicalize(this.mcp.connections.get(serverId)),
+          catalog: canonicalize(this.mcp.catalog.get(serverId)),
+          session: canonicalize(this.mcp.session.server(serverId)),
         };
       }
       if (action === "tools") return { tools: canonicalize(this.mcp.toolSpecs()) };
@@ -2202,15 +2251,35 @@ export class E02CapabilityCoordinator {
       if (action === "prompts") {
         return { prompts: canonicalize(snapshot.catalog.servers.flatMap((server) => server.prompts)) };
       }
+      if (action === "tasks") return { tasks: canonicalize(snapshot.tasks) };
+      if (action === "elicitations") return { elicitations: canonicalize(snapshot.elicitation) };
+      if (isMcpLifecycleAction(action)) {
+        return this.dispatchMcpLifecycleCommand(action, request, argumentsValue, signal);
+      }
       throw coordinatorError("builtin_mcp_action_unknown", `unknown /mcp action ${action}`);
     }
     if (descriptor.handler.handlerId === "builtin:e02-skills") {
-      return {
-        health: this.skills.health(),
-        tools: canonicalize(this.skills.toolSpecs()),
-        registry: canonicalize(this.skills.snapshot().registry),
-        body_in_projection: false,
-      };
+      const action = asString(argumentsValue.action).toLowerCase() || "list";
+      if (action === "health" || action === "status" || action === "list") {
+        return {
+          health: this.skills.health(),
+          tools: canonicalize(this.skills.toolSpecs()),
+          registry: canonicalize(this.skills.snapshot().registry),
+          body_in_projection: false,
+        };
+      }
+      if (action === "show") {
+        const skillName = requiredCommandString(argumentsValue, "skill");
+        return {
+          authority: canonicalize(this.skills.authority(skillName)),
+          registry_revision: this.skills.registry.revision,
+          body_in_projection: false,
+        };
+      }
+      if (action === "update" || action === "invoke") {
+        return this.dispatchSkillLifecycleCommand(action, request, argumentsValue, signal);
+      }
+      throw coordinatorError("builtin_skill_action_unknown", `unknown /skills action ${action}`);
     }
     if (descriptor.handler.handlerId === "builtin:e02-plugins") {
       return {
@@ -2240,6 +2309,458 @@ export class E02CapabilityCoordinator {
       "builtin_command_not_registered",
       `builtin command handler ${descriptor.handler.handlerId} is not registered`,
     );
+  }
+
+  private async dispatchMcpLifecycleCommand(
+    action: McpLifecycleAction,
+    request: CommandInvocationRequest,
+    argumentsValue: JsonObject,
+    signal?: AbortSignal,
+  ): Promise<JsonObject> {
+    assertInteractiveCommandMutation(request, "mcp", action);
+    const serverId = requiredCommandString(argumentsValue, "server");
+    const configured = this.mcp.config.require(serverId);
+    const before = this.mcp.snapshot();
+    let resultValue: JsonValue;
+    let providerReceiptId: string | null = null;
+
+    if (action === "enable" || action === "disable") {
+      const enabled = action === "enable";
+      if (configured.enabled === enabled) {
+        throw coordinatorError(
+          enabled ? "mcp_server_already_enabled" : "mcp_server_already_disabled",
+          `MCP server ${serverId} is already ${enabled ? "enabled" : "disabled"}`,
+          { server_id: serverId },
+        );
+      }
+      const expectedRevision = commandOptionalInteger(
+        argumentsValue,
+        "expected-revision",
+        before.config.revision,
+      );
+      if (expectedRevision !== before.config.revision) {
+        throw coordinatorError(
+          "mcp_config_revision_conflict",
+          `MCP config revision ${expectedRevision} does not match ${before.config.revision}`,
+          {
+            server_id: serverId,
+            expected_revision: expectedRevision,
+            actual_revision: before.config.revision,
+          },
+        );
+      }
+      const layerId = "e02-command-mcp-lifecycle";
+      const lifecycleLayer = before.config.layers.find((layer) => layer.layerId === layerId);
+      const servers = cloneJson(lifecycleLayer?.servers ?? {});
+      const priorPatch = asObject(servers[serverId]);
+      const response = asObject(argumentsValue.response);
+      servers[serverId] = {
+        ...priorPatch,
+        enabled,
+        metadata: {
+          ...asObject(priorPatch.metadata),
+          lifecycle_action: action,
+          lifecycle_reason: asString(response.reason)
+            || asString(argumentsValue.reason)
+            || `/${action}`,
+          command_call_id: request.identity.commandCallId,
+        },
+      };
+      const layerRevision = Math.max(
+        0,
+        ...before.config.layers
+          .filter((layer) => layer.source === "session")
+          .map((layer) => layer.revision),
+      ) + 1;
+      const merge = this.mcp.mergeConfig({
+        layerId,
+        source: "session",
+        revision: layerRevision,
+        servers,
+        tombstones: [],
+        metadata: {
+          canonical_owner: "typescript.McpConfigStore",
+          command_call_id: request.identity.commandCallId,
+          lifecycle_action: action,
+        },
+      }, expectedRevision);
+      try {
+        await this.mcp.reload(signal);
+      } catch (error) {
+        const rollbackSnapshot = this.mcp.config.snapshot();
+        const rollbackLayer = rollbackSnapshot.layers.find((layer) => layer.layerId === layerId);
+        const rollbackServers = cloneJson(rollbackLayer?.servers ?? {});
+        rollbackServers[serverId] = {
+          ...asObject(rollbackServers[serverId]),
+          enabled: configured.enabled,
+          metadata: {
+            ...asObject(asObject(rollbackServers[serverId]).metadata),
+            lifecycle_rollback: true,
+            failed_action: action,
+          },
+        };
+        this.mcp.mergeConfig({
+          layerId,
+          source: "session",
+          revision: Math.max(
+            0,
+            ...rollbackSnapshot.layers
+              .filter((layer) => layer.source === "session")
+              .map((layer) => layer.revision),
+          ) + 1,
+          servers: rollbackServers,
+          tombstones: [],
+          metadata: {
+            canonical_owner: "typescript.McpConfigStore",
+            lifecycle_rollback: true,
+            failed_action: action,
+          },
+        }, rollbackSnapshot.revision);
+        try {
+          await this.mcp.reload(signal);
+        } catch {
+          // The original owner failure remains authoritative; the restored
+          // config still records the compensation attempt for reconciliation.
+        }
+        throw error;
+      }
+      providerReceiptId = deterministicId("mcp-config-merge-receipt", {
+        command_call_id: request.identity.commandCallId,
+        server_id: serverId,
+        action,
+        revision: merge.revision,
+        digest: merge.digest,
+      }, 40);
+      resultValue = {
+        config_merge: canonicalize(merge),
+        server: canonicalize(this.mcp.config.require(serverId)),
+        connection: canonicalize(this.mcp.connections.get(serverId)),
+        session: canonicalize(this.mcp.session.server(serverId)),
+      };
+    } else if (action === "reconnect") {
+      if (!configured.enabled) {
+        throw coordinatorError("mcp_server_disabled", `MCP server ${serverId} is disabled`);
+      }
+      const catalog = await this.mcp.client.reconnect(
+        serverId,
+        `command:${request.identity.commandCallId}`,
+        signal,
+      );
+      await this.mcp.reload(signal);
+      providerReceiptId = catalog.digest;
+      resultValue = {
+        catalog: canonicalize(catalog),
+        connection: canonicalize(this.mcp.connections.get(serverId)),
+      };
+    } else if (action === "refresh") {
+      if (!configured.enabled) {
+        throw coordinatorError("mcp_server_disabled", `MCP server ${serverId} is disabled`);
+      }
+      const catalog = await this.mcp.client.refreshCatalog(serverId, signal);
+      await this.mcp.reload(signal);
+      providerReceiptId = catalog.digest;
+      resultValue = { catalog: canonicalize(catalog) };
+    } else if (action === "auth-refresh") {
+      if (!configured.authProviderId) {
+        throw coordinatorError(
+          "mcp_auth_provider_missing",
+          `MCP server ${serverId} has no configured OAuth provider`,
+          { server_id: serverId },
+        );
+      }
+      const token = await this.mcp.oauth.refresh(
+        configured.authProviderId,
+        `command:${request.identity.commandCallId}`,
+        signal,
+      );
+      this.mcp.connections.updateAuthRevision(serverId, token.revision);
+      await this.mcp.reload(signal);
+      providerReceiptId = deterministicId("mcp-oauth-refresh-receipt", {
+        provider_id: token.providerId,
+        server_id: token.serverId,
+        revision: token.revision,
+        issued_at: token.issuedAt,
+      }, 40);
+      resultValue = {
+        oauth: {
+          provider_id: token.providerId,
+          server_id: token.serverId,
+          revision: token.revision,
+          token_type: token.tokenType,
+          scopes: token.scopes,
+          expires_at: token.expiresAt,
+          issued_at: token.issuedAt,
+          credential_handles_projected: false,
+        },
+        connection: canonicalize(this.mcp.connections.get(serverId)),
+      };
+    } else {
+      const elicitationId = requiredCommandString(argumentsValue, "request");
+      const record = this.mcp.elicitation.get(elicitationId);
+      if (!record) {
+        throw coordinatorError(
+          "mcp_elicitation_not_found",
+          `MCP elicitation ${elicitationId} was not found`,
+          { server_id: serverId, elicitation_id: elicitationId },
+        );
+      }
+      if (
+        record.identity.serverId !== serverId
+        || record.identity.runId !== request.identity.runId
+        || record.identity.taskId !== request.identity.taskId
+        || record.identity.sessionId !== request.identity.sessionId
+      ) {
+        throw coordinatorError(
+          "mcp_elicitation_scope_mismatch",
+          `MCP elicitation ${elicitationId} belongs to another owner scope`,
+          { server_id: serverId, elicitation_id: elicitationId },
+        );
+      }
+      const responseEnvelope = requiredCommandObject(argumentsValue, "response");
+      assertOptionalCommandBinding(responseEnvelope, "request_id", record.elicitationId);
+      assertOptionalCommandBinding(responseEnvelope, "server_id", serverId);
+      const content = Object.prototype.hasOwnProperty.call(responseEnvelope, "response")
+        ? requiredCommandObject(responseEnvelope, "response")
+        : responseEnvelope;
+      const settled = this.mcp.elicitation.resume({
+        ...record.identity,
+        elicitationId: record.elicitationId,
+        continuationId: record.continuationId,
+        result: {
+          action: "accept",
+          content,
+          meta: {
+            command_call_id: request.identity.commandCallId,
+            response_digest: asString(responseEnvelope.response_digest),
+          },
+        },
+      });
+      providerReceiptId = settled.elicitationId;
+      resultValue = {
+        elicitation: {
+          continuationId: settled.continuationId,
+          createdAt: settled.createdAt,
+          elicitationId: settled.elicitationId,
+          expiresAt: settled.expiresAt,
+          identity: canonicalize(settled.identity),
+          metadata: canonicalize(settled.metadata),
+          rejectionCode: settled.rejectionCode,
+          request: canonicalize(settled.request),
+          requestDigest: settled.requestDigest,
+          response: settled.response
+            ? {
+                action: settled.response.action,
+                content: null,
+                contentProjected: false,
+                meta: canonicalize(settled.response.meta),
+              }
+            : null,
+          responseDigest: settled.responseDigest,
+          resumedAt: settled.resumedAt,
+          status: settled.status,
+        },
+        response_content_projected: false,
+      };
+    }
+
+    this.syncRoutes(`builtin_mcp_${action}`);
+    this.syncCustody(`builtin_mcp_${action}`);
+    const after = this.mcp.snapshot();
+    const effectId = deterministicId("mcp-lifecycle-effect", {
+      command_call_id: request.identity.commandCallId,
+      action,
+      server_id: serverId,
+      config_revision_before: before.config.revision,
+      config_revision_after: after.config.revision,
+      connection_revision_before: before.connections.revision,
+      connection_revision_after: after.connections.revision,
+      catalog_revision_before: before.catalog.revision,
+      catalog_revision_after: after.catalog.revision,
+      oauth_revision_before: before.oauth.revision,
+      oauth_revision_after: after.oauth.revision,
+      elicitation_revision_before: before.elicitation.revision,
+      elicitation_revision_after: after.elicitation.revision,
+      result_digest: digest(resultValue),
+    }, 48);
+    return {
+      protocol: "zyra.command-owner-effect/v1",
+      canonical_owner: "typescript.McpRuntimeCoordinator",
+      action,
+      target_id: serverId,
+      effect_id: effectId,
+      receipt_id: providerReceiptId ?? effectId,
+      state_before: mcpLifecycleState(before, serverId),
+      state_after: mcpLifecycleState(after, serverId),
+      result: canonicalize(resultValue),
+      python_mutation_fallback: false,
+    };
+  }
+
+  private async dispatchSkillLifecycleCommand(
+    action: "update" | "invoke",
+    request: CommandInvocationRequest,
+    argumentsValue: JsonObject,
+    signal?: AbortSignal,
+  ): Promise<JsonObject> {
+    assertInteractiveCommandMutation(request, "skill", action);
+    const skillName = requiredCommandString(argumentsValue, "skill");
+    const resolution = this.skills.registry.resolve(skillName);
+    const identity = commandSkillIdentity(request);
+    if (action === "update") {
+      const expectedRevision = requiredCommandInteger(argumentsValue, "expected-revision");
+      if (expectedRevision !== this.skills.registry.revision) {
+        throw coordinatorError(
+          "skill_registry_revision_conflict",
+          `skill registry revision ${expectedRevision} does not match ${this.skills.registry.revision}`,
+          {
+            skill_id: resolution.skillId,
+            expected_revision: expectedRevision,
+            actual_revision: this.skills.registry.revision,
+          },
+        );
+      }
+      const expectedHash = requiredCommandString(argumentsValue, "expected-hash");
+      if (!commandHashEquals(expectedHash, resolution.descriptor.bodyDigest)) {
+        throw coordinatorError(
+          "skill_update_hash_stale",
+          `skill ${resolution.skillId} content hash no longer matches the update request`,
+          {
+            skill_id: resolution.skillId,
+            expected_hash: expectedHash,
+            actual_hash: resolution.descriptor.bodyDigest,
+          },
+        );
+      }
+      const before = this.skills.snapshot();
+      const ownerResult = await this.skills.execute(
+        "reload_skills",
+        {},
+        identity,
+        skillParentContext(this.input),
+        undefined,
+        signal,
+      );
+      this.syncRoutes("builtin_skills_update");
+      this.syncCustody("builtin_skills_update");
+      const after = this.skills.snapshot();
+      const updated = this.skills.registry.resolve(skillName);
+      const reloadReceipt = after.reloadHistory.at(-1);
+      const effectId = reloadReceipt?.receiptId ?? deterministicId("skill-update-effect", {
+        command_call_id: request.identity.commandCallId,
+        skill_id: resolution.skillId,
+        registry_revision_before: before.registry.revision,
+        registry_revision_after: after.registry.revision,
+        body_digest_before: resolution.descriptor.bodyDigest,
+        body_digest_after: updated.descriptor.bodyDigest,
+      }, 48);
+      return {
+        protocol: "zyra.command-owner-effect/v1",
+        canonical_owner: "typescript.SkillCoordinator",
+        action,
+        target_id: resolution.skillId,
+        effect_id: effectId,
+        receipt_id: reloadReceipt?.receiptId ?? effectId,
+        state_before: {
+          registry_revision: before.registry.revision,
+          revision_id: resolution.revisionId,
+          descriptor_digest: resolution.descriptor.descriptorDigest,
+          body_digest: resolution.descriptor.bodyDigest,
+        },
+        state_after: {
+          registry_revision: after.registry.revision,
+          revision_id: updated.revisionId,
+          descriptor_digest: updated.descriptor.descriptorDigest,
+          body_digest: updated.descriptor.bodyDigest,
+        },
+        owner_result: canonicalize(ownerResult),
+        reload_receipt: canonicalize(reloadReceipt ?? null),
+        caller_attestations: {
+          dependency_digest: asString(argumentsValue["dependency-digest"]),
+          supply_digest: asString(argumentsValue["supply-digest"]),
+          approval_id: asString(argumentsValue["approval-id"]),
+          canonical_owner_verified: false,
+        },
+        python_mutation_fallback: false,
+      };
+    }
+
+    const registryRevision = requiredCommandInteger(argumentsValue, "registry-revision");
+    if (registryRevision !== resolution.revision) {
+      throw coordinatorError(
+        "skill_invocation_revision_stale",
+        `skill ${resolution.skillId} registry revision ${registryRevision} is stale`,
+        {
+          skill_id: resolution.skillId,
+          expected_revision: registryRevision,
+          actual_revision: resolution.revision,
+        },
+      );
+    }
+    const descriptorDigest = requiredCommandString(argumentsValue, "descriptor-digest");
+    if (!commandHashEquals(descriptorDigest, resolution.descriptor.descriptorDigest)) {
+      throw coordinatorError(
+        "skill_invocation_descriptor_stale",
+        `skill ${resolution.skillId} descriptor digest is stale`,
+        { skill_id: resolution.skillId },
+      );
+    }
+    const contentHash = requiredCommandString(argumentsValue, "content-hash");
+    if (!commandHashEquals(contentHash, resolution.descriptor.bodyDigest)) {
+      throw coordinatorError(
+        "skill_invocation_content_stale",
+        `skill ${resolution.skillId} content hash is stale`,
+        { skill_id: resolution.skillId },
+      );
+    }
+    const invocationArguments = requiredCommandObject(argumentsValue, "arguments-json");
+    const argumentsDigest = requiredCommandString(argumentsValue, "arguments-digest");
+    if (argumentsDigest !== skillCommandArgumentsDigest(invocationArguments)) {
+      throw coordinatorError(
+        "skill_invocation_arguments_digest_mismatch",
+        `skill ${resolution.skillId} arguments digest is invalid`,
+        { skill_id: resolution.skillId },
+      );
+    }
+    const ownerResult = await this.skills.execute(
+      "skill",
+      {
+        skill: skillName,
+        arguments: invocationArguments,
+      },
+      identity,
+      skillParentContext(this.input),
+      undefined,
+      signal,
+    );
+    const invocation = asObject(ownerResult.output.invocation);
+    const invocationId = asString(invocation.invocationId);
+    if (!invocationId) {
+      throw coordinatorError(
+        "skill_invocation_receipt_missing",
+        `skill ${resolution.skillId} owner returned no invocation identity`,
+      );
+    }
+    return {
+      protocol: "zyra.command-owner-effect/v1",
+      canonical_owner: "typescript.SkillCoordinator",
+      action,
+      target_id: resolution.skillId,
+      effect_id: invocationId,
+      receipt_id: invocationId,
+      state_before: {
+        registry_revision: resolution.revision,
+        revision_id: resolution.revisionId,
+        descriptor_digest: resolution.descriptor.descriptorDigest,
+        body_digest: resolution.descriptor.bodyDigest,
+      },
+      state_after: {
+        registry_revision: this.skills.registry.revision,
+        invocation_status: asString(invocation.status),
+        invocation_id: invocationId,
+      },
+      owner_result: canonicalize(ownerResult),
+      python_mutation_fallback: false,
+    };
   }
 
   private async integratePluginSkills(manifest: PluginManifest): Promise<JsonObject> {
@@ -3355,6 +3876,7 @@ function defaultE02CommandDescriptors(): CommandDescriptor[] {
       risk?: "low" | "medium" | "high" | "critical";
       operation?: string;
       arguments?: JsonValue[];
+      commandOptions?: JsonValue[];
       networkAccess?: boolean;
     } = {},
   ): CommandDescriptor => parser.parseText({
@@ -3371,6 +3893,7 @@ function defaultE02CommandDescriptors(): CommandDescriptor[] {
       usage: `/${name}`,
       category: "e02-runtime",
       arguments: options.arguments ?? [],
+      options: options.commandOptions ?? [],
       handler: {
         kind: "builtin",
         id: handlerId,
@@ -3401,12 +3924,28 @@ function defaultE02CommandDescriptors(): CommandDescriptor[] {
   });
   const optionalAction: JsonValue[] = [{
     name: "action",
-    description: "read-only projection action",
+    description: "projection or owner lifecycle action",
     required: false,
     positional: true,
     type: "string",
     default: "health",
   }];
+  const optionalTarget = (name: string): JsonValue => ({
+    name,
+    description: `optional canonical ${name} identity`,
+    required: false,
+    positional: true,
+    type: "string",
+  });
+  const commandOption = (
+    name: string,
+    type: "string" | "integer" | "json" = "string",
+  ): JsonValue => ({
+    name,
+    description: `${name} owner binding`,
+    type,
+    required: false,
+  });
   return [
     descriptor("e02-health", "builtin:e02-health", "Inspect TypeScript E02 runtime health."),
     descriptor("e02-reload", "builtin:e02-reload", "Atomically reload MCP, skills, commands, and plugins.", {
@@ -3415,9 +3954,36 @@ function defaultE02CommandDescriptors(): CommandDescriptor[] {
       networkAccess: true,
     }),
     descriptor("mcp", "builtin:e02-mcp", "Inspect TypeScript-owned MCP capabilities.", {
-      arguments: optionalAction,
+      arguments: [...optionalAction, optionalTarget("server")],
+      commandOptions: [
+        commandOption("request"),
+        commandOption("response", "json"),
+        commandOption("reason"),
+        commandOption("expected-revision", "integer"),
+        commandOption("provider"),
+        commandOption("nonce"),
+        commandOption("idempotency-key"),
+      ],
+      networkAccess: true,
     }),
-    descriptor("skills", "builtin:e02-skills", "Inspect TypeScript-owned skills."),
+    descriptor("skills", "builtin:e02-skills", "Inspect or execute TypeScript-owned skills.", {
+      arguments: optionalAction,
+      commandOptions: [
+        commandOption("skill"),
+        commandOption("expected-hash"),
+        commandOption("expected-revision", "integer"),
+        commandOption("dependency-digest"),
+        commandOption("supply-digest"),
+        commandOption("approval-id"),
+        commandOption("registry-revision", "integer"),
+        commandOption("descriptor-digest"),
+        commandOption("content-hash"),
+        commandOption("arguments-json", "json"),
+        commandOption("arguments-digest"),
+        commandOption("nonce"),
+        commandOption("idempotency-key"),
+      ],
+    }),
     descriptor("plugins", "builtin:e02-plugins", "Inspect TypeScript-owned plugins."),
     descriptor("permissions", "builtin:e02-permissions", "Inspect TypeScript permission state."),
     descriptor("tools", "builtin:e02-tools", "Inspect the canonical TypeScript tool registry."),
@@ -3751,6 +4317,357 @@ function commandNameFromArguments(argumentsValue: JsonObject): string {
   const input = asString(argumentsValue.input).trim();
   if (!input.startsWith("/")) return "";
   return input.slice(1).split(/\s+/, 1)[0] ?? "";
+}
+
+type McpLifecycleAction =
+  | "enable"
+  | "disable"
+  | "reconnect"
+  | "refresh"
+  | "auth-refresh"
+  | "elicit";
+
+function isMcpLifecycleAction(value: string): value is McpLifecycleAction {
+  return value === "enable"
+    || value === "disable"
+    || value === "reconnect"
+    || value === "refresh"
+    || value === "auth-refresh"
+    || value === "elicit";
+}
+
+function commandActionFromArguments(argumentsValue: JsonObject): string {
+  const explicit = asString(argumentsValue.action).trim();
+  if (explicit) return explicit.toLowerCase();
+  const structured = structuredCommandArgumentOverrides(argumentsValue);
+  const structuredAction = asString(structured.action).trim();
+  if (structuredAction) return structuredAction.toLowerCase();
+  if (Array.isArray(argumentsValue.arguments)) {
+    const first = argumentsValue.arguments[0];
+    if (typeof first === "string" && first.trim()) return first.trim().toLowerCase();
+  }
+  const input = asString(argumentsValue.input).trim().replace(/^\//, "");
+  const match = input.match(/^\S+(?:\s+("[^"]*"|'[^']*'|\S+))?/);
+  return (match?.[1] ?? "").replace(/^['"]|['"]$/g, "").trim().toLowerCase();
+}
+
+function effectiveCommandOperation(
+  descriptor: CommandDescriptor,
+  actionValue: string,
+): string {
+  const action = actionValue.trim().toLowerCase();
+  if (descriptor.name === "mcp") {
+    return isMcpLifecycleAction(action)
+      ? `mcp.lifecycle.${action}`
+      : "read";
+  }
+  if (descriptor.name === "skills") {
+    if (action === "update") return "skill.update";
+    if (action === "invoke") return "skill.invoke";
+    return "read";
+  }
+  return descriptor.permission.operation;
+}
+
+function structuredCommandArgumentOverrides(argumentsValue: JsonObject): JsonObject {
+  const output: JsonObject = {};
+  const merge = (value: JsonObject): void => {
+    const nestedOptions = asObject(value.options);
+    for (const [key, child] of Object.entries(nestedOptions)) output[key] = cloneJson(child);
+    for (const [key, child] of Object.entries(value)) {
+      if ([
+        "options",
+        "raw",
+        "text",
+        "input",
+        "display",
+        "display_value",
+        "sealed",
+        "competition_mode",
+      ].includes(key)) continue;
+      output[key] = cloneJson(child);
+    }
+  };
+  if (
+    argumentsValue.arguments
+    && typeof argumentsValue.arguments === "object"
+    && !Array.isArray(argumentsValue.arguments)
+  ) {
+    merge(argumentsValue.arguments as JsonObject);
+  }
+  merge(asObject(argumentsValue.argument_overrides));
+  merge(asObject(argumentsValue.structured_arguments));
+  return canonicalize(output) as JsonObject;
+}
+
+function durableCommandArguments(
+  argumentsValue: JsonObject,
+  overrides: JsonObject,
+): JsonObject {
+  if (!Object.keys(overrides).length) return cloneJson(argumentsValue);
+  const durableOverrides: JsonObject = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    durableOverrides[key] = key === "response"
+      ? {
+        redacted: true,
+        digest: digest(value),
+        object: Boolean(value && typeof value === "object" && !Array.isArray(value)),
+      }
+      : cloneJson(value);
+  }
+  const output = cloneJson(argumentsValue);
+  if (
+    output.arguments
+    && typeof output.arguments === "object"
+    && !Array.isArray(output.arguments)
+  ) {
+    output.arguments = durableOverrides;
+  }
+  if (Object.keys(asObject(output.argument_overrides)).length) {
+    output.argument_overrides = durableOverrides;
+  }
+  if (Object.keys(asObject(output.structured_arguments)).length) {
+    output.structured_arguments = durableOverrides;
+  }
+  return output;
+}
+
+function commandExecutionArguments(
+  argumentsValue: JsonObject,
+  overrides: JsonObject,
+): JsonObject {
+  if (!Object.keys(overrides).length) return cloneJson(argumentsValue);
+  const commandName = commandNameFromArguments(argumentsValue);
+  const action = commandActionFromArguments(argumentsValue);
+  const target = commandTargetFromArguments(argumentsValue, commandName);
+  const options = mergeJson(asObject(argumentsValue.options), overrides);
+  const response = asObject(options.response);
+  if (commandName === "mcp" && !options.request && asString(response.request_id)) {
+    options.request = asString(response.request_id);
+  }
+  return {
+    ...cloneJson(argumentsValue),
+    command: commandName,
+    input: "",
+    arguments: [
+      ...(action ? [action] : []),
+      ...(target ? [target] : []),
+    ],
+    options,
+  };
+}
+
+function commandTargetFromArguments(
+  argumentsValue: JsonObject,
+  commandName: string,
+): string {
+  const overrides = structuredCommandArgumentOverrides(argumentsValue);
+  const explicit = commandName === "skills"
+    ? asString(overrides.skill ?? argumentsValue.skill)
+    : asString(overrides.server ?? argumentsValue.server);
+  if (explicit.trim()) return explicit.trim();
+  if (Array.isArray(argumentsValue.arguments)) {
+    const second = argumentsValue.arguments[1];
+    if (typeof second === "string" && second.trim()) return second.trim();
+  }
+  const input = asString(argumentsValue.input).trim().replace(/^\//, "");
+  const match = input.match(/^\S+\s+\S+\s+("[^"]*"|'[^']*'|\S+)/);
+  return (match?.[1] ?? "").replace(/^['"]|['"]$/g, "").trim();
+}
+
+function commandSealedAutonomous(
+  argumentsValue: JsonObject,
+  context: RequiredExecutionContext,
+): boolean {
+  const competitionMode = asString(
+    argumentsValue.competition_mode
+    ?? argumentsValue.competitionMode
+    ?? context.metadata.competition_mode
+    ?? context.metadata.competitionMode,
+  ).toLowerCase();
+  return context.metadata.sealed === true
+    || context.metadata.sealed_autonomous === true
+    || argumentsValue.sealed === true
+    || argumentsValue.sealed_autonomous === true
+    || competitionMode === "sealed"
+    || competitionMode === "competition"
+    || competitionMode === "benchmark"
+    || context.operation.startsWith("sealed.")
+    || false;
+}
+
+function assertSealedCommandMutationInput(
+  argumentsValue: JsonObject,
+  context: RequiredExecutionContext,
+): void {
+  if (!commandSealedAutonomous(argumentsValue, context)) return;
+  const command = commandNameFromArguments(argumentsValue);
+  const action = commandActionFromArguments(argumentsValue);
+  const domain = command === "skills" ? "skill" : command === "mcp" ? "mcp" : "";
+  const mutation = domain === "mcp"
+    ? isMcpLifecycleAction(action)
+    : domain === "skill" && ["update", "invoke"].includes(action);
+  if (!mutation) return;
+  throw coordinatorError(
+    `sealed_${domain}_mutation_denied`,
+    `sealed autonomous mode denies human /${command} ${action}`,
+    {
+      action,
+      human_intervention_count: 0,
+      owner_effect_started: false,
+      replan_required: true,
+    },
+  );
+}
+
+function assertInteractiveCommandMutation(
+  request: CommandInvocationRequest,
+  domain: "mcp" | "skill",
+  action: string,
+): void {
+  if (!request.sealedAutonomous) return;
+  throw coordinatorError(
+    `sealed_${domain}_mutation_denied`,
+    `sealed autonomous mode denies human /${domain === "skill" ? "skills" : "mcp"} ${action}`,
+    {
+      action,
+      command_call_id: request.identity.commandCallId,
+      human_intervention_count: 0,
+      owner_effect_started: false,
+      replan_required: true,
+    },
+  );
+}
+
+function requiredCommandString(value: JsonObject, key: string): string {
+  const item = value[key];
+  if (typeof item !== "string" || !item.trim()) {
+    throw coordinatorError(
+      "command_argument_missing",
+      `command argument ${key} must be a non-empty string`,
+      { field: key },
+    );
+  }
+  return item.trim();
+}
+
+function requiredCommandObject(value: JsonObject, key: string): JsonObject {
+  const item = value[key];
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw coordinatorError(
+      "command_argument_object_required",
+      `command argument ${key} must be an object`,
+      { field: key },
+    );
+  }
+  return canonicalize(item) as JsonObject;
+}
+
+function requiredCommandInteger(value: JsonObject, key: string): number {
+  const item = value[key];
+  if (typeof item !== "number" || !Number.isSafeInteger(item) || item < 0) {
+    throw coordinatorError(
+      "command_argument_integer_required",
+      `command argument ${key} must be a non-negative integer`,
+      { field: key },
+    );
+  }
+  return item;
+}
+
+function commandOptionalInteger(
+  value: JsonObject,
+  key: string,
+  fallback: number,
+): number {
+  return value[key] === undefined
+    ? fallback
+    : requiredCommandInteger(value, key);
+}
+
+function assertOptionalCommandBinding(
+  value: JsonObject,
+  key: string,
+  expected: string,
+): void {
+  const actual = asString(value[key]);
+  if (!actual) return;
+  if (actual !== expected) {
+    throw coordinatorError(
+      "command_owner_binding_mismatch",
+      `command ${key} is bound to another owner identity`,
+      { field: key, expected, actual },
+    );
+  }
+}
+
+function commandHashEquals(left: string, right: string): boolean {
+  const normalize = (value: string): string => value.trim().toLowerCase().replace(/^sha256:/, "");
+  return constantTimeDigestEquals(normalize(left), normalize(right));
+}
+
+function commandSkillIdentity(
+  request: CommandInvocationRequest,
+): {
+  runId: string;
+  taskId: string;
+  sessionId: string;
+  sessionRevision: number;
+  workerRequestId: string;
+  toolCallId: string;
+} {
+  return {
+    runId: request.identity.runId,
+    taskId: request.identity.taskId,
+    sessionId: request.identity.sessionId,
+    sessionRevision: request.identity.sessionRevision,
+    workerRequestId: request.identity.workerRequestId,
+    toolCallId: request.identity.commandCallId,
+  };
+}
+
+function skillCommandArgumentsDigest(value: JsonObject): string {
+  const serialized = JSON.stringify(canonicalize(value));
+  const input = JSON.stringify([serialized]);
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+  for (let index = 0; index < input.length; index += 1) {
+    const code = input.charCodeAt(index);
+    first ^= code;
+    first = Math.imul(first, 0x01000193);
+    second ^= first + code + Math.imul(second, 33);
+    second = Math.imul(second ^ (second >>> 16), 0x85ebca6b);
+  }
+  const left = (first >>> 0).toString(16).padStart(8, "0");
+  const right = (second >>> 0).toString(16).padStart(8, "0");
+  return `skill:${left}${right}`;
+}
+
+function mcpLifecycleState(
+  snapshot: McpCoordinatorSnapshot,
+  serverId: string,
+): JsonObject {
+  return {
+    config_revision: snapshot.config.revision,
+    config_digest: snapshot.config.digest,
+    server: canonicalize(
+      snapshot.config.servers.find((server) => server.serverId === serverId) ?? null,
+    ),
+    connection_revision: snapshot.connections.revision,
+    connection: canonicalize(
+      snapshot.connections.connections.find((connection) => connection.serverId === serverId) ?? null,
+    ),
+    catalog_revision: snapshot.catalog.revision,
+    catalog: canonicalize(
+      snapshot.catalog.servers.find((server) => server.serverId === serverId) ?? null,
+    ),
+    oauth_revision: snapshot.oauth.revision,
+    elicitation_revision: snapshot.elicitation.revision,
+    session_revision: snapshot.session.revision,
+    session: canonicalize(
+      snapshot.session.servers.find((server) => server.serverId === serverId) ?? null,
+    ),
+  };
 }
 
 function inferNamespace(toolName: string): string {

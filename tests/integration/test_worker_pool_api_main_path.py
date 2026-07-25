@@ -82,7 +82,9 @@ def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(
             suspended=suspended,
         )
         assert spawned["canonical_agent_owner"] == "typescript"
-        assert spawned["record"]["status"] == "completed"
+        assert spawned["record"]["status"] == "completed", json.dumps(
+            spawned["record"], ensure_ascii=False, sort_keys=True
+        )
         physical = spawned["physical_worker"]
         receipt = spawned["physical_receipt"]
         assert physical["typescript_dispatch_gate"] == "typescript.OmpWorkerDispatchRuntime"
@@ -139,7 +141,9 @@ def test_subagent_api_fails_closed_and_records_failed_receipt_when_omp_gate_is_d
                 suspended=suspended,
             )
             assert spawned["record"]["status"] == "failed"
-            assert "omp_worker_control_disabled" in str(spawned["record"])
+            assert "omp_worker_control_disabled" in str(spawned["record"]), json.dumps(
+                spawned["record"], ensure_ascii=False, sort_keys=True
+            )
             assert spawned["physical_receipt"]["outcome"] == "failed"
             assert spawned["physical_receipt"]["metadata"]["dispatch_gate"] == (
                 "typescript.OmpWorkerDispatchRuntime"
@@ -322,11 +326,240 @@ def test_subagent_fanout_maps_each_child_to_one_physical_attempt_and_receipt(
         assert [item["outcome"] for item in completed["physical_receipts"]] == [
             "succeeded",
             "succeeded",
-        ]
+        ], json.dumps(completed["physical_receipts"], ensure_ascii=False, sort_keys=True)
         for task_id in ("physical-fanout-a", "physical-fanout-b"):
             leases = _get(base_url, f"/worker-pool/leases?task_id={task_id}")["leases"]
             assert len(leases) == 1
             assert leases[0]["state"] == "released"
+
+
+def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_readable(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        created = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Exercise canonical slash control over one durable child.",
+                "auto_run": False,
+            },
+        )
+        parent = created["task"]
+        task_id = parent["task_id"]
+        spawn_payload = {
+            "prompt": "Wait in the durable background queue for operator control.",
+            "execution_mode": "background",
+            "agent_type": "explore",
+            "subagent_task_id": "slash-controlled-child",
+            "idempotency_key": "slash-controlled-child-create",
+            "request_id": "slash-controlled-child-request",
+            "defer_background_drain": True,
+        }
+        spawn_status, suspended = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/subagents",
+            spawn_payload,
+        )
+        assert spawn_status == 409
+        assert suspended["error"] == "permission_suspended", json.dumps(
+            {
+                "error": suspended.get("error"),
+                "worker_result": suspended.get("worker_result"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        spawned = _approve_and_retry_subagent(
+            base_url,
+            parent=parent,
+            payload=spawn_payload,
+            suspended=suspended,
+        )
+        command_headers = {
+            "Authorization": (
+                "Bearer "
+                + suspended["permission_session"]["session_custody_token"]
+            )
+        }
+        record = _get(base_url, f"/tasks/{task_id}/subagents")["subagents"][0]
+        assert record["status"] in {"created", "queued", "running"}, record["error"]
+        assert record["canonical_logical_owner"] == (
+            "typescript.E03AgentControlCoordinator"
+        )
+
+        tasks_status, tasks_view = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": "/tasks",
+                "request_id": "tasks-sealed-read-request",
+                "command_id": "tasks-sealed-read-command",
+                "idempotency_key": "tasks-sealed-read-idempotency",
+                "sealed": True,
+                "competition_mode": "sealed_autonomous",
+            },
+        )
+        assert tasks_status == 201
+        tasks_data = tasks_view["command_result"]["data"]
+        assert tasks_data["canonical_logical_owner"] == (
+            "typescript.E03AgentControlCoordinator"
+        )
+        assert tasks_data["durable_owner"] == "SubagentTaskStore"
+        assert tasks_data["fixture_projection"] is False
+        assert tasks_data["python_logical_fallback"] is False
+        assert tasks_data["tasks"][0]["task_id"] == record["task_id"]
+        assert tasks_data["tasks"][0]["status"] in {"created", "queued", "running"}
+        root_children = next(
+            item
+            for item in tasks_data["hierarchy"]
+            if item["parent_id"] == task_id
+        )
+        assert record["task_id"] in root_children["child_ids"]
+
+        sealed_command = _subagent_command(
+            "steer",
+            record,
+            nonce="sealed-steer-nonce",
+            owner_idempotency_key="sealed-steer-owner-idempotency",
+            instruction="This instruction must never reach the child.",
+            reason="sealed direct slash attempt",
+        )
+        sealed_status, sealed = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": sealed_command,
+                "request_id": "sealed-agents-request",
+                "command_id": "sealed-agents-command",
+                "idempotency_key": "sealed-agents-transport-idempotency",
+                "sealed": True,
+                "competition_mode": "sealed_autonomous",
+            },
+            headers=command_headers,
+        )
+        assert sealed_status == 409
+        assert sealed["command_result"]["error"]["code"] == "permission_denied"
+        assert sealed["intervention_counted"] is True
+        assert sealed["human_intervention_count"] == 0
+        unchanged = _get(base_url, f"/tasks/{task_id}/subagents")["subagents"][0]
+        assert unchanged["revision"] == record["revision"]
+        assert unchanged["messages"] == []
+
+        steer_instruction = "Re-check the bounded verification evidence."
+        steer_nonce = "interactive-steer-nonce"
+        steer_owner_idempotency = "interactive-steer-owner-idempotency"
+        steer_command = _subagent_command(
+            "steer",
+            record,
+            nonce=steer_nonce,
+            owner_idempotency_key=steer_owner_idempotency,
+            instruction=steer_instruction,
+            reason="operator changed the local verification priority",
+        )
+        steer_status, steered = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": steer_command,
+                "request_id": "agents-steer-request",
+                "command_id": "agents-steer-command",
+                "idempotency_key": "agents-steer-transport-idempotency",
+            },
+            headers=command_headers,
+        )
+        assert steer_status == 201, steered["command_result"].get("error")
+        steer_data = steered["command_result"]["data"]
+        steer_receipt = steer_data["receipt"]
+        assert steer_data["state_owner"] == "SubagentTaskStore"
+        assert steer_data["canonical_logical_owner"] == (
+            "typescript.E03AgentControlCoordinator"
+        )
+        assert steer_data["python_logical_fallback"] is False
+        assert steer_receipt["nonce"] == steer_nonce
+        assert steer_receipt["idempotency_key"] == steer_owner_idempotency
+        assert steer_receipt["owner"] == "SubagentTaskStore"
+        assert steer_receipt["expected_revision"] == record["revision"]
+        assert steer_receipt["committed_revision"] > record["revision"]
+        assert steer_data["replayed"] is False
+        assert any(
+            item["body"] == steer_instruction
+            and item["idempotencyKey"] == steer_owner_idempotency
+            for item in steer_data["task"]["messages"]
+        )
+
+        replay_status, replayed = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": steer_command,
+                "request_id": "agents-steer-replay-request",
+                "command_id": "agents-steer-replay-command",
+                "idempotency_key": "agents-steer-replay-transport-idempotency",
+            },
+            headers=command_headers,
+        )
+        assert replay_status == 201, replayed["command_result"].get("error")
+        replay_data = replayed["command_result"]["data"]
+        assert replay_data["replayed"] is True
+        assert replay_data["receipt"]["nonce"] == steer_nonce
+        assert replay_data["receipt"]["idempotency_key"] == steer_owner_idempotency
+        assert replay_data["revision"] == steer_data["revision"]
+        assert len(
+            [
+                item
+                for item in replay_data["task"]["messages"]
+                if item["idempotencyKey"] == steer_owner_idempotency
+            ]
+        ) == 1
+
+        kill_record = replay_data["task"]
+        kill_nonce = "interactive-kill-nonce"
+        kill_owner_idempotency = "interactive-kill-owner-idempotency"
+        kill_status, killed = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": _subagent_command(
+                    "kill",
+                    kill_record,
+                    nonce=kill_nonce,
+                    owner_idempotency_key=kill_owner_idempotency,
+                    reason="operator fenced the obsolete child",
+                ),
+                "request_id": "agents-kill-request",
+                "command_id": "agents-kill-command",
+                "idempotency_key": "agents-kill-transport-idempotency",
+            },
+            headers=command_headers,
+        )
+        assert kill_status == 201, killed["command_result"].get("error")
+        kill_data = killed["command_result"]["data"]
+        assert kill_data["task"]["status"] == "killed"
+        assert kill_data["receipt"]["nonce"] == kill_nonce
+        assert kill_data["receipt"]["idempotency_key"] == kill_owner_idempotency
+        assert kill_data["receipt"]["owner"] == "SubagentTaskStore"
+        assert kill_data["physical_worker_control"]["phase"] == "applied"
+        assert kill_data["physical_worker_control"]["effect"][
+            "old_fence_blocks_late_commit"
+        ] is True
+
+        after_status, after_view = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": "/tasks",
+                "request_id": "tasks-after-kill-request",
+                "command_id": "tasks-after-kill-command",
+                "idempotency_key": "tasks-after-kill-idempotency",
+                "sealed": True,
+                "competition_mode": "sealed_autonomous",
+            },
+        )
+        assert after_status == 201
+        after_data = after_view["command_result"]["data"]
+        assert after_data["lifecycle_counts"]["killed"] == 1
+        assert after_data["terminal_task_ids"] == [record["task_id"]]
 
 
 @contextmanager
@@ -357,6 +590,7 @@ def _api(root: Path) -> Iterator[str]:
     api_main._WORKER_POOL_API = None
     api_main._WORKER_POOL_RUNTIME = None
     api_main._WORKER_POOL_KEY = None
+    api_main.reset_control_runtime()
     api_main.reset_subagent_runtime()
     server = ThreadingHTTPServer(("127.0.0.1", 0), api_main.ZyraRequestHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -370,6 +604,7 @@ def _api(root: Path) -> Iterator[str]:
         api_main._WORKER_POOL_API = None
         api_main._WORKER_POOL_RUNTIME = None
         api_main._WORKER_POOL_KEY = None
+        api_main.reset_control_runtime()
         api_main.reset_subagent_runtime()
         for name, value in previous.items():
             if value is None:
@@ -381,6 +616,34 @@ def _api(root: Path) -> Iterator[str]:
 def _get(base_url: str, path: str) -> dict[str, Any]:
     with urllib.request.urlopen(f"{base_url}{path}", timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _subagent_command(
+    action: str,
+    record: dict[str, Any],
+    *,
+    nonce: str,
+    owner_idempotency_key: str,
+    reason: str,
+    instruction: str = "",
+) -> str:
+    binding = ";".join(
+        (
+            f"nonce={nonce}",
+            f"idempotency={owner_idempotency_key}",
+            f"revision={record['revision']}",
+            f"attempt={record['attempt']}",
+            "owner=typescript.E03AgentControlCoordinator",
+            f"parent={record['parent_task_id']}",
+        )
+    )
+    bound_reason = f"{reason} [zyra-control:{binding}]"
+    if action == "steer":
+        return (
+            f'/agents steer "{record["task_id"]}" '
+            f'--instruction "{instruction}" --reason "{bound_reason}"'
+        )
+    return f'/agents kill "{record["task_id"]}" --reason "{bound_reason}"'
 
 
 def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -471,8 +734,10 @@ def _approve_and_retry_subagent(
     metadata = retry.get("worker_result", {}).get("metadata", {})
     diagnostic = {
         "error": retry.get("error"),
+        "message": retry.get("message"),
         "typescript_runtime_error": metadata.get("typescript_runtime_error"),
         "typescript_runtime_error_message": metadata.get("typescript_runtime_error_message"),
+        "worker_metadata": metadata,
         "record_status": (retry.get("record") or {}).get("status"),
         "record_error": (retry.get("record") or {}).get("error"),
         "worker_summary": retry.get("worker_result", {}).get("summary"),
