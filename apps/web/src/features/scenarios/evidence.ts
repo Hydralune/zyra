@@ -6,7 +6,6 @@ export interface EvidenceFinding {
   path: string
   severity: "error" | "warning"
 }
-
 export interface EvidenceAssessment {
   valid: boolean
   manifestId?: string
@@ -277,4 +276,3 @@ export function effectCoverage(
     observed: Object.freeze(observed),
   })
 }
-

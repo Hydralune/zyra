@@ -336,4 +336,3 @@ def causal_manifest_projection(
             receipt.get("effect_path_coverage") or {}
         ),
     }
-

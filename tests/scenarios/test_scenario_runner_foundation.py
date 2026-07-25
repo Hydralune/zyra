@@ -175,7 +175,6 @@ def test_sealed_policy_converts_ask_and_unknown_to_deny_replan(tmp_path: Path) -
     unknown = runtime.evaluate(
         {"action_id": "unknown", "action": "network.elsewhere", "effect": "allow"}
     )
-
     assert allowed.final_effect == "allow"
     assert asked.final_effect == "deny"
     assert asked.recovery_action == "replan"
@@ -407,4 +406,3 @@ def registry_effects() -> tuple[StepEffect, ...]:
         StepEffect.ARTIFACT,
         StepEffect.VERIFICATION,
     )
-

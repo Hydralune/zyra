@@ -347,4 +347,3 @@ def _execute_owner_chain(
         started_at=started_at,
         completed_at=api_main.now_iso(),
     )
-

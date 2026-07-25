@@ -668,7 +668,6 @@ def _receipt_event(
         },
     }
 
-
 def _policy_event(
     decision: Mapping[str, Any],
     *,
@@ -693,4 +692,3 @@ def _policy_event(
             "semantic_effect": "permission",
         },
     }
-

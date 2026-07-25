@@ -16,7 +16,6 @@ function duration(value: number): string {
   const minutes = Math.floor(seconds / 60)
   return `${minutes}m ${Math.floor(seconds % 60)}s`
 }
-
 function shortDigest(value: unknown): string {
   const selected = String(value || "")
   return selected.length > 18
@@ -335,4 +334,3 @@ export function ScenarioWorkbench({
     </section>
   )
 }
-

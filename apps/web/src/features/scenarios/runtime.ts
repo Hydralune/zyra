@@ -24,7 +24,6 @@ export interface ScenarioRuntimeOptions {
   disabled?: boolean
   now?: () => number
 }
-
 export interface ScenarioRuntimeAudit {
   disabled: boolean
   closed: boolean
@@ -531,4 +530,3 @@ export class ScenarioWorkbenchRuntime {
     }
   }
 }
-

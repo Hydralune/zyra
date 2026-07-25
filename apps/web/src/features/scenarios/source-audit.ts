@@ -6,7 +6,6 @@ export interface SourceAuditRow {
   landing: readonly string[]
   reason: string
 }
-
 export interface SourceAuditProjection {
   valid: boolean
   openclaw: string
@@ -149,4 +148,3 @@ export function sourceLandingMatrix(
       ]),
   )
 }
-

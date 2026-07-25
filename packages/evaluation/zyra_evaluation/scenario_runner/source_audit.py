@@ -330,4 +330,3 @@ class SourceRoleAuditor:
             "landing": tuple(str(value).replace("\\", "/").strip("/") for value in landing),
             "reason": str(raw.get("reason") or "").strip(),
         }
-

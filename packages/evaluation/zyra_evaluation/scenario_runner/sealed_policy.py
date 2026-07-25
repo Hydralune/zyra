@@ -269,4 +269,3 @@ def require_safe_policy_decisions(
 
 def _disabled(name: str) -> bool:
     return os.environ.get(name, "").strip().casefold() in {"1", "true", "yes", "on"}
-

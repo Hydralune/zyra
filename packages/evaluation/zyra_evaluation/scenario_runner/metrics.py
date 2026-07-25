@@ -218,4 +218,3 @@ def _duration_ms(start: str, end: str) -> int:
         return max(0, int((right - left).total_seconds() * 1000))
     except (ValueError, TypeError):
         return 0
-
