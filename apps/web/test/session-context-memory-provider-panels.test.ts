@@ -24,6 +24,7 @@ import {
 } from "../src/features/providers/credential-audit.ts"
 import { buildPlacementConsoleProjection } from "../src/features/placement/projection.ts"
 import { SessionConsoleRuntime } from "../src/features/session/runtime.ts"
+import { ControlEffectLedger } from "../src/features/session/control-effects.ts"
 
 const NOW = "2026-07-25T08:00:00.000Z"
 
@@ -441,6 +442,57 @@ describe("M2-S04B-01 session/context/memory/provider panels", () => {
     expect(preview.projectedTokens).toBeLessThan(preview.currentTokens)
     expect(preview.segments.some((segment) => segment.decision === "summarize" || segment.decision === "drop")).toBe(true)
     expect(preview.segments.filter((segment) => segment.kind === "checkpoint").every((segment) => segment.protected)).toBe(true)
+  })
+
+  test("reconciles compact receipts only after later canonical context actually changes", () => {
+    const before = fixture()
+    const ledger = new ControlEffectLedger()
+    ledger.begin({
+      operationId: "operation-compact",
+      name: "/compact",
+      commandText: "/compact execute --target 60000",
+      state: before,
+      taskId: "task-1",
+      sessionId: "session-1",
+      createdAt: NOW,
+    })
+    const pending = ledger.verify({
+      operationId: "operation-compact",
+      state: before,
+      receiptEventIds: ["event-checkpoint-2"],
+      checkedAt: NOW,
+    })
+    expect(pending.satisfied).toBe(false)
+    expect(pending.reasons).toContain("canonical projection revision has not advanced")
+
+    const afterBase = fixture()
+    const after: CanonicalProjectionState = {
+      ...afterBase,
+      revision: 11,
+      sessions: {
+        ...afterBase.sessions,
+        "session-1": {
+          ...afterBase.sessions["session-1"]!,
+          contextTokens: 59000,
+          compactCount: 3,
+          revision: 3,
+          attributes: {
+            ...afterBase.sessions["session-1"]!.attributes,
+            compact_epoch: 3,
+          },
+        },
+      },
+    }
+    const committed = ledger.verify({
+      operationId: "operation-compact",
+      state: after,
+      receiptEventIds: ["event-checkpoint-2"],
+      checkedAt: "2026-07-25T08:00:01.000Z",
+    })
+    expect(committed.satisfied).toBe(true)
+    expect(committed.changedFields).toContain("context.tokens")
+    expect(committed.changedFields).toContain("context.compact_epoch")
+    expect(committed.changedFields).toContain("session.compact_count")
   })
 
   test("memory query exposes layered provenance/veracity and changes selected context", () => {

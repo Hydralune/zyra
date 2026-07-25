@@ -18,6 +18,10 @@ import {
   text,
 } from "./value.ts"
 import { SessionBehaviorCoordinator } from "./coordinator.ts"
+import {
+  ControlEffectLedger,
+  type ControlEffectVerification,
+} from "./control-effects.ts"
 
 export type SessionControlPhase =
   | "idle"
@@ -49,6 +53,8 @@ export interface SessionControlOperation {
   error?: string
   canonicalEventIds: readonly string[]
   reconciledRevision?: number
+  commandText?: string
+  effect?: ControlEffectVerification
 }
 
 export interface SessionConsoleSnapshot {
@@ -75,6 +81,7 @@ export interface SessionRuntimeOptions {
 
 export class SessionConsoleRuntime {
   readonly behavior = new SessionBehaviorCoordinator()
+  readonly effects = new ControlEffectLedger()
   readonly #projections: CanonicalProjectionStore
   readonly #commands: CommandSurfaceRuntime
   readonly #online: () => boolean
@@ -393,6 +400,7 @@ export class SessionConsoleRuntime {
 
   disable(reason = "Session console is disabled."): void {
     if (this.#closed) return
+    this.effects.disable(reason)
     const active = this.#snapshot.active
     if (active && !terminalPhase(active.phase)) {
       this.#settle(active.id, {
@@ -409,6 +417,7 @@ export class SessionConsoleRuntime {
 
   enable(): void {
     if (this.#closed) return
+    this.effects.enable()
     this.#replace({
       enabled: true,
       disabledReason: undefined,
@@ -432,6 +441,7 @@ export class SessionConsoleRuntime {
     this.#unsubscribeProjection()
     this.#unsubscribeCommands()
     this.behavior.close(reason)
+    this.effects.disable(reason)
     this.#listeners.clear()
   }
 
@@ -505,6 +515,15 @@ export class SessionConsoleRuntime {
       ...patch,
     })
     this.#operations.set(operation.id, operation)
+    this.effects.begin({
+      operationId: operation.id,
+      name: operation.name,
+      commandText: operation.commandText,
+      state: this.#projections.state,
+      taskId: operation.taskId,
+      sessionId: operation.sessionId,
+      createdAt: now,
+    })
     this.#replace({ active: operation })
     return operation
   }
@@ -514,7 +533,10 @@ export class SessionConsoleRuntime {
     command: string,
     patch: Partial<SessionControlOperation> = {},
   ): Promise<CommandReceipt> {
-    const operation = this.#begin(name, "submitting", patch)
+    const operation = this.#begin(name, "submitting", {
+      ...patch,
+      commandText: command,
+    })
     try {
       const receipt = await this.#commands.submit(command, { mode: "enqueue" })
       const phase = receipt.phase === "queued"
@@ -652,11 +674,28 @@ export class SessionConsoleRuntime {
       Boolean(state.commands[operation.commandId]) ||
       Boolean(state.causality.byControlCommand[operation.commandId]?.length)
     if (!revisionAdvanced || !receiptEventsObserved || !commandObserved) return
+    const effect = this.effects.verify({
+      operationId: operation.id,
+      state,
+      commandId: operation.commandId,
+      checkpointId: operation.checkpointId,
+      receiptEventIds: operation.canonicalEventIds,
+      checkedAt: this.#now().toISOString(),
+    })
+    if (!effect.satisfied) {
+      this.#settle(operation.id, {
+        phase: "reconciling",
+        canonicalEventIds: eventIds,
+        effect,
+      })
+      return
+    }
     this.#settle(operation.id, {
       phase: "committed",
       canonicalEventIds: eventIds,
       reconciledRevision: state.revision,
       error: undefined,
+      effect,
     })
   }
 
