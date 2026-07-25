@@ -56,6 +56,7 @@ import {
   SkillCoordinator,
   TypeScriptSkillRuntime,
   type SkillCoordinatorSnapshot,
+  type SkillDescriptor,
   type SkillExecutor,
   type SkillParentContext,
   type SkillSourceRoot,
@@ -2607,6 +2608,10 @@ export class E02CapabilityCoordinator {
     const resolution = this.skills.registry.resolve(skillName);
     const identity = commandSkillIdentity(request);
     if (action === "update") {
+      const ownerAdmission = skillOwnerUpdateAdmission(
+        resolution.descriptor,
+        request,
+      );
       const expectedRevision = requiredCommandInteger(argumentsValue, "expected-revision");
       if (expectedRevision !== this.skills.registry.revision) {
         throw coordinatorError(
@@ -2674,11 +2679,13 @@ export class E02CapabilityCoordinator {
         },
         owner_result: canonicalize(ownerResult),
         reload_receipt: canonicalize(reloadReceipt ?? null),
+        owner_admission: ownerAdmission,
         caller_attestations: {
           dependency_digest: asString(argumentsValue["dependency-digest"]),
           supply_digest: asString(argumentsValue["supply-digest"]),
           approval_id: asString(argumentsValue["approval-id"]),
-          canonical_owner_verified: false,
+          authoritative: false,
+          purpose: "browser_projection_reconciliation_only",
         },
         python_mutation_fallback: false,
       };
@@ -4623,6 +4630,84 @@ function commandSkillIdentity(
     sessionRevision: request.identity.sessionRevision,
     workerRequestId: request.identity.workerRequestId,
     toolCallId: request.identity.commandCallId,
+  };
+}
+
+function skillOwnerUpdateAdmission(
+  descriptor: SkillDescriptor,
+  request: CommandInvocationRequest,
+): JsonObject {
+  const permission = asObject(request.metadata.canonical_permission);
+  const effect = asString(permission.effect);
+  const decisionId = asString(permission.decision_id);
+  const requestDigest = asString(permission.request_digest);
+  if (effect !== "allow" || !decisionId || !requestDigest) {
+    throw coordinatorError(
+      "skill_update_owner_approval_missing",
+      `skill ${descriptor.skillId} update lacks an exact canonical permission decision`,
+      {
+        skill_id: descriptor.skillId,
+        permission_effect: effect,
+        owner_effect_started: false,
+      },
+    );
+  }
+  if (descriptor.availability !== "available" || descriptor.disabledReason) {
+    throw coordinatorError(
+      "skill_update_owner_admission_denied",
+      `skill ${descriptor.skillId} is not available to the canonical owner`,
+      {
+        skill_id: descriptor.skillId,
+        availability: descriptor.availability,
+        disabled_reason: descriptor.disabledReason,
+        owner_effect_started: false,
+      },
+    );
+  }
+  const dependencyState = {
+    skill_id: descriptor.skillId,
+    registry_descriptor_digest: descriptor.descriptorDigest,
+    declared_dependencies: canonicalize(
+      asObject(descriptor.metadata).dependencies ?? [],
+    ),
+    resources: descriptor.resources
+      .map((resource) => ({
+        resource_id: resource.resourceId,
+        path: resource.path,
+        required: resource.required,
+        digest: resource.digest,
+      }))
+      .sort((left, right) => left.resource_id.localeCompare(right.resource_id)),
+  };
+  const supplyState = {
+    skill_id: descriptor.skillId,
+    source_digest: descriptor.source.contentDigest,
+    body_digest: descriptor.bodyDigest,
+    frontmatter_digest: descriptor.frontmatterDigest,
+    descriptor_digest: descriptor.descriptorDigest,
+    tool_scope_digest: digest(descriptor.toolScope),
+    hook_digests: descriptor.hooks
+      .map((hook) => digest(hook))
+      .sort(),
+    resource_digests: descriptor.resources
+      .map((resource) => resource.digest ?? digest({
+        resource_id: resource.resourceId,
+        path: resource.path,
+        required: resource.required,
+      }))
+      .sort(),
+  };
+  return {
+    protocol: "zyra.skill-update-owner-admission/v1",
+    canonical_owner: "typescript.SkillCoordinator",
+    canonical_owner_verified: true,
+    approval_owner: "typescript.PermissionCoordinator",
+    approval_decision_id: decisionId,
+    approval_request_digest: requestDigest,
+    dependency_digest: digest(dependencyState),
+    supply_digest: digest(supplyState),
+    registry_descriptor_digest: descriptor.descriptorDigest,
+    admitted: true,
   };
 }
 

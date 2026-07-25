@@ -549,6 +549,7 @@ function projectCandidate(
     !terminal &&
     !quarantined &&
     Boolean(ownerId) &&
+    Boolean(worker?.leaseId ?? firstIdentity(sources, "lease_id", "leaseId")) &&
     revision >= 0 &&
     scope.bounded
   const row = {

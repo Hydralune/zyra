@@ -487,6 +487,11 @@ class TypeScriptAgentDurablePort:
     @staticmethod
     def _projection(task: dict[str, Any]) -> TypeScriptTaskProjection:
         identity = dict(task.get("identity") or {})
+        physical_dispatch = (
+            copy.deepcopy(dict(task.get("physicalDispatch") or {}))
+            if isinstance(task.get("physicalDispatch"), Mapping)
+            else {}
+        )
         payload = {
             "task_id": str(identity.get("taskId") or ""),
             "parent_task_id": str(identity.get("parentTaskId") or ""),
@@ -495,12 +500,19 @@ class TypeScriptAgentDurablePort:
             "run_id": str(identity.get("runId") or ""),
             "lease_id": str(identity.get("leaseId") or ""),
             "attempt": int(identity.get("attempt") or 0),
+            "physical_dispatch": physical_dispatch,
+            "physical_lease_id": str(physical_dispatch.get("lease_id") or ""),
+            "physical_attempt_id": str(physical_dispatch.get("attempt_id") or ""),
+            "physical_binding_id": str(
+                physical_dispatch.get("integration_binding_id") or ""
+            ),
             "lineage": list(identity.get("lineage") or ()),
             "status": str(task.get("status") or ""),
             "revision": int(task.get("revision") or 0),
             "sequence": int(task.get("sequence") or 0),
             "messages": copy.deepcopy(list(task.get("messages") or ())),
             "deliveries": copy.deepcopy(list(task.get("deliveries") or ())),
+            "transitions": copy.deepcopy(list(task.get("transitions") or ())),
             "result": copy.deepcopy(task.get("result")),
             "error": str(task.get("error") or ""),
             "checksum": str(task.get("checksum") or ""),

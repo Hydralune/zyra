@@ -77,6 +77,11 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         task_id: { type: "string" },
         expected_revision: { type: "integer", minimum: 0 },
         idempotency_key: { type: "string" },
+        control_request_id: { type: "string" },
+        control_nonce: { type: "string" },
+        owner_idempotency_key: { type: "string" },
+        expected_attempt: { type: "integer", minimum: 1 },
+        expected_physical_lease_id: { type: "string" },
         message: { type: "string" },
         reason: { type: "string" },
         timeout_ms: { type: "integer", minimum: 1 },
@@ -397,13 +402,19 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
             reason: argumentsValue.reason,
             timeout_ms: argumentsValue.timeout_ms,
             prompt: argumentsValue.prompt,
+            control_nonce: argumentsValue.control_nonce,
+            owner_idempotency_key: argumentsValue.owner_idempotency_key,
+            expected_attempt: argumentsValue.expected_attempt,
+            expected_physical_lease_id:
+              argumentsValue.expected_physical_lease_id,
           };
     for (const key of Object.keys(body))
       if (body[key] === undefined || body[key] === "") delete body[key];
     const envelope = this.envelope(
       context.parentInput,
       command,
-      `${command}:${taskId || "list"}`,
+      asString(argumentsValue.control_request_id) ||
+        `${command}:${taskId || "list"}`,
       idempotencyKey,
       expectedRevision,
       body,

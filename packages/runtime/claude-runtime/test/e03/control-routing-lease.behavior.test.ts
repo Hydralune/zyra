@@ -4,6 +4,7 @@ import {
   digest,
   E03RuntimeError,
   response,
+  sealTask,
   type ControlCommand,
   type E03ControlEnvelope,
   type E03ControlResponse,
@@ -438,6 +439,97 @@ test("e03 agent control handler rejects unknown custody and stale revision", asy
       expected_revision: 0,
     }),
     (error) => assertRuntimeCode(error, "stale_revision"),
+  );
+});
+
+test("e03 operator control binding fences nonce, idempotency, attempt, and physical lease", async () => {
+  const clock = new TestClock("2026-07-18T19:45:00.000Z");
+  const durable = registry(clock).registry;
+  const execution = new AgentExecutionRuntime(
+    durable,
+    { runChild: async () => successfulRunResult() },
+    clock,
+  );
+  const handler = new AgentControlHandler(durable, execution);
+  const initial = task("handler-exact-control", {
+    runId: "run-routing-e03",
+    sessionId: "handler-exact-control-session",
+    parentTaskId: "parent-routing-e03",
+    parentSessionId: "session-routing-e03",
+  });
+  const created = await commitTask(
+    durable,
+    sealTask({
+      ...initial,
+      physicalDispatch: {
+        lease_id: "physical-lease-exact-control",
+        attempt_id: "attempt-exact-control",
+        integration_binding_id: "binding-exact-control",
+      },
+      checksum: "",
+    }),
+    "commit-handler-exact-control",
+  );
+  const bound: E03ControlEnvelope = {
+    ...envelope(
+      "unused-exact-control",
+      "agent.steer",
+      {
+        task_id: created.identity.taskId,
+        message: "Commit exactly once.",
+        control_nonce: "nonce-exact-control",
+        owner_idempotency_key: "owner-idempotency-exact-control",
+        expected_attempt: created.identity.attempt,
+        expected_physical_lease_id: "physical-lease-exact-control",
+      },
+    ),
+    request_id:
+      "subagent-control:handler-exact-control:nonce-exact-control",
+    idempotency_key: "owner-idempotency-exact-control",
+    expected_revision: created.revision,
+  };
+  handler.assertExactControlBinding(bound);
+  const committed = await handler.execute(bound);
+  assert.equal(committed.ok, true);
+  handler.assertExactControlBinding(bound);
+  const replay = await handler.execute(bound);
+  assert.equal(replay.replayed, true);
+
+  assert.throws(
+    () =>
+      handler.assertExactControlBinding({
+        ...bound,
+        idempotency_key: "owner-idempotency-rebound",
+        body: {
+          ...bound.body,
+          owner_idempotency_key: "owner-idempotency-rebound",
+        },
+      }),
+    (error) => assertRuntimeCode(error, "control_nonce_reuse"),
+  );
+  assert.throws(
+    () =>
+      handler.assertExactControlBinding({
+        ...bound,
+        request_id:
+          "subagent-control:handler-exact-control:nonce-rebound-control",
+        body: {
+          ...bound.body,
+          control_nonce: "nonce-rebound-control",
+        },
+      }),
+    (error) => assertRuntimeCode(error, "control_idempotency_rebound"),
+  );
+  assert.throws(
+    () =>
+      handler.assertExactControlBinding({
+        ...bound,
+        body: {
+          ...bound.body,
+          expected_physical_lease_id: "physical-lease-stale",
+        },
+      }),
+    (error) => assertRuntimeCode(error, "control_physical_lease_mismatch"),
   );
 });
 

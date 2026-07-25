@@ -73,6 +73,85 @@ export class AgentControlHandler {
     return this.registry.recoverLostAck(idempotencyKey);
   }
 
+  /**
+   * Fence an operator-originated control request to the exact durable logical
+   * task and canonical physical WorkerPool lease. Direct E03 callers retain
+   * the existing protocol; once any operator binding is supplied, the complete
+   * binding is mandatory and nonce/idempotency identities become one-to-one.
+   */
+  assertExactControlBinding(envelope: E03ControlEnvelope): void {
+    if (envelope.command !== "agent.kill" && envelope.command !== "agent.steer")
+      return;
+    const fields = [
+      envelope.body.control_nonce,
+      envelope.body.owner_idempotency_key,
+      envelope.body.expected_physical_lease_id,
+      envelope.body.expected_attempt,
+    ];
+    if (fields.every((value) => value === undefined || value === null)) return;
+    const taskId = text(envelope.body.task_id, "task_id");
+    const nonce = text(envelope.body.control_nonce, "control_nonce");
+    const ownerIdempotencyKey = text(
+      envelope.body.owner_idempotency_key,
+      "owner_idempotency_key",
+    );
+    const expectedPhysicalLeaseId = text(
+      envelope.body.expected_physical_lease_id,
+      "expected_physical_lease_id",
+    );
+    const expectedAttempt = integer(
+      envelope.body.expected_attempt,
+      "expected_attempt",
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    const task = this.requireAuthority(envelope, taskId);
+    const expectedRequestId = `subagent-control:${taskId}:${nonce}`;
+    if (envelope.request_id !== expectedRequestId)
+      throw new E03RuntimeError(
+        "control_nonce_request_mismatch",
+        "control nonce is not bound to the canonical request identity",
+      );
+    if (envelope.idempotency_key !== ownerIdempotencyKey)
+      throw new E03RuntimeError(
+        "control_owner_idempotency_mismatch",
+        "control envelope and owner idempotency identities differ",
+      );
+    if (task.identity.attempt !== expectedAttempt)
+      throw new E03RuntimeError(
+        "control_attempt_mismatch",
+        "control request targets a stale logical attempt",
+      );
+    const physical = task.physicalDispatch;
+    if (
+      !physical ||
+      typeof physical.lease_id !== "string" ||
+      physical.lease_id !== expectedPhysicalLeaseId
+    )
+      throw new E03RuntimeError(
+        "control_physical_lease_mismatch",
+        "control request targets a stale or missing physical lease",
+      );
+    for (const transition of task.transitions) {
+      if (
+        transition.requestId === expectedRequestId &&
+        transition.idempotencyKey !== ownerIdempotencyKey
+      )
+        throw new E03RuntimeError(
+          "control_nonce_reuse",
+          "control nonce was already committed with another idempotency key",
+        );
+      if (
+        transition.idempotencyKey === ownerIdempotencyKey &&
+        transition.requestId !== expectedRequestId
+      )
+        throw new E03RuntimeError(
+          "control_idempotency_rebound",
+          "control idempotency key was already committed with another nonce",
+        );
+    }
+  }
+
   async cancel(envelope: E03ControlEnvelope): Promise<E03ControlResponse> {
     const taskId = text(envelope.body.task_id, "task_id");
     const task = this.requireAuthority(envelope, taskId);

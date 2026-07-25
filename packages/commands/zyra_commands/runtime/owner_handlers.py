@@ -449,12 +449,13 @@ class CanonicalOwnerHandlerSet:
                     raise OwnerHandlerError(f"{token} must be an integer") from error
                 position += 2
                 continue
-            if token in {"--nonce", "--idempotency-key", "--owner", "--parent"}:
+            if token in {"--nonce", "--idempotency-key", "--lease", "--owner", "--parent"}:
                 if position + 1 >= len(argv):
                     raise OwnerHandlerError(f"{token} requires a value")
                 payload[{
                     "--nonce": "control_nonce",
                     "--idempotency-key": "owner_idempotency_key",
+                    "--lease": "expected_physical_lease_id",
                     "--owner": "expected_owner",
                     "--parent": "expected_parent_task_id",
                 }[token]] = argv[position + 1]
@@ -490,7 +491,7 @@ class CanonicalOwnerHandlerSet:
             if not separator or not key.strip():
                 raise OwnerHandlerError("subagent control binding receipt is malformed")
             values[key.strip()] = value.strip()
-        required = {"nonce", "idempotency", "revision", "attempt", "owner", "parent"}
+        required = {"nonce", "idempotency", "revision", "attempt", "lease", "owner", "parent"}
         if set(values) != required:
             raise OwnerHandlerError("subagent control binding receipt is incomplete")
         try:
@@ -505,6 +506,7 @@ class CanonicalOwnerHandlerSet:
             "owner_idempotency_key": values["idempotency"],
             "expected_revision": revision,
             "expected_attempt": attempt,
+            "expected_physical_lease_id": values["lease"],
             "expected_owner": values["owner"],
             "expected_parent_task_id": values["parent"],
         }

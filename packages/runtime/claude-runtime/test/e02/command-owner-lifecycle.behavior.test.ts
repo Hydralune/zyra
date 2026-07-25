@@ -303,6 +303,14 @@ test("slash skill update and invoke use SkillCoordinator revisions, hashes, and 
     assert.ok(after.revision > before.revision);
     assert.notEqual(after.descriptor.bodyDigest, before.descriptor.bodyDigest);
     assert.ok(String(update.receipt_id).startsWith("skill-reload-receipt-"));
+    const ownerAdmission = object(update.owner_admission);
+    assert.equal(ownerAdmission.canonical_owner_verified, true);
+    assert.equal(ownerAdmission.canonical_owner, "typescript.SkillCoordinator");
+    assert.equal(ownerAdmission.approval_owner, "typescript.PermissionCoordinator");
+    assert.ok(String(ownerAdmission.approval_decision_id));
+    assert.ok(String(ownerAdmission.dependency_digest));
+    assert.ok(String(ownerAdmission.supply_digest));
+    assert.equal(object(update.caller_attestations).authoritative, false);
 
     const invocationArguments = { focus: "owner-state", depth: 2 };
     const argumentsDigest = skillArgumentsDigest(invocationArguments);

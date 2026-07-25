@@ -366,7 +366,10 @@ describe("policy and request", () => {
       context,
       previous: built,
     })
-    expect(retried.arguments.response).toEqual(secret)
+    expect(retried.arguments.response).not.toEqual(secret)
+    expect(JSON.stringify(retried.arguments)).not.toContain(
+      "not-for-command-history",
+    )
     expect(retried.text).not.toContain("not-for-command-history")
   })
 })
@@ -851,6 +854,53 @@ describe("queue recovery, actions, history, and disable behavior", () => {
     coordinator.enable()
     expect((await coordinator.submit("/status")).phase).toBe("applied")
     expect(submits).toBe(1)
+    coordinator.close()
+  })
+
+  test("forgets transient structured arguments and requires a fresh secret for retry", async () => {
+    let submitted: CommandTransportRequest | undefined
+    const transport: CommandTransport = {
+      async submit(value) {
+        submitted = value
+        return rawReceipt(value, { status: "failed" })
+      },
+      async queue() {
+        return { entries: [] }
+      },
+      async cancel() {
+        return {}
+      },
+    }
+    const coordinator = new CommandCoordinator({
+      registry: createCommandRegistry(),
+      transport,
+      context: () => context,
+    })
+    const receipt = await coordinator.submit(
+      `/mcp elicit alpha --request prompt-01 --response '{"token":"[present]"}'`,
+      {
+        argumentOverrides: {
+          response: {
+            request_id: "prompt-01",
+            response: { token: "process-memory-secret" },
+          },
+        },
+      },
+    )
+    expect(submitted?.arguments.response).toEqual({
+      request_id: "prompt-01",
+      response: { token: "process-memory-secret" },
+    })
+    const operation = coordinator.records().find(
+      (entry) => entry.identity.commandId === receipt.commandId,
+    )
+    expect(operation).toBeDefined()
+    await expect(coordinator.retry(operation!.operationId)).rejects.toThrow(
+      "requires fresh transient arguments",
+    )
+    expect(JSON.stringify(coordinator.records())).not.toContain(
+      "process-memory-secret",
+    )
     coordinator.close()
   })
 

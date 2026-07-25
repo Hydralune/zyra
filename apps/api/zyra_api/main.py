@@ -2979,7 +2979,16 @@ def _task_is_sealed_browser_viewer_control(
     payload: Mapping[str, Any],
     control: Mapping[str, Any],
 ) -> bool:
+    return _task_is_sealed_control(state, payload, control)
+
+
+def _task_is_sealed_control(
+    state: Any,
+    payload: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
+) -> bool:
     metadata = state.metadata if isinstance(getattr(state, "metadata", None), dict) else {}
+    control = control or {}
     mode = str(
         control.get("competition_mode")
         or payload.get("competition_mode")
@@ -2994,6 +3003,21 @@ def _task_is_sealed_browser_viewer_control(
         or metadata.get("sealed_autonomous")
         or metadata.get("formal_benchmark")
         or "sealed" in mode
+    )
+
+
+def _task_control_competition_mode(
+    state: Any,
+    payload: Mapping[str, Any],
+) -> str:
+    if _task_is_sealed_control(state, payload):
+        return "sealed_autonomous"
+    metadata = state.metadata if isinstance(getattr(state, "metadata", None), dict) else {}
+    return str(
+        payload.get("competition_mode")
+        or metadata.get("competition_mode")
+        or metadata.get("execution_mode")
+        or "interactive"
     )
 
 
@@ -7478,6 +7502,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state, created_event = make_task_created_event(user_goal)
             session_id = str(payload.get("session_id") or f"task:{state.task_id}")
             state.metadata["query_session_id"] = session_id
+            requested_mode = str(
+                payload.get("competition_mode")
+                or payload.get("execution_mode")
+                or ""
+            ).strip()
+            requested_sealed = bool(
+                payload.get("sealed")
+                or payload.get("sealed_autonomous")
+                or payload.get("formal_benchmark")
+                or "sealed" in requested_mode.casefold()
+            )
+            if requested_sealed:
+                state.metadata["sealed"] = True
+                state.metadata["sealed_autonomous"] = True
+                state.metadata["competition_mode"] = "sealed_autonomous"
             try:
                 workspace_result = get_workspace_manager().create_for_task(
                     run_id=state.run_id,
@@ -8393,6 +8432,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
             text = str(payload.get("text") or "")
+            command_sealed = _task_is_sealed_control(state, payload)
+            command_competition_mode = _task_control_competition_mode(
+                state,
+                payload,
+            )
             e02_route = _e02_command_route(text)
             if e02_route is not None:
                 command_name, operation = e02_route
@@ -8401,10 +8445,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     command_arguments = {
                         "input": text,
                         "argument_overrides": dict(payload.get("arguments") or {}),
-                        "sealed": bool(payload.get("sealed", False)),
-                        "competition_mode": str(
-                            payload.get("competition_mode") or "interactive"
-                        ),
+                        "sealed": command_sealed,
+                        "competition_mode": command_competition_mode,
                     }
                     execution = get_mcp_runtime().execute(
                         "command",
@@ -8416,10 +8458,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             "permit_id": str(payload.get("permit_id") or ""),
                             "actor_id": str(payload.get("actor_id") or "api-user"),
                             "correlation_id": str(payload.get("correlation_id") or tool_call_id),
-                            "sealed": bool(payload.get("sealed", False)),
-                            "competition_mode": str(
-                                payload.get("competition_mode") or "interactive"
-                            ),
+                            "sealed": command_sealed,
+                            "competition_mode": command_competition_mode,
                         },
                     )
                 except TypeScriptE02PortError as error:
@@ -10615,8 +10655,8 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
             "actor_id": str(payload.get("actor_id") or "api-user"),
             "permission_authority": "retained non-E02 task-control allowlist",
             "e02_command_dispatch": "typescript-only",
-            "sealed": bool(payload.get("sealed", False)),
-            "competition_mode": str(payload.get("competition_mode") or "interactive"),
+            "sealed": _task_is_sealed_control(state, payload),
+            "competition_mode": _task_control_competition_mode(state, payload),
             "delivery_mode": delivery_mode,
             "retry_of_request_id": str(payload.get("retry_of_request_id") or ""),
         },
@@ -11130,43 +11170,107 @@ def _control_context_for_task(
             raise RuntimeError("mutating subagent control authorization is invalid")
         nonce = str(arguments.get("control_nonce") or "")
         owner_idempotency_key = str(arguments.get("owner_idempotency_key") or "")
+        expected_physical_lease_id = str(
+            arguments.get("expected_physical_lease_id") or ""
+        )
         expected_revision = arguments.get("expected_revision")
         expected_attempt = arguments.get("expected_attempt")
         expected_owner = str(arguments.get("expected_owner") or "")
         expected_parent = str(arguments.get("expected_parent_task_id") or "")
-        if not nonce or not owner_idempotency_key:
-            raise RuntimeError("subagent control nonce/idempotency binding is required")
+        if not nonce or not owner_idempotency_key or not expected_physical_lease_id:
+            raise RuntimeError(
+                "subagent control nonce/idempotency/physical lease binding is required"
+            )
+        control_request_id = f"subagent-control:{record.task_id}:{nonce}"
+        transitions = tuple(record.payload.get("transitions") or ())
+        same_request = tuple(
+            item
+            for item in transitions
+            if isinstance(item, Mapping)
+            and str(item.get("requestId") or "") == control_request_id
+        )
+        same_idempotency = tuple(
+            item
+            for item in transitions
+            if isinstance(item, Mapping)
+            and str(item.get("idempotencyKey") or "") == owner_idempotency_key
+        )
+        if any(
+            str(item.get("idempotencyKey") or "") != owner_idempotency_key
+            for item in same_request
+        ):
+            raise RuntimeError(
+                "subagent control nonce was already committed with another idempotency key"
+            )
+        if any(
+            str(item.get("requestId") or "") != control_request_id
+            for item in same_idempotency
+        ):
+            raise RuntimeError(
+                "subagent control idempotency key was already committed with another nonce"
+            )
+        exact_owner_replay = any(
+            str(item.get("idempotencyKey") or "") == owner_idempotency_key
+            for item in same_request
+        )
         if not isinstance(expected_revision, int) or expected_revision < 0:
             raise RuntimeError("subagent control expected revision is invalid")
-        if record.revision != expected_revision:
-            # The E03 owner may still accept an exact idempotent replay with a
-            # stale expected revision. New operations must be bound to the
-            # current revision, while replay identity remains owner-decided.
-            prior_messages = tuple(record.payload.get("messages") or ())
-            replay_candidate = (
-                action == "steer"
-                and any(
-                    isinstance(item, Mapping)
-                    and str(item.get("idempotencyKey") or "") == owner_idempotency_key
-                    for item in prior_messages
-                )
+        if record.revision != expected_revision and not exact_owner_replay:
+            raise RuntimeError(
+                f"subagent revision conflict: expected {expected_revision}, actual {record.revision}"
             )
-            terminal_replay = action == "kill" and record.status.value == "killed"
-            if not replay_candidate and not terminal_replay:
-                raise RuntimeError(
-                    f"subagent revision conflict: expected {expected_revision}, actual {record.revision}"
-                )
         if not isinstance(expected_attempt, int) or record.payload.get("attempt") != expected_attempt:
             raise RuntimeError("subagent attempt binding mismatch")
         if expected_owner != "typescript.E03AgentControlCoordinator":
             raise RuntimeError("subagent canonical owner binding mismatch")
         if expected_parent != state.task_id:
             raise RuntimeError("subagent parent binding mismatch")
+        physical_dispatch = (
+            dict(record.payload.get("physical_dispatch") or {})
+            if isinstance(record.payload.get("physical_dispatch"), Mapping)
+            else {}
+        )
+        if (
+            str(physical_dispatch.get("lease_id") or "")
+            != expected_physical_lease_id
+        ):
+            raise RuntimeError("subagent physical lease projection binding mismatch")
+        pool_api = get_worker_pool_api()
+        physical_lease = pool_api.pool.store.get_lease(expected_physical_lease_id)
+        physical_binding = pool_api.integration.repository.binding_for_lease(
+            expected_physical_lease_id
+        )
+        if physical_lease is None or physical_binding is None:
+            raise RuntimeError("subagent physical lease/binding no longer exists")
+        if (
+            physical_lease.task_id != record.task_id
+            or physical_lease.run_id != state.run_id
+            or physical_binding.task_id != record.task_id
+            or physical_binding.run_id != state.run_id
+            or physical_binding.lease_id != expected_physical_lease_id
+            or physical_binding.attempt_id != physical_lease.attempt_id
+            or physical_binding.attempt_id
+            != str(physical_dispatch.get("attempt_id") or "")
+            or physical_binding.binding_id
+            != str(physical_dispatch.get("integration_binding_id") or "")
+            or physical_binding.attempt_number != expected_attempt
+        ):
+            raise RuntimeError("subagent physical attempt/binding authority mismatch")
+        if (
+            (physical_lease.terminal or physical_binding.terminal)
+            and not exact_owner_replay
+        ):
+            raise RuntimeError("subagent physical lease/binding is already terminal")
         tool_name = "agent_kill" if action == "kill" else "agent_message"
         tool_arguments = {
             "task_id": record.task_id,
             "expected_revision": expected_revision,
             "idempotency_key": owner_idempotency_key,
+            "control_request_id": control_request_id,
+            "control_nonce": nonce,
+            "owner_idempotency_key": owner_idempotency_key,
+            "expected_attempt": expected_attempt,
+            "expected_physical_lease_id": expected_physical_lease_id,
             "_canonical_control_authorization": dict(authorization),
         }
         if action == "kill":
@@ -11179,7 +11283,7 @@ def _control_context_for_task(
             state,
             tool_name=tool_name,
             arguments=tool_arguments,
-            request_id=f"{request.request_id}:{nonce}",
+            request_id=control_request_id,
             session_id=(
                 f"{record.parent_session_id}:control:"
                 f"{request.request_id}:{nonce}"
@@ -11240,6 +11344,8 @@ def _control_context_for_task(
                 ),
                 task_id=record.task_id,
                 run_id=state.run_id,
+                lease_id=expected_physical_lease_id,
+                binding_id=physical_binding.binding_id,
             )
             physical_control = physical.to_dict()
             if physical.phase.value != "applied":
@@ -11270,6 +11376,9 @@ def _control_context_for_task(
                 "expected_revision": expected_revision,
                 "committed_revision": updated.revision,
                 "attempt": expected_attempt,
+                "physical_lease_id": expected_physical_lease_id,
+                "physical_attempt_id": physical_binding.attempt_id,
+                "physical_binding_id": physical_binding.binding_id,
                 "parent_task_id": expected_parent,
                 "task_id": record.task_id,
                 "action": action,
@@ -11472,6 +11581,7 @@ def _control_context_for_task(
             and bool(str(arguments.get("task_id") or ""))
             and bool(str(arguments.get("control_nonce") or ""))
             and bool(str(arguments.get("owner_idempotency_key") or ""))
+            and bool(str(arguments.get("expected_physical_lease_id") or ""))
             and isinstance(arguments.get("expected_revision"), int)
             and isinstance(arguments.get("expected_attempt"), int)
             and str(arguments.get("expected_owner") or "")
@@ -11503,6 +11613,9 @@ def _control_context_for_task(
                     arguments.get("owner_idempotency_key") or ""
                 ),
                 "expected_revision": arguments.get("expected_revision"),
+                "expected_physical_lease_id": str(
+                    arguments.get("expected_physical_lease_id") or ""
+                ),
             },
             granted=granted,
             reason=(

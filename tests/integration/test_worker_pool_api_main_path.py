@@ -387,6 +387,9 @@ def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_reada
         assert record["canonical_logical_owner"] == (
             "typescript.E03AgentControlCoordinator"
         )
+        assert record["physical_lease_id"]
+        assert record["physical_attempt_id"]
+        assert record["physical_binding_id"]
 
         tasks_status, tasks_view = _post_with_status(
             base_url,
@@ -425,16 +428,24 @@ def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_reada
             instruction="This instruction must never reach the child.",
             reason="sealed direct slash attempt",
         )
+        sealed_parent = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Canonical sealed parent rejects manual agent mutation.",
+                "auto_run": False,
+                "sealed": True,
+                "competition_mode": "sealed_autonomous",
+            },
+        )["task"]
         sealed_status, sealed = _post_with_status(
             base_url,
-            f"/tasks/{task_id}/commands",
+            f"/tasks/{sealed_parent['task_id']}/commands",
             {
                 "text": sealed_command,
                 "request_id": "sealed-agents-request",
                 "command_id": "sealed-agents-command",
                 "idempotency_key": "sealed-agents-transport-idempotency",
-                "sealed": True,
-                "competition_mode": "sealed_autonomous",
             },
             headers=command_headers,
         )
@@ -480,6 +491,9 @@ def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_reada
         assert steer_receipt["idempotency_key"] == steer_owner_idempotency
         assert steer_receipt["owner"] == "SubagentTaskStore"
         assert steer_receipt["expected_revision"] == record["revision"]
+        assert steer_receipt["physical_lease_id"] == record["physical_lease_id"]
+        assert steer_receipt["physical_attempt_id"] == record["physical_attempt_id"]
+        assert steer_receipt["physical_binding_id"] == record["physical_binding_id"]
         assert steer_receipt["committed_revision"] > record["revision"]
         assert steer_data["replayed"] is False
         assert any(
@@ -513,6 +527,75 @@ def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_reada
             ]
         ) == 1
 
+        nonce_rebound_status, nonce_rebound = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": _subagent_command(
+                    "steer",
+                    record,
+                    nonce=steer_nonce,
+                    owner_idempotency_key="different-owner-idempotency",
+                    instruction="This nonce rebound must not commit.",
+                    reason="adversarial nonce rebound",
+                ),
+                "request_id": "agents-steer-nonce-rebound-request",
+                "command_id": "agents-steer-nonce-rebound-command",
+                "idempotency_key": "agents-steer-nonce-rebound-transport",
+            },
+            headers=command_headers,
+        )
+        assert nonce_rebound_status == 409
+        assert "nonce" in str(nonce_rebound["command_result"]["error"]).lower()
+
+        idempotency_rebound_status, idempotency_rebound = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": _subagent_command(
+                    "steer",
+                    record,
+                    nonce="different-steer-nonce",
+                    owner_idempotency_key=steer_owner_idempotency,
+                    instruction="This idempotency rebound must not commit.",
+                    reason="adversarial idempotency rebound",
+                ),
+                "request_id": "agents-steer-idempotency-rebound-request",
+                "command_id": "agents-steer-idempotency-rebound-command",
+                "idempotency_key": "agents-steer-idempotency-rebound-transport",
+            },
+            headers=command_headers,
+        )
+        assert idempotency_rebound_status == 409
+        assert "idempotency" in str(
+            idempotency_rebound["command_result"]["error"]
+        ).lower()
+
+        stale_lease_record = {
+            **replay_data["task"],
+            "physical_lease_id": "lease-stale-control",
+        }
+        stale_lease_status, stale_lease = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/commands",
+            {
+                "text": _subagent_command(
+                    "steer",
+                    stale_lease_record,
+                    nonce="stale-lease-nonce",
+                    owner_idempotency_key="stale-lease-idempotency",
+                    instruction="This stale lease must not commit.",
+                    reason="adversarial stale physical lease",
+                ),
+                "request_id": "agents-steer-stale-lease-request",
+                "command_id": "agents-steer-stale-lease-command",
+                "idempotency_key": "agents-steer-stale-lease-transport",
+            },
+            headers=command_headers,
+        )
+        assert stale_lease_status == 409
+        assert "lease" in str(stale_lease["command_result"]["error"]).lower()
+
         kill_record = replay_data["task"]
         kill_nonce = "interactive-kill-nonce"
         kill_owner_idempotency = "interactive-kill-owner-idempotency"
@@ -539,6 +622,8 @@ def test_subagent_slash_controls_mutate_e03_owner_and_tasks_remains_sealed_reada
         assert kill_data["receipt"]["nonce"] == kill_nonce
         assert kill_data["receipt"]["idempotency_key"] == kill_owner_idempotency
         assert kill_data["receipt"]["owner"] == "SubagentTaskStore"
+        assert kill_data["receipt"]["physical_lease_id"] == record["physical_lease_id"]
+        assert kill_data["receipt"]["physical_binding_id"] == record["physical_binding_id"]
         assert kill_data["physical_worker_control"]["phase"] == "applied"
         assert kill_data["physical_worker_control"]["effect"][
             "old_fence_blocks_late_commit"
@@ -633,6 +718,7 @@ def _subagent_command(
             f"idempotency={owner_idempotency_key}",
             f"revision={record['revision']}",
             f"attempt={record['attempt']}",
+            f"lease={record['physical_lease_id']}",
             "owner=typescript.E03AgentControlCoordinator",
             f"parent={record['parent_task_id']}",
         )

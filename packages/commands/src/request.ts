@@ -143,18 +143,9 @@ export function retryCommandRequest(input: {
   mode?: CommandDeliveryMode
   signal?: AbortSignal
 }): CommandTransportRequest {
-  const argumentOverrides = Object.fromEntries(
-    (input.parsed.descriptor?.arguments ?? [])
-      .filter((argument) =>
-        Object.prototype.hasOwnProperty.call(
-          input.previous.arguments,
-          argument.name,
-        ))
-      .map((argument) => [
-        argument.name,
-        input.previous.arguments[argument.name],
-      ]),
-  )
+  // Structured overrides may contain elicitation answers or other transient
+  // secrets. A retry must be rebuilt from the redacted command text and may
+  // never recover those values from a retained transport request.
   return buildCommandRequest({
     parsed: input.parsed,
     context: input.context,
@@ -162,7 +153,6 @@ export function retryCommandRequest(input: {
     retryOf: input.previous.requestId,
     signal: input.signal,
     timeoutMs: input.previous.timeoutMs,
-    argumentOverrides,
   })
 }
 

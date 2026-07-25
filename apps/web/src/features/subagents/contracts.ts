@@ -288,6 +288,7 @@ export interface SubagentControlBinding {
   parentId: string
   childId: string
   attempt: number
+  leaseId: string
   ownerId?: string
   expectedRevision: number
 }

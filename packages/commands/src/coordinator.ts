@@ -64,6 +64,25 @@ function message(error: unknown): string {
     : String(error || "Command operation failed.")
 }
 
+const TRANSIENT_ARGUMENT_REDACTION = "[REDACTED_TRANSIENT_ARGUMENT]"
+
+function retainedRequest(
+  request: CommandTransportRequest,
+  transientNames: readonly string[],
+): CommandTransportRequest {
+  if (!transientNames.length) return request
+  const argumentsValue = { ...request.arguments }
+  for (const name of transientNames) {
+    if (Object.prototype.hasOwnProperty.call(argumentsValue, name)) {
+      argumentsValue[name] = TRANSIENT_ARGUMENT_REDACTION
+    }
+  }
+  return Object.freeze({
+    ...request,
+    arguments: Object.freeze(argumentsValue),
+  })
+}
+
 export class CommandCoordinator {
   readonly #registry: CommandRegistry
   readonly #transport: CommandTransport
@@ -72,6 +91,7 @@ export class CommandCoordinator {
   readonly #listeners = new Set<() => void>()
   readonly #records = new Map<string, CommandCoordinatorRecord>()
   readonly #requests = new Map<string, CommandTransportRequest>()
+  readonly #transientOperations = new Set<string>()
   readonly #inflight = new Map<string, Promise<CommandReceipt>>()
   readonly #controllers = new Map<string, AbortController>()
   readonly #receipts = new Map<string, CommandReceipt>()
@@ -175,7 +195,12 @@ export class CommandCoordinator {
       retryOf: options.retryOf,
     }
     this.#records.set(record.operationId, record)
-    this.#requests.set(record.operationId, request)
+    const transientNames = Object.keys(options.argumentOverrides ?? {})
+    this.#requests.set(
+      record.operationId,
+      retainedRequest(request, transientNames),
+    )
+    if (transientNames.length) this.#transientOperations.add(record.operationId)
     this.#controllers.set(record.operationId, controller)
     this.#publish(record)
     const promise = this.#dispatch(record, request)
@@ -201,6 +226,11 @@ export class CommandCoordinator {
     const previousRequest = this.#requests.get(operationIdValue)
     if (!previous || !previousRequest || !previous.receipt) {
       throw new TypeError("Command retry requires a settled operation.")
+    }
+    if (this.#transientOperations.has(operationIdValue)) {
+      throw new TypeError(
+        "Command retry requires fresh transient arguments and cannot reuse a retained secret.",
+      )
     }
     if (!commandReceiptRetryable(previous.receipt)) {
       throw new TypeError("Command receipt is not retryable.")
@@ -490,6 +520,8 @@ export class CommandCoordinator {
     }
     this.#controllers.clear()
     this.#inflight.clear()
+    this.#requests.clear()
+    this.#transientOperations.clear()
     this.#listeners.clear()
     this.#queue?.close()
     this.#queue = undefined

@@ -455,6 +455,7 @@ export class SubagentControlRuntime {
       row.sessionId !== operation.binding.sessionId ||
       row.parentId !== operation.binding.parentId ||
       row.attempt !== operation.binding.attempt ||
+      row.leaseId !== operation.binding.leaseId ||
       row.ownerId !== operation.binding.ownerId
     ) {
       this.#settle(operation.id, {
@@ -636,6 +637,9 @@ function bindControl(
   if (input.parentId && input.parentId !== row.parentId) {
     throw new Error("Subagent parent identity changed.")
   }
+  if (!row.leaseId) {
+    throw new Error("Subagent physical lease identity is absent.")
+  }
   return Object.freeze({
     taskId: row.taskId,
     runId: row.runId,
@@ -643,6 +647,7 @@ function bindControl(
     parentId: row.parentId,
     childId: row.id,
     attempt: row.attempt,
+    leaseId: row.leaseId,
     ownerId: row.ownerId,
     expectedRevision: row.revision,
   })
@@ -794,6 +799,7 @@ function buildControlCommand(
     `idempotency=${operation.idempotencyKey}`,
     `revision=${operation.binding.expectedRevision}`,
     `attempt=${operation.binding.attempt}`,
+    `lease=${operation.binding.leaseId}`,
     `owner=${operation.binding.ownerId ?? ""}`,
     `parent=${operation.binding.parentId}`,
   ].join(";")

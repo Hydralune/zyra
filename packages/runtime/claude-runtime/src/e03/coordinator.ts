@@ -128,6 +128,8 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
     }
     this.assertEnvelopeAuthority(envelope);
     await this.restore();
+    if (envelope.command === "agent.kill" || envelope.command === "agent.steer")
+      this.controls.assertExactControlBinding(envelope);
     const recovered = this.router.recoverLostAck(envelope);
     if (recovered) {
       const replay = { ...recovered, restored: true };

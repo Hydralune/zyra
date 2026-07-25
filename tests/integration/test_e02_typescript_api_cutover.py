@@ -79,6 +79,17 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
             api = _fresh_api()
             state = api.create_task_state(user_goal="Exercise the E02 TypeScript command route.")
             api.get_store().save_checkpoint(state)
+            sealed_state = api.create_task_state(
+                user_goal="Reject canonical sealed E02 mutations."
+            )
+            sealed_state.metadata.update(
+                {
+                    "sealed": True,
+                    "sealed_autonomous": True,
+                    "competition_mode": "sealed_autonomous",
+                }
+            )
+            api.get_store().save_checkpoint(sealed_state)
             session_id = "e02-cutover-session"
             custody = api.get_permission_api_facade(
                 task_id=state.task_id,
@@ -124,12 +135,10 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
 
                 sealed_status, sealed, _ = _post(
                     base_url,
-                    f"/tasks/{state.task_id}/commands",
+                    f"/tasks/{sealed_state.task_id}/commands",
                     {
                         "text": "/mcp disable unavailable-server",
                         "actor_id": "cutover-test",
-                        "sealed": True,
-                        "competition_mode": "sealed_autonomous",
                     },
                 )
                 self.assertEqual(sealed_status, 409, sealed)

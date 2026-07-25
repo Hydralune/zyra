@@ -93,20 +93,34 @@ export class CommandDispatchRuntime {
         return cloneJson(result);
       }
       const authorizedArguments = authorizedCommandArguments(decision, argumentsValue);
+      const authorizedRequest: CommandInvocationRequest = {
+        ...request,
+        metadata: {
+          ...request.metadata,
+          canonical_permission: {
+            effect: decision.effect,
+            decision_id: decision.decisionId,
+            request_digest: decision.requestDigest,
+            reason_code: decision.reasonCode,
+            continuation_id: decision.continuationId,
+            permission_metadata_digest: digest(decision.metadata),
+          },
+        },
+      };
       let output: JsonValue;
       if (descriptor.handler.kind === "local") {
-        const local = await this.local.execute(descriptor, request, authorizedArguments, signal);
+        const local = await this.local.execute(descriptor, authorizedRequest, authorizedArguments, signal);
         output = local.output;
       } else if (descriptor.handler.kind === "skill") {
-        output = await this.dispatchers.skill(descriptor, request, authorizedArguments, signal);
+        output = await this.dispatchers.skill(descriptor, authorizedRequest, authorizedArguments, signal);
       } else if (descriptor.handler.kind === "mcp_prompt") {
-        output = await this.dispatchers.mcpPrompt(descriptor, request, authorizedArguments, signal);
+        output = await this.dispatchers.mcpPrompt(descriptor, authorizedRequest, authorizedArguments, signal);
       } else if (descriptor.handler.kind === "plugin") {
-        output = await this.dispatchers.plugin(descriptor, request, authorizedArguments, signal);
+        output = await this.dispatchers.plugin(descriptor, authorizedRequest, authorizedArguments, signal);
       } else if (descriptor.handler.kind === "control") {
-        output = await this.dispatchers.control(descriptor, request, authorizedArguments, signal);
+        output = await this.dispatchers.control(descriptor, authorizedRequest, authorizedArguments, signal);
       } else {
-        output = await this.dispatchers.builtin(descriptor, request, authorizedArguments, signal);
+        output = await this.dispatchers.builtin(descriptor, authorizedRequest, authorizedArguments, signal);
       }
       const result: CommandInvocationResult = {
         invocationId,
