@@ -1,0 +1,53 @@
+{
+  "schema": "zyra.m2-source-role-audit-summary/v1",
+  "slice_id": "M2-S05-01",
+  "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+  "valid": true,
+  "row_count": 13,
+  "role_counts": {
+    "conformance_only": 3,
+    "excluded_forward_only": 1,
+    "existing_owner_integration": 1,
+    "reference_only": 1,
+    "role_aware_audit_only": 6,
+    "zyra_owned_primary": 1
+  },
+  "status_counts": {
+    "active": 2,
+    "inactive": 11
+  },
+  "capability_status": {
+    "agent-framework:workflow_checkpoint_agui_approval_history": "inactive",
+    "agentscope:worker_lifecycle_inbox_wakeup": "inactive",
+    "browser-use:browser_close_restore_watchdog": "inactive",
+    "claude-code-best:backend_command_session_permission": "inactive",
+    "claude-code-best:cli_tui_repl_prompt_queue_local_jsx_dialog_ink": "inactive",
+    "langgraph:narrow_exact_resume_contract": "inactive",
+    "oh-my-pi:agentloop_tasktool_pal_mnemopi": "inactive",
+    "oh-my-pi:provider_rpc_acp_hashline_roboomp": "inactive",
+    "oh-my-pi:tui_native_snapcompact": "inactive",
+    "openclaw:all_forward_roles": "inactive",
+    "opencode:split_protocol_app_tui_web_desktop": "inactive",
+    "zyra:m1_canonical_runtime_owners": "active",
+    "zyra:scenario_runner_evidence_owner": "active"
+  },
+  "findings": [],
+  "openclaw": "excluded_forward_only",
+  "ledger": {
+    "entry_count": 11,
+    "missing_target_count": 0,
+    "openclaw_entry_count": 0,
+    "production_sources": [
+      "zyra"
+    ],
+    "nonproduction_sources": [
+      "opencode",
+      "claude-code-best",
+      "oh-my-pi",
+      "agent-framework",
+      "agentscope",
+      "langgraph",
+      "browser-use"
+    ]
+  }
+}

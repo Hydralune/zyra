@@ -193334,27 +193334,2051 @@
         }
       ],
       "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "sealed_scenario_runner_and_evidence_owner",
+      "capability_summary": "Durable scenario registry, clean admission, sealed policy, effective step classification, owner execution, evidence verification, API/CLI lifecycle and browser-independent console projection.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_a039ef9751f140afb463",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "zyra",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "ScenarioRunnerService -> canonical owner execution port -> evidence collector"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "new_owned_runtime/same_language_component_integration",
+        "owner_unit": "M2-S05-01",
+        "rationale": "The slice assigns a new Zyra-owned evaluation state domain and composes existing Zyra task, event, scheduler, memory, permission, recovery and artifact owners without importing another scenario runtime.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "source_language": "python/typescript/tsx",
+        "source_role": "primary_implementation",
+        "target_language": "python/typescript/tsx"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=92537deca86376e147feb6c85248b0d3ff2298a6; migration_mode=new_owned_runtime/same_language_component_integration; The slice assigns a new Zyra-owned evaluation state domain and composes existing Zyra task, event, scheduler, memory, permission, recovery and artifact owners without importing another scenario runtime.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "Replace behind ScenarioRunnerService and ScenarioApi while retaining the durable run/event/artifact schemas.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "python scripts/run_first_stage_scenarios.py registry",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/runtime.py",
+          "packages/evaluation/zyra_evaluation/scenario_runner/store.py",
+          "packages/evaluation/zyra_evaluation/scenario_runner/effective_steps.py",
+          "packages/evaluation/zyra_evaluation/scenario_runner/causal.py",
+          "packages/evaluation/zyra_evaluation/scenario_runner/evidence.py",
+          "packages/evaluation/zyra_evaluation/scenario_runner/metrics.py",
+          "apps/api/zyra_api/scenario_api.py",
+          "apps/web/src/features/scenarios/runtime.ts",
+          "apps/web/src/features/scenarios/view/scenario-workbench.tsx",
+          "scripts/run_first_stage_scenarios.py"
+        ],
+        "environment_refs": [],
+        "function": "ScenarioRunnerService",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.runtime",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "apps/api/zyra_api/main.py;packages/evaluation/zyra_evaluation/trace.py;packages/orchestration;packages/memory;packages/scheduler;packages/runtime;apps/web/src/state",
+          "source_repo": "zyra",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "apps/api/zyra_api/main.py;packages/evaluation/zyra_evaluation/trace.py;packages/orchestration;packages/memory;packages/scheduler;packages/runtime;apps/web/src/state",
+      "source_repo": "zyra",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/store.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/effective_steps.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/causal.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/evidence.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/metrics.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/scenario_api.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/view/scenario-workbench.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "scripts/run_first_stage_scenarios.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "split_protocol_app_tui_web_desktop_audit",
+      "capability_summary": "Session/event, permission/question, terminal/review/diff and split protocol/app/TUI/web/desktop categories audited without a second owner.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_358952b157133b1ded59",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Role-aware audit only; no OpenCode runtime or console code is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript/tsx",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Role-aware audit only; no OpenCode runtime or console code is migrated.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "packages/opencode/src/session;packages/app/src/pages/session.tsx;packages/app/src/components;packages/console/app",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/opencode/src/session;packages/app/src/pages/session.tsx;packages/app/src/components;packages/console/app",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "backend_runtime_command_session_permission_audit",
+      "capability_summary": "Backend runtime, command, session and permission categories.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_b5828a312145ff6a09e6",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Existing M1 Zyra/Claude-derived owners remain unchanged; audit only.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Existing M1 Zyra/Claude-derived owners remain unchanged; audit only.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "src/query;src/services;src/tools;src/services/permission",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "src/query;src/services;src/tools;src/services/permission",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "cli_tui_repl_prompt_queue_local_jsx_dialog_ink_audit",
+      "capability_summary": "CLI/TUI/REPL, prompt queue, local JSX, dialog and Ink categories.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_105e9249d0bfea23bbd5",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Interaction categories are audited separately from backend roles.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript/tsx",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Interaction categories are audited separately from backend roles.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "src/screens;src/components;src/commands;src/utils/ink",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "src/screens;src/components;src/commands;src/utils/ink",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "agentloop_tasktool_pal_mnemopi_audit",
+      "capability_summary": "AgentLoop, TaskTool/PAL and Mnemopi category audit.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_9c2daf1f2a039793e1cd",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "No OMP agent, task or memory owner is selected.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; No OMP agent, task or memory owner is selected.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/agent;packages/coding-agent/src/task;packages/mnemopi",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/agent;packages/coding-agent/src/task;packages/mnemopi",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "provider_rpc_acp_hashline_roboomp_audit",
+      "capability_summary": "Provider, RPC/ACP, Hashline and RoboOmp category audit.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_8a5281cf58a2e4177792",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "No OMP provider wire, RPC server, edit owner or subprocess is selected.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; No OMP provider wire, RPC server, edit owner or subprocess is selected.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "packages/ai;packages/coding-agent/src/modes;packages/coding-agent/src/tools",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/ai;packages/coding-agent/src/modes;packages/coding-agent/src/tools",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "tui_native_snapcompact_audit",
+      "capability_summary": "TUI, native and Snapcompact category audit.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_08537b96c5ea6e5d4e54",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "No OMP TUI, native binary or compact owner is selected.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript/native",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; No OMP TUI, native binary or compact owner is selected.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "packages/tui;packages/native;packages/coding-agent/src/compact",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/tui;packages/native;packages/coding-agent/src/compact",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "workflow_checkpoint_approval_history_conformance",
+      "capability_summary": "Workflow/checkpoint and approval/history negative conformance.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_f919d193d359eac969d9",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "conformance_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Conformance only; no workflow, store or approval owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python/csharp",
+        "source_role": "conformance_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=source-graph-frozen; migration_mode=conformance_only; Conformance only; no workflow, store or approval owner is migrated.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "conformance_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "worker_lifecycle_restart_conformance",
+      "capability_summary": "Worker lifecycle, restart, inbox and wakeup conformance.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_3837f3f468451a4f7d0b",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agentscope",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "conformance_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Conformance only; no AgentScope runtime owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=source-graph-frozen; migration_mode=conformance_only; Conformance only; no AgentScope runtime owner is migrated.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "conformance_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "worker lifecycle/inbox/wakeup contracts",
+          "source_repo": "agentscope",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "worker lifecycle/inbox/wakeup contracts",
+      "source_repo": "agentscope",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "narrow_exact_resume_conformance",
+      "capability_summary": "Narrow exact-resume and checkpoint identity conformance.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_cc8dd952f894753f2f22",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "conformance_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "No StateGraph, Pregel, channel, store or SDK production owner is selected.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=source-graph-frozen; migration_mode=conformance_only; No StateGraph, Pregel, channel, store or SDK production owner is selected.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "conformance_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "checkpoint identity/pending committed writes/exact resume contracts",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "checkpoint identity/pending committed writes/exact resume contracts",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_close_restore_watchdog_reference",
+      "capability_summary": "Browser-close independence, restore and watchdog reference.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S05-02",
+        "M2-05",
+        "M2"
+      ],
+      "ledger_id": "ile_17dcb48bb379e1c42622",
+      "license_notice": {
+        "license_hint": "M2 scenario/evidence source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/scenarios/registry",
+          "/scenarios/runs"
+        ],
+        "artifact_kinds": [
+          "scenario_evidence_manifest",
+          "owner_artifact"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "cancel",
+          "archive",
+          "verify"
+        ],
+        "event_types": [
+          "scenario lifecycle",
+          "effective canonical transition",
+          "sealed policy receipt",
+          "causal evidence receipt"
+        ],
+        "surfaces": [
+          "scenario_api",
+          "scenario_cli",
+          "scenario_workbench"
+        ],
+        "ui_panels": [
+          "scenarios"
+        ],
+        "worker_runtime": "reference_only; audit or conformance only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+        "canonical_evidence_owner": "python.EvidenceCollector",
+        "canonical_frontend_projection": "typescript.ScenarioProjectionStore",
+        "canonical_scenario_owner": "python.ScenarioRunnerService",
+        "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+        "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S05-01",
+        "rationale": "Reference only; no browser-use runtime or process is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python/typescript",
+        "source_role": "reference_only",
+        "target_language": "none"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Reference only; no browser-use runtime or process is migrated.",
+      "owner_unit": "M2-S05-01",
+      "replacement_plan": "reference_only; no production runtime, store or UI owner is selected.",
+      "risk_notes": [
+        "ScenarioRunnerService is the only scenario/evidence state owner.",
+        "Existing task, event, scheduler, memory, permission, recovery and artifact custody is unchanged.",
+        "A browser close detaches the viewer and never cancels backend work.",
+        "Formal sealed policy has no ask/wait/manual mutation success path.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only and has no new ledger entry."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py",
+          "apps/web/src/features/scenarios/source-audit.ts",
+          "tests/scenarios/test_scenario_runner_foundation.py",
+          "tests/integration/test_scenario_runner_api_main_path.py",
+          "apps/web/test/scenario-runner-workbench.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "SourceRoleAuditor",
+        "health_check": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+        "module": "zyra_evaluation.scenario_runner.source_audit",
+        "protocol": "zyra.scenario-runner.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-01 source-role decision",
+          "source_kind": "file",
+          "source_path": "watchdog/browser-close/restore source graph facts",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "watchdog/browser-close/restore source graph facts",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-05",
+        "m2-s05-01",
+        "scenario-evidence",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/scenario_runner/source_audit.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/scenarios/source-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/scenarios/test_scenario_runner_foundation.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_scenario_runner_api_main_path.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scenario-runner-workbench.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/scenarios/test_scenario_runner_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_scenario_runner_api_main_path.py -q",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "tests/integration/test_scenario_runner_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+          "expected_signal": "clean sealed admission, effective-step causation, durable lifecycle, evidence checksum/binding, restart, close and disable behavior",
+          "kind": "integration",
+          "path": "apps/web/test/scenario-runner-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 505,
+    "active_or_internalized": 506,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 71,
+      "candidate": 81,
       "deferred": 8,
       "planned": 698,
-      "productized": 450
+      "productized": 451
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 71,
+      "inventoried": 81,
       "planned": 503,
-      "tested_main_path": 211,
+      "tested_main_path": 212,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -193419,38 +195443,39 @@
       "M2-S04A-01": 5,
       "M2-S04A-02": 6,
       "M2-S04B-01": 5,
-      "M2-S04B-02": 7
+      "M2-S04B-02": 7,
+      "M2-S05-01": 11
     },
     "by_source_repo": {
       "OpenHands": 101,
-      "agent-framework": 98,
-      "agentscope": 109,
-      "browser-use": 116,
-      "claude-code-best": 516,
+      "agent-framework": 99,
+      "agentscope": 110,
+      "browser-use": 117,
+      "claude-code-best": 518,
       "hermes-agent": 93,
-      "langgraph": 90,
-      "oh-my-pi": 35,
+      "langgraph": 91,
+      "oh-my-pi": 38,
       "openclaw": 86,
-      "opencode": 35,
-      "zyra": 3
+      "opencode": 36,
+      "zyra": 4
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 21,
-      "direct_port": 68,
-      "not_selected": 49,
+      "direct_port": 69,
+      "not_selected": 59,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 769,
+    "planned_or_candidate": 779,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
       "apps/web": 113,
       "packages/commands": 5,
       "packages/core": 4,
-      "packages/evaluation": 34,
+      "packages/evaluation": 45,
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
@@ -193463,6 +195488,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1282
+    "total_entries": 1293
   }
 }

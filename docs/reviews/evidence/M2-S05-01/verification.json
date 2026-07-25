@@ -1,0 +1,106 @@
+{
+  "schema": "zyra.slice-verification/v1",
+  "slice_id": "M2-S05-01",
+  "parent_unit": "M2-05",
+  "baseline_commit": "92537deca86376e147feb6c85248b0d3ff2298a6",
+  "decision_commit": "ba96726e7b6570f1df948d43972c17505f817750",
+  "implementation_commits": [
+    "aa67451d56a8b3a6d94d293d646fe08c65d062bf",
+    "e1de9bfef16fc6edc022f47781f5bba21b31d11a",
+    "198087a83102e0457e201114d14549373bea9924"
+  ],
+  "implementation_commit": "198087a83102e0457e201114d14549373bea9924",
+  "status": "pass",
+  "effective_lines": {
+    "raw_additions": 10750,
+    "production_runtime": 6452,
+    "ui_behavior": 99,
+    "ui_presentation": 231,
+    "type_declaration": 556,
+    "schema_dto_data": 882,
+    "adapter_only": 610,
+    "test_mock_fixture": 1262,
+    "docs_comments_blank": 658,
+    "vendor_like_source_pool": 0,
+    "effective_production": 6551,
+    "minimum": 6500,
+    "ok": true
+  },
+  "focused_tests": [
+    {
+      "scope": "scenario-python-foundation-and-real-api-cli-main-path",
+      "command": "python -m pytest tests/scenarios/test_scenario_runner_foundation.py tests/integration/test_scenario_runner_api_main_path.py -q",
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "scope": "scenario-workbench-and-typed-scenario-api",
+      "command": "bun test ./apps/web/test/scenario-runner-workbench.test.ts",
+      "passed": 9,
+      "failed": 0,
+      "assertions": 49
+    },
+    {
+      "scope": "typed-client-permission-workbench-adjacent",
+      "command": "bun test typed-api-client tests plus scenario, permission sealed and workbench shell",
+      "passed": 76,
+      "failed": 0,
+      "assertions": 314
+    }
+  ],
+  "adjacent_python_run": {
+    "passed": 44,
+    "failed": 1,
+    "failure": "tests/scenarios/test_m2_demo_scenarios.py imports the already-removed Python parse_slash_command symbol",
+    "classification": "protected legacy review harness drift; M2-S05-01 does not import or execute m2_scenarios.py and the same historical seed shape is unchanged"
+  },
+  "ledger_validation": {
+    "sync_aligned": true,
+    "entry_count": 11,
+    "missing_target_count": 0,
+    "source_role_audit_rows": 13,
+    "source_role_findings": 0,
+    "unit_tests_passed": 25,
+    "unit_tests_failed": 2,
+    "unit_test_residual": "Both failures query pre-existing M1-02B vendored/audit behavior; the 44 protected historical entries are byte-semantically unchanged by this slice."
+  },
+  "build_validation": {
+    "python_compile_import": "passed",
+    "typed_web_typecheck": "passed",
+    "web_production_build": "passed",
+    "web_bundle_modules": 362,
+    "git_diff_check": "passed"
+  },
+  "dependency_audit": {
+    "root_source_runtime_dependency_matches": 0,
+    "legacy_m2_scenario_runtime_import_matches": 0,
+    "new_dependencies": 0,
+    "new_processes": 0,
+    "new_ports": 0,
+    "openclaw": "excluded_forward_only"
+  },
+  "state_custody": {
+    "scenario_definition_and_policy": "python.ScenarioRegistry",
+    "scenario_lifecycle_and_journal": "python.ScenarioRunStore",
+    "scenario_orchestration": "python.ScenarioRunnerService",
+    "canonical_task_event_worker_memory_fault_recovery_artifact": "existing Zyra owners composed by apps.api.zyra_api.scenario_api",
+    "evidence_and_verification": "python.EvidenceCollector",
+    "frontend_projection": "typescript.ScenarioProjectionStore",
+    "frontend_control": "typescript.ScenarioWorkbenchRuntime",
+    "browser_close_semantics": "detach only; backend cancellation is false"
+  },
+  "competition_requirements_touched": [
+    "REQ-CLOSE-01",
+    "REQ-TRACE-01",
+    "SCORE-COMPAT",
+    "SCORE-UX"
+  ],
+  "explicit_nonclaims": {
+    "dual_domain_live_scenarios_complete": false,
+    "two_thousand_effective_step_gate_complete": false,
+    "edge_cloud_dispatch_complete": false,
+    "multi_model_gate_complete": false,
+    "m2_parent_complete": false,
+    "m2_exit_complete": false
+  }
+}
