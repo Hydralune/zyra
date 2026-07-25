@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import hashlib
 import json
 import os
 import subprocess
@@ -213,101 +212,20 @@ def test_live_software_scenario_reaches_canonical_api_owners(
 ) -> None:
     from apps.api.zyra_api.live_scenario_owners import CanonicalLiveScenarioOwners
 
-    def execute_test_tiers(
-        owner: CanonicalLiveScenarioOwners,
-        *,
-        scenario_run_id: str,
-        domain_input: Any,
-        route: Any,
-    ) -> tuple[dict[str, Any], ...]:
-        now = "2026-07-25T00:00:00.000Z"
-        values = tuple(
-            {
-                "observation_id": f"tier-{tier}",
-                "tier": tier,
-                "endpoint": (
-                    f"local://device/{index}"
-                    if tier == "device"
-                    else f"https://203.0.113.{index}/tier"
-                ),
-                "endpoint_id": f"endpoint-{tier}",
-                "runtime_id": f"runtime-{tier}",
-                "process_id": f"process-{tier}",
-                "isolation_id": f"isolation-{tier}",
-                "request_id": f"request-{tier}",
-                "route_id": f"route-{tier}",
-                "lease_id": f"lease-{tier}",
-                "artifact_ids": [f"artifact-{tier}"],
-                "started_at": now,
-                "completed_at": now,
-                "request_digest": hashlib.sha256(
-                    f"tier-request:{tier}".encode()
-                ).hexdigest(),
-                "response_digest": hashlib.sha256(
-                    f"tier-response:{tier}".encode()
-                ).hexdigest(),
-                "handshake_ok": True,
-                "heartbeat_ok": True,
-                "task_success": True,
-                "simulated": False,
-                "loopback": False,
-                "metadata": {"api_owner_integration_test": True},
-            }
-            for index, tier in enumerate(("device", "edge", "cloud"), start=1)
+    def reject_external_probe(*_: Any, **__: Any) -> tuple[dict[str, Any], ...]:
+        raise AssertionError(
+            "formal M2-S05-02 path attempted an external tier/provider probe"
         )
-        owner._tier_values = values
-        return values
-
-    def execute_test_providers(
-        owner: CanonicalLiveScenarioOwners,
-        *,
-        scenario_run_id: str,
-        domain_input: Any,
-        route: Any,
-        capability_count: int,
-    ) -> tuple[dict[str, Any], ...]:
-        now = "2026-07-25T00:00:00.000Z"
-        values = tuple(
-            {
-                "observation_id": f"provider-attempt-{index}",
-                "provider_id": f"managed-provider-{index}",
-                "model_id": f"managed-model-{index}",
-                "endpoint": f"https://provider-{index}.example/v1",
-                "request_id": f"provider-request-{index}",
-                "attempt_id": f"provider-attempt-{index}",
-                "route_id": f"provider-route-{index}",
-                "credential_custodian": "integration-test-custodian",
-                "authenticated": True,
-                "response_status": 200,
-                "request_digest": hashlib.sha256(
-                    f"provider-request:{index}".encode()
-                ).hexdigest(),
-                "response_digest": hashlib.sha256(
-                    f"provider-response:{index}".encode()
-                ).hexdigest(),
-                "tool_call_ids": [f"tool-{index}"],
-                "tool_result_ids": [f"tool-{index}"],
-                "started_at": now,
-                "completed_at": now,
-                "cost_usd": 0.01,
-                "latency_ms": 25,
-                "metadata": {"api_owner_integration_test": True},
-            }
-            for index in range(1, 3)
-        )
-        assert len(values) >= capability_count
-        owner._provider_values = values
-        return values
 
     monkeypatch.setattr(
         CanonicalLiveScenarioOwners,
         "execute_tiers",
-        execute_test_tiers,
+        reject_external_probe,
     )
     monkeypatch.setattr(
         CanonicalLiveScenarioOwners,
         "execute_providers",
-        execute_test_providers,
+        reject_external_probe,
     )
     with scenario_api(tmp_path) as base:
         registry_status, registry = request(base, "GET", "/scenarios/registry")
@@ -345,7 +263,12 @@ def test_live_software_scenario_reaches_canonical_api_owners(
         assert run["verification_receipt"]["valid"] is True
         effective_steps = run["evidence_manifest"]["effective_steps"]
         assert len(effective_steps["admitted_step_ids"]) >= 2_000
-        assert run["evidence_manifest"]["claims"]["long_live_scenario_complete"] is True
+        claims = run["evidence_manifest"]["claims"]
+        assert claims["long_live_scenario_complete"] is True
+        assert claims["external_provider_execution_excluded"] is True
+        assert claims["authenticated_provider_cli_invoked"] is False
+        assert claims["provider_model_capabilities_complete"] is False
+        assert claims["edge_cloud_dispatch_complete"] is False
         task_status, task = request(base, "GET", f"/tasks/{run['task_id']}")
         assert task_status == 200, task
         owner_binding = task["task"]["metadata"]["live_owner_binding"]

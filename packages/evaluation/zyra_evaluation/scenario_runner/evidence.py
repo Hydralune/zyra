@@ -172,13 +172,19 @@ class EvidenceCollector:
                     live and transition_count >= 2_000
                 ),
                 "edge_cloud_dispatch_complete": bool(
-                    live
-                    and {"device", "edge", "cloud"}.issubset(tier_counts)
-                    and placement_verification.get("valid") is True
+                    False
                 ),
                 "provider_model_capabilities_complete": bool(
-                    live and len(provider_counts) >= 2
+                    False
                 ),
+                "external_provider_execution_excluded": bool(
+                    live
+                    and configuration.profile.metadata.get(
+                        "authenticated_provider_cli_allowed"
+                    )
+                    is False
+                ),
+                "authenticated_provider_cli_invoked": False,
                 "fault_change_matrix_complete": bool(
                     live
                     and int(live_domain.get("fault_count") or 0) >= 5
@@ -243,8 +249,7 @@ class EvidenceCollector:
             for claim in (
                 "long_live_scenario_complete",
                 "two_thousand_step_gate_complete",
-                "edge_cloud_dispatch_complete",
-                "provider_model_capabilities_complete",
+                "external_provider_execution_excluded",
                 "fault_change_matrix_complete",
                 "domain_verifier_complete",
                 "causal_archive_complete",
@@ -253,6 +258,10 @@ class EvidenceCollector:
                     failures.append(
                         {"code": "live_claim_incomplete", "claim": claim}
                     )
+            if claims.get("authenticated_provider_cli_invoked") is not False:
+                failures.append(
+                    {"code": "authenticated_provider_cli_invoked"}
+                )
             live_domain = manifest.get("live_domain")
             live_domain = (
                 live_domain if isinstance(live_domain, Mapping) else {}

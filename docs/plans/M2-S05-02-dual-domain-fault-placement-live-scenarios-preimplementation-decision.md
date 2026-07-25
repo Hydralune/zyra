@@ -4,6 +4,7 @@
 - parent: `M2-05`
 - frozen baseline commit: `df5d0d4b0f4e05f2f188f58aea1ea379d9e62154`
 - decision date: `2026-07-25`
+- user boundary amendment: `2026-07-26`
 - migration mode: `scenario_and_evidence_integration_only`
 - minimum effective production code: `7000`
 - OpenClaw: `excluded_forward_only`
@@ -28,7 +29,7 @@ ScenarioRunnerService
   -> DualDomainScenarioExecutor
   -> domain adapter and deterministic verifier
   -> existing workspace / scheduler / worker-pool / fault / recovery /
-     provider / tier / artifact owners
+     artifact owners
   -> canonical owner events and receipts
   -> EffectiveStepClassifier / EvidenceCollector
   -> M2 Workbench live-scenario projection
@@ -50,8 +51,8 @@ either live scenario and are not fallbacks.
 |---|---|---|---|---|---|---|---|---|
 | dual-domain scenario orchestration, fault schedule and evidence expectations | `zyra_owned_primary` | no upstream production source; `M2-S05-02` product responsibility | Python | `packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py`, `fault_campaign.py`, `live_models.py` | Python | `scenario_and_evidence_integration_only` | `DualDomainScenarioExecutor` for scenario-local control only | implement |
 | software-delivery adapter and deterministic code verifier | `zyra_owned_primary` | no upstream production source; existing Zyra workspace/code-index/terminal/Git surfaces are consumed | Python | `packages/evaluation/zyra_evaluation/scenario_runner/software_delivery.py`, `domain_verification.py` | Python | `scenario_and_evidence_integration_only` | scenario adapter/verifier; workspace, patch, terminal and artifact custody remain existing | implement |
-| cross-source research adapter and citation/checksum verifier | `zyra_owned_primary` | no upstream production source; existing browser/provider surfaces are consumed | Python | `packages/evaluation/zyra_evaluation/scenario_runner/research_delivery.py`, `domain_verification.py` | Python | `scenario_and_evidence_integration_only` | scenario adapter/verifier; browser/provider/artifact custody remain existing | implement |
-| tier, placement, SLA and provider/model evidence | `existing_owner_integration` | `packages/evaluation/zyra_evaluation/m1_hardening/execution_tiers.py`, `managed_provider.py`, scheduler/worker-pool packages | Python | `packages/evaluation/zyra_evaluation/scenario_runner/placement_evidence.py`, API composition binding | Python | `owner_port_integration` | existing `WorkerPoolFoundationRuntime`, provider control and tier owners | integrate; no migration |
+| cross-source research adapter and citation/checksum verifier | `zyra_owned_primary` | no upstream production source; existing public-source acquisition surface is consumed | Python | `packages/evaluation/zyra_evaluation/scenario_runner/research_delivery.py`, `domain_verification.py` | Python | `scenario_and_evidence_integration_only` | scenario adapter/verifier; public-source and artifact custody remain existing | implement |
+| placement, route, lease and SLA-policy evidence | `existing_owner_integration` | scheduler/worker-pool packages | Python | `packages/evaluation/zyra_evaluation/scenario_runner/placement_evidence.py`, API composition binding | Python | `owner_port_integration` | existing `WorkerPoolFoundationRuntime`; no authenticated provider CLI | integrate; no migration |
 | live causal archive, stability samples and evidence expectations | `zyra_owned_primary` | no upstream production source | Python | `packages/evaluation/zyra_evaluation/scenario_runner/live_archive.py` | Python | `scenario_and_evidence_integration_only` | scenario evidence owner only; referenced canonical bytes remain existing owner data | implement |
 | registry/API composition | `existing_owner_integration` | `packages/evaluation/zyra_evaluation/scenario_runner/registry.py`, `api.py`, `runtime.py`; `apps/api/zyra_api/scenario_api.py` | Python | same paths | Python | `owner_port_integration` | existing `ScenarioRunnerService` and API composition root | extend |
 | live scenario evidence projection and fault/placement panels | `zyra_owned_primary` | no upstream production source; existing Scenario Workbench is extended | TypeScript / TSX | `apps/web/src/features/scenarios/live-scenarios.ts`, `view/scenario-workbench.tsx` | TypeScript / TSX | `scenario_and_evidence_integration_only` | Python evidence is canonical; browser projection is disposable | implement |
@@ -74,7 +75,7 @@ The new scenario implementation may persist only:
 - the domain plan and its input/checksum identities;
 - the current scenario-local phase and completed action identities;
 - scheduled and observed fault/change identities;
-- expected versus observed route/placement/provider/tier evidence;
+- expected versus observed route/placement/lease evidence;
 - deterministic verifier findings and uncertainty records;
 - raw-sample references and causal-archive manifests.
 
@@ -87,12 +88,15 @@ Existing owners retain:
 - permission decisions and tool execution authority;
 - fault signal, recovery plan, checkpoint and continuation state;
 - workspace bytes, patch application and terminal processes;
-- provider credentials, provider/model dispatch and wire traces;
+- external provider credentials, authenticated provider/model dispatch and
+  model wire traces are excluded by the 2026-07-26 user boundary;
 - artifact bytes and checksums.
 
 Constraints are verified before effects. A scenario action cannot claim a route,
-tool result, recovery, provider turn or artifact until the corresponding owner
-receipt is present and identity-bound. Missing owner bindings fail closed.
+tool result, recovery or artifact until the corresponding owner receipt is
+present and identity-bound. Missing owner bindings fail closed.
+Provider/rate-limit faults are deterministic injected boundaries only and never
+claim a real provider turn.
 
 ## 4. Formal live gates
 
@@ -105,11 +109,10 @@ Both domains must prove:
   least 2,000 within a formal combined run;
 - running-time requirement change and representative faults;
 - checkpoint/restore, route or placement migration, and re-verification;
-- local, isolated edge and cloud evidence with real endpoint/process/model
-  identity when the profile claims those tiers;
-- at least two real provider/model capabilities, credential-custody evidence,
-  provider failure/failover and disconnected degradation;
-- privacy, latency and cost policy evaluation before dispatch;
+- canonical worker lease/route identity and observable placement migration;
+- provider/rate-limit and edge/network failure classification, checkpoint
+  restore, reroute and disconnected degradation without an external model call;
+- privacy, latency and cost policy evaluation before route selection;
 - deterministic code/citation/schema/checksum/artifact verification;
 - raw samples, configuration, commit, environment identity and complete causal
   archive.
@@ -146,10 +149,13 @@ label is not an observed recovery.
   absent and formal verification fails;
 - domain verifier disabled: final completion fails;
 - live source acquisition disabled: research completion fails;
-- real tier/provider evidence absent while claimed: formal completion fails;
+- canonical route/lease or placement-migration evidence absent: formal
+  completion fails;
 - browser close: backend work continues and no cancel is emitted;
-- credentials missing/disconnected: record deterministic degradation; do not
-  relabel local work as cloud or a model stub as a provider.
+- authenticated provider/model CLI invoked: fail the slice; no user-account
+  external request is permitted;
+- disconnected route: record deterministic degradation; do not relabel local
+  work as cloud or a model stub as a provider.
 
 ## 7. Planned implementation paths
 

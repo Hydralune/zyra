@@ -224,8 +224,7 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
   const requiredLiveClaims = [
     "long_live_scenario_complete",
     "two_thousand_step_gate_complete",
-    "edge_cloud_dispatch_complete",
-    "provider_model_capabilities_complete",
+    "external_provider_execution_excluded",
     "fault_change_matrix_complete",
     "domain_verifier_complete",
     "causal_archive_complete",
@@ -269,6 +268,15 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
         ),
       )
     }
+    if (claims.authenticated_provider_cli_invoked !== false) {
+      findings.push(
+        finding(
+          "authenticated_provider_cli_claim_invalid",
+          "Live evidence did not prove that authenticated provider CLI execution was excluded.",
+          "evidence_manifest.claims.authenticated_provider_cli_invoked",
+        ),
+      )
+    }
   } else if (
     claims.long_live_scenario_complete !== false
     || claims.two_thousand_step_gate_complete !== false
@@ -292,9 +300,7 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
       faultCount: Number(liveSummary.fault_count || 0),
       recoveredFaultCount: Number(liveSummary.recovered_fault_count || 0),
       tierCount: Number(liveEnvelope.tier_count || 0),
-      providerModelCapabilityCount: Number(
-        liveEnvelope.provider_model_capability_count || 0,
-      ),
+      providerModelCapabilityCount: 0,
       verificationValid: liveVerification.valid === true,
       placementValid: placementVerification.valid === true,
       archiveDigest:

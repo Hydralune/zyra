@@ -128,8 +128,9 @@ export function ScenarioWorkbench({
       <p className="muted-copy">
         Runs are owned by the backend and continue after this browser closes.
         Formal software-delivery and cross-source research runs require 2,000+
-        effective transitions, representative recovery, real device/edge/cloud
-        execution and two authenticated provider/model capabilities.
+        effective transitions, representative recovery and canonical
+        route/placement migration. Authenticated provider/model CLI execution
+        is excluded by the M2-S05-02 user boundary.
       </p>
 
       <form className="settings-grid" onSubmit={create}>

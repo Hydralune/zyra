@@ -364,8 +364,10 @@ describe("scenario admission and evidence", () => {
       legacy_demo_fallback: false,
       long_live_scenario_complete: true,
       two_thousand_step_gate_complete: true,
-      edge_cloud_dispatch_complete: true,
-      provider_model_capabilities_complete: true,
+      edge_cloud_dispatch_complete: false,
+      provider_model_capabilities_complete: false,
+      external_provider_execution_excluded: true,
+      authenticated_provider_cli_invoked: false,
       fault_change_matrix_complete: true,
       domain_verifier_complete: true,
       causal_archive_complete: true,
@@ -407,7 +409,7 @@ describe("scenario admission and evidence", () => {
     expect(assessment.live?.effectiveTransitionCount).toBe(2_100)
     expect(assessment.live?.faultCount).toBe(5)
     expect(assessment.live?.tierCount).toBe(3)
-    expect(assessment.live?.providerModelCapabilityCount).toBe(2)
+    expect(assessment.live?.providerModelCapabilityCount).toBe(0)
     expect(assessment.live?.archiveDigest).toBe(OTHER_DIGEST)
 
     const incomplete = assessEvidence({
@@ -416,13 +418,13 @@ describe("scenario admission and evidence", () => {
         ...selected.evidence_manifest,
         claims: {
           ...claims,
-          provider_model_capabilities_complete: false,
+          external_provider_execution_excluded: false,
         },
       },
     })
     expect(incomplete.valid).toBe(false)
     expect(incomplete.findings.map((item) => item.path)).toContain(
-      "evidence_manifest.claims.provider_model_capabilities_complete",
+      "evidence_manifest.claims.external_provider_execution_excluded",
     )
   })
 

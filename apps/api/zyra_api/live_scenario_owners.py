@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -19,13 +18,6 @@ from zyra_core import (
     TaskState,
     now_iso,
     to_jsonable,
-)
-from zyra_evaluation.m1_hardening.execution_tiers import ExecutionTierProbeSuite
-from zyra_evaluation.m1_hardening.live_evidence import WireDialect
-from zyra_evaluation.m1_hardening.managed_provider import (
-    ManagedProviderProbe,
-    ManagedProviderReceipt,
-    ManagedProviderSpec,
 )
 from zyra_evaluation.scenario_runner.canonical import digest, new_identity
 from zyra_evaluation.scenario_runner.dual_domain import (
@@ -160,14 +152,10 @@ class CanonicalLiveScenarioOwners:
         project_root: str | Path,
         artifact_root: str | Path,
         scratch_root: str | Path,
-        provider_probe: ManagedProviderProbe | None = None,
-        tier_probe: ExecutionTierProbeSuite | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.artifact_root = Path(artifact_root).resolve()
         self.scratch_root = Path(scratch_root).resolve()
-        self.provider_probe = provider_probe or ManagedProviderProbe()
-        self.tier_probe = tier_probe or ExecutionTierProbeSuite(self.project_root)
         self.state: TaskState | None = None
         self.configuration: ScenarioConfiguration | None = None
         self.scenario_run_id = ""
@@ -176,7 +164,6 @@ class CanonicalLiveScenarioOwners:
         self._route_worker: dict[str, str] = {}
         self._fault_routes: dict[str, dict[str, Any]] = {}
         self._checkpoints: dict[str, _CheckpointBinding] = {}
-        self._provider_receipts: tuple[ManagedProviderReceipt, ...] = ()
         self._tier_values: tuple[dict[str, Any], ...] = ()
         self._provider_values: tuple[dict[str, Any], ...] = ()
         self._fault_events: list[dict[str, Any]] = []
@@ -532,31 +519,9 @@ class CanonicalLiveScenarioOwners:
         domain_input: DomainInput,
         route: Mapping[str, Any],
     ) -> Sequence[Mapping[str, Any]]:
-        self._ensure_provider_receipts(scenario_run_id)
-        if self._tier_values:
-            return self._tier_values
-        root = (
-            self.artifact_root
-            / "live-tier-provider-evidence"
-            / scenario_run_id
-            / domain_input.domain.value
-        )
-        receipt = self.tier_probe.execute(
-            artifact_root=root,
-            cloud_provider=self._provider_receipts[0],
-            run_id=f"{scenario_run_id}-{domain_input.domain.value}",
-        )
-        values = tuple(_tier_attestation(item) for item in receipt.attestations)
-        if {str(item.get("tier") or "") for item in values} != {
-            "device",
-            "edge",
-            "cloud",
-        }:
-            raise LiveOwnerIntegrationError(
-                "tier owner did not attest device, edge and cloud"
-            )
-        self._tier_values = values
-        return values
+        # M2-S05-02 intentionally has no authenticated cloud/provider probe.
+        # Canonical worker-pool routes and migrations are attested separately.
+        return ()
 
     def execute_providers(
         self,
@@ -566,12 +531,11 @@ class CanonicalLiveScenarioOwners:
         route: Mapping[str, Any],
         capability_count: int,
     ) -> Sequence[Mapping[str, Any]]:
-        self._ensure_provider_receipts(scenario_run_id)
-        if len(self._provider_values) < capability_count:
+        if capability_count > 0:
             raise LiveOwnerIntegrationError(
-                "managed provider owner returned too few real capabilities"
+                "authenticated provider/model execution is excluded for M2-S05-02"
             )
-        return self._provider_values
+        return ()
 
     def disconnected_degradation(
         self,
@@ -580,12 +544,13 @@ class CanonicalLiveScenarioOwners:
         domain_input: DomainInput,
         route: Mapping[str, Any],
     ) -> Mapping[str, Any]:
-        if not self._tier_values:
-            raise LiveOwnerIntegrationError(
-                "edge disconnection cannot be proven before tier execution"
-            )
         edge = next(
-            item for item in self._tier_values if item.get("tier") == "edge"
+            (
+                item
+                for item in self._tier_values
+                if item.get("tier") == "edge"
+            ),
+            dict(route),
         )
         return {
             "schema": "zyra.live-disconnected-degradation/v1",
@@ -599,7 +564,10 @@ class CanonicalLiveScenarioOwners:
             "failed_runtime_id": str(edge.get("runtime_id") or ""),
             "transport_closed_after_task": True,
             "fallback_tier": "device",
-            "reason": "isolated edge child process connector closed; canonical device lease retained",
+            "reason": (
+                "deterministic edge/network fault boundary; canonical worker "
+                "lease retained without external provider execution"
+            ),
             "observed_at": now_iso(),
         }
 
@@ -1107,44 +1075,6 @@ class CanonicalLiveScenarioOwners:
         self._route_worker[route_id] = acquisition.worker.worker_id
         return dict(route)
 
-    def _ensure_provider_receipts(self, scenario_run_id: str) -> None:
-        if self._provider_receipts:
-            return
-        executable = _managed_provider_executable()
-        models = _managed_provider_models(self.configuration)
-        root = self.artifact_root / "live-tier-provider-evidence" / scenario_run_id
-        receipts: list[ManagedProviderReceipt] = []
-        values: list[dict[str, Any]] = []
-        for index, model_id in enumerate(models, start=1):
-            spec = ManagedProviderSpec(
-                provider_id=f"anthropic-managed-cli-{index}",
-                cli_kind="claude",
-                executable=executable,
-                model_id=model_id,
-                dialect=WireDialect.ANTHROPIC_COMPATIBLE,
-                endpoint="https://api.anthropic.com",
-                request_path="/v1/messages",
-                timeout_seconds=180.0,
-                maximum_budget_usd=0.20,
-            )
-            receipt = self.provider_probe.execute(
-                spec,
-                artifact_root=root,
-                run_id=scenario_run_id,
-            )
-            receipts.append(receipt)
-            values.append(_provider_attestation(receipt))
-        capabilities = {
-            (str(item.get("provider_id")), str(item.get("model_id")))
-            for item in values
-        }
-        if len(capabilities) < 2:
-            raise LiveOwnerIntegrationError(
-                "managed provider probe did not prove two capabilities"
-            )
-        self._provider_receipts = tuple(receipts)
-        self._provider_values = tuple(values)
-
     def _apply_recovered_state(
         self,
         injection: FaultInjection,
@@ -1244,97 +1174,6 @@ def _source_commit(project_root: Path) -> str:
             "formal live archive requires an exact source commit"
         )
     return selected
-
-
-def _managed_provider_executable() -> str:
-    configured = os.environ.get("ZYRA_LIVE_PROVIDER_EXECUTABLE", "").strip()
-    selected = configured or shutil.which("claude") or shutil.which("claude.exe")
-    if not selected:
-        candidate = Path.home() / ".local" / "bin" / "claude.exe"
-        if candidate.is_file():
-            selected = str(candidate)
-    if not selected or not Path(selected).is_file():
-        raise LiveOwnerIntegrationError(
-            "formal live provider evidence requires the installed Claude CLI"
-        )
-    return str(Path(selected).resolve())
-
-
-def _managed_provider_models(
-    configuration: ScenarioConfiguration | None,
-) -> tuple[str, str]:
-    metadata = (
-        dict(configuration.metadata)
-        if configuration is not None
-        else {}
-    )
-    raw = metadata.get("managed_provider_models") or ("sonnet", "haiku")
-    models = tuple(str(item).strip() for item in raw if str(item).strip())
-    if len(models) < 2 or len(set(models)) < 2:
-        raise LiveOwnerIntegrationError(
-            "formal live profile requires two distinct managed provider models"
-        )
-    return models[0], models[1]
-
-
-def _tier_attestation(value: Any) -> dict[str, Any]:
-    tier = str(value.tier.value)
-    if tier == "local":
-        tier = "device"
-    return {
-        "observation_id": value.endpoint_id,
-        "tier": tier,
-        "endpoint": value.endpoint,
-        "endpoint_id": value.endpoint_id,
-        "runtime_id": value.runtime_id,
-        "process_id": value.process_id,
-        "isolation_id": value.isolation_id,
-        "request_id": value.request_id,
-        "route_id": value.route_id,
-        "lease_id": value.lease_id,
-        "artifact_ids": list(value.artifact_ids),
-        "started_at": value.started_at,
-        "completed_at": value.completed_at,
-        "request_digest": value.request_digest,
-        "response_digest": value.response_digest,
-        "handshake_ok": value.handshake_ok,
-        "heartbeat_ok": value.heartbeat_ok,
-        "task_success": value.task_success,
-        "simulated": value.simulated,
-        "loopback": value.loopback,
-        "metadata": dict(value.metadata),
-    }
-
-
-def _provider_attestation(receipt: ManagedProviderReceipt) -> dict[str, Any]:
-    value = receipt.attestation
-    return {
-        "observation_id": value.attempt_id,
-        "provider_id": value.provider_id,
-        "model_id": value.model_id,
-        "endpoint": value.endpoint,
-        "request_id": value.request_id,
-        "attempt_id": value.attempt_id,
-        "route_id": value.route_id,
-        "credential_custodian": str(
-            value.metadata.get("auth_custodian") or "provider_cli"
-        ),
-        "authenticated": value.metadata.get("authenticated_session") is True,
-        "response_status": value.response_status,
-        "request_digest": value.request_digest,
-        "response_digest": value.response_digest,
-        "tool_call_ids": list(value.tool_call_ids),
-        "tool_result_ids": list(value.tool_result_ids),
-        "started_at": value.started_at,
-        "completed_at": value.completed_at,
-        "cost_usd": float(value.metadata.get("cost_usd") or 0.0),
-        "metadata": {
-            **dict(value.metadata),
-            "trace_path": receipt.trace_path,
-            "trace_digest": receipt.trace_digest,
-            "command_id": receipt.command_id,
-        },
-    }
 
 
 def _fault_target(

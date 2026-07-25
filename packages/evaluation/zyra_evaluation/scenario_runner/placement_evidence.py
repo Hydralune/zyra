@@ -181,7 +181,7 @@ class PlacementPolicy:
             require_real_providers=require_real_providers,
             minimum_provider_capabilities=2 if require_real_providers else 0,
             credential_custody_required=require_real_providers,
-            disconnected_degradation_required=True,
+            disconnected_degradation_required=require_real_tiers,
             rationale=tuple(rationale),
         )
 
@@ -273,29 +273,54 @@ class PlacementEvidenceRuntime:
             )
         )
         self._require_route(route, policy=policy, previous=None)
-        tier_values = tuple(
-            self._tier(item)
-            for item in self.owner.execute_tiers(
-                scenario_run_id=scenario_run_id,
-                domain_input=domain_input,
-                route=route,
+        tier_values = (
+            tuple(
+                self._tier(item)
+                for item in self.owner.execute_tiers(
+                    scenario_run_id=scenario_run_id,
+                    domain_input=domain_input,
+                    route=route,
+                )
             )
+            if policy.require_real_tiers
+            else ()
         )
-        provider_values = tuple(
-            self._provider(item)
-            for item in self.owner.execute_providers(
-                scenario_run_id=scenario_run_id,
-                domain_input=domain_input,
-                route=route,
-                capability_count=policy.minimum_provider_capabilities,
+        provider_values = (
+            tuple(
+                self._provider(item)
+                for item in self.owner.execute_providers(
+                    scenario_run_id=scenario_run_id,
+                    domain_input=domain_input,
+                    route=route,
+                    capability_count=policy.minimum_provider_capabilities,
+                )
             )
+            if policy.require_real_providers
+            else ()
         )
-        degradation = dict(
-            self.owner.disconnected_degradation(
-                scenario_run_id=scenario_run_id,
-                domain_input=domain_input,
-                route=route,
+        degradation = (
+            dict(
+                self.owner.disconnected_degradation(
+                    scenario_run_id=scenario_run_id,
+                    domain_input=domain_input,
+                    route=route,
+                )
             )
+            if policy.disconnected_degradation_required
+            else {
+                "schema": "zyra.live-disconnected-degradation/v1",
+                "event_id": new_identity("external-dispatch-excluded"),
+                "observed": False,
+                "safe": True,
+                "relabeled_as_cloud": False,
+                "route_before": str(route.get("route_id") or ""),
+                "route_after": str(route.get("route_id") or ""),
+                "required": False,
+                "reason": (
+                    "authenticated provider/cloud execution excluded by "
+                    "M2-S05-02 user boundary"
+                ),
+            }
         )
         verification = self.verify(
             policy=policy,
