@@ -1,0 +1,136 @@
+{
+  "slice_id": "M2-S04A-02",
+  "date": "2026-07-25",
+  "verdict": "PASS",
+  "commits": {
+    "baseline": "33327d49ef1fab62d314709e169eebc781eb2a9c",
+    "parent_baseline": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+    "preimplementation_decision": "1ef817c2f7f26d2751b6760b15a093d86dee755f",
+    "implementation": "cc09f054ad491877eeed5951574a518d57e157a0",
+    "evidence": "this_commit"
+  },
+  "commands": [
+    {
+      "command": "bun run typecheck",
+      "status": "passed",
+      "signal": "all TypeScript runtime, memory, typed client, commands and Web projects compile"
+    },
+    {
+      "command": "bun test ./packages/runtime/claude-runtime/test/permission-response-proof.test.ts ./packages/runtime/claude-runtime/test/e02/permission-console-proof.test.ts ./packages/core/typed-api-client/test/permission-custody-headers.test.ts ./apps/web/test/permission-sealed-control-integration.test.ts",
+      "status": "passed",
+      "signal": "25 tests and 108 assertions"
+    },
+    {
+      "command": "bun test ./packages/runtime/claude-runtime/test/e02/api-port-runtime.test.ts",
+      "status": "passed",
+      "signal": "14 existing E02 API-port tests"
+    },
+    {
+      "command": "bun test ./packages/core ./apps/web",
+      "status": "passed",
+      "signal": "224 adjacent M2-01B, M2-03B, M2-S04A-01 and Web tests with 1365 assertions"
+    },
+    {
+      "command": "python -m pytest -q tests/integration/test_permission_console_api.py tests/integration/test_e02_typescript_api_cutover.py tests/integration/test_command_input_queue_control.py",
+      "status": "passed",
+      "signal": "5 real in-process HTTP/API tests"
+    },
+    {
+      "command": "python -m pytest -q tests/integration/test_browser_worker_permission_gate.py tests/unit/test_permission_continuation.py",
+      "status": "passed",
+      "signal": "27 tests and 16 subtests across BrowserWorker and permission continuation"
+    },
+    {
+      "command": "bun run build:web",
+      "status": "passed",
+      "signal": "production Web bundle built with 295 modules"
+    },
+    {
+      "command": "bun scripts/audit_m2_s04a_02_effective_lines.mjs --summary",
+      "status": "passed",
+      "signal": "7739 direct effective production lines; minimum 7500"
+    },
+    {
+      "command": "bun scripts/audit_m2_s04a_parent_effective_lines.mjs --summary",
+      "status": "passed",
+      "signal": "16112 direct parent-interval effective production lines; minimum 15000"
+    },
+    {
+      "command": "python scripts/sync_m2_permission_console_source_ledger.py --check",
+      "status": "passed",
+      "signal": "6 aligned source decisions and 0 missing implementation targets"
+    },
+    {
+      "command": "git diff --check and changed-production dependency/path scans",
+      "status": "passed",
+      "signal": "no whitespace error, parent-source runtime path, npm link, editable source path, vendor/source-pool dependency or OpenClaw reference"
+    }
+  ],
+  "direct_behavior": {
+    "proven": [
+      "redacted pending list/detail with request, task, run, session, tool-call, owner, revision, expiry, nonce, fingerprint and arguments-digest binding",
+      "one-shot simultaneous allow/deny race with stale, cross-session, duplicate and forged response rejection",
+      "browser-computed SHA-256 response proof verified by TypeScript PermissionCoordinator before exact resume",
+      "verified receipt admission and canonical one-use permit issue, consume, revoke, expire, replay and conflict projection",
+      "timeout/default-deny projection, bounded reconnect, owner-loss terminal handling and multi-session in-memory custody roster",
+      "prompt/tool-injection, browser, MCP, terminal, plugin/skill supply-chain and secret warnings without raw argument retention",
+      "interactive named responder plus bounded feedback, exact allow-once or deny and no browser-persistent rule owner",
+      "sealed policy hash, zero-human display, deterministic reject/recovery and counted approve/deny/steer/retry/mode-change intervention receipts",
+      "shared canonical permission selectors in task, timeline, browser, terminal and command surfaces with no second pending store",
+      "controller, receipt, permit and custody disable paths fail closed without fabricated allow or local fallback"
+    ]
+  },
+  "line_count": {
+    "direct": {
+      "interval": "33327d49ef1fab62d314709e169eebc781eb2a9c..cc09f054ad491877eeed5951574a518d57e157a0",
+      "raw_additions": 12618,
+      "raw_deletions": 8,
+      "production_runtime": 7258,
+      "ui_behavior": 481,
+      "ui_presentation_excluded": 1002,
+      "type_declaration_excluded": 1160,
+      "schema_dto_data_excluded": 4,
+      "adapter_only_excluded": 517,
+      "generated_excluded": 181,
+      "test_mock_fixture_excluded": 1666,
+      "docs_comments_blank_excluded": 349,
+      "vendor_like_source_pool": 0,
+      "effective_production": 7739,
+      "minimum": 7500,
+      "margin": 239,
+      "passed": true,
+      "canonical_report": "docs/reviews/evidence/M2-S04A-02/effective-lines.json"
+    },
+    "parent": {
+      "interval": "53b002bac1e97eab23b7553d344da068dd8dd3c9..cc09f054ad491877eeed5951574a518d57e157a0",
+      "raw_additions": 28093,
+      "raw_deletions": 42,
+      "production_runtime": 15488,
+      "ui_behavior": 624,
+      "ui_presentation_excluded": 1245,
+      "type_declaration_excluded": 2406,
+      "schema_dto_data_excluded": 2872,
+      "adapter_only_excluded": 798,
+      "generated_excluded": 936,
+      "test_mock_fixture_excluded": 2859,
+      "docs_comments_blank_excluded": 865,
+      "vendor_like_source_pool": 0,
+      "effective_production": 16112,
+      "minimum": 15000,
+      "margin": 1112,
+      "passed": true,
+      "canonical_report": "docs/reviews/evidence/M2-S04A-02/parent-effective-lines.json"
+    }
+  },
+  "risk": {
+    "high_risk_triggered": false,
+    "focused_contract_risk": "response proof strengthened the public approval response but preserved the existing coordinator, session custody, permit and policy owners",
+    "external_runtime_change": false,
+    "canonical_owner_transfer": false,
+    "global_permission_default_change": false
+  },
+  "deferred": [
+    "M2-04 numeric-stage aggregate cleanroom and broader repository audit remain assigned after M2-04B.",
+    "Formal cross-domain live runs, 2000-transition sealed autonomy, real local-edge-cloud dispatch, multi-provider/model and submission evidence remain milestone-exit gates."
+  ]
+}

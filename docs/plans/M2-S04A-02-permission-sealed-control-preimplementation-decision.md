@@ -1,9 +1,12 @@
 # M2-S04A-02 Permission / Sealed Control Preimplementation Decision
 
-Status: frozen before production changes  
-Decision date: 2026-07-25  
-Slice: `M2-S04A-02`  
-Parent unit: `M2-04A`  
+Status: frozen before production changes
+
+Decision date: 2026-07-25
+
+Slice: `M2-S04A-02`
+
+Parent unit: `M2-04A`
 Zyra implementation baseline: `33327d49ef1fab62d314709e169eebc781eb2a9c`
 
 ## 1. Scope and protected boundary
