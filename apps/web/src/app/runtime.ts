@@ -18,6 +18,7 @@ import {
 } from "../state/index.ts"
 import type { ProjectionIngressBinding } from "../state/contracts.ts"
 import { CommandSurfaceRuntime } from "../features/commands/index.ts"
+import { PermissionConsoleRuntime } from "../features/permissions/index.ts"
 
 export interface WorkbenchRuntime {
   api: ReturnType<typeof createZyraApi>
@@ -36,6 +37,7 @@ export interface WorkbenchRuntime {
   queue: CommandQueue
   commands: CommandCoordinator
   controlCommands: CommandSurfaceRuntime
+  permissionConsole: PermissionConsoleRuntime
   close(reason?: unknown): void
 }
 
@@ -93,6 +95,10 @@ export function createWorkbenchRuntime(
     workbench,
     overlays,
     projections,
+  })
+  const permissionConsole = new PermissionConsoleRuntime({
+    api: api.permissions,
+    taskApi: api.tasks,
   })
   commands.attachControls(controlCommands)
   const unsubscribeLifecycle = api.lifecycle.listen((record) => {
@@ -177,6 +183,7 @@ export function createWorkbenchRuntime(
     queue,
     commands,
     controlCommands,
+    permissionConsole,
     close(reason?: unknown) {
       if (closed) return
       closed = true
@@ -190,6 +197,7 @@ export function createWorkbenchRuntime(
       unsubscribeLifecycle()
       commands.close(String(reason ?? "Workbench closed."))
       controlCommands.close(String(reason ?? "Workbench closed."))
+      permissionConsole.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
       routeLoader.close(String(reason ?? "Workbench closed."))

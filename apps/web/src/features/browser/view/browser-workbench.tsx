@@ -42,6 +42,7 @@ import {
   type BrowserViewerState,
 } from "../contracts.ts"
 import { BrowserViewerRuntime } from "../runtime.ts"
+import { PermissionSurfaceStatus } from "../../permissions/index.ts"
 
 interface BrowserWorkbenchProps {
   runtime: WorkbenchRuntime
@@ -1298,6 +1299,12 @@ export function BrowserWorkbench({
             : "Refresh browser"}
         </button>
       </header>
+
+      <PermissionSurfaceStatus
+        runtime={runtime.permissionConsole}
+        surface="browser"
+        label="browser"
+      />
 
       <dl className="browser-summary-grid">
         <div>

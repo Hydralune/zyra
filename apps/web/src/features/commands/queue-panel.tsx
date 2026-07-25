@@ -1,10 +1,17 @@
 import { useSyncExternalStore } from "react"
 import type { CommandQueueItem } from "../../../../../packages/commands/src/index.ts"
 import type { CommandSurfaceRuntime } from "./runtime.ts"
+import type { PermissionConsoleRuntime } from "../permissions/index.ts"
+import {
+  PermissionSurfaceStatus,
+  rejectPermissionSealedManualAction,
+} from "../permissions/index.ts"
 
 function QueueRow(input: {
   item: CommandQueueItem
   runtime: CommandSurfaceRuntime
+  permissionRuntime?: PermissionConsoleRuntime
+  actorId: string
 }): React.JSX.Element {
   return (
     <li
@@ -33,7 +40,20 @@ function QueueRow(input: {
         <button
           type="button"
           onClick={() => {
-            void input.runtime.retryQueueItem(input.item)
+            void (async () => {
+              if (input.permissionRuntime) {
+                const rejected = await rejectPermissionSealedManualAction({
+                  runtime: input.permissionRuntime,
+                  action: "retry",
+                  actorId: input.actorId,
+                  requestId: input.item.requestId ?? input.item.queueId,
+                  reason:
+                    "A manual command retry cannot advance a sealed run.",
+                })
+                if (rejected) return
+              }
+              await input.runtime.retryQueueItem(input.item)
+            })()
           }}
         >
           Retry
@@ -45,6 +65,8 @@ function QueueRow(input: {
 
 export function CommandQueuePanel(input: {
   runtime: CommandSurfaceRuntime
+  permissionRuntime?: PermissionConsoleRuntime
+  actorId?: string
 }): React.JSX.Element | null {
   const snapshot = useSyncExternalStore(
     input.runtime.subscribe,
@@ -52,13 +74,22 @@ export function CommandQueuePanel(input: {
     input.runtime.getSnapshot,
   )
   const queue = snapshot.queue
-  if (!queue?.items.length) return null
+  if (!queue?.items.length && !input.permissionRuntime) return null
   return (
     <section
       aria-label="Backend command queue"
       data-command-queue-owner="PromptQueueRuntime+CanonicalProjectionStore"
-      data-command-queue-restored={queue.restored ? "true" : "false"}
+      data-command-queue-restored={queue?.restored ? "true" : "false"}
     >
+      {input.permissionRuntime ? (
+        <PermissionSurfaceStatus
+          runtime={input.permissionRuntime}
+          surface="command"
+          label="command"
+        />
+      ) : null}
+      {queue ? (
+        <>
       <header>
         <strong>Command queue</strong>
         <span>{queue.pending.length} pending</span>
@@ -77,9 +108,13 @@ export function CommandQueuePanel(input: {
             key={item.queueId}
             item={item}
             runtime={input.runtime}
+            permissionRuntime={input.permissionRuntime}
+            actorId={input.actorId ?? "zyra-web-operator"}
           />
         ))}
       </ol>
+        </>
+      ) : null}
     </section>
   )
 }

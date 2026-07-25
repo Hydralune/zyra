@@ -32,6 +32,7 @@ import {
 } from "./controller.ts"
 import { RecoveryControlPanel } from "./recovery-control-panel.tsx"
 import { dispatchArtifactNavigation } from "../../artifacts/catalog.ts"
+import { PermissionSurfaceStatus } from "../../permissions/index.ts"
 
 function formatTime(value: string): string {
   const parsed = Date.parse(value)
@@ -898,6 +899,11 @@ export function WorkerCausalTimelineWorkbench({
         </dl>
       </header>
       <StatusBanner snapshot={snapshot} />
+      <PermissionSurfaceStatus
+        runtime={runtime.permissionConsole}
+        surface="tool"
+        label="tool"
+      />
       <TimelineToolbar controller={controller} snapshot={snapshot} />
       <RecoveryControlPanel
         runtime={runtime}

@@ -1058,6 +1058,425 @@ kbd {
   margin-top: 30px;
 }
 
+.permission-workbench {
+  display: grid;
+  gap: 16px;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 42%),
+    var(--panel);
+}
+
+.permission-workbench-header,
+.permission-queue-title,
+.permission-queue-meta,
+.permission-response-buttons,
+.permission-status-badges,
+.permission-timeline-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.permission-workbench-header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.permission-workbench-header h3,
+.permission-workbench-header p,
+.permission-detail h4,
+.permission-detail h5,
+.permission-detail p,
+.permission-warning p,
+.permission-timeline-entry p {
+  margin: 0;
+}
+
+.permission-status-badges {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.permission-ownership-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.permission-ownership-status > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+}
+
+.permission-ownership-status span {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+.permission-ownership-status .permission-sealed-banner,
+.permission-ownership-status .permission-error-banner {
+  grid-column: 1 / -1;
+}
+
+.permission-sealed-banner {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line)) !important;
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel)) !important;
+}
+
+.permission-error-banner {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--line)) !important;
+}
+
+.permission-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, .76fr) minmax(0, 1.5fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.permission-queue,
+.permission-detail,
+.permission-timeline {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-strong) 75%, transparent);
+}
+
+.permission-queue-list,
+.permission-timeline-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission-queue-list {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.permission-queue-item {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: clip;
+}
+
+.permission-queue-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.permission-queue-select {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+  padding: 11px;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.permission-queue-select:hover,
+.permission-queue-select:focus-visible {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.permission-queue-title {
+  flex-wrap: wrap;
+}
+
+.permission-queue-meta {
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.permission-risk-high,
+.permission-risk-unknown {
+  color: var(--danger);
+}
+
+.permission-risk-medium {
+  color: var(--warning);
+}
+
+.permission-binding-grid,
+.permission-preview-rows,
+.permission-timeline-refs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.permission-surface-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--warning) 52%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--panel));
+}
+
+.permission-surface-status ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission-surface-status button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: inherit;
+  background: var(--panel-strong);
+  cursor: pointer;
+}
+
+.permission-policy-panel {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-strong) 75%, transparent);
+}
+
+.permission-policy-panel h4,
+.permission-policy-panel p {
+  margin: 0;
+}
+
+.permission-policy-diff {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.permission-policy-diff > div {
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.permission-policy-diff > [data-changed="true"] {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--line));
+}
+
+.permission-policy-diff dt,
+.permission-policy-diff dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.permission-policy-diff p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.permission-rule-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission-rule-list li {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+}
+
+.permission-rule-list li > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.permission-rule-list small,
+.permission-rule-list p {
+  color: var(--muted);
+}
+
+.permission-binding-grid > div,
+.permission-preview-rows > div,
+.permission-timeline-refs > div {
+  min-width: 0;
+}
+
+.permission-binding-grid dt,
+.permission-preview-rows dt,
+.permission-timeline-refs dt {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.permission-binding-grid dd,
+.permission-preview-rows dd,
+.permission-timeline-refs dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.permission-preview-summary {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.permission-preview-rows [data-sensitive="true"] dd {
+  color: var(--warning);
+}
+
+.permission-warning-stack {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.permission-warning {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.permission-warning ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.permission-warning-danger {
+  border-left-color: var(--danger);
+}
+
+.permission-warning-warning {
+  border-left-color: var(--warning);
+}
+
+.permission-cross-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0;
+}
+
+.permission-response-controls {
+  display: grid;
+  gap: 9px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.permission-response-controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+}
+
+.permission-response-controls textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.permission-response-buttons {
+  justify-content: flex-end;
+}
+
+.permission-sealed-notice {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  border-radius: 8px;
+  color: var(--danger);
+}
+
+.permission-timeline-list {
+  max-height: 460px;
+  overflow: auto;
+}
+
+.permission-timeline-entry {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.permission-timeline-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.permission-timeline-danger .permission-timeline-marker {
+  background: var(--danger);
+}
+
+.permission-timeline-warning .permission-timeline-marker {
+  background: var(--warning);
+}
+
+.permission-timeline-entry time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.permission-timeline-refs {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 6px 0;
+}
+
+@media (max-width: 980px) {
+  .permission-workbench-grid,
+  .permission-ownership-status {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-workbench-header {
+    flex-direction: column;
+  }
+
+  .permission-status-badges {
+    justify-content: flex-start;
+  }
+}
+
 .section-heading {
   justify-content: space-between;
   margin-bottom: 12px;

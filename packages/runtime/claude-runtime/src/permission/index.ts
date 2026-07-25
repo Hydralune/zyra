@@ -16,4 +16,5 @@ export * from "./policy.ts";
 export * from "./risk-runtime.ts";
 export * from "./rule-index.ts";
 export * from "./rule-parser.ts";
+export * from "./response-proof.ts";
 export * from "./settings-runtime.ts";

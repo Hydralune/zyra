@@ -21,6 +21,11 @@ import {
   type ArgumentSuggestion,
 } from "../../command/argument-completion.ts"
 import { CommandQueuePanel } from "../../features/commands/queue-panel.tsx"
+import {
+  classifyPermissionSealedManualAction,
+  permissionDisplayActor,
+  rejectPermissionSealedManualAction,
+} from "../../features/permissions/index.ts"
 import type { PaletteEntry } from "../../../../../packages/commands/src/index.ts"
 
 function cursorAt(textarea: HTMLTextAreaElement): number {
@@ -181,6 +186,7 @@ function ControlArgumentList({
 
 function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
   const queue = useQueueSnapshot(runtime)
+  const selectedTask = runtime.workbench.selectedTask()
   const visible = queue.visible.slice(0, 8)
   if (!visible.length) return null
   return (
@@ -219,8 +225,19 @@ function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
             ) : null}
             {entry.phase === "failed" || entry.phase === "cancelled" ? (
               <button type="button" onClick={() => {
-                runtime.queue.retry(entry.id)
-                void runtime.commands.drain()
+                void (async () => {
+                  const rejected = await rejectPermissionSealedManualAction({
+                    runtime: runtime.permissionConsole,
+                    action: "retry",
+                    actorId: permissionDisplayActor(selectedTask?.metadata),
+                    requestId: entry.id,
+                    reason:
+                      "A manual queued-input retry cannot advance a sealed run.",
+                  })
+                  if (rejected) return
+                  runtime.queue.retry(entry.id)
+                  await runtime.commands.drain()
+                })()
               }}>
                 Retry
               </button>
@@ -357,6 +374,34 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
   ) => {
     const captured = value
     if (!captured.trim() || !command.enabled) return
+    const sealedAction = classifyPermissionSealedManualAction({
+      value: captured,
+      deliveryMode: controlMode,
+    })
+    if (
+      sealedAction
+      && runtime.permissionConsole.getSnapshot().productMode === "sealed"
+    ) {
+      setSubmissionError(undefined)
+      try {
+        const rejected = await rejectPermissionSealedManualAction({
+          runtime: runtime.permissionConsole,
+          action: sealedAction,
+          actorId: permissionDisplayActor(selectedTask?.metadata),
+          reason:
+            `Manual ${sealedAction.replace("_", " ")} cannot advance a sealed run.`,
+        })
+        setSubmissionError(
+          rejected?.reason
+            ?? "The sealed permission policy rejected this manual control.",
+        )
+      } catch (error) {
+        setSubmissionError(
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+      return
+    }
     const capture = runtime.drafts.captureValue(
       draftScope,
       captured,
@@ -616,7 +661,11 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
           </span>
           <span>{value.length.toLocaleString()} chars</span>
         </div>
-        <CommandQueuePanel runtime={runtime.controlCommands} />
+        <CommandQueuePanel
+          runtime={runtime.controlCommands}
+          permissionRuntime={runtime.permissionConsole}
+          actorId={permissionDisplayActor(selectedTask?.metadata)}
+        />
         {submissionError || command.lastError ? (
           <div className="command-error" role="alert">
             {submissionError ?? command.lastError}

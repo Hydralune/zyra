@@ -31,6 +31,11 @@ import type {
   PermissionApprovalResponse,
   PermissionMode,
 } from "./contracts.ts";
+import {
+  publicPermissionResponseChallenge,
+  verifyPermissionResponseProof,
+  type PermissionResponseEnvelopeBinding,
+} from "../permission/response-proof.ts";
 
 export const E02_API_PROTOCOL_VERSION = "zyra.e02-api-port/v1";
 
@@ -548,6 +553,32 @@ export class E02ApiPortRuntime {
     if (!envelope) {
       throw apiError("permission_request_not_found", `Permission request ${continuationRequestId} was not found`);
     }
+    const metadata = asObject(payload.metadata);
+    const consoleResponse = asObject(metadata.console_response);
+    let proofResult: ReturnType<typeof verifyPermissionResponseProof> | null = null;
+    if (Object.keys(consoleResponse).length > 0) {
+      proofResult = verifyPermissionResponseProof(
+        envelope,
+        consoleResponse,
+        {
+          requestId: continuationRequestId,
+          responseId: asString(payload.response_id).trim(),
+          effect,
+        },
+      );
+      if (!proofResult.verified) {
+        throw apiError(
+          proofResult.failureCode ?? "permission_response_proof_rejected",
+          proofResult.failureMessage ?? "permission response proof was rejected",
+          {
+            request_id: continuationRequestId,
+            response_id: asString(payload.response_id).trim(),
+            challenge_digest: proofResult.challengeDigest,
+            response_digest: proofResult.responseDigest,
+          },
+        );
+      }
+    }
     const response: PermissionApprovalResponse = {
       responseId: asString(payload.response_id).trim() || `api-response-${randomUUID()}`,
       requestId: envelope.requestId,
@@ -560,10 +591,13 @@ export class E02ApiPortRuntime {
       responder: asString(payload.responder ?? payload.actor_id).trim() || "api-operator",
       respondedAt: new Date().toISOString(),
       metadata: {
-        ...asObject(payload.metadata),
+        ...metadata,
         api_request_id: requestId,
         transport: "python-http-forwarder",
         python_decision: false,
+        response_proof_verified: proofResult?.verified === true,
+        response_proof_digest: proofResult?.responseDigest ?? null,
+        response_challenge_digest: proofResult?.challengeDigest ?? null,
       },
     };
     const result = this.coordinator.resumePermission(response);
@@ -578,6 +612,9 @@ export class E02ApiPortRuntime {
       permit_id: result.permitId,
       final_arguments_digest: result.enforcement.decision.finalArgumentsDigest,
       state_digest: result.stateDigest,
+      response_proof_verified: proofResult?.verified === true,
+      response_proof_digest: proofResult?.responseDigest ?? null,
+      response_challenge_digest: proofResult?.challengeDigest ?? null,
       canonical_owner: "typescript.PermissionCoordinator",
       python_decision_fallback: false,
     };
@@ -1034,6 +1071,9 @@ function apiError(code: string, message: string, detail: JsonObject = {}): Error
 function safePermissionEnvelope(value: unknown): JsonObject {
   const envelope = asObject(value);
   const metadata = asObject(envelope.metadata);
+  const challenge = publicPermissionResponseChallenge(
+    permissionEnvelopeBinding(envelope),
+  );
   return {
     envelope_id: asString(envelope.envelopeId),
     request_id: asString(envelope.requestId),
@@ -1061,12 +1101,33 @@ function safePermissionEnvelope(value: unknown): JsonObject {
     created_at: asString(envelope.createdAt),
     updated_at: asString(envelope.updatedAt),
     request_fingerprint: asString(metadata.request_fingerprint),
+    response_challenge: challenge,
     response_id: asString(metadata.response_id) || null,
     response_effect: asString(metadata.response_effect) || null,
     response_accepted: metadata.response_accepted === true,
     responder: asString(metadata.responder) || null,
     final_arguments_projected: false,
     canonical_owner: "typescript.PermissionCoordinator",
+  };
+}
+
+function permissionEnvelopeBinding(
+  envelope: JsonObject,
+): PermissionResponseEnvelopeBinding {
+  return {
+    envelopeId: asString(envelope.envelopeId),
+    requestId: asString(envelope.requestId),
+    runId: asString(envelope.runId),
+    taskId: asString(envelope.taskId),
+    sessionId: asString(envelope.sessionId),
+    sessionRevision: nonNegativeInteger(envelope.sessionRevision, 0),
+    workerRequestId: asString(envelope.workerRequestId),
+    toolCallId: asString(envelope.toolCallId),
+    argumentsDigest: asString(envelope.argumentsDigest),
+    policyRevision: nonNegativeInteger(envelope.policyRevision, 0),
+    modeRevision: nonNegativeInteger(envelope.modeRevision, 0),
+    expiresAt: asString(envelope.expiresAt),
+    metadata: transportObject(envelope.metadata),
   };
 }
 

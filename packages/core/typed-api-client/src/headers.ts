@@ -204,7 +204,9 @@ export class HeaderPolicy {
     }
     for (const [name, value] of Object.entries(versionRequestHeaders(this.#version))) headers.set(name, value)
     const authorization = await resolveAuthHeader(this.#auth)
-    if (authorization) headers.set(ZYRA_AUTHORIZATION_HEADER, authorization)
+    if (authorization && !headers.has(ZYRA_AUTHORIZATION_HEADER)) {
+      headers.set(ZYRA_AUTHORIZATION_HEADER, authorization)
+    }
     return headers
   }
 

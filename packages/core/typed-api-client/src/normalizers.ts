@@ -123,10 +123,64 @@ export interface ControlCommandProjection {
   raw: Record<string, unknown>
 }
 
+export interface PermissionControlProjection {
+  schema: string
+  ok: boolean
+  operation: string
+  stateOwner: string
+  sessionId?: string
+  error?: string
+  message?: string
+  raw: Record<string, unknown>
+}
+
 function unknownRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {}
+}
+
+export function normalizePermissionControl(
+  value: unknown,
+): PermissionControlProjection {
+  const body = objectBody(value, "permission control response")
+  const schema = responseString(
+    body.schema ?? "zyra.permission-api.v2",
+    "permission.schema",
+  )
+  if (
+    schema !== "zyra.permission-api.v2"
+    && schema !== "zyra.permission-api/v1"
+  ) {
+    throw new ResponseValidationError(
+      "Permission control response schema is unsupported.",
+      { schema },
+    )
+  }
+  const ok = responseBoolean(body.ok, "permission.ok")
+  const operation = responseString(
+    body.operation ?? (ok ? "permission.unknown" : "permission.error"),
+    "permission.operation",
+  )
+  const stateOwner = responseString(
+    body.state_owner
+      ?? body.stateOwner
+      ?? (ok ? "typescript.PermissionCoordinator" : "unknown"),
+    "permission.state_owner",
+  )
+  return {
+    schema,
+    ok,
+    operation,
+    stateOwner,
+    sessionId: optionalResponseString(
+      body.session_id ?? body.sessionId,
+      "permission.session_id",
+    ),
+    error: optionalResponseString(body.error, "permission.error"),
+    message: optionalResponseString(body.message, "permission.message"),
+    raw: { ...body },
+  }
 }
 
 function optionalNumber(value: unknown, label: string): number | undefined {
@@ -466,6 +520,7 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskControlCommand, normalizeControlCommand)
   registry.register(CONTRACT_NAMES.taskCommandQueue, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskCommandCancel, normalizeEventIngressEnvelope)
+  registry.register(CONTRACT_NAMES.permissionControl, normalizePermissionControl)
   registry.register(
     CONTRACT_NAMES.taskArtifactCatalog,
     (value) => ({ ...responseRecord(value, "artifact catalog response") }),

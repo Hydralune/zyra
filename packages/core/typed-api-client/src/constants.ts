@@ -193,6 +193,16 @@ export const OPERATION_NAMES = {
   taskControlCommand: "task.control-command",
   taskCommandQueue: "task.command-queue",
   taskCommandCancel: "task.command-cancel",
+  permissionSessionOpen: "permission.session.open",
+  permissionSessionResume: "permission.session.resume",
+  permissionSummary: "permission.summary",
+  permissionRequests: "permission.requests",
+  permissionRequestGet: "permission.request.get",
+  permissionRequestResolve: "permission.request.resolve",
+  permissionRequestsExpire: "permission.requests.expire",
+  permissionRules: "permission.rules",
+  permissionMode: "permission.mode",
+  permissionDecisions: "permission.decisions",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -223,6 +233,7 @@ export const CONTRACT_NAMES = {
   taskControlCommand: "zyra.task-control-command.v1",
   taskCommandQueue: "zyra.command-queue.v1",
   taskCommandCancel: "zyra.command-cancel.v1",
+  permissionControl: "zyra.permission-control.v2",
   error: "zyra.error.v1",
 } as const
 

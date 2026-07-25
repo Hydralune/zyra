@@ -4888,6 +4888,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             response_events = transport_response.events
                             receipt = dict(transport_response.body.get("result") or {})
                         else:
+                            console_response = payload.get("console_response")
+                            if console_response is not None and not isinstance(console_response, dict):
+                                raise ValueError("console_response must be an object")
                             receipt = get_mcp_runtime().permission_respond(
                                 request_id,
                                 str(payload.get("effect") or ""),
@@ -4897,6 +4900,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                     "authority_id": authority.authority_id,
                                     "channel": str(authority.channel),
                                     "custody_verified": True,
+                                    "console_response": dict(console_response or {}),
+                                    "display_responder": str(
+                                        payload.get("display_responder") or ""
+                                    )[:256],
                                 },
                             )
                     elif action == "cancel":

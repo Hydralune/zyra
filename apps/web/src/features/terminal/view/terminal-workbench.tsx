@@ -22,6 +22,7 @@ import {
   browserTerminalTabStorage,
   type TerminalTabState,
 } from "../tabs.ts"
+import { PermissionSurfaceStatus } from "../../permissions/index.ts"
 
 interface TerminalDraft {
   command: string
@@ -470,6 +471,12 @@ export function TerminalWorkbench({
           </button>
         </div>
       </header>
+
+      <PermissionSurfaceStatus
+        runtime={runtime.permissionConsole}
+        surface="terminal"
+        label="terminal"
+      />
 
       <div className="terminal-create-grid">
         <label>
