@@ -243,6 +243,22 @@ describe("workbench router", () => {
 describe("command catalog, parsing, and completion", () => {
   const catalog = new CommandCatalog()
 
+  test("routes MCP, skill, agent, and child-task discovery to task-scoped runtime panels", () => {
+    const expected = new Map([
+      ["mcp", "command.runtime.mcp"],
+      ["skills", "command.runtime.skills"],
+      ["agents", "command.runtime.agents"],
+      ["tasks", "command.runtime.tasks"],
+    ])
+    for (const [trigger, id] of expected) {
+      const definition = catalog.resolve(trigger)
+      expect(definition?.id).toBe(id)
+      expect(definition?.execution).toBe("local-overlay")
+      expect(definition?.availability).toBe("requires-active-task")
+    }
+    expect(catalog.resolve("home")?.id).toBe("command.navigation.home")
+  })
+
   test("parses prompts, quoted arguments, flags, and unknown commands", () => {
     expect(parseInput("  build a runtime ", catalog)).toMatchObject({
       kind: "prompt",

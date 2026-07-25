@@ -225,6 +225,12 @@ function CommandResultContent({
   const operation = runtime.controlCommands.coordinator
     .records(500)
     .find((record) => record.identity.commandId === result.commandId)
+  const panelTarget = new Map([
+    ["/mcp", { id: "mcp-runtime-panel", label: "Open MCP panel" }],
+    ["/skills", { id: "skill-runtime-panel", label: "Open skills panel" }],
+    ["/agents", { id: "subagent-runtime-panel", label: "Open agents panel" }],
+    ["/tasks", { id: "subagent-runtime-panel", label: "Open subagent tasks" }],
+  ]).get(result.name)
   return (
     <div
       className="overlay-scroll command-result"
@@ -289,6 +295,35 @@ function CommandResultContent({
             }}
           >
             Retry command
+          </button>
+        ) : null}
+        {panelTarget ? (
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => {
+              runtime.overlays.close(overlay.id)
+              requestAnimationFrame(() => {
+                const target = document.getElementById(panelTarget.id)
+                if (!target) {
+                  runtime.notifications.push({
+                    id: `panel-unavailable-${panelTarget.id}-${result.commandId}`,
+                    title: "Panel unavailable",
+                    message: "The command settled, but its task-scoped panel is not mounted.",
+                    tone: "warning",
+                    taskId: operation?.context.taskId,
+                  })
+                  return
+                }
+                target.scrollIntoView({ block: "start", behavior: "smooth" })
+                if (target instanceof HTMLElement) {
+                  target.tabIndex = -1
+                  target.focus({ preventScroll: true })
+                }
+              })
+            }}
+          >
+            {panelTarget.label}
           </button>
         ) : null}
       </div>

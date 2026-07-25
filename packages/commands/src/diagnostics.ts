@@ -59,6 +59,17 @@ const exactCommands = [
   "/trace",
   "/artifacts",
   "/permissions",
+  "/context",
+  "/compact",
+  "/memory",
+  "/model",
+  "/mcp",
+  "/skills",
+  "/agents",
+  "/tasks",
+  "/resume",
+  "/rewind",
+  "/export",
   "/btw",
   "/inject",
   "/change",
@@ -139,8 +150,8 @@ function registryChecks(registry: CommandRegistry): CommandDiagnostic[] {
       passed: missing.length === 0 && unexpected.length === 0,
       summary:
         missing.length || unexpected.length
-          ? "Command registry differs from the frozen 11-command surface."
-          : "Command registry exposes exactly the frozen 11-command surface.",
+          ? "Command registry differs from the frozen M2-04 command surface."
+          : "Command registry exposes exactly the frozen M2-04 command surface.",
       details: { missing, unexpected, actual: names },
       relatedIds: names,
     }),

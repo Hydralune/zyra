@@ -20,6 +20,9 @@ import type { ProjectionIngressBinding } from "../state/contracts.ts"
 import { CommandSurfaceRuntime } from "../features/commands/index.ts"
 import { PermissionConsoleRuntime } from "../features/permissions/index.ts"
 import { SessionConsoleRuntime } from "../features/session/index.ts"
+import { McpConsoleController } from "../features/mcp/index.ts"
+import { SkillWorkbenchController } from "../features/skills/index.ts"
+import { SubagentPanelController } from "../features/subagents/index.ts"
 
 export interface WorkbenchRuntime {
   api: ReturnType<typeof createZyraApi>
@@ -40,6 +43,9 @@ export interface WorkbenchRuntime {
   controlCommands: CommandSurfaceRuntime
   permissionConsole: PermissionConsoleRuntime
   sessionConsole: SessionConsoleRuntime
+  mcpConsole: McpConsoleController
+  skillConsole: SkillWorkbenchController
+  subagentConsole: SubagentPanelController
   close(reason?: unknown): void
 }
 
@@ -105,6 +111,27 @@ export function createWorkbenchRuntime(
   const sessionConsole = new SessionConsoleRuntime({
     projections,
     commands: controlCommands,
+  })
+  const mcpConsole = new McpConsoleController({
+    projections,
+    commands: controlCommands,
+    sealed: () => permissionConsole.getSnapshot().productMode === "sealed",
+  })
+  const skillConsole = new SkillWorkbenchController({
+    projections,
+    commands: controlCommands,
+    permissions: permissionConsole,
+  })
+  const subagentConsole = new SubagentPanelController({
+    projections,
+    commands: controlCommands,
+    sealed: permissionConsole.getSnapshot().productMode === "sealed",
+  })
+  const unsubscribePanelPermissions = permissionConsole.subscribe(() => {
+    const sealed = permissionConsole.getSnapshot().productMode === "sealed"
+    mcpConsole.setSealed(sealed)
+    skillConsole.setSealed(sealed)
+    subagentConsole.setSealed(sealed)
   })
   commands.attachControls(controlCommands)
   const unsubscribeLifecycle = api.lifecycle.listen((record) => {
@@ -191,6 +218,9 @@ export function createWorkbenchRuntime(
     controlCommands,
     permissionConsole,
     sessionConsole,
+    mcpConsole,
+    skillConsole,
+    subagentConsole,
     close(reason?: unknown) {
       if (closed) return
       closed = true
@@ -202,10 +232,14 @@ export function createWorkbenchRuntime(
       projectionTaskId = undefined
       void projections.close(String(reason ?? "Workbench closed."))
       unsubscribeLifecycle()
+      unsubscribePanelPermissions()
       commands.close(String(reason ?? "Workbench closed."))
       controlCommands.close(String(reason ?? "Workbench closed."))
       permissionConsole.close(String(reason ?? "Workbench closed."))
       sessionConsole.close(String(reason ?? "Workbench closed."))
+      mcpConsole.close(String(reason ?? "Workbench closed."))
+      skillConsole.close(String(reason ?? "Workbench closed."))
+      subagentConsole.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
       routeLoader.close(String(reason ?? "Workbench closed."))

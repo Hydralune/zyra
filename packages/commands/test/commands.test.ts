@@ -114,19 +114,30 @@ describe("command registry and parser", () => {
     const registry = createCommandRegistry()
     expect(registry.audit()).toEqual({
       valid: true,
-      commandCount: 11,
-      triggerCount: 33,
+      commandCount: 22,
+      triggerCount: 63,
       errors: [],
     })
     expect(registry.names()).toEqual([
+      "/agents",
+      "/tasks",
       "/artifacts",
+      "/export",
+      "/mcp",
+      "/skills",
       "/doctor",
       "/change",
       "/inject",
+      "/memory",
       "/graph",
       "/status",
       "/trace",
       "/permissions",
+      "/model",
+      "/compact",
+      "/context",
+      "/resume",
+      "/rewind",
       "/btw",
       "/eval",
       "/verify",
@@ -189,7 +200,8 @@ describe("completion and palette", () => {
     const registry = createCommandRegistry()
     const suggestions = registry.search("tr", context, 20)
     expect(suggestions[0]?.descriptor.name).toBe("/trace")
-    const disabled = registry.search("permissions", { ...context, sealed: true }, 20)[0]
+    const disabled = registry.search("permissions", { ...context, sealed: true }, 20)
+      .find((entry) => entry.descriptor.name === "/permissions")
     expect(disabled?.descriptor.name).toBe("/permissions")
     expect(disabled?.disabled).toBe(true)
     expect(disabled?.disabledReason).toContain("Sealed")

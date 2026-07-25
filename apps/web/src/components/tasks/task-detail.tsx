@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import type {
   PlanNodeProjection,
   TaskProjection,
@@ -25,6 +25,9 @@ import { BrowserWorkbench } from "../../features/browser/view/browser-workbench.
 import { CausalTraceWorkbench } from "../../features/trace/view/trace-workbench.tsx"
 import { PermissionWorkbench } from "../../features/permissions/index.ts"
 import { SessionConsoleWorkbench } from "../../features/session/index.ts"
+import { McpWorkbench } from "../../features/mcp/index.ts"
+import { SkillWorkbench } from "../../features/skills/index.ts"
+import { SubagentWorkbench } from "../../features/subagents/index.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -137,6 +140,21 @@ function TaskActions({
       ) : null}
     </div>
   )
+}
+
+function BoundSubagentWorkbench({
+  runtime,
+  task,
+}: {
+  runtime: WorkbenchRuntime
+  task: TaskProjection
+}) {
+  useEffect(() => {
+    runtime.subagentConsole.openViewer()
+    runtime.subagentConsole.bind(task.taskId, task.runId)
+    return () => runtime.subagentConsole.closeViewer()
+  }, [runtime.subagentConsole, task.runId, task.taskId])
+  return <SubagentWorkbench controller={runtime.subagentConsole} />
 }
 
 function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: TaskProjection }) {
@@ -257,6 +275,26 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       <PermissionWorkbench runtime={runtime} task={task} />
 
       <SessionConsoleWorkbench runtime={runtime} task={task} />
+
+      <div id="mcp-runtime-panel">
+        <McpWorkbench
+          controller={runtime.mcpConsole}
+          taskId={task.taskId}
+          runId={task.runId}
+        />
+      </div>
+
+      <div id="skill-runtime-panel">
+        <SkillWorkbench
+          controller={runtime.skillConsole}
+          taskId={task.taskId}
+          runId={task.runId}
+        />
+      </div>
+
+      <div id="subagent-runtime-panel">
+        <BoundSubagentWorkbench runtime={runtime} task={task} />
+      </div>
 
       <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
 
