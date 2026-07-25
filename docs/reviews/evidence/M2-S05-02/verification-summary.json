@@ -1,0 +1,128 @@
+{
+  "schema": "zyra.m2-s05-02-verification-summary/v1",
+  "baseline_commit": "df5d0d4b0f4e05f2f188f58aea1ea379d9e62154",
+  "decision_commit": "6f6a12071f00ed20fd3cddb6fbb2d4e31aa122fb",
+  "implementation_commits": [
+    "8b83c127c30fba3fa4f01a8201bd7f4d6770201c",
+    "7c15b9cfca5096294eefa67a358c687fb592ae50",
+    "217ffb1dc24dc9b540ba637899cfb77f0888b02f",
+    "827a9689588eef6e1f75b1ff062c2bcaaeb5aa8e"
+  ],
+  "target_commit": "827a9689588eef6e1f75b1ff062c2bcaaeb5aa8e",
+  "user_boundary": {
+    "authenticated_provider_cli_allowed": false,
+    "authenticated_provider_cli_invoked": false,
+    "background_process_started_by_final_runs": false,
+    "network_listener_opened_by_final_runs": false,
+    "external_model_request_made": false
+  },
+  "runs": {
+    "software_delivery": {
+      "scenario_run_id": "scenario_13e9390534814e9298e2967c8ee7335d",
+      "owner_run_id": "run_8e6614551158",
+      "task_id": "task_64308571fd94",
+      "phase": "succeeded",
+      "clean_state": true,
+      "new_input": true,
+      "effective_step_count": 2164,
+      "causal_archive_event_count": 2158,
+      "fault_count": 5,
+      "recovered_fault_count": 5,
+      "route_count": 4,
+      "human_intervention_count": 0,
+      "operator_intervention_attempt_count": 0,
+      "domain_verification_valid": true,
+      "evidence_verification_valid": true,
+      "external_provider_execution_excluded": true,
+      "authenticated_provider_cli_invoked": false,
+      "causal_archive_digest": "194f948c61cd994a22c985ef75eedc2286bf8f1f4bc9bfd6314cb6ca50ab3560",
+      "evidence_receipt_digest": "c6010546a1a7463732f94802a78a2e1cb84aebac60d346c2992120f6aba423bd"
+    },
+    "cross_source_research": {
+      "scenario_run_id": "scenario_7407264daad9474bbfae40ca43b11c48",
+      "owner_run_id": "run_808c92efef44",
+      "task_id": "task_7c8e85ad3a80",
+      "phase": "succeeded",
+      "clean_state": true,
+      "new_input": true,
+      "effective_step_count": 7169,
+      "causal_archive_event_count": 7163,
+      "fault_count": 5,
+      "recovered_fault_count": 5,
+      "route_count": 4,
+      "human_intervention_count": 0,
+      "operator_intervention_attempt_count": 0,
+      "domain_verification_valid": true,
+      "evidence_verification_valid": true,
+      "external_provider_execution_excluded": true,
+      "authenticated_provider_cli_invoked": false,
+      "causal_archive_digest": "fb703fd0862ce5d45629dfff96297d06c2312b5e3f4ba097f7a50df63781d4d6",
+      "evidence_receipt_digest": "a9eb95ff7a5c33fd8a9f7d64dab547fedf7b52e36aace3e3e5dcd8282bccf87e"
+    }
+  },
+  "research_sources": [
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+      "authority": "www.rfc-editor.org",
+      "status": 200,
+      "source_sha256": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "live": true,
+      "replay": false
+    },
+    {
+      "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes-1.csv",
+      "authority": "www.iana.org",
+      "status": 200,
+      "source_sha256": "4a9550d4b4ae49cf41cf9050cf9b56b0d6082ad1edfc0e2b09b07f251a36d7a4",
+      "live": true,
+      "replay": false
+    },
+    {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+      "authority": "developer.mozilla.org",
+      "status": 200,
+      "source_sha256": "93450a73fbc03f06e6ac2b46d09915e4da599f52c60eae61aaa02413d27bbf92",
+      "live": true,
+      "replay": false
+    }
+  ],
+  "effective_code_gate": {
+    "raw_additions": 14051,
+    "raw_deletions": 45,
+    "effective_production": 10176,
+    "conservative_effective_production_excluding_embedded_runner": 9940,
+    "minimum_effective_production": 7000,
+    "line_count_ok": true
+  },
+  "validation": {
+    "python_regression": "21 passed in 142.59s",
+    "web_regression": "10 passed, 58 assertions",
+    "web_typecheck": "passed",
+    "python_compileall": "passed",
+    "dependency_boundary_changes": 0,
+    "forbidden_relative_runtime_paths": 0,
+    "external_provider_process_call_sites": 0
+  },
+  "bundles": {
+    "effective-lines.json": {
+      "bytes": 20134,
+      "sha256": "60239ff598ab3a2def714ec7404c40c7841f36d8a0677238980911d87b61b210"
+    },
+    "software-causal-archive.zip": {
+      "bytes": 263756,
+      "sha256": "51ed4d97d3b06f0f735abaf29baa8fee4fd2d2e4b56c5d38986c4dbd9569aa66"
+    },
+    "research-causal-archive.zip": {
+      "bytes": 782865,
+      "sha256": "8042882a6218e654746de78972778bdec5bcc805f5f8508a9a1e8610e28d9d38"
+    },
+    "software-delivery-artifacts.zip": {
+      "bytes": 72238,
+      "sha256": "fd7bb1d1c1eec5f5045d0d8e25ae1fe4326fdb0e3b515f5c77ab900d498733d3"
+    },
+    "research-delivery-artifacts.zip": {
+      "bytes": 965865,
+      "sha256": "a70381c74139a30b3706c03bbaba7117c967a3370677b36c34374e2bd3f5679c"
+    }
+  }
+}
