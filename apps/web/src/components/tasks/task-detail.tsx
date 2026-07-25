@@ -24,6 +24,7 @@ import { TerminalWorkbench } from "../../features/terminal/view/terminal-workben
 import { BrowserWorkbench } from "../../features/browser/view/browser-workbench.tsx"
 import { CausalTraceWorkbench } from "../../features/trace/view/trace-workbench.tsx"
 import { PermissionWorkbench } from "../../features/permissions/index.ts"
+import { SessionConsoleWorkbench } from "../../features/session/index.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -254,6 +255,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       <TopologyWorkbench runtime={runtime} task={task} />
 
       <PermissionWorkbench runtime={runtime} task={task} />
+
+      <SessionConsoleWorkbench runtime={runtime} task={task} />
 
       <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
 
