@@ -1,0 +1,145 @@
+{
+  "schema": "zyra.slice-verification/v1",
+  "slice_id": "M2-S04B-02",
+  "parent_unit": "M2-04B",
+  "numeric_stage": "M2-04",
+  "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+  "numeric_stage_baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+  "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+  "initial_implementation_commit": "d153c0e48f417fe8c073fdac7429d643508265f4",
+  "remediation_commits": [
+    "e8e7d8e49d15a211da27f04e56f380201e01d524",
+    "48fd5c6e2e16c2dedf5be608512148002aa9da54",
+    "21b1165df4fbb941391d97f4aac304c13c7e312e"
+  ],
+  "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+  "status": "pass",
+  "effective_lines": {
+    "slice": {
+      "effective_production": 15311,
+      "minimum": 8000,
+      "ok": true
+    },
+    "parent": {
+      "effective_production": 24013,
+      "minimum": 16000,
+      "ok": true
+    },
+    "numeric_stage": {
+      "effective_production": 40214,
+      "minimum": 31000,
+      "ok": true
+    }
+  },
+  "tests": [
+    {
+      "scope": "focused-real-e02-owner",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "scope": "commands",
+      "passed": 29,
+      "failed": 0,
+      "assertions": 137
+    },
+    {
+      "scope": "focused-mcp-skill-subagent-workbenches",
+      "passed": 24,
+      "failed": 0,
+      "assertions": 167
+    },
+    {
+      "scope": "focused-skill-staged-admission-and-custody",
+      "passed": 24,
+      "failed": 0
+    },
+    {
+      "scope": "focused-e03-control-routing-and-lease",
+      "passed": 41,
+      "failed": 0
+    },
+    {
+      "scope": "python-e02-api-cutover",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "scope": "python-worker-pool-api",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "scope": "exact-final-source-cleanroom-typescript",
+      "command": "ZYRA_TEST_PYTHON=<external-test-interpreter> bun test ./apps/web/test ./packages/commands/test ./packages/integrations/claude-mcp/test ./packages/runtime/claude-runtime/test",
+      "passed": 1546,
+      "failed": 0,
+      "assertions": 3190,
+      "files": 78,
+      "checkout": "G:/agent-zoo/.tmp/m2-s04b02-cleanroom-21b1165-20260725",
+      "frozen_lockfile": true,
+      "source_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e"
+    },
+    {
+      "scope": "exact-final-source-cleanroom-python",
+      "command": "pytest test_e02_typescript_api_cutover.py and test_worker_pool_api_main_path.py with cleanroom-local basetemp",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "scope": "adjacent-python-api-memory-permission",
+      "passed": 24,
+      "failed": 0,
+      "subtests_passed": 16,
+      "permission_console_passed": 2
+    }
+  ],
+  "legacy_non_gating_residual": {
+    "test_file": "tests/integration/test_api_control_commands.py",
+    "final_result": "9 passed, 16 failed",
+    "classification": "legacy pre-E02 direct route and removed productized-contract expectations; not counted as passing",
+    "known_baseline_reproduction": "/help HTTP 409 reproduces at numeric-stage baseline"
+  },
+  "source_language_custody": {
+    "ok": true,
+    "claude_primary": {
+      "raw_added_lines": 16108,
+      "effective_production": 12545
+    },
+    "opencode_supplementary": {
+      "raw_added_lines": 1223,
+      "effective_production": 1016
+    },
+    "hermes_bounded_semantic_port": {
+      "raw_added_lines": 1100,
+      "effective_production": 1000
+    },
+    "zyra_owner_integration": {
+      "raw_added_lines": 994,
+      "effective_production": 750
+    }
+  },
+  "source_ledger": {
+    "owner_unit": "M2-S04B-02",
+    "entry_count": 7,
+    "missing_target_count": 0,
+    "aligned": true
+  },
+  "cleanroom": {
+    "root_source_repository_dependencies": 0,
+    "parent_relative_runtime_paths": 0,
+    "manifest_dependency_matches": 0,
+    "install": "bun install --frozen-lockfile",
+    "external_test_interpreter_only": true,
+    "typescript_typecheck": "passed",
+    "web_production_build": "passed",
+    "cleanroom_local_basetemp": "E02 1 passed; WorkerPool 8 passed"
+  },
+  "competition_requirements": [
+    "REQ-CLOSE-01",
+    "REQ-MEM-01",
+    "REQ-TRACE-01",
+    "SCORE-COMPAT",
+    "SCORE-UX"
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "base": "2d3d8c16075f1dda298831578cd339478f63afad",
+  "ok": true,
+  "roles": [
+    {
+      "actual_production_languages": [
+        "typescript"
+      ],
+      "added_production_lines": {
+        "typescript": 14553
+      },
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "migration_mode": "retained_control_flow_adapt/cropped_migration/same_language_component_integration",
+      "production_paths": [
+        "apps/web/src/features/mcp/controller.ts",
+        "apps/web/src/features/mcp/effects.ts",
+        "apps/web/src/features/mcp/elicitation.ts",
+        "apps/web/src/features/mcp/projection.ts",
+        "apps/web/src/features/mcp/reconnect.ts",
+        "apps/web/src/features/mcp/value.ts",
+        "apps/web/src/features/mcp/view/mcp-workbench.tsx",
+        "apps/web/src/features/skills/admission.ts",
+        "apps/web/src/features/skills/body.ts",
+        "apps/web/src/features/skills/control-policy.ts",
+        "apps/web/src/features/skills/controller.ts",
+        "apps/web/src/features/skills/dependencies.ts",
+        "apps/web/src/features/skills/effects.ts",
+        "apps/web/src/features/skills/projection.ts",
+        "apps/web/src/features/skills/skill-workbench.tsx",
+        "apps/web/src/features/skills/value.ts",
+        "apps/web/src/features/skills/view-model.ts",
+        "apps/web/src/features/subagents/control.ts",
+        "apps/web/src/features/subagents/controller.ts",
+        "apps/web/src/features/subagents/lifecycle.ts",
+        "apps/web/src/features/subagents/projection.ts",
+        "apps/web/src/features/subagents/value.ts",
+        "apps/web/src/features/subagents/view/subagent-workbench.tsx",
+        "packages/commands/src/coordinator.ts",
+        "packages/commands/src/policy.ts",
+        "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+        "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+        "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts",
+        "packages/runtime/claude-runtime/src/control/session-handler.ts",
+        "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts",
+        "packages/runtime/claude-runtime/src/e02/coordinator.ts",
+        "packages/runtime/claude-runtime/src/e03/coordinator.ts",
+        "packages/runtime/claude-runtime/src/skills/coordinator.ts"
+      ],
+      "source_repo": "claude-code-best",
+      "source_role": "primary_implementation"
+    },
+    {
+      "actual_production_languages": [
+        "typescript"
+      ],
+      "added_production_lines": {
+        "typescript": 1115
+      },
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "production_paths": [
+        "apps/web/src/features/mcp/catalog.ts",
+        "apps/web/src/features/skills/catalog.ts",
+        "apps/web/src/features/subagents/hierarchy.ts"
+      ],
+      "source_repo": "opencode",
+      "source_role": "supplementary_implementation"
+    },
+    {
+      "actual_production_languages": [
+        "typescript"
+      ],
+      "added_production_lines": {
+        "typescript": 1100
+      },
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "migration_mode": "bounded_cross_language_semantic_port/cropped_migration",
+      "production_paths": [
+        "apps/web/src/features/mcp/auth.ts",
+        "apps/web/src/features/skills/provenance.ts",
+        "apps/web/src/features/skills/supply-chain.ts"
+      ],
+      "source_repo": "hermes-agent",
+      "source_role": "supplementary_implementation"
+    }
+  ],
+  "schema": "zyra.source-language-custody-report/v1",
+  "target": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+  "violations": []
+}

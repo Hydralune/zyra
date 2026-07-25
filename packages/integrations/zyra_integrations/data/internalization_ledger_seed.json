@@ -191935,27 +191935,1426 @@
         }
       ],
       "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "mcp_skill_subagent_console_runtime",
+      "capability_summary": "Canonical MCP, skill and subagent projection, lifecycle, control, sealed denial and later-effect reconciliation.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_4db1a1e4df4e1fe3448d",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> panel controller -> CommandSurfaceRuntime -> permission/runtime owner -> event -> selector reconciliation"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "retained_control_flow_adapt/cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "The TypeScript MCP/SkillTool/AgentTool control flow is retained and adapted to Zyra command receipts, permissions and canonical selectors.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_language": "typescript/tsx",
+        "source_role": "primary_implementation",
+        "target_language": "typescript/tsx",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; migration_mode=retained_control_flow_adapt/cropped_migration/same_language_component_integration; The TypeScript MCP/SkillTool/AgentTool control flow is retained and adapted to Zyra command receipts, permissions and canonical selectors.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "Replace behind canonical selectors, command and permission ports without moving MCP, skill or subagent custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/features/mcp/controller.ts",
+          "apps/web/src/features/mcp/projection.ts",
+          "apps/web/src/features/skills/controller.ts",
+          "apps/web/src/features/skills/projection.ts",
+          "apps/web/src/features/subagents/control.ts",
+          "apps/web/src/features/subagents/projection.ts",
+          "packages/commands/src/registry.ts",
+          "packages/commands/zyra_commands/runtime/owner_handlers.py",
+          "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+          "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts",
+          "packages/runtime/claude-runtime/src/e02/coordinator.ts"
+        ],
+        "environment_refs": [],
+        "function": "panel controllers",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.src.features",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/services/mcp;src/tools/SkillTool;src/tools/AgentTool;src/services/agent;src/screens/REPL.tsx",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "src/services/mcp;src/tools/SkillTool;src/tools/AgentTool;src/services/agent;src/screens/REPL.tsx",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/mcp/controller.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/mcp/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/skills/controller.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/skills/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/subagents/control.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/subagents/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/registry.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/zyra_commands/runtime/owner_handlers.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/src/e02/coordinator.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/mcp-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/mcp-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/skill-workbench-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/skill-workbench-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_e02_typescript_api_cutover.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_worker_pool_api_main_path.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "extension_catalog_and_child_hierarchy_supplement",
+      "capability_summary": "Revision-bound catalog paging, status presentation and child-run hierarchy without another runtime or store owner.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_9630ebc598f42313c0e0",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> panel controller -> CommandSurfaceRuntime -> permission/runtime owner -> event -> selector reconciliation"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "OpenCode fills bounded catalog and hierarchy presentation gaps only.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript/tsx",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript/tsx",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode fills bounded catalog and hierarchy presentation gaps only.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "Replace behind canonical selectors, command and permission ports without moving MCP, skill or subagent custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/features/mcp/catalog.ts",
+          "apps/web/src/features/skills/catalog.ts",
+          "apps/web/src/features/subagents/hierarchy.ts"
+        ],
+        "environment_refs": [],
+        "function": "panel controllers",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.src.features",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/components;packages/app/src/pages/session.tsx;packages/core/src/session",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/components;packages/app/src/pages/session.tsx;packages/core/src/session",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/mcp/catalog.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/skills/catalog.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/subagents/hierarchy.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/mcp-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/mcp-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/skill-workbench-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/skill-workbench-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_e02_typescript_api_cutover.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_worker_pool_api_main_path.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "mcp_auth_skill_provenance_supply_chain_supplement",
+      "capability_summary": "Credential-presence admission, skill hash/provenance and bounded supply-chain policy expressed at the existing TypeScript UI boundary.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_5b141867b8d52fadfb66",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "CanonicalProjectionStore -> panel controller -> CommandSurfaceRuntime -> permission/runtime owner -> event -> selector reconciliation"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "bounded_cross_language_semantic_port/cropped_migration",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "A bounded semantic port avoids a forwarding-only Python facade and does not move MCP, skill or credential custody.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript/tsx",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "semantic_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=bounded_cross_language_semantic_port/cropped_migration; A bounded semantic port avoids a forwarding-only Python facade and does not move MCP, skill or credential custody.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "Replace behind canonical selectors, command and permission ports without moving MCP, skill or subagent custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/features/mcp/auth.ts",
+          "apps/web/src/features/skills/provenance.ts",
+          "apps/web/src/features/skills/supply-chain.ts"
+        ],
+        "environment_refs": [],
+        "function": "panel controllers",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.src.features",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "gateway/mcp;agent/skills;skills/provenance;skills/security",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "gateway/mcp;agent/skills;skills/provenance;skills/security",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/mcp/auth.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/skills/provenance.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/skills/supply-chain.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/mcp-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/mcp-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/skill-workbench-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/skill-workbench-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_e02_typescript_api_cutover.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_worker_pool_api_main_path.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "approval_history_conformance",
+      "capability_summary": "Challenges permission-bound control and exact lifecycle history.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_418d6d87b0ec39b2a36d",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "conformance_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "Conformance only; no framework workflow or store owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python/csharp",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=source-graph-frozen; migration_mode=conformance_only; Conformance only; no framework workflow or store owner is migrated.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/mcp-panel-integration.test.ts",
+          "apps/web/test/skill-workbench-integration.test.ts",
+          "apps/web/test/subagent-panel-integration.test.ts",
+          "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "tests/integration/test_e02_typescript_api_cutover.py",
+          "tests/integration/test_worker_pool_api_main_path.py"
+        ],
+        "environment_refs": [],
+        "function": "conformance tests",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.test.mcp-skill-subagent-panel-integration",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/mcp-panel-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/skill-workbench-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/subagent-panel-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_e02_typescript_api_cutover.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_worker_pool_api_main_path.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/mcp-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/mcp-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/skill-workbench-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/skill-workbench-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_e02_typescript_api_cutover.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_worker_pool_api_main_path.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "subagent_lifecycle_conformance",
+      "capability_summary": "Challenges crash, reconnect, heartbeat and late-result behavior.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_f3f009b5a62583804528",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agentscope",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "conformance_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "Conformance only; no AgentScope worker owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=source-graph-frozen; migration_mode=conformance_only; Conformance only; no AgentScope worker owner is migrated.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/subagent-panel-integration.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "conformance tests",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.test.mcp-skill-subagent-panel-integration",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "worker lifecycle/inbox/wakeup contracts",
+          "source_repo": "agentscope",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "worker lifecycle/inbox/wakeup contracts",
+      "source_repo": "agentscope",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/subagent-panel-integration.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "close_restore_disable_reference",
+      "capability_summary": "Reference-only close, reconnect, restore and disable review.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_b7eed17fed4c15abe727",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "reference_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "Reference behavior only; no browser-use runtime is migrated.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python/typescript",
+        "source_role": "reference_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Reference behavior only; no browser-use runtime is migrated.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "reference_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/mcp-panel-integration.test.ts",
+          "apps/web/test/skill-workbench-integration.test.ts",
+          "apps/web/test/subagent-panel-integration.test.ts",
+          "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "tests/integration/test_e02_typescript_api_cutover.py",
+          "tests/integration/test_worker_pool_api_main_path.py"
+        ],
+        "environment_refs": [],
+        "function": "conformance tests",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.test.mcp-skill-subagent-panel-integration",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "watchdog/browser-close/restore source graph facts",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "watchdog/browser-close/restore source graph facts",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/mcp-panel-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/skill-workbench-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/subagent-panel-integration.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_e02_typescript_api_cutover.py"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_worker_pool_api_main_path.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/mcp-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/mcp-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/skill-workbench-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/skill-workbench-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_e02_typescript_api_cutover.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_worker_pool_api_main_path.py -q",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "agent_task_drilldown_reference",
+      "capability_summary": "Reference-only agent/task drill-down and status review.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_80271c37111a83feae45",
+      "license_notice": {
+        "license_hint": "M2 extension panel source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "skill_resource",
+          "subagent_result",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/mcp",
+          "/skills",
+          "/agents",
+          "/tasks"
+        ],
+        "event_types": [
+          "MCP capability/auth/elicitation",
+          "skill registry/invocation",
+          "subagent lifecycle/checkpoint/result"
+        ],
+        "surfaces": [
+          "mcp_panel",
+          "skill_panel",
+          "subagent_panel"
+        ],
+        "ui_panels": [
+          "mcp",
+          "skills",
+          "subagents"
+        ],
+        "worker_runtime": "reference_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "2d3d8c16075f1dda298831578cd339478f63afad",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.McpRuntime+SkillRuntime+SubagentRuntime+PermissionRuntime",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "d17bcdee550db9742abe975672a7a58c12675bb4",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "21b1165df4fbb941391d97f4aac304c13c7e312e",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S04B-02",
+        "rationale": "Reference behavior only; no Oh My Pi task owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-02",
+        "source_commit": "source-graph-frozen",
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Reference behavior only; no Oh My Pi task owner is migrated.",
+      "owner_unit": "M2-S04B-02",
+      "replacement_plan": "reference_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore is the only frontend truth.",
+        "M1 MCP, skill, subagent and permission runtimes retain custody.",
+        "Receipts do not prove semantic effects without later canonical events.",
+        "Sealed mode denies mutation and records the attempt.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/subagent-panel-integration.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "conformance tests",
+        "health_check": "bun test ./apps/web/test",
+        "module": "apps.web.test.mcp-skill-subagent-panel-integration",
+        "protocol": "zyra.extension-panels/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S04B-02 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "TaskTool child-session/typed settlement/heartbeat source graph facts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "TaskTool child-session/typed settlement/heartbeat source graph facts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-02",
+        "extension-panels",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/subagent-panel-integration.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/subagent-panel-integration.test.ts",
+          "expected_signal": "canonical projection, permission-bound controls, sealed denial, effect reconciliation, close/restore and disable",
+          "kind": "integration",
+          "path": "apps/web/test/subagent-panel-integration.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 502,
+    "active_or_internalized": 505,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 67,
+      "candidate": 71,
       "deferred": 8,
       "planned": 698,
-      "productized": 447
+      "productized": 450
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 67,
+      "inventoried": 71,
       "planned": 503,
-      "tested_main_path": 208,
+      "tested_main_path": 211,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -192019,35 +193418,36 @@
       "M2-S03B-03": 3,
       "M2-S04A-01": 5,
       "M2-S04A-02": 6,
-      "M2-S04B-01": 5
+      "M2-S04B-01": 5,
+      "M2-S04B-02": 7
     },
     "by_source_repo": {
       "OpenHands": 101,
-      "agent-framework": 97,
-      "agentscope": 108,
-      "browser-use": 115,
-      "claude-code-best": 515,
-      "hermes-agent": 92,
+      "agent-framework": 98,
+      "agentscope": 109,
+      "browser-use": 116,
+      "claude-code-best": 516,
+      "hermes-agent": 93,
       "langgraph": 90,
-      "oh-my-pi": 34,
+      "oh-my-pi": 35,
       "openclaw": 86,
-      "opencode": 34,
+      "opencode": 35,
       "zyra": 3
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 20,
-      "direct_port": 66,
-      "not_selected": 45,
+      "candidate_review": 21,
+      "direct_port": 68,
+      "not_selected": 49,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 765,
+    "planned_or_candidate": 769,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 106,
+      "apps/web": 113,
       "packages/commands": 5,
       "packages/core": 4,
       "packages/evaluation": 34,
@@ -192063,6 +193463,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1275
+    "total_entries": 1282
   }
 }
