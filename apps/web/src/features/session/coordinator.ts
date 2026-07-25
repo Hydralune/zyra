@@ -4,6 +4,7 @@ import {
   CuratorReceiptLedger,
   MemoryCuratorPlanner,
   MemoryRetrievalSession,
+  MemoryContextExporter,
   type CuratorBatch,
   type MemoryConsoleProjection,
   type RetrievalPlan,
@@ -19,6 +20,7 @@ import {
   buildProviderConsoleProjection,
   ProviderFailoverPlanner,
   ProviderUsageLedger,
+  ProviderCredentialAuditor,
   type FailoverPlan,
   type ProviderConsoleProjection,
   type UsageWindow,
@@ -102,8 +104,10 @@ export class SessionBehaviorCoordinator {
   readonly retrieval = new MemoryRetrievalSession()
   readonly curator = new MemoryCuratorPlanner()
   readonly curatorReceipts = new CuratorReceiptLedger()
+  readonly memoryContext = new MemoryContextExporter()
   readonly failover = new ProviderFailoverPlanner()
   readonly usage = new ProviderUsageLedger()
+  readonly credentials = new ProviderCredentialAuditor()
   readonly admission = new PlacementAdmissionEngine()
   readonly #listeners = new Set<() => void>()
   #snapshot: SessionBehaviorSnapshot
@@ -209,8 +213,17 @@ export class SessionBehaviorCoordinator {
       includeRejected: false,
     })
     const curatorBatch = this.curator.plan(memory.rows)
+    this.memoryContext.export({
+      plan: retrievalPlan,
+      taskId,
+      sessionId: session.activeSessionId,
+      compactEpoch: session.context?.compactEpoch ?? 0,
+      contextRevision: session.revision,
+      createdAt: options.capturedAt,
+    })
     this.usage.ingest(providers, options.capturedAt)
     const providerUsage = this.usage.windows()
+    this.credentials.audit(providers)
     const placementScenario = this.admission.evaluate(
       placement,
       {
@@ -383,8 +396,10 @@ export class SessionBehaviorCoordinator {
     this.retrieval.disable(reason)
     this.curator.disable(reason)
     this.curatorReceipts.disable(reason)
+    this.memoryContext.disable(reason)
     this.failover.disable(reason)
     this.usage.disable(reason)
+    this.credentials.disable(reason)
     this.admission.disable(reason)
     this.#replace(Object.freeze({
       ...this.#snapshot,
@@ -410,8 +425,10 @@ export class SessionBehaviorCoordinator {
     this.retrieval.enable()
     this.curator.enable()
     this.curatorReceipts.enable()
+    this.memoryContext.enable()
     this.failover.enable()
     this.usage.enable()
+    this.credentials.enable()
     this.admission.enable()
     this.#replace(Object.freeze({
       ...this.#snapshot,

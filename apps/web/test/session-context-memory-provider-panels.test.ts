@@ -14,7 +14,14 @@ import {
   buildSessionConsoleProjection,
 } from "../src/features/session/projection.ts"
 import { buildMemoryConsoleProjection } from "../src/features/memory/projection.ts"
+import { MemoryRetrievalSession } from "../src/features/memory/retrieval-session.ts"
+import { MemoryContextExporter } from "../src/features/memory/context-export.ts"
 import { buildProviderConsoleProjection } from "../src/features/providers/projection.ts"
+import {
+  ProviderCredentialAuditor,
+  assertCredentialProjectionSafe,
+  scanSecretPaths,
+} from "../src/features/providers/credential-audit.ts"
 import { buildPlacementConsoleProjection } from "../src/features/placement/projection.ts"
 import { SessionConsoleRuntime } from "../src/features/session/runtime.ts"
 
@@ -453,6 +460,50 @@ describe("M2-S04B-01 session/context/memory/provider panels", () => {
     expect(hit.fingerprint).not.toBe(miss.fingerprint)
   })
 
+  test("exports selected memory into restorable later-context blocks with stable provenance", () => {
+    const projection = buildMemoryConsoleProjection(fixture(), "task-1", {
+      text: "exact checkpoint",
+      layers: ["semantic"],
+    })
+    const retrieval = new MemoryRetrievalSession()
+    retrieval.replace(projection.rows)
+    const plan = retrieval.plan({
+      query: "exact checkpoint",
+      layers: ["semantic"],
+      maximumTokens: 2048,
+      requireArtifactEvidence: true,
+      requireEventEvidence: true,
+    })
+    const exporter = new MemoryContextExporter()
+    const exported = exporter.export({
+      plan,
+      taskId: "task-1",
+      sessionId: "session-1",
+      compactEpoch: 2,
+      contextRevision: 10,
+      createdAt: NOW,
+    })
+    const restored = exporter.restore({
+      exportId: exported.id,
+      rows: projection.rows,
+      targetEpoch: 2,
+      targetRevision: 10,
+    })
+    expect(exported.memoryIds).toEqual(["memory-1"])
+    expect(exported.sourceEventIds).toContain("event-memory-1")
+    expect(exported.sourceArtifactIds).toContain("artifact-1")
+    expect(exported.blocks[0]?.checksum).toBeTruthy()
+    expect(restored.exact).toBe(true)
+    expect(restored.restoredBlocks.map((block) => block.memoryId)).toEqual(["memory-1"])
+    exporter.disable("disconnect proof")
+    expect(() => exporter.restore({
+      exportId: exported.id,
+      rows: projection.rows,
+      targetEpoch: 2,
+      targetRevision: 10,
+    })).toThrow("disconnect proof")
+  })
+
   test("provider failure builds a fallback chain without exposing credential values", () => {
     const projection = buildProviderConsoleProjection(fixture(), "task-1", {
       requiredCapabilities: ["tools"],
@@ -463,6 +514,31 @@ describe("M2-S04B-01 session/context/memory/provider panels", () => {
     expect(JSON.stringify(projection.providers)).not.toContain("api_key")
     expect(JSON.stringify(projection.providers)).not.toContain("Bearer")
     expect(projection.candidates.some((candidate) => candidate.modelId === "model-edge")).toBe(true)
+  })
+
+  test("credential admission uses presence metadata and rejects secret-bearing projections", () => {
+    const projection = buildProviderConsoleProjection(fixture(), "task-1", {
+      requiredCapabilities: ["tools"],
+    })
+    const auditor = new ProviderCredentialAuditor()
+    const report = auditor.audit(projection)
+    expect(report.presentCount).toBeGreaterThan(0)
+    expect(report.unsafePaths).toEqual([])
+    expect(report.admissions.some((admission) =>
+      admission.providerId === "provider-edge" && admission.allowed)).toBe(true)
+    expect(() => assertCredentialProjectionSafe(projection)).not.toThrow()
+    expect(scanSecretPaths({
+      provider: {
+        credential_present: true,
+        api_key: "should-never-enter-a-projection",
+      },
+    })).toEqual(["provider.api_key"])
+    expect(() => assertCredentialProjectionSafe({
+      providerId: "provider-cloud",
+      authorization: "Bearer secret-token-value",
+    })).toThrow("secret-like value paths")
+    auditor.disable("credential module disconnected")
+    expect(() => auditor.audit(projection)).toThrow("credential module disconnected")
   })
 
   test("restricted privacy and latency constraints reject cloud and favor the device", () => {
