@@ -5,6 +5,7 @@ import {
   useState,
   useSyncExternalStore,
   type FormEvent,
+  type ReactNode,
 } from "react"
 import type { TaskProjection } from "../../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../../app/runtime.ts"
@@ -26,6 +27,7 @@ import {
   BrowserControlAction,
   BrowserStepPhase,
   BrowserViewerPhase,
+  safeExternalObservedUrl,
   type BrowserAction,
   type BrowserActionResult,
   type BrowserControlReceipt,
@@ -106,6 +108,23 @@ function formatTime(value: string | undefined): string {
     second: "2-digit",
     fractionalSecondDigits: 3,
   }).format(timestamp)
+}
+
+function ObservedPageLocation({ url }: { url?: string }): ReactNode {
+  const href = safeExternalObservedUrl(url)
+  if (!href) {
+    return <span title="Observed page URL is display-only">{url || "No current URL"}</span>
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title="Open current URL in a separate browser tab"
+    >
+      {url}
+    </a>
+  )
 }
 
 function compactIdentity(value: string | undefined, length = 18): string {
@@ -1336,14 +1355,7 @@ export function BrowserWorkbench({
                   <span className={`browser-phase-dot ${phaseTone(session.status)}`} />
                   <div>
                     <strong>{session.title || "Untitled browser target"}</strong>
-                    <a
-                      href={session.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Open current URL in a separate browser tab"
-                    >
-                      {session.url || "No current URL"}
-                    </a>
+                    <ObservedPageLocation url={session.url} />
                   </div>
                 </div>
                 <span>

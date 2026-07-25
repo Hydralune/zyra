@@ -460,8 +460,8 @@ def _apply_hunks(base_text: str, hunks: Sequence[DiffHunk], *, ending: str) -> s
                 cursor += 1
             elif line.kind == "added":
                 result.append(line.text)
-        if hunk.lines and hunk.lines[-1].no_newline:
-            terminated = False
+            if line.no_newline:
+                terminated = line.kind == "deleted"
     result.extend(source[cursor:])
     return _join_lines(result, ending=ending, terminated=terminated)
 

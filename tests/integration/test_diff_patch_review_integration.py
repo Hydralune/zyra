@@ -704,6 +704,78 @@ def test_allow_commits_through_workspace_owner_and_idempotently_replays(integrat
     assert replay.body["idempotent_replay"] is True
 
 
+def test_apply_preserves_the_new_side_eof_newline_contract(integration) -> None:
+    manager, artifacts, _artifact, _permission, service = integration
+    setup_access = manager.acquire_for_worker(
+        task_id=TASK_ID,
+        session_id="",
+        worker_id="newline-setup",
+    )
+    setup = WorkspaceEditPort(
+        manager,
+        setup_access,
+        worker_id="newline-setup",
+        run_id=RUN_ID,
+        task_id=TASK_ID,
+        artifact_store=artifacts,
+    )
+    setup.write_text(
+        "src/no-newline.txt",
+        "old",
+        idempotency_key="seed-no-newline",
+    )
+    patch = artifacts.write_text(
+        run_id=RUN_ID,
+        task_id=TASK_ID,
+        content=(
+            "diff --git a/src/no-newline.txt b/src/no-newline.txt\n"
+            "index 0000000..1111111 100644\n"
+            "--- a/src/no-newline.txt\n"
+            "+++ b/src/no-newline.txt\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "\\ No newline at end of file\n"
+            "+new\n"
+        ),
+        title="newline.patch",
+        kind=ArtifactKind.TEXT,
+        extension=".patch",
+        producer_node_id="node-newline-patch",
+        metadata={
+            "media_type": "text/x-diff",
+            "content_family": "text",
+            "encoding": "utf-8",
+            "security_label": "internal",
+            "trust_disposition": "trusted",
+            "download_policy": "allow",
+        },
+    )
+    manifest = _manifest(service, patch)
+    payload = _apply_payload(manifest)
+    payload["idempotency_key"] = "diff-apply-newline-idempotency-001"
+    payload["causation_id"] = "diff-apply-newline-cause-001"
+    response = service.apply(
+        task_id=TASK_ID,
+        run_id=RUN_ID,
+        artifact=patch,
+        payload=payload,
+    )
+    assert response.body["phase"] == "committed"
+    verify_access = manager.acquire_for_worker(
+        task_id=TASK_ID,
+        session_id="",
+        worker_id="newline-verification",
+    )
+    verify = WorkspaceEditPort(
+        manager,
+        verify_access,
+        worker_id="newline-verification",
+        run_id=RUN_ID,
+        task_id=TASK_ID,
+    )
+    assert verify.read_text("src/no-newline.txt").text() == "new\n"
+
+
 def test_ask_is_pending_without_write_and_exact_permit_can_retry(integration) -> None:
     manager, _artifacts, artifact, permission, service = integration
     permission.effect = "ask"

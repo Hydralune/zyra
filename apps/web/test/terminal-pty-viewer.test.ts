@@ -300,6 +300,34 @@ describe("terminal protocol contracts", () => {
     }, binding())
     expect(frame.kind).toBe("output")
 
+    const redacted = parseTerminalServerFrame({
+      kind: "output",
+      protocol: TERMINAL_PROTOCOL,
+      binding: bindingWire(),
+      first_cursor: 5,
+      next_cursor: 9,
+      text: "****",
+      byte_length: 4,
+      sha256: DIGEST,
+      redacted: true,
+      sequence: 2,
+    }, binding())
+    expect(redacted.kind).toBe("output")
+
+    const binary = parseTerminalServerFrame({
+      kind: "output",
+      protocol: TERMINAL_PROTOCOL,
+      binding: bindingWire(),
+      first_cursor: 9,
+      next_cursor: 10,
+      text: "<",
+      byte_length: 1,
+      sha256: DIGEST,
+      redacted: false,
+      sequence: 3,
+    }, binding())
+    expect(binary.kind).toBe("output")
+
     expect(() => parseTerminalServerFrame({
       kind: "cursor",
       protocol: TERMINAL_PROTOCOL,

@@ -508,6 +508,46 @@ describe("diff and patch review integration", () => {
     expect(applyFileHunks(applied.text, inverted).text).toBe(base)
   })
 
+  test("applies EOF newline transitions from the marker's exact diff side", () => {
+    const addsNewline = parseUnifiedDiff([
+      "diff --git a/readme.txt b/readme.txt",
+      "--- a/readme.txt",
+      "+++ b/readme.txt",
+      "@@ -1 +1 @@",
+      "-old",
+      "\\ No newline at end of file",
+      "+new",
+      "",
+    ].join("\n"))
+    const withNewline = applyFileHunks(
+      "old",
+      addsNewline.files[0]!.hunks,
+    )
+    expect(withNewline.text).toBe("new\n")
+    expect(withNewline.noNewlineAtEnd).toBe(false)
+    expect(applyFileHunks(
+      withNewline.text,
+      invertFileHunks(addsNewline.files[0]!.hunks),
+    ).text).toBe("old")
+
+    const removesNewline = parseUnifiedDiff([
+      "diff --git a/readme.txt b/readme.txt",
+      "--- a/readme.txt",
+      "+++ b/readme.txt",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "\\ No newline at end of file",
+      "",
+    ].join("\n"))
+    const withoutNewline = applyFileHunks(
+      "old\n",
+      removesNewline.files[0]!.hunks,
+    )
+    expect(withoutNewline.text).toBe("new")
+    expect(withoutNewline.noNewlineAtEnd).toBe(true)
+  })
+
   test("binary and NUL inputs fail closed", () => {
     const decoded = decodeDiffBytes(
       new Uint8Array([0x64, 0x69, 0x66, 0x66, 0, 0, 0, 0]),

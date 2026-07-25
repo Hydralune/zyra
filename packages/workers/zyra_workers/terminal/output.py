@@ -104,6 +104,8 @@ SpillSink = Callable[[bytes, int, int, bool, bool], TerminalSpill]
 
 
 class SecretRedactor:
+    _MARKER = b"[REDACTED]"
+
     def __init__(self, secrets: Iterable[str | bytes] = ()) -> None:
         values = {
             item.encode("utf-8") if isinstance(item, str) else bytes(item)
@@ -118,14 +120,27 @@ class SecretRedactor:
         for secret in self._secrets:
             if secret not in selected:
                 continue
-            selected = selected.replace(secret, b"[REDACTED]")
+            selected = selected.replace(secret, self._mask(len(secret)))
             redacted = True
         for pattern in _CREDENTIAL_PATTERNS:
-            replaced, count = pattern.subn(b"[REDACTED]", selected)
+            replaced, count = pattern.subn(
+                lambda match: self._mask(len(match.group(0))),
+                selected,
+            )
             if count:
                 selected = replaced
                 redacted = True
+        if len(selected) != len(data):
+            raise AssertionError("terminal redaction must preserve cursor byte length")
         return selected, redacted
+
+    @classmethod
+    def _mask(cls, length: int) -> bytes:
+        if length <= 0:
+            return b""
+        if length < len(cls._MARKER):
+            return b"*" * length
+        return cls._MARKER + (b"*" * (length - len(cls._MARKER)))
 
     def release_prefix(self, data: bytes) -> int:
         """Return the prefix that is safe to sanitize and publish now.
@@ -171,6 +186,46 @@ def binary_score(data: bytes) -> float:
         if value < 32 or value == 127:
             suspicious += 1
     return suspicious / len(data)
+
+
+def _utf8_release_prefix(data: bytes, maximum: int) -> int:
+    """Keep only a trailing, otherwise-valid incomplete UTF-8 code point."""
+
+    selected = data[:maximum]
+    try:
+        selected.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        if (
+            error.reason == "unexpected end of data"
+            and error.end == len(selected)
+        ):
+            return error.start
+    return maximum
+
+
+def _utf8_chunk_end(data: bytes, start: int, maximum_bytes: int) -> int:
+    end = min(len(data), start + maximum_bytes)
+    if end >= len(data):
+        return end
+    selected = data[start:end]
+    try:
+        selected.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        if (
+            error.reason == "unexpected end of data"
+            and error.end == len(selected)
+            and error.start > 0
+        ):
+            return start + error.start
+    return end
+
+
+def _bounded_binary_placeholder(spill: TerminalSpill, maximum_bytes: int) -> str:
+    marker = (
+        f"<binary:{spill.artifact_id}:"
+        f"{spill.sha256[:12]}>"
+    ).encode("ascii", errors="replace")
+    return marker[:maximum_bytes].decode("ascii")
 
 
 class TerminalOutputJournal:
@@ -236,6 +291,7 @@ class TerminalOutputJournal:
                 )
             self._pending.extend(data)
             release = self._redactor.release_prefix(bytes(self._pending))
+            release = _utf8_release_prefix(bytes(self._pending), release)
             material = bytes(self._pending[:release])
             del self._pending[:release]
             if len(self._pending) > self._maximum_memory_bytes:
@@ -247,10 +303,23 @@ class TerminalOutputJournal:
                     "Terminal output retained an unterminated credential beyond its budget.",
                     status=413,
                 )
+            safe_material, _ = self._redactor.redact(material)
             while offset < len(material):
-                raw = material[offset : offset + self._maximum_chunk_bytes]
-                offset += len(raw)
-                added.append(self._append_chunk(raw))
+                end = _utf8_chunk_end(
+                    material,
+                    offset,
+                    self._maximum_chunk_bytes,
+                )
+                raw = material[offset:end]
+                safe = safe_material[offset : offset + len(raw)]
+                offset = end
+                added.append(
+                    self._append_chunk(
+                        raw,
+                        redacted_bytes=safe,
+                        redacted=safe != raw,
+                    )
+                )
             self._trim()
             self._condition.notify_all()
         return tuple(added)
@@ -328,11 +397,24 @@ class TerminalOutputJournal:
             added: list[OutputChunk] = []
             material = bytes(self._pending)
             self._pending.clear()
+            safe_material, _ = self._redactor.redact(material)
             offset = 0
             while offset < len(material):
-                raw = material[offset : offset + self._maximum_chunk_bytes]
-                offset += len(raw)
-                added.append(self._append_chunk(raw))
+                end = _utf8_chunk_end(
+                    material,
+                    offset,
+                    self._maximum_chunk_bytes,
+                )
+                raw = material[offset:end]
+                safe = safe_material[offset : offset + len(raw)]
+                offset = end
+                added.append(
+                    self._append_chunk(
+                        raw,
+                        redacted_bytes=safe,
+                        redacted=safe != raw,
+                    )
+                )
             self._trim()
             self._closed = True
             self._condition.notify_all()
@@ -353,12 +435,25 @@ class TerminalOutputJournal:
                 "closed": self._closed,
             }
 
-    def _append_chunk(self, raw: bytes) -> OutputChunk:
+    def _append_chunk(
+        self,
+        raw: bytes,
+        *,
+        redacted_bytes: bytes,
+        redacted: bool,
+    ) -> OutputChunk:
         first = self._cursor
         next_cursor = first + len(raw)
-        redacted_bytes, redacted = self._redactor.redact(raw)
+        if len(redacted_bytes) != len(raw):
+            raise AssertionError("terminal output chunk must preserve cursor byte length")
         score = binary_score(raw)
-        binary = score > 0.05
+        try:
+            decoded = redacted_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            decoded = ""
+            binary = True
+        else:
+            binary = score > 0.05
         if binary:
             self._binary_bytes += len(raw)
             # A binary classification must not bypass the same credential
@@ -372,12 +467,11 @@ class TerminalOutputJournal:
                 True,
                 redacted,
             )
-            text = (
-                f"\r\n[Zyra binary terminal output: {len(raw)} bytes; "
-                f"artifact={spill.artifact_id}; sha256={spill.sha256}]\r\n"
-            )
+            text = _bounded_binary_placeholder(spill, len(raw))
         else:
-            text = redacted_bytes.decode("utf-8", errors="replace")
+            text = decoded
+        if len(text.encode("utf-8")) > len(raw):
+            raise AssertionError("terminal output text exceeds its cursor byte length")
         self._sequence += 1
         chunk = OutputChunk(
             sequence=self._sequence,
@@ -385,7 +479,7 @@ class TerminalOutputJournal:
             next_cursor=next_cursor,
             text=text,
             byte_length=len(raw),
-            sha256=hashlib.sha256(raw).hexdigest(),
+            sha256=hashlib.sha256(redacted_bytes).hexdigest(),
             redacted=redacted,
         )
         self._chunks.append(chunk)

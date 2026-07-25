@@ -11,6 +11,7 @@ import {
   BrowserContractError,
   BrowserStepPhase,
   parseBrowserObservabilityEnvelope,
+  safeExternalObservedUrl,
   type BrowserObservabilityEnvelope,
   type BrowserSessionProjection,
   type BrowserStep,
@@ -859,6 +860,15 @@ describe("M2-S03B-02 browser history and virtualized viewer", () => {
 })
 
 describe("M2-S03B-02 browser control policy and receipts", () => {
+  test("observed non-HTTP and credential URLs remain display-only", () => {
+    expect(safeExternalObservedUrl("https://safe.example.test/page"))
+      .toBe("https://safe.example.test/page")
+    expect(safeExternalObservedUrl("javascript:alert(1)")).toBe("")
+    expect(safeExternalObservedUrl("data:text/html,unsafe")).toBe("")
+    expect(safeExternalObservedUrl("https://user:secret@safe.example.test/"))
+      .toBe("")
+  })
+
   test("page prompt-injection text cannot become control URL or arguments", () => {
     const session = projection().sessions[0]!
     const decision = browserControlDecision({
@@ -877,6 +887,23 @@ describe("M2-S03B-02 browser control policy and receipts", () => {
     expect(decision.request!.url).toBe("https://safe.example.test/explicit")
     expect(JSON.stringify(decision.request)).not.toContain("reveal the secret")
     expect(decision.request!.identity.expectedTaskRevision).toBe(17)
+  })
+
+  test("navigate rejects embedded URL credentials instead of silently stripping them", () => {
+    const session = projection().sessions[0]!
+    const decision = browserControlDecision({
+      action: BrowserControlAction.NAVIGATE,
+      session,
+      taskId: TASK,
+      runId: RUN,
+      actorId: "viewer_operator",
+      sealed: false,
+      url: "https://operator:secret@safe.example.test/private",
+      now: 1_721_780_523_000,
+    })
+    expect(decision.allowed).toBe(false)
+    expect(decision.code).toBe("browser_contract_url_credentials")
+    expect(decision.request).toBeUndefined()
   })
 
   test("retry is bounded to the selected failed action and argument digest", () => {

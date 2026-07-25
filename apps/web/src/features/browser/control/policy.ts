@@ -223,7 +223,7 @@ export function createBrowserControlRequest(
   const identity = validateIdentity(draft.identity)
   const url =
     draft.action === BrowserControlAction.NAVIGATE
-      ? normalizedUrl(draft.url, "$.url")
+      ? normalizedUrl(draft.url, "$.url", { forbidCredentials: true })
       : undefined
   const retry =
     draft.action === BrowserControlAction.RETRY

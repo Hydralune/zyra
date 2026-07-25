@@ -1205,7 +1205,13 @@ export function applyFileHunks(
         output.push(line.text)
         additions += 1
       }
-      if (line.noNewline) noNewlineAtEnd = true
+      if (line.noNewline) {
+        // The marker describes the immediately preceding side. A deleted EOF
+        // line belongs only to the old file, so replacing/removing it clears
+        // the inherited no-newline state unless the new/context side carries
+        // its own marker.
+        noNewlineAtEnd = line.kind !== "deleted"
+      }
     }
     previousOldEnd = hunk.oldStart + hunk.oldCount
     applied.push(hunk.hunkId)

@@ -763,7 +763,11 @@ export function normalizedIdentity(
 export function normalizedUrl(
   value: unknown,
   path = "$.url",
-  options: { optional?: boolean; allowInternal?: boolean } = {},
+  options: {
+    optional?: boolean
+    allowInternal?: boolean
+    forbidCredentials?: boolean
+  } = {},
 ): string {
   const raw = stringValue(value, path, {
     optional: options.optional,
@@ -796,6 +800,14 @@ export function normalizedUrl(
       value,
     )
   }
+  if (options.forbidCredentials && (url.username || url.password)) {
+    throw new BrowserContractError(
+      "browser_contract_url_credentials",
+      `${path} must not contain embedded credentials`,
+      path,
+      value,
+    )
+  }
   url.username = ""
   url.password = ""
   return url.toString()
@@ -811,6 +823,18 @@ export function safeObservedUrl(value: unknown): string {
   } catch {
     const raw = String(value).trim()
     return raw.length <= 16 * 1024 ? raw : `${raw.slice(0, 16 * 1024)}…`
+  }
+}
+
+export function safeExternalObservedUrl(value: unknown): string {
+  if (value === undefined || value === null || value === "") return ""
+  try {
+    return normalizedUrl(value, "$.observed_url", {
+      optional: true,
+      forbidCredentials: true,
+    })
+  } catch {
+    return ""
   }
 }
 

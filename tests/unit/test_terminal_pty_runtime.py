@@ -446,6 +446,71 @@ def test_output_redaction_holds_credentials_split_across_pty_reads() -> None:
     assert journal.close() == ()
 
 
+def test_output_redaction_preserves_cursor_bytes_and_internal_chunk_boundaries() -> None:
+    short = TerminalOutputJournal(
+        maximum_memory_bytes=1_024,
+        maximum_chunk_bytes=256,
+        redactor=SecretRedactor(["abcd"]),
+    )
+    short_chunks = short.append(b"abcd\n")
+    assert len(short_chunks) == 1
+    assert short_chunks[0].redacted is True
+    assert "abcd" not in short_chunks[0].text
+    assert len(short_chunks[0].text.encode("utf-8")) == short_chunks[0].byte_length
+    assert short_chunks[0].sha256 == hashlib.sha256(
+        short_chunks[0].text.encode("utf-8")
+    ).hexdigest()
+    assert short_chunks[0].sha256 != hashlib.sha256(b"abcd\n").hexdigest()
+
+    boundary = TerminalOutputJournal(
+        maximum_memory_bytes=2_048,
+        maximum_chunk_bytes=256,
+        redactor=SecretRedactor(["boundary-secret"]),
+    )
+    boundary_chunks = boundary.append(
+        b"x" * 250
+        + b"boundary-secret"
+        + b"\n"
+    )
+    rendered = "".join(chunk.text for chunk in boundary_chunks)
+    assert len(boundary_chunks) == 2
+    assert "boundary-secret" not in rendered
+    assert all(chunk.redacted for chunk in boundary_chunks)
+    assert all(
+        len(chunk.text.encode("utf-8")) == chunk.byte_length
+        for chunk in boundary_chunks
+    )
+
+
+def test_output_frames_preserve_utf8_boundaries_and_bound_binary_placeholders() -> None:
+    journal = TerminalOutputJournal(
+        maximum_memory_bytes=2_048,
+        maximum_chunk_bytes=256,
+    )
+    euro = "€".encode()
+    assert journal.append(euro[:2]) == ()
+    completed = journal.append(euro[2:] + b"\n")
+    assert len(completed) == 1
+    assert completed[0].text == "€\n"
+    assert len(completed[0].text.encode("utf-8")) == completed[0].byte_length
+
+    boundary = journal.append(b"x" * 255 + euro + b"\n")
+    assert len(boundary) == 2
+    assert boundary[0].text == "x" * 255
+    assert boundary[1].text == "€\n"
+    assert all(
+        len(chunk.text.encode("utf-8")) <= chunk.byte_length
+        for chunk in boundary
+    )
+
+    binary = journal.append(b"\x00")
+    assert len(binary) == 1
+    assert binary[0].text
+    assert len(binary[0].text.encode("utf-8")) <= binary[0].byte_length
+    assert journal.binary_bytes == 1
+    assert journal.snapshot()["spills"][-1]["binary"] is True
+
+
 def test_registry_routes_create_input_resize_kill_and_events(tmp_path: Path) -> None:
     harness = Harness(tmp_path, initial_output=b"ready> ")
     projection = harness.registry.create(harness.create_request())
