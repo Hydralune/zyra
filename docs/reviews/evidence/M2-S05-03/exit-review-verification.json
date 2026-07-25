@@ -1,0 +1,165 @@
+{
+  "schema": "zyra.m2-s05-03-exit-review-verification/v1",
+  "slice": "M2-S05-03",
+  "verdict": "PASS_WITH_FROZEN_BASELINE_RESIDUALS",
+  "commits": {
+    "slice_baseline": "b3387c626fc587936c24777ce108eac6f962283e",
+    "parent_baseline": "92537deca86376e147feb6c85248b0d3ff2298a6",
+    "m2_baseline": "f53bf78287a2b2a6eec74102e7218d664307c137",
+    "preimplementation_decision": "5d50f78",
+    "implementation_target": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+    "ledger_alignment": "5debc29"
+  },
+  "formal_experiments": {
+    "domain_count": 2,
+    "variant_count_per_domain": 7,
+    "repetitions_per_variant": 3,
+    "matrix_cell_count": 42,
+    "raw_sample_count": 1344,
+    "canonical_event_count": 9321,
+    "human_intervention_count": 0,
+    "authenticated_provider_cli_invoked": false,
+    "external_model_request_made": false,
+    "background_service_started": false,
+    "network_listener_started": false,
+    "software_delivery": {
+      "experiment_id": "experiment_b9dc2c58ea164b49b2581e1461ab7609",
+      "canonical_event_count": 2158,
+      "raw_sample_count": 672,
+      "bundle_sha256": "1232a180c1839e8dc12e9922ac2c6a0057bb331760a17221d73215142882eed0"
+    },
+    "cross_source_research": {
+      "experiment_id": "experiment_44f2dc2d08a345ddbfa6a68b6f778637",
+      "canonical_event_count": 7163,
+      "raw_sample_count": 672,
+      "bundle_sha256": "30150fa997a94fcc3ed9a604ca56cdd6ce4108146ba65b2b0fb9659dcf46b043"
+    }
+  },
+  "portfolio": {
+    "path": "docs/reviews/evidence/M2-S05-03/M2-exit-competition-evidence-bundle.zip",
+    "portfolio_id": "m2-exit_6793777422e64397aabaa010aa0fedb4",
+    "sha256": "213a06b2e2af113e1fefbb1ffc1edc1e14c99e6fc19f6f87bc008f8fcb94b30b",
+    "manifest_digest": "31c7d66e6f4683bb91ce056f1020a40bca3d3e3329ac7afacaff32167a69aa0d",
+    "root_digest": "b81020c7bf472ecb82a177c1d04dd7c39a3f1acd604732e6d15b8219f4c2f4b1",
+    "valid": true,
+    "requirement_count": 18,
+    "score_total": 100,
+    "score_verified": 100,
+    "backend_log_required": false
+  },
+  "visual_evidence": {
+    "screenshot_index_present": true,
+    "screenshot_count": 0,
+    "capture_required_for_runtime_correctness": false,
+    "production_web_http_status": 200,
+    "api_http_status": 200,
+    "pixel_capture_attempted": true,
+    "pixel_capture_completed": false,
+    "pixel_capture_reason": "No browser instance was available in the browser-control runtime.",
+    "local_capture_services_stopped": true
+  },
+  "effective_lines": {
+    "slice": {
+      "effective": 11453,
+      "minimum": 6500,
+      "passed": true
+    },
+    "parent_m2_05": {
+      "effective": 30411,
+      "minimum": 20000,
+      "passed": true
+    },
+    "m2": {
+      "effective": 180166,
+      "minimum": 135000,
+      "passed": true
+    },
+    "slice_buckets": {
+      "raw_additions": 16926,
+      "raw_deletions": 9,
+      "production_runtime": 11370,
+      "ui_behavior": 83,
+      "ui_presentation": 334,
+      "type_declaration": 873,
+      "schema_dto_data": 795,
+      "adapter_only": 1400,
+      "generated": 311,
+      "test_mock_fixture": 931,
+      "docs_comments_blank": 829,
+      "vendor_like_source_pool": 0
+    }
+  },
+  "numstat": {
+    "apps_packages_skills_scripts": {
+      "files": 41,
+      "added": 16236,
+      "deleted": 9
+    },
+    "tests": {
+      "files": 3,
+      "added": 495,
+      "deleted": 0
+    },
+    "vendor_vendor_runtimes": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    }
+  },
+  "verification": {
+    "formal_portfolio_tamper": "1 passed",
+    "cleanroom_python": "5 passed, 1 formal-evidence skip",
+    "experiment_web": "4 passed",
+    "typescript_runtime_full": "1268 passed, 0 failed, 1489 assertions",
+    "web_and_typed_client_full": "271 passed, 2 frozen-baseline date failures",
+    "m2_05_python_combined": "29 passed, 1 frozen-baseline legacy import failure",
+    "m2_process_isolated_final": "66 passed after one transient retrieval timeout rerun",
+    "source_ledger_and_language_tests": "10 passed",
+    "typecheck": "PASS",
+    "web_build": "PASS, 370 modules",
+    "source_role_audit": "PASS, 11 rows, 0 findings",
+    "source_language_custody": "PASS, 0 violations",
+    "m2_s05_03_ledger_sync": "PASS, 1 entry, 0 missing target"
+  },
+  "cleanroom": {
+    "target": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+    "archive_sha256": "FF51C70C1FB831332D68D1421B09D9449352AD13C56A6410E96B475438651661",
+    "cleanroom_import_origins_verified": true,
+    "absolute_parent_source_matches": 0,
+    "source_role_findings": 0,
+    "openclaw": "excluded_forward_only"
+  },
+  "baseline_residuals": [
+    {
+      "gate": "web_full",
+      "count": 2,
+      "cause": "MCP elicitation fixtures expired against the current date",
+      "changed_by_slice": false
+    },
+    {
+      "gate": "legacy_m2_scenarios",
+      "count": 1,
+      "cause": "protected legacy import of removed parse_slash_command",
+      "changed_by_slice": false
+    },
+    {
+      "gate": "submission_boundary",
+      "count": 11,
+      "cause": "pre-slice audit literals in M1 runtime files",
+      "changed_by_slice": false
+    },
+    {
+      "gate": "full_internalization_ledger",
+      "blockers": 3,
+      "warnings": 734,
+      "cause": "pre-slice long_horizon audit literals and historical ledger warnings",
+      "changed_by_slice": false
+    }
+  ],
+  "schedule": {
+    "m2_exit_date": "2026-07-26",
+    "official_submission_deadline": "2026-09-15",
+    "buffer_days": 51,
+    "next_stage": "M3-reverification-packaging-deployment-rehearsal"
+  }
+}

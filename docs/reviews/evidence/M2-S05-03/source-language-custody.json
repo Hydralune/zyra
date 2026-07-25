@@ -1,0 +1,63 @@
+{
+  "schema": "zyra.source-language-custody-evidence/v1",
+  "slice_id": "M2-S05-03",
+  "baseline_commit": "b3387c626fc587936c24777ce108eac6f962283e",
+  "decision_commit": "5d50f78",
+  "implementation_commit": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "source_language": "python/typescript/tsx",
+      "target_language": "python/typescript/tsx",
+      "migration_mode": "scenario_and_evidence_integration_only"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "migration_mode": "scenario_and_evidence_integration_only",
+      "expected_production_languages": [
+        "python",
+        "typescript",
+        "python/typescript/tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 7000,
+        "typescript": 800
+      },
+      "production_paths": [
+        "packages/evaluation/zyra_evaluation/experiment_runtime/api.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/bundle.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/canonical.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/codec.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/errors.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/matrix.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/metrics.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/models.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/portfolio.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/reporting.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/requirements.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/runtime.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/source.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/source_roles.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/statistics.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/store.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/verification.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/workload.py",
+        "apps/web/src/features/experiments/admission.ts",
+        "apps/web/src/features/experiments/evidence.ts",
+        "apps/web/src/features/experiments/projection.ts",
+        "apps/web/src/features/experiments/report.ts",
+        "apps/web/src/features/experiments/runtime.ts",
+        "apps/web/src/features/experiments/view/experiment-workbench.tsx"
+      ]
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M2-S05-03",
+    "expected_entry_count": 1
+  }
+}

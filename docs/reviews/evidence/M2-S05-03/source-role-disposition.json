@@ -1,0 +1,226 @@
+{
+  "audit_digest": "e5fd51591ccd3f0050a4a85ff161b2b0de92b6e00a646e308ad6e986e0879d56",
+  "audited_at": "2026-07-25T19:49:25.536Z",
+  "findings": [],
+  "openclaw": "excluded_forward_only",
+  "role_counts": {
+    "conformance_only": 3,
+    "excluded_forward_only": 1,
+    "primary_implementation": 1,
+    "reference_only": 6
+  },
+  "rows": [
+    {
+      "active": true,
+      "capability": "experiment_matrix_metric_bundle_owner",
+      "evidence_paths": [
+        "packages/evaluation/zyra_evaluation/experiment_runtime",
+        "apps/web/src/features/experiments",
+        "apps/api/zyra_api/experiment_api.py"
+      ],
+      "landing_status": "productized",
+      "migration_mode": "scenario_and_evidence_integration_only",
+      "owner": "ExperimentMatrixRuntime/MetricAggregationRuntime/EvidenceBundleBuilder",
+      "production_code_required": true,
+      "reason": "M2-S05-03 assigns a new Zyra-owned evaluation and evidence state domain; no upstream experiment runtime is selected.",
+      "runtime_entry": "zyra_evaluation.experiment_runtime",
+      "source": "zyra",
+      "source_language": "python/typescript/tsx",
+      "source_role": "primary_implementation",
+      "target_language": "python/typescript/tsx"
+    },
+    {
+      "active": false,
+      "capability": "protocol_app_tui_terminal_review_diff_session_ui_categories",
+      "evidence_paths": [
+        "apps/web/src",
+        "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing M2 active UI owners",
+      "production_code_required": false,
+      "reason": "M2-05 adds no parallel OpenCode runtime; earlier M2 units already own the selected protocol and workbench categories.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "opencode",
+      "source_language": "typescript/tsx",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "query_permission_session_context_compact_mcp_skill_subagent_console",
+      "evidence_paths": [
+        "packages/runtime",
+        "apps/web/src/features/session",
+        "apps/web/src/features/permissions",
+        "apps/web/src/features/mcp",
+        "apps/web/src/features/skills"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing M1 runtime and M2 control panel owners",
+      "production_code_required": false,
+      "reason": "The mature runtime/control categories remain with earlier active owners; the exit runner only verifies their evidence.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "claude-code-best",
+      "source_language": "typescript/tsx",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "conversation_event_artifact_diff_browser_terminal_patterns",
+      "evidence_paths": [
+        "apps/web/src/features/artifacts",
+        "apps/web/src/features/diff-review",
+        "apps/web/src/features/browser",
+        "apps/web/src/features/terminal"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing M2 workbench owners",
+      "production_code_required": false,
+      "reason": "No second UI state owner is created; prior M2 components cover these categories.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "OpenHands",
+      "source_language": "python/typescript/tsx",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "browser_history_close_restore_watchdog",
+      "evidence_paths": [
+        "packages/browser_worker",
+        "apps/web/src/features/browser",
+        "packages/scheduler"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing browser/watchdog owners",
+      "production_code_required": false,
+      "reason": "Browser-close independence and watchdog behavior are consumed as frozen evidence, not reimplemented.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "browser-use",
+      "source_language": "python/typescript",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "agentloop_tasktool_mnemopi_provider_rpc_tui_native",
+      "evidence_paths": [
+        "packages/runtime",
+        "packages/memory",
+        "apps/web/src"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing Zyra M1/M2 owners",
+      "production_code_required": false,
+      "reason": "M2-05 uses OMP only in the forward role-aware audit; it does not start RPC, TUI, provider or native runtimes.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "oh-my-pi",
+      "source_language": "typescript/native",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "memory_mcp_skill_terminal_trace_reference",
+      "evidence_paths": [
+        "packages/memory",
+        "apps/web/src/features/memory",
+        "apps/web/src/features/trace"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "reference_only",
+      "owner": "existing M1/M2 memory and console owners",
+      "production_code_required": false,
+      "reason": "No Hermes runtime is selected for the experiment/evidence domain.",
+      "runtime_entry": "M2 workbench source-role audit",
+      "source": "Hermes",
+      "source_language": "python/typescript",
+      "source_role": "reference_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "workflow_checkpoint_agui_approval_history",
+      "evidence_paths": [
+        "tests",
+        "docs/reviews/evidence"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "conformance_only",
+      "owner": "existing Zyra checkpoint and UI state owners",
+      "production_code_required": false,
+      "reason": "Forward-only conformance role; no workflow or approval owner is migrated.",
+      "runtime_entry": "conformance receipt index",
+      "source": "agent-framework",
+      "source_language": "python/csharp",
+      "source_role": "conformance_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "worker_lifecycle_inbox_wakeup",
+      "evidence_paths": [
+        "packages/scheduler",
+        "tests"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "conformance_only",
+      "owner": "existing Zyra worker-pool owners",
+      "production_code_required": false,
+      "reason": "Forward conformance only; no AgentScope runtime or store is selected.",
+      "runtime_entry": "conformance receipt index",
+      "source": "agentscope",
+      "source_language": "python",
+      "source_role": "conformance_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "checkpoint_identity_pending_committed_writes_exact_resume",
+      "evidence_paths": [
+        "packages/orchestration",
+        "packages/scheduler",
+        "tests"
+      ],
+      "landing_status": "not_applicable",
+      "migration_mode": "conformance_only",
+      "owner": "GraphCommitRuntime/CheckpointRecoveryRuntime",
+      "production_code_required": false,
+      "reason": "Only narrow exact-resume conformance remains; StateGraph, Pregel, channels, ToolNode, stream and server are not owners.",
+      "runtime_entry": "exact-resume conformance receipt index",
+      "source": "langgraph",
+      "source_language": "python",
+      "source_role": "conformance_only",
+      "target_language": "none"
+    },
+    {
+      "active": false,
+      "capability": "all_forward_roles",
+      "evidence_paths": [],
+      "landing_status": "not_applicable",
+      "migration_mode": "excluded_forward_only",
+      "owner": "none",
+      "production_code_required": false,
+      "reason": "OpenClaw remains excluded_forward_only from M1-S06A-01 onward.",
+      "runtime_entry": "none",
+      "source": "openclaw",
+      "source_language": "none",
+      "source_role": "excluded_forward_only",
+      "target_language": "none"
+    }
+  ],
+  "runtime_dependency_scan": {
+    "findings": [],
+    "valid": true
+  },
+  "schema": "zyra.m2-exit-source-role-audit/v1",
+  "valid": true
+}
+

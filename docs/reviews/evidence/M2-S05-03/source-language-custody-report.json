@@ -1,0 +1,53 @@
+{
+  "base": "b3387c626fc587936c24777ce108eac6f962283e",
+  "ok": true,
+  "roles": [
+    {
+      "actual_production_languages": [
+        "python",
+        "typescript"
+      ],
+      "added_production_lines": {
+        "python": 11837,
+        "typescript": 1487
+      },
+      "expected_production_languages": [
+        "python",
+        "python/typescript/tsx",
+        "typescript"
+      ],
+      "migration_mode": "scenario_and_evidence_integration_only",
+      "production_paths": [
+        "packages/evaluation/zyra_evaluation/experiment_runtime/api.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/bundle.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/canonical.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/codec.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/errors.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/matrix.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/metrics.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/models.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/portfolio.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/reporting.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/requirements.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/runtime.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/source.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/source_roles.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/statistics.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/store.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/verification.py",
+        "packages/evaluation/zyra_evaluation/experiment_runtime/workload.py",
+        "apps/web/src/features/experiments/admission.ts",
+        "apps/web/src/features/experiments/evidence.ts",
+        "apps/web/src/features/experiments/projection.ts",
+        "apps/web/src/features/experiments/report.ts",
+        "apps/web/src/features/experiments/runtime.ts",
+        "apps/web/src/features/experiments/view/experiment-workbench.tsx"
+      ],
+      "source_repo": "zyra",
+      "source_role": "primary_implementation"
+    }
+  ],
+  "schema": "zyra.source-language-custody-report/v1",
+  "target": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+  "violations": []
+}

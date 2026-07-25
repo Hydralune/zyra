@@ -1,0 +1,58 @@
+{
+  "bundle": {
+    "bundle_sha256": "30150fa997a94fcc3ed9a604ca56cdd6ce4108146ba65b2b0fb9659dcf46b043",
+    "bundle_size": 2104769,
+    "findings": [],
+    "manifest_digest": "9a5341ac9163f4bc02d533964008561aaf9ce30e528e1643a78e905e1d1a9396",
+    "member_count": 18,
+    "path": "G:\\agent-zoo\\zyra\\.tmp\\m2-s05-03-a9-work\\artifacts\\experiment-evidence\\bundle_013e15fdc3544fb1880bc6492d103f56.zip",
+    "receipt_digest": "f678d96300e9042d13d821b059daf685237d8156ea67c3ebc52a8e5781a70aa9",
+    "schema": "zyra.experiment-evidence-bundle-verification/v1",
+    "valid": true,
+    "verified_at": "2026-07-25T19:49:19.077Z"
+  },
+  "completion": {
+    "cell_count": 21,
+    "experiment_id": "experiment_44f2dc2d08a345ddbfa6a68b6f778637",
+    "findings": [],
+    "missing_receipt_kinds": [],
+    "phase": "succeeded",
+    "receipt_digest": "c14f7fe5dee85fc60eeedbd84dc9a5d0ebee6ba81a066570348866f7c67895f2",
+    "receipt_kinds": [
+      "aggregation",
+      "bundle",
+      "cell_conditions",
+      "cell_execution",
+      "cell_observation",
+      "cell_performance",
+      "cell_plan",
+      "cell_verification",
+      "completion",
+      "envelope",
+      "external_evidence",
+      "matrix_effect",
+      "report",
+      "requirements",
+      "source_admission",
+      "source_role_audit",
+      "variant_catalog"
+    ],
+    "schema": "zyra.experiment-completion-verification/v1",
+    "valid": true,
+    "verified_at": "2026-07-25T19:49:18.972Z"
+  },
+  "experiment_id": "experiment_44f2dc2d08a345ddbfa6a68b6f778637",
+  "receipt_digest": "89c8209de9a4f09f789098c5fe63aceab4506299671a8a76f0bfc0f45bfdd313",
+  "report": {
+    "findings": [],
+    "receipt_digest": "d4ea74f73e84281306acdd54b29d2d94b7080252bde72326cebcf8736bbd5283",
+    "report_digest": "b419ef0d3011012b7961b0458f028b801156125a47f20b41970f2982a8a5d7b4",
+    "schema": "zyra.experiment-report-verification/v1",
+    "valid": true,
+    "verified_at": "2026-07-25T19:49:19.261Z"
+  },
+  "schema": "zyra.experiment-reverification/v1",
+  "valid": true,
+  "verified_at": "2026-07-25T19:49:19.261Z"
+}
+

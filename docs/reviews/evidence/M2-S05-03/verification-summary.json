@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-07-25T19:49:25.824Z",
+  "implementation_commit": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+  "portfolio": {
+    "manifest_digest": "31c7d66e6f4683bb91ce056f1020a40bca3d3e3329ac7afacaff32167a69aa0d",
+    "path": "M2-exit-competition-evidence-bundle.zip",
+    "root_digest": "b81020c7bf472ecb82a177c1d04dd7c39a3f1acd604732e6d15b8219f4c2f4b1",
+    "score_total": 100,
+    "score_verified": 100,
+    "sha256": "213a06b2e2af113e1fefbb1ffc1edc1e14c99e6fc19f6f87bc008f8fcb94b30b",
+    "verification_receipt_digest": "f65150e2a467231616b086135412f9b5ca18e3cbb8906aa190bb9841f55d945e"
+  },
+  "runs": {
+    "cross-source-research": {
+      "bundle_manifest_digest": "9a5341ac9163f4bc02d533964008561aaf9ce30e528e1643a78e905e1d1a9396",
+      "bundle_sha256": "30150fa997a94fcc3ed9a604ca56cdd6ce4108146ba65b2b0fb9659dcf46b043",
+      "canonical_event_count": 7163,
+      "cell_count": 21,
+      "domain": "cross_source_research",
+      "experiment_id": "experiment_44f2dc2d08a345ddbfa6a68b6f778637",
+      "fault_count": 5,
+      "human_intervention_count": 0,
+      "owner_run_id": "run_808c92efef44",
+      "raw_sample_count": 672,
+      "repetition_count": 3,
+      "report_digest": "b419ef0d3011012b7961b0458f028b801156125a47f20b41970f2982a8a5d7b4",
+      "scenario_run_id": "scenario_7407264daad9474bbfae40ca43b11c48",
+      "source_archive_digest": "8042882a6218e654746de78972778bdec5bcc805f5f8508a9a1e8610e28d9d38",
+      "task_id": "task_7c8e85ad3a80",
+      "variant_count": 7,
+      "verification_receipt_digest": "89c8209de9a4f09f789098c5fe63aceab4506299671a8a76f0bfc0f45bfdd313"
+    },
+    "software-delivery": {
+      "bundle_manifest_digest": "10631d8e9e4e3451b71675c33de9e8b91398a2e2ef1fe03ed14d70525a763a1d",
+      "bundle_sha256": "1232a180c1839e8dc12e9922ac2c6a0057bb331760a17221d73215142882eed0",
+      "canonical_event_count": 2158,
+      "cell_count": 21,
+      "domain": "software_delivery",
+      "experiment_id": "experiment_b9dc2c58ea164b49b2581e1461ab7609",
+      "fault_count": 5,
+      "human_intervention_count": 0,
+      "owner_run_id": "run_8e6614551158",
+      "raw_sample_count": 672,
+      "repetition_count": 3,
+      "report_digest": "8a183cd3f806a586ac7a89ed2d30001959b53c9b51075d1fab6bcc471f1eac47",
+      "scenario_run_id": "scenario_13e9390534814e9298e2967c8ee7335d",
+      "source_archive_digest": "51ed4d97d3b06f0f735abaf29baa8fee4fd2d2e4b56c5d38986c4dbd9569aa66",
+      "task_id": "task_64308571fd94",
+      "variant_count": 7,
+      "verification_receipt_digest": "28c7108a49178ca1a78e8a87b87d979329628ff3775e255baecb6e319c8ba2e1"
+    }
+  },
+  "schema": "zyra.m2-s05-03-formal-experiment-summary/v1",
+  "slice": "M2-S05-03",
+  "summary_digest": "c3a0cbc8039a5cdee9e2891abc44b580d2d64eb3b105aa19db568feabc077b24",
+  "totals": {
+    "canonical_event_count": 9321,
+    "domain_count": 2,
+    "human_intervention_count": 0,
+    "matrix_cell_count": 42,
+    "raw_sample_count": 1344
+  },
+  "user_boundary": {
+    "authenticated_provider_cli_allowed": false,
+    "authenticated_provider_cli_invoked": false,
+    "background_service_started": false,
+    "external_model_request_allowed": false,
+    "external_model_request_made": false,
+    "network_listener_started": false
+  }
+}
+

@@ -1,0 +1,179 @@
+{
+  "manifest": {
+    "authenticated_provider_cli_invoked": false,
+    "backend_log_required": false,
+    "created_at": "2026-07-25T19:49:25.638Z",
+    "domains": [
+      "cross_source_research",
+      "software_delivery"
+    ],
+    "experiment_ids": [
+      "experiment_b9dc2c58ea164b49b2581e1461ab7609",
+      "experiment_44f2dc2d08a345ddbfa6a68b6f778637"
+    ],
+    "external_model_request_made": false,
+    "human_intervention_count": 0,
+    "implementation_commit": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+    "manifest_digest": "31c7d66e6f4683bb91ce056f1020a40bca3d3e3329ac7afacaff32167a69aa0d",
+    "members": [
+      {
+        "category": "experiment_bundle",
+        "path": "experiments/01-software_delivery.zip",
+        "sha256": "1232a180c1839e8dc12e9922ac2c6a0057bb331760a17221d73215142882eed0",
+        "size": 993361
+      },
+      {
+        "category": "experiment_bundle",
+        "path": "experiments/02-cross_source_research.zip",
+        "sha256": "30150fa997a94fcc3ed9a604ca56cdd6ce4108146ba65b2b0fb9659dcf46b043",
+        "size": 2104769
+      },
+      {
+        "category": "external_verified_evidence",
+        "path": "external/m1-dispatch-and-model-evidence.json",
+        "sha256": "be4aa36d6d005e03f70bc94660e78e3dd20fb848e696a69a63060a7265407db1",
+        "size": 9839
+      },
+      {
+        "category": "external_verified_evidence",
+        "path": "external/m2-dual-domain-live-evidence.json",
+        "sha256": "bc0443585165d410e5e258aae04167c2d108632c2f3c5d91aac7ed25d1dae5ad",
+        "size": 4785
+      },
+      {
+        "category": "exit_report",
+        "path": "portfolio/final-exit-report.json",
+        "sha256": "77fcc8f2bd25989b707dbe3d7ebc97dde8a3b2e471637fc46deb9e8e0c8174c4",
+        "size": 2517
+      },
+      {
+        "category": "requirement",
+        "path": "portfolio/requirement-index.json",
+        "sha256": "a5054ef243e38a1f2c0f559d6606d04a5ddeba95e623e55d0292439b92012574",
+        "size": 4311
+      },
+      {
+        "category": "navigation",
+        "path": "portfolio/reviewer-navigation.json",
+        "sha256": "c46ffd56316af8823198ad3f36af7256f15e695894fcf196f295cc31b1ba9898",
+        "size": 10257
+      },
+      {
+        "category": "source_role",
+        "path": "portfolio/source-role-disposition.json",
+        "sha256": "5627683b346ecd6f29e065d820ee5189a350cc53db48d84a1322a8b99141f31b",
+        "size": 8584
+      }
+    ],
+    "portfolio_id": "m2-exit_6793777422e64397aabaa010aa0fedb4",
+    "requirement_ids": [
+      "REQ-CLOSE-01",
+      "REQ-COMM-01",
+      "REQ-EDGE-01",
+      "REQ-FAULT-01",
+      "REQ-MEM-01",
+      "REQ-TOPO-01",
+      "REQ-TRACE-01",
+      "SCORE-ALGO",
+      "SCORE-COMPAT",
+      "SCORE-EFF",
+      "SCORE-LOOP",
+      "SCORE-NOISE",
+      "SCORE-ORG",
+      "SCORE-ROBUST",
+      "SCORE-SCENE",
+      "SCORE-TASKS",
+      "SCORE-UX",
+      "SCORE-VALUE"
+    ],
+    "root_digest": "b81020c7bf472ecb82a177c1d04dd7c39a3f1acd604732e6d15b8219f4c2f4b1",
+    "scenario_run_ids": [
+      "scenario_13e9390534814e9298e2967c8ee7335d",
+      "scenario_7407264daad9474bbfae40ca43b11c48"
+    ],
+    "schema": "zyra.m2-exit-portfolio-manifest/v1",
+    "score_total": 100,
+    "score_verified": 100
+  },
+  "path": "G:\\agent-zoo\\zyra\\.tmp\\m2-s05-03-a9-work\\artifacts\\m2-exit-evidence\\m2-exit_6793777422e64397aabaa010aa0fedb4.zip",
+  "portfolio_id": "m2-exit_6793777422e64397aabaa010aa0fedb4",
+  "report": {
+    "domains": [
+      {
+        "bundle_manifest_digest": "10631d8e9e4e3451b71675c33de9e8b91398a2e2ef1fe03ed14d70525a763a1d",
+        "bundle_sha256": "1232a180c1839e8dc12e9922ac2c6a0057bb331760a17221d73215142882eed0",
+        "canonical_event_count": 2158,
+        "domain": "software_delivery",
+        "experiment_id": "experiment_b9dc2c58ea164b49b2581e1461ab7609",
+        "p50_present_count": 224,
+        "p95_present_count": 224,
+        "raw_sample_count": 672,
+        "scenario_run_id": "scenario_13e9390534814e9298e2967c8ee7335d",
+        "score_verified": 100
+      },
+      {
+        "bundle_manifest_digest": "9a5341ac9163f4bc02d533964008561aaf9ce30e528e1643a78e905e1d1a9396",
+        "bundle_sha256": "30150fa997a94fcc3ed9a604ca56cdd6ce4108146ba65b2b0fb9659dcf46b043",
+        "canonical_event_count": 7163,
+        "domain": "cross_source_research",
+        "experiment_id": "experiment_44f2dc2d08a345ddbfa6a68b6f778637",
+        "p50_present_count": 224,
+        "p95_present_count": 224,
+        "raw_sample_count": 672,
+        "scenario_run_id": "scenario_7407264daad9474bbfae40ca43b11c48",
+        "score_verified": 100
+      }
+    ],
+    "experiment_count": 2,
+    "gates": {
+      "dual_domain_live": true,
+      "fault_requirement_change_node_loss": true,
+      "m1_multi_provider_model_compatibility_frozen": true,
+      "m1_real_local_edge_cloud_dispatch_frozen": true,
+      "minimum_2000_canonical_events_each": true,
+      "openclaw_excluded_forward_only": true,
+      "raw_samples_p50_p95_dispersion_confidence": true,
+      "reviewer_backend_log_required": false,
+      "sealed_zero_human": true,
+      "seven_variant_matrix": true,
+      "tamper_evident_nested_bundles": true
+    },
+    "generated_at": "2026-07-25T19:49:25.633Z",
+    "implementation_commit": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
+    "non_claims": [
+      "M2 experiment execution made no new authenticated provider/model CLI call.",
+      "M2 experiment execution made no new external model request.",
+      "M1 verified dispatch/model evidence is included as frozen external evidence.",
+      "M3 retains final submission re-verification responsibility."
+    ],
+    "report_digest": "c688ca586c22af57cb0d1bc67918b8a551e4088dab0b17a8dd0b8bec2c763078",
+    "schedule": {
+      "buffer_preserved": true,
+      "m2_exit_date": "2026-07-26",
+      "m3_focus": [
+        "reverification",
+        "packaging",
+        "deployment rehearsal",
+        "submission buffer"
+      ],
+      "official_submission_deadline": "2026-09-15"
+    },
+    "schema": "zyra.m2-exit-evidence-portfolio/v1",
+    "verdict": "ready_for_m3_reverification"
+  },
+  "schema": "zyra.m2-exit-evidence-portfolio-result/v1",
+  "sha256": "213a06b2e2af113e1fefbb1ffc1edc1e14c99e6fc19f6f87bc008f8fcb94b30b",
+  "size": 2975774,
+  "verification": {
+    "findings": [],
+    "manifest_digest": "31c7d66e6f4683bb91ce056f1020a40bca3d3e3329ac7afacaff32167a69aa0d",
+    "member_count": 8,
+    "path": "G:\\agent-zoo\\zyra\\.tmp\\m2-s05-03-a9-work\\artifacts\\m2-exit-evidence\\m2-exit_6793777422e64397aabaa010aa0fedb4.zip",
+    "receipt_digest": "f65150e2a467231616b086135412f9b5ca18e3cbb8906aa190bb9841f55d945e",
+    "root_digest": "b81020c7bf472ecb82a177c1d04dd7c39a3f1acd604732e6d15b8219f4c2f4b1",
+    "schema": "zyra.m2-exit-portfolio-verification/v1",
+    "valid": true,
+    "verified_at": "2026-07-25T19:49:25.806Z"
+  }
+}
+
