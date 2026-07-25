@@ -188834,27 +188834,1057 @@
         }
       ],
       "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "prompt_input_command_queue_and_side_question_runtime",
+      "capability_summary": "PromptInput parsing and guarded submission, busy-run queue admission, priority/FIFO projection, cancellation/retry lifecycle, reconnect restoration, local result overlays, command history and tool-disabled single-turn side questions adapted to Zyra canonical identities.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-02",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_f1ed52fcedcebd1826cf",
+      "license_notice": {
+        "license_hint": "M2 command input/queue source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands",
+          "/tasks/{task_id}/command-queue",
+          "/tasks/{task_id}/commands/{request_id}/cancel",
+          "/tasks/{task_id}/events"
+        ],
+        "artifact_kinds": [
+          "command_result",
+          "command_causal_trace"
+        ],
+        "control_commands": [
+          "/status",
+          "/graph",
+          "/trace",
+          "/artifacts",
+          "/permissions",
+          "/btw",
+          "/inject",
+          "/change",
+          "/verify",
+          "/eval",
+          "/doctor"
+        ],
+        "event_types": [
+          "command requested/validated/queued/running/applied/rejected/cancelled",
+          "state mutation/checkpoint/artifact/tool/failure/recovery correlation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "prompt_input",
+          "command_result_overlay"
+        ],
+        "ui_panels": [
+          "command_palette",
+          "command_queue",
+          "command_result_overlay"
+        ],
+        "worker_runtime": "PromptInput -> CommandSurfaceRuntime -> TaskApi -> RuntimeControlDispatcher/PromptQueueRuntime -> canonical events -> CanonicalProjectionStore -> CommandProjectionIndex/queue/result overlay"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_command_owner": "python.RuntimeControlDispatcher+ControlRequestStore",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_queue_owner": "python.PromptQueueRuntime",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+        "migration_mode": "retained_control_flow_adapt/cropped_migration",
+        "owner_unit": "M2-S04A-01",
+        "rationale": "Claude's mature PromptInput, REPL queue and side-question control flow is retained in TypeScript, but task/session/query/tool ownership is replaced by Zyra RuntimeControlDispatcher, PromptQueueRuntime and CanonicalProjectionStore ports.",
+        "root_source_runtime_dependency": false,
+        "second_command_store": false,
+        "second_queue_store": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04A-01",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_input_owner": "typescript.CommandInputEngine+CommandPalette",
+        "transient_overlay_owner": "typescript.CommandResultStore",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; migration_mode=retained_control_flow_adapt/cropped_migration; Claude's mature PromptInput, REPL queue and side-question control flow is retained in TypeScript, but task/session/query/tool ownership is replaced by Zyra RuntimeControlDispatcher, PromptQueueRuntime and CanonicalProjectionStore ports.",
+      "owner_unit": "M2-S04A-01",
+      "replacement_plan": "Replace behind CommandCoordinator, CommandQueueRecovery and CommandSurfaceRuntime ports without moving canonical task, queue, permission, event or projection custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "RuntimeControlDispatcher and PromptQueueRuntime remain canonical command/queue owners.",
+        "CanonicalProjectionStore remains the committed browser projection owner.",
+        "PromptInput retains only draft, palette, history and local overlay state.",
+        "Malformed, disabled and unavailable controls fail without ordinary-chat fallback.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "packages/commands/src/coordinator.ts",
+          "packages/commands/src/history.ts",
+          "packages/commands/src/input-engine.ts",
+          "packages/commands/src/palette.ts",
+          "packages/commands/src/parser.ts",
+          "packages/commands/src/policy.ts",
+          "packages/commands/src/queue-actions.ts",
+          "packages/commands/src/queue-recovery.ts",
+          "packages/commands/src/queue.ts",
+          "packages/commands/src/request.ts",
+          "packages/commands/src/result-store.ts",
+          "packages/commands/src/side-question.ts",
+          "apps/web/src/features/commands/runtime.ts",
+          "apps/web/src/features/commands/queue-panel.tsx",
+          "apps/web/src/components/command-input/command-input.tsx"
+        ],
+        "environment_refs": [],
+        "function": "CommandCoordinator/CommandSurfaceRuntime",
+        "health_check": "bun test ./packages/commands/test/commands.test.ts; python -m pytest -q tests/integration/test_command_input_queue_control.py",
+        "module": "packages.commands.src.coordinator",
+        "protocol": "zyra.control/v1+zyra.command-queue/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/screens/REPL.tsx;src/components/PromptInput/PromptInput.tsx;src/components/PromptInput/PromptInputQueuedCommands.tsx;src/hooks/useCommandQueue.ts;src/hooks/useQueueProcessor.ts;src/utils/handlePromptSubmit.ts;src/utils/messageQueueManager.ts;src/utils/queueProcessor.ts;src/utils/sideQuestion.ts;src/utils/forkedAgent.ts;src/types/textInputTypes.ts;src/commands/btw/btw.tsx",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "m2-04a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "src/screens/REPL.tsx;src/components/PromptInput/PromptInput.tsx;src/components/PromptInput/PromptInputQueuedCommands.tsx;src/hooks/useCommandQueue.ts;src/hooks/useQueueProcessor.ts;src/utils/handlePromptSubmit.ts;src/utils/messageQueueManager.ts;src/utils/queueProcessor.ts;src/utils/sideQuestion.ts;src/utils/forkedAgent.ts;src/types/textInputTypes.ts;src/commands/btw/btw.tsx",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m2-04a",
+        "m2-s04a-01",
+        "command-input",
+        "command-queue",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/commands/src/coordinator.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/history.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/input-engine.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/palette.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/parser.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/policy.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/queue-actions.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/queue-recovery.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/queue.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/request.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/result-store.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/side-question.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/commands/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/commands/queue-panel.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/command-input/command-input.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/commands/test/commands.test.ts",
+          "expected_signal": "registry/parser/palette/policy/receipt/queue/reconnect/cancel/retry/projection/result/history/input/BTW/disable behavior",
+          "kind": "unit",
+          "path": "packages/commands/test/commands.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_command_input_queue_control.py",
+          "expected_signal": "real HTTP ControlCommand, busy queue, restore, cancel, retry link, event identity, disabled fail-closed and BTW isolation",
+          "kind": "integration",
+          "path": "tests/integration/test_command_input_queue_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_command_registry_palette_and_receipt_projection",
+      "capability_summary": "Stable command/argument palette identities, incremental grouping and ranking, typed request/receipt settlement, duplicate suppression, result projection, local diagnostics and disabled-state behavior.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-02",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_33a7a4b3944b6637c8e6",
+      "license_notice": {
+        "license_hint": "M2 command input/queue source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands",
+          "/tasks/{task_id}/command-queue",
+          "/tasks/{task_id}/commands/{request_id}/cancel",
+          "/tasks/{task_id}/events"
+        ],
+        "artifact_kinds": [
+          "command_result",
+          "command_causal_trace"
+        ],
+        "control_commands": [
+          "/status",
+          "/graph",
+          "/trace",
+          "/artifacts",
+          "/permissions",
+          "/btw",
+          "/inject",
+          "/change",
+          "/verify",
+          "/eval",
+          "/doctor"
+        ],
+        "event_types": [
+          "command requested/validated/queued/running/applied/rejected/cancelled",
+          "state mutation/checkpoint/artifact/tool/failure/recovery correlation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "prompt_input",
+          "command_result_overlay"
+        ],
+        "ui_panels": [
+          "command_palette",
+          "command_queue",
+          "command_result_overlay"
+        ],
+        "worker_runtime": "PromptInput -> CommandSurfaceRuntime -> TaskApi -> RuntimeControlDispatcher/PromptQueueRuntime -> canonical events -> CanonicalProjectionStore -> CommandProjectionIndex/queue/result overlay"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_command_owner": "python.RuntimeControlDispatcher+ControlRequestStore",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_queue_owner": "python.PromptQueueRuntime",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S04A-01",
+        "rationale": "OpenCode supplements palette and typed settlement mechanics only. Its stores, provider/session runtime and permission owner do not enter Zyra, so it cannot become a second command or queue owner.",
+        "root_source_runtime_dependency": false,
+        "second_command_store": false,
+        "second_queue_store": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04A-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_input_owner": "typescript.CommandInputEngine+CommandPalette",
+        "transient_overlay_owner": "typescript.CommandResultStore",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode supplements palette and typed settlement mechanics only. Its stores, provider/session runtime and permission owner do not enter Zyra, so it cannot become a second command or queue owner.",
+      "owner_unit": "M2-S04A-01",
+      "replacement_plan": "Replace behind CommandCoordinator, CommandQueueRecovery and CommandSurfaceRuntime ports without moving canonical task, queue, permission, event or projection custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "RuntimeControlDispatcher and PromptQueueRuntime remain canonical command/queue owners.",
+        "CanonicalProjectionStore remains the committed browser projection owner.",
+        "PromptInput retains only draft, palette, history and local overlay state.",
+        "Malformed, disabled and unavailable controls fail without ordinary-chat fallback.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "packages/commands/src/diagnostics.ts",
+          "packages/commands/src/identity.ts",
+          "packages/commands/src/receipt-ledger.ts",
+          "packages/commands/src/receipts.ts",
+          "packages/commands/src/registry.ts",
+          "packages/commands/src/result-model.ts",
+          "apps/web/src/components/overlays/overlay-host.tsx"
+        ],
+        "environment_refs": [],
+        "function": "CommandCoordinator/CommandSurfaceRuntime",
+        "health_check": "bun test ./packages/commands/test/commands.test.ts; python -m pytest -q tests/integration/test_command_input_queue_control.py",
+        "module": "packages.commands.src.coordinator",
+        "protocol": "zyra.control/v1+zyra.command-queue/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/command.tsx;packages/app/src/components/command-palette.tsx;packages/app/src/components/dialog-command-palette-v2.tsx;packages/app/src/components/prompt-input/slash-popover.tsx;packages/app/src/components/prompt-input/submit.tsx",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-04a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/command.tsx;packages/app/src/components/command-palette.tsx;packages/app/src/components/dialog-command-palette-v2.tsx;packages/app/src/components/prompt-input/slash-popover.tsx;packages/app/src/components/prompt-input/submit.tsx",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-04a",
+        "m2-s04a-01",
+        "command-input",
+        "command-queue",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/commands/src/diagnostics.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/identity.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/receipt-ledger.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/receipts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/registry.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/result-model.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/overlays/overlay-host.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/commands/test/commands.test.ts",
+          "expected_signal": "registry/parser/palette/policy/receipt/queue/reconnect/cancel/retry/projection/result/history/input/BTW/disable behavior",
+          "kind": "unit",
+          "path": "packages/commands/test/commands.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_command_input_queue_control.py",
+          "expected_signal": "real HTTP ControlCommand, busy queue, restore, cancel, retry link, event identity, disabled fail-closed and BTW isolation",
+          "kind": "integration",
+          "path": "tests/integration/test_command_input_queue_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "command_reconnect_auth_and_replay_conformance",
+      "capability_summary": "Gateway reconnect, authentication and replay-negative behavior used only to challenge queue restoration and identity tests.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-02",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_0ec340969ba87f37e0fd",
+      "license_notice": {
+        "license_hint": "M2 command input/queue source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands",
+          "/tasks/{task_id}/command-queue",
+          "/tasks/{task_id}/commands/{request_id}/cancel",
+          "/tasks/{task_id}/events"
+        ],
+        "artifact_kinds": [
+          "command_result",
+          "command_causal_trace"
+        ],
+        "control_commands": [
+          "/status",
+          "/graph",
+          "/trace",
+          "/artifacts",
+          "/permissions",
+          "/btw",
+          "/inject",
+          "/change",
+          "/verify",
+          "/eval",
+          "/doctor"
+        ],
+        "event_types": [
+          "command requested/validated/queued/running/applied/rejected/cancelled",
+          "state mutation/checkpoint/artifact/tool/failure/recovery correlation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "prompt_input",
+          "command_result_overlay"
+        ],
+        "ui_panels": [
+          "command_palette",
+          "command_queue",
+          "command_result_overlay"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_command_owner": "python.RuntimeControlDispatcher+ControlRequestStore",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_queue_owner": "python.PromptQueueRuntime",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04A-01",
+        "rationale": "Hermes contributes tests only and owns no production gateway or queue.",
+        "root_source_runtime_dependency": false,
+        "second_command_store": false,
+        "second_queue_store": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04A-01",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_input_owner": "typescript.CommandInputEngine+CommandPalette",
+        "transient_overlay_owner": "typescript.CommandResultStore",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=conformance_only; Hermes contributes tests only and owns no production gateway or queue.",
+      "owner_unit": "M2-S04A-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "RuntimeControlDispatcher and PromptQueueRuntime remain canonical command/queue owners.",
+        "CanonicalProjectionStore remains the committed browser projection owner.",
+        "PromptInput retains only draft, palette, history and local overlay state.",
+        "Malformed, disabled and unavailable controls fail without ordinary-chat fallback.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/commands/test/commands.test.ts",
+          "tests/integration/test_command_input_queue_control.py"
+        ],
+        "environment_refs": [],
+        "function": "command queue conformance tests",
+        "health_check": "bun test ./packages/commands/test/commands.test.ts; python -m pytest -q tests/integration/test_command_input_queue_control.py",
+        "module": "tests.command_queue_conformance",
+        "protocol": "zyra.control/v1+zyra.command-queue/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-04a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-04a",
+        "m2-s04a-01",
+        "command-input",
+        "command-queue",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/commands/test/commands.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_command_input_queue_control.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/commands/test/commands.test.ts",
+          "expected_signal": "registry/parser/palette/policy/receipt/queue/reconnect/cancel/retry/projection/result/history/input/BTW/disable behavior",
+          "kind": "unit",
+          "path": "packages/commands/test/commands.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_command_input_queue_control.py",
+          "expected_signal": "real HTTP ControlCommand, busy queue, restore, cancel, retry link, event identity, disabled fail-closed and BTW isolation",
+          "kind": "integration",
+          "path": "tests/integration/test_command_input_queue_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "session_interaction_and_queue_wakeup_conformance",
+      "capability_summary": "Session interaction and lifecycle expectations used only for reconnect, isolation, cancel and disabled negative tests.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-02",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_46268835e2eab4b8ea09",
+      "license_notice": {
+        "license_hint": "M2 command input/queue source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agentscope",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands",
+          "/tasks/{task_id}/command-queue",
+          "/tasks/{task_id}/commands/{request_id}/cancel",
+          "/tasks/{task_id}/events"
+        ],
+        "artifact_kinds": [
+          "command_result",
+          "command_causal_trace"
+        ],
+        "control_commands": [
+          "/status",
+          "/graph",
+          "/trace",
+          "/artifacts",
+          "/permissions",
+          "/btw",
+          "/inject",
+          "/change",
+          "/verify",
+          "/eval",
+          "/doctor"
+        ],
+        "event_types": [
+          "command requested/validated/queued/running/applied/rejected/cancelled",
+          "state mutation/checkpoint/artifact/tool/failure/recovery correlation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "prompt_input",
+          "command_result_overlay"
+        ],
+        "ui_panels": [
+          "command_palette",
+          "command_queue",
+          "command_result_overlay"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_command_owner": "python.RuntimeControlDispatcher+ControlRequestStore",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_queue_owner": "python.PromptQueueRuntime",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04A-01",
+        "rationale": "AgentScope contributes conformance only and no session owner.",
+        "root_source_runtime_dependency": false,
+        "second_command_store": false,
+        "second_queue_store": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04A-01",
+        "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_input_owner": "typescript.CommandInputEngine+CommandPalette",
+        "transient_overlay_owner": "typescript.CommandResultStore",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; migration_mode=conformance_only; AgentScope contributes conformance only and no session owner.",
+      "owner_unit": "M2-S04A-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "RuntimeControlDispatcher and PromptQueueRuntime remain canonical command/queue owners.",
+        "CanonicalProjectionStore remains the committed browser projection owner.",
+        "PromptInput retains only draft, palette, history and local overlay state.",
+        "Malformed, disabled and unavailable controls fail without ordinary-chat fallback.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/commands/test/commands.test.ts",
+          "tests/integration/test_command_input_queue_control.py"
+        ],
+        "environment_refs": [],
+        "function": "command queue conformance tests",
+        "health_check": "bun test ./packages/commands/test/commands.test.ts; python -m pytest -q tests/integration/test_command_input_queue_control.py",
+        "module": "tests.command_queue_conformance",
+        "protocol": "zyra.control/v1+zyra.command-queue/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/agentscope/session;src/agentscope/runtime",
+          "source_repo": "agentscope",
+          "symbols": [],
+          "tags": [
+            "m2-04a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "src/agentscope/session;src/agentscope/runtime",
+      "source_repo": "agentscope",
+      "tags": [
+        "m2-04a",
+        "m2-s04a-01",
+        "command-input",
+        "command-queue",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/commands/test/commands.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_command_input_queue_control.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/commands/test/commands.test.ts",
+          "expected_signal": "registry/parser/palette/policy/receipt/queue/reconnect/cancel/retry/projection/result/history/input/BTW/disable behavior",
+          "kind": "unit",
+          "path": "packages/commands/test/commands.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_command_input_queue_control.py",
+          "expected_signal": "real HTTP ControlCommand, busy queue, restore, cancel, retry link, event identity, disabled fail-closed and BTW isolation",
+          "kind": "integration",
+          "path": "tests/integration/test_command_input_queue_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_rpc_receipt_and_cancel_conformance",
+      "capability_summary": "Typed RPC receipt, correlation and cancellation expectations used only for request/receipt and disable behavior tests.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S04A-02",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_a4d1c37a1760468f7ba8",
+      "license_notice": {
+        "license_hint": "M2 command input/queue source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands",
+          "/tasks/{task_id}/command-queue",
+          "/tasks/{task_id}/commands/{request_id}/cancel",
+          "/tasks/{task_id}/events"
+        ],
+        "artifact_kinds": [
+          "command_result",
+          "command_causal_trace"
+        ],
+        "control_commands": [
+          "/status",
+          "/graph",
+          "/trace",
+          "/artifacts",
+          "/permissions",
+          "/btw",
+          "/inject",
+          "/change",
+          "/verify",
+          "/eval",
+          "/doctor"
+        ],
+        "event_types": [
+          "command requested/validated/queued/running/applied/rejected/cancelled",
+          "state mutation/checkpoint/artifact/tool/failure/recovery correlation"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "prompt_input",
+          "command_result_overlay"
+        ],
+        "ui_panels": [
+          "command_palette",
+          "command_queue",
+          "command_result_overlay"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_command_owner": "python.RuntimeControlDispatcher+ControlRequestStore",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_queue_owner": "python.PromptQueueRuntime",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04A-01",
+        "rationale": "OMP contributes conformance only and no RPC/session owner.",
+        "root_source_runtime_dependency": false,
+        "second_command_store": false,
+        "second_queue_store": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04A-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_input_owner": "typescript.CommandInputEngine+CommandPalette",
+        "transient_overlay_owner": "typescript.CommandResultStore",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=conformance_only; OMP contributes conformance only and no RPC/session owner.",
+      "owner_unit": "M2-S04A-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "RuntimeControlDispatcher and PromptQueueRuntime remain canonical command/queue owners.",
+        "CanonicalProjectionStore remains the committed browser projection owner.",
+        "PromptInput retains only draft, palette, history and local overlay state.",
+        "Malformed, disabled and unavailable controls fail without ordinary-chat fallback.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/commands/test/commands.test.ts",
+          "tests/integration/test_command_input_queue_control.py"
+        ],
+        "environment_refs": [],
+        "function": "command queue conformance tests",
+        "health_check": "bun test ./packages/commands/test/commands.test.ts; python -m pytest -q tests/integration/test_command_input_queue_control.py",
+        "module": "tests.command_queue_conformance",
+        "protocol": "zyra.control/v1+zyra.command-queue/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-04a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-04a",
+        "m2-s04a-01",
+        "command-input",
+        "command-queue",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/commands/test/commands.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_command_input_queue_control.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/commands/test/commands.test.ts",
+          "expected_signal": "registry/parser/palette/policy/receipt/queue/reconnect/cancel/retry/projection/result/history/input/BTW/disable behavior",
+          "kind": "unit",
+          "path": "packages/commands/test/commands.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_command_input_queue_control.py",
+          "expected_signal": "real HTTP ControlCommand, busy queue, restore, cancel, retry link, event identity, disabled fail-closed and BTW isolation",
+          "kind": "integration",
+          "path": "tests/integration/test_command_input_queue_control.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 495,
+    "active_or_internalized": 497,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 58,
+      "candidate": 61,
       "deferred": 8,
       "planned": 698,
-      "productized": 440
+      "productized": 442
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 58,
+      "inventoried": 61,
       "planned": 503,
-      "tested_main_path": 201,
+      "tested_main_path": 203,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -188915,35 +189945,37 @@
       "M2-S03A-02": 3,
       "M2-S03B-01": 5,
       "M2-S03B-02": 4,
-      "M2-S03B-03": 3
+      "M2-S03B-03": 3,
+      "M2-S04A-01": 5
     },
     "by_source_repo": {
       "OpenHands": 100,
       "agent-framework": 97,
-      "agentscope": 106,
+      "agentscope": 107,
       "browser-use": 114,
-      "claude-code-best": 512,
-      "hermes-agent": 89,
+      "claude-code-best": 513,
+      "hermes-agent": 90,
       "langgraph": 89,
-      "oh-my-pi": 32,
+      "oh-my-pi": 33,
       "openclaw": 86,
-      "opencode": 31,
+      "opencode": 32,
       "zyra": 3
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 20,
-      "direct_port": 59,
-      "not_selected": 36,
+      "direct_port": 61,
+      "not_selected": 39,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 756,
+    "planned_or_candidate": 759,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
       "apps/web": 96,
+      "packages/commands": 5,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -188958,6 +189990,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1259
+    "total_entries": 1264
   }
 }

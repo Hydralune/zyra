@@ -1,0 +1,139 @@
+{
+  "slice_id": "M2-S04A-01",
+  "date": "2026-07-25",
+  "verdict": "PASS",
+  "commits": {
+    "baseline": "53b002bac1e97eab23b7553d344da068dd8dd3c9",
+    "preimplementation_decision": "3264cc479dd30bb3b0829c7f1f803c06a5d1f87e",
+    "implementation": "6e365ea1e5a28619a052d5d0f8d6a5ccd880f976",
+    "evidence": "this_commit"
+  },
+  "commands": [
+    {
+      "command": "npx --yes bun@1.2.15 run typecheck:web",
+      "status": "passed",
+      "signal": "web and @zyra/commands TypeScript contracts compile"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test ./packages/commands/test/commands.test.ts",
+      "status": "passed",
+      "signal": "26 tests, 108 assertions"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m pytest -q tests/integration/test_command_input_queue_control.py",
+      "status": "passed",
+      "signal": "2 tests passed in 13.13 seconds"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m py_compile apps/api/zyra_api/main.py tests/integration/test_command_input_queue_control.py scripts/sync_m2_command_queue_source_ledger.py",
+      "status": "passed",
+      "signal": "Python entry, integration evidence and ledger synchronizer compile"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test <adjacent command/client/workbench/projection suites>",
+      "status": "passed",
+      "signal": "84 tests, 392 assertions"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 run test:web",
+      "status": "passed",
+      "signal": "205 tests, 1257 assertions in 41.53 seconds"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 run build:web",
+      "status": "passed",
+      "signal": "production bundle built; 268 modules transformed"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 scripts/audit_m2_s04a_01_effective_lines.mjs --summary",
+      "status": "passed",
+      "signal": "8374 effective production lines; minimum 7500"
+    },
+    {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_command_queue_source_ledger.py --check",
+      "status": "passed",
+      "signal": "5 aligned decisions, 5 entries, 0 missing implementation targets"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "signal": "no whitespace errors"
+    },
+    {
+      "command": "runtime dependency/path scans",
+      "status": "passed",
+      "signal": "no parent-repository path and no OpenClaw runtime reference in changed production inputs"
+    }
+  ],
+  "direct_behavior": {
+    "required_commands": [
+      "/status",
+      "/graph",
+      "/trace",
+      "/artifacts",
+      "/permissions",
+      "/btw",
+      "/inject",
+      "/change",
+      "/verify",
+      "/eval",
+      "/doctor"
+    ],
+    "receipt_phases": [
+      "queued",
+      "running",
+      "applied",
+      "rejected",
+      "expired",
+      "cancelled"
+    ],
+    "proven": [
+      "typed parsing, argument validation, suggestions and keyboard delivery mode",
+      "busy-run backend queue admission, priority/FIFO order and reconnect restoration",
+      "cancel idempotency, retry linkage and canonical request/receipt identity",
+      "01B projection and event/span/state/checkpoint/artifact reverse correlation",
+      "tool-disabled single-turn BTW usage, error and close lifecycle without main-session mutation",
+      "disabled and malformed commands fail closed without ordinary-chat fallback",
+      "local result overlay and history do not become canonical queue or task owners"
+    ]
+  },
+  "line_count": {
+    "raw_additions": 12344,
+    "raw_deletions": 23,
+    "production_runtime": 8230,
+    "ui_behavior": 144,
+    "ui_presentation_excluded": 246,
+    "type_declaration_excluded": 1246,
+    "schema_dto_data_excluded": 704,
+    "adapter_only_excluded": 281,
+    "generated_excluded": 30,
+    "test_mock_fixture_excluded": 1193,
+    "docs_comments_blank_excluded": 270,
+    "vendor_like_source_pool": 0,
+    "effective_production": 8374,
+    "minimum": 7500,
+    "passed": true,
+    "canonical_report": "docs/reviews/evidence/M2-S04A-01/effective-lines.json"
+  },
+  "non_blocking_observations": [
+    {
+      "command": "pytest -q tests/integration/test_api_control_commands.py tests/unit/test_symbolic_control.py",
+      "result": "timed out after 184 seconds; focused rerun passed 7 and failed 3",
+      "scope": "The directly relevant /change case and all six symbolic-control cases passed. The three failures are the existing E02 MCP config snapshot mismatch affecting /skills, legacy /help and artifact_write."
+    },
+    {
+      "command": "pytest -q tests/unit/test_internalization_ledger_control_plane.py",
+      "result": "13 passed, 1 failed",
+      "scope": "Existing delegated MCP connect route discovery mismatch; no M2-S04A-01 ledger entry is involved."
+    },
+    {
+      "command": "pytest -q tests/unit/test_internalization_ledger.py tests/unit/test_internalization_ledger_contracts.py",
+      "result": "16 passed, 2 failed",
+      "scope": "Existing three source_repo=zyra policy errors and the historical M1-02B query fixture mismatch; the five new entries emit no ledger audit error."
+    }
+  ],
+  "deferred": [
+    "M2-04A parent cumulative 15000-line closure is mandatory in M2-S04A-02.",
+    "Full cleanroom and all-repository tests remain assigned to the M2-04 numeric-stage aggregate review because this ordinary slice changed no global owner, default policy, external process, port or dependency."
+  ]
+}
