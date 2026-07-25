@@ -8,6 +8,7 @@ from typing import Any
 from .canonical import (
     bounded_integer,
     bounded_text,
+    canonicalize,
     content_digest,
     digest,
     identity,
@@ -29,6 +30,8 @@ from .models import (
     SealedPolicy,
     StepEffect,
 )
+from .live_models import LiveDomain
+from .fault_campaign import FaultSchedule
 
 
 DEFAULT_ACTIONS: tuple[dict[str, Any], ...] = (
@@ -40,6 +43,30 @@ DEFAULT_ACTIONS: tuple[dict[str, Any], ...] = (
     {"action_id": "recover-task", "action": "recovery.replan", "effect": "allow"},
     {"action_id": "write-artifact", "action": "artifact.write", "effect": "allow"},
     {"action_id": "verify-evidence", "action": "evidence.verify", "effect": "allow"},
+)
+
+
+LIVE_ACTIONS: tuple[dict[str, Any], ...] = (
+    {"action_id": "live-task-create", "action": "task.create", "effect": "allow"},
+    {"action_id": "live-workspace-create", "action": "workspace.create", "effect": "allow"},
+    {"action_id": "live-source-discover", "action": "source.discover", "effect": "allow"},
+    {"action_id": "live-source-acquire", "action": "source.acquire", "effect": "allow"},
+    {"action_id": "live-code-index", "action": "code_index.query", "effect": "allow"},
+    {"action_id": "live-plan", "action": "scenario.plan", "effect": "allow"},
+    {"action_id": "live-scheduler-route", "action": "scheduler.route", "effect": "allow"},
+    {"action_id": "live-tier-dispatch", "action": "scheduler.tier_dispatch", "effect": "allow"},
+    {"action_id": "live-provider-dispatch", "action": "provider.dispatch", "effect": "allow"},
+    {"action_id": "live-memory-retrieve", "action": "memory.retrieve", "effect": "allow"},
+    {"action_id": "live-permission", "action": "permission.evaluate", "effect": "allow"},
+    {"action_id": "live-checkpoint", "action": "recovery.checkpoint", "effect": "allow"},
+    {"action_id": "live-patch", "action": "workspace.patch", "effect": "allow"},
+    {"action_id": "live-terminal", "action": "terminal.execute", "effect": "allow"},
+    {"action_id": "live-fault", "action": "fault.inject", "effect": "allow"},
+    {"action_id": "live-recovery", "action": "recovery.replan", "effect": "allow"},
+    {"action_id": "live-restore", "action": "recovery.restore", "effect": "allow"},
+    {"action_id": "live-verifier", "action": "domain.verify", "effect": "allow"},
+    {"action_id": "live-artifact", "action": "artifact.write", "effect": "allow"},
+    {"action_id": "live-evidence", "action": "evidence.verify", "effect": "allow"},
 )
 
 
@@ -107,6 +134,118 @@ def foundation_definition() -> ScenarioDefinition:
     )
 
 
+def software_delivery_definition() -> ScenarioDefinition:
+    return ScenarioDefinition(
+        scenario_id="live.software-delivery",
+        version="1.0.0",
+        title="Live software engineering delivery with fault and placement evidence",
+        domain=LiveDomain.SOFTWARE_DELIVERY.value,
+        goal_template=(
+            "Complete a clean-state, new-input software engineering delivery through "
+            "code discovery, planning, patch, Git, tests, recovery, re-verification "
+            "and evidence publication. New request: {input}"
+        ),
+        required_owner_stages=(
+            "api",
+            "task",
+            "workspace",
+            "code-index",
+            "scheduler",
+            "worker-pool",
+            "provider",
+            "memory",
+            "permission",
+            "fault",
+            "recovery",
+            "artifact",
+            "verification",
+            "evidence",
+        ),
+        planned_actions=LIVE_ACTIONS,
+        default_faults=FaultSchedule.for_domain(
+            LiveDomain.SOFTWARE_DELIVERY
+        ).injections,
+        expected_effects=tuple(
+            effect for effect in StepEffect if effect is not StepEffect.NONE
+        ),
+        minimum_effective_steps=2_000,
+        source_roles=(
+            "zyra_owned_primary",
+            "existing_owner_integration",
+            "conformance_only",
+        ),
+        metadata={
+            "slice": "M2-S05-02",
+            "formal_long_run": True,
+            "live_domain": LiveDomain.SOFTWARE_DELIVERY.value,
+            "clean_state_required": True,
+            "new_input_required": True,
+            "minimum_effective_transitions": 2_000,
+            "human_intervention_count": 0,
+            "fixture": False,
+            "replay": False,
+            "legacy_demo_fallback": False,
+        },
+    )
+
+
+def research_delivery_definition() -> ScenarioDefinition:
+    return ScenarioDefinition(
+        scenario_id="live.cross-source-research",
+        version="1.0.0",
+        title="Live cross-source research with citations, faults and placement evidence",
+        domain=LiveDomain.CROSS_SOURCE_RESEARCH.value,
+        goal_template=(
+            "Complete clean-state, new-input cross-source research through live "
+            "acquisition, checksums, claim extraction, citation verification, "
+            "fault recovery and structured delivery. New request: {input}"
+        ),
+        required_owner_stages=(
+            "api",
+            "task",
+            "browser",
+            "source-acquisition",
+            "scheduler",
+            "worker-pool",
+            "provider",
+            "memory",
+            "permission",
+            "fault",
+            "recovery",
+            "artifact",
+            "verification",
+            "evidence",
+        ),
+        planned_actions=LIVE_ACTIONS,
+        default_faults=FaultSchedule.for_domain(
+            LiveDomain.CROSS_SOURCE_RESEARCH
+        ).injections,
+        expected_effects=tuple(
+            effect for effect in StepEffect if effect is not StepEffect.NONE
+        ),
+        minimum_effective_steps=2_000,
+        source_roles=(
+            "zyra_owned_primary",
+            "existing_owner_integration",
+            "conformance_only",
+        ),
+        metadata={
+            "slice": "M2-S05-02",
+            "formal_long_run": True,
+            "live_domain": LiveDomain.CROSS_SOURCE_RESEARCH.value,
+            "clean_state_required": True,
+            "new_input_required": True,
+            "minimum_effective_transitions": 2_000,
+            "live_network_required": True,
+            "citation_checksum_required": True,
+            "human_intervention_count": 0,
+            "fixture": False,
+            "replay": False,
+            "legacy_demo_fallback": False,
+        },
+    )
+
+
 def default_profile() -> ExecutionProfile:
     return ExecutionProfile(
         profile_id="foundation.local-sealed",
@@ -124,11 +263,45 @@ def default_profile() -> ExecutionProfile:
     )
 
 
+def live_heterogeneous_profile() -> ExecutionProfile:
+    return ExecutionProfile(
+        profile_id="live.heterogeneous-sealed",
+        provider_id="zyra-provider-control",
+        model_id="multi-capability",
+        backend_id="zyra-worker-pool",
+        worker_classes=(
+            "Router",
+            "Researcher",
+            "Executor",
+            "Verifier",
+            "Memory",
+            "Recovery",
+        ),
+        maximum_effective_steps=10_000,
+        maximum_wall_time_ms=60 * 60 * 1000,
+        metadata={
+            "formal": True,
+            "dispatch_claim": "real-device-edge-cloud",
+            "edge_cloud_claim": True,
+            "provider_model_claim": True,
+            "require_real_tiers": True,
+            "require_real_providers": True,
+            "minimum_provider_capabilities": 2,
+            "minimum_effective_transitions": 2_000,
+            "maximum_effective_transitions": 10_000,
+            "sealed_autonomous": True,
+            "browser_close_independent": True,
+        },
+    )
+
+
 def default_policy() -> SealedPolicy:
     return SealedPolicy(
         policy_id="sealed-autonomous-foundation",
         version="1.0.0",
-        allow_actions=tuple(item["action"] for item in DEFAULT_ACTIONS),
+        allow_actions=stable_unique(
+            item["action"] for item in (*DEFAULT_ACTIONS, *LIVE_ACTIONS)
+        ),
         deny_actions=(
             "operator.approve",
             "operator.steer",
@@ -176,8 +349,12 @@ class ScenarioRegistry:
     @classmethod
     def defaults(cls) -> "ScenarioRegistry":
         return cls(
-            definitions=(foundation_definition(),),
-            profiles=(default_profile(),),
+            definitions=(
+                foundation_definition(),
+                software_delivery_definition(),
+                research_delivery_definition(),
+            ),
+            profiles=(default_profile(), live_heterogeneous_profile()),
             policies=(default_policy(),),
         )
 
@@ -375,8 +552,16 @@ def build_configuration(
         scenario_id,
         str(request.get("definition_version") or ""),
     )
+    default_profile_id = (
+        "live.heterogeneous-sealed"
+        if scenario_id in {
+            "live.software-delivery",
+            "live.cross-source-research",
+        }
+        else "foundation.local-sealed"
+    )
     profile = registry.profile(
-        str(request.get("profile_id") or "foundation.local-sealed")
+        str(request.get("profile_id") or default_profile_id)
     )
     policy = registry.policy(
         str(request.get("policy_id") or "sealed-autonomous-foundation")
@@ -425,6 +610,8 @@ def build_configuration(
             "definition_title": definition.title,
             "definition_domain": definition.domain,
             "required_owner_stages": list(definition.required_owner_stages),
+            "definition_metadata": canonicalize(definition.metadata),
+            **canonicalize(definition.metadata),
             "formal": mode is ScenarioMode.SEALED,
             "review_replay": mode is ScenarioMode.REVIEW_REPLAY,
             "project_root": str(resolve_path(project_root, "project root")),

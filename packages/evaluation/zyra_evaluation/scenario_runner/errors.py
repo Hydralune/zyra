@@ -61,12 +61,19 @@ class ScenarioRunnerError(RuntimeError):
         return self.fault.to_dict()
 
 
-def unavailable(code: str, message: str, *, phase: str) -> ScenarioRunnerError:
+def unavailable(
+    code: str,
+    message: str,
+    *,
+    phase: str,
+    detail: dict[str, Any] | None = None,
+) -> ScenarioRunnerError:
     return ScenarioRunnerError(
         code,
         message,
         status=HTTPStatus.SERVICE_UNAVAILABLE,
         phase=phase,
+        detail=detail,
     )
 
 

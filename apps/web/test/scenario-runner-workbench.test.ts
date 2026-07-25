@@ -354,6 +354,78 @@ describe("scenario admission and evidence", () => {
     )
   })
 
+  test("projects verified dual-domain live evidence and rejects an incomplete claim", () => {
+    const admitted = Array.from(
+      { length: 2_100 },
+      (_, index) => `live-step-${index + 1}`,
+    )
+    const claims = {
+      human_intervention_count: 0,
+      legacy_demo_fallback: false,
+      long_live_scenario_complete: true,
+      two_thousand_step_gate_complete: true,
+      edge_cloud_dispatch_complete: true,
+      provider_model_capabilities_complete: true,
+      fault_change_matrix_complete: true,
+      domain_verifier_complete: true,
+      causal_archive_complete: true,
+      m2_exit_complete: false,
+    }
+    const selected = run({
+      phase: "succeeded",
+      terminal: true,
+      revision: 9,
+      configuration: {
+        ...run().configuration,
+        scenario_id: "live.software-delivery",
+      },
+      evidence_manifest: {
+        ...evidence(),
+        effective_steps: {
+          ...evidence().effective_steps,
+          admitted_step_ids: admitted,
+        },
+        claims,
+        live_domain: {
+          summary: {
+            domain: "software_delivery",
+            fault_count: 5,
+            recovered_fault_count: 5,
+          },
+          domain_verification: { valid: true },
+          placement_verification: { valid: true },
+          causal_archive: { manifest_digest: OTHER_DIGEST },
+          tier_count: 3,
+          provider_model_capability_count: 2,
+        },
+      },
+      verification_receipt: { valid: true },
+    })
+    const assessment = assessEvidence(selected)
+    expect(assessment.valid).toBe(true)
+    expect(assessment.live?.complete).toBe(true)
+    expect(assessment.live?.effectiveTransitionCount).toBe(2_100)
+    expect(assessment.live?.faultCount).toBe(5)
+    expect(assessment.live?.tierCount).toBe(3)
+    expect(assessment.live?.providerModelCapabilityCount).toBe(2)
+    expect(assessment.live?.archiveDigest).toBe(OTHER_DIGEST)
+
+    const incomplete = assessEvidence({
+      ...selected,
+      evidence_manifest: {
+        ...selected.evidence_manifest,
+        claims: {
+          ...claims,
+          provider_model_capabilities_complete: false,
+        },
+      },
+    })
+    expect(incomplete.valid).toBe(false)
+    expect(incomplete.findings.map((item) => item.path)).toContain(
+      "evidence_manifest.claims.provider_model_capabilities_complete",
+    )
+  })
+
   test("distinguishes inactive source roles from missing capability", () => {
     const projection = projectSourceAudit(sourceAudit())
 

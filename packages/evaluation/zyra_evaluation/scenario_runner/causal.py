@@ -206,29 +206,49 @@ class CausalEvidenceValidator:
         children: Mapping[str, set[str]],
     ) -> list[list[str]]:
         color: dict[str, int] = {key: 0 for key in by_id}
-        stack: list[str] = []
+        path: list[str] = []
         position: dict[str, int] = {}
         cycles: list[list[str]] = []
-
-        def visit(step_id: str) -> None:
-            color[step_id] = 1
-            position[step_id] = len(stack)
-            stack.append(step_id)
-            for child in sorted(children.get(step_id, ())):
-                if color.get(child, 0) == 0:
-                    visit(child)
-                elif color.get(child) == 1:
+        cycle_keys: set[tuple[str, ...]] = set()
+        for root_id in sorted(by_id):
+            if color[root_id] != 0:
+                continue
+            color[root_id] = 1
+            position[root_id] = len(path)
+            path.append(root_id)
+            frames: list[tuple[str, tuple[str, ...], int]] = [
+                (root_id, tuple(sorted(children.get(root_id, ()))), 0)
+            ]
+            while frames:
+                step_id, child_ids, cursor = frames[-1]
+                if cursor >= len(child_ids):
+                    frames.pop()
+                    path.pop()
+                    position.pop(step_id, None)
+                    color[step_id] = 2
+                    continue
+                child = child_ids[cursor]
+                frames[-1] = (step_id, child_ids, cursor + 1)
+                child_color = color.get(child, 0)
+                if child_color == 0:
+                    color[child] = 1
+                    position[child] = len(path)
+                    path.append(child)
+                    frames.append(
+                        (
+                            child,
+                            tuple(sorted(children.get(child, ()))),
+                            0,
+                        )
+                    )
+                    continue
+                if child_color == 1:
                     start = position[child]
-                    cycle = [*stack[start:], child]
-                    if cycle not in cycles:
+                    cycle = [*path[start:], child]
+                    key = tuple(cycle)
+                    if key not in cycle_keys:
                         cycles.append(cycle)
-            stack.pop()
-            position.pop(step_id, None)
-            color[step_id] = 2
-
-        for step_id in sorted(by_id):
-            if color[step_id] == 0:
-                visit(step_id)
+                        cycle_keys.add(key)
         return cycles
 
     def _reachable(

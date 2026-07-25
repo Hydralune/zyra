@@ -430,15 +430,10 @@ class ScenarioRunnerService:
             decisions = policy.evaluate_all(definition.planned_actions)
             require_safe_policy_decisions(
                 decisions,
-                required_actions=(
-                    "task.create",
-                    "scheduler.route",
-                    "memory.curate",
-                    "permission.evaluate",
-                    "fault.inject",
-                    "recovery.replan",
-                    "artifact.write",
-                    "evidence.verify",
+                required_actions=tuple(
+                    str(item.get("action") or "")
+                    for item in definition.planned_actions
+                    if str(item.get("effect") or "ask").casefold() == "allow"
                 ),
             )
             goal = definition.goal_template.format(

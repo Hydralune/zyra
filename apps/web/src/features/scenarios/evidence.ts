@@ -20,7 +20,22 @@ export interface EvidenceAssessment {
   effects: Readonly<Record<string, number>>
   stages: Readonly<Record<string, number>>
   providers: Readonly<Record<string, number>>
+  live?: LiveEvidenceAssessment
   findings: readonly EvidenceFinding[]
+}
+
+export interface LiveEvidenceAssessment {
+  domain?: string
+  complete: boolean
+  effectiveTransitionCount: number
+  faultCount: number
+  recoveredFaultCount: number
+  tierCount: number
+  providerModelCapabilityCount: number
+  verificationValid: boolean
+  placementValid: boolean
+  archiveDigest?: string
+  claims: Readonly<Record<string, boolean>>
 }
 
 const SHA256 = /^[a-f0-9]{64}$/
@@ -178,6 +193,11 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
     previous = String(event.chain_digest || "")
   }
   const claims = object(manifest.claims)
+  const scenarioId = String(run.configuration.scenario_id || "")
+  const isLive = [
+    "live.software-delivery",
+    "live.cross-source-research",
+  ].includes(scenarioId)
   if (Number(claims.human_intervention_count || 0) !== 0) {
     findings.push(
       finding(
@@ -196,7 +216,60 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
       ),
     )
   }
-  if (
+  const liveEnvelope = object(manifest.live_domain)
+  const liveSummary = object(liveEnvelope.summary)
+  const liveVerification = object(liveEnvelope.domain_verification)
+  const placementVerification = object(liveEnvelope.placement_verification)
+  const causalArchive = object(liveEnvelope.causal_archive)
+  const requiredLiveClaims = [
+    "long_live_scenario_complete",
+    "two_thousand_step_gate_complete",
+    "edge_cloud_dispatch_complete",
+    "provider_model_capabilities_complete",
+    "fault_change_matrix_complete",
+    "domain_verifier_complete",
+    "causal_archive_complete",
+  ] as const
+  if (isLive) {
+    for (const claim of requiredLiveClaims) {
+      if (claims[claim] !== true) {
+        findings.push(
+          finding(
+            "live_claim_incomplete",
+            `Formal live claim is incomplete: ${claim}.`,
+            `evidence_manifest.claims.${claim}`,
+          ),
+        )
+      }
+    }
+    if (admitted.length < 2_000) {
+      findings.push(
+        finding(
+          "live_transition_minimum",
+          "Formal live evidence contains fewer than 2,000 effective transitions.",
+          "evidence_manifest.effective_steps.admitted_step_ids",
+        ),
+      )
+    }
+    if (liveVerification.valid !== true) {
+      findings.push(
+        finding(
+          "live_domain_verifier_invalid",
+          "Deterministic domain verification is missing or invalid.",
+          "evidence_manifest.live_domain.domain_verification",
+        ),
+      )
+    }
+    if (placementVerification.valid !== true) {
+      findings.push(
+        finding(
+          "live_placement_invalid",
+          "Real tier/provider placement verification is missing or invalid.",
+          "evidence_manifest.live_domain.placement_verification",
+        ),
+      )
+    }
+  } else if (
     claims.long_live_scenario_complete !== false
     || claims.two_thousand_step_gate_complete !== false
     || claims.edge_cloud_dispatch_complete !== false
@@ -211,6 +284,26 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
     )
   }
   const dimensions = object(summary)
+  const live = isLive
+    ? Object.freeze({
+      domain: String(liveSummary.domain || "") || undefined,
+      complete: requiredLiveClaims.every((claim) => claims[claim] === true),
+      effectiveTransitionCount: admitted.length,
+      faultCount: Number(liveSummary.fault_count || 0),
+      recoveredFaultCount: Number(liveSummary.recovered_fault_count || 0),
+      tierCount: Number(liveEnvelope.tier_count || 0),
+      providerModelCapabilityCount: Number(
+        liveEnvelope.provider_model_capability_count || 0,
+      ),
+      verificationValid: liveVerification.valid === true,
+      placementValid: placementVerification.valid === true,
+      archiveDigest:
+        String(causalArchive.manifest_digest || "") || undefined,
+      claims: Object.freeze(Object.fromEntries(
+        requiredLiveClaims.map((claim) => [claim, claims[claim] === true]),
+      )),
+    })
+    : undefined
   return Object.freeze({
     valid: findings.every((item) => item.severity !== "error"),
     manifestId,
@@ -224,6 +317,7 @@ export function assessEvidence(run: ScenarioRunProjection): EvidenceAssessment {
     effects: Object.freeze({ ...object(dimensions.effective_by_effect) }),
     stages: Object.freeze({ ...object(dimensions.effective_by_stage) }),
     providers: Object.freeze({ ...object(dimensions.effective_by_provider) }),
+    live,
     findings: Object.freeze(findings),
   })
 }

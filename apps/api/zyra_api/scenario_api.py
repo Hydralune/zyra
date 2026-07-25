@@ -73,6 +73,19 @@ def _execute_owner_chain(
     policy_decisions: tuple[dict[str, Any], ...],
     cancel_requested: Any,
 ) -> OwnerExecutionResult:
+    from zyra_evaluation.scenario_runner.dual_domain import LIVE_SCENARIO_IDS
+
+    if configuration.scenario_id in LIVE_SCENARIO_IDS:
+        from .live_scenario_owners import execute_live_owner_chain
+
+        return execute_live_owner_chain(
+            scenario_run_id=scenario_run_id,
+            configuration=configuration,
+            goal=goal,
+            policy_decisions=policy_decisions,
+            cancel_requested=cancel_requested,
+        )
+
     from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
     from zyra_runtime import LocalArtifactStore
     from zyra_symbolic import apply_failure_injection, apply_requirement_change

@@ -72,6 +72,50 @@ class EvidenceCollector:
             expected_run_id=owner.owner_run_id,
             expected_task_id=owner.task_id,
         )
+        live_domain = owner.task.get("live_domain")
+        live_domain = (
+            dict(live_domain) if isinstance(live_domain, Mapping) else {}
+        )
+        domain_verification = owner.task.get("domain_verification")
+        domain_verification = (
+            dict(domain_verification)
+            if isinstance(domain_verification, Mapping)
+            else {}
+        )
+        placement = owner.task.get("placement")
+        placement = dict(placement) if isinstance(placement, Mapping) else {}
+        placement_verification = placement.get("verification")
+        placement_verification = (
+            dict(placement_verification)
+            if isinstance(placement_verification, Mapping)
+            else {}
+        )
+        causal_archive = owner.task.get("causal_archive")
+        causal_archive = (
+            dict(causal_archive)
+            if isinstance(causal_archive, Mapping)
+            else {}
+        )
+        live = configuration.scenario_id in {
+            "live.software-delivery",
+            "live.cross-source-research",
+        }
+        transition_count = len(step_batch.admitted)
+        tier_counts = live_domain.get("tier_counts")
+        tier_counts = dict(tier_counts) if isinstance(tier_counts, Mapping) else {}
+        provider_counts = live_domain.get("provider_model_counts")
+        provider_counts = (
+            dict(provider_counts) if isinstance(provider_counts, Mapping) else {}
+        )
+        live_complete = bool(
+            live
+            and domain_verification.get("valid") is True
+            and placement_verification.get("valid") is True
+            and int(live_domain.get("recovered_fault_count") or 0)
+            == int(live_domain.get("fault_count") or -1)
+            and int(live_domain.get("fault_count") or 0) >= 5
+            and causal_archive.get("manifest_digest")
+        )
         manifest = {
             "schema": "zyra.scenario-evidence-manifest/v1",
             "manifest_id": new_identity("manifest"),
@@ -108,14 +152,45 @@ class EvidenceCollector:
             "canonical_events": event_receipts,
             "artifacts": artifact_receipts,
             "source_audit": canonicalize(source_audit),
+            "live_domain": {
+                "summary": canonicalize(live_domain),
+                "domain_verification": canonicalize(domain_verification),
+                "placement_verification": canonicalize(
+                    placement_verification
+                ),
+                "causal_archive": canonicalize(causal_archive),
+                "provider_model_capability_count": len(provider_counts),
+                "tier_count": len(tier_counts),
+            },
             "claims": {
                 "formal_foundation": True,
                 "human_intervention_count": 0,
                 "legacy_demo_fallback": False,
                 "replay_evidence": False,
-                "long_live_scenario_complete": False,
-                "two_thousand_step_gate_complete": False,
-                "edge_cloud_dispatch_complete": False,
+                "long_live_scenario_complete": live_complete,
+                "two_thousand_step_gate_complete": (
+                    live and transition_count >= 2_000
+                ),
+                "edge_cloud_dispatch_complete": bool(
+                    live
+                    and {"device", "edge", "cloud"}.issubset(tier_counts)
+                    and placement_verification.get("valid") is True
+                ),
+                "provider_model_capabilities_complete": bool(
+                    live and len(provider_counts) >= 2
+                ),
+                "fault_change_matrix_complete": bool(
+                    live
+                    and int(live_domain.get("fault_count") or 0) >= 5
+                    and int(live_domain.get("recovered_fault_count") or 0)
+                    == int(live_domain.get("fault_count") or -1)
+                ),
+                "domain_verifier_complete": bool(
+                    live and domain_verification.get("valid") is True
+                ),
+                "causal_archive_complete": bool(
+                    live and causal_archive.get("manifest_digest")
+                ),
                 "m2_exit_complete": False,
             },
             "collected_at": utc_now(),
@@ -160,6 +235,46 @@ class EvidenceCollector:
             failures.append({"code": "human_intervention_count_nonzero"})
         if claims.get("legacy_demo_fallback") is not False:
             failures.append({"code": "legacy_demo_fallback_present"})
+        scenario_id = str(manifest.get("scenario_id") or "")
+        if scenario_id in {
+            "live.software-delivery",
+            "live.cross-source-research",
+        }:
+            for claim in (
+                "long_live_scenario_complete",
+                "two_thousand_step_gate_complete",
+                "edge_cloud_dispatch_complete",
+                "provider_model_capabilities_complete",
+                "fault_change_matrix_complete",
+                "domain_verifier_complete",
+                "causal_archive_complete",
+            ):
+                if claims.get(claim) is not True:
+                    failures.append(
+                        {"code": "live_claim_incomplete", "claim": claim}
+                    )
+            live_domain = manifest.get("live_domain")
+            live_domain = (
+                live_domain if isinstance(live_domain, Mapping) else {}
+            )
+            domain_verification = live_domain.get("domain_verification")
+            if (
+                not isinstance(domain_verification, Mapping)
+                or domain_verification.get("valid") is not True
+            ):
+                failures.append(
+                    {"code": "live_domain_verification_invalid"}
+                )
+            placement_verification = live_domain.get(
+                "placement_verification"
+            )
+            if (
+                not isinstance(placement_verification, Mapping)
+                or placement_verification.get("valid") is not True
+            ):
+                failures.append(
+                    {"code": "live_placement_verification_invalid"}
+                )
         steps = manifest.get("effective_steps")
         steps = steps if isinstance(steps, Mapping) else {}
         if steps.get("formal_valid") is not True:

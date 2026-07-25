@@ -36,13 +36,17 @@ export function ScenarioWorkbench({
   )
   const [input, setInput] = useState("")
   const [seed, setSeed] = useState("0")
+  const [scenarioId, setScenarioId] = useState("live.software-delivery")
   const [busy, setBusy] = useState("")
   const [error, setError] = useState("")
   const selected = snapshot.selected
   const actions = selected
     ? formalActionPolicy(selected.run)
     : undefined
-  const definition = snapshot.definitions[0]
+  const definition = snapshot.definitions.find(
+    (item) => item.scenario_id === scenarioId,
+  ) ?? snapshot.definitions[0]
+  const liveEvidence = selected?.evidence.live
   const effects = useMemo(
     () => Object.entries(selected?.evidence.effects ?? {}),
     [selected?.evidence.effects],
@@ -68,7 +72,7 @@ export function ScenarioWorkbench({
         seed: Number(seed),
         labels: {
           surface: "zyra-workbench",
-          slice: "M2-S05-01",
+          slice: "M2-S05-02",
         },
       })
       setInput("")
@@ -114,8 +118,8 @@ export function ScenarioWorkbench({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Sealed evidence foundation</p>
-          <h2 id="scenario-workbench-heading">Scenario runner</h2>
+          <p className="eyebrow">Dual-domain live evidence</p>
+          <h2 id="scenario-workbench-heading">Long-run scenario runner</h2>
         </div>
         <span className="tag" data-phase={snapshot.connection}>
           {snapshot.connection}
@@ -123,16 +127,36 @@ export function ScenarioWorkbench({
       </div>
       <p className="muted-copy">
         Runs are owned by the backend and continue after this browser closes.
-        Replay and the legacy M2 demo cannot produce formal evidence.
+        Formal software-delivery and cross-source research runs require 2,000+
+        effective transitions, representative recovery, real device/edge/cloud
+        execution and two authenticated provider/model capabilities.
       </p>
 
       <form className="settings-grid" onSubmit={create}>
+        <label>
+          Scenario domain
+          <select
+            value={definition?.scenario_id ?? ""}
+            onChange={(event) => setScenarioId(event.currentTarget.value)}
+            disabled={Boolean(busy)}
+          >
+            {snapshot.definitions.map((item) => (
+              <option key={`${item.scenario_id}:${item.version}`} value={item.scenario_id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           New scenario input
           <textarea
             value={input}
             onChange={(event) => setInput(event.currentTarget.value)}
-            placeholder="Supply a new, non-replayed task input."
+            placeholder={
+              definition?.scenario_id === "live.cross-source-research"
+                ? "State a new research question with claims, contradiction and citation requirements."
+                : "State a new software change with verifiable behavior and delivery requirements."
+            }
             required
             rows={4}
             disabled={Boolean(busy)}
@@ -314,6 +338,56 @@ export function ScenarioWorkbench({
                 <dd>{count}</dd>
               </div>
             ))}
+          </dl>
+        </section>
+      ) : null}
+
+      {liveEvidence ? (
+        <section aria-label="Formal live scenario evidence">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Deterministic acceptance</p>
+              <h3>Fault, placement and domain proof</h3>
+            </div>
+            <span className="tag" data-phase={liveEvidence.complete ? "succeeded" : "running"}>
+              {liveEvidence.complete ? "formal" : "incomplete"}
+            </span>
+          </div>
+          <dl className="fact-grid">
+            <div>
+              <dt>Domain</dt>
+              <dd>{liveEvidence.domain ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>Canonical transitions</dt>
+              <dd>{liveEvidence.effectiveTransitionCount}</dd>
+            </div>
+            <div>
+              <dt>Recovered faults</dt>
+              <dd>
+                {liveEvidence.recoveredFaultCount}/{liveEvidence.faultCount}
+              </dd>
+            </div>
+            <div>
+              <dt>Execution tiers</dt>
+              <dd>{liveEvidence.tierCount}/3</dd>
+            </div>
+            <div>
+              <dt>Provider/model capabilities</dt>
+              <dd>{liveEvidence.providerModelCapabilityCount}/2</dd>
+            </div>
+            <div>
+              <dt>Domain verifier</dt>
+              <dd>{liveEvidence.verificationValid ? "verified" : "failed"}</dd>
+            </div>
+            <div>
+              <dt>Placement verifier</dt>
+              <dd>{liveEvidence.placementValid ? "verified" : "failed"}</dd>
+            </div>
+            <div>
+              <dt>Causal archive</dt>
+              <dd>{shortDigest(liveEvidence.archiveDigest)}</dd>
+            </div>
           </dl>
         </section>
       ) : null}

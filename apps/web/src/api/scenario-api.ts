@@ -232,10 +232,17 @@ export class ScenarioApi {
 
   async create(input: ScenarioCreateInput): Promise<ScenarioRunProjection> {
     const mode = input.mode ?? "sealed"
+    const selectedScenarioId = scenarioId(
+      input.scenarioId,
+      "foundation.short-owner-chain",
+    )
+    const defaultProfileId = selectedScenarioId.startsWith("live.")
+      ? "live.heterogeneous-sealed"
+      : "foundation.local-sealed"
     const body = {
-      scenario_id: scenarioId(input.scenarioId, "foundation.short-owner-chain"),
+      scenario_id: selectedScenarioId,
       definition_version: input.definitionVersion?.trim() || undefined,
-      profile_id: scenarioId(input.profileId, "foundation.local-sealed"),
+      profile_id: scenarioId(input.profileId, defaultProfileId),
       policy_id: scenarioId(input.policyId, "sealed-autonomous-foundation"),
       policy_digest: input.policyDigest?.trim() || undefined,
       mode,
