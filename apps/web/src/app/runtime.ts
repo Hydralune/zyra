@@ -17,6 +17,7 @@ import {
   type CanonicalProjectionStore,
 } from "../state/index.ts"
 import type { ProjectionIngressBinding } from "../state/contracts.ts"
+import { CommandSurfaceRuntime } from "../features/commands/index.ts"
 
 export interface WorkbenchRuntime {
   api: ReturnType<typeof createZyraApi>
@@ -34,6 +35,7 @@ export interface WorkbenchRuntime {
   drafts: CommandDraftStore
   queue: CommandQueue
   commands: CommandCoordinator
+  controlCommands: CommandSurfaceRuntime
   close(reason?: unknown): void
 }
 
@@ -84,7 +86,15 @@ export function createWorkbenchRuntime(
     workbench,
     router,
     overlays,
+    controls: undefined,
   })
+  const controlCommands = new CommandSurfaceRuntime({
+    api: api.tasks,
+    workbench,
+    overlays,
+    projections,
+  })
+  commands.attachControls(controlCommands)
   const unsubscribeLifecycle = api.lifecycle.listen((record) => {
     if (record.phase === "committed") {
       notifications.push({
@@ -117,6 +127,19 @@ export function createWorkbenchRuntime(
   let projectionRouteGeneration = 0
   const bindProjectionRoute = (taskId?: string) => {
     const generation = ++projectionRouteGeneration
+    void controlCommands.bindTask(taskId).catch((error) => {
+      notifications.push({
+        id: `command-queue-restore-${generation}`,
+        title: "Command queue restore failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error || "The backend command queue could not be restored."),
+        tone: "error",
+        durationMs: 10_000,
+        taskId,
+      })
+    })
     projectionBinding?.close()
     projectionBinding = undefined
     if (projectionTaskId) projections.unpinTask(projectionTaskId)
@@ -153,6 +176,7 @@ export function createWorkbenchRuntime(
     drafts,
     queue,
     commands,
+    controlCommands,
     close(reason?: unknown) {
       if (closed) return
       closed = true
@@ -165,6 +189,7 @@ export function createWorkbenchRuntime(
       void projections.close(String(reason ?? "Workbench closed."))
       unsubscribeLifecycle()
       commands.close(String(reason ?? "Workbench closed."))
+      controlCommands.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
       routeLoader.close(String(reason ?? "Workbench closed."))

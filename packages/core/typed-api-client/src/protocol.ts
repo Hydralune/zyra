@@ -555,6 +555,30 @@ export const CORE_ENDPOINTS = {
     pathParameters: ["task_id"],
     queryParameters: [],
   }),
+  taskCommandQueue: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskCommandQueue,
+    contract: CONTRACT_NAMES.taskCommandQueue,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/command-queue",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["task_id"],
+    queryParameters: ["session_id", "include_terminal"],
+  }),
+  taskCommandCancel: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskCommandCancel,
+    contract: CONTRACT_NAMES.taskCommandCancel,
+    method: "POST",
+    pathTemplate: "/tasks/{task_id}/commands/{request_id}/cancel",
+    kind: "mutation",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200, 409],
+    pathParameters: ["task_id", "request_id"],
+    queryParameters: [],
+  }),
 } as const
 
 export type CoreEndpointName = keyof typeof CORE_ENDPOINTS

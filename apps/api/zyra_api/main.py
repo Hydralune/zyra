@@ -236,6 +236,7 @@ from zyra_commands import (
     ControlRequestStore,
     ControlResult,
     PromptQueueRuntime,
+    QueuePriority,
     RuntimeControlContext,
     RuntimeControlDispatcher,
     SideQuestionContextSnapshot,
@@ -5620,6 +5621,54 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "command-queue":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            query = _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+            session_id = str(
+                query.get("session_id")
+                or state.metadata.get("query_session_id")
+                or state.metadata.get("session_id")
+                or f"task:{state.task_id}"
+            )
+            include_terminal = str(query.get("include_terminal") or "").lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            queue = get_control_dispatcher().prompt_queue
+            entries = [
+                item.safe_dict()
+                for item in queue.queued(
+                    session_id=session_id,
+                    include_terminal=include_terminal,
+                )
+                if (
+                    str(
+                        dict(item.payload.get("request") or {}).get("task_id")
+                        or state.task_id
+                    )
+                    == state.task_id
+                )
+            ]
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "schema": "zyra.command-queue/v1",
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "session_id": session_id,
+                    "sequence": int(queue.snapshot().get("sequence") or 0),
+                    "entries": entries,
+                    "canonical_owner": "PromptQueueRuntime",
+                    "projection_owner": "CanonicalProjectionStore",
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if parts == ["skills"]:
             query = parse_qs(parsed.query)
             search_text = str((query.get("q") or query.get("query") or [""])[0]).strip()
@@ -8330,7 +8379,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     {"error": "unknown_or_invalid_command", "text": text},
                 )
                 return
-            response = get_control_dispatcher().submit(
+            dispatcher = get_control_dispatcher()
+            if dispatcher.disabled:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "error": "control_runtime_unavailable",
+                        "message": "RuntimeControlDispatcher is disabled",
+                        "request_id": control_request.request_id,
+                        "command_id": control_request.command_id,
+                        "fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            response = dispatcher.submit(
                 control_request,
                 _control_context_for_task(state, store),
             )
@@ -8385,6 +8448,51 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     ),
                     "event_only_stateful_fallback": False,
                 },
+            )
+            return
+
+        if (
+            len(parts) == 5
+            and parts[0] == "tasks"
+            and parts[2] == "commands"
+            and parts[4] == "cancel"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            request_id = parts[3]
+            reason = str(
+                payload.get("reason")
+                or "Cancelled from the Zyra command surface."
+            ).strip()
+            try:
+                response = get_control_dispatcher().cancel(
+                    request_id,
+                    reason=reason,
+                    context=_control_context_for_task(state, store),
+                )
+            except (KeyError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": "command_cancel_conflict",
+                        "message": str(error),
+                        "request_id": request_id,
+                    },
+                )
+                return
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task": to_jsonable(state),
+                    "control_request": response.to_dict(),
+                    "command_result": response.to_dict(),
+                    "event": None,
+                    "receipt_replayed": False,
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
             )
             return
 
@@ -10340,6 +10448,20 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
         or state.metadata.get("session_id")
         or f"task:{state.task_id}"
     )
+    try:
+        priority = QueuePriority(
+            str(payload.get("priority") or "next").strip().lower()
+        )
+        expected_revision = (
+            int(payload["expected_session_revision"])
+            if payload.get("expected_session_revision") is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        return None
+    delivery_mode = str(payload.get("delivery_mode") or "enqueue").strip().lower()
+    if delivery_mode not in {"enqueue", "steer", "interrupt"}:
+        return None
     return ControlCommandRequest(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -10352,17 +10474,16 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
         target_subagent_task_id=str(payload.get("target_subagent_task_id") or ""),
         origin=CommandOrigin.API,
         registry_generation=registry.generation,
-        expected_session_revision=(
-            int(payload["expected_session_revision"])
-            if payload.get("expected_session_revision") is not None
-            else None
-        ),
+        expected_session_revision=expected_revision,
+        priority=priority,
         metadata={
             "actor_id": str(payload.get("actor_id") or "api-user"),
             "permission_authority": "retained non-E02 task-control allowlist",
             "e02_command_dispatch": "typescript-only",
             "sealed": bool(payload.get("sealed", False)),
             "competition_mode": str(payload.get("competition_mode") or "interactive"),
+            "delivery_mode": delivery_mode,
+            "retry_of_request_id": str(payload.get("retry_of_request_id") or ""),
         },
     )
 

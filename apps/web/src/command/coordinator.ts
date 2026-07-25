@@ -17,6 +17,7 @@ import {
 } from "./parser.ts"
 import type { CommandQueue, QueueOrigin, QueuedSubmission } from "./queue.ts"
 import { CommandExecutionPolicy } from "./execution-policy.ts"
+import type { CommandSurfaceRuntime } from "../features/commands/runtime.ts"
 
 export type SubmissionPhase = "idle" | "validating" | "queued" | "dispatching" | "committed" | "failed" | "cancelled"
 
@@ -53,6 +54,7 @@ export interface SubmitOptions {
   taskActive?: boolean
   taskTerminal?: boolean
   allowQueue?: boolean
+  controlMode?: "enqueue" | "steer" | "interrupt"
 }
 
 export interface SubmissionResult {
@@ -124,6 +126,7 @@ export class CommandCoordinator {
   readonly #router: WorkbenchRouter
   readonly #overlays: OverlayRuntime
   readonly #policy = new CommandExecutionPolicy()
+  #controls?: CommandSurfaceRuntime
   readonly #listeners = new Set<() => void>()
   readonly #records = new Map<string, SubmissionRecord>()
   readonly #inflight = new Map<string, Promise<SubmissionResult>>()
@@ -147,6 +150,7 @@ export class CommandCoordinator {
     workbench: WorkbenchController
     router: WorkbenchRouter
     overlays: OverlayRuntime
+    controls?: CommandSurfaceRuntime
   }) {
     this.#catalog = options.catalog
     this.#queue = options.queue
@@ -155,6 +159,12 @@ export class CommandCoordinator {
     this.#workbench = options.workbench
     this.#router = options.router
     this.#overlays = options.overlays
+    this.#controls = options.controls
+  }
+
+  attachControls(controls: CommandSurfaceRuntime): void {
+    this.#assertOpen()
+    this.#controls = controls
   }
 
   getSnapshot = (): CommandCoordinatorSnapshot => this.#snapshot
@@ -184,6 +194,13 @@ export class CommandCoordinator {
     }
     const normalized = value.trim()
     if (!normalized) return Promise.resolve({ status: "ignored" })
+    if (this.#controls?.resolve(normalized)) {
+      return this.#controls
+        .submit(normalized, { mode: options.controlMode })
+        .then((receipt) => ({
+          status: receipt.phase === "queued" ? "queued" as const : "committed" as const,
+        }))
+    }
     const context = this.context(options)
     const parsed = this.parse(normalized)
     try {
@@ -436,6 +453,10 @@ export class CommandCoordinator {
     context: CommandContext,
     signal: AbortSignal,
   ): Promise<MutationResult | undefined> {
+    if (this.#controls?.resolve(parsed.raw)) {
+      await this.#controls.submit(parsed.raw)
+      return undefined
+    }
     const definition = parsed.definition!
     if (definition.execution === "task-create") {
       return this.#createTask(parsed, signal)

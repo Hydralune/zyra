@@ -67,6 +67,24 @@ export interface ControlCommandInput {
   idempotencyKey?: string
   signal?: AbortSignal
   timeoutMs?: number
+  priority?: "now" | "next" | "later"
+  deliveryMode?: "enqueue" | "steer" | "interrupt"
+  retryOf?: string
+}
+
+export interface CommandQueueInput {
+  taskId: string
+  sessionId?: string
+  includeTerminal?: boolean
+  signal?: AbortSignal
+}
+
+export interface CancelControlCommandInput {
+  taskId: string
+  requestId: string
+  reason: string
+  idempotencyKey: string
+  signal?: AbortSignal
 }
 
 export interface MutationResult {
@@ -1674,6 +1692,9 @@ export class TaskApi {
       expected_session_revision: expectedRevision,
       sealed: input.sealed === true,
       competition_mode: input.sealed ? "sealed_autonomous" : "interactive",
+      priority: input.priority ?? "next",
+      delivery_mode: input.deliveryMode ?? "enqueue",
+      retry_of_request_id: input.retryOf,
     }
     const idempotencyKey = normalizeIdempotencyKey(
       input.idempotencyKey ??
@@ -1710,5 +1731,59 @@ export class TaskApi {
       intervention_counted: response.data.interventionCounted,
       receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
     })
+  }
+
+  async commandQueue(
+    input: CommandQueueInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const response = await this.#client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskCommandQueue,
+      {
+        path: { task_id: taskId },
+        query: {
+          session_id: input.sessionId,
+          include_terminal: input.includeTerminal === true,
+        },
+        binding: { taskId, sessionId: input.sessionId },
+        signal: input.signal,
+        coordinationKey: `task.command-queue:${taskId}:${input.sessionId ?? "*"}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
+  async cancelControlCommand(
+    input: CancelControlCommandInput,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const requestId = normalizeIdentity("request", input.requestId)
+    const reason = String(input.reason || "").trim()
+    if (!reason) throw new TypeError("Command cancellation reason is required.")
+    const body = {
+      reason,
+      idempotency_key: normalizeIdempotencyKey(input.idempotencyKey),
+    }
+    const response = await this.#client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskCommandCancel,
+      {
+        path: { task_id: taskId, request_id: requestId },
+        body,
+        binding: { taskId, requestId },
+        idempotencyKey: body.idempotency_key,
+        signal: input.signal,
+        coordinationKey: `task.command-cancel:${taskId}:${requestId}:${body.idempotency_key}`,
+        deduplicate: true,
+      },
+    )
+    if (typeof response.data.error === "string") {
+      throw new Error(
+        typeof response.data.message === "string"
+          ? response.data.message
+          : response.data.error,
+      )
+    }
+    return Object.freeze({ ...response.data })
   }
 }

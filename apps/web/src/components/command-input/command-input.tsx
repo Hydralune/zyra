@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
 } from "react"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
@@ -19,6 +20,8 @@ import {
   argumentSuggestions,
   type ArgumentSuggestion,
 } from "../../command/argument-completion.ts"
+import { CommandQueuePanel } from "../../features/commands/queue-panel.tsx"
+import type { PaletteEntry } from "../../../../../packages/commands/src/index.ts"
 
 function cursorAt(textarea: HTMLTextAreaElement): number {
   return textarea.selectionStart ?? textarea.value.length
@@ -132,6 +135,50 @@ function ArgumentSuggestionList({
   )
 }
 
+function ControlArgumentList({
+  entries,
+  selected,
+  onSelected,
+  onChoose,
+}: {
+  entries: readonly PaletteEntry[]
+  selected: number
+  onSelected: (entry: PaletteEntry) => void
+  onChoose: (entry: PaletteEntry) => void
+}) {
+  return (
+    <div
+      className="command-suggestions argument-suggestions"
+      id="control-command-argument-suggestions"
+      role="listbox"
+      aria-label="Typed control command argument suggestions"
+      data-command-palette-owner="packages/commands/CommandPalette"
+    >
+      {entries.map((entry, index) => (
+        <button
+          key={entry.id}
+          id={`control-argument-${entry.id.replace(/[^a-z0-9_-]/gi, "-")}`}
+          className="command-suggestion"
+          type="button"
+          role="option"
+          aria-selected={selected === index}
+          disabled={entry.disabled}
+          onMouseMove={() => onSelected(entry)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChoose(entry)}
+        >
+          <span className="suggestion-command">{entry.value}</span>
+          <span className="suggestion-copy">
+            <strong>{entry.label}</strong>
+            <span>{entry.description}</span>
+          </span>
+          <span className="tag tag-muted">{entry.kind}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
   const queue = useQueueSnapshot(runtime)
   const visible = queue.visible.slice(0, 8)
@@ -190,6 +237,12 @@ function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
 
 export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
   const command = useCommandSnapshot(runtime)
+  const control = useSyncExternalStore(
+    runtime.controlCommands.subscribe,
+    runtime.controlCommands.getSnapshot,
+    runtime.controlCommands.getSnapshot,
+  )
+  const inputBusy = command.busy || control.coordinator.busy
   const workbench = useWorkbenchSnapshot(runtime)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [value, setValue] = useState("")
@@ -230,6 +283,17 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
     () => commandArgumentHint(parsed, cursor),
     [parsed, cursor],
   )
+  const showControlArgumentSuggestions =
+    !suggestionsDismissed &&
+    Boolean(control.palette.parsed.descriptor) &&
+    control.palette.completion.kind !== "command" &&
+    control.palette.entries.length > 0
+  const effectiveSuggestionsOpen =
+    suggestionsOpen || showControlArgumentSuggestions
+
+  useEffect(() => {
+    runtime.controlCommands.input.update({ value, cursor })
+  }, [cursor, runtime, value])
 
   useEffect(() => {
     const count = showArgumentSuggestions ? argumentOptions.length : suggestions.length
@@ -277,7 +341,20 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
     if (textareaRef.current) setSelection(textareaRef.current, applied.cursor)
   }, [completion, draftScope, runtime, value])
 
-  const submit = useCallback(async (origin: "keyboard" | "button" = "keyboard") => {
+  const chooseControlArgument = useCallback((entry: PaletteEntry) => {
+    runtime.controlCommands.palette.select(entry.id)
+    const applied = runtime.controlCommands.palette.apply(value)
+    if (!applied) return
+    setValue(applied.value)
+    runtime.drafts.set(draftScope, applied.value, applied.cursor)
+    setCursor(applied.cursor)
+    if (textareaRef.current) setSelection(textareaRef.current, applied.cursor)
+  }, [draftScope, runtime, value])
+
+  const submit = useCallback(async (
+    origin: "keyboard" | "button" = "keyboard",
+    controlMode: "enqueue" | "steer" | "interrupt" = "enqueue",
+  ) => {
     const captured = value
     if (!captured.trim() || !command.enabled) return
     const capture = runtime.drafts.captureValue(
@@ -298,6 +375,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
         taskActive: selectedTask?.active,
         taskTerminal: selectedTask?.terminal,
         allowQueue: true,
+        controlMode,
       })
       runtime.drafts.commit(capture.id)
       runtime.history.resetNavigation()
@@ -339,11 +417,15 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
       ctrl: event.ctrlKey,
       meta: event.metaKey,
       composing: event.nativeEvent.isComposing,
-      suggestionsOpen,
-      suggestionCount: showArgumentSuggestions ? argumentOptions.length : suggestions.length,
+      suggestionsOpen: effectiveSuggestionsOpen,
+      suggestionCount: showControlArgumentSuggestions
+        ? control.palette.entries.length
+        : showArgumentSuggestions
+          ? argumentOptions.length
+          : suggestions.length,
       value,
       cursor: cursorAt(event.currentTarget),
-      busy: command.busy,
+      busy: inputBusy,
       overlayOpen: Boolean(runtime.overlays.active()),
       editableQueuedCount: runtime.queue.list({
         phases: ["queued"],
@@ -353,12 +435,26 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
     if (decision.preventDefault) event.preventDefault()
     if (decision.stopPropagation) event.stopPropagation()
     if (decision.action === "submit") {
-      if (showArgumentSuggestions && argumentOptions[selectedSuggestion]) {
+      if (
+        showControlArgumentSuggestions &&
+        control.palette.entries[control.palette.selectedIndex]
+      ) {
+        chooseControlArgument(
+          control.palette.entries[control.palette.selectedIndex]!,
+        )
+      } else if (showArgumentSuggestions && argumentOptions[selectedSuggestion]) {
         chooseArgument(argumentOptions[selectedSuggestion]!)
       } else if (showSuggestions && suggestions[selectedSuggestion]?.availability.enabled) {
         chooseSuggestion(suggestions[selectedSuggestion]!)
       } else {
-        void submit("keyboard")
+        void submit(
+          "keyboard",
+          event.altKey && (event.ctrlKey || event.metaKey)
+            ? "interrupt"
+            : event.altKey
+              ? "steer"
+              : "enqueue",
+        )
       }
       return
     }
@@ -368,7 +464,8 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
     }
     if (decision.action === "cancel" || decision.action === "restore-queue") {
       if (runtime.overlays.handleEscape()) return
-      if (command.busy && runtime.commands.cancelActive()) return
+      if (runtime.controlCommands.cancelActive()) return
+      if (inputBusy && runtime.commands.cancelActive()) return
       const popped = runtime.queue.popEditable(value, cursorAt(event.currentTarget))
       if (popped) {
         setValue(popped.value)
@@ -379,6 +476,10 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
       return
     }
     if (decision.action === "suggestion-next") {
+      if (showControlArgumentSuggestions) {
+        runtime.controlCommands.palette.move("next")
+        return
+      }
       setSelectedSuggestion((current) =>
         selectedSuggestionIndex(
           current,
@@ -389,6 +490,10 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
       return
     }
     if (decision.action === "suggestion-previous") {
+      if (showControlArgumentSuggestions) {
+        runtime.controlCommands.palette.move("previous")
+        return
+      }
       setSelectedSuggestion((current) =>
         selectedSuggestionIndex(
           current,
@@ -407,7 +512,10 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
   }
 
   const activeDescription =
-    showArgumentSuggestions && argumentOptions[selectedSuggestion]
+    showControlArgumentSuggestions &&
+    control.palette.entries[control.palette.selectedIndex]
+      ? `control-argument-${control.palette.entries[control.palette.selectedIndex]!.id.replace(/[^a-z0-9_-]/gi, "-")}`
+      : showArgumentSuggestions && argumentOptions[selectedSuggestion]
       ? `argument-${argumentOptions[selectedSuggestion]!.id.replace(/[^a-z0-9_-]/gi, "-")}`
       : suggestions[selectedSuggestion]
         ? `suggestion-${suggestions[selectedSuggestion]!.definition.id}`
@@ -425,7 +533,16 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             onChoose={chooseSuggestion}
           />
         ) : null}
-        {showArgumentSuggestions ? (
+        {showControlArgumentSuggestions ? (
+          <ControlArgumentList
+            entries={control.palette.entries}
+            selected={control.palette.selectedIndex}
+            onSelected={(entry) => {
+              runtime.controlCommands.palette.select(entry.id)
+            }}
+            onChoose={chooseControlArgument}
+          />
+        ) : showArgumentSuggestions ? (
           <ArgumentSuggestionList
             suggestions={argumentOptions}
             selected={selectedSuggestion}
@@ -436,7 +553,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
         <div className="command-context">
           <span className={`status-marker ${selectedTask ? `status-${selectedTask.status}` : "status-idle"}`} aria-hidden="true" />
           <span>{selectedTask ? selectedTask.userGoal || selectedTask.taskId : "New task"}</span>
-          {command.busy ? <span className="tag">busy · new prompts will queue</span> : null}
+          {inputBusy ? <span className="tag">busy · new commands will use backend admission</span> : null}
         </div>
         <div className="command-editor">
           <textarea
@@ -446,15 +563,17 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             rows={1}
             placeholder={selectedTask?.active ? "Queue a follow-up or enter /command" : "Describe a task or enter /command"}
             aria-label="Zyra command input"
-            aria-expanded={suggestionsOpen}
+            aria-expanded={effectiveSuggestionsOpen}
             aria-controls={
               showSuggestions
                 ? "command-suggestions"
+                : showControlArgumentSuggestions
+                  ? "control-command-argument-suggestions"
                 : showArgumentSuggestions
                   ? "command-argument-suggestions"
                   : undefined
             }
-            aria-activedescendant={suggestionsOpen ? activeDescription : undefined}
+            aria-activedescendant={effectiveSuggestionsOpen ? activeDescription : undefined}
             aria-describedby={argumentHint ? "command-argument-hint" : undefined}
             disabled={disabled}
             onChange={(event) => {
@@ -465,6 +584,15 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
               setSuggestionsDismissed(false)
               setSubmissionError(undefined)
             }}
+            onCompositionStart={() => {
+              runtime.controlCommands.input.compositionStart()
+            }}
+            onCompositionEnd={(event) => {
+              runtime.controlCommands.input.compositionEnd(
+                event.currentTarget.value,
+                cursorAt(event.currentTarget),
+              )
+            }}
             onClick={(event) => setCursor(cursorAt(event.currentTarget))}
             onKeyUp={(event) => setCursor(cursorAt(event.currentTarget))}
             onKeyDown={handleKeyDown}
@@ -473,10 +601,10 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             className="command-submit"
             type="button"
             disabled={disabled || !value.trim()}
-            aria-label={command.busy ? "Queue command" : "Submit command"}
+            aria-label={inputBusy ? "Queue command" : "Submit command"}
             onClick={() => void submit("button")}
           >
-            {command.busy ? "Queue" : "Run"}
+            {inputBusy ? "Queue" : "Run"}
           </button>
         </div>
         <div className="command-footer" aria-live="polite">
@@ -488,6 +616,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
           </span>
           <span>{value.length.toLocaleString()} chars</span>
         </div>
+        <CommandQueuePanel runtime={runtime.controlCommands} />
         {submissionError || command.lastError ? (
           <div className="command-error" role="alert">
             {submissionError ?? command.lastError}

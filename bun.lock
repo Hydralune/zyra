@@ -26,6 +26,14 @@
         "@types/react-dom": "19.1.5",
       },
     },
+    "packages/commands": {
+      "name": "@zyra/commands",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "1.2.15",
+        "typescript": "5.8.3",
+      },
+    },
     "packages/core/typed-api-client": {
       "name": "@zyra/typed-api-client",
       "version": "0.1.0",
@@ -102,6 +110,8 @@
     "@zyra/claude-mcp": ["@zyra/claude-mcp@workspace:packages/integrations/claude-mcp"],
 
     "@zyra/claude-runtime": ["@zyra/claude-runtime@workspace:packages/runtime/claude-runtime"],
+
+    "@zyra/commands": ["@zyra/commands@workspace:packages/commands"],
 
     "@zyra/memory-curator-state-machine": ["@zyra/memory-curator-state-machine@workspace:packages/memory/curator-state-machine"],
 

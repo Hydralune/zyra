@@ -464,6 +464,8 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskEventIngressSse, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskMutation, normalizeTaskMutation)
   registry.register(CONTRACT_NAMES.taskControlCommand, normalizeControlCommand)
+  registry.register(CONTRACT_NAMES.taskCommandQueue, normalizeEventIngressEnvelope)
+  registry.register(CONTRACT_NAMES.taskCommandCancel, normalizeEventIngressEnvelope)
   registry.register(
     CONTRACT_NAMES.taskArtifactCatalog,
     (value) => ({ ...responseRecord(value, "artifact catalog response") }),

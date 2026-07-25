@@ -4,6 +4,9 @@ import { useOverlaySnapshot } from "../../app/hooks.ts"
 import { commandUsage, type CommandDefinition } from "../../command/catalog.ts"
 import type { OverlayDescriptor } from "../../shell/overlay-runtime.ts"
 import { FocusTrap } from "../../shell/focus-trap.ts"
+import type {
+  CommandResultModel,
+} from "../../../../../packages/commands/src/index.ts"
 
 function payloadString(overlay: OverlayDescriptor, key: string): string | undefined {
   const value = overlay.payload[key]
@@ -185,6 +188,173 @@ function MutationConfirm({
   )
 }
 
+function CommandResultContent({
+  runtime,
+  overlay,
+}: {
+  runtime: WorkbenchRuntime
+  overlay: OverlayDescriptor
+}) {
+  const candidate = overlay.payload.result
+  const result =
+    candidate &&
+    typeof candidate === "object" &&
+    (candidate as { schema?: unknown }).schema === "zyra.command-result-model/v1"
+      ? candidate as CommandResultModel
+      : undefined
+  const [query, setQuery] = useState("")
+  const [limit, setLimit] = useState(100)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
+  if (!result) {
+    return (
+      <div className="command-error" role="alert">
+        Command result payload is unavailable or invalid.
+      </div>
+    )
+  }
+  const filtered =
+    runtime.controlCommands.results.filtered(
+      result.commandId,
+      query,
+      { offset: 0, limit },
+    ) ?? result
+  const totalRows = filtered.sections.reduce(
+    (total, section) => total + section.rows.length,
+    0,
+  )
+  const operation = runtime.controlCommands.coordinator
+    .records(500)
+    .find((record) => record.identity.commandId === result.commandId)
+  return (
+    <div
+      className="overlay-scroll command-result"
+      data-command={result.name}
+      data-command-phase={result.phase}
+      data-command-durable={result.durable ? "true" : "false"}
+    >
+      <div className={`runtime-summary runtime-${result.tone}`}>
+        <span className="connection-dot" aria-hidden="true" />
+        <div>
+          <strong>{result.summary || result.title}</strong>
+          {result.displayText && result.displayText !== result.summary ? (
+            <p>{result.displayText}</p>
+          ) : null}
+        </div>
+      </div>
+      <dl className="fact-grid">
+        <div><dt>Phase</dt><dd>{result.phase}</dd></div>
+        <div><dt>Command</dt><dd><code>{result.name}</code></dd></div>
+        <div><dt>Durable</dt><dd>{result.durable ? "yes" : "no"}</dd></div>
+        <div><dt>Replayed</dt><dd>{result.replayed ? "yes" : "no"}</dd></div>
+        <div><dt>Events</dt><dd>{result.eventIds.length}</dd></div>
+        <div><dt>Elapsed</dt><dd>{result.elapsedMs === undefined ? "—" : `${result.elapsedMs} ms`}</dd></div>
+      </dl>
+      <div className="dialog-actions">
+        <label>
+          Filter result
+          <input
+            type="search"
+            value={query}
+            placeholder="event, owner, status, identity…"
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setLimit(100)
+            }}
+          />
+        </label>
+        <button
+          className="button button-secondary"
+          type="button"
+          onClick={() => {
+            void navigator.clipboard
+              .writeText(result.displayText || result.summary)
+              .then(
+                () => setCopyState("copied"),
+                () => setCopyState("failed"),
+              )
+          }}
+        >
+          {copyState === "copied"
+            ? "Copied"
+            : copyState === "failed"
+              ? "Copy failed"
+              : "Copy summary"}
+        </button>
+        {result.retryable && operation ? (
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => {
+              void runtime.controlCommands.retry(operation.operationId)
+            }}
+          >
+            Retry command
+          </button>
+        ) : null}
+      </div>
+      {result.error ? (
+        <div className="command-error" role="alert">
+          <strong>{result.error.code}</strong>
+          <p>{result.error.message}</p>
+        </div>
+      ) : null}
+      {filtered.sections.map((section) => (
+        <section
+          key={section.id}
+          data-result-section={section.id}
+          data-result-tone={section.tone}
+        >
+          <h3>{section.title} <span className="tag tag-muted">{section.count}</span></h3>
+          {section.description ? <p>{section.description}</p> : null}
+          <ol className="owner-list">
+            {section.rows.map((row) => (
+              <li key={row.id} data-result-kind={row.kind} data-result-tone={row.tone}>
+                <div>
+                  <strong>{row.title}</strong>
+                  {row.summary ? <p>{row.summary}</p> : null}
+                </div>
+                {row.status ? <span className="tag">{row.status}</span> : null}
+                {row.fields.length ? (
+                  <dl className="fact-grid">
+                    {row.fields.map((field) => (
+                      <div key={field.id}>
+                        <dt>{field.label}</dt>
+                        <dd>{field.copyable ? <code>{field.value}</code> : field.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+      {!totalRows ? (
+        <p role="status">No result rows match this filter.</p>
+      ) : null}
+      {totalRows >= limit ? (
+        <button
+          className="button button-secondary"
+          type="button"
+          onClick={() => setLimit((value) => Math.min(5000, value + 100))}
+        >
+          Show more
+        </button>
+      ) : null}
+      {result.diagnostics.length ? (
+        <section>
+          <h3>Diagnostics</h3>
+          <ul>
+            {result.diagnostics.map((diagnostic) => (
+              <li key={diagnostic}>{diagnostic}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
 function OverlayContent({
   runtime,
   overlay,
@@ -212,6 +382,9 @@ function OverlayContent({
   }
   if (overlay.kind === "task-resume") {
     return <MutationConfirm runtime={runtime} overlay={overlay} action="resume" />
+  }
+  if (overlay.kind === "command-result") {
+    return <CommandResultContent runtime={runtime} overlay={overlay} />
   }
   return <pre>{JSON.stringify(overlay.payload, null, 2)}</pre>
 }

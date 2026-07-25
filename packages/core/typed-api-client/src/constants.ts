@@ -191,6 +191,8 @@ export const OPERATION_NAMES = {
   taskCancel: "task.cancel",
   taskResume: "task.resume",
   taskControlCommand: "task.control-command",
+  taskCommandQueue: "task.command-queue",
+  taskCommandCancel: "task.command-cancel",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -219,6 +221,8 @@ export const CONTRACT_NAMES = {
   taskBrowserControl: "zyra.browser-viewer.control.v1",
   taskMutation: "zyra.task-mutation.v1",
   taskControlCommand: "zyra.task-control-command.v1",
+  taskCommandQueue: "zyra.command-queue.v1",
+  taskCommandCancel: "zyra.command-cancel.v1",
   error: "zyra.error.v1",
 } as const
 

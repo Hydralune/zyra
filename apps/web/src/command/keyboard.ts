@@ -58,8 +58,14 @@ function cursorOnLastLine(value: string, cursor: number): boolean {
 export function decideCommandKey(context: CommandKeyContext): CommandKeyDecision {
   if (context.composing) return decision("none", "IME composition owns the key.")
   if (context.key === "Enter") {
-    if (context.shift || context.alt) {
+    if (context.shift) {
       return decision("newline", "Modified Enter inserts a newline.", { preventDefault: false })
+    }
+    if (context.alt && (context.ctrl || context.meta)) {
+      return decision("submit", "Ctrl+Alt+Enter submits an interrupt-mode command.")
+    }
+    if (context.alt) {
+      return decision("submit", "Alt+Enter submits a steer-mode command.")
     }
     if (context.ctrl || context.meta) {
       return decision("submit", "Primary modifier plus Enter submits.")

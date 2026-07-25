@@ -6,6 +6,7 @@ export type OverlayKind =
   | "task-cancel"
   | "task-resume"
   | "error-detail"
+  | "command-result"
 
 export interface OverlayDescriptor {
   id: string
