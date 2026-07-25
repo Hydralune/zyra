@@ -22,6 +22,16 @@ ROLE_VALUES = {
     "excluded_forward_only",
 }
 
+_PARENT_PATH_PREFIX = ".."
+_FORBIDDEN_PARENT_REPOSITORIES = (
+    "claude-code-best",
+    "browser-use",
+    "OpenHands",
+    "opencode",
+    "oh-my-pi",
+    "openclaw",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class SourceRoleDisposition:
@@ -299,19 +309,10 @@ def m2_exit_dispositions() -> tuple[SourceRoleDisposition, ...]:
 
 
 class SourceRoleExitAuditor:
-    FORBIDDEN_RUNTIME_PATTERNS = (
-        "../claude-code-best",
-        "../browser-use",
-        "../OpenHands",
-        "../opencode",
-        "../oh-my-pi",
-        "../openclaw",
-        "..\\claude-code-best",
-        "..\\browser-use",
-        "..\\OpenHands",
-        "..\\opencode",
-        "..\\oh-my-pi",
-        "..\\openclaw",
+    FORBIDDEN_RUNTIME_PATTERNS = tuple(
+        f"{_PARENT_PATH_PREFIX}{separator}{repository}"
+        for separator in ("/", "\\")
+        for repository in _FORBIDDEN_PARENT_REPOSITORIES
     )
     FORBIDDEN_LANGGRAPH_IMPORTS = (
         "langgraph.graph",
