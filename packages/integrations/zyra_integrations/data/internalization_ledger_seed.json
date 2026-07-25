@@ -195428,7 +195428,7 @@
         "canonical_frontend_projection": "typescript.ExperimentProjectionStore",
         "canonical_metric_owner": "python.DistributionAggregator",
         "decision_commit": "5d50f78",
-        "implementation_commit": "0c13c32",
+        "implementation_commit": "a9f7ff816822533c395ee2c28ca1fcd03721d35c",
         "migration_mode": "scenario_and_evidence_integration_only",
         "owner_unit": "M2-S05-03",
         "rationale": "M2-S05-03 assigns a new Zyra-owned evaluation/evidence state domain. It composes existing Python and TypeScript owners without selecting or migrating an upstream experiment runtime.",
