@@ -5,7 +5,7 @@ import type { CurrentSkillAuthority } from "@zyra/skill-memory-runtime";
 import type { JsonObject, JsonValue, ToolSpecContract } from "../contracts.ts";
 import { canonicalize, cloneJson, deterministicId, digest, monotonicNow } from "../e02/index.ts";
 import { SkillContextRuntime, type SkillContextSnapshot, type SkillParentContext } from "./context-runtime.ts";
-import type { SkillInvocationIdentity, SkillInvocationRequest, SkillInvocationResult, SkillRegistrySnapshot, SkillSourceRoot, SkillToolScope } from "./contracts-v2.ts";
+import type { SkillDescriptor, SkillInvocationIdentity, SkillInvocationRequest, SkillInvocationResult, SkillRegistrySnapshot, SkillReloadScan, SkillSourceRoot, SkillToolScope } from "./contracts-v2.ts";
 import { SkillFrontmatterRuntime } from "./frontmatter-runtime.ts";
 import { SkillInvocationJournal, type SkillInvocationJournalSnapshot } from "./invocation-journal.ts";
 import { SkillInvocationRuntime, type SkillExecutor } from "./invocation-runtime.ts";
@@ -137,7 +137,7 @@ export class SkillCoordinator {
   private readonly reloadHistory = new Map<string, SkillReloadReceipt>();
   private opened = false;
   private restoredBeforeBootstrap = false;
-  private reloadPromise: Promise<void> | null = null;
+  private reloadPromise: Promise<JsonObject | null> | null = null;
   private lastTimestamp: string | null = null;
 
   constructor(options: SkillCoordinatorOptions) {
@@ -536,9 +536,51 @@ export class SkillCoordinator {
     this.opened = false;
   }
 
-  private async reloadNow(metadataValue: JsonObject): Promise<void> {
+  async reloadSkillsWithAdmission(
+    identityValue: SkillCoordinatorIdentity,
+    admit: (
+      descriptors: readonly SkillDescriptor[],
+      scan: SkillReloadScan,
+    ) => JsonObject | Promise<JsonObject>,
+  ): Promise<{
+    execution: SkillCoordinatorExecution;
+    admission: JsonObject;
+  }> {
+    const admission = await this.reloadNow(
+      {
+        source: "tool",
+        identity: canonicalize(identityValue) as JsonObject,
+        staged_owner_admission: true,
+      },
+      admit,
+    );
+    if (!admission)
+      throw new Error("staged skill reload did not produce an owner admission");
+    return {
+      execution: result(
+        `Reloaded ${this.registry.list().length} skills`,
+        {
+          registry_revision: this.registry.revision,
+          head_revision_id: this.registry.headRevisionId,
+        },
+      ),
+      admission,
+    };
+  }
+
+  private async reloadNow(
+    metadataValue: JsonObject,
+    admit?: (
+      descriptors: readonly SkillDescriptor[],
+      scan: SkillReloadScan,
+    ) => JsonObject | Promise<JsonObject>,
+  ): Promise<JsonObject | null> {
     TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
-    if (this.reloadPromise) return this.reloadPromise;
+    if (this.reloadPromise) {
+      if (!admit) return this.reloadPromise;
+      await this.reloadPromise;
+      return this.reloadNow(metadataValue, admit);
+    }
     const registryRevisionBefore = this.registry.revision;
     const source = typeof metadataValue.source === "string" ? metadataValue.source : "unknown";
     this.reloadPromise = (async () => {
@@ -546,9 +588,23 @@ export class SkillCoordinator {
           roots: this.rootRuntime.list({ enabledOnly: true, existingOnly: true }),
           expectedRevision: registryRevisionBefore,
           metadata: metadataValue,
+          commit: false,
         });
-        const { scan, revision } = loaded;
-        if (!revision) throw new Error("skill directory loader did not commit its staged registry revision");
+        const { scan } = loaded;
+        let admission: JsonObject | null = null;
+        try {
+          admission = admit
+            ? cloneJson(await admit(scan.descriptors.map(cloneJson), cloneJson(scan)))
+            : null;
+        } catch (error) {
+          this.reload.discard(scan.scanId);
+          throw error;
+        }
+        const revision = this.reload.commit(
+          scan.scanId,
+          registryRevisionBefore,
+          metadataValue,
+        );
         for (const skillId of revision.removed) this.resources.clear(skillId);
         await this.refreshSearch();
         const committedAt = this.timestamp();
@@ -579,9 +635,10 @@ export class SkillCoordinator {
           if (!oldest) break;
           this.reloadHistory.delete(oldest.receiptId);
         }
+        return admission;
     })();
     try {
-      await this.reloadPromise;
+      return await this.reloadPromise;
     } catch (error) {
       this.recordReloadFailure(error, typeof metadataValue.source === "string" ? metadataValue.source : "unknown", true, metadataValue);
       throw error;

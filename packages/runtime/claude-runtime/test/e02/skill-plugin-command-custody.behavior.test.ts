@@ -130,6 +130,108 @@ test("e02.live.skill.disk-reload atomically observes add change and delete befor
   }
 });
 
+test("e02 staged skill admission commits the admitted scan even if disk changes before commit", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-staged-skill-"));
+  const rootPath = join(workspace, "skills");
+  const skillDirectory = join(rootPath, "staged");
+  const manifestPath = join(skillDirectory, "SKILL.md");
+  await mkdir(skillDirectory, { recursive: true });
+  await writeFile(
+    manifestPath,
+    skillMarkdown({
+      id: "staged-skill",
+      description: "staged revision one",
+    }),
+    "utf8",
+  );
+  const coordinator = new SkillCoordinator({
+    workspaceRoot: workspace,
+    epoch: 1,
+    roots: [{
+      sourceId: "staged-project-skills",
+      kind: "project",
+      rootPath,
+      priority: 300,
+      enabled: true,
+      recursive: true,
+      followSymlinks: false,
+      maximumDepth: 8,
+      includePatterns: ["**/SKILL.md"],
+      excludePatterns: ["**/.git/**"],
+      pluginId: null,
+      revision: 1,
+      metadata: { execution_id: "E02", staged_admission: true },
+    }],
+    watch: false,
+    executor: async () => ({
+      output: { ok: true },
+      artifacts: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      costMicros: 0,
+    }),
+  });
+  try {
+    await coordinator.open();
+    await writeFile(
+      manifestPath,
+      skillMarkdown({
+        id: "staged-skill",
+        description: "staged revision two",
+      }),
+      "utf8",
+    );
+    const admitted = await coordinator.reloadSkillsWithAdmission(
+      {
+        runId: "staged-run",
+        taskId: "staged-task",
+        sessionId: "staged-session",
+        sessionRevision: 2,
+        workerRequestId: "staged-worker",
+        toolCallId: "staged-update",
+      },
+      async (descriptors, scan) => {
+        const proposed = descriptors.find(
+          (descriptor) => descriptor.skillId === "staged-skill",
+        );
+        assert.equal(proposed?.description, "staged revision two");
+        await writeFile(
+          manifestPath,
+          skillMarkdown({
+            id: "staged-skill",
+            description: "unadmitted revision three",
+          }),
+          "utf8",
+        );
+        return {
+          admitted_descriptor_digest: proposed!.descriptorDigest,
+          admitted_scan_digest: scan.digest,
+        };
+      },
+    );
+    const committed = coordinator.registry.resolve("staged-skill");
+    assert.equal(committed.descriptor.description, "staged revision two");
+    assert.equal(
+      admitted.admission.admitted_descriptor_digest,
+      committed.descriptor.descriptorDigest,
+    );
+    assert.ok(admitted.admission.admitted_scan_digest);
+
+    await coordinator.execute(
+      "reload_skills",
+      {},
+      { toolCallId: "load-later-unadmitted-disk-revision" },
+    );
+    assert.equal(
+      coordinator.registry.resolve("staged-skill").descriptor.description,
+      "unadmitted revision three",
+    );
+  } finally {
+    await coordinator.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 function skillSource(input: {
   skillId: string;
   sourceId?: string;

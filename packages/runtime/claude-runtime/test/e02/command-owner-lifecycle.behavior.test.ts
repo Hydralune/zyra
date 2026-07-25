@@ -278,6 +278,7 @@ test("slash skill update and invoke use SkillCoordinator revisions, hashes, and 
       "---",
       "name: review-skill",
       "description: Review canonical state",
+      'dependencies: ["canonical-review-runtime@1"]',
       'arguments: [{"name":"focus","type":"string"},{"name":"depth","type":"integer"}]',
       "---",
       "Inspect the canonical state, verify it, and report the result.",
@@ -308,8 +309,25 @@ test("slash skill update and invoke use SkillCoordinator revisions, hashes, and 
     assert.equal(ownerAdmission.canonical_owner, "typescript.SkillCoordinator");
     assert.equal(ownerAdmission.approval_owner, "typescript.PermissionCoordinator");
     assert.ok(String(ownerAdmission.approval_decision_id));
+    assert.ok(String(ownerAdmission.approval_request_digest));
+    assert.ok(String(ownerAdmission.approval_binding_digest));
+    assert.ok(String(ownerAdmission.staged_scan_id));
+    assert.ok(String(ownerAdmission.staged_scan_digest));
     assert.ok(String(ownerAdmission.dependency_digest));
     assert.ok(String(ownerAdmission.supply_digest));
+    assert.equal(
+      ownerAdmission.previous_descriptor_digest,
+      before.descriptor.descriptorDigest,
+    );
+    assert.equal(
+      ownerAdmission.proposed_descriptor_digest,
+      after.descriptor.descriptorDigest,
+    );
+    assert.equal(ownerAdmission.proposed_body_digest, after.descriptor.bodyDigest);
+    assert.notEqual(
+      ownerAdmission.proposed_descriptor_digest,
+      ownerAdmission.previous_descriptor_digest,
+    );
     assert.equal(object(update.caller_attestations).authoritative, false);
 
     const invocationArguments = { focus: "owner-state", depth: 2 };

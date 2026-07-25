@@ -59,6 +59,7 @@ import {
   type SkillDescriptor,
   type SkillExecutor,
   type SkillParentContext,
+  type SkillReloadScan,
   type SkillSourceRoot,
 } from "../skills/index.ts";
 import {
@@ -2608,10 +2609,6 @@ export class E02CapabilityCoordinator {
     const resolution = this.skills.registry.resolve(skillName);
     const identity = commandSkillIdentity(request);
     if (action === "update") {
-      const ownerAdmission = skillOwnerUpdateAdmission(
-        resolution.descriptor,
-        request,
-      );
       const expectedRevision = requiredCommandInteger(argumentsValue, "expected-revision");
       if (expectedRevision !== this.skills.registry.revision) {
         throw coordinatorError(
@@ -2637,14 +2634,34 @@ export class E02CapabilityCoordinator {
         );
       }
       const before = this.skills.snapshot();
-      const ownerResult = await this.skills.execute(
-        "reload_skills",
-        {},
+      const stagedReload = await this.skills.reloadSkillsWithAdmission(
         identity,
-        skillParentContext(this.input),
-        undefined,
-        signal,
+        (descriptors, scan) => {
+          const proposed = descriptors.find(
+            (descriptor) => descriptor.skillId === resolution.skillId,
+          );
+          if (!proposed) {
+            throw coordinatorError(
+              "skill_update_owner_admission_denied",
+              `skill ${resolution.skillId} is absent from the staged reload`,
+              {
+                skill_id: resolution.skillId,
+                scan_id: scan.scanId,
+                scan_digest: scan.digest,
+                owner_effect_started: false,
+              },
+            );
+          }
+          return skillOwnerUpdateAdmission(
+            resolution.descriptor,
+            proposed,
+            request,
+            scan,
+          );
+        },
       );
+      const ownerResult = stagedReload.execution;
+      const ownerAdmission = stagedReload.admission;
       this.syncRoutes("builtin_skills_update");
       this.syncCustody("builtin_skills_update");
       const after = this.skills.snapshot();
@@ -4634,8 +4651,10 @@ function commandSkillIdentity(
 }
 
 function skillOwnerUpdateAdmission(
-  descriptor: SkillDescriptor,
+  previous: SkillDescriptor,
+  proposed: SkillDescriptor,
   request: CommandInvocationRequest,
+  scan: SkillReloadScan,
 ): JsonObject {
   const permission = asObject(request.metadata.canonical_permission);
   const effect = asString(permission.effect);
@@ -4644,33 +4663,53 @@ function skillOwnerUpdateAdmission(
   if (effect !== "allow" || !decisionId || !requestDigest) {
     throw coordinatorError(
       "skill_update_owner_approval_missing",
-      `skill ${descriptor.skillId} update lacks an exact canonical permission decision`,
+      `skill ${previous.skillId} update lacks an exact canonical permission decision`,
       {
-        skill_id: descriptor.skillId,
+        skill_id: previous.skillId,
         permission_effect: effect,
         owner_effect_started: false,
       },
     );
   }
-  if (descriptor.availability !== "available" || descriptor.disabledReason) {
+  if (
+    proposed.skillId !== previous.skillId ||
+    proposed.source.sourceId !== previous.source.sourceId ||
+    proposed.source.realPath !== previous.source.realPath ||
+    proposed.source.manifestPath !== previous.source.manifestPath
+  ) {
+    throw coordinatorError(
+      "skill_update_owner_identity_changed",
+      `skill ${previous.skillId} staged source identity changed during update`,
+      {
+        previous_skill_id: previous.skillId,
+        proposed_skill_id: proposed.skillId,
+        previous_source_id: previous.source.sourceId,
+        proposed_source_id: proposed.source.sourceId,
+        scan_id: scan.scanId,
+        owner_effect_started: false,
+      },
+    );
+  }
+  if (proposed.availability !== "available" || proposed.disabledReason) {
     throw coordinatorError(
       "skill_update_owner_admission_denied",
-      `skill ${descriptor.skillId} is not available to the canonical owner`,
+      `skill ${proposed.skillId} is not available to the canonical owner`,
       {
-        skill_id: descriptor.skillId,
-        availability: descriptor.availability,
-        disabled_reason: descriptor.disabledReason,
+        skill_id: proposed.skillId,
+        availability: proposed.availability,
+        disabled_reason: proposed.disabledReason,
+        scan_id: scan.scanId,
         owner_effect_started: false,
       },
     );
   }
   const dependencyState = {
-    skill_id: descriptor.skillId,
-    registry_descriptor_digest: descriptor.descriptorDigest,
+    skill_id: proposed.skillId,
+    registry_descriptor_digest: proposed.descriptorDigest,
     declared_dependencies: canonicalize(
-      asObject(descriptor.metadata).dependencies ?? [],
+      asObject(proposed.metadata).dependencies ?? [],
     ),
-    resources: descriptor.resources
+    resources: proposed.resources
       .map((resource) => ({
         resource_id: resource.resourceId,
         path: resource.path,
@@ -4680,16 +4719,20 @@ function skillOwnerUpdateAdmission(
       .sort((left, right) => left.resource_id.localeCompare(right.resource_id)),
   };
   const supplyState = {
-    skill_id: descriptor.skillId,
-    source_digest: descriptor.source.contentDigest,
-    body_digest: descriptor.bodyDigest,
-    frontmatter_digest: descriptor.frontmatterDigest,
-    descriptor_digest: descriptor.descriptorDigest,
-    tool_scope_digest: digest(descriptor.toolScope),
-    hook_digests: descriptor.hooks
+    skill_id: proposed.skillId,
+    source_id: proposed.source.sourceId,
+    source_real_path_digest: digest(proposed.source.realPath),
+    source_digest: proposed.source.contentDigest,
+    body_digest: proposed.bodyDigest,
+    frontmatter_digest: proposed.frontmatterDigest,
+    descriptor_digest: proposed.descriptorDigest,
+    tool_scope_digest: digest(proposed.toolScope),
+    execution_policy_digest: digest(proposed.execution),
+    environment_handle_digest: digest(proposed.environmentHandles),
+    hook_digests: proposed.hooks
       .map((hook) => digest(hook))
       .sort(),
-    resource_digests: descriptor.resources
+    resource_digests: proposed.resources
       .map((resource) => resource.digest ?? digest({
         resource_id: resource.resourceId,
         path: resource.path,
@@ -4697,6 +4740,21 @@ function skillOwnerUpdateAdmission(
       }))
       .sort(),
   };
+  const dependencyDigest = digest(dependencyState);
+  const supplyDigest = digest(supplyState);
+  const approvalBindingDigest = digest({
+    permission_owner: "typescript.PermissionCoordinator",
+    permission_decision_id: decisionId,
+    permission_request_digest: requestDigest,
+    command_call_id: request.identity.commandCallId,
+    skill_id: proposed.skillId,
+    previous_descriptor_digest: previous.descriptorDigest,
+    proposed_descriptor_digest: proposed.descriptorDigest,
+    staged_scan_id: scan.scanId,
+    staged_scan_digest: scan.digest,
+    dependency_digest: dependencyDigest,
+    supply_digest: supplyDigest,
+  });
   return {
     protocol: "zyra.skill-update-owner-admission/v1",
     canonical_owner: "typescript.SkillCoordinator",
@@ -4704,9 +4762,15 @@ function skillOwnerUpdateAdmission(
     approval_owner: "typescript.PermissionCoordinator",
     approval_decision_id: decisionId,
     approval_request_digest: requestDigest,
-    dependency_digest: digest(dependencyState),
-    supply_digest: digest(supplyState),
-    registry_descriptor_digest: descriptor.descriptorDigest,
+    approval_binding_digest: approvalBindingDigest,
+    staged_scan_id: scan.scanId,
+    staged_scan_digest: scan.digest,
+    previous_descriptor_digest: previous.descriptorDigest,
+    proposed_descriptor_digest: proposed.descriptorDigest,
+    proposed_body_digest: proposed.bodyDigest,
+    dependency_digest: dependencyDigest,
+    supply_digest: supplyDigest,
+    registry_descriptor_digest: proposed.descriptorDigest,
     admitted: true,
   };
 }
