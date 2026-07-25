@@ -11,6 +11,7 @@ export interface ScenarioAdmissionFinding {
   field?: string
   detail: Readonly<Record<string, unknown>>
 }
+
 export interface ScenarioAdmissionAssessment {
   valid: boolean
   formal: boolean

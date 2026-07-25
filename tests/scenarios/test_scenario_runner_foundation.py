@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ from zyra_evaluation.scenario_runner import (  # noqa: E402
     SealedPolicyRuntime,
     SourceRoleAuditor,
 )
+from zyra_evaluation.scenario_runner.canonical import digest  # noqa: E402
 from zyra_evaluation.scenario_runner.effective_steps import (  # noqa: E402
     require_effect_coverage,
 )
@@ -175,6 +177,7 @@ def test_sealed_policy_converts_ask_and_unknown_to_deny_replan(tmp_path: Path) -
     unknown = runtime.evaluate(
         {"action_id": "unknown", "action": "network.elsewhere", "effect": "allow"}
     )
+
     assert allowed.final_effect == "allow"
     assert asked.final_effect == "deny"
     assert asked.recovery_action == "replan"
@@ -344,7 +347,12 @@ def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path) -
         owner=owner,
         step_batch=batch,
         policy_receipt=policy.assert_formal_invariants(),
-        preflight_receipt={"clean": True, "new_input": True},
+        preflight_receipt={
+            "scenario_run_id": "scenario_owner",
+            "clean": True,
+            "new_input": True,
+            "input_digest": selected.input_digest,
+        },
         metric_samples=samples,
         metric_summary=metrics.summarize(samples),
         coverage_receipt=coverage,
@@ -361,6 +369,20 @@ def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path) -
     assert getattr(failure.value, "code", "") == (
         "scenario_evidence_verification_failed"
     )
+
+    rebound = deepcopy(manifest)
+    rebound.pop("verification_receipt", None)
+    rebound["policy_receipt"]["policy_digest"] = "0" * 64
+    unsigned = dict(rebound)
+    unsigned.pop("manifest_digest", None)
+    rebound["manifest_digest"] = digest(unsigned)
+    with pytest.raises(Exception) as binding_failure:
+        collector.verify(rebound)
+    binding_codes = {
+        item["code"]
+        for item in binding_failure.value.fault.detail["failures"]
+    }
+    assert "policy_digest_binding_mismatch" in binding_codes
 
 
 def test_store_persists_transitions_and_reconciles_restart(tmp_path: Path) -> None:

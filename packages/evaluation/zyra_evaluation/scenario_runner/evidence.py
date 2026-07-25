@@ -180,6 +180,8 @@ class EvidenceCollector:
         source_audit = manifest.get("source_audit")
         if not isinstance(source_audit, Mapping) or source_audit.get("valid") is not True:
             failures.append({"code": "source_role_audit_invalid"})
+        failures.extend(self._verify_owner_bindings(manifest))
+        failures.extend(self._verify_metric_receipts(manifest))
         receipt = {
             "schema": "zyra.scenario-evidence-verification/v1",
             "receipt_id": new_identity("evidence_verify"),
@@ -398,6 +400,132 @@ class EvidenceCollector:
                     {"code": "event_chain_digest_mismatch", "event_id": event_id}
                 )
             previous = str(receipt.get("chain_digest") or "")
+        return failures
+
+    def _verify_owner_bindings(
+        self,
+        manifest: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        failures: list[dict[str, Any]] = []
+        scenario_run_id = str(manifest.get("scenario_run_id") or "")
+        input_digest = str(manifest.get("input_digest") or "")
+        policy_digest = str(manifest.get("policy_digest") or "")
+        owner = manifest.get("owner")
+        owner = owner if isinstance(owner, Mapping) else {}
+        owner_run_id = str(owner.get("run_id") or "")
+        owner_task_id = str(owner.get("task_id") or "")
+        preflight = manifest.get("preflight_receipt")
+        preflight = preflight if isinstance(preflight, Mapping) else {}
+        policy = manifest.get("policy_receipt")
+        policy = policy if isinstance(policy, Mapping) else {}
+
+        required = {
+            "scenario_run_id": scenario_run_id,
+            "input_digest": input_digest,
+            "policy_digest": policy_digest,
+            "owner_run_id": owner_run_id,
+            "owner_task_id": owner_task_id,
+        }
+        for field, value in required.items():
+            if not value:
+                failures.append(
+                    {"code": "evidence_binding_missing", "field": field}
+                )
+        if preflight.get("clean") is not True:
+            failures.append({"code": "preflight_clean_binding_invalid"})
+        if preflight.get("new_input") is not True:
+            failures.append({"code": "preflight_input_binding_invalid"})
+        if str(preflight.get("scenario_run_id") or "") != scenario_run_id:
+            failures.append({"code": "preflight_run_binding_mismatch"})
+        if str(preflight.get("input_digest") or "") != input_digest:
+            failures.append({"code": "preflight_digest_binding_mismatch"})
+        if policy.get("valid") is not True:
+            failures.append({"code": "policy_receipt_invalid"})
+        if str(policy.get("policy_digest") or "") != policy_digest:
+            failures.append({"code": "policy_digest_binding_mismatch"})
+        if int(policy.get("human_intervention_count") or 0) != 0:
+            failures.append({"code": "policy_human_count_nonzero"})
+        if int(policy.get("operator_intervention_attempt_count") or 0) != 0:
+            failures.append({"code": "policy_operator_attempt_present"})
+
+        events = manifest.get("canonical_events")
+        for event in events if isinstance(events, list) else ():
+            if not isinstance(event, Mapping):
+                failures.append({"code": "canonical_event_receipt_invalid"})
+                continue
+            if (
+                str(event.get("run_id") or "") != owner_run_id
+                or str(event.get("task_id") or "") != owner_task_id
+            ):
+                failures.append(
+                    {
+                        "code": "canonical_event_owner_binding_mismatch",
+                        "event_id": str(event.get("event_id") or ""),
+                    }
+                )
+        steps = manifest.get("effective_steps")
+        steps = steps if isinstance(steps, Mapping) else {}
+        for step in steps.get("steps") or ():
+            if not isinstance(step, Mapping):
+                failures.append({"code": "effective_step_receipt_invalid"})
+                continue
+            if (
+                str(step.get("run_id") or "") != owner_run_id
+                or str(step.get("task_id") or "") != owner_task_id
+            ):
+                failures.append(
+                    {
+                        "code": "effective_step_owner_binding_mismatch",
+                        "step_id": str(step.get("step_id") or ""),
+                    }
+                )
+        return failures
+
+    def _verify_metric_receipts(
+        self,
+        manifest: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        metrics = manifest.get("metrics")
+        metrics = metrics if isinstance(metrics, Mapping) else {}
+        samples = metrics.get("raw_samples")
+        samples = samples if isinstance(samples, list) else []
+        failures: list[dict[str, Any]] = []
+        if digest(samples) != str(metrics.get("raw_sample_digest") or ""):
+            failures.append({"code": "metric_raw_sample_digest_mismatch"})
+        dimensions = metrics.get("dimension_receipt")
+        dimensions = dimensions if isinstance(dimensions, Mapping) else {}
+        if dimensions.get("valid") is not True:
+            failures.append({"code": "metric_dimension_receipt_invalid"})
+        if int(dimensions.get("sample_count") or 0) != len(samples):
+            failures.append({"code": "metric_dimension_sample_count_mismatch"})
+
+        scenario_run_id = str(manifest.get("scenario_run_id") or "")
+        owner = manifest.get("owner")
+        owner = owner if isinstance(owner, Mapping) else {}
+        expected = {
+            "scenario_run_id": scenario_run_id,
+            "owner_run_id": str(owner.get("run_id") or ""),
+            "task_id": str(owner.get("task_id") or ""),
+        }
+        for sample in samples:
+            if not isinstance(sample, Mapping):
+                failures.append({"code": "metric_sample_invalid"})
+                continue
+            observed = sample.get("dimensions")
+            observed = observed if isinstance(observed, Mapping) else {}
+            mismatches = sorted(
+                key
+                for key, value in expected.items()
+                if str(observed.get(key) or "") != value
+            )
+            if mismatches:
+                failures.append(
+                    {
+                        "code": "metric_owner_binding_mismatch",
+                        "sample_id": str(sample.get("sample_id") or ""),
+                        "dimensions": mismatches,
+                    }
+                )
         return failures
 
     def _require_enabled(self) -> None:

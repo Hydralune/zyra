@@ -69,6 +69,7 @@ def unavailable(code: str, message: str, *, phase: str) -> ScenarioRunnerError:
         phase=phase,
     )
 
+
 def conflict(
     code: str,
     message: str,

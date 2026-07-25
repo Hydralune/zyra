@@ -36,6 +36,7 @@ export interface ScenarioRunRow {
   receiptCount: number
   sourceAudit?: SourceAuditProjection
 }
+
 export interface ScenarioProjection {
   revision: number
   connection: ScenarioConnection
