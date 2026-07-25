@@ -1,8 +1,10 @@
 # M2-S03B-02 Browser Artifact And Control Viewer Pre-implementation Decision
 
-Status: frozen before production changes  
-Decision date: 2026-07-24  
-Baseline commit: `7e9483c00cd422afc537b916ab234c9221b53bda`  
+Status: frozen before production changes
+
+Decision date: 2026-07-24
+
+Baseline commit: `7e9483c00cd422afc537b916ab234c9221b53bda`
 Slice: `docs/milestones/M2-console-demo/slice-03b-02-browser-artifact-control-viewer.md`
 
 ## 1. Canonical ownership and integration boundary

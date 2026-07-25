@@ -35,6 +35,7 @@
       "role": "primary_implementation",
       "source_language": "typescript",
       "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
       "mechanism": "terminal tabs, session projection, reconnect, writer and resize",
       "runtime_dependency": false
     },
@@ -44,6 +45,7 @@
       "role": "supplementary_implementation",
       "source_language": "typescript",
       "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
       "mechanism": "terminal panel lifecycle and safe completed projection",
       "runtime_dependency": false
     },
@@ -53,6 +55,7 @@
       "role": "supplementary_implementation",
       "source_language": "typescript",
       "target_language": "typescript",
+      "migration_mode": "bounded_same_language_semantic_integration",
       "mechanism": "input, ordered writes, bounded screen and backpressure",
       "runtime_dependency": false
     },
@@ -62,6 +65,7 @@
       "role": "conformance_only",
       "source_language": "rust",
       "target_language": "none",
+      "migration_mode": "conformance_only",
       "mechanism": "native PTY lifecycle conformance",
       "runtime_dependency": false
     },
@@ -71,8 +75,65 @@
       "role": "conformance_only",
       "source_language": "python",
       "target_language": "none",
+      "migration_mode": "conformance_only",
       "mechanism": "origin, ticket and reconnect negative conformance",
       "runtime_dependency": false
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/terminal/contracts.ts",
+        "apps/web/src/features/terminal/runtime.ts",
+        "apps/web/src/features/terminal/reconnect.ts",
+        "apps/web/src/features/terminal/tabs.ts",
+        "apps/web/src/features/terminal/resize.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/terminal/render.ts",
+        "apps/web/src/features/terminal/structured.ts",
+        "apps/web/src/features/terminal/view/terminal-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "bounded_same_language_semantic_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/terminal/input.ts",
+        "apps/web/src/features/terminal/writer.ts",
+        "apps/web/src/features/terminal/screen.ts",
+        "apps/web/src/features/terminal/backpressure.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
     }
   ],
   "state_custody": {

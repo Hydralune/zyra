@@ -1,8 +1,10 @@
 # M2-S03B-03 Causal Trace Cross-view Integration Pre-implementation Decision
 
-Status: frozen before production changes  
-Decision date: 2026-07-25  
-Baseline commit: `ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e`  
+Status: frozen before production changes
+
+Decision date: 2026-07-25
+
+Baseline commit: `ca1d1b1eee0ef04451cc619ddc2b3f944f30f99e`
 Slice: `docs/milestones/M2-console-demo/slice-03b-03-causal-trace-cross-view-integration.md`
 
 ## 1. Canonical ownership and integration boundary

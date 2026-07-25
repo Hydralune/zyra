@@ -71,6 +71,63 @@
       "runtime_dependency": false
     }
   ],
+  "language_custody": [
+    {
+      "source_repo": "browser-use",
+      "source_role": "primary_implementation",
+      "migration_mode": "bounded_cross_language_semantic_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/browser/projection/reader.ts",
+        "apps/web/src/features/browser/projection/targets.ts",
+        "apps/web/src/features/browser/projection/dom.ts",
+        "apps/web/src/features/browser/projection/steps.ts",
+        "apps/web/src/features/browser/projection/artifacts.ts",
+        "apps/web/src/features/browser/projection/health.ts",
+        "apps/web/src/features/browser/projection/projector.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": true,
+      "cross_language_decision_id": "M2-S03B-02-preimplementation-decision-section-3"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/browser/view/browser-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "bounded_same_language_semantic_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/browser/projection/causality.ts",
+        "apps/web/src/features/browser/control/policy.ts",
+        "apps/web/src/features/browser/control/receipts.ts",
+        "apps/web/src/features/browser/control/runtime.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ],
   "state_custody": {
     "chrome_cdp_reconnect": "python BrowserRuntimeRegistry",
     "session_target_focus_process_epoch": "python BrowserSessionControlRuntime and browser session state store",
