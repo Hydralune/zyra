@@ -57,6 +57,19 @@ PACKAGE_PATHS = [
 # comparisons.  This manifest is kept beside the handlers so submission and
 # reachability audits can verify the public surface without importing the API.
 ZYRA_DYNAMIC_API_ROUTES = (
+    ("GET", "/experiments/registry"),
+    ("GET", "/experiments/runs"),
+    ("GET", "/experiments/runs/{experiment_id}"),
+    ("GET", "/experiments/runs/{experiment_id}/report"),
+    ("GET", "/experiments/runs/{experiment_id}/samples"),
+    ("GET", "/experiments/runs/{experiment_id}/bundle"),
+    ("GET", "/experiments/runs/{experiment_id}/source"),
+    ("GET", "/experiments/runs/{experiment_id}/requirements"),
+    ("POST", "/experiments/runs"),
+    ("POST", "/experiments/runs/{experiment_id}/start"),
+    ("POST", "/experiments/runs/{experiment_id}/cancel"),
+    ("POST", "/experiments/runs/{experiment_id}/archive"),
+    ("POST", "/experiments/runs/{experiment_id}/verify"),
     ("GET", "/scenarios/registry"),
     ("GET", "/scenarios/runs"),
     ("GET", "/scenarios/runs/{scenario_run_id}"),
@@ -146,6 +159,7 @@ from .diff_review_api import (
 )
 from .terminal_api import TerminalApiService
 from .scenario_api import get_scenario_runner_api, reset_scenario_runner_api
+from .experiment_api import get_experiment_api, reset_experiment_api
 
 from zyra_core import (
     AgentMessage,
@@ -4697,7 +4711,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                     try:
                                         reset_worker_pool_api()
                                     finally:
-                                        reset_scenario_runner_api(wait=False)
+                                        try:
+                                            reset_scenario_runner_api(wait=False)
+                                        finally:
+                                            reset_experiment_api(wait=False)
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -5223,6 +5240,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 scenario_response.status,
                 scenario_response.body,
                 headers=dict(scenario_response.headers),
+            )
+            return
+
+        experiment_response = get_experiment_api().route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if experiment_response is not None:
+            self._send_json(
+                experiment_response.status,
+                experiment_response.body,
+                headers=dict(experiment_response.headers),
             )
             return
 
@@ -7165,6 +7194,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 scenario_response.status,
                 scenario_response.body,
                 headers=dict(scenario_response.headers),
+            )
+            return
+
+        experiment_response = get_experiment_api().route_post(
+            tuple(parts),
+            payload,
+            actor_id=self._permission_actor_id(),
+        )
+        if experiment_response is not None:
+            self._send_json(
+                experiment_response.status,
+                experiment_response.body,
+                headers=dict(experiment_response.headers),
             )
             return
 

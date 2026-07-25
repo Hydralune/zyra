@@ -212,6 +212,19 @@ export const OPERATION_NAMES = {
   scenarioRunCancel: "scenario.run.cancel",
   scenarioRunArchive: "scenario.run.archive",
   scenarioRunVerify: "scenario.run.verify",
+  experimentRegistry: "experiment.registry",
+  experimentRunList: "experiment.run.list",
+  experimentRunGet: "experiment.run.get",
+  experimentRunReport: "experiment.run.report",
+  experimentRunSamples: "experiment.run.samples",
+  experimentRunBundle: "experiment.run.bundle",
+  experimentRunSource: "experiment.run.source",
+  experimentRunRequirements: "experiment.run.requirements",
+  experimentRunCreate: "experiment.run.create",
+  experimentRunStart: "experiment.run.start",
+  experimentRunCancel: "experiment.run.cancel",
+  experimentRunArchive: "experiment.run.archive",
+  experimentRunVerify: "experiment.run.verify",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -247,6 +260,14 @@ export const CONTRACT_NAMES = {
   scenarioRun: "zyra.scenario-run.v1",
   scenarioEvidence: "zyra.scenario-evidence-manifest.v1",
   scenarioMutation: "zyra.scenario-mutation.v1",
+  experimentRegistry: "zyra.experiment-registry.v1",
+  experimentRun: "zyra.experiment-run.v1",
+  experimentReport: "zyra.experiment-final-report.v1",
+  experimentSamples: "zyra.experiment-raw-sample-page.v1",
+  experimentBundle: "zyra.experiment-evidence-bundle.v1",
+  experimentSource: "zyra.experiment-source.v1",
+  experimentRequirements: "zyra.experiment-requirements.v1",
+  experimentMutation: "zyra.experiment-mutation.v1",
   error: "zyra.error.v1",
 } as const
 

@@ -15,6 +15,7 @@ import { EmptyState, ReconnectingState } from "../components/status/request-stat
 import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { PaneDivider } from "../components/layout/pane-divider.tsx"
 import { ScenarioWorkbench } from "../features/scenarios/index.ts"
+import { ExperimentWorkbench } from "../features/experiments/index.ts"
 
 function AppNavigation({
   runtime,
@@ -145,6 +146,7 @@ function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
         </article>
       </div>
       <ScenarioWorkbench runtime={runtime.scenarioConsole} />
+      <ExperimentWorkbench runtime={runtime.experimentConsole} />
     </section>
   )
 }

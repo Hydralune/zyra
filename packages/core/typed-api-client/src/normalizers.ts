@@ -592,6 +592,38 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.scenarioMutation,
     (value) => ({ ...responseRecord(value, "scenario mutation response") }),
   )
+  registry.register(
+    CONTRACT_NAMES.experimentRegistry,
+    (value) => ({ ...responseRecord(value, "experiment registry response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentRun,
+    (value) => ({ ...responseRecord(value, "experiment run response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentReport,
+    (value) => ({ ...responseRecord(value, "experiment report response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentSamples,
+    (value) => ({ ...responseRecord(value, "experiment sample response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentBundle,
+    (value) => ({ ...responseRecord(value, "experiment bundle response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentSource,
+    (value) => ({ ...responseRecord(value, "experiment source response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentRequirements,
+    (value) => ({ ...responseRecord(value, "experiment requirement response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.experimentMutation,
+    (value) => ({ ...responseRecord(value, "experiment mutation response") }),
+  )
 }
 
 export function assertTaskBinding(task: TaskProjection, expected: IdentityBinding): TaskProjection {

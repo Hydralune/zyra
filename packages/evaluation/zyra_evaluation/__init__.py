@@ -11,6 +11,16 @@ from .scenario_runner import (
     SealedPolicyRuntime,
     SourceRoleAuditor,
 )
+from .experiment_runtime import (
+    EvidenceBundleBuilder,
+    EvidenceBundleVerifier,
+    ExperimentApi,
+    ExperimentMatrixRuntime,
+    ExperimentStore,
+    MetricCatalog,
+    RequirementEvidenceMapper,
+    VariantCatalog,
+)
 
 
 def run_m2_scenarios(*args, **kwargs):
@@ -22,7 +32,13 @@ def run_m2_scenarios(*args, **kwargs):
 __all__ = [
     "CallbackScenarioExecutionPort",
     "EffectiveStepClassifier",
+    "EvidenceBundleBuilder",
+    "EvidenceBundleVerifier",
     "EvidenceCollector",
+    "ExperimentApi",
+    "ExperimentMatrixRuntime",
+    "ExperimentStore",
+    "MetricCatalog",
     "OwnerExecutionResult",
     "ScenarioRegistry",
     "ScenarioRunStore",
@@ -30,6 +46,8 @@ __all__ = [
     "ScenarioRunnerService",
     "SealedPolicyRuntime",
     "SourceRoleAuditor",
+    "RequirementEvidenceMapper",
+    "VariantCatalog",
     "evaluate_task_trace",
     "run_m2_scenarios",
 ]

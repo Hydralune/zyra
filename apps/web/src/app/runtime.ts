@@ -24,6 +24,7 @@ import { McpConsoleController } from "../features/mcp/index.ts"
 import { SkillWorkbenchController } from "../features/skills/index.ts"
 import { SubagentPanelController } from "../features/subagents/index.ts"
 import { ScenarioWorkbenchRuntime } from "../features/scenarios/index.ts"
+import { ExperimentWorkbenchRuntime } from "../features/experiments/index.ts"
 
 export interface WorkbenchRuntime {
   api: ReturnType<typeof createZyraApi>
@@ -48,6 +49,7 @@ export interface WorkbenchRuntime {
   skillConsole: SkillWorkbenchController
   subagentConsole: SubagentPanelController
   scenarioConsole: ScenarioWorkbenchRuntime
+  experimentConsole: ExperimentWorkbenchRuntime
   close(reason?: unknown): void
 }
 
@@ -190,6 +192,9 @@ export function createWorkbenchRuntime(
   const scenarioConsole = new ScenarioWorkbenchRuntime({
     api: api.scenarios,
   })
+  const experimentConsole = new ExperimentWorkbenchRuntime({
+    api: api.experiments,
+  })
   const synchronizePanelSealedMode = () => {
     const sealed = selectedTaskIsSealed()
     mcpConsole.setSealed(sealed)
@@ -291,6 +296,7 @@ export function createWorkbenchRuntime(
     skillConsole,
     subagentConsole,
     scenarioConsole,
+    experimentConsole,
     close(reason?: unknown) {
       if (closed) return
       closed = true
@@ -312,6 +318,7 @@ export function createWorkbenchRuntime(
       skillConsole.close(String(reason ?? "Workbench closed."))
       subagentConsole.close(String(reason ?? "Workbench closed."))
       scenarioConsole.close(String(reason ?? "Workbench closed."))
+      experimentConsole.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
       routeLoader.close(String(reason ?? "Workbench closed."))
