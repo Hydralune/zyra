@@ -20,6 +20,108 @@ const OUTPUT =
   process.argv.find((value) => value.startsWith("--output="))
     ?.slice("--output=".length)
 
+function git(...args) {
+  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" })
+}
+
+function implementationText(path) {
+  return TARGET === "WORKTREE"
+    ? execFileSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-Command",
+        `Get-Content -LiteralPath '${path.replaceAll("'", "''")}' -Raw`,
+      ],
+      { cwd: ROOT, encoding: "utf8" },
+    )
+    : git("show", `${TARGET}:${path}`)
+}
+
+function addedLines(path) {
+  const arguments_ = TARGET === "WORKTREE"
+    ? ["diff", "--unified=0", BASELINE, "--", path]
+    : ["diff", "--unified=0", BASELINE, TARGET, "--", path]
+  const patch = git(...arguments_)
+  const output = new Set()
+  let lineNumber = 0
+  for (const line of patch.split(/\r?\n/)) {
+    const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line)
+    if (header) {
+      lineNumber = Number(header[1])
+      continue
+    }
+    if (!lineNumber || line.startsWith("---") || line.startsWith("+++")) continue
+    if (line.startsWith("+")) {
+      output.add(lineNumber)
+      lineNumber += 1
+    } else if (!line.startsWith("-")) {
+      lineNumber += 1
+    }
+  }
+  return output
+}
+
+function classifyPython(entry) {
+  const script = [
+    "import ast,json,subprocess,pathlib",
+    `target=${JSON.stringify(TARGET)}`,
+    `path=${JSON.stringify(entry.path)}`,
+    "text=pathlib.Path(path).read_text(encoding='utf-8') if target=='WORKTREE' else subprocess.check_output(['git','show',f'{target}:{path}'],text=True,encoding='utf-8')",
+    "tree=ast.parse(text)",
+    "types=set(); schema=set(); docs=set()",
+    "def mark(target,node): target.update(range(node.lineno,getattr(node,'end_lineno',node.lineno)+1))",
+    "for node in ast.walk(tree):",
+    "  if isinstance(node,(ast.Import,ast.ImportFrom)): mark(types,node)",
+    "  if isinstance(node,(ast.Module,ast.ClassDef,ast.FunctionDef,ast.AsyncFunctionDef)) and node.body:",
+    "    first=node.body[0]",
+    "    if isinstance(first,ast.Expr) and isinstance(first.value,ast.Constant) and isinstance(first.value.value,str): mark(docs,first)",
+    "for parent in ast.walk(tree):",
+    "  if isinstance(parent,ast.ClassDef):",
+    "    for node in parent.body:",
+    "      if isinstance(node,ast.AnnAssign): mark(schema,node)",
+    "for node in tree.body:",
+    "  targets=[]",
+    "  if isinstance(node,ast.Assign): targets=[target.id for target in node.targets if isinstance(target,ast.Name)]",
+    "  elif isinstance(node,ast.AnnAssign) and isinstance(node.target,ast.Name): targets=[node.target.id]",
+    "  if targets and all(name.isupper() for name in targets): mark(schema,node)",
+    "print(json.dumps({'type':sorted(types),'schema':sorted(schema),'docs':sorted(docs)}))",
+  ].join("\n")
+  const ranges = JSON.parse(
+    execFileSync("python", ["-c", script], { cwd: ROOT, encoding: "utf8" }),
+  )
+  const types = new Set(ranges.type)
+  const schema = new Set(ranges.schema)
+  const docs = new Set(ranges.docs)
+  const lines = implementationText(entry.path).split(/\r?\n/)
+  const result = {
+    ...entry,
+    production_runtime: 0,
+    ui_behavior: 0,
+    ui_presentation: 0,
+    type_declaration: 0,
+    schema_dto_data: 0,
+    adapter_only: 0,
+    generated: 0,
+    test_mock_fixture: 0,
+    docs_comments_blank: 0,
+    vendor_like_source_pool: 0,
+    effective_production: 0,
+  }
+  for (const line of addedLines(entry.path)) {
+    const value = lines[line - 1]?.trim() ?? ""
+    if (types.has(line)) result.type_declaration += 1
+    else if (schema.has(line)) result.schema_dto_data += 1
+    else if (docs.has(line) || value === "" || value.startsWith("#")) {
+      result.docs_comments_blank += 1
+    } else {
+      result.production_runtime += 1
+    }
+  }
+  result.effective_production = result.production_runtime
+  return result
+}
+
 function file(result, path) {
   return result.files.find((entry) => entry.path === path)
 }
@@ -44,7 +146,7 @@ function excludeExecutable(result, path, bucket) {
 const child = spawnSync(
   resolve(ROOT, "node_modules", ".bin", "bun.exe"),
   [
-    resolve(ROOT, "scripts", "audit_m2_s05_02_effective_lines.mjs"),
+    resolve(ROOT, "scripts", "audit_m2_s02b_01_effective_lines.mjs"),
     `--baseline=${BASELINE}`,
     `--target=${TARGET}`,
     "--minimum=0",
@@ -60,6 +162,12 @@ if (child.status !== 0 || !child.stdout.trim()) {
   process.exit(child.status ?? 1)
 }
 const result = JSON.parse(child.stdout)
+result.files = result.files.map((entry) =>
+  entry.path.endsWith(".py")
+  && !entry.path.startsWith("tests/")
+    ? classifyPython(entry)
+    : entry
+)
 
 // API transport, typed wire declarations and package exports are composition,
 // not experiment/evidence domain behavior.

@@ -637,7 +637,14 @@ class M2ExitPortfolioVerifier:
                 findings.append({"code": "score_total_invalid"})
             if int(manifest.get("score_verified") or 0) != 100:
                 findings.append({"code": "score_verified_invalid"})
-            if int(manifest.get("human_intervention_count") or -1) != 0:
+            human_intervention_count = manifest.get(
+                "human_intervention_count"
+            )
+            if (
+                not isinstance(human_intervention_count, int)
+                or isinstance(human_intervention_count, bool)
+                or human_intervention_count != 0
+            ):
                 findings.append({"code": "human_intervention_nonzero"})
         receipt = {
             "schema": "zyra.m2-exit-portfolio-verification/v1",
