@@ -195358,19 +195358,256 @@
         }
       ],
       "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "experiment_matrix_metrics_bundle_and_m2_exit_owner",
+      "capability_summary": "Durable seven-variant experiment orchestration, checksum-bound raw samples, P50/P95/dispersion/confidence aggregation, isolated ablation verification, requirement evidence mapping, reviewer navigation, tamper-evident experiment bundles and M2 exit portfolio.",
+      "created_at": "2026-07-26T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-05",
+        "M2",
+        "M3"
+      ],
+      "ledger_id": "ile_0995edfb89b862129caa",
+      "license_notice": {
+        "license_hint": "Zyra-owned experiment/evidence implementation.",
+        "notes": "No new upstream runtime or parent-repository dependency.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "zyra",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/experiments/registry",
+          "/experiments/runs",
+          "/experiments/runs/{experiment_id}/report",
+          "/experiments/runs/{experiment_id}/samples",
+          "/experiments/runs/{experiment_id}/bundle"
+        ],
+        "artifact_kinds": [
+          "experiment_evidence_bundle",
+          "m2_exit_evidence_portfolio"
+        ],
+        "control_commands": [
+          "create",
+          "start",
+          "verify",
+          "archive"
+        ],
+        "event_types": [
+          "experiment lifecycle",
+          "cell transition",
+          "raw metric sample",
+          "verification receipt",
+          "bundle commit"
+        ],
+        "surfaces": [
+          "experiment_api",
+          "formal_experiment_runner",
+          "experiment_workbench",
+          "competition_bundle_export"
+        ],
+        "ui_panels": [
+          "experiments",
+          "metrics",
+          "requirements",
+          "evidence"
+        ],
+        "worker_runtime": "ExperimentMatrixRuntime -> EvidenceBackedWorkloadRuntime -> MetricExtractor -> DistributionAggregator -> EvidenceBundleBuilder"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "b3387c626fc587936c24777ce108eac6f962283e",
+        "canonical_bundle_owner": "python.EvidenceBundleBuilder",
+        "canonical_experiment_owner": "python.ExperimentMatrixRuntime",
+        "canonical_frontend_projection": "typescript.ExperimentProjectionStore",
+        "canonical_metric_owner": "python.DistributionAggregator",
+        "decision_commit": "5d50f78",
+        "implementation_commit": "0c13c32",
+        "migration_mode": "scenario_and_evidence_integration_only",
+        "owner_unit": "M2-S05-03",
+        "rationale": "M2-S05-03 assigns a new Zyra-owned evaluation/evidence state domain. It composes existing Python and TypeScript owners without selecting or migrating an upstream experiment runtime.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S05-03",
+        "source_commit": "b3387c626fc587936c24777ce108eac6f962283e",
+        "source_language": "python/typescript/tsx",
+        "source_role": "primary_implementation",
+        "target_language": "python/typescript/tsx"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=b3387c626fc587936c24777ce108eac6f962283e; migration_mode=scenario_and_evidence_integration_only; M2-S05-03 assigns a new Zyra-owned evaluation/evidence state domain. It composes existing Python and TypeScript owners without selecting or migrating an upstream experiment runtime.",
+      "owner_unit": "M2-S05-03",
+      "replacement_plan": "Replace behind ExperimentMatrixRuntime, ExperimentApi and ExperimentWorkbenchRuntime while retaining durable envelope, sample, report and bundle contracts.",
+      "risk_notes": [
+        "ExperimentMatrixRuntime is the only experiment/sample state owner.",
+        "Task, scheduler, memory, recovery and artifact custody remains in M1 owners.",
+        "All seven variants share one immutable envelope and source archive.",
+        "No authenticated provider/model CLI or new external model request is allowed.",
+        "Browser detach never cancels backend-owned matrix work.",
+        "OpenClaw remains excluded_forward_only with no new ledger entry.",
+        "No runtime path depends on a parent source repository."
+      ],
+      "runtime_entry": {
+        "command": "python scripts/run_m2_s05_03_experiments.py --commit <implementation-commit>",
+        "config_refs": [
+          "packages/evaluation/zyra_evaluation/experiment_runtime/runtime.py",
+          "packages/evaluation/zyra_evaluation/experiment_runtime/workload.py",
+          "packages/evaluation/zyra_evaluation/experiment_runtime/statistics.py",
+          "packages/evaluation/zyra_evaluation/experiment_runtime/bundle.py",
+          "packages/evaluation/zyra_evaluation/experiment_runtime/portfolio.py",
+          "packages/evaluation/zyra_evaluation/experiment_runtime/source_roles.py",
+          "apps/api/zyra_api/experiment_api.py",
+          "apps/web/src/features/experiments/runtime.ts",
+          "apps/web/src/features/experiments/view/experiment-workbench.tsx"
+        ],
+        "environment_refs": [],
+        "function": "ExperimentMatrixRuntime",
+        "health_check": "python -m pytest tests/scenarios/test_m2_s05_03_experiment_matrix.py -q",
+        "module": "zyra_evaluation.experiment_runtime.runtime",
+        "protocol": "zyra.experiment.api/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S05-03 preimplementation source-role decision",
+          "source_kind": "file",
+          "source_path": "packages/evaluation;packages/runtime;packages/memory;packages/scheduler;packages/orchestration;apps/web/src",
+          "source_repo": "zyra",
+          "symbols": [],
+          "tags": [
+            "m2-05",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/evaluation;packages/runtime;packages/memory;packages/scheduler;packages/orchestration;apps/web/src",
+      "source_repo": "zyra",
+      "tags": [
+        "m2-05",
+        "m2-s05-03",
+        "experiment",
+        "ablation",
+        "metrics",
+        "evidence-bundle",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/workload.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/statistics.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/bundle.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/portfolio.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/evaluation/zyra_evaluation/experiment_runtime/source_roles.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/experiment_api.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/experiments/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/experiments/view/experiment-workbench.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/scenarios/test_m2_s05_03_experiment_matrix.py -q",
+          "expected_signal": "same-condition matrix, isolated ablation effects, raw distribution metrics, durable backend custody, tamper rejection and no-log reviewer navigation",
+          "kind": "integration",
+          "path": "tests/scenarios/test_m2_s05_03_experiment_matrix.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_experiment_evidence_api_main_path.py -q",
+          "expected_signal": "same-condition matrix, isolated ablation effects, raw distribution metrics, durable backend custody, tamper rejection and no-log reviewer navigation",
+          "kind": "integration",
+          "path": "tests/integration/test_experiment_evidence_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/experiment-evidence-workbench.test.ts",
+          "expected_signal": "same-condition matrix, isolated ablation effects, raw distribution metrics, durable backend custody, tamper rejection and no-log reviewer navigation",
+          "kind": "integration",
+          "path": "apps/web/test/experiment-evidence-workbench.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-26T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 506,
+    "active_or_internalized": 507,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 81,
       "deferred": 8,
       "planned": 698,
-      "productized": 451
+      "productized": 452
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -195378,7 +195615,7 @@
       "event_log_connected": 1,
       "inventoried": 81,
       "planned": 503,
-      "tested_main_path": 212,
+      "tested_main_path": 213,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -195444,7 +195681,8 @@
       "M2-S04A-02": 6,
       "M2-S04B-01": 5,
       "M2-S04B-02": 7,
-      "M2-S05-01": 11
+      "M2-S05-01": 11,
+      "M2-S05-03": 1
     },
     "by_source_repo": {
       "OpenHands": 101,
@@ -195457,12 +195695,12 @@
       "oh-my-pi": 38,
       "openclaw": 86,
       "opencode": 36,
-      "zyra": 4
+      "zyra": 5
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 21,
-      "direct_port": 69,
+      "direct_port": 70,
       "not_selected": 59,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
@@ -195475,7 +195713,7 @@
       "apps/web": 113,
       "packages/commands": 5,
       "packages/core": 4,
-      "packages/evaluation": 45,
+      "packages/evaluation": 46,
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
@@ -195488,6 +195726,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1293
+    "total_entries": 1294
   }
 }
