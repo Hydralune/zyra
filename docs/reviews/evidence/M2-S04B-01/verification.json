@@ -1,0 +1,61 @@
+{
+  "slice_id": "M2-S04B-01",
+  "date": "2026-07-25",
+  "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+  "decision_commit": "26cb8f5",
+  "implementation_commit": "9cb8272",
+  "checks": [
+    {
+      "name": "focused_behavior",
+      "command": ".\\node_modules\\.bin\\bun.exe test .\\apps\\web\\test\\session-context-memory-provider-panels.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "assertions": 54
+    },
+    {
+      "name": "adjacent_regression",
+      "command": ".\\node_modules\\.bin\\bun.exe test .\\apps\\web\\test\\canonical-projection-store.test.ts .\\apps\\web\\test\\permission-sealed-control-integration.test.ts .\\apps\\web\\test\\recovery-control-sealed-timeline.test.ts .\\apps\\web\\test\\browser-artifact-control-viewer.test.ts .\\apps\\web\\test\\workbench-shell.test.tsx .\\apps\\web\\test\\session-context-memory-provider-panels.test.ts",
+      "status": "passed",
+      "tests": 107,
+      "assertions": 562
+    },
+    {
+      "name": "web_typecheck",
+      "command": ".\\node_modules\\.bin\\tsc.exe -p apps/web/tsconfig.json",
+      "status": "passed"
+    },
+    {
+      "name": "web_production_build",
+      "command": ".\\node_modules\\.bin\\bun.exe run build:web",
+      "status": "passed",
+      "bundled_modules": 319
+    },
+    {
+      "name": "effective_line_gate",
+      "command": ".\\node_modules\\.bin\\bun.exe .\\scripts\\audit_m2_s04b_01_effective_lines.mjs --baseline=af6f6dc0c66a846c739b73e8c6006c67de219ba8 --target=9cb8272 --minimum=8000",
+      "status": "passed",
+      "effective_production": 8305,
+      "minimum": 8000
+    },
+    {
+      "name": "source_ledger",
+      "command": ".\\.venv\\Scripts\\python.exe .\\scripts\\sync_m2_session_context_memory_provider_source_ledger.py --check",
+      "status": "passed",
+      "decisions": 5,
+      "entries": 5,
+      "missing_targets": 0
+    },
+    {
+      "name": "runtime_dependency_scan",
+      "status": "passed",
+      "production_hits": 0,
+      "dependency_or_lockfile_changes": 0
+    }
+  ],
+  "deferred": [
+    {
+      "check": "full_cleanroom_and_repository_suite",
+      "reason": "Ordinary slice without a high-risk trigger; required at the M2-04 digital-stage aggregate review."
+    }
+  ]
+}

@@ -191042,27 +191042,920 @@
         }
       ],
       "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "session_context_compact_memory_console_runtime",
+      "capability_summary": "Session lineage, exact checkpoint admission, accountable context budgets, compact preview/restore accounting, memory retrieval export and command-receipt-to-canonical-effect reconciliation.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_33a52eefd65fd2717f3d",
+      "license_notice": {
+        "license_hint": "M2 session console source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "session_export",
+          "memory_context",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/context",
+          "/compact",
+          "/memory",
+          "/model",
+          "/resume",
+          "/rewind",
+          "/export"
+        ],
+        "event_types": [
+          "checkpoint pending/committed/resumed",
+          "memory retrieved/curated",
+          "provider failure/fallback selected",
+          "scheduler placement/migration"
+        ],
+        "surfaces": [
+          "task_session_console_workbench",
+          "context_compact_projection",
+          "memory_retrieval_curator_projection",
+          "provider_placement_projection"
+        ],
+        "ui_panels": [
+          "session_lineage",
+          "context_compact",
+          "memory_curator",
+          "provider_model",
+          "heterogeneous_placement"
+        ],
+        "worker_runtime": "SessionConsoleRuntime -> CommandSurfaceRuntime -> canonical receipt/event -> CanonicalProjectionStore -> ControlEffectLedger"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.QueryEngine+ProviderControlPlane;python.SQLiteStore+MemoryFabric+Scheduler",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "26cb8f5",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9cb8272",
+        "migration_mode": "retained_control_flow_adapt/cropped_migration",
+        "owner_unit": "M2-S04B-01",
+        "rationale": "The cohesive TypeScript context/compact/session control flow is retained, while process-local state is replaced by Zyra canonical projections, command receipts and backend-owned checkpoints.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-01",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; migration_mode=retained_control_flow_adapt/cropped_migration; The cohesive TypeScript context/compact/session control flow is retained, while process-local state is replaced by Zyra canonical projections, command receipts and backend-owned checkpoints.",
+      "owner_unit": "M2-S04B-01",
+      "replacement_plan": "Replace behind canonical projection, command and backend-owner ports without moving session/memory/provider/scheduler custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore remains the only frontend truth.",
+        "Backend session, memory, provider and scheduler owners are unchanged.",
+        "Controls settle only after canonical semantic effects are observed.",
+        "Credential values never enter provider projections.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/session/projection.ts",
+          "apps/web/src/features/session/runtime.ts",
+          "apps/web/src/features/session/checkpoint-ledger.ts",
+          "apps/web/src/features/session/context-analyzer.ts",
+          "apps/web/src/features/session/control-effects.ts",
+          "apps/web/src/features/memory/projection.ts",
+          "apps/web/src/features/memory/retrieval-session.ts",
+          "packages/commands/src/registry.ts"
+        ],
+        "environment_refs": [],
+        "function": "SessionConsoleRuntime",
+        "health_check": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+        "module": "apps.web.src.features.session.runtime",
+        "protocol": "zyra.session-console/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/commands/context/context-noninteractive.ts;src/commands/context/context.tsx;src/commands/compact/compact.ts;src/commands/memory/memory.tsx;src/utils/sessionRestore.ts;src/utils/queryContext.ts;src/services/compact/compact.ts;src/services/compact/postCompactCleanup.ts;src/services/compact/reactiveCompact.ts;src/services/SessionMemory/sessionMemory.ts;src/screens/REPL.tsx",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "src/commands/context/context-noninteractive.ts;src/commands/context/context.tsx;src/commands/compact/compact.ts;src/commands/memory/memory.tsx;src/utils/sessionRestore.ts;src/utils/queryContext.ts;src/services/compact/compact.ts;src/services/compact/postCompactCleanup.ts;src/services/compact/reactiveCompact.ts;src/services/SessionMemory/sessionMemory.ts;src/screens/REPL.tsx",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-01",
+        "session-console",
+        "context-memory-provider-placement",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/session/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/session/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/session/checkpoint-ledger.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/session/context-analyzer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/session/control-effects.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/memory/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/memory/retrieval-session.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/commands/src/registry.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+          "expected_signal": "lineage, compact, exact effect reconciliation, memory context, provider failover/redaction, placement and disconnect behavior",
+          "kind": "integration",
+          "path": "apps/web/test/session-context-memory-provider-panels.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "provider_placement_reconnect_projection",
+      "capability_summary": "Server/session scoping, reconnect invalidation, provider capability and fallback presentation, plus device/edge/cloud placement explanations without a second session or scheduler owner.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_b7cc9f59a949f8dcc029",
+      "license_notice": {
+        "license_hint": "M2 session console source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "session_export",
+          "memory_context",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/context",
+          "/compact",
+          "/memory",
+          "/model",
+          "/resume",
+          "/rewind",
+          "/export"
+        ],
+        "event_types": [
+          "checkpoint pending/committed/resumed",
+          "memory retrieved/curated",
+          "provider failure/fallback selected",
+          "scheduler placement/migration"
+        ],
+        "surfaces": [
+          "task_session_console_workbench",
+          "context_compact_projection",
+          "memory_retrieval_curator_projection",
+          "provider_placement_projection"
+        ],
+        "ui_panels": [
+          "session_lineage",
+          "context_compact",
+          "memory_curator",
+          "provider_model",
+          "heterogeneous_placement"
+        ],
+        "worker_runtime": "SessionConsoleRuntime -> CommandSurfaceRuntime -> canonical receipt/event -> CanonicalProjectionStore -> ControlEffectLedger"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.QueryEngine+ProviderControlPlane;python.SQLiteStore+MemoryFabric+Scheduler",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "26cb8f5",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9cb8272",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S04B-01",
+        "rationale": "OpenCode fills reconnect, provider catalog and fallback presentation gaps only; Zyra projections and Python scheduler retain custody.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode fills reconnect, provider catalog and fallback presentation gaps only; Zyra projections and Python scheduler retain custody.",
+      "owner_unit": "M2-S04B-01",
+      "replacement_plan": "Replace behind canonical projection, command and backend-owner ports without moving session/memory/provider/scheduler custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore remains the only frontend truth.",
+        "Backend session, memory, provider and scheduler owners are unchanged.",
+        "Controls settle only after canonical semantic effects are observed.",
+        "Credential values never enter provider projections.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/session/reconnect-supervisor.ts",
+          "apps/web/src/features/providers/projection.ts",
+          "apps/web/src/features/providers/failover.ts",
+          "apps/web/src/features/providers/credential-audit.ts",
+          "apps/web/src/features/placement/projection.ts",
+          "apps/web/src/features/placement/admission.ts"
+        ],
+        "environment_refs": [],
+        "function": "SessionConsoleRuntime",
+        "health_check": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+        "module": "apps.web.src.features.session.runtime",
+        "protocol": "zyra.session-console/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-session.ts;packages/app/src/components/session/session-context-metrics.ts;packages/app/src/components/session/session-context-breakdown.ts;packages/app/src/components/session/session-context-usage.tsx;packages/app/src/pages/session.tsx;packages/core/src/session/context-epoch.ts;packages/core/src/session/compaction.ts;packages/core/src/session/history.ts;packages/core/src/session/revert.ts;packages/session-ui/src/components/session-retry.tsx",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-session.ts;packages/app/src/components/session/session-context-metrics.ts;packages/app/src/components/session/session-context-breakdown.ts;packages/app/src/components/session/session-context-usage.tsx;packages/app/src/pages/session.tsx;packages/core/src/session/context-epoch.ts;packages/core/src/session/compaction.ts;packages/core/src/session/history.ts;packages/core/src/session/revert.ts;packages/session-ui/src/components/session-retry.tsx",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-01",
+        "session-console",
+        "context-memory-provider-placement",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/session/reconnect-supervisor.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/providers/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/providers/failover.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/providers/credential-audit.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/placement/projection.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/placement/admission.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+          "expected_signal": "lineage, compact, exact effect reconciliation, memory context, provider failover/redaction, placement and disconnect behavior",
+          "kind": "integration",
+          "path": "apps/web/test/session-context-memory-provider-panels.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "memory_curator_provenance_context_export",
+      "capability_summary": "Bounded deterministic curator, interrupted-sync diagnostics, explicit provenance/veracity and selected-memory export into later context.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_0b7e24a7c6d6abfd3fe4",
+      "license_notice": {
+        "license_hint": "M2 session console source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "session_export",
+          "memory_context",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/context",
+          "/compact",
+          "/memory",
+          "/model",
+          "/resume",
+          "/rewind",
+          "/export"
+        ],
+        "event_types": [
+          "checkpoint pending/committed/resumed",
+          "memory retrieved/curated",
+          "provider failure/fallback selected",
+          "scheduler placement/migration"
+        ],
+        "surfaces": [
+          "task_session_console_workbench",
+          "context_compact_projection",
+          "memory_retrieval_curator_projection",
+          "provider_placement_projection"
+        ],
+        "ui_panels": [
+          "session_lineage",
+          "context_compact",
+          "memory_curator",
+          "provider_model",
+          "heterogeneous_placement"
+        ],
+        "worker_runtime": "SessionConsoleRuntime -> CommandSurfaceRuntime -> canonical receipt/event -> CanonicalProjectionStore -> ControlEffectLedger"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.QueryEngine+ProviderControlPlane;python.SQLiteStore+MemoryFabric+Scheduler",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "26cb8f5",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9cb8272",
+        "migration_mode": "bounded_cross_language_typed_supplement/cropped_migration",
+        "owner_unit": "M2-S04B-01",
+        "rationale": "Only bounded projection behavior is expressed in the existing TypeScript client boundary; MemoryFabric and curator custody stay in Python, so another Python facade would be forwarding-only duplication.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-01",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python/typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=bounded_cross_language_typed_supplement/cropped_migration; Only bounded projection behavior is expressed in the existing TypeScript client boundary; MemoryFabric and curator custody stay in Python, so another Python facade would be forwarding-only duplication.",
+      "owner_unit": "M2-S04B-01",
+      "replacement_plan": "Replace behind canonical projection, command and backend-owner ports without moving session/memory/provider/scheduler custody.",
+      "risk_notes": [
+        "CanonicalProjectionStore remains the only frontend truth.",
+        "Backend session, memory, provider and scheduler owners are unchanged.",
+        "Controls settle only after canonical semantic effects are observed.",
+        "Credential values never enter provider projections.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/memory/curator-ledger.ts",
+          "apps/web/src/features/memory/context-export.ts"
+        ],
+        "environment_refs": [],
+        "function": "SessionConsoleRuntime",
+        "health_check": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+        "module": "apps.web.src.features.session.runtime",
+        "protocol": "zyra.session-console/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "agent/memory_manager.py;agent/curator.py;gateway/memory_monitor.py;ui-tui/src/lib/memory.ts;ui-tui/src/lib/memoryMonitor.ts",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "agent/memory_manager.py;agent/curator.py;gateway/memory_monitor.py;ui-tui/src/lib/memory.ts;ui-tui/src/lib/memoryMonitor.ts",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-01",
+        "session-console",
+        "context-memory-provider-placement",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/memory/curator-ledger.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/memory/context-export.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+          "expected_signal": "lineage, compact, exact effect reconciliation, memory context, provider failover/redaction, placement and disconnect behavior",
+          "kind": "integration",
+          "path": "apps/web/test/session-context-memory-provider-panels.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "checkpoint_pending_committed_exact_resume_conformance",
+      "capability_summary": "Challenges pending-versus-committed separation, checkpoint identity, stale/conflict handling and exact-resume correlation.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_2404597395a9f66941d9",
+      "license_notice": {
+        "license_hint": "M2 session console source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "session_export",
+          "memory_context",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/context",
+          "/compact",
+          "/memory",
+          "/model",
+          "/resume",
+          "/rewind",
+          "/export"
+        ],
+        "event_types": [
+          "checkpoint pending/committed/resumed",
+          "memory retrieved/curated",
+          "provider failure/fallback selected",
+          "scheduler placement/migration"
+        ],
+        "surfaces": [
+          "task_session_console_workbench",
+          "context_compact_projection",
+          "memory_retrieval_curator_projection",
+          "provider_placement_projection"
+        ],
+        "ui_panels": [
+          "session_lineage",
+          "context_compact",
+          "memory_curator",
+          "provider_model",
+          "heterogeneous_placement"
+        ],
+        "worker_runtime": "conformance_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.QueryEngine+ProviderControlPlane;python.SQLiteStore+MemoryFabric+Scheduler",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "26cb8f5",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9cb8272",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S04B-01",
+        "rationale": "No StateGraph, channel, reducer, Pregel, stream, Store, ToolNode, SDK or UI owner enters production.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-01",
+        "source_commit": "section-12-forward-ruling",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=section-12-forward-ruling; migration_mode=conformance_only; No StateGraph, channel, reducer, Pregel, stream, Store, ToolNode, SDK or UI owner enters production.",
+      "owner_unit": "M2-S04B-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore remains the only frontend truth.",
+        "Backend session, memory, provider and scheduler owners are unchanged.",
+        "Controls settle only after canonical semantic effects are observed.",
+        "Credential values never enter provider projections.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/session-context-memory-provider-panels.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "session console conformance tests",
+        "health_check": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+        "module": "apps.web.test.session-context-memory-provider-panels",
+        "protocol": "zyra.session-console/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "checkpoint identity/lineage;pending/committed writes;stable task id;exact-resume contracts",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "checkpoint identity/lineage;pending/committed writes;stable task id;exact-resume contracts",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-01",
+        "session-console",
+        "context-memory-provider-placement",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/session-context-memory-provider-panels.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+          "expected_signal": "lineage, compact, exact effect reconciliation, memory context, provider failover/redaction, placement and disconnect behavior",
+          "kind": "integration",
+          "path": "apps/web/test/session-context-memory-provider-panels.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "disconnect_failover_secret_redaction_reference",
+      "capability_summary": "Reference-only disconnect, failover and credential-redaction review.",
+      "created_at": "2026-07-25T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-04B",
+        "M2-04"
+      ],
+      "ledger_id": "ile_f4120e2f9197b35ab07c",
+      "license_notice": {
+        "license_hint": "M2 session console source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "session_export",
+          "memory_context",
+          "checkpoint"
+        ],
+        "control_commands": [
+          "/context",
+          "/compact",
+          "/memory",
+          "/model",
+          "/resume",
+          "/rewind",
+          "/export"
+        ],
+        "event_types": [
+          "checkpoint pending/committed/resumed",
+          "memory retrieved/curated",
+          "provider failure/fallback selected",
+          "scheduler placement/migration"
+        ],
+        "surfaces": [
+          "task_session_console_workbench",
+          "context_compact_projection",
+          "memory_retrieval_curator_projection",
+          "provider_placement_projection"
+        ],
+        "ui_panels": [
+          "session_lineage",
+          "context_compact",
+          "memory_curator",
+          "provider_model",
+          "heterogeneous_placement"
+        ],
+        "worker_runtime": "reference_only; behavior/reference only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "af6f6dc0c66a846c739b73e8c6006c67de219ba8",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_backend_owners": "typescript.QueryEngine+ProviderControlPlane;python.SQLiteStore+MemoryFabric+Scheduler",
+        "canonical_command_owner": "typescript.CommandSurfaceRuntime",
+        "canonical_event_owner": "python.SQLiteStore+canonical event spine",
+        "canonical_frontend_owner": "typescript.CanonicalProjectionStore",
+        "canonical_projection_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_task_owner": "python.SQLiteStore+TaskState",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "decision_commit": "26cb8f5",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9cb8272",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S04B-01",
+        "rationale": "Reference behavior only; no browser-use runtime owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "second_replay_store": false,
+        "slice_id": "M2-S04B-01",
+        "source_commit": "source-graph-frozen",
+        "source_language": "python/typescript",
+        "source_role": "reference_only",
+        "target_language": "none",
+        "transient_trace_owner": "typescript.CausalTraceController",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=source-graph-frozen; migration_mode=reference_only; Reference behavior only; no browser-use runtime owner is migrated.",
+      "owner_unit": "M2-S04B-01",
+      "replacement_plan": "reference_only source; no production owner is selected.",
+      "risk_notes": [
+        "CanonicalProjectionStore remains the only frontend truth.",
+        "Backend session, memory, provider and scheduler owners are unchanged.",
+        "Controls settle only after canonical semantic effects are observed.",
+        "Credential values never enter provider projections.",
+        "No runtime path depends on a parent source repository.",
+        "OpenClaw remains excluded_forward_only."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/session-context-memory-provider-panels.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "session console conformance tests",
+        "health_check": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+        "module": "apps.web.test.session-context-memory-provider-panels",
+        "protocol": "zyra.session-console/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "watchdog/model/provider/terminal/remote-control source graph facts",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-04b",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "watchdog/model/provider/terminal/remote-control source graph facts",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-04b",
+        "m2-s04b-01",
+        "session-console",
+        "context-memory-provider-placement",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/session-context-memory-provider-panels.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/session-context-memory-provider-panels.test.ts",
+          "expected_signal": "lineage, compact, exact effect reconciliation, memory context, provider failover/redaction, placement and disconnect behavior",
+          "kind": "integration",
+          "path": "apps/web/test/session-context-memory-provider-panels.test.ts",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-25T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 499,
+    "active_or_internalized": 502,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 65,
+      "candidate": 67,
       "deferred": 8,
       "planned": 698,
-      "productized": 444
+      "productized": 447
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 65,
+      "inventoried": 67,
       "planned": 503,
-      "tested_main_path": 205,
+      "tested_main_path": 208,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -191125,35 +192018,36 @@
       "M2-S03B-02": 4,
       "M2-S03B-03": 3,
       "M2-S04A-01": 5,
-      "M2-S04A-02": 6
+      "M2-S04A-02": 6,
+      "M2-S04B-01": 5
     },
     "by_source_repo": {
       "OpenHands": 101,
       "agent-framework": 97,
       "agentscope": 108,
-      "browser-use": 114,
-      "claude-code-best": 514,
-      "hermes-agent": 91,
-      "langgraph": 89,
+      "browser-use": 115,
+      "claude-code-best": 515,
+      "hermes-agent": 92,
+      "langgraph": 90,
       "oh-my-pi": 34,
       "openclaw": 86,
-      "opencode": 33,
+      "opencode": 34,
       "zyra": 3
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 20,
-      "direct_port": 63,
-      "not_selected": 43,
+      "direct_port": 66,
+      "not_selected": 45,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 763,
+    "planned_or_candidate": 765,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 101,
+      "apps/web": 106,
       "packages/commands": 5,
       "packages/core": 4,
       "packages/evaluation": 34,
@@ -191169,6 +192063,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1270
+    "total_entries": 1275
   }
 }
