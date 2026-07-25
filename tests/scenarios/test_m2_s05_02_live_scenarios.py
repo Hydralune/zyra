@@ -468,6 +468,30 @@ def test_research_delivery_binds_claims_to_exact_acquired_bytes(
     assert result.task["causal_archive"]["manifest_digest"]
 
 
+def test_research_public_egress_proxy_requires_explicit_bounded_cidr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    acquirer = LiveHttpSourceAcquirer(artifact_root=tmp_path / "sources")
+    monkeypatch.setattr(
+        acquirer,
+        "_resolve_addresses",
+        lambda host: ["198.18.0.144"],
+    )
+    with pytest.raises(ScenarioRunnerError) as blocked:
+        acquirer._validated_url("https://public.example/standards")
+    assert blocked.value.code == "research_private_address_forbidden"
+
+    monkeypatch.setenv("ZYRA_LIVE_PUBLIC_PROXY_CIDRS", "198.18.0.0/15")
+    assert (
+        acquirer._validated_url("https://public.example/standards")
+        == "https://public.example/standards"
+    )
+    with pytest.raises(ScenarioRunnerError) as literal:
+        acquirer._validated_url("https://198.18.0.144/standards")
+    assert literal.value.code == "research_private_address_forbidden"
+
+
 @pytest.mark.parametrize(
     "environment_name",
     (

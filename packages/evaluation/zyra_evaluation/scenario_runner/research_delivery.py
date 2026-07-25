@@ -485,6 +485,7 @@ class LiveHttpSourceAcquirer:
                 "resolved_addresses": self._resolve_addresses(
                     urlparse(final_url).hostname or ""
                 ),
+                "egress_proxy_cidrs": _configured_public_proxy_cidrs(),
             },
         }
         metadata_path.write_text(
@@ -550,7 +551,11 @@ class LiveHttpSourceAcquirer:
                 detail={"host": parsed.hostname},
             )
         for address in addresses:
-            if _unsafe_address(address):
+            if _unsafe_address(address) and not (
+                parsed.scheme == "https"
+                and not _literal_ip_host(parsed.hostname)
+                and _allowed_public_proxy_address(address)
+            ):
                 raise invalid(
                     "research_private_address_forbidden",
                     "Research source resolved to a private or unsafe address.",
@@ -1677,6 +1682,62 @@ def _unsafe_address(value: str) -> bool:
         or address.is_reserved
         or address.is_unspecified
     )
+
+
+def _configured_public_proxy_cidrs() -> list[str]:
+    import ipaddress
+
+    output: list[str] = []
+    raw = os.environ.get("ZYRA_LIVE_PUBLIC_PROXY_CIDRS", "")
+    for item in raw.split(","):
+        selected = item.strip()
+        if not selected:
+            continue
+        try:
+            network = ipaddress.ip_network(selected, strict=True)
+        except ValueError as error:
+            raise invalid(
+                "research_public_proxy_cidr_invalid",
+                "Configured public egress proxy CIDR is invalid.",
+                phase="research-acquisition",
+                detail={"cidr": selected},
+            ) from error
+        if not (
+            network.is_private
+            or network.is_reserved
+            or network.is_link_local
+        ):
+            raise invalid(
+                "research_public_proxy_cidr_unbounded",
+                "Public egress proxy override must name a non-public network.",
+                phase="research-acquisition",
+                detail={"cidr": selected},
+            )
+        output.append(str(network))
+    return output
+
+
+def _allowed_public_proxy_address(value: str) -> bool:
+    import ipaddress
+
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return any(
+        address in ipaddress.ip_network(item, strict=True)
+        for item in _configured_public_proxy_cidrs()
+    )
+
+
+def _literal_ip_host(value: str) -> bool:
+    import ipaddress
+
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _normalize_space(value: str) -> str:
