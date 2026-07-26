@@ -123,6 +123,7 @@ def test_inventory_pipeline_emits_checksum_bound_receipt_and_queue(
     assert receipt["receipt_digest"].startswith("sha256:")
     assert queue["source_receipt_digest"] == receipt["receipt_digest"]
     assert queue["digest"].startswith("sha256:")
+    assert "\n  \"baseline_revision\"" in receipt_path.read_text(encoding="utf-8")
     assert "langgraph_broad_runtime_import" in codes
     assert "python_parent_source_path" in codes
     assert "javascript_shell_process_call" in codes

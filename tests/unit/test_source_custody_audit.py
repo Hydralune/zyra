@@ -352,6 +352,21 @@ def test_repository_scanner_excludes_ephemeral_cache(tmp_path: Path) -> None:
     assert ".tmp" in inventory.skipped_directories
 
 
+def test_machine_readable_data_is_not_misclassified_as_minified_source(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "packages" / "demo" / "data" / "queue.json"
+    payload.parent.mkdir(parents=True)
+    payload.write_text(
+        json.dumps({"items": ["x" * 400 for _ in range(20)]}),
+        encoding="utf-8",
+    )
+
+    _, audit_section = RepositoryScanner(tmp_path).scan()
+
+    assert "minified_source_in_production_tree" not in _codes(audit_section)
+
+
 def test_process_profile_matches_wildcard_executable() -> None:
     profile = ProcessProfile.parse(
         {

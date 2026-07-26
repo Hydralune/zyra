@@ -563,7 +563,7 @@ class RepositoryScanner:
                     ),
                 )
             )
-        if record.minified and production_path:
+        if record.minified and production_path and record.kind == "source":
             findings.append(
                 finding(
                     "minified_source_in_production_tree",

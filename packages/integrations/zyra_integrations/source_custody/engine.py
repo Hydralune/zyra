@@ -455,7 +455,12 @@ def utc_now() -> str:
 def atomic_write_json(path: str | Path, payload: Mapping[str, Any]) -> Path:
     destination = Path(path).resolve(strict=False)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    encoded = stable_json(payload) + "\n"
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{destination.name}.",
         suffix=".tmp",
