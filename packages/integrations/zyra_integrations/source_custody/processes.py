@@ -747,7 +747,7 @@ class ProcessAuditor:
                     )
                 )
             executable = PurePosixPath(use.executable.replace("\\", "/")).name.casefold()
-            if executable in INSTALLERS:
+            if runtime_path and _is_dynamic_installer(use):
                 findings.append(
                     finding(
                         "process_dynamic_installer",
@@ -908,6 +908,46 @@ class ProcessAuditor:
                     )
                 )
         return findings
+
+
+def _is_dynamic_installer(use: ProcessUse) -> bool:
+    """Return true only when a package manager performs dependency acquisition.
+
+    Package managers are also test runners, build launchers, and workspace
+    dispatchers.  Treating ``bun test`` or ``npm --workspace ... test`` as an
+    installer hid the meaningful distinction between an audited locked
+    command and runtime code acquisition.
+    """
+
+    executable = PurePosixPath(use.executable.replace("\\", "/")).name.casefold()
+    if executable not in INSTALLERS:
+        return False
+    arguments = [
+        PurePosixPath(str(item).replace("\\", "/")).name.casefold()
+        for item in use.argv[1:]
+        if str(item).strip() and str(item) not in {"&&", "||", ";", "|"}
+    ]
+    if executable in {"pip", "pip3"}:
+        return any(item in {"install", "download", "wheel"} for item in arguments)
+    if executable == "uv":
+        return any(
+            item in {"add", "install", "sync", "pip"}
+            for item in arguments[:2]
+        )
+    if executable == "poetry":
+        return any(item in {"add", "install", "update"} for item in arguments)
+    if executable == "cargo":
+        return "install" in arguments
+    if executable in {"npm", "pnpm", "yarn", "bun"}:
+        return any(
+            item in {"install", "add", "update", "upgrade"}
+            for item in arguments
+        )
+    if executable in {"npx", "bunx"}:
+        # These executors are acquisition-capable by default.  A checked-in
+        # local binary can instead be invoked through a package script.
+        return "--no-install" not in arguments
+    return False
 
 
 def _port(value: Any) -> int:

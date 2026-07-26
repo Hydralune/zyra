@@ -8,7 +8,12 @@ from typing import Any, Callable, Mapping, Sequence, TYPE_CHECKING
 from ..executor import DynamicToolProvenance, ToolCall, ToolResult
 from .artifact_port import FileArtifactRequest
 from .redaction import redact_for_event
-from .models import OperationKind, ProvenanceKind, TrustLevel
+from .models import (
+    GatewayLifecycleState,
+    OperationKind,
+    ProvenanceKind,
+    TrustLevel,
+)
 from .integration_models import (
     FailureClass,
     GatewayMcpExchange,
@@ -54,6 +59,7 @@ class McpGatewayBoundary:
         authorized: bool,
     ) -> ToolResult:
         identity = self._identity(call)
+        self._ensure_session(identity)
         policy = self.bundle.policy_runtime.evaluate_mcp_call(
             server_id=provenance.server_id,
             tool_name=provenance.tool_name,
@@ -419,6 +425,34 @@ class McpGatewayBoundary:
         )
         receipt = self.bundle.artifact_port.commit(request)
         return receipt.artifact_ref or receipt.quarantine_id
+
+    def _ensure_session(self, identity: WorkerGatewayIdentity) -> None:
+        """Bind MCP artifact effects to the same canonical gateway session."""
+
+        try:
+            record = self.bundle.state_store.require_session(identity.session_id)
+        except Exception:  # noqa: BLE001 - absence is the create path.
+            record = self.bundle.runtime.create_session(
+                session_id=identity.session_id,
+                run_id=identity.run_id,
+                task_id=identity.task_id,
+                workspace_id=identity.workspace_id,
+                worker_id=identity.worker_id,
+                metadata={
+                    "identity_binding_digest": identity.binding_digest,
+                    "canonical_gateway_owner": "SandboxGatewayRuntime",
+                    "mcp_boundary": True,
+                },
+            )
+        if record.state is GatewayLifecycleState.CREATED:
+            record = self.bundle.runtime.prepare_session(identity.session_id)
+        if record.state not in {
+            GatewayLifecycleState.READY,
+            GatewayLifecycleState.BUSY,
+        }:
+            raise RuntimeError(
+                f"sandbox MCP session is not executable: {record.state.value}"
+            )
 
 
 def _current_access(port: Any) -> Any:

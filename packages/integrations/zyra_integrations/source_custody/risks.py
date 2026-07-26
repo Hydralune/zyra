@@ -144,7 +144,13 @@ SOURCE_SPECIFIC_PATTERNS: Mapping[str, tuple[tuple[str, str, Severity], ...]] = 
             Severity.ERROR,
         ),
         (
-            r"(?i)(?:oh-my-pi|\bomp\b).*(?:bun\s+run|rpc|cli|process)",
+            (
+                r"(?i)(?:(?:subprocess\.(?:run|call|check_call|check_output|Popen)"
+                r"|asyncio\.create_subprocess_(?:exec|shell)|Bun\.spawn|spawnSync?"
+                r"|execFileSync?|child_process\.(?:spawn|execFile))\s*\("
+                r"[^\r\n]{0,320}(?:oh-my-pi|\bomp\b)"
+                r"|(?:bun|npm|pnpm|yarn)\s+run\s+(?:oh-my-pi|omp)\b)"
+            ),
             "omp_external_process",
             Severity.BLOCKER,
         ),
@@ -193,6 +199,20 @@ OPAQUE_EXTENSIONS = frozenset(
         ".tar",
         ".tgz",
         ".7z",
+    }
+)
+SOURCE_AUDITED_INTERPRETERS = frozenset(
+    {
+        "python.exe",
+        "python3.exe",
+        "node.exe",
+        "bun.exe",
+        "deno.exe",
+        "python",
+        "python3",
+        "node",
+        "bun",
+        "deno",
     }
 )
 
@@ -804,7 +824,7 @@ class RiskAuditor:
             executable = PurePosixPath(use.executable.replace("\\", "/")).name.casefold()
             if executable.endswith(
                 (".exe", ".dll", ".so", ".dylib", ".node", ".wasm")
-            ):
+            ) and executable not in SOURCE_AUDITED_INTERPRETERS:
                 findings.append(
                     finding(
                         "opaque_binary_process",

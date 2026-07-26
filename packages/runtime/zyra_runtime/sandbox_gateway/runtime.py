@@ -8,7 +8,7 @@ from typing import Any, Iterable, Mapping
 
 from .artifact_port import GatewayFileArtifactPort
 from .backends import BackendSession, SandboxBackend
-from .canonical import random_nonce, token_digest
+from .canonical import random_nonce, stable_id, token_digest
 from .command_policy import StructuredCommandPolicy
 from .errors import GatewayErrorCode, SandboxGatewayError
 from .event_port import GatewayEventPort
@@ -535,13 +535,45 @@ class SandboxGatewayRuntime:
                 with self._backend_lock:
                     self._backend_sessions[record.session_id] = backend_session
                 ready = self.lifecycle.ready(record.session_id)
-                self.event_port.emit(
+                recovered_event = self.event_port.emit(
                     ready,
                     GatewayEventKind.SESSION_RECOVERED,
                     {
                         "state": ready.state.value,
                         "backend": backend_session.to_public_dict(),
                     },
+                )
+                self.event_port.emit(
+                    ready,
+                    GatewayEventKind.SESSION_RECOVERED_CANONICAL,
+                    {
+                        "run_id": ready.run_id,
+                        "task_id": ready.task_id,
+                        "session_id": ready.session_id,
+                        "lease_id": (
+                            stable_id(
+                                "lease",
+                                (
+                                    ready.lease.lease_id
+                                    if ready.lease is not None
+                                    else ready.session_id
+                                ),
+                                ready.generation,
+                                length=16,
+                            )
+                        ),
+                        "mutation_id": stable_id(
+                            "mutation",
+                            recovered_event.event_id,
+                            length=16,
+                        ),
+                        "revision": ready.generation,
+                        "state": ready.state.value,
+                        "backend_id": ready.backend_id,
+                        "effect_committed": True,
+                    },
+                    causation_id=recovered_event.event_id,
+                    correlation_id=ready.session_id,
                 )
                 results.append(ready)
             else:

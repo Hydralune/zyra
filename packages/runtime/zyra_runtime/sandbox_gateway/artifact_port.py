@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Protocol
 
@@ -13,10 +14,12 @@ from .models import (
     ArtifactProvenance,
     FileArtifactReceipt,
     FileArtifactRequest,
+    GatewayEventKind,
     OperationKind,
     ProvenanceKind,
     TrustLevel,
 )
+from .event_port import GatewayEventPort
 from .provenance import ProvenanceRegistry
 from .quarantine import QuarantineStore
 from .redaction import SecretRedactor
@@ -58,6 +61,7 @@ class GatewayFileArtifactPort:
         quarantine_store: QuarantineStore,
         archive_policy: ArchivePolicy | None = None,
         redactor: SecretRedactor | None = None,
+        event_port: GatewayEventPort | None = None,
         enabled: bool = True,
     ) -> None:
         self.workspace_edit_port = workspace_edit_port
@@ -66,6 +70,7 @@ class GatewayFileArtifactPort:
         self.quarantine_store = quarantine_store
         self.archive_policy = archive_policy or ArchivePolicy()
         self.redactor = redactor or SecretRedactor()
+        self.event_port = event_port
         self.enabled = bool(enabled)
 
     def inspect(
@@ -147,7 +152,7 @@ class GatewayFileArtifactPort:
             first = result_artifacts[0]
             artifact_id = str(getattr(first, "artifact_id", "") or "")
             artifact_ref = f"artifact://{artifact_id}" if artifact_id else str(first)
-        return FileArtifactReceipt(
+        receipt = FileArtifactReceipt(
             receipt_id=stable_id(
                 "artifact-receipt",
                 request.request_id,
@@ -173,6 +178,56 @@ class GatewayFileArtifactPort:
                 "detected_content_type": decision.detected_content_type,
                 "workspace_owner": "WorkspaceManagerRuntime",
                 "write_owner": "WorkspaceEditPort",
+            },
+        )
+        if self.event_port is None:
+            return receipt
+        session = self.event_port.store.require_session(request.session_id)
+        event_artifact_id = stable_id(
+            "artifact",
+            artifact_ref or receipt.receipt_id,
+            length=16,
+        )
+        event_request_id = stable_id(
+            "request",
+            request.request_id,
+            length=16,
+        )
+        event_mutation_id = stable_id(
+            "mutation",
+            transaction_id or receipt.receipt_id,
+            length=16,
+        )
+        event = self.event_port.emit(
+            session,
+            GatewayEventKind.ARTIFACT_CREATED,
+            {
+                "artifact_id": event_artifact_id,
+                "receipt_id": receipt.receipt_id,
+                "request_id": event_request_id,
+                "mutation_id": event_mutation_id,
+                "revision": receipt.owner_epoch_after,
+                "digest": request.content_digest,
+                "logical_path": request.logical_path,
+                "workspace_id": receipt.workspace_id,
+                "transaction_id": transaction_id,
+                "state_owner": "WorkspaceEditPort",
+                "effect_committed": True,
+            },
+            causation_id=request.causation_id or request.request_id,
+            correlation_id=request.idempotency_key or request.request_id,
+        )
+        return replace(
+            receipt,
+            event_refs=(*receipt.event_refs, event.event_id),
+            metadata={
+                **receipt.metadata,
+                "canonical_event_type": "artifact.created",
+                "canonical_event_id": event.event_id,
+                "canonical_artifact_id": event_artifact_id,
+                "canonical_request_id": event_request_id,
+                "canonical_mutation_id": event_mutation_id,
+                "digest": request.content_digest,
             },
         )
 

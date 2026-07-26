@@ -227,6 +227,13 @@ class RecoveryApplication:
                 "task_id": signal.refs.task_id,
                 "signal_id": signal.signal_id,
                 "plan_id": execution.plan.plan_id,
+                "attempt_id": (
+                    execution.receipts[-1].receipt_id
+                    if execution.receipts
+                    else execution.outcome.outcome_id
+                ),
+                "mutation_id": execution.outcome.outcome_id,
+                "revision": execution.plan.revision,
                 "action": execution.outcome.action.value,
                 "success": execution.outcome.success,
                 "outcome_id": execution.outcome.outcome_id,

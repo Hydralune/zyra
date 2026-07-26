@@ -286,6 +286,7 @@ def build_gateway_runtime_bundle(
             provenance_registry=provenance_registry,
             quarantine_store=quarantine_store,
             redactor=redactor,
+            event_port=event_port,
             enabled=True,
         )
         patch_port = GatewayPatchPort(

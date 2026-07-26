@@ -130,12 +130,14 @@ class GatewayEventKind(str, Enum):
     ARTIFACT_INSPECTED = "gateway_artifact_inspected"
     ARTIFACT_QUARANTINED = "gateway_artifact_quarantined"
     ARTIFACT_COMMITTED = "gateway_artifact_committed"
+    ARTIFACT_CREATED = "artifact.created"
     PATCH_PREPARED = "gateway_patch_prepared"
     PATCH_COMMITTED = "gateway_patch_committed"
     PATCH_REJECTED = "gateway_patch_rejected"
     CREDENTIAL_ISSUED = "gateway_credential_issued"
     CREDENTIAL_CONSUMED = "gateway_credential_consumed"
     RECOVERY_INPUT = "recovery_input"
+    SESSION_RECOVERED_CANONICAL = "session_recovered"
 
 
 def _now() -> float:

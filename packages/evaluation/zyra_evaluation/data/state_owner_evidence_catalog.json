@@ -45,14 +45,16 @@
         "role": "owner"
       },
       "store": {
-        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-        "symbol": "CodeWorkerSessionStore",
+        "path": "packages/runtime/runtime-event-spine/src/sqlite-store.ts",
+        "symbol": "RuntimeEventSqliteStore",
+        "language": "typescript",
         "role": "store"
       },
       "writers": [
         {
-          "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-          "symbol": "CodeWorkerSessionFoundationRuntime",
+          "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+          "symbol": "ClaudeRuntimeCore",
+          "language": "typescript",
           "role": "writer"
         }
       ],
@@ -66,13 +68,15 @@
       ],
       "caches": [],
       "checkpoint": {
-        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-        "symbol": "CodeWorkerSessionStore",
+        "path": "packages/runtime/claude-runtime/src/session/durable-runtime.ts",
+        "symbol": "DurableSessionRuntime",
+        "language": "typescript",
         "role": "checkpoint"
       },
       "recovery": {
-        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-        "symbol": "CodeWorkerSessionFoundationRuntime",
+        "path": "packages/runtime/claude-runtime/src/session/durable-runtime.ts",
+        "symbol": "DurableSessionRuntime",
+        "language": "typescript",
         "role": "recovery"
       },
       "entries": [
@@ -80,11 +84,12 @@
           "entry_id": "cli.session.runtime",
           "surface": "cli",
           "reference": {
-            "path": "apps/api/zyra_api/main.py",
-            "symbol": "run",
+            "path": "apps/code-worker/src/main.ts",
+            "symbol": "main",
+            "language": "typescript",
             "role": "writer"
           },
-          "command": "python scripts/dev_api.py",
+          "command": "bun apps/code-worker/src/main.ts --stdio",
           "default": true,
           "trace": [
             {
@@ -94,8 +99,9 @@
               "role": "writer"
             },
             {
-              "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-              "symbol": "CodeWorkerSessionFoundationRuntime",
+              "path": "packages/runtime/runtime-event-spine/src/sqlite-store.ts",
+              "symbol": "RuntimeEventSqliteStore",
+              "language": "typescript",
               "role": "writer"
             }
           ]
@@ -103,26 +109,28 @@
       ],
       "events": [
         {
-          "link_id": "session.agent_message.persisted",
-          "event_name": "agent_message",
+          "link_id": "session.turn.completed",
+          "event_name": "runtime.turn.completed",
           "producer": {
-            "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-            "symbol": "CodeWorkerSessionFoundationRuntime",
+            "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+            "symbol": "ClaudeRuntimeCore",
+            "language": "typescript",
             "role": "writer"
           },
           "mutation": {
-            "path": "packages/runtime/zyra_runtime/claude_session_store.py",
-            "symbol": "CodeWorkerSessionStore",
+            "path": "packages/runtime/runtime-event-spine/src/source-mapper.ts",
+            "symbol": "RuntimeSourceMapper",
+            "language": "typescript",
             "role": "writer"
           },
           "effect_kind": "state_mutation",
-          "required_attributes": ["session_id", "sequence"]
+          "required_attributes": ["run_id", "task_id", "session_id", "turn_id", "revision", "mutation_id"]
         }
       ],
       "tests": [
-        "tests/integration/test_claude_session_store_integration.py"
+        "tests/integration/test_e01_typescript_runtime_cutover.py"
       ],
-      "disable_probes": ["session_store_disconnect"],
+      "disable_probes": ["typescript_runtime_disconnect"],
       "fallback_refs": [],
       "forbidden_owner_claims": ["CanonicalProjectionStore owns session state"]
     },
@@ -196,8 +204,8 @@
           "link_id": "permission.decision.recorded",
           "event_name": "permission.decision.recorded",
           "producer": {
-            "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
-            "symbol": "PermissionApprovalRuntime",
+            "path": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts",
+            "symbol": "PermissionAuditRuntime",
             "language": "typescript",
             "role": "writer"
           },
@@ -282,8 +290,8 @@
             "role": "writer"
           },
           "mutation": {
-            "path": "packages/memory/zyra_memory/retrieval_store.py",
-            "symbol": "SQLiteRetrievalIndex",
+            "path": "packages/memory/zyra_memory/curator_commit.py",
+            "symbol": "MemoryCommitRuntime._write_memory_record",
             "role": "writer"
           },
           "effect_kind": "compact",
@@ -1035,9 +1043,9 @@
       "owner_domains": ["session_event_projection", "scheduler_recovery", "worker_route"],
       "default_entry_ids": ["cli.session.runtime", "worker.scheduler.recovery", "worker.pool.dispatch"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["session.agent_message.persisted", "recovery.plan.applied", "worker.dispatch.bound"],
+      "event_links": ["session.turn.completed", "recovery.plan.applied", "worker.dispatch.bound"],
       "mutation_refs": [
-        {"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"},
+        {"path": "packages/runtime/runtime-event-spine/src/source-mapper.ts", "symbol": "RuntimeSourceMapper", "language": "typescript", "role": "writer"},
         {"path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py", "symbol": "RecoveryPlanStore", "role": "writer"}
       ],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
@@ -1054,7 +1062,7 @@
       "owner_domains": ["memory_compact", "session_event_projection"],
       "default_entry_ids": ["worker.memory.retrieval", "cli.session.runtime"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["memory.candidate.committed", "session.agent_message.persisted"],
+      "event_links": ["memory.candidate.committed", "session.turn.completed"],
       "mutation_refs": [{"path": "packages/memory/zyra_memory/retrieval_store.py", "symbol": "SQLiteRetrievalIndex", "role": "writer"}],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "metric_paths": [],
@@ -1086,7 +1094,7 @@
       "owner_domains": ["worker_route", "session_event_projection", "artifact"],
       "default_entry_ids": ["worker.pool.dispatch", "cli.session.runtime", "api.artifact.catalog"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["worker.dispatch.bound", "session.agent_message.persisted", "artifact.content.committed"],
+      "event_links": ["worker.dispatch.bound", "session.turn.completed", "artifact.content.committed"],
       "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/worker_pool/store.py", "symbol": "WorkerPoolStore", "role": "writer"}],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "metric_paths": [],
@@ -1134,8 +1142,8 @@
       "owner_domains": ["session_event_projection", "artifact", "graph_checkpoint"],
       "default_entry_ids": ["cli.session.runtime", "api.artifact.catalog", "worker.graph.topology"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["session.agent_message.persisted", "artifact.content.committed", "graph.snapshot.committed"],
-      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"}],
+      "event_links": ["session.turn.completed", "artifact.content.committed", "graph.snapshot.committed"],
+      "mutation_refs": [{"path": "packages/runtime/runtime-event-spine/src/source-mapper.ts", "symbol": "RuntimeSourceMapper", "language": "typescript", "role": "writer"}],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "metric_paths": [],
       "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
@@ -1166,8 +1174,8 @@
       "owner_domains": ["session_event_projection", "scheduler_recovery"],
       "default_entry_ids": ["cli.session.runtime", "worker.scheduler.recovery"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["session.agent_message.persisted", "recovery.plan.applied"],
-      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"}],
+      "event_links": ["session.turn.completed", "recovery.plan.applied"],
+      "mutation_refs": [{"path": "packages/runtime/runtime-event-spine/src/source-mapper.ts", "symbol": "RuntimeSourceMapper", "language": "typescript", "role": "writer"}],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
@@ -1198,7 +1206,7 @@
       "owner_domains": ["session_event_projection", "artifact"],
       "default_entry_ids": ["cli.session.runtime", "api.artifact.catalog"],
       "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
-      "event_links": ["session.agent_message.persisted", "artifact.content.committed"],
+      "event_links": ["session.turn.completed", "artifact.content.committed"],
       "mutation_refs": [{"path": "packages/runtime/zyra_runtime/artifacts.py", "symbol": "LocalArtifactStore", "role": "writer"}],
       "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
       "metric_paths": [],

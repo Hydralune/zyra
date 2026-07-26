@@ -13,9 +13,11 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     FileArtifactRequest,
     GatewayFileArtifactPort,
     GatewayFilePolicy,
+    GatewayEventPort,
     GatewayPatchPort,
     GatewayPatchSet,
     GatewayStateStore,
+    GatewaySessionRecord,
     PatchMutation,
     PatchOperation,
     ProvenanceKind,
@@ -59,6 +61,17 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             artifact_store=LocalArtifactStore(self.root / "artifacts"),
         )
         self.state_store = GatewayStateStore(self.root / "gateway-state")
+        self.state_store.create_session(
+            GatewaySessionRecord.create(
+                session_id="session-artifact",
+                run_id="run-artifact",
+                task_id="task-artifact",
+                workspace_id=self.port.workspace_id,
+                worker_id="CodeWorkerRuntime",
+                backend_id="test-backend",
+            )
+        )
+        self.event_port = GatewayEventPort(self.state_store)
         self.provenance = ProvenanceRegistry()
         self.quarantine = QuarantineStore(
             self.root / "gateway-state",
@@ -70,6 +83,7 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             file_policy=self.file_policy,
             provenance_registry=self.provenance,
             quarantine_store=self.quarantine,
+            event_port=self.event_port,
         )
 
     def tearDown(self) -> None:
@@ -108,6 +122,26 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
         self.assertTrue(
             any(item.transaction_id == receipt.transaction_id for item in transactions)
         )
+        event = self.event_port.list("session-artifact")[-1]
+        self.assertEqual(event.kind.value, "artifact.created")
+        self.assertEqual(event.payload["digest"], request.content_digest)
+        self.assertEqual(
+            event.payload["request_id"],
+            receipt.metadata["canonical_request_id"],
+        )
+        self.assertEqual(
+            event.payload["mutation_id"],
+            receipt.metadata["canonical_mutation_id"],
+        )
+        self.assertEqual(
+            event.payload["artifact_id"],
+            receipt.metadata["canonical_artifact_id"],
+        )
+        self.assertNotEqual(event.payload["request_id"], "[REDACTED]")
+        self.assertNotEqual(event.payload["mutation_id"], "[REDACTED]")
+        self.assertEqual(event.payload["revision"], receipt.owner_epoch_after)
+        self.assertTrue(event.payload["effect_committed"])
+        self.assertEqual(receipt.event_refs, (event.event_id,))
 
     def test_untrusted_control_file_is_quarantined_without_workspace_write(self) -> None:
         untrusted = ArtifactProvenance.build(

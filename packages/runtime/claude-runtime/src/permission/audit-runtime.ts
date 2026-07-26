@@ -65,6 +65,11 @@ export class PermissionAuditRuntime {
       reasonCode: record.reasonCode,
       stateDigest: digest(record),
       details: {
+        event_type: "permission.decision.recorded",
+        decision_id: record.decisionId,
+        disposition: record.effect,
+        mutation_id: record.decisionId,
+        revision: this.sequence + 1,
         policy_revision: record.policyRevision,
         mode_revision: record.modeRevision,
         request_fingerprint: record.requestFingerprint,

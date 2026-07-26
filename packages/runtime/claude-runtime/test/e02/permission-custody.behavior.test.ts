@@ -1078,6 +1078,11 @@ test("permission audit records decision and approval with a verifiable monotonic
   assert.equal(decisionAudit.requestId, decision.continuationRequestId);
   assert.equal(decisionAudit.sequence, 1);
   assert.equal(decisionAudit.auditHash.length, 64);
+  assert.equal(decisionAudit.details.event_type, "permission.decision.recorded");
+  assert.equal(decisionAudit.details.decision_id, decision.decisionId);
+  assert.equal(decisionAudit.details.disposition, "ask");
+  assert.equal(decisionAudit.details.mutation_id, decision.decisionId);
+  assert.equal(decisionAudit.details.revision, 1);
   const approval = response(identity, decision.continuationRequestId!, "allow", "audit-approval");
   const resumed = evaluator.resumeApproval(approval);
   const approvalAudit = audit.approval(approval, resumed.accepted, resumed.decision, resumed.decision!.reasonCode);

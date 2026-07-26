@@ -410,6 +410,13 @@ from zyra_runtime.permission.models import (
     PermissionMode,
     ToolIdentity as RuntimePermissionToolIdentity,
 )
+from zyra_runtime.productization.composition import (
+    RuntimeActivationSet,
+    RuntimeOwnerComposition,
+    activation_result,
+)
+from zyra_runtime.productization.contracts import RuntimeDomain
+from zyra_runtime.sandbox_gateway.state_store import GatewayStateStore
 from zyra_workers import (
     BrowserRuntimeConfig,
     BrowserRuntimeRegistry,
@@ -500,14 +507,22 @@ if __package__:
     from .mcp_api import (
         McpApiFacade,
     )
-    from .provider_backend_api import ProviderBackendApi, reset_provider_control_client
+    from .provider_backend_api import (
+        ProviderBackendApi,
+        get_provider_control_client,
+        reset_provider_control_client,
+    )
     from .worker_pool_api import WorkerPoolApiService
     from .recovery_api import RecoveryRuntimeApiService
 else:  # pragma: no cover - direct development script entry.
     from mcp_api import (
         McpApiFacade,
     )
-    from provider_backend_api import ProviderBackendApi, reset_provider_control_client
+    from provider_backend_api import (
+        ProviderBackendApi,
+        get_provider_control_client,
+        reset_provider_control_client,
+    )
     from worker_pool_api import WorkerPoolApiService
     from recovery_api import RecoveryRuntimeApiService
 
@@ -2206,6 +2221,7 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     reset_runtime_event_spine_bridge()
     reset_diff_review_api()
     reset_terminal_api()
+    reset_runtime_owner_composition()
 
 
 def get_code_index_service() -> CodeIndexApiService:
@@ -4101,13 +4117,355 @@ def get_store() -> SQLiteStore:
     return store
 
 
+_RUNTIME_OWNER_COMPOSITION_LOCK = threading.RLock()
+_RUNTIME_OWNER_COMPOSITION: RuntimeOwnerComposition | None = None
+_RUNTIME_OWNER_COMPOSITION_KEY: tuple[str, ...] | None = None
+
+
+def gateway_state_path() -> Path:
+    configured = Path(
+        os.environ.get(
+            "ZYRA_SANDBOX_GATEWAY_STATE",
+            str(artifact_root_path() / ".sandbox-gateway"),
+        )
+    )
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
+def _session_owner_activation() -> Mapping[str, Any]:
+    spine = get_runtime_event_spine_bridge().health()
+    details = dict(spine.details or {})
+    store = dict(details.get("store") or {})
+    ready = (
+        bool(spine.ok)
+        and details.get("canonicalOwner") == "RuntimeEventSqliteStore"
+        and bool(store.get("open"))
+        and store.get("path") == str(sqlite_path().resolve())
+    )
+    return activation_result(
+        ready=ready,
+        owner="typescript.ClaudeRuntimeCore/DurableSessionRuntime",
+        store="typescript.RuntimeEventSqliteStore",
+        state_root=str(sqlite_path().resolve()),
+        revision=spine.high_watermark,
+        details={"event_spine": spine.to_jsonable()},
+    )
+
+
+def _permission_owner_activation() -> Mapping[str, Any]:
+    facade = get_permission_api_facade()
+    response = facade.health()
+    state = facade.control_plane.state_store.read_state()
+    ready = (
+        response.status == HTTPStatus.OK
+        and not facade.control_plane.disabled
+        and isinstance(state, Mapping)
+    )
+    return activation_result(
+        ready=ready,
+        owner="PermissionJournal/PermissionApprovalRuntime",
+        store="PermissionStateStore",
+        state_root=str(permission_state_path().resolve()),
+        revision=state.get("revision"),
+        details={
+            "health_operation": response.body.get("operation"),
+            "metrics": facade.control_plane.metrics(),
+        },
+    )
+
+
+def _memory_owner_activation() -> Mapping[str, Any]:
+    runtime = get_memory_curator_runtime()
+    response = runtime.execute(
+        MemoryCuratorWorkerRequest(operation=MemoryCuratorOperation.HEALTH)
+    )
+    health = dict(response.data)
+    worker = dict(health.get("worker") or {})
+    store = dict(worker.get("store") or {})
+    ready = (
+        response.status == "ok"
+        and worker.get("canonical_memory_owner") == "SQLiteStore.memory_records"
+        and bool(worker.get("artifact_store_configured"))
+        and bool(worker.get("index_runtime_configured"))
+        and not bool(store.get("corrupt"))
+    )
+    return activation_result(
+        ready=ready,
+        owner="RetrievalIntegrationRuntime/MemoryCommitRuntime",
+        store="SQLiteStore.memory_records/SQLiteRetrievalIndex",
+        state_root=str(sqlite_path().resolve()),
+        revision=store.get("revision"),
+        details={"operation": response.operation.value, **health},
+    )
+
+
+def _scheduler_owner_activation() -> Mapping[str, Any]:
+    service = get_recovery_runtime_api()
+    contract = service.application.contract()
+    integrity = service.application.store.integrity_report()
+    disabled = _truthy(
+        os.environ.get("ZYRA_DISABLE_RECOVERY_RUNTIME"),
+        default=False,
+    )
+    ready = (
+        not disabled
+        and isinstance(contract, Mapping)
+        and isinstance(integrity, Mapping)
+        and not bool(integrity.get("corrupt"))
+    )
+    return activation_result(
+        ready=ready,
+        owner="RecoveryApplication",
+        store="RecoveryPlanStore",
+        state_root=str(recovery_runtime_path().resolve()),
+        revision=integrity.get("revision"),
+        details={"contract": contract, "integrity": integrity},
+    )
+
+
+def _artifact_owner_activation() -> Mapping[str, Any]:
+    root = artifact_root_path().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    service = artifact_catalog_service()
+    probe = root / (
+        f".zyra-artifact-owner-{os.getpid()}-{threading.get_ident()}-{time.time_ns()}"
+    )
+    try:
+        with probe.open("xb") as stream:
+            stream.write(b"m3-owner-readiness")
+        ready = (
+            isinstance(service.store, LocalArtifactStore)
+            and probe.read_bytes() == b"m3-owner-readiness"
+        )
+    finally:
+        probe.unlink(missing_ok=True)
+    return activation_result(
+        ready=ready,
+        owner="ArtifactCatalogService",
+        store="LocalArtifactStore",
+        state_root=str(root),
+        details={"read_audit_configured": service.audit is _ARTIFACT_READ_AUDIT},
+    )
+
+
+def _worker_owner_activation() -> Mapping[str, Any]:
+    api = get_worker_pool_api()
+    projection = dict(api.pool.api_projection())
+    integrity = dict(api.pool.store.integrity_report())
+    ready = (
+        projection.get("custody", {}).get("worker_lease") == "WorkerPoolStore"
+        and projection.get("custody", {}).get("execution_receipt")
+        == "WorkerPoolStore"
+        and not bool(integrity.get("corrupt"))
+    )
+    return activation_result(
+        ready=ready,
+        owner="WorkerPoolIntegrationRuntime",
+        store="WorkerPoolStore",
+        state_root=str(worker_pool_path().resolve()),
+        revision=projection.get("revision"),
+        details={"projection": projection, "integrity": integrity},
+    )
+
+
+def _graph_owner_activation() -> Mapping[str, Any]:
+    api = get_worker_pool_api()
+    integrity = dict(api.graph_custody.store.integrity_report())
+    ready = not bool(integrity.get("corrupt"))
+    return activation_result(
+        ready=ready,
+        owner="DynamicTopologyRuntime/GraphStateCustody",
+        store="GraphStateStore",
+        state_root=str(graph_state_path().resolve()),
+        revision=integrity.get("revision"),
+        details=integrity,
+    )
+
+
+def _provider_owner_activation() -> Mapping[str, Any]:
+    database = artifact_root_path() / ".provider-control-plane" / "provider.sqlite3"
+    health = get_provider_control_client(
+        project_root=PROJECT_ROOT,
+        database_path=database,
+    ).health()
+    ready = (
+        health.get("schema") == "zyra.provider-control-plane.health/v1"
+        and health.get("stateOwner") == "typescript.ProviderControlPlaneStore"
+        and health.get("backendFallbackOwned") is False
+    )
+    return activation_result(
+        ready=ready,
+        owner="typescript.ProviderControlPlane",
+        store="typescript.ProviderControlPlaneStore",
+        state_root=str(database.resolve()),
+        revision=health.get("revision"),
+        details=health,
+    )
+
+
+def _mcp_owner_activation() -> Mapping[str, Any]:
+    health = get_mcp_runtime().health()
+    runtime = dict(health.get("runtime") or {})
+    details = dict(runtime.get("details") or {})
+    mcp = dict(details.get("mcp") or {})
+    ready = (
+        health.get("canonical_owner") == "typescript"
+        and runtime.get("canonicalMcpOwner") == "typescript"
+        and bool(mcp.get("opened"))
+        and not bool(mcp.get("python_live_client_fallback"))
+    )
+    fallback = bool(
+        health.get("python_fallback_active")
+        or health.get("fallback_active")
+    )
+    return activation_result(
+        ready=ready,
+        owner="typescript.McpRuntimeCoordinator",
+        store="typescript.McpRequestJournal",
+        state_root=str(mcp_state_path().resolve()),
+        revision=runtime.get("capabilityRevision"),
+        fallback_active=fallback,
+        details=health,
+    )
+
+
+def _gateway_owner_activation() -> Mapping[str, Any]:
+    state_store = GatewayStateStore(gateway_state_path())
+    snapshot = state_store.snapshot()
+    metadata = dict(snapshot.get("metadata") or {})
+    ready = (
+        metadata.get("canonical_owner") == "SandboxGatewayRuntime"
+        and snapshot.get("schema") is not None
+    )
+    return activation_result(
+        ready=ready,
+        owner="SandboxGatewayRuntime",
+        store="GatewayStateStore",
+        state_root=str(gateway_state_path().resolve()),
+        revision=snapshot.get("revision"),
+        details={
+            "schema": snapshot.get("schema"),
+            "metadata": metadata,
+            "lease_count": len(snapshot.get("leases") or {}),
+        },
+    )
+
+
+def _terminal_owner_activation() -> Mapping[str, Any]:
+    snapshot = get_terminal_api().registry.snapshot()
+    ready = (
+        bool(snapshot.get("enabled"))
+        and snapshot.get("canonical_owner")
+        == "zyra_workers.terminal.TerminalSessionRegistry"
+    )
+    return activation_result(
+        ready=ready,
+        owner="TerminalSessionRegistry/BrowserSessionRuntime",
+        store="TerminalStateStore/JsonBrowserStateStore",
+        state_root=str(terminal_state_path().resolve()),
+        revision=len(snapshot.get("sessions") or {}),
+        details=snapshot,
+    )
+
+
+def _runtime_owner_activations() -> Mapping[RuntimeDomain, Any]:
+    return {
+        RuntimeDomain.SESSION_EVENT_PROJECTION: _session_owner_activation,
+        RuntimeDomain.PERMISSION: _permission_owner_activation,
+        RuntimeDomain.MEMORY_COMPACT: _memory_owner_activation,
+        RuntimeDomain.SCHEDULER_RECOVERY: _scheduler_owner_activation,
+        RuntimeDomain.ARTIFACT: _artifact_owner_activation,
+        RuntimeDomain.WORKER_ROUTE: _worker_owner_activation,
+        RuntimeDomain.GRAPH_CHECKPOINT: _graph_owner_activation,
+        RuntimeDomain.PROVIDER_CREDENTIAL_FAILOVER: _provider_owner_activation,
+        RuntimeDomain.MCP_PLUGIN_REGISTRY: _mcp_owner_activation,
+        RuntimeDomain.GATEWAY_LEASE_BUSY: _gateway_owner_activation,
+        RuntimeDomain.TERMINAL_BROWSER_SESSION: _terminal_owner_activation,
+    }
+
+
+_RUNTIME_DEFAULT_ENTRY_DOMAINS = {
+    "cli.session.runtime": RuntimeDomain.SESSION_EVENT_PROJECTION,
+    "web.permission.runtime": RuntimeDomain.PERMISSION,
+    "worker.memory.retrieval": RuntimeDomain.MEMORY_COMPACT,
+    "worker.scheduler.recovery": RuntimeDomain.SCHEDULER_RECOVERY,
+    "api.artifact.catalog": RuntimeDomain.ARTIFACT,
+    "worker.pool.dispatch": RuntimeDomain.WORKER_ROUTE,
+    "worker.graph.topology": RuntimeDomain.GRAPH_CHECKPOINT,
+    "worker.provider.dispatch": RuntimeDomain.PROVIDER_CREDENTIAL_FAILOVER,
+    "worker.mcp.coordinator": RuntimeDomain.MCP_PLUGIN_REGISTRY,
+    "worker.gateway.command": RuntimeDomain.GATEWAY_LEASE_BUSY,
+    "web.interactive.sessions": RuntimeDomain.TERMINAL_BROWSER_SESSION,
+}
+
+
+def _runtime_entry_activation(entry: Any) -> Mapping[str, Any]:
+    domain = _RUNTIME_DEFAULT_ENTRY_DOMAINS[entry.entry_id]
+    result = dict(_runtime_owner_activations()[domain]())
+    result.update(
+        {
+            "reachable": bool(result.get("ready")),
+            "write_path_ready": bool(result.get("ready")),
+            "write_symbols": list(entry.write_symbols),
+            "fallback_bypass": bool(result.get("fallback_active")),
+            "command_or_route": entry.command_or_route,
+            "composition_root": "apps/api/zyra_api/main.py",
+        }
+    )
+    return result
+
+
+def get_runtime_owner_composition() -> RuntimeOwnerComposition:
+    global _RUNTIME_OWNER_COMPOSITION, _RUNTIME_OWNER_COMPOSITION_KEY
+    key = (
+        str(PROJECT_ROOT.resolve()),
+        str(sqlite_path().resolve()),
+        str(artifact_root_path().resolve()),
+        str(permission_state_path().resolve()),
+        str(worker_pool_path().resolve()),
+        str(graph_state_path().resolve()),
+        str(mcp_state_path().resolve()),
+        str(gateway_state_path().resolve()),
+        str(terminal_state_path().resolve()),
+        os.environ.get("ZYRA_RUNTIME_OWNER_ENFORCEMENT_DISABLED", ""),
+    )
+    with _RUNTIME_OWNER_COMPOSITION_LOCK:
+        if _RUNTIME_OWNER_COMPOSITION is None or _RUNTIME_OWNER_COMPOSITION_KEY != key:
+            disabled = _truthy(
+                os.environ.get("ZYRA_RUNTIME_OWNER_ENFORCEMENT_DISABLED"),
+                default=False,
+            )
+            owner_activations = _runtime_owner_activations()
+            entry_activations = {
+                entry_id: _runtime_entry_activation
+                for entry_id in _RUNTIME_DEFAULT_ENTRY_DOMAINS
+            }
+            _RUNTIME_OWNER_COMPOSITION = RuntimeOwnerComposition(
+                PROJECT_ROOT,
+                RuntimeActivationSet(
+                    owner=owner_activations,
+                    entry=entry_activations,
+                ),
+                enabled=not disabled,
+            )
+            _RUNTIME_OWNER_COMPOSITION_KEY = key
+        return _RUNTIME_OWNER_COMPOSITION
+
+
+def reset_runtime_owner_composition() -> None:
+    global _RUNTIME_OWNER_COMPOSITION, _RUNTIME_OWNER_COMPOSITION_KEY
+    with _RUNTIME_OWNER_COMPOSITION_LOCK:
+        _RUNTIME_OWNER_COMPOSITION = None
+        _RUNTIME_OWNER_COMPOSITION_KEY = None
+
+
 def runtime_readiness_probes(
     *,
     typed_receipts: TypedReceiptStore,
 ) -> tuple[dict[str, bool], dict[str, Any]]:
-    """Probe each canonical runtime owner instead of returning a fixed health claim."""
+    """Project the 11-domain owner gate onto the legacy readiness contract."""
 
-    owners = {
+    legacy = {
         "task_store": False,
         "event_log": False,
         "checkpoint_store": False,
@@ -4115,98 +4473,63 @@ def runtime_readiness_probes(
         "control_runtime": False,
         "typed_transport": False,
     }
-    details: dict[str, Any] = {}
-
-    connection: sqlite3.Connection | None = None
     try:
-        connection = sqlite3.connect(sqlite_path(), timeout=5.0)
-        tables = {
-            str(row[0])
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-        }
-        for owner, table in (
-            ("task_store", "tasks"),
-            ("checkpoint_store", "checkpoints"),
-            ("typed_transport", "typed_api_receipts"),
-        ):
-            ready = table in tables
-            owners[owner] = ready
-            details[owner] = {"table": table, "available": ready}
-        owners["typed_transport"] = (
-            owners["typed_transport"] and isinstance(typed_receipts, TypedReceiptStore)
-        )
-    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
-        message = f"{type(error).__name__}: {error}"
-        for owner in ("task_store", "checkpoint_store", "typed_transport"):
-            details[owner] = {"available": False, "error": message}
-    finally:
-        if connection is not None:
-            connection.close()
-
-    event_probe: TypeScriptRuntimeEventPort | None = None
-    try:
-        database = sqlite_path().expanduser().resolve()
-        event_probe = TypeScriptRuntimeEventPort.for_workspace(
-            database_path=database,
-            artifact_root=database.parent / "runtime-event-artifacts",
-            workspace_root=PROJECT_ROOT,
-        )
-        event_health = event_probe.call("health", {})
-        owners["event_log"] = event_health.get("ok") is True
-        details["event_log"] = {
-            "available": owners["event_log"],
-            "status": 200 if owners["event_log"] else 503,
-            "probe": "isolated_typescript_owner",
-        }
-    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
-        details["event_log"] = {
-            "available": False,
-            "error": f"{type(error).__name__}: {error}",
-        }
-    finally:
-        if event_probe is not None:
-            event_probe.close()
-
-    artifact_probe: Path | None = None
-    try:
-        root = artifact_root_path()
-        root.mkdir(parents=True, exist_ok=True)
-        artifact_probe = root / (
-            f".zyra-readiness-{os.getpid()}-{threading.get_ident()}-{time.time_ns()}"
-        )
-        with artifact_probe.open("xb") as stream:
-            stream.write(b"ready")
-        owners["artifact_store"] = artifact_probe.is_file()
-        details["artifact_store"] = {
-            "available": owners["artifact_store"],
-            "root": str(root),
-        }
-    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
-        details["artifact_store"] = {
-            "available": False,
-            "error": f"{type(error).__name__}: {error}",
-        }
-    finally:
-        if artifact_probe is not None:
-            artifact_probe.unlink(missing_ok=True)
-
-    try:
-        dispatcher = get_control_dispatcher()
-        root = control_state_path()
-        owners["control_runtime"] = dispatcher is not None and root.is_dir()
-        details["control_runtime"] = {
-            "available": owners["control_runtime"],
-            "root": str(root),
-        }
-    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
-        details["control_runtime"] = {
-            "available": False,
-            "error": f"{type(error).__name__}: {error}",
+        canonical = get_runtime_owner_composition().probe_all()
+    except Exception as error:  # noqa: BLE001 - readiness must fail closed.
+        return legacy, {
+            "canonical_runtime_owners": {
+                "ready": False,
+                "blockers": [item.value for item in RuntimeDomain],
+                "error": f"{type(error).__name__}: {error}",
+            }
         }
 
-    return owners, details
+    by_domain = {
+        str(item["domain"]): bool(item["ready"])
+        for item in canonical["domains"]
+    }
+    session_ready = by_domain.get(RuntimeDomain.SESSION_EVENT_PROJECTION.value, False)
+    control_domains = (
+        RuntimeDomain.PERMISSION,
+        RuntimeDomain.SCHEDULER_RECOVERY,
+        RuntimeDomain.GATEWAY_LEASE_BUSY,
+    )
+    transport_domains = (
+        RuntimeDomain.MCP_PLUGIN_REGISTRY,
+        RuntimeDomain.PROVIDER_CREDENTIAL_FAILOVER,
+    )
+    legacy.update(
+        {
+            "task_store": session_ready,
+            "event_log": session_ready,
+            "checkpoint_store": by_domain.get(
+                RuntimeDomain.GRAPH_CHECKPOINT.value,
+                False,
+            ),
+            "artifact_store": by_domain.get(RuntimeDomain.ARTIFACT.value, False),
+            "control_runtime": all(
+                by_domain.get(domain.value, False) for domain in control_domains
+            ),
+            "typed_transport": (
+                isinstance(typed_receipts, TypedReceiptStore)
+                and all(
+                    by_domain.get(domain.value, False)
+                    for domain in transport_domains
+                )
+            ),
+        }
+    )
+    details = {
+        "canonical_runtime_owners": canonical,
+        "legacy_projection": {
+            name: {
+                "available": ready,
+                "source": "canonical_runtime_owner_composition",
+            }
+            for name, ready in legacy.items()
+        },
+    }
+    return legacy, details
 
 
 def graph_execution_context() -> GraphExecutionContext:
@@ -5529,12 +5852,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             owner_readiness, readiness_details = runtime_readiness_probes(
                 typed_receipts=self._typed_receipts(),
             )
+            payload = runtime_readiness_payload(
+                owner_readiness,
+                details=readiness_details,
+            )
+            canonical = readiness_details.get("canonical_runtime_owners")
+            canonical_ready = (
+                isinstance(canonical, Mapping)
+                and canonical.get("ready") is True
+            )
+            canonical_blockers = (
+                list(canonical.get("blockers") or [])
+                if isinstance(canonical, Mapping)
+                else ["runtime_owner_composition"]
+            )
+            if not canonical_ready:
+                payload["ready"] = False
+                payload["status"] = "blocked"
+                payload["blockers"] = list(
+                    dict.fromkeys(
+                        [*payload.get("blockers", []), *canonical_blockers]
+                    )
+                )
+            payload["canonical_owners"] = canonical
             self._send_json(
                 HTTPStatus.OK,
-                runtime_readiness_payload(
-                    owner_readiness,
-                    details=readiness_details,
-                ),
+                payload,
             )
             return
 

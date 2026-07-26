@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import re
 from collections import Counter
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -463,17 +463,35 @@ class PythonAnalyzer:
         findings: list[Finding] = []
         for imported in analysis.imports:
             if imported.dynamic and not imported.literal:
+                runtime_scope = _runtime_dependency_scope(analysis.path)
                 findings.append(
                     finding(
                         "python_dynamic_import_nonliteral",
                         "Dynamic Python import uses a non-literal module name.",
                         "dependencies",
-                        severity=Severity.BLOCKER,
+                        severity=(
+                            Severity.BLOCKER
+                            if runtime_scope
+                            else Severity.WARNING
+                        ),
                         path=analysis.path,
                         line=imported.line,
-                        disposition=Disposition.BLOCK_RELEASE,
-                        remediation="Replace with a declared import registry and allowlist.",
-                        default_path_impact="Runtime dependency cannot be resolved at freeze time.",
+                        disposition=(
+                            Disposition.BLOCK_RELEASE
+                            if runtime_scope
+                            else Disposition.TRACK
+                        ),
+                        remediation=(
+                            "Replace with a declared import registry and allowlist."
+                            if runtime_scope
+                            else "Keep the test/audit loader outside product runtime custody."
+                        ),
+                        default_path_impact=(
+                            "Runtime dependency cannot be resolved at freeze time."
+                            if runtime_scope
+                            else "Non-runtime loader is tracked but cannot own task execution."
+                        ),
+                        attributes={"runtime_scope": runtime_scope},
                     )
                 )
             module = imported.module.casefold()
@@ -495,7 +513,12 @@ class PythonAnalyzer:
         for line, literal in analysis.string_literals:
             normalized = literal.replace("\\", "/")
             match = PARENT_REPO_PATH.search(normalized)
-            if match:
+            consumed = _parent_literal_is_executable_path(
+                analysis,
+                line=line,
+                literal=literal,
+            )
+            if match and consumed:
                 findings.append(
                     finding(
                         "python_parent_source_path",
@@ -511,7 +534,7 @@ class PythonAnalyzer:
                         attributes={"literal_digest": content_digest(literal.encode())},
                     )
                 )
-            if ABSOLUTE_WINDOWS.search(literal) and any(
+            if consumed and ABSOLUTE_WINDOWS.search(literal) and any(
                 name in normalized.casefold() for name in PARENT_SOURCE_NAMES
             ):
                 findings.append(
@@ -539,14 +562,7 @@ class PythonAnalyzer:
             shell_enabled = shell_value in {"True", "true", "1"}
             nonliteral = not call.literal_arguments and bool(call.arguments)
             command_tokens = tuple(_literal_tokens(call.literal_arguments))
-            installer = next(
-                (
-                    token
-                    for token in command_tokens
-                    if Path(token).name.casefold() in INSTALL_TOKENS
-                ),
-                "",
-            )
+            installer = _dynamic_installer(command_tokens)
             if call.qualified_name in SHELL_PROCESS_CALLS or shell_enabled:
                 findings.append(
                     finding(
@@ -745,6 +761,98 @@ def _literal_tokens(values: Iterable[Any]) -> Iterator[str]:
         elif isinstance(value, (list, tuple)):
             for nested in _literal_tokens(value):
                 yield nested
+
+
+def _runtime_dependency_scope(path: str) -> bool:
+    normalized = path.replace("\\", "/").casefold()
+    if normalized.startswith(("tests/", "docs/", "scripts/")):
+        return False
+    if normalized.startswith(
+        (
+            "packages/evaluation/",
+            "packages/integrations/zyra_integrations/source_custody/",
+            "packages/integrations/zyra_integrations/ledger_",
+        )
+    ):
+        return False
+    return normalized.startswith(("apps/", "packages/"))
+
+
+def _parent_literal_is_executable_path(
+    analysis: PythonFileAnalysis,
+    *,
+    line: int,
+    literal: str,
+) -> bool:
+    """Distinguish an executed sibling path from deny-list/provenance data."""
+
+    if analysis.path.replace("\\", "/").casefold().startswith(
+        ("tests/", "docs/")
+    ):
+        return False
+    consumers = {
+        "Path",
+        "pathlib.Path",
+        "open",
+        "io.open",
+        "os.open",
+        "os.chdir",
+        "os.execv",
+        "os.execve",
+        "os.spawnv",
+        "os.spawnve",
+        "shutil.copy",
+        "shutil.copy2",
+        "shutil.copytree",
+        "subprocess.run",
+        "subprocess.call",
+        "subprocess.check_call",
+        "subprocess.check_output",
+        "subprocess.Popen",
+        "asyncio.create_subprocess_exec",
+        "asyncio.create_subprocess_shell",
+        "importlib.import_module",
+        "sys.path.append",
+        "sys.path.insert",
+    }
+    normalized = literal.replace("\\", "/")
+    for call in analysis.calls:
+        if call.line != line or call.qualified_name not in consumers:
+            continue
+        rendered = " ".join((*call.arguments, *call.keyword_arguments.values()))
+        if literal in rendered or normalized in rendered.replace("\\", "/"):
+            return True
+        if any(
+            isinstance(value, str)
+            and value.replace("\\", "/") == normalized
+            for value in call.literal_arguments
+        ):
+            return True
+    return False
+
+
+def _dynamic_installer(tokens: Sequence[str]) -> str:
+    values = tuple(str(item) for item in tokens if str(item).strip())
+    if not values:
+        return ""
+    executable = Path(values[0]).name.casefold()
+    if executable not in INSTALL_TOKENS:
+        return ""
+    arguments = tuple(Path(item).name.casefold() for item in values[1:])
+    operations = {
+        "pip": {"install", "download", "wheel"},
+        "pip3": {"install", "download", "wheel"},
+        "uv": {"add", "install", "sync", "pip"},
+        "poetry": {"add", "install", "update"},
+        "npm": {"install", "add", "update", "upgrade"},
+        "pnpm": {"install", "add", "update", "upgrade"},
+        "yarn": {"install", "add", "update", "upgrade"},
+        "bun": {"install", "add", "update", "upgrade"},
+        "cargo": {"install"},
+    }
+    if executable in {"npx", "bunx"}:
+        return executable if "--no-install" not in arguments else ""
+    return executable if operations.get(executable, set()) & set(arguments) else ""
 
 
 def _download_like(url: str) -> bool:

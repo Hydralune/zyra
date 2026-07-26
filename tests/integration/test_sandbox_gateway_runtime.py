@@ -223,6 +223,18 @@ class SandboxGatewayRuntimeIntegrationTests(unittest.TestCase):
 
         match = next(item for item in recovered if item.session_id == record.session_id)
         self.assertEqual(match.state.value, "ready")
+        event = next(
+            item
+            for item in restarted.event_port.list(record.session_id)
+            if item.kind.value == "session_recovered"
+        )
+        self.assertEqual(event.run_id, "run-gateway")
+        self.assertEqual(event.task_id, "task-gateway")
+        self.assertEqual(event.payload["session_id"], record.session_id)
+        self.assertTrue(str(event.payload["mutation_id"]).startswith("mutation-"))
+        self.assertTrue(str(event.payload["lease_id"]).startswith("lease-"))
+        self.assertEqual(event.payload["revision"], match.generation)
+        self.assertTrue(event.payload["effect_committed"])
 
 
 if __name__ == "__main__":
