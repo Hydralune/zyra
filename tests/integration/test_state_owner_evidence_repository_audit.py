@@ -10,6 +10,7 @@ from zyra_evaluation.freeze_audit.engine import (
 )
 from zyra_evaluation.freeze_audit.model import RuleSwitches
 from zyra_evaluation.freeze_audit.policy import queue_summary
+from zyra_evaluation.freeze_audit.policy import FreezeFindingPolicy
 from zyra_integrations.source_custody.repository import RepositoryScanner
 
 
@@ -84,6 +85,12 @@ def test_real_repository_audit_writes_stable_downstream_inputs(
         == result.receipt_digest
         for item in downstream
     )
+    candidate = FreezeFindingPolicy().apply(
+        result.sections,
+        mode="candidate",
+    )
+    assert candidate.valid is False
+    assert candidate.release_ready is False
 
 
 def test_cli_exposes_all_freeze_inputs_and_mutation_switches() -> None:

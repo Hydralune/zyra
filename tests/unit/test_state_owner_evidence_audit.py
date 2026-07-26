@@ -15,12 +15,15 @@ from zyra_evaluation.freeze_audit.lines import (
 )
 from zyra_evaluation.freeze_audit.model import (
     AuditCatalog,
+    EffectKind,
+    EntrypointSpec,
     EntrySurface,
     EventMutationSpec,
     LineBucket,
     RuleSwitches,
     SourceRef,
     StateRole,
+    OwnerContract,
 )
 from zyra_evaluation.freeze_audit.ownership import OwnershipAuditor
 from zyra_evaluation.freeze_audit.policy import FreezeFindingPolicy
@@ -304,6 +307,125 @@ def test_fake_causation_mutation_is_blocked(
     assert "causal_event_not_emitted" in codes
 
 
+def test_clean_default_entry_and_event_mutation_are_accepted(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "packages" / "clean"
+    source_root.mkdir(parents=True)
+    (source_root / "entry.py").write_text(
+        "from packages.clean.owner import Owner\n\n"
+        "def main():\n"
+        "    return Owner().run()\n",
+        encoding="utf-8",
+    )
+    (source_root / "owner.py").write_text(
+        "from packages.clean.writer import Writer\n\n"
+        "def emit(name, payload):\n"
+        "    return name, payload\n\n"
+        "class Owner:\n"
+        "    def run(self):\n"
+        "        result = Writer().commit()\n"
+        "        emit('state.changed', {'entity_id': 'entity-a'})\n"
+        "        return result\n",
+        encoding="utf-8",
+    )
+    (source_root / "writer.py").write_text(
+        "class Writer:\n"
+        "    def commit(self):\n"
+        "        self.saved = True\n"
+        "        return self.saved\n",
+        encoding="utf-8",
+    )
+    owner_ref = SourceRef(
+        path="packages/clean/owner.py",
+        symbol="Owner",
+        role=StateRole.OWNER,
+    )
+    store_ref = SourceRef(
+        path="packages/clean/writer.py",
+        symbol="Writer",
+        role=StateRole.STORE,
+    )
+    writer_ref = replace(store_ref, role=StateRole.WRITER)
+    contract = OwnerContract(
+        domain="clean_state",
+        description=(
+            "A minimal production state boundary with one owner and one writer."
+        ),
+        owner=owner_ref,
+        store=store_ref,
+        writers=(writer_ref,),
+        projections=(),
+        caches=(),
+        checkpoint=replace(store_ref, role=StateRole.CHECKPOINT),
+        recovery=replace(owner_ref, role=StateRole.RECOVERY),
+        entries=(
+            EntrypointSpec(
+                entry_id="cli.clean.main",
+                surface=EntrySurface.CLI,
+                reference=SourceRef(
+                    path="packages/clean/entry.py",
+                    symbol="main",
+                    role=StateRole.WRITER,
+                ),
+                command="python packages/clean/entry.py",
+                default=True,
+                trace=(owner_ref, writer_ref),
+            ),
+        ),
+        events=(
+            EventMutationSpec(
+                link_id="clean.state.changed",
+                event_name="state.changed",
+                producer=replace(owner_ref, role=StateRole.WRITER),
+                mutation=writer_ref,
+                effect_kind=EffectKind.STATE_MUTATION,
+                required_attributes=("entity_id",),
+            ),
+        ),
+        tests=("tests/test_clean.py",),
+        disable_probes=("clean_owner_disconnect",),
+        fallback_refs=(),
+        forbidden_owner_claims=(),
+    )
+    catalog = AuditCatalog(
+        schema="zyra.state-owner-evidence-catalog/v1",
+        owners=(contract,),
+        requirements=(),
+        required_domains=("clean_state",),
+        required_requirements=(),
+        catalog_digest="sha256:clean",
+    )
+    paths = {
+        "packages/clean/entry.py",
+        "packages/clean/owner.py",
+        "packages/clean/writer.py",
+    }
+    python = PythonGraphAnalyzer(tmp_path).analyze(paths)
+    script = ScriptGraphAnalyzer(tmp_path).analyze(paths)
+    reachability = ReachabilityAuditor(tmp_path).audit(
+        catalog,
+        python,
+        script,
+    )
+    causality = CausalityAuditor(tmp_path).audit(
+        catalog,
+        reachability.graph,
+        python,
+        script,
+    )
+
+    assert reachability.reachable_entry_ids == {
+        "cli.clean.main"
+    }, (
+        [item.code for item in reachability.section.findings],
+        reachability.observations[0].to_dict(),
+    )
+    assert not reachability.section.findings
+    assert causality.valid_link_ids == {"clean.state.changed"}
+    assert not causality.section.findings
+
+
 def test_data_as_code_inflation_is_removed_from_effective_lines() -> None:
     rows = ",\n".join(f"    {index}: 'value-{index}'" for index in range(40))
     source = (
@@ -383,6 +505,18 @@ def test_protected_source_custody_receipt_is_bridged_read_only() -> None:
         "dynamic_download",
         "upstream_boundary",
     }
+
+
+def test_disconnected_source_custody_input_blocks_freeze(
+    tmp_path: Path,
+) -> None:
+    result = SourceRiskBridge(ROOT).audit(
+        receipt_path=tmp_path / "missing-source-receipt.json",
+        expected_revision=SOURCE_RECEIPT_REVISION,
+    )
+
+    assert not result.section.valid
+    assert "source_custody_input_unavailable" in finding_codes(result.section)
 
 
 def test_requirement_rows_bind_runtime_and_preserve_m3_work(
