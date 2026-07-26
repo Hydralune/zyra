@@ -15,6 +15,7 @@ export * from "./resolver.ts";
 export * from "./routing.ts";
 export * from "./route-health.ts";
 export * from "./sqlite-runtime.ts";
+export * from "./schema-migration.ts";
 export * from "./store.ts";
 export * from "./stream-supervisor.ts";
 export * from "./transport/runtime.ts";

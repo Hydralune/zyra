@@ -416,6 +416,15 @@ from zyra_runtime.productization.composition import (
     activation_result,
 )
 from zyra_runtime.productization.contracts import RuntimeDomain
+from zyra_runtime.productization.bootstrap import (
+    ProductBootstrapRuntime,
+    get_product_bootstrap,
+    reset_product_bootstrap,
+)
+from zyra_runtime.productization.configuration import (
+    ResolvedConfiguration,
+    load_runtime_configuration,
+)
 from zyra_runtime.sandbox_gateway.state_store import GatewayStateStore
 from zyra_workers import (
     BrowserRuntimeConfig,
@@ -553,36 +562,24 @@ from zyra_scheduler.backend_registry import (
 )
 
 
+def runtime_configuration() -> ResolvedConfiguration:
+    return load_runtime_configuration(PROJECT_ROOT)
+
+
 def event_log_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_EVENT_LOG", "tmp/events.jsonl"))
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.event_log")
 
 
 def sqlite_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_SQLITE_PATH", "tmp/zyra.sqlite3"))
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.database")
 
 
 def worker_pool_path() -> Path:
-    configured_value = os.environ.get("ZYRA_WORKER_POOL_STORE", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        return configured if configured.is_absolute() else PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}.worker-pool.sqlite3")
+    return runtime_configuration().path("state.worker_pool")
 
 
 def graph_state_path() -> Path:
-    configured_value = os.environ.get("ZYRA_GRAPH_STATE_STORE", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        return configured if configured.is_absolute() else PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}.graph-state.sqlite3")
+    return runtime_configuration().path("state.graph")
 
 
 _WORKER_POOL_LOCK = threading.RLock()
@@ -794,12 +791,7 @@ def reset_worker_pool_api() -> None:
 
 
 def fault_runtime_path() -> Path:
-    configured_value = os.environ.get("ZYRA_FAULT_RUNTIME_STORE", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        return configured if configured.is_absolute() else PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}.fault-runtime.sqlite3")
+    return runtime_configuration().path("state.fault")
 
 
 _FAULT_RUNTIME_LOCK = threading.RLock()
@@ -844,12 +836,7 @@ def reset_fault_runtime_api() -> None:
 
 
 def recovery_runtime_path() -> Path:
-    configured_value = os.environ.get("ZYRA_RECOVERY_RUNTIME_STORE", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        return configured if configured.is_absolute() else PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}.recovery-runtime.sqlite3")
+    return runtime_configuration().path("state.recovery")
 
 
 _RECOVERY_RUNTIME_LOCK = threading.RLock()
@@ -975,7 +962,11 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
     def provider_successor(request: Mapping[str, Any], *, degrade: bool = False) -> Mapping[str, Any]:
         state = require_state(request)
         before = dict(state.metadata.get("provider_route") or {})
-        provider_api = ProviderBackendApi(project_root=PROJECT_ROOT, artifact_root=artifact_root_path())
+        provider_api = ProviderBackendApi(
+            project_root=PROJECT_ROOT,
+            artifact_root=artifact_root_path(),
+            provider_database=runtime_configuration().path("state.provider"),
+        )
         constraints = dict((request.get("constraints") or {}).get("provider") or {})
         excluded = [str(item) for item in request.get("excluded_refs") or () if str(item)]
         provider_ids = [
@@ -1384,6 +1375,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
         response = ProviderBackendApi(
             project_root=PROJECT_ROOT,
             artifact_root=artifact_root_path(),
+            provider_database=runtime_configuration().path("state.provider"),
         ).handle_get(("providers", "routes"), {"run_id": signal.refs.run_id, "task_id": signal.refs.task_id})
         routes = [] if response is None or int(response.status) >= 400 else response.body.get("result", [])
         return {**projection, "routes": routes, "available": response is not None and int(response.status) < 400}
@@ -2020,25 +2012,11 @@ def codeworker_fault_observation_sink(
 
 
 def memory_index_path() -> Path:
-    configured_value = os.environ.get("ZYRA_MEMORY_INDEX_PATH", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        if configured.is_absolute():
-            return configured
-        return PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}.memory-index.sqlite3")
+    return runtime_configuration().path("state.memory_index")
 
 
 def code_index_root_path() -> Path:
-    configured_value = os.environ.get("ZYRA_CODE_INDEX_ROOT", "").strip()
-    if configured_value:
-        configured = Path(configured_value)
-        if configured.is_absolute():
-            return configured
-        return PROJECT_ROOT / configured
-    canonical = sqlite_path()
-    return canonical.with_name(f"{canonical.stem}-code-index")
+    return runtime_configuration().path("state.code_index")
 
 
 def tool_workspace_path() -> Path:
@@ -2048,10 +2026,7 @@ def tool_workspace_path() -> Path:
     they receive an epoch-fenced task mount from WorkspaceManagerRuntime.
     """
 
-    configured = Path(os.environ.get("ZYRA_TOOL_WORKSPACE", "tmp/workspace"))
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.workspace")
 
 
 _WORKSPACE_RUNTIME_LOCK = threading.RLock()
@@ -2267,10 +2242,7 @@ def task_workspace_root(*, task_id: str, session_id: str, worker_id: str) -> Pat
 
 
 def artifact_root_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_ARTIFACT_ROOT", "tmp/artifacts"))
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.artifacts")
 
 
 _ARTIFACT_READ_AUDIT = ArtifactReadAudit(maximum=16_384)
@@ -2332,13 +2304,7 @@ _TERMINAL_API_KEY: tuple[int, str, str, bool] | None = None
 
 
 def terminal_state_path() -> Path:
-    configured = Path(
-        os.environ.get(
-            "ZYRA_TERMINAL_STATE",
-            str(artifact_root_path() / ".terminal" / "sessions.json"),
-        )
-    )
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    return runtime_configuration().path("state.terminal")
 
 
 def _terminal_workspace(request: TerminalCreateRequest) -> tuple[str, int, Path]:
@@ -2709,10 +2675,7 @@ def _hardening_task_payload(store: SQLiteStore, task_id: str) -> Mapping[str, An
 
 
 def permission_store_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_PERMISSION_STORE", "tmp/permissions.json"))
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.permission_compat")
 
 
 def permission_state_path() -> Path:
@@ -2724,25 +2687,11 @@ def permission_state_path() -> Path:
     state owner.
     """
 
-    configured = Path(
-        os.environ.get(
-            "ZYRA_PERMISSION_STATE",
-            str(artifact_root_path() / ".permission" / "state.json"),
-        )
-    )
-    if configured.is_absolute():
-        return configured
-    return PROJECT_ROOT / configured
+    return runtime_configuration().path("state.permission")
 
 
 def mcp_state_path() -> Path:
-    configured = Path(
-        os.environ.get(
-            "ZYRA_MCP_STATE",
-            str(artifact_root_path() / ".mcp" / "state.json"),
-        )
-    )
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    return runtime_configuration().path("state.mcp")
 
 
 _MCP_RUNTIME_LOCK = threading.RLock()
@@ -3266,13 +3215,11 @@ def reset_browser_runtime(*, stop: bool = True) -> None:
 
 
 def control_state_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_CONTROL_STATE", str(artifact_root_path() / ".control")))
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    return runtime_configuration().path("state.control")
 
 
 def subagent_state_path() -> Path:
-    configured = Path(os.environ.get("ZYRA_SUBAGENT_STATE", str(artifact_root_path() / ".subagents")))
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    return runtime_configuration().path("state.subagents")
 
 
 def get_control_command_registry() -> Any:
@@ -4123,13 +4070,7 @@ _RUNTIME_OWNER_COMPOSITION_KEY: tuple[str, ...] | None = None
 
 
 def gateway_state_path() -> Path:
-    configured = Path(
-        os.environ.get(
-            "ZYRA_SANDBOX_GATEWAY_STATE",
-            str(artifact_root_path() / ".sandbox-gateway"),
-        )
-    )
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    return runtime_configuration().path("state.gateway")
 
 
 def _session_owner_activation() -> Mapping[str, Any]:
@@ -4283,7 +4224,7 @@ def _graph_owner_activation() -> Mapping[str, Any]:
 
 
 def _provider_owner_activation() -> Mapping[str, Any]:
-    database = artifact_root_path() / ".provider-control-plane" / "provider.sqlite3"
+    database = runtime_configuration().path("state.provider")
     health = get_provider_control_client(
         project_root=PROJECT_ROOT,
         database_path=database,
@@ -4459,6 +4400,23 @@ def reset_runtime_owner_composition() -> None:
         _RUNTIME_OWNER_COMPOSITION_KEY = None
 
 
+def get_api_product_bootstrap(*, auto_start: bool = False) -> ProductBootstrapRuntime:
+    def owner_probe() -> Mapping[str, Any]:
+        result = dict(get_runtime_owner_composition().probe_all())
+        result.setdefault("schema", "zyra.bootstrap-owner-readiness/v1")
+        return result
+
+    return get_product_bootstrap(
+        PROJECT_ROOT,
+        owner_probe=owner_probe,
+        auto_start=auto_start,
+    )
+
+
+def reset_api_product_bootstrap(*, shutdown: bool = True) -> None:
+    reset_product_bootstrap(shutdown=shutdown)
+
+
 def runtime_readiness_probes(
     *,
     typed_receipts: TypedReceiptStore,
@@ -4473,10 +4431,31 @@ def runtime_readiness_probes(
         "control_runtime": False,
         "typed_transport": False,
     }
+    productization: Mapping[str, Any]
+    try:
+        bootstrap = get_api_product_bootstrap()
+        bootstrap.start()
+        productization = bootstrap.readiness()
+    except Exception as error:  # noqa: BLE001 - startup must fail closed.
+        try:
+            productization = get_api_product_bootstrap().readiness()
+        except Exception as readiness_error:  # noqa: BLE001
+            productization = {
+                "schema": "zyra.product-bootstrap-readiness/v1",
+                "ready": False,
+                "blockers": ["product_bootstrap"],
+                "error": (
+                    f"{type(error).__name__}: {error}; "
+                    f"{type(readiness_error).__name__}: {readiness_error}"
+                )[:2048],
+                "demo_fallback": False,
+                "source_store_fallback": False,
+            }
     try:
         canonical = get_runtime_owner_composition().probe_all()
     except Exception as error:  # noqa: BLE001 - readiness must fail closed.
         return legacy, {
+            "productization": dict(productization),
             "canonical_runtime_owners": {
                 "ready": False,
                 "blockers": [item.value for item in RuntimeDomain],
@@ -4519,7 +4498,10 @@ def runtime_readiness_probes(
             ),
         }
     )
+    if productization.get("ready") is not True:
+        legacy = {key: False for key in legacy}
     details = {
+        "productization": dict(productization),
         "canonical_runtime_owners": canonical,
         "legacy_projection": {
             name: {
@@ -5785,6 +5767,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         provider_backend_response = ProviderBackendApi(
             project_root=PROJECT_ROOT,
             artifact_root=artifact_root_path(),
+            provider_database=runtime_configuration().path("state.provider"),
         ).handle_get(
             parts,
             _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
@@ -7872,6 +7855,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         provider_backend_response = ProviderBackendApi(
             project_root=PROJECT_ROOT,
             artifact_root=artifact_root_path(),
+            provider_database=runtime_configuration().path("state.provider"),
         ).handle_post(parts, payload)
         if provider_backend_response is not None:
             self._send_json(
@@ -10578,14 +10562,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         origin = str(self.headers.get("Origin") or "").strip()
-        allowed_origins = {
-            item.strip()
-            for item in os.environ.get(
-                "ZYRA_CORS_ORIGINS",
-                "http://127.0.0.1:5173,http://localhost:5173",
-            ).split(",")
-            if item.strip() and item.strip() != "*"
-        }
+        allowed_origins = set(
+            runtime_configuration().get("api.cors_origins", [])
+        )
         if origin and origin in allowed_origins:
             self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Vary", "Origin")
@@ -10601,17 +10580,50 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
 
 def run(host: str | None = None, port: int | None = None) -> None:
-    bind_host = host or os.environ.get("ZYRA_API_HOST", "127.0.0.1")
-    bind_port = port or int(os.environ.get("ZYRA_API_PORT", "8000"))
-    get_store()
+    configuration = runtime_configuration()
+    bind_host = host or str(configuration.require("api.host"))
+    bind_port = port or int(configuration.require("api.port"))
+    bootstrap = get_api_product_bootstrap()
+    receipt = bootstrap.start()
     server = ThreadingHTTPServer((bind_host, bind_port), ZyraRequestHandler)
-    print(f"Zyra API listening on http://{bind_host}:{bind_port}")
-    print(f"Event log: {event_log_path()}")
-    print(f"SQLite: {sqlite_path()}")
+    bootstrap.lifecycle.register_resource(
+        "api-http-server",
+        server,
+        close=lambda value: value.server_close(),
+        dependencies=("migration-journal",),
+    )
+    bootstrap.lifecycle.emit(
+        "api.server.listening",
+        attributes={
+            "host": bind_host,
+            "port": bind_port,
+            "bootstrap_receipt_digest": receipt.digest,
+            "event_log": str(event_log_path()),
+            "sqlite": str(sqlite_path()),
+        },
+    )
+    print(
+        json.dumps(
+            {
+                "schema": "zyra.api-startup/v1",
+                "ready": True,
+                "url": f"http://{bind_host}:{bind_port}",
+                "process_generation": receipt.process.generation_id,
+                "configuration_digest": receipt.configuration_digest,
+                "migration_digest": (
+                    receipt.migration.digest
+                    if receipt.migration is not None
+                    else None
+                ),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
     try:
         server.serve_forever()
     finally:
-        server.server_close()
+        bootstrap.shutdown()
 
 
 def _path_parts(path: str) -> list[str]:

@@ -8,6 +8,7 @@ from zyra_runtime.productization.contracts import RuntimeDomain
 
 def _configure_clean_state(monkeypatch, root: Path) -> None:
     values = {
+        "ZYRA_STATE_ROOT": root,
         "ZYRA_ARTIFACT_ROOT": root / "artifacts",
         "ZYRA_SQLITE_PATH": root / "zyra.sqlite3",
         "ZYRA_EVENT_LOG": root / "events.jsonl",
@@ -32,6 +33,7 @@ def _configure_clean_state(monkeypatch, root: Path) -> None:
 
 
 def _reset_api_composition() -> None:
+    api.reset_api_product_bootstrap()
     api.reset_runtime_owner_composition()
     api.reset_memory_curator_runtime()
     api.reset_worker_pool_api()
@@ -40,6 +42,34 @@ def _reset_api_composition() -> None:
     api.reset_mcp_runtime()
     api.reset_provider_control_client()
     api.reset_runtime_event_spine_bridge()
+
+
+def test_api_readiness_is_gated_by_product_bootstrap_and_migrations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _configure_clean_state(monkeypatch, tmp_path)
+    _reset_api_composition()
+    try:
+        typed_receipts = api.TypedReceiptStore(api.sqlite_path())
+        owners, details = api.runtime_readiness_probes(
+            typed_receipts=typed_receipts,
+        )
+
+        assert all(owners.values())
+        productization = details["productization"]
+        assert productization["ready"] is True
+        assert productization["demo_fallback"] is False
+        assert productization["source_store_fallback"] is False
+        assert productization["migration"]["ready"] is True
+        receipt = productization["receipt"]
+        assert receipt["migration"]["transaction"]["state"] == "committed"
+        assert receipt["owner_readiness"]["ready"] is True
+        assert Path(
+            productization["configuration"]["state"]["migration_journal"]
+        ).is_file()
+    finally:
+        _reset_api_composition()
 
 
 def test_api_readiness_uses_all_canonical_owners_and_rejects_owner_loss(

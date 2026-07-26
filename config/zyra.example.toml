@@ -1,0 +1,65 @@
+schema_version = 1
+profile = "default"
+
+[state]
+# Relative paths are resolved below this root. Absolute paths are accepted for
+# operator-managed installations, but source-repository and vendor fallbacks
+# are never searched.
+root = "tmp"
+event_log = "tmp/events.jsonl"
+database = "tmp/zyra.sqlite3"
+worker_pool = "tmp/zyra.worker-pool.sqlite3"
+graph = "tmp/zyra.graph-state.sqlite3"
+fault = "tmp/zyra.fault-runtime.sqlite3"
+recovery = "tmp/zyra.recovery-runtime.sqlite3"
+memory_index = "tmp/zyra.memory-index.sqlite3"
+code_index = "tmp/zyra-code-index"
+workspace = "tmp/workspace"
+artifacts = "tmp/artifacts"
+permission_compat = "tmp/permissions.json"
+permission = "tmp/artifacts/.permission/state.json"
+mcp = "tmp/artifacts/.mcp/state.json"
+terminal = "tmp/artifacts/.terminal/sessions.json"
+control = "tmp/artifacts/.control"
+subagents = "tmp/artifacts/.subagents"
+gateway = "tmp/artifacts/.sandbox-gateway"
+provider = "tmp/artifacts/.provider-control-plane/provider.sqlite3"
+migration_journal = "tmp/.productization/migrations.sqlite3"
+lifecycle_log = "tmp/.productization/lifecycle.jsonl"
+
+[api]
+host = "127.0.0.1"
+port = 8000
+cors_origins = [
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+]
+
+[runtime]
+log_level = "INFO"
+shutdown_timeout_seconds = 15.0
+migration_enabled = true
+readiness_requires_migration = true
+strict_optional_dependencies = true
+
+[features]
+provider_dispatch = false
+mcp = false
+edge_worker = false
+browser = true
+terminal = true
+web = true
+
+# Credential values never belong in this file. Map stable credential IDs to
+# environment variable names. Enabling provider_dispatch, mcp, or edge_worker
+# requires provider, mcp, or edge respectively in the required table.
+[credentials.required]
+
+[credentials.optional]
+
+[migration]
+target_version = 1
+auto_apply = true
+legacy_roots = []
+backup_retention = 3
+lease_seconds = 120

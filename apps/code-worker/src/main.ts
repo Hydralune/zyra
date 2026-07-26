@@ -1,6 +1,8 @@
 import {
+  loadRuntimeProcessConfiguration,
   runStdioRuntime,
   runtimeContract,
+  runtimeProcessConfigurationFailure,
 } from "../../../packages/runtime/claude-runtime/src/index.ts";
 import { E01RuntimeCoordinator } from "../../../packages/runtime/claude-runtime/src/e01/coordinator.ts";
 import { E02CapabilityCoordinator } from "../../../packages/runtime/claude-runtime/src/e02/coordinator.ts";
@@ -45,6 +47,13 @@ export class CodeWorkerApplication {
   }
 
   async run(args: readonly string[]): Promise<number> {
+    let processConfiguration;
+    try {
+      processConfiguration = loadRuntimeProcessConfiguration();
+    } catch (error) {
+      this.writeJson(runtimeProcessConfigurationFailure(error));
+      return 78;
+    }
     const command = args[0] ?? "--health";
     if (command === "--stdio-probe") {
       const result = await runCurrentEntryStdioProbe();
@@ -65,7 +74,12 @@ export class CodeWorkerApplication {
       return 2;
     }
     const contract = runtimeContract(surface);
-    this.writeJson(contract);
+    this.writeJson(surface === "health"
+      ? {
+          ...contract,
+          processConfiguration,
+        }
+      : contract);
     if (surface === "health") {
       const productized = contract.productizedRuntime;
       const e02 = contract.e02CapabilityRuntime;

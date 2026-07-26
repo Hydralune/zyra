@@ -12,6 +12,10 @@ import type {
 } from "./contracts.ts";
 import { canonicalJson, deepClone, digestJson } from "./canonical.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
+import {
+  migrateProviderControlPlaneSchema,
+  type ProviderSchemaMigrationHealth,
+} from "./schema-migration.ts";
 
 interface MetaRow { value: string }
 interface JsonRow { json: string }
@@ -28,17 +32,28 @@ export interface ProviderStoreHealth {
   readonly routeCount: number;
   readonly eventCount: number;
   readonly attemptCount: number;
+  readonly schemaVersion: number;
+  readonly schemaMigrationState: ProviderSchemaMigrationHealth["state"];
+  readonly schemaMigrationTransactionId: string | null;
+  readonly recoveredSchemaTransactions: readonly string[];
 }
 
 export class ProviderControlPlaneStore {
   readonly path: string;
   readonly db: RuntimeSqliteDatabase;
   private closed = false;
+  private schemaHealth!: ProviderSchemaMigrationHealth;
 
   constructor(path: string) {
     this.path = path;
     this.db = new RuntimeSqliteDatabase(path);
-    this.initialize();
+    try {
+      this.initialize();
+    } catch (error) {
+      this.closed = true;
+      this.db.close();
+      throw error;
+    }
   }
 
   initialize(): void {
@@ -47,121 +62,7 @@ export class ProviderControlPlaneStore {
     this.db.exec("PRAGMA synchronous = FULL");
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec("PRAGMA busy_timeout = 5000");
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS provider_control_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-      INSERT OR IGNORE INTO provider_control_meta(key, value) VALUES ('catalog_revision', '0');
-
-      CREATE TABLE IF NOT EXISTS provider_catalog_providers (
-        provider_id TEXT PRIMARY KEY,
-        catalog_revision INTEGER NOT NULL,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_catalog_models (
-        provider_id TEXT NOT NULL,
-        model_id TEXT NOT NULL,
-        catalog_revision INTEGER NOT NULL,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL,
-        PRIMARY KEY(provider_id, model_id),
-        FOREIGN KEY(provider_id) REFERENCES provider_catalog_providers(provider_id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_integrations (
-        integration_id TEXT PRIMARY KEY,
-        catalog_revision INTEGER NOT NULL,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_catalog_snapshots (
-        catalog_revision INTEGER PRIMARY KEY,
-        created_at INTEGER NOT NULL,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_credentials (
-        credential_id TEXT PRIMARY KEY,
-        provider_id TEXT NOT NULL,
-        integration_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        expires_at INTEGER,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL,
-        FOREIGN KEY(provider_id) REFERENCES provider_catalog_providers(provider_id) ON DELETE RESTRICT,
-        FOREIGN KEY(integration_id) REFERENCES provider_integrations(integration_id) ON DELETE RESTRICT
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_route_leases (
-        route_id TEXT PRIMARY KEY,
-        run_id TEXT NOT NULL,
-        task_id TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        turn_id TEXT NOT NULL,
-        catalog_revision INTEGER NOT NULL,
-        provider_id TEXT NOT NULL,
-        model_id TEXT NOT NULL,
-        credential_id TEXT NOT NULL,
-        credential_version INTEGER NOT NULL,
-        created_at INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL,
-        checksum TEXT NOT NULL,
-        json TEXT NOT NULL,
-        UNIQUE(session_id, turn_id, route_id),
-        FOREIGN KEY(provider_id, model_id) REFERENCES provider_catalog_models(provider_id, model_id) ON DELETE RESTRICT,
-        FOREIGN KEY(credential_id) REFERENCES provider_credentials(credential_id) ON DELETE RESTRICT
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_route_credential_snapshots (
-        route_id TEXT PRIMARY KEY,
-        credential_id TEXT NOT NULL,
-        credential_version INTEGER NOT NULL,
-        created_at INTEGER NOT NULL,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL,
-        FOREIGN KEY(route_id) REFERENCES provider_route_leases(route_id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_dispatch_attempts (
-        attempt_id TEXT PRIMARY KEY,
-        dispatch_id TEXT NOT NULL,
-        route_id TEXT NOT NULL,
-        attempt_number INTEGER NOT NULL,
-        outcome TEXT NOT NULL,
-        started_at INTEGER NOT NULL,
-        completed_at INTEGER,
-        json TEXT NOT NULL,
-        checksum TEXT NOT NULL,
-        FOREIGN KEY(route_id) REFERENCES provider_route_leases(route_id) ON DELETE RESTRICT,
-        UNIQUE(dispatch_id, attempt_number)
-      );
-
-      CREATE TABLE IF NOT EXISTS provider_control_events (
-        event_id TEXT PRIMARY KEY,
-        event_type TEXT NOT NULL,
-        run_id TEXT,
-        task_id TEXT,
-        route_id TEXT,
-        dispatch_id TEXT,
-        causation_id TEXT,
-        correlation_id TEXT,
-        created_at INTEGER NOT NULL,
-        payload_digest TEXT NOT NULL,
-        json TEXT NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_provider_models_status ON provider_catalog_models(provider_id, model_id);
-      CREATE INDEX IF NOT EXISTS idx_provider_credentials_select ON provider_credentials(provider_id, status, expires_at);
-      CREATE INDEX IF NOT EXISTS idx_provider_routes_turn ON provider_route_leases(session_id, turn_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_provider_attempts_dispatch ON provider_dispatch_attempts(dispatch_id, attempt_number);
-      CREATE INDEX IF NOT EXISTS idx_provider_events_task ON provider_control_events(run_id, task_id, created_at);
-    `);
+    this.schemaHealth = migrateProviderControlPlaneSchema(this.db);
   }
 
   transaction<T>(callback: () => T): T {
@@ -519,6 +420,11 @@ export class ProviderControlPlaneStore {
       routeCount: this.count("provider_route_leases"),
       eventCount: this.count("provider_control_events"),
       attemptCount: this.count("provider_dispatch_attempts"),
+      schemaVersion: this.schemaHealth.version,
+      schemaMigrationState: this.schemaHealth.state,
+      schemaMigrationTransactionId: this.schemaHealth.transactionId,
+      recoveredSchemaTransactions:
+        this.schemaHealth.recoveredTransactionIds,
     };
   }
 

@@ -10,6 +10,7 @@ export * from "./isolation/index.ts";
 export * from "./permission/index.ts";
 export * from "./plugins/index.ts";
 export * from "./protocol.ts";
+export * from "./productization/runtime-config.ts";
 export * from "./query-engine.ts";
 export * from "./loop/model-iteration-runtime.ts";
 export * from "./omp-worker-control/index.ts";

@@ -73,14 +73,18 @@ class ProviderBackendApi:
         *,
         project_root: str | Path,
         artifact_root: str | Path,
+        provider_database: str | Path | None = None,
     ) -> None:
         self.project_root = Path(project_root).expanduser().resolve()
         self.artifact_root = Path(artifact_root).expanduser().resolve()
-        self.provider_database = (
-            self.artifact_root
+        selected_database = (
+            provider_database
+            if provider_database is not None
+            else self.artifact_root
             / ".provider-control-plane"
             / "provider.sqlite3"
         )
+        self.provider_database = Path(selected_database).expanduser().resolve()
 
     def handle_get(
         self,
