@@ -1,0 +1,1339 @@
+{
+  "schema": "zyra.state-owner-evidence-catalog/v1",
+  "required_domains": [
+    "session_event_projection",
+    "permission",
+    "memory_compact",
+    "scheduler_recovery",
+    "artifact",
+    "worker_route",
+    "graph_checkpoint",
+    "provider_credential_failover",
+    "mcp_plugin_registry",
+    "gateway_lease_busy",
+    "terminal_browser_session"
+  ],
+  "required_requirements": [
+    "REQ-CLOSE-01",
+    "REQ-MEM-01",
+    "REQ-TOPO-01",
+    "REQ-COMM-01",
+    "REQ-EDGE-01",
+    "REQ-FAULT-01",
+    "REQ-TRACE-01",
+    "REQ-DOC-01",
+    "SCORE-LOOP",
+    "SCORE-ORG",
+    "SCORE-TASKS",
+    "SCORE-SCENE",
+    "SCORE-VALUE",
+    "SCORE-UX",
+    "SCORE-NOISE",
+    "SCORE-ALGO",
+    "SCORE-ROBUST",
+    "SCORE-EFF",
+    "SCORE-COMPAT"
+  ],
+  "owners": [
+    {
+      "domain": "session_event_projection",
+      "description": "ClaudeRuntimeCore owns the code-worker session lifecycle while the durable store and Web projection remain subordinate views.",
+      "owner": {
+        "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+        "symbol": "ClaudeRuntimeCore",
+        "language": "typescript",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+        "symbol": "CodeWorkerSessionStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+          "symbol": "CodeWorkerSessionFoundationRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "apps/web/src/state/store.ts",
+          "symbol": "CanonicalProjectionStore",
+          "language": "typescript",
+          "role": "projection"
+        }
+      ],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+        "symbol": "CodeWorkerSessionStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+        "symbol": "CodeWorkerSessionFoundationRuntime",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "cli.session.runtime",
+          "surface": "cli",
+          "reference": {
+            "path": "apps/api/zyra_api/main.py",
+            "symbol": "run",
+            "role": "writer"
+          },
+          "command": "python scripts/dev_api.py",
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+              "symbol": "ClaudeRuntimeCore",
+              "language": "typescript",
+              "role": "writer"
+            },
+            {
+              "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+              "symbol": "CodeWorkerSessionFoundationRuntime",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "session.agent_message.persisted",
+          "event_name": "agent_message",
+          "producer": {
+            "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+            "symbol": "CodeWorkerSessionFoundationRuntime",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/runtime/zyra_runtime/claude_session_store.py",
+            "symbol": "CodeWorkerSessionStore",
+            "role": "writer"
+          },
+          "effect_kind": "state_mutation",
+          "required_attributes": ["session_id", "sequence"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_claude_session_store_integration.py"
+      ],
+      "disable_probes": ["session_store_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["CanonicalProjectionStore owns session state"]
+    },
+    {
+      "domain": "permission",
+      "description": "PermissionApprovalRuntime owns approval continuation state and the audit runtime persists the canonical permission decision trail.",
+      "owner": {
+        "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+        "symbol": "PermissionApprovalRuntime",
+        "language": "typescript",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts",
+        "symbol": "PermissionAuditRuntime",
+        "language": "typescript",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+          "symbol": "PermissionApprovalRuntime",
+          "language": "typescript",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "apps/web/src/features/permissions/runtime.ts",
+          "symbol": "PermissionConsoleRuntime",
+          "language": "typescript",
+          "role": "projection"
+        }
+      ],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts",
+        "symbol": "PermissionAuditRuntime",
+        "language": "typescript",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+        "symbol": "PermissionApprovalRuntime",
+        "language": "typescript",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "web.permission.runtime",
+          "surface": "web",
+          "reference": {
+            "path": "apps/web/src/features/permissions/runtime.ts",
+            "symbol": "PermissionConsoleRuntime",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+              "symbol": "PermissionApprovalRuntime",
+              "language": "typescript",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "permission.decision.recorded",
+          "event_name": "permission.decision.recorded",
+          "producer": {
+            "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+            "symbol": "PermissionApprovalRuntime",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts",
+            "symbol": "PermissionAuditRuntime",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "effect_kind": "permission",
+          "required_attributes": ["decision_id", "disposition"]
+        }
+      ],
+      "tests": [
+        "tests/unit/test_permission_continuation.py",
+        "tests/integration/test_permission_console_api.py"
+      ],
+      "disable_probes": ["permission_runtime_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["PermissionWorkbenchRuntime owns permission state"]
+    },
+    {
+      "domain": "memory_compact",
+      "description": "RetrievalIntegrationRuntime owns memory retrieval admission while commit, archive, and resume components preserve compact and restore semantics.",
+      "owner": {
+        "path": "packages/memory/zyra_memory/integration_runtime.py",
+        "symbol": "RetrievalIntegrationRuntime",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/memory/zyra_memory/retrieval_store.py",
+        "symbol": "SQLiteRetrievalIndex",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/memory/zyra_memory/curator_commit.py",
+          "symbol": "MemoryCommitRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/memory/skill-memory-runtime/src/archive-runtime.ts",
+        "symbol": "CompactArchiveRuntime",
+        "language": "typescript",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/memory/skill-memory-runtime/src/resume-continuity-runtime.ts",
+        "symbol": "SkillMemoryResumeContinuityRuntime",
+        "language": "typescript",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.memory.retrieval",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/memory/zyra_memory/integration_runtime.py",
+            "symbol": "RetrievalIntegrationRuntime",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/memory/zyra_memory/curator_commit.py",
+              "symbol": "MemoryCommitRuntime",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "memory.candidate.committed",
+          "event_name": "memory.committed",
+          "producer": {
+            "path": "packages/memory/zyra_memory/curator_commit.py",
+            "symbol": "MemoryCommitRuntime",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/memory/zyra_memory/retrieval_store.py",
+            "symbol": "SQLiteRetrievalIndex",
+            "role": "writer"
+          },
+          "effect_kind": "compact",
+          "required_attributes": ["candidate_id", "revision"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_skill_memory_compact_restore_integration.py",
+        "tests/unit/test_memory_fabric.py"
+      ],
+      "disable_probes": ["memory_index_disconnect", "compact_archive_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["CompactArchiveRuntime owns retrieval state"]
+    },
+    {
+      "domain": "scheduler_recovery",
+      "description": "RecoveryApplication owns recovery orchestration and commits plans through the recovery store before route owners apply a recovery action.",
+      "owner": {
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/application.py",
+        "symbol": "RecoveryApplication",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py",
+        "symbol": "RecoveryPlanStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/scheduler/zyra_scheduler/recovery_runtime/route_runtime.py",
+          "symbol": "LayeredRouteRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/checkpoint_runtime.py",
+        "symbol": "CheckpointCommitRuntime",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/checkpoint_runtime.py",
+        "symbol": "CheckpointResumeBridge",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.scheduler.recovery",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/scheduler/zyra_scheduler/recovery_runtime/application.py",
+            "symbol": "RecoveryApplication",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/scheduler/zyra_scheduler/recovery_runtime/route_runtime.py",
+              "symbol": "LayeredRouteRuntime",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "recovery.plan.applied",
+          "event_name": "recovery_applied",
+          "producer": {
+            "path": "packages/scheduler/zyra_scheduler/recovery_runtime/application.py",
+            "symbol": "RecoveryApplication",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py",
+            "symbol": "RecoveryPlanStore",
+            "role": "writer"
+          },
+          "effect_kind": "recovery",
+          "required_attributes": ["plan_id", "attempt_id"]
+        }
+      ],
+      "tests": [
+        "tests/unit/test_recovery_planner_routing_memory_foundation.py",
+        "tests/integration/test_recovery_planner_routing_memory_api.py"
+      ],
+      "disable_probes": ["recovery_route_owner_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["LayeredRouteRuntime owns recovery plans"]
+    },
+    {
+      "domain": "artifact",
+      "description": "LocalArtifactStore owns content-addressed artifact bytes and references while API and Web services provide policy-constrained projections.",
+      "owner": {
+        "path": "packages/runtime/zyra_runtime/artifacts.py",
+        "symbol": "LocalArtifactStore",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/runtime/zyra_runtime/artifacts.py",
+        "symbol": "LocalArtifactStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/zyra_runtime/sandbox_gateway/artifact_port.py",
+          "symbol": "GatewayFileArtifactPort",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "apps/api/zyra_api/artifact_api.py",
+          "symbol": "ArtifactCatalogService",
+          "role": "projection"
+        },
+        {
+          "path": "apps/web/src/features/artifacts/runtime.ts",
+          "symbol": "ArtifactWorkbenchRuntime",
+          "language": "typescript",
+          "role": "projection"
+        }
+      ],
+      "caches": [
+        {
+          "path": "apps/web/src/features/artifacts/cache.ts",
+          "symbol": "ArtifactContentCache",
+          "language": "typescript",
+          "role": "cache"
+        }
+      ],
+      "checkpoint": {
+        "path": "packages/runtime/zyra_runtime/artifacts.py",
+        "symbol": "LocalArtifactStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/runtime/zyra_runtime/sandbox_gateway/artifact_port.py",
+        "symbol": "GatewayFileArtifactPort",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "api.artifact.catalog",
+          "surface": "api",
+          "reference": {
+            "path": "apps/api/zyra_api/main.py",
+            "symbol": "artifact_catalog_service",
+            "role": "writer"
+          },
+          "route": "/tasks/{task_id}/artifacts",
+          "method": "GET",
+          "default": true,
+          "trace": [
+            {
+              "path": "apps/api/zyra_api/artifact_api.py",
+              "symbol": "ArtifactCatalogService",
+              "role": "writer"
+            },
+            {
+              "path": "packages/runtime/zyra_runtime/artifacts.py",
+              "symbol": "LocalArtifactStore",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "artifact.content.committed",
+          "event_name": "artifact.created",
+          "producer": {
+            "path": "packages/runtime/zyra_runtime/sandbox_gateway/artifact_port.py",
+            "symbol": "GatewayFileArtifactPort",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/runtime/zyra_runtime/artifacts.py",
+            "symbol": "LocalArtifactStore",
+            "role": "writer"
+          },
+          "effect_kind": "artifact",
+          "artifact": {
+            "path": "packages/runtime/zyra_runtime/artifacts.py",
+            "symbol": "LocalArtifactStore",
+            "role": "writer"
+          },
+          "required_attributes": ["artifact_id", "digest"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_artifact_custody_catalog_viewers.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py"
+      ],
+      "disable_probes": ["artifact_store_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["ArtifactContentCache owns artifact state"]
+    },
+    {
+      "domain": "worker_route",
+      "description": "WorkerPoolFoundationRuntime owns logical worker and lease state while the integration runtime commits physical dispatch and failover mutations.",
+      "owner": {
+        "path": "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+        "symbol": "WorkerPoolFoundationRuntime",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+        "symbol": "WorkerPoolStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+          "symbol": "WorkerPoolIntegrationRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+          "symbol": "WorkerPoolEventProjector",
+          "role": "projection"
+        }
+      ],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+        "symbol": "WorkerPoolStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+        "symbol": "WorkerPoolIntegrationRuntime",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.pool.dispatch",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+            "symbol": "WorkerPoolIntegrationRuntime",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+              "symbol": "WorkerPoolFoundationRuntime",
+              "role": "writer"
+            },
+            {
+              "path": "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+              "symbol": "WorkerPoolStore",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "worker.dispatch.bound",
+          "event_name": "worker_dispatch_started",
+          "producer": {
+            "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+            "symbol": "WorkerPoolIntegrationRuntime",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+            "symbol": "WorkerPoolStore",
+            "role": "writer"
+          },
+          "effect_kind": "placement",
+          "required_attributes": ["task_id", "backend_id"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_worker_pool_integration_runtime.py",
+        "tests/unit/test_worker_pool_foundation.py"
+      ],
+      "disable_probes": ["worker_pool_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["WorkerPoolEventProjector owns worker state"]
+    },
+    {
+      "domain": "graph_checkpoint",
+      "description": "GraphStateCustody owns immutable graph snapshots, branch-local mutations, conflict detection, commit lineage, and exact-resume checkpoints.",
+      "owner": {
+        "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+        "symbol": "GraphStateCustody",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/orchestration/zyra_orchestration/graph_custody/store.py",
+        "symbol": "GraphStateStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+          "symbol": "DynamicTopologyRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/orchestration/zyra_orchestration/graph_custody/store.py",
+        "symbol": "GraphStateStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+        "symbol": "GraphStateCustody",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.graph.topology",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+            "symbol": "DynamicTopologyRuntime",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+              "symbol": "GraphStateCustody",
+              "role": "writer"
+            },
+            {
+              "path": "packages/orchestration/zyra_orchestration/graph_custody/store.py",
+              "symbol": "GraphStateStore",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "graph.snapshot.committed",
+          "event_name": "graph_commit",
+          "producer": {
+            "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+            "symbol": "GraphStateCustody",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/orchestration/zyra_orchestration/graph_custody/store.py",
+            "symbol": "GraphStateStore",
+            "role": "writer"
+          },
+          "effect_kind": "state_mutation",
+          "required_attributes": ["graph_id", "revision"]
+        }
+      ],
+      "tests": [
+        "tests/unit/test_dynamic_graph_custody.py"
+      ],
+      "disable_probes": ["graph_store_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["StateGraph owns canonical graph state"]
+    },
+    {
+      "domain": "provider_credential_failover",
+      "description": "ProviderControlPlane owns provider, model, credential, dispatch, and failover coordination with a durable control-plane store.",
+      "owner": {
+        "path": "packages/runtime/provider-control-plane/src/control-plane.ts",
+        "symbol": "ProviderControlPlane",
+        "language": "typescript",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/runtime/provider-control-plane/src/store.ts",
+        "symbol": "ProviderControlPlaneStore",
+        "language": "typescript",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/provider-control-plane/src/catalog-reconciler.ts",
+          "symbol": "ProviderCatalogReconciler",
+          "language": "typescript",
+          "role": "writer"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/credential-pool.ts",
+          "symbol": "ProviderCredentialPoolRuntime",
+          "language": "typescript",
+          "role": "writer"
+        }
+      ],
+      "projections": [],
+      "caches": [
+        {
+          "path": "packages/runtime/provider-control-plane/src/catalog.ts",
+          "symbol": "ProviderCatalog",
+          "language": "typescript",
+          "role": "cache"
+        }
+      ],
+      "checkpoint": {
+        "path": "packages/runtime/provider-control-plane/src/store.ts",
+        "symbol": "ProviderControlPlaneStore",
+        "language": "typescript",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/runtime/provider-control-plane/src/model-fallback-policy.ts",
+        "symbol": "ModelFallbackPolicy",
+        "language": "typescript",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.provider.dispatch",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/runtime/provider-control-plane/src/control-plane.ts",
+            "symbol": "ProviderControlPlane",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/runtime/provider-control-plane/src/store.ts",
+              "symbol": "ProviderControlPlaneStore",
+              "language": "typescript",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "provider.dispatch.completed",
+          "event_name": "provider.dispatch.completed",
+          "producer": {
+            "path": "packages/runtime/provider-control-plane/src/control-plane.ts",
+            "symbol": "ProviderControlPlane",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/runtime/provider-control-plane/src/store.ts",
+            "symbol": "ProviderControlPlaneStore",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "effect_kind": "route",
+          "required_attributes": ["provider_id", "model_id"]
+        }
+      ],
+      "tests": [
+        "tests/unit/test_provider_control_plane_port.py",
+        "tests/integration/test_provider_backend_api.py"
+      ],
+      "disable_probes": ["provider_store_disconnect", "credential_pool_disconnect"],
+      "fallback_refs": [
+        {
+          "path": "packages/runtime/provider-control-plane/src/model-fallback-policy.ts",
+          "symbol": "ModelFallbackPolicy",
+          "language": "typescript",
+          "role": "fallback"
+        }
+      ],
+      "forbidden_owner_claims": ["ProviderCatalog owns provider state"]
+    },
+    {
+      "domain": "mcp_plugin_registry",
+      "description": "McpRuntimeCoordinator owns MCP lifecycle coordination while its request journal and the skill registry preserve subordinate durable facts.",
+      "owner": {
+        "path": "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+        "symbol": "McpRuntimeCoordinator",
+        "language": "typescript",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/integrations/claude-mcp/src/runtime/request-journal.ts",
+        "symbol": "McpRequestJournal",
+        "language": "typescript",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+          "symbol": "SkillCoordinator",
+          "language": "typescript",
+          "role": "writer"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/skills/registry-runtime.ts",
+          "symbol": "SkillRegistryRuntime",
+          "language": "typescript",
+          "role": "writer"
+        }
+      ],
+      "projections": [],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/integrations/claude-mcp/src/runtime/request-journal.ts",
+        "symbol": "McpRequestJournal",
+        "language": "typescript",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts",
+        "symbol": "McpSessionRuntime",
+        "language": "typescript",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.mcp.coordinator",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+            "symbol": "McpRuntimeCoordinator",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/integrations/claude-mcp/src/runtime/request-journal.ts",
+              "symbol": "McpRequestJournal",
+              "language": "typescript",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "mcp.request.journaled",
+          "event_name": "mcp.request.completed",
+          "producer": {
+            "path": "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+            "symbol": "McpRuntimeCoordinator",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/integrations/claude-mcp/src/runtime/request-journal.ts",
+            "symbol": "McpRequestJournal",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "effect_kind": "tool",
+          "required_attributes": ["request_id", "session_id"]
+        }
+      ],
+      "tests": [
+        "tests/unit/test_mcp_source_audit.py"
+      ],
+      "disable_probes": ["mcp_journal_disconnect", "plugin_registry_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["SkillRegistryRuntime owns MCP session state"]
+    },
+    {
+      "domain": "gateway_lease_busy",
+      "description": "SandboxGatewayRuntime owns session and command lifecycle state with GatewayStateStore enforcing lease, busy, and recovery invariants.",
+      "owner": {
+        "path": "packages/runtime/zyra_runtime/sandbox_gateway/runtime.py",
+        "symbol": "SandboxGatewayRuntime",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/runtime/zyra_runtime/sandbox_gateway/state_store.py",
+        "symbol": "GatewayStateStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/runtime/zyra_runtime/sandbox_gateway/lifecycle.py",
+          "symbol": "SandboxLifecycle",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_events.py",
+          "symbol": "GatewayEventProjector",
+          "role": "projection"
+        }
+      ],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/runtime/zyra_runtime/sandbox_gateway/state_store.py",
+        "symbol": "GatewayStateStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/runtime/zyra_runtime/sandbox_gateway/runtime.py",
+        "symbol": "SandboxGatewayRuntime",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "worker.gateway.command",
+          "surface": "worker",
+          "reference": {
+            "path": "packages/runtime/zyra_runtime/sandbox_gateway/runtime.py",
+            "symbol": "SandboxGatewayRuntime",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/runtime/zyra_runtime/sandbox_gateway/lifecycle.py",
+              "symbol": "SandboxLifecycle",
+              "role": "writer"
+            },
+            {
+              "path": "packages/runtime/zyra_runtime/sandbox_gateway/state_store.py",
+              "symbol": "GatewayStateStore",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "gateway.session.recovered",
+          "event_name": "session_recovered",
+          "producer": {
+            "path": "packages/runtime/zyra_runtime/sandbox_gateway/runtime.py",
+            "symbol": "SandboxGatewayRuntime",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/runtime/zyra_runtime/sandbox_gateway/state_store.py",
+            "symbol": "GatewayStateStore",
+            "role": "writer"
+          },
+          "effect_kind": "recovery",
+          "required_attributes": ["session_id", "lease_id"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/unit/test_sandbox_gateway_state.py"
+      ],
+      "disable_probes": ["gateway_state_store_disconnect", "gateway_lease_conflict"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["GatewayEventProjector owns gateway session state"]
+    },
+    {
+      "domain": "terminal_browser_session",
+      "description": "TerminalSessionRegistry owns terminal sessions and BrowserSessionRuntime owns browser sessions as one explicitly shared interactive-session boundary.",
+      "owner": {
+        "path": "packages/workers/zyra_workers/terminal/runtime.py",
+        "symbol": "TerminalSessionRegistry",
+        "role": "owner"
+      },
+      "store": {
+        "path": "packages/workers/zyra_workers/terminal/runtime.py",
+        "symbol": "TerminalStateStore",
+        "role": "store"
+      },
+      "writers": [
+        {
+          "path": "packages/workers/zyra_workers/browser_session/session_runtime.py",
+          "symbol": "BrowserSessionRuntime",
+          "role": "writer"
+        }
+      ],
+      "projections": [
+        {
+          "path": "packages/workers/zyra_workers/browser_session/session_projection.py",
+          "symbol": "BrowserSessionProjectionRuntime",
+          "role": "projection"
+        }
+      ],
+      "caches": [],
+      "checkpoint": {
+        "path": "packages/workers/zyra_workers/browser_session/store.py",
+        "symbol": "JsonBrowserStateStore",
+        "role": "checkpoint"
+      },
+      "recovery": {
+        "path": "packages/workers/zyra_workers/browser_session/resume_runtime.py",
+        "symbol": "BrowserSessionResumeRuntime",
+        "role": "recovery"
+      },
+      "entries": [
+        {
+          "entry_id": "web.interactive.sessions",
+          "surface": "web",
+          "reference": {
+            "path": "apps/web/src/features/terminal/runtime.ts",
+          "symbol": "TerminalRuntime",
+            "language": "typescript",
+            "role": "writer"
+          },
+          "default": true,
+          "trace": [
+            {
+              "path": "packages/workers/zyra_workers/terminal/runtime.py",
+              "symbol": "TerminalSessionRegistry",
+              "role": "writer"
+            },
+            {
+              "path": "packages/workers/zyra_workers/browser_session/session_runtime.py",
+              "symbol": "BrowserSessionRuntime",
+              "role": "writer"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "link_id": "browser.session.started",
+          "event_name": "browser.session.started",
+          "producer": {
+            "path": "packages/workers/zyra_workers/browser_session/session_runtime.py",
+            "symbol": "BrowserSessionRuntime",
+            "role": "writer"
+          },
+          "mutation": {
+            "path": "packages/workers/zyra_workers/browser_session/store.py",
+            "symbol": "JsonBrowserStateStore",
+            "role": "writer"
+          },
+          "effect_kind": "state_mutation",
+          "required_attributes": ["session_id", "generation"]
+        }
+      ],
+      "tests": [
+        "tests/integration/test_terminal_websocket_integration.py",
+        "tests/unit/test_browser_session_runtime_foundation.py"
+      ],
+      "disable_probes": ["terminal_registry_disconnect", "browser_state_store_disconnect"],
+      "fallback_refs": [],
+      "forbidden_owner_claims": ["BrowserSessionProjectionRuntime owns browser state"]
+    }
+  ],
+  "requirements": [
+    {
+      "requirement_id": "REQ-CLOSE-01",
+      "description": "A single run closes at least two thousand effective canonical state transitions without human intervention.",
+      "status": "verified",
+      "owner_domains": ["session_event_projection", "scheduler_recovery", "worker_route"],
+      "default_entry_ids": ["cli.session.runtime", "worker.scheduler.recovery", "worker.pool.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["session.agent_message.persisted", "recovery.plan.applied", "worker.dispatch.bound"],
+      "mutation_refs": [
+        {"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"},
+        {"path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py", "symbol": "RecoveryPlanStore", "role": "writer"}
+      ],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/sealed_policy.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-MEM-01",
+      "description": "Memory retrieval, compact, restore, and skill memory change later context and decisions in a reproducible run.",
+      "status": "verified",
+      "owner_domains": ["memory_compact", "session_event_projection"],
+      "default_entry_ids": ["worker.memory.retrieval", "cli.session.runtime"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["memory.candidate.committed", "session.agent_message.persisted"],
+      "mutation_refs": [{"path": "packages/memory/zyra_memory/retrieval_store.py", "symbol": "SQLiteRetrievalIndex", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/integration/test_skill_memory_compact_restore_integration.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-TOPO-01",
+      "description": "Dynamic sparse topology mutates nodes and edges during one run and reports low-entropy comparison evidence.",
+      "status": "verified",
+      "owner_domains": ["graph_checkpoint", "worker_route"],
+      "default_entry_ids": ["worker.graph.topology", "worker.pool.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["graph.snapshot.committed", "worker.dispatch.bound"],
+      "mutation_refs": [{"path": "packages/orchestration/zyra_orchestration/graph_custody/store.py", "symbol": "GraphStateStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/unit/test_dynamic_graph_custody.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-COMM-01",
+      "description": "The runtime demonstrates structured multi-agent communication with task, artifact, route, and causal event correlation.",
+      "status": "verified",
+      "owner_domains": ["worker_route", "session_event_projection", "artifact"],
+      "default_entry_ids": ["worker.pool.dispatch", "cli.session.runtime", "api.artifact.catalog"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["worker.dispatch.bound", "session.agent_message.persisted", "artifact.content.committed"],
+      "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/worker_pool/store.py", "symbol": "WorkerPoolStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-EDGE-01",
+      "description": "Real local, isolated edge, and cloud dispatch provide privacy, latency, cost, and disconnected-degradation evidence.",
+      "status": "partial",
+      "owner_domains": ["worker_route", "provider_credential_failover", "gateway_lease_busy"],
+      "default_entry_ids": ["worker.pool.dispatch", "worker.provider.dispatch", "worker.gateway.command"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["worker.dispatch.bound", "provider.dispatch.completed", "gateway.session.recovered"],
+      "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/worker_pool/store.py", "symbol": "WorkerPoolStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/integration/test_worker_pool_integration_runtime.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02B"
+    },
+    {
+      "requirement_id": "REQ-FAULT-01",
+      "description": "Injected exceptions, requirement changes, node failures, and disconnects trigger observable recovery or deterministic replanning.",
+      "status": "verified",
+      "owner_domains": ["scheduler_recovery", "gateway_lease_busy", "terminal_browser_session"],
+      "default_entry_ids": ["worker.scheduler.recovery", "worker.gateway.command", "web.interactive.sessions"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["recovery.plan.applied", "gateway.session.recovered", "browser.session.started"],
+      "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py", "symbol": "RecoveryPlanStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m5_scheduler_fault_recovery.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/sealed_policy.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-TRACE-01",
+      "description": "A visual causal trace links events to real state mutations, tools, artifacts, routes, verification, and recovery.",
+      "status": "verified",
+      "owner_domains": ["session_event_projection", "artifact", "graph_checkpoint"],
+      "default_entry_ids": ["cli.session.runtime", "api.artifact.catalog", "worker.graph.topology"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["session.agent_message.persisted", "artifact.content.committed", "graph.snapshot.committed"],
+      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "REQ-DOC-01",
+      "description": "Submission documentation contains the core algorithm pseudocode, complexity analysis, architecture, and reproducible evidence map.",
+      "status": "partial",
+      "owner_domains": ["graph_checkpoint", "scheduler_recovery"],
+      "default_entry_ids": ["worker.graph.topology", "worker.scheduler.recovery"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["graph.snapshot.committed", "recovery.plan.applied"],
+      "mutation_refs": [{"path": "packages/orchestration/zyra_orchestration/graph_custody/store.py", "symbol": "GraphStateStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
+      "commits": ["1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-LOOP",
+      "description": "Long-horizon autonomous closed-loop completion score evidence.",
+      "status": "verified",
+      "owner_domains": ["session_event_projection", "scheduler_recovery"],
+      "default_entry_ids": ["cli.session.runtime", "worker.scheduler.recovery"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["session.agent_message.persisted", "recovery.plan.applied"],
+      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/claude_session_store.py", "symbol": "CodeWorkerSessionStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/sealed_policy.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "SCORE-ORG",
+      "description": "Dynamic organization and topology score evidence.",
+      "status": "verified",
+      "owner_domains": ["graph_checkpoint", "worker_route"],
+      "default_entry_ids": ["worker.graph.topology", "worker.pool.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["graph.snapshot.committed", "worker.dispatch.bound"],
+      "mutation_refs": [{"path": "packages/orchestration/zyra_orchestration/graph_custody/store.py", "symbol": "GraphStateStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/unit/test_dynamic_graph_custody.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "SCORE-TASKS",
+      "description": "Complex task breadth and completion quality score evidence.",
+      "status": "verified",
+      "owner_domains": ["session_event_projection", "artifact"],
+      "default_entry_ids": ["cli.session.runtime", "api.artifact.catalog"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["session.agent_message.persisted", "artifact.content.committed"],
+      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/artifacts.py", "symbol": "LocalArtifactStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-SCENE",
+      "description": "Cross-domain live scenario coverage and completion score evidence.",
+      "status": "verified",
+      "owner_domains": ["worker_route", "terminal_browser_session", "artifact"],
+      "default_entry_ids": ["worker.pool.dispatch", "web.interactive.sessions", "api.artifact.catalog"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["worker.dispatch.bound", "browser.session.started", "artifact.content.committed"],
+      "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/worker_pool/store.py", "symbol": "WorkerPoolStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_02_live_scenarios.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-VALUE",
+      "description": "Practical user value and artifact usefulness score evidence.",
+      "status": "verified",
+      "owner_domains": ["artifact", "terminal_browser_session"],
+      "default_entry_ids": ["api.artifact.catalog", "web.interactive.sessions"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["artifact.content.committed", "browser.session.started"],
+      "mutation_refs": [{"path": "packages/runtime/zyra_runtime/artifacts.py", "symbol": "LocalArtifactStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/integration/test_artifact_custody_catalog_viewers.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-UX",
+      "description": "Interactive console usability and controllability score evidence.",
+      "status": "verified",
+      "owner_domains": ["permission", "terminal_browser_session", "artifact"],
+      "default_entry_ids": ["web.permission.runtime", "web.interactive.sessions", "api.artifact.catalog"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["permission.decision.recorded", "browser.session.started", "artifact.content.committed"],
+      "mutation_refs": [{"path": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts", "symbol": "PermissionAuditRuntime", "language": "typescript", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/integration/test_permission_console_api.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["apps/web/src/main.tsx"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-NOISE",
+      "description": "Communication noise and topology entropy comparison score evidence.",
+      "status": "verified",
+      "owner_domains": ["graph_checkpoint", "worker_route"],
+      "default_entry_ids": ["worker.graph.topology", "worker.pool.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["graph.snapshot.committed", "worker.dispatch.bound"],
+      "mutation_refs": [{"path": "packages/orchestration/zyra_orchestration/graph_custody/store.py", "symbol": "GraphStateStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "SCORE-ALGO",
+      "description": "Core algorithm rigor, pseudocode, and complexity analysis score evidence.",
+      "status": "partial",
+      "owner_domains": ["graph_checkpoint", "scheduler_recovery", "worker_route"],
+      "default_entry_ids": ["worker.graph.topology", "worker.scheduler.recovery", "worker.pool.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["graph.snapshot.committed", "recovery.plan.applied", "worker.dispatch.bound"],
+      "mutation_refs": [{"path": "packages/orchestration/zyra_orchestration/graph_custody/store.py", "symbol": "GraphStateStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
+      "commits": ["1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-03"
+    },
+    {
+      "requirement_id": "SCORE-ROBUST",
+      "description": "Fault tolerance, requirement-change handling, and node recovery score evidence.",
+      "status": "verified",
+      "owner_domains": ["scheduler_recovery", "gateway_lease_busy", "provider_credential_failover"],
+      "default_entry_ids": ["worker.scheduler.recovery", "worker.gateway.command", "worker.provider.dispatch"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["recovery.plan.applied", "gateway.session.recovered", "provider.dispatch.completed"],
+      "mutation_refs": [{"path": "packages/scheduler/zyra_scheduler/recovery_runtime/store.py", "symbol": "RecoveryPlanStore", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": [],
+      "test_paths": ["tests/scenarios/test_m5_scheduler_fault_recovery.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/sealed_policy.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "SCORE-EFF",
+      "description": "Efficiency, latency, cost, and resource-use comparison score evidence.",
+      "status": "verified",
+      "owner_domains": ["provider_credential_failover", "worker_route", "memory_compact"],
+      "default_entry_ids": ["worker.provider.dispatch", "worker.pool.dispatch", "worker.memory.retrieval"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["provider.dispatch.completed", "worker.dispatch.bound", "memory.candidate.committed"],
+      "mutation_refs": [{"path": "packages/runtime/provider-control-plane/src/store.ts", "symbol": "ProviderControlPlaneStore", "language": "typescript", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/scenarios/test_m2_s05_03_experiment_matrix.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/evaluation/zyra_evaluation/scenario_runner/canonical.py"],
+      "m3_owner": "M3-02A"
+    },
+    {
+      "requirement_id": "SCORE-COMPAT",
+      "description": "Provider, model, operating-system, and runtime compatibility score evidence.",
+      "status": "partial",
+      "owner_domains": ["provider_credential_failover", "gateway_lease_busy", "terminal_browser_session"],
+      "default_entry_ids": ["worker.provider.dispatch", "worker.gateway.command", "web.interactive.sessions"],
+      "live_evidence_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "event_links": ["provider.dispatch.completed", "gateway.session.recovered", "browser.session.started"],
+      "mutation_refs": [{"path": "packages/runtime/provider-control-plane/src/store.ts", "symbol": "ProviderControlPlaneStore", "language": "typescript", "role": "writer"}],
+      "artifact_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "metric_paths": ["docs/reviews/evidence/M2-S05-03/exit-review-verification.json"],
+      "test_paths": ["tests/integration/test_provider_backend_api.py"],
+      "commits": ["a9f7ff81695404f0605770c9fc4d503f5b4f9e07"],
+      "config_paths": ["packages/runtime/provider-control-plane/src/contracts.ts"],
+      "m3_owner": "M3-02B"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ dependencies = [
 
 [project.scripts]
 zyra-source-custody = "zyra_integrations.source_custody.cli:main"
+zyra-freeze-audit = "zyra_evaluation.freeze_audit.cli:main"
 
 [project.optional-dependencies]
 test = [
@@ -44,6 +45,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 zyra_integrations = ["data/*.json"]
+zyra_evaluation = ["data/*.json"]
 
 [tool.zyra]
 phase = "m3-symbolic-collaboration"
