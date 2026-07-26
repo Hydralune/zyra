@@ -1,0 +1,327 @@
+{
+  "mode": "inventory",
+  "policy": {
+    "blockers": 151,
+    "digest": "sha256:0d64dab54bfa4fb2461ee40570bd2229b981c4cb4e04a14bc37f2f3bb593570d",
+    "errors": 0,
+    "findings": 218,
+    "warnings": 67,
+    "work_queue": {
+      "blocking": 40,
+      "by_action": {
+        "add_requirement_evidence": 19,
+        "correct_line_bucket": 1,
+        "dispose_source_risk": 26,
+        "repair_causality": 19,
+        "resolve_owner": 11,
+        "rewire_default": 9
+      },
+      "by_owner_unit": {
+        "M3-01B": 66,
+        "M3-02A": 11,
+        "M3-02B": 2,
+        "M3-03": 6
+      },
+      "by_priority": {
+        "p0": 20,
+        "p1": 20,
+        "p3": 45
+      },
+      "items": 85
+    }
+  },
+  "receipt_digest": "sha256:49f992b78300cf362a8c27d034e1ec246892fc8cfe9311b98a2cb3b0b8ba5446",
+  "release_ready": false,
+  "revision": "d65856eebafd2a046953886b4605ec4ed2c06642",
+  "schema": "zyra.state-owner-reachability-evidence-audit/v1",
+  "sections": {
+    "default_reachability": {
+      "digest": "sha256:c8c3402ab719761bd69a11a746b7902f1c55b74dd5f84c9b54387b7d62d6978d",
+      "findings": 30,
+      "metrics": {
+        "default_entry_count": 11,
+        "edges": 213672,
+        "entry_count": 11,
+        "graph_digest": "sha256:08edd14b17808ecc26e284d92c13a8d8052bcce9043818ecfcdc48308fe35d0e",
+        "nodes": 84483,
+        "reachable_entry_count": 3,
+        "reachable_node_count": 15638,
+        "rule_enabled": true,
+        "schema": "zyra.default-entry-reachability/v1",
+        "strongly_connected_components": 84021,
+        "surface_counts": {
+          "api": 1,
+          "cli": 1,
+          "web": 2,
+          "worker": 7
+        },
+        "unreachable_entry_count": 8
+      },
+      "valid": false
+    },
+    "effective_lines_parent": {
+      "digest": "sha256:269fe7ca4f537b83ad27465c96807e5cc2e88b5461ca48e21af81f28989845ca",
+      "findings": 1,
+      "metrics": {
+        "audit_id": "parent",
+        "baseline": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+        "bucket_effective": {
+          "data": 0,
+          "docs": 0,
+          "production": 6510,
+          "test": 0
+        },
+        "bucket_raw": {
+          "data": 43,
+          "docs": 217,
+          "production": 7861,
+          "test": 619
+        },
+        "data_as_code": 0,
+        "effective_by_language": {
+          "python": 6489,
+          "typescript": 21
+        },
+        "effective_production": 6510,
+        "exclusions": {
+          "annotation_only": 1,
+          "blank": 466,
+          "comment": 7,
+          "data": 43,
+          "docs": 217,
+          "docstring_or_literal": 52,
+          "import": 237,
+          "protocol_or_interface": 9,
+          "schema_dto_field": 254,
+          "schema_dto_header": 32,
+          "signature_continuation": 293,
+          "test": 619
+        },
+        "files_over_20_percent": 0,
+        "head": "d65856eebafd2a046953886b4605ec4ed2c06642",
+        "high_exclusion_files": 9,
+        "interval_digest": "sha256:07d1408a9a91a813ee1d455f22b28a0e6331462050e80167851f463f189f2e6e",
+        "large_files": 7,
+        "margin": -2490,
+        "minimum": 9000,
+        "passed": false,
+        "raw_added": 8740,
+        "raw_deleted": 153,
+        "rule_enabled": true
+      },
+      "valid": false
+    },
+    "effective_lines_slice": {
+      "digest": "sha256:9c9c5a00d4bd6767f4ec33b0cb40b80210d3d1b564f0b9c47a438ccea99f35a6",
+      "findings": 0,
+      "metrics": {
+        "audit_id": "slice",
+        "baseline": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+        "bucket_effective": {
+          "data": 0,
+          "docs": 0,
+          "production": 6510,
+          "test": 0
+        },
+        "bucket_raw": {
+          "data": 43,
+          "docs": 217,
+          "production": 7861,
+          "test": 619
+        },
+        "data_as_code": 0,
+        "effective_by_language": {
+          "python": 6489,
+          "typescript": 21
+        },
+        "effective_production": 6510,
+        "exclusions": {
+          "annotation_only": 1,
+          "blank": 466,
+          "comment": 7,
+          "data": 43,
+          "docs": 217,
+          "docstring_or_literal": 52,
+          "import": 237,
+          "protocol_or_interface": 9,
+          "schema_dto_field": 254,
+          "schema_dto_header": 32,
+          "signature_continuation": 293,
+          "test": 619
+        },
+        "files_over_20_percent": 0,
+        "head": "d65856eebafd2a046953886b4605ec4ed2c06642",
+        "high_exclusion_files": 9,
+        "interval_digest": "sha256:07d1408a9a91a813ee1d455f22b28a0e6331462050e80167851f463f189f2e6e",
+        "large_files": 7,
+        "margin": 2010,
+        "minimum": 4500,
+        "passed": true,
+        "raw_added": 8740,
+        "raw_deleted": 153,
+        "rule_enabled": true
+      },
+      "valid": true
+    },
+    "event_mutation_causality": {
+      "digest": "sha256:8ebf4a6c8f18f9182ef769b607a36cd90320ce5f151cf005246d83ee0fc3bb7b",
+      "findings": 41,
+      "metrics": {
+        "declared_links": 11,
+        "domains_with_valid_link": 11,
+        "effect_kinds": {
+          "artifact": 1,
+          "compact": 1,
+          "permission": 1,
+          "placement": 1,
+          "recovery": 2,
+          "route": 1,
+          "state_mutation": 3,
+          "tool": 1
+        },
+        "event_found": 11,
+        "invalid_links": 0,
+        "mutation_signal": 11,
+        "rule_enabled": true,
+        "semantic_effect": 11,
+        "valid_links": 11
+      },
+      "valid": true
+    },
+    "python_graph": {
+      "digest": "sha256:ef0c852c6fb235e087347c700281e955689b8043f914d43a5768c18300403600",
+      "findings": 0,
+      "metrics": {
+        "assignments": 79633,
+        "calls": 164970,
+        "edges": 95578,
+        "events": 241,
+        "files": 992,
+        "imports": 21166,
+        "nodes": 39728,
+        "owner_claims": 84,
+        "parse_errors": 0,
+        "production_files": 836,
+        "routes": 0,
+        "symbols": 23052,
+        "write_calls": 14662
+      },
+      "valid": true
+    },
+    "requirement_runtime_evidence": {
+      "digest": "sha256:151ccafba170f82fd43936d9b0e8296c569d5343761694662238a68ff7f5f9f3",
+      "findings": 59,
+      "metrics": {
+        "evidence_digest": "sha256:a81fb8e6acb7a81ad92c17f016f22a28054f441015c93f0a46cdbdfff75aee2f",
+        "invalid_count": 19,
+        "m3_owner_counts": {
+          "M3-02A": 11,
+          "M3-02B": 2,
+          "M3-03": 6
+        },
+        "requirement_count": 19,
+        "rule_enabled": true,
+        "status_counts": {
+          "partial": 4,
+          "verified": 15
+        },
+        "valid_count": 0,
+        "verified_count": 15
+      },
+      "valid": false
+    },
+    "script_graph": {
+      "digest": "sha256:997e212fe2bbd833a8df177df9dc92f35d38c64f07aa62a240be9cd1ae5a510b",
+      "findings": 0,
+      "metrics": {
+        "assignments": 57272,
+        "calls": 260851,
+        "edges": 118070,
+        "entry_calls": 1033,
+        "events": 2278,
+        "files": 842,
+        "imports": 3357,
+        "nodes": 44744,
+        "owner_claims": 25,
+        "parse_errors": 0,
+        "production_files": 740,
+        "symbols": 30761,
+        "write_calls": 23484
+      },
+      "valid": true
+    },
+    "source_risk_bridge": {
+      "digest": "sha256:683e9d818a922da994503304da9c1269fc826500e6cf95781554b56b98746083",
+      "findings": 26,
+      "metrics": {
+        "blocking_risk_records": 0,
+        "bridge_digest": "sha256:24caa009225fdcc3d46f4cad0ba1e71f7d411f7fa2647afc118723a9338c1c18",
+        "input_valid": true,
+        "langgraph_forbidden_hits": 21,
+        "opaque_runtime_hits": 0,
+        "repository_manifest_items": 4085,
+        "risk_categories": {
+          "dynamic_download": 18,
+          "opaque_bundle": 7,
+          "semantic_port": 1
+        },
+        "risk_records": 26,
+        "rule_enabled": true,
+        "similarity_pairs": 1,
+        "source_receipt_digest": "sha256:52e8e453a160861803a30ff229ac977da2fffd94e1e9537dac019a61c98025d5",
+        "source_revision": "d65856eebafd2a046953886b4605ec4ed2c06642",
+        "work_queue_items": 231
+      },
+      "valid": true
+    },
+    "state_catalog": {
+      "digest": "sha256:8e9b6637597c6567d6c33e77dc0858ae9a36575b8cc13a7d857064f235598072",
+      "findings": 0,
+      "metrics": {
+        "catalog_digest": "sha256:575f4d67543f97e59b0910abac82b77bd6a6da5a0a7662dc45af363002cb4e6f",
+        "catalog_path": "packages/evaluation/zyra_evaluation/data/state_owner_evidence_catalog.json",
+        "default_entry_count": 11,
+        "event_mutation_count": 11,
+        "matrix_requirement_count": 19,
+        "owner_count": 11,
+        "raw_digest": "sha256:d18f85bd8be8ff8391d24b3418184e93b9134b9fe5c11e437bbfa0de6758951f",
+        "required_domain_count": 11,
+        "required_requirement_count": 19,
+        "requirement_count": 19,
+        "rule_enabled": true,
+        "schema": "zyra.state-owner-evidence-catalog/v1"
+      },
+      "valid": true
+    },
+    "state_ownership": {
+      "digest": "sha256:aad35d797453b85289fcfb290304717d0c2ce33b65912db0e2e593c4e90fd363",
+      "findings": 61,
+      "metrics": {
+        "cache_count": 2,
+        "canonical_claim_count": 0,
+        "domain_count": 11,
+        "invalid_reference_count": 0,
+        "owner_count": 11,
+        "projection_count": 7,
+        "reference_count": 67,
+        "role_counts": {
+          "cache": 2,
+          "checkpoint": 11,
+          "fallback": 1,
+          "owner": 11,
+          "projection": 7,
+          "recovery": 11,
+          "store": 11,
+          "writer": 13
+        },
+        "rule_enabled": true,
+        "store_count": 11,
+        "valid_reference_count": 67,
+        "writer_count": 13
+      },
+      "valid": false
+    }
+  },
+  "slice_id": "M3-S01A-02",
+  "valid": true
+}

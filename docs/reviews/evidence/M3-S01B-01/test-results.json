@@ -1,0 +1,84 @@
+{
+  "schema": "zyra.m3-s01b-01.test-results/v1",
+  "slice_id": "M3-S01B-01",
+  "baseline_revision": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+  "implementation_revision": "d65856eebafd2a046953886b4605ec4ed2c06642",
+  "results": [
+    {
+      "command": ".venv/Scripts/python.exe -m pytest tests/unit/test_source_custody_risk_precision.py tests/unit/test_runtime_owner_productization.py tests/integration/test_runtime_owner_productization_api.py tests/unit/test_sandbox_gateway_artifacts.py tests/integration/test_sandbox_gateway_runtime.py tests/integration/test_sandbox_gateway_worker_integration.py -q",
+      "status": "passed",
+      "passed": 43,
+      "failed": 0,
+      "purpose": "protected queue, structural source disposition, dynamic owner/default readiness, disable/no-fallback, gateway artifact causality, and MCP gateway regression"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe test ./packages/runtime/claude-runtime/test/e01/query-context.behavior.test.ts ./packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts ./packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
+      "status": "passed",
+      "passed": 120,
+      "failed": 0,
+      "purpose": "TypeScript QueryEngine/session canonical-owner cutover, durability, exact resume, and disconnect behavior"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe test ./packages/runtime/claude-runtime/test/e02/permission-custody.behavior.test.ts",
+      "status": "passed",
+      "passed": 20,
+      "failed": 0,
+      "purpose": "permission owner, audit mutation identity, approval continuation, and no-Python-fallback behavior"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+      "status": "passed",
+      "passed": 9,
+      "failed": 0,
+      "purpose": "MCP coordinator/journal owner, request identity, restore, and fail-closed behavior"
+    },
+    {
+      "command": "npm run test:providers",
+      "status": "passed",
+      "passed": 21,
+      "failed": 0,
+      "purpose": "provider credential/control-plane ownership, real transport, route failover, cancellation, and idempotency"
+    },
+    {
+      "command": "npm run typecheck:e01 && npm run typecheck:e02",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0,
+      "purpose": "affected TypeScript QueryEngine, permission, and MCP packages"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m compileall -q apps/api packages/runtime/zyra_runtime packages/integrations/zyra_integrations packages/scheduler/zyra_scheduler",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0,
+      "purpose": "affected Python package syntax/import-bytecode compilation"
+    },
+    {
+      "command": ".venv/Scripts/python.exe scripts/verify_m3_s01b01_runtime_absorption.py --project-root . --revision d65856eebafd2a046953886b4605ec4ed2c06642",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0,
+      "purpose": "checksum-bound 119-item input plus real clean-state 11-domain owner/default/disable proof"
+    }
+  ],
+  "baseline_comparison": {
+    "command": "G:/agent-zoo/zyra/.venv/Scripts/python.exe -m pytest tests/integration/test_recovery_planner_routing_memory_api.py -q",
+    "baseline_revision": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+    "baseline_result": {
+      "passed": 0,
+      "failed": 2,
+      "failure": "HTTP 422 continuation_dispatch_failed"
+    },
+    "candidate_result": {
+      "passed": 0,
+      "failed": 2,
+      "failure": "HTTP 422 continuation_dispatch_failed"
+    },
+    "disposition": "pre_existing_not_slice_regression",
+    "reason": "The exact failures reproduce in a detached baseline worktree. This slice only adds recovery event identity fields and does not alter continuation dispatch."
+  },
+  "notes": [
+    "npm.ps1 printed a sandbox-denied lookup for the user roaming npm-cli.js but both requested npm commands completed with exit code 0.",
+    "Full repository tests and parent cleanroom remain assigned to the M3-01B parent closure/digital-stage aggregate; all changed and adjacent behavior paths were exercised here."
+  ]
+}
