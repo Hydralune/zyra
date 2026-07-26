@@ -215,6 +215,28 @@ SOURCE_AUDITED_INTERPRETERS = frozenset(
         "deno",
     }
 )
+VIRTUAL_ENV_INTERPRETER = re.compile(
+    r"^(?:\.?venv)?scripts(?:python(?:3)?|node|bun|deno)(?:\.exe)?$",
+    re.IGNORECASE,
+)
+
+
+def source_audited_interpreter(executable: str) -> bool:
+    """Recognize declared interpreters even after package-script normalization.
+
+    The package scanner intentionally removes shell separators while parsing
+    JSON command strings.  On Windows that turns
+    ``.venv/Scripts/python.exe`` into ``.venvscriptspython.exe``.  This
+    structural check accepts only the known interpreter leaf or that exact
+    virtual-environment shape; arbitrary native executables remain opaque.
+    """
+
+    normalized = str(executable or "").strip().replace("\\", "/")
+    leaf = PurePosixPath(normalized).name.casefold()
+    if leaf in SOURCE_AUDITED_INTERPRETERS:
+        return True
+    compact = re.sub(r"[/\s:_-]+", "", normalized).casefold()
+    return VIRTUAL_ENV_INTERPRETER.fullmatch(compact) is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -824,7 +846,7 @@ class RiskAuditor:
             executable = PurePosixPath(use.executable.replace("\\", "/")).name.casefold()
             if executable.endswith(
                 (".exe", ".dll", ".so", ".dylib", ".node", ".wasm")
-            ) and executable not in SOURCE_AUDITED_INTERPRETERS:
+            ) and not source_audited_interpreter(use.executable):
                 findings.append(
                     finding(
                         "opaque_binary_process",

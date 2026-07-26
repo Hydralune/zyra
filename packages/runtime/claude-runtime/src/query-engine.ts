@@ -1309,6 +1309,9 @@ export class ClaudeRuntimeCore {
       await emit("turn_completed", {
         turn_id: turn.turn_id,
         turn_index: turnIndex,
+        mutation_id: turn.turn_id,
+        revision: turnIndex,
+        effect_committed: true,
         ok: turnOk,
         error: turnError,
       });

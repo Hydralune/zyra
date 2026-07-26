@@ -110,7 +110,7 @@
       "events": [
         {
           "link_id": "session.turn.completed",
-          "event_name": "runtime.turn.completed",
+          "event_name": "turn_completed",
           "producer": {
             "path": "packages/runtime/claude-runtime/src/query-engine.ts",
             "symbol": "ClaudeRuntimeCore",
@@ -118,8 +118,8 @@
             "role": "writer"
           },
           "mutation": {
-            "path": "packages/runtime/runtime-event-spine/src/source-mapper.ts",
-            "symbol": "RuntimeSourceMapper",
+            "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+            "symbol": "ClaudeRuntimeCore",
             "language": "typescript",
             "role": "writer"
           },

@@ -35,7 +35,7 @@ def default_causal_contracts() -> tuple[CausalEventContract, ...]:
         CausalEventContract(
             link_id="session.turn.completed",
             domain=RuntimeDomain.SESSION_EVENT_PROJECTION,
-            event_name="runtime.turn.completed",
+            event_name="turn_completed",
             effect_kind=CausalEffectKind.STATE_MUTATION,
             required_attributes=(
                 "run_id",
