@@ -431,3 +431,35 @@ def test_policy_emits_deterministic_actionable_queue() -> None:
     assert first.digest == second.digest
     assert [item.action.value for item in first.work_queue] == ["remove", "declare"]
     assert all(item.owner_unit == "M3-01B" for item in first.work_queue)
+
+
+def test_policy_queue_is_stable_for_case_variant_source_names() -> None:
+    findings = [
+        finding(
+            "python_parent_source_path",
+            "Parent source path uses canonical spelling.",
+            "dependencies",
+            source_repo="OpenHands",
+            path="packages/a.py",
+        ),
+        finding(
+            "python_parent_source_path",
+            "Parent source path uses normalized spelling.",
+            "dependencies",
+            source_repo="openhands",
+            path="packages/b.py",
+        ),
+    ]
+
+    first = FindingPolicy().apply(
+        [section("fixture", findings=findings)],
+        mode=AuditMode.INVENTORY,
+    )
+    second = FindingPolicy().apply(
+        [section("fixture", findings=reversed(findings))],
+        mode=AuditMode.INVENTORY,
+    )
+
+    assert first.digest == second.digest
+    assert first.work_queue == second.work_queue
+    assert first.work_queue[0].source_repositories == ("OpenHands", "openhands")

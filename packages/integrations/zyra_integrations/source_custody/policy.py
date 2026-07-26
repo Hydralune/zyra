@@ -558,7 +558,7 @@ class FindingPolicy:
                     source_repositories=tuple(
                         sorted(
                             {item.source_repo for item in selected if item.source_repo},
-                            key=str.casefold,
+                            key=lambda value: (value.casefold(), value),
                         )
                     ),
                     paths=tuple(
