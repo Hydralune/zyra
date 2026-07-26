@@ -1,0 +1,63 @@
+{
+  "schema": "zyra.m3-01.source-language-custody/v1",
+  "slice_id": "M3-S01B-02",
+  "baseline_revision": "9f2bfe85bc8324e2531e0ba636cc4410bda9334e",
+  "implementation_revision": "7ff45a7c52539c920539d398a9469c3ef7c7aeb8",
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "config_migration_python",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "owner_absorption_and_cleanup/same_language"
+    },
+    {
+      "source_repo": "zyra",
+      "source_role": "provider_migration_typescript",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "same_language_owner_cleanup"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "config_migration_python",
+      "migration_mode": "owner_absorption_and_cleanup/same_language",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "apps/api/zyra_api/main.py",
+        "packages/runtime/zyra_runtime/productization/bootstrap.py",
+        "packages/runtime/zyra_runtime/productization/configuration.py",
+        "packages/runtime/zyra_runtime/productization/credentials.py",
+        "packages/runtime/zyra_runtime/productization/lifecycle.py",
+        "packages/runtime/zyra_runtime/productization/migration_adapters.py",
+        "packages/runtime/zyra_runtime/productization/migration_journal.py",
+        "packages/runtime/zyra_runtime/productization/migration_runtime.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "zyra",
+      "source_role": "provider_migration_typescript",
+      "migration_mode": "same_language_owner_cleanup",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/productization/runtime-config.ts",
+        "packages/runtime/provider-control-plane/src/schema-migration.ts",
+        "packages/runtime/provider-control-plane/src/store.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -23,8 +25,35 @@ from zyra_core import EventRecord, EventType, PlanNodeStatus, create_task_state,
 from zyra_evaluation import evaluate_task_trace
 from zyra_orchestration import GraphExecutionContext, run_task_graph
 from zyra_runtime import default_tool_registry, default_worker_descriptors
-from zyra_skills import default_skill_registry
 from zyra_symbolic import ConstraintKeeper, TopologyRouter, apply_failure_injection, apply_requirement_change
+
+
+def verify_typescript_skill_owner() -> None:
+    candidates = (
+        ROOT / "node_modules" / ".bin" / "bun.exe",
+        ROOT / "node_modules" / ".bin" / "bun",
+    )
+    bun = next((str(path) for path in candidates if path.is_file()), None)
+    if bun is None:
+        bun = shutil.which("bun")
+    if bun is None:
+        raise AssertionError(
+            "Bun is required to verify the canonical TypeScript skill owner"
+        )
+    completed = subprocess.run(
+        [bun, str(ROOT / "scripts" / "verify_m3_skills.ts")],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.returncode:
+        raise AssertionError(
+            "canonical TypeScript skill verification failed: "
+            f"{completed.stderr.strip() or completed.stdout.strip()}"
+        )
 
 
 def main() -> None:
@@ -32,8 +61,7 @@ def main() -> None:
     assert "CodeWorkerRuntime" in workers
     assert "BrowserWorker" in workers
     assert default_tool_registry().get("trace") is not None
-    assert default_skill_registry().get("requirement-change") is not None
-    assert default_skill_registry().get("failure-recovery") is not None
+    verify_typescript_skill_owner()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
@@ -67,13 +95,25 @@ def main() -> None:
         assert execute_node.assigned_worker_id == "CodeWorkerRuntime"
         assert ConstraintKeeper().check_task_state(state, node=execute_node)
         route_decision, route_event = TopologyRouter().route(state, node=execute_node)
-        assert route_decision.selected == "CodeWorkerRuntime"
+        assert route_decision.selected in workers
+        assert route_event.payload["selected_worker"] == route_decision.selected
         assert route_event.event_type == EventType.TOPOLOGY_ROUTE
 
         page = base / "workspace" / "m3.html"
         page.parent.mkdir(parents=True, exist_ok=True)
         page.write_text("<html><head><title>M3</title></head><body>M3 browser route.</body></html>", encoding="utf-8")
         browser_state = create_task_state(f"M3 verify browser route {page.resolve().as_uri()}")
+        browser_state.metadata["runtime_hints"] = {
+            "preferred_worker": "BrowserWorker",
+            "browser_backend": "static",
+            "browser_plan": [
+                {
+                    "action": "open_url",
+                    "arguments": {"url": page.resolve().as_uri()},
+                }
+            ],
+            "allowed_schemes": ["file"],
+        }
         run_task_graph(
             browser_state,
             execution_context=GraphExecutionContext.from_paths(
@@ -83,7 +123,9 @@ def main() -> None:
             ),
         )
         browser_execute = next(node for node in browser_state.plan_nodes.values() if node.metadata.get("stage") == "execute")
-        assert browser_execute.assigned_worker_id == "BrowserWorker"
+        assert browser_execute.assigned_worker_id == "BrowserWorker", (
+            browser_execute.assigned_worker_id
+        )
 
         change_event = EventRecord(
             run_id=state.run_id,

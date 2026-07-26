@@ -1,0 +1,64 @@
+{
+  "schema": "zyra.m3-01.source-language-custody/v1",
+  "slice_id": "M3-S01B-01",
+  "baseline_revision": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+  "implementation_revision": "d65856eebafd2a046953886b4605ec4ed2c06642",
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "owner_absorption_python",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "owner_absorption_and_cleanup/same_language"
+    },
+    {
+      "source_repo": "zyra",
+      "source_role": "owner_absorption_typescript",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "owner_absorption_and_cleanup/same_language"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "owner_absorption_python",
+      "migration_mode": "owner_absorption_and_cleanup/same_language",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "apps/api/zyra_api/main.py",
+        "packages/runtime/zyra_runtime/productization/absorption.py",
+        "packages/runtime/zyra_runtime/productization/causality.py",
+        "packages/runtime/zyra_runtime/productization/composition.py",
+        "packages/runtime/zyra_runtime/productization/contracts.py",
+        "packages/runtime/zyra_runtime/productization/defaults.py",
+        "packages/runtime/zyra_runtime/productization/owner_registry.py",
+        "packages/runtime/zyra_runtime/productization/source_boundary.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "zyra",
+      "source_role": "owner_absorption_typescript",
+      "migration_mode": "owner_absorption_and_cleanup/same_language",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+        "packages/runtime/claude-runtime/src/permission/audit-runtime.ts",
+        "packages/runtime/claude-runtime/src/query-engine.ts",
+        "packages/runtime/provider-control-plane/src/control-plane.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    }
+  ]
+}

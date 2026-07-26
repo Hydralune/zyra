@@ -3,9 +3,32 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping
+
+
+ROOT = Path(__file__).resolve().parents[1]
+for package_path in (
+    ROOT / "apps" / "api",
+    ROOT / "packages" / "code_index",
+    ROOT / "packages" / "commands",
+    ROOT / "packages" / "core",
+    ROOT / "packages" / "evaluation",
+    ROOT / "packages" / "integrations",
+    ROOT / "packages" / "memory",
+    ROOT / "packages" / "orchestration",
+    ROOT / "packages" / "runtime",
+    ROOT / "packages" / "scheduler",
+    ROOT / "packages" / "skills",
+    ROOT / "packages" / "symbolic",
+    ROOT / "packages" / "workers",
+    ROOT / "packages" / "workspace",
+):
+    resolved = str(package_path)
+    if resolved not in sys.path:
+        sys.path.insert(0, resolved)
 
 from zyra_api import main as api
 from zyra_runtime.productization.contracts import (

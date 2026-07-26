@@ -50,17 +50,17 @@ REQUIRED_PATHS: dict[str, tuple[str, ...]] = {
         "vendor/claude-code-best/src/query.ts",
         "vendor/browser-use/browser_use/agent",
         "vendor/browser-use/browser_use/browser",
-        "apps/code-worker/src/main.mjs",
+        "apps/code-worker/src/main.ts",
         "packages/integrations/zyra_integrations/vendor_manifest.py",
         "packages/runtime/zyra_runtime/executor.py",
         "packages/runtime/zyra_runtime/permissions.py",
         "packages/runtime/zyra_runtime/session.py",
-        "packages/workers/zyra_workers/code_query_loop.py",
+        "packages/runtime/claude-runtime/src/query-engine.ts",
         "packages/workers/zyra_workers/code_worker_runtime.py",
         "packages/workers/zyra_workers/browser_worker.py",
         "packages/workers/zyra_workers/browser_use_runtime.py",
         "tests/integration/test_code_worker_sidecar.py",
-        "tests/scenarios/test_m2_runtime_acceptance.py",
+        "tests/integration/test_code_worker_query_session_integration.py",
         "scripts/verify_m2.py",
     ),
     "m3": (
@@ -77,29 +77,16 @@ REQUIRED_PATHS: dict[str, tuple[str, ...]] = {
 
 DEEP_INTERNALIZATION_DEBTS = (
     {
-        "area": "claude-code-best QueryEngine",
-        "current_state": "Vendored source and sidecar contract are present; Zyra runs a contract-backed Python loop.",
-        "needed_later": "M4-M6 should migrate or encapsulate more of the real QueryEngine/session/permission/compact runtime.",
-    },
-    {
-        "area": "permission, skills, subagent, MCP",
-        "current_state": "Zyra has registries, permission policy, inventory, and skill invocation events.",
-        "needed_later": "Move beyond inventory/metadata into executable SkillTool, AgentTool/subagent, MCP client, and permission handlers.",
-    },
-    {
-        "area": "memory and compaction",
-        "current_state": "M2 has query context budget artifacts and stateful context sessions.",
-        "needed_later": "M4 must build MemoryFabric, retrieval, trajectory replay, compact restore, and skill memory as first-class modules.",
-    },
-    {
-        "area": "scheduler and fault recovery",
-        "current_state": "M3 routes workers and records failure-recovery decisions; scheduler package is not yet implemented.",
-        "needed_later": "M5 must add WorkerManifest, ResourceScheduler, local/docker/cloud resources, watchdogs, and recovery policies.",
-    },
-    {
-        "area": "control console",
-        "current_state": "The current web app is a static connected console shell.",
-        "needed_later": "M6 must internalize a full control console with graph, timeline, artifacts, diff/browser/terminal panes, and live control input.",
+        "area": "historical audit scope",
+        "current_state": (
+            "This command verifies the retained pre-reset M0.0-M0.3 path set. "
+            "Those historical stages were later merged into the current M0 and "
+            "their original debt statements are not current runtime facts."
+        ),
+        "needed_later": (
+            "Use docs/milestones/execution-state.yaml plus the current M3 source-"
+            "custody and freeze-audit commands for progression or release decisions."
+        ),
     },
 )
 
@@ -113,7 +100,12 @@ class LineCounts:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit M0-M3 against Zyra heavyweight internalization goals.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Audit the retained pre-reset M0.0-M0.3 paths; this is not the "
+            "current M3 release-readiness authority."
+        )
+    )
     parser.add_argument("--json", action="store_true", help="Print a machine-readable JSON report.")
     parser.add_argument("--fail-on-debt", action="store_true", help="Exit non-zero when known internalization debt remains.")
     args = parser.parse_args()
@@ -150,6 +142,8 @@ def build_report(root: Path) -> dict[str, Any]:
 
     return {
         "status": status,
+        "scope": "historical_pre_reset_m0_0_to_m0_3",
+        "current_authority": "docs/milestones/execution-state.yaml",
         "root": str(root),
         "line_counts": {
             "tracked_total": counts.tracked_total,
@@ -268,9 +262,11 @@ def count_file_lines(path: Path) -> int:
 def format_markdown(report: dict[str, Any]) -> str:
     counts = report["line_counts"]
     lines = [
-        "# M0-M3 Heavyweight Internalization Audit",
+        "# Historical Pre-reset M0.0-M0.3 Internalization Audit",
         "",
         f"- status: `{report['status']}`",
+        f"- scope: `{report['scope']}`",
+        f"- current_authority: `{report['current_authority']}`",
         f"- tracked_total_lines: `{counts['tracked_total']}`",
         f"- tracked_vendor_lines: `{counts['tracked_vendor']}`",
         f"- tracked_non_vendor_lines: `{counts['tracked_non_vendor']}`",

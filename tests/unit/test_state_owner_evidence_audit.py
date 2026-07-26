@@ -169,7 +169,7 @@ def test_all_declared_state_references_resolve_to_executable_source(
     } & finding_codes(context.ownership.section)
 
 
-def test_inventory_preserves_real_reachability_and_causality_gaps(
+def test_inventory_preserves_reachability_gaps_after_causality_absorption(
     context: AuditContext,
 ) -> None:
     reachability_codes = finding_codes(context.reachability.section)
@@ -180,9 +180,9 @@ def test_inventory_preserves_real_reachability_and_causality_gaps(
     assert "canonical_owner_default_unreachable" in reachability_codes
     assert "default_trace_edge_unverified" in reachability_codes
     assert context.causality.section.metrics["declared_links"] == 11
-    assert 0 < context.causality.section.metrics["valid_links"] < 11
-    assert "causal_event_not_emitted" in causality_codes
-    assert "event_mutation_path_unreachable" in causality_codes
+    assert context.causality.section.metrics["valid_links"] == 11
+    assert "causal_event_not_emitted" not in causality_codes
+    assert "event_mutation_path_unreachable" not in causality_codes
 
 
 def test_duplicate_owner_catalog_mutation_is_rejected(

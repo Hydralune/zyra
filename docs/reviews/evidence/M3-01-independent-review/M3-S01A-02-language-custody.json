@@ -1,0 +1,44 @@
+{
+  "schema": "zyra.m3-01.source-language-custody/v1",
+  "slice_id": "M3-S01A-02",
+  "baseline_revision": "ce799c7fe02d1f5fc1832bbbff1e76b5a73e8caa",
+  "implementation_revision": "2de115f565667eda0ab9664f98af3181f45460e9",
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "zyra_owned_audit_primary",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "audit_only_no_runtime_migration"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "zyra_owned_audit_primary",
+      "migration_mode": "audit_only_no_runtime_migration",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "packages/evaluation/zyra_evaluation/freeze_audit/catalog.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/causality.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/cli.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/engine.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/lines.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/model.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/ownership.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/policy.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/python_graph.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/reachability.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/requirements.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/script_graph.py",
+        "packages/evaluation/zyra_evaluation/freeze_audit/source_bridge.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "cross_language_exception": false
+    }
+  ]
+}
