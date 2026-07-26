@@ -433,6 +433,7 @@ from zyra_workers import (
     BrowserContextTaskIntegrationRuntime,
     BrowserContextApiProjectionRuntime,
     BrowserWorkerRuntime,
+    CodeWorkerSidecarClient,
     CodeWorkerRuntime,
     WorkerRetrievalContextRuntime,
     MemoryCuratorOperation,
@@ -6530,64 +6531,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["workers", "code", "inventory"]:
-            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
-            integration = build_claude_productization_integration_report(
-                project_root=PROJECT_ROOT,
-                runtime_contracts=contracts,
-            )
-            inventory_tools = default_tool_registry().list()
-            inventory_runtime_context = assemble_claude_runtime_context(
-                request=WorkerRequest(
-                    run_id="inventory",
-                    task_id="code-worker-runtime-inventory",
-                    worker_name="CodeWorkerRuntime",
-                    constraints={"permission_mode": "workspace"},
-                    metadata={"source": "workers/code/inventory"},
-                ),
-                integration_report=integration,
-                runtime_contracts=contracts,
-                project_root=PROJECT_ROOT,
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                tool_names=tuple(tool.name for tool in inventory_tools),
-                read_only_tool_names=tuple(
-                    tool.name for tool in inventory_tools if tool.metadata.get("read_only") == "true"
-                ),
-                mutating_tool_names=tuple(
-                    tool.name for tool in inventory_tools if tool.metadata.get("read_only") != "true"
-                ),
-                permission_mode="workspace",
-            )
-            source_graph_audit = build_claude_source_graph_audit(
-                project_root=PROJECT_ROOT,
-                integration_report=integration,
-                runtime_contracts=contracts,
-                runtime_context_report=inventory_runtime_context,
-            )
-            payload = dict(contracts.inventory)
-            payload["health"] = contracts.health
-            payload["defaultPath"] = contracts.default_path
-            payload["sessionFoundation"] = contracts.session_contract.get("preQueryFoundation", {})
-            payload["sourceToTarget"] = [item.to_dict() for item in contracts.source_to_target]
-            payload["sourceGraph"] = integration.crosswalk.source_to_target_payload()
-            payload["runtimeContext"] = integration.crosswalk.runtime_context_payload()
-            payload["eventContracts"] = integration.crosswalk.event_contract_payload()
-            payload["downstreamContracts"] = integration.crosswalk.downstream_payload()
-            payload["integration"] = integration.to_dict()
-            payload["sourceGraphAudit"] = source_graph_audit.to_dict()
-            payload["stateCustodyRuntime"] = source_graph_audit.state_custody_runtime_report.to_dict()
-            payload["sessionLineage"] = SessionLineageRuntime().build_report(
-                project_root=PROJECT_ROOT,
-                contracts=contracts,
-            ).to_dict()
-            api_inventory_contract = build_api_inventory_contract_report(
-                project_root=PROJECT_ROOT,
-                contracts=contracts,
-                integration_report=integration,
-                runtime_context_report=inventory_runtime_context,
-                payload=payload,
-            )
-            payload["apiInventoryContract"] = api_inventory_contract.to_dict()
+            try:
+                client = CodeWorkerSidecarClient(PROJECT_ROOT)
+                payload = client.runtime_inventory()
+                health = client.health()
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "ok": False,
+                        "error": "code_worker_runtime_unavailable",
+                        "message": str(exc),
+                        "canonicalOwner": "typescript",
+                        "fallbackUsed": False,
+                    },
+                )
+                return
+            payload["health"] = health
+            payload["processConfiguration"] = health.get("processConfiguration", {})
+            payload["apiRoute"] = "/workers/code/inventory"
+            payload["defaultRoute"] = True
+            payload["fallbackUsed"] = False
             self._send_json(HTTPStatus.OK, payload)
             return
 
@@ -6633,263 +6597,53 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["workers", "code", "session-foundation"]:
-            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
-            tools = default_tool_registry().list()
-            query = parse_qs(parsed.query)
-            request = WorkerRequest(
-                run_id="inventory",
-                task_id="code-worker-session-foundation",
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "raw_input": "Inspect CodeWorker session foundation.",
-                    "query_turns": [[{"tool_name": "trace", "arguments": {"limit": 1}}]],
-                    "permission_mode": "workspace",
-                },
-                metadata={"source": "workers/code/session-foundation"},
-            )
-            api_session_id = str(query.get("session_id", [""])[0] or f"codesession_inventory_{request.request_id}")
-            input_report = QueryInputProcessor().process_worker_request(request)
-            context_snapshot = ContextAssemblyRuntime().assemble(
-                request=request,
-                session_id=api_session_id,
-                input_records=input_report.records,
-                tool_specs=tools,
-                project_root=PROJECT_ROOT,
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                runtime_contracts=contracts,
-                permission_mode="workspace",
-            )
-            session_store = CodeWorkerSessionStore(artifact_root_path() / "code-worker-session-foundation-api")
-            session_foundation = CodeWorkerSessionFoundationRuntime(store=session_store)
-            session_seed = session_foundation.build_seed(
-                request=request,
-                input_report=input_report,
-                context_snapshot=context_snapshot,
-                session_id=api_session_id,
-            )
-            session_seed_events = session_foundation.seed_events(session_seed)
-            replay_constraints = {
-                key: values[0]
-                for key, values in query.items()
-                if key in {"resume_session_id", "resume_code_worker_session_id", "resume_worker_request_id", "resume_after_sequence", "resume_limit"}
-                and values
-            }
-            replay_plan = CodeWorkerSessionReplayRuntime(session_store).build_plan_from_constraints(replay_constraints)
-            replay_events = []
-            if replay_plan is not None:
-                replay_events.append(
-                    CodeWorkerSessionReplayRuntime(session_store).event_for_plan(
-                        replay_plan,
-                        run_id=request.run_id,
-                        task_id=request.task_id,
-                        node_id=request.node_id,
-                    )
+            try:
+                payload = CodeWorkerSidecarClient(PROJECT_ROOT).session_contract()
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "ok": False,
+                        "error": "code_worker_runtime_unavailable",
+                        "message": str(exc),
+                        "canonicalOwner": "typescript",
+                        "fallbackUsed": False,
+                    },
                 )
-            turn_lifecycle_runtime = TurnLifecycleRuntime()
-            turn_lifecycle = turn_lifecycle_runtime.project(
-                session_id=session_seed.session_id,
-                worker_request_id=request.request_id,
-                input_records=input_report.records,
-                query_turns=request.constraints.get("query_turns", []),
-                context_snapshot=context_snapshot,
-                replay_plan=replay_plan,
-            )
-            turn_lifecycle_event = turn_lifecycle_runtime.event_for_projection(
-                turn_lifecycle,
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-            )
-            foundation_audit = SessionFoundationAuditor().audit_seed(
-                session_seed,
-                store=session_store,
-                events=[*session_seed_events, *replay_events, turn_lifecycle_event],
-            )
-            foundation_audit_record = foundation_audit_event(foundation_audit)
-            acceptance_runtime = SessionAcceptanceRuntime()
-            acceptance_report = acceptance_runtime.evaluate(
-                seed=session_seed,
-                foundation_audit=foundation_audit,
-                turn_lifecycle=turn_lifecycle,
-                replay_plan=replay_plan,
-                transcript_mapping=None,
-                require_transcript=False,
-            )
-            acceptance_event = acceptance_runtime.event_for_report(
-                acceptance_report,
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-            )
-            lifecycle_report = SessionLifecycleRuntime().build_report(
-                [*session_seed_events, *replay_events, turn_lifecycle_event, foundation_audit_record, acceptance_event],
-                session_id=session_seed.session_id,
-                worker_request_id=request.request_id,
-                require_query_engine=False,
-                require_transcript=False,
-            )
-            lineage_report = SessionLineageRuntime().build_report(project_root=PROJECT_ROOT, contracts=contracts)
-            projection = SessionApiProjectionBuilder().build(
-                contracts=contracts,
-                request=request,
-                input_report=input_report,
-                context_snapshot=context_snapshot,
-                replay_plan=replay_plan,
-                turn_lifecycle=turn_lifecycle,
-                acceptance_report=acceptance_report,
-                lifecycle_report=lifecycle_report,
-                lineage_report=lineage_report,
-            )
-            self._send_json(HTTPStatus.OK, projection.to_dict())
+                return
+            payload["apiRoute"] = "/workers/code/session-foundation"
+            payload["contractSurface"] = "query-session"
+            payload["defaultRoute"] = True
+            payload["fallbackUsed"] = False
+            self._send_json(HTTPStatus.OK, payload)
             return
 
         if parts == ["workers", "code", "session-integration"]:
-            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
-            tools = default_tool_registry().list()
-            query = parse_qs(parsed.query)
-            api_session_id = str(query.get("session_id", [""])[0] or "")
-            query_turns = [[{"tool_name": "trace", "arguments": {"limit": 1}}]]
-            constraints = {
-                "raw_input": str(query.get("q", ["Inspect CodeWorker query session integration."])[0]),
-                "query_turns": query_turns,
-                "permission_mode": str(query.get("permission_mode", ["workspace"])[0] or "workspace"),
-            }
-            if api_session_id:
-                constraints["session_id"] = api_session_id
-            for key in (
-                "resume_session_id",
-                "resume_code_worker_session_id",
-                "resume_worker_request_id",
-                "resume_after_sequence",
-                "resume_limit",
-                "cancel_session",
-                "cancel_reason",
-                "interrupt_session",
-                "interrupt_reason",
-                "checkpoint_session",
-                "checkpoint_query_entry",
-                "expected_context_fingerprint",
-                "disable_query_entry_packet",
-                "disable_query_entry_store",
-                "disable_query_session_checkpoint",
-            ):
-                if query.get(key):
-                    constraints[key] = query[key][0]
-            request = WorkerRequest(
-                run_id="inventory",
-                task_id="code-worker-session-integration",
-                worker_name="CodeWorkerRuntime",
-                constraints=constraints,
-                metadata={"source": "workers/code/session-integration"},
-            )
-            api_session_id = str(constraints.get("session_id") or f"codesession_integration_{request.request_id}")
-            input_report = QueryInputProcessor().process_worker_request(request)
-            context_snapshot = ContextAssemblyRuntime().assemble(
-                request=request,
-                session_id=api_session_id,
-                input_records=input_report.records,
-                tool_specs=tools,
-                project_root=PROJECT_ROOT,
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                runtime_contracts=contracts,
-                permission_mode=str(constraints.get("permission_mode") or "workspace"),
-            )
-            session_store = CodeWorkerSessionStore(artifact_root_path() / "code-worker-session-integration-api")
-            session_foundation = CodeWorkerSessionFoundationRuntime(store=session_store)
-            session_seed = session_foundation.build_seed(
-                request=request,
-                input_report=input_report,
-                context_snapshot=context_snapshot,
-                session_id=api_session_id,
-            )
-            session_seed_events = session_foundation.seed_events(session_seed)
-            replay_plan = CodeWorkerSessionReplayRuntime(session_store).build_plan_from_constraints(constraints)
-            replay_events = []
-            if replay_plan is not None:
-                replay_events.append(
-                    CodeWorkerSessionReplayRuntime(session_store).event_for_plan(
-                        replay_plan,
-                        run_id=request.run_id,
-                        task_id=request.task_id,
-                        node_id=request.node_id,
-                    )
+            try:
+                client = CodeWorkerSidecarClient(PROJECT_ROOT)
+                query_contract = client.query_contract()
+                session_contract = client.session_contract()
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "ok": False,
+                        "error": "code_worker_runtime_unavailable",
+                        "message": str(exc),
+                        "canonicalOwner": "typescript",
+                        "fallbackUsed": False,
+                    },
                 )
-            turn_lifecycle_runtime = TurnLifecycleRuntime()
-            turn_lifecycle = turn_lifecycle_runtime.project(
-                session_id=session_seed.session_id,
-                worker_request_id=request.request_id,
-                input_records=input_report.records,
-                query_turns=query_turns,
-                context_snapshot=context_snapshot,
-                replay_plan=replay_plan,
-            )
-            turn_lifecycle_event = turn_lifecycle_runtime.event_for_projection(
-                turn_lifecycle,
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-            )
-            foundation_audit = SessionFoundationAuditor().audit_seed(
-                session_seed,
-                store=session_store,
-                events=[*session_seed_events, *replay_events, turn_lifecycle_event],
-            )
-            foundation_audit_record = foundation_audit_event(foundation_audit)
-            acceptance_runtime = SessionAcceptanceRuntime()
-            acceptance_report = acceptance_runtime.evaluate(
-                seed=session_seed,
-                foundation_audit=foundation_audit,
-                turn_lifecycle=turn_lifecycle,
-                replay_plan=replay_plan,
-                transcript_mapping=None,
-                require_transcript=False,
-            )
-            acceptance_event = acceptance_runtime.event_for_report(
-                acceptance_report,
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-            )
-            lifecycle_report = SessionLifecycleRuntime().build_report(
-                [*session_seed_events, *replay_events, turn_lifecycle_event, foundation_audit_record, acceptance_event],
-                session_id=session_seed.session_id,
-                worker_request_id=request.request_id,
-                require_query_engine=False,
-                require_transcript=False,
-            )
-            integration_runtime = QuerySessionIntegrationRuntime(
-                store=session_store,
-                artifact_store=LocalArtifactStore(artifact_root_path()),
-            )
-            integration_report = integration_runtime.prepare(
-                request=request,
-                seed=session_seed,
-                input_report=input_report,
-                context_snapshot=context_snapshot,
-                tool_specs=tools,
-                query_turns=query_turns,
-                turn_lifecycle=turn_lifecycle,
-                foundation_audit=foundation_audit,
-                acceptance_report=acceptance_report,
-                lifecycle_report=lifecycle_report,
-                replay_plan=replay_plan,
-            )
-            integration_events = integration_runtime.events_for_report(
-                integration_report,
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-            )
+                return
             self._send_json(
                 HTTPStatus.OK,
                 {
-                    "ok": integration_report.ok,
-                    "report": integration_report.to_dict(include_text=False),
-                    "packet": integration_report.packet.to_dict(include_text=False),
-                    "events": [to_jsonable(event) for event in integration_events],
-                    "messagePreview": [message.to_model_message() for message in integration_report.packet.messages[:4]],
+                    **query_contract,
+                    "apiRoute": "/workers/code/session-integration",
+                    "contractSurface": "query-session-integration",
+                    "sessionContract": session_contract,
+                    "defaultRoute": True,
+                    "fallbackUsed": False,
                 },
             )
             return

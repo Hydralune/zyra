@@ -178,12 +178,16 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertIn("/skills", commands)
                 self.assertIn("/goal", commands)
                 self.assertIn("/team-onboarding", commands)
-                self.assertIn("web-research", skills)
-                self.assertIn("verification", {skill["name"] for skill in searched["skills"]})
-                self.assertTrue(searched["search"]["local_only"])
-                self.assertEqual(searched["search"]["remote_search_status"], "deferred_upstream_stub")
-                self.assertFalse(searched["body_loaded"])
-                self.assertIn("browser", tools)
+                self.assertIn("list_skills", skills)
+                self.assertIn("search_skills", skills)
+                self.assertEqual(searched["skills"], [])
+                self.assertEqual(
+                    searched["canonical_entrypoint"],
+                    "E02CapabilityCoordinator.execute",
+                )
+                self.assertFalse(searched["python_registry_enabled"])
+                self.assertIn("e02_health", tools)
+                self.assertIn("agent_list", tools)
                 self.assertIn("CodeWorkerRuntime", workers)
                 self.assertIn("open_url", {action["action"] for action in browser_actions["actions"]})
                 self.assertGreater(len(browser_actions["source_registered_actions"]), 10)
@@ -192,22 +196,27 @@ class ApiControlCommandTests(unittest.TestCase):
                     self.assertEqual(browser_health["classes"]["BrowserSession"], "BrowserSession")
                 else:
                     self.assertEqual(browser_health["error_type"], "ModuleNotFoundError")
-                self.assertEqual(code_inventory["source"], "zyra-claude-productized")
+                self.assertEqual(code_inventory["source"], "zyra-typescript-runtime")
                 self.assertEqual(code_inventory["upstreamSource"], "claude-code-best")
-                self.assertEqual(code_inventory["ownerUnit"], "M1-02A")
-                self.assertFalse(code_inventory["cleanRuntime"]["requiresRootSourceRepo"])
-                self.assertFalse(code_inventory["cleanRuntime"]["requiresNodeSidecar"])
-                self.assertFalse(code_inventory["cleanRuntime"]["requiresVendorRuntime"])
+                self.assertEqual(code_inventory["canonicalOwner"], "typescript")
+                self.assertFalse(code_inventory["requiresRootSourceRepo"])
+                self.assertFalse(code_inventory["requiresVendorRuntime"])
+                self.assertFalse(code_inventory["requiresLegacyInspectionSidecar"])
                 self.assertEqual(
                     code_inventory["moduleEntrypoints"]["queryEngine"],
-                    "@zyra/claude-runtime.ClaudeRuntimeCore",
+                    "ClaudeRuntimeCore",
                 )
                 self.assertEqual(code_inventory["health"]["vendor"]["complete"], False)
-                self.assertFalse(code_inventory["defaultPath"]["requiresRootSourceRepo"])
-                self.assertGreaterEqual(len(code_inventory["sourceToTarget"]), 10)
-                self.assertNotIn("integration", permission_health["metrics"])
+                self.assertTrue(code_inventory["defaultRoute"])
+                self.assertFalse(code_inventory["fallbackUsed"])
+                self.assertTrue(code_inventory["processConfiguration"]["cleanDefault"])
+                self.assertEqual(
+                    permission_health["state_owner"],
+                    "typescript.PermissionCoordinator",
+                )
+                self.assertFalse(permission_health["python_decision_fallback"])
                 self.assertTrue(
-                    permission_health["metrics"]["integration_details_require_custody"]
+                    permission_health["state_listing_requires_session_custody"]
                 )
             finally:
                 server.shutdown()

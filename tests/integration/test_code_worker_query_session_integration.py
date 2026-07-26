@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import os
 import sys
@@ -222,7 +223,7 @@ class CodeWorkerQuerySessionIntegrationTests(unittest.TestCase):
 
 
 class CodeWorkerQuerySessionIntegrationApiTests(unittest.TestCase):
-    def test_session_integration_endpoint_returns_live_query_entry_packet(self) -> None:
+    def test_session_integration_endpoint_returns_typescript_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -239,17 +240,27 @@ class CodeWorkerQuerySessionIntegrationApiTests(unittest.TestCase):
                 payload = _get(base_url, "/workers/code/session-integration?q=Inspect%20query%20entry")
 
                 self.assertTrue(payload["ok"])
-                self.assertTrue(payload["report"]["ok"])
-                self.assertTrue(payload["packet"]["ok"])
-                self.assertEqual(payload["packet"]["handoff"]["target_unit"], "M1-02C")
-                event_phases = [event["payload"]["query_session"]["phase"] for event in payload["events"]]
-                self.assertIn("query_entry_packet_ready", event_phases)
-                self.assertIn("query_started", event_phases)
-                self.assertTrue(payload["messagePreview"])
+                self.assertEqual(payload["canonicalOwner"], "typescript")
+                self.assertEqual(payload["source"], "zyra-typescript-runtime")
+                self.assertTrue(payload["budgets"]["toolResultBudget"])
+                self.assertTrue(payload["compactRuntime"]["postCompactRestore"])
+                self.assertEqual(
+                    payload["sessionContract"]["snapshotVersion"],
+                    "zyra.typescript-query-session.v1",
+                )
+                self.assertFalse(payload["sessionContract"]["pythonProjectionIsCanonical"])
+                self.assertTrue(payload["defaultRoute"])
+                self.assertFalse(payload["fallbackUsed"])
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)
+                from apps.api.zyra_api.main import reset_api_product_bootstrap
+                from apps.api.zyra_api.experiment_api import reset_experiment_api
+
+                reset_experiment_api(wait=True)
+                reset_api_product_bootstrap()
+                gc.collect()
 
 
 def _run_worker(tmpdir: str, constraints: dict[str, Any]) -> Any:

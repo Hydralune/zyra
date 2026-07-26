@@ -173,6 +173,7 @@ class BoundaryDecision(StrEnum):
     DECLARED_TOOLCHAIN = "declared_toolchain"
     PROVENANCE_ONLY = "provenance_only"
     REPRODUCIBLE_SOURCE = "reproducible_source"
+    RETIRED = "retired"
     BLOCKED_DYNAMIC_IMPORT = "blocked_dynamic_import"
     BLOCKED_DYNAMIC_INSTALL = "blocked_dynamic_install"
     BLOCKED_PARENT_SOURCE = "blocked_parent_source"
@@ -192,6 +193,7 @@ class BoundaryDecision(StrEnum):
             BoundaryDecision.DECLARED_TOOLCHAIN,
             BoundaryDecision.PROVENANCE_ONLY,
             BoundaryDecision.REPRODUCIBLE_SOURCE,
+            BoundaryDecision.RETIRED,
         }
 
 
@@ -622,14 +624,28 @@ class RepositoryBoundaryInspector:
         if cached is not None:
             return cached
         absolute = (self.project_root / normalized).resolve()
-        if not absolute.is_relative_to(self.project_root) or not absolute.exists():
+        if not absolute.is_relative_to(self.project_root):
             evidence = PathBoundaryEvidence(
                 path=normalized,
                 scope=PathScope.UNKNOWN,
                 decision=BoundaryDecision.MISSING_PATH,
-                reason="queued path is absent from the Zyra repository",
+                reason="queued path resolves outside the Zyra repository",
                 content_digest=digest_payload("missing"),
-                findings=("queued_path_missing",),
+                findings=("queued_path_outside_project",),
+            )
+            self._path_cache[cache_key] = evidence
+            return evidence
+        if not absolute.exists():
+            evidence = PathBoundaryEvidence(
+                path=normalized,
+                scope=classify_scope(normalized),
+                decision=BoundaryDecision.RETIRED,
+                reason=(
+                    "queued source-risk path is retired from the current "
+                    "repository and cannot reach a runtime effect"
+                ),
+                content_digest=digest_payload("retired"),
+                attributes={"current_path_absent": True},
             )
             self._path_cache[cache_key] = evidence
             return evidence
