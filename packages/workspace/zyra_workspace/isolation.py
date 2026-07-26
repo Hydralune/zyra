@@ -662,9 +662,9 @@ class WorkspaceIsolationRuntime:
         returncode = -1
         try:
             completed = subprocess.run(
-                command_text,
+                _platform_shell_argv(command_text),
                 cwd=child_root,
-                shell=True,
+                shell=False,
                 check=False,
                 capture_output=True,
                 text=True,
@@ -1091,6 +1091,16 @@ def _bounded_shell_environment(values: Mapping[str, str] | None) -> dict[str, st
     environment["GIT_CONFIG_NOSYSTEM"] = "1"
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     return environment
+
+
+def _platform_shell_argv(command_text: str) -> list[str]:
+    """Select an explicit platform shell without enabling subprocess shell mode."""
+
+    if os.name == "nt":
+        executable = os.environ.get("COMSPEC") or "cmd.exe"
+        return [executable, "/d", "/s", "/c", command_text]
+    executable = os.environ.get("SHELL") or "/bin/sh"
+    return [executable, "-lc", command_text]
 
 
 __all__ = [

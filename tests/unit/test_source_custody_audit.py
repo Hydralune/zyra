@@ -9,7 +9,9 @@ from zyra_integrations.source_custody.catalog import CatalogLoader
 from zyra_integrations.source_custody.dependencies import DependencyAuditor
 from zyra_integrations.source_custody.javascript_analyzer import JavaScriptAnalyzer
 from zyra_integrations.source_custody.model import (
+    Disposition,
     RuleSwitches,
+    Severity,
     SourceEntry,
     finding,
     section,
@@ -64,11 +66,7 @@ def test_checked_in_catalog_is_complete_and_role_bounded() -> None:
     assert result.catalog is not None
     assert len(result.catalog.entries) == 28
     assert result.catalog.historical_boundaries[0].status == "excluded_forward_only"
-    assert _codes(result.section) == {"source_license_unresolved"}
-    assert sum(
-        item.code == "source_license_unresolved"
-        for item in result.section.findings
-    ) == 5
+    assert _codes(result.section) == set()
     for entries in result.catalog.by_capability().values():
         active = [entry for entry in entries if entry.active]
         if active:
@@ -88,8 +86,13 @@ def test_catalog_duplicate_entry_is_release_blocking(tmp_path: Path) -> None:
     assert not result.section.valid
 
 
-def test_unresolved_active_license_routes_to_release_queue() -> None:
-    result = CatalogLoader(REPO_ROOT).load(CATALOG_PATH)
+def test_unresolved_active_license_routes_to_release_queue(tmp_path: Path) -> None:
+    payload = _catalog_payload()
+    payload["entries"][0]["license_id"] = "UNRESOLVED"
+    payload["entries"][0]["license_status"] = "unresolved"
+    path = tmp_path / "catalog.json"
+    _write_json(path, payload)
+    result = CatalogLoader(REPO_ROOT).load(path)
 
     policy = FindingPolicy().apply([result.section], mode=AuditMode.CANDIDATE)
 
@@ -99,9 +102,51 @@ def test_unresolved_active_license_routes_to_release_queue() -> None:
         if "source_license_unresolved" in item.finding_codes
     ]
     assert license_items
-    assert sum(len(item.finding_fingerprints) for item in license_items) == 5
+    assert sum(len(item.finding_fingerprints) for item in license_items) == 1
     assert all(item.owner_unit == "M3-01B" for item in license_items)
     assert all(item.priority.value == "P0" for item in license_items)
+
+
+def test_non_runtime_finding_is_not_promoted_to_release_blocker() -> None:
+    non_runtime = finding(
+        "javascript_source_path_literal",
+        "Negative fixture contains a sibling source path.",
+        "dependencies",
+        severity=Severity.WARNING,
+        disposition=Disposition.TRACK,
+        path="tests/unit/test_negative_boundary.py",
+        attributes={"runtime_scope": False},
+    )
+
+    policy = FindingPolicy().apply(
+        [section("dependencies", findings=[non_runtime])],
+        mode=AuditMode.CANDIDATE,
+    )
+
+    assert policy.release_ready
+    assert policy.blocker_count == 0
+    assert policy.work_queue[0].release_blocking is False
+
+
+def test_runtime_finding_remains_fail_closed() -> None:
+    runtime = finding(
+        "javascript_source_path_literal",
+        "Production source contains a sibling source path.",
+        "dependencies",
+        severity=Severity.WARNING,
+        disposition=Disposition.TRACK,
+        path="packages/runtime/example.ts",
+        attributes={"runtime_scope": True},
+    )
+
+    policy = FindingPolicy().apply(
+        [section("dependencies", findings=[runtime])],
+        mode=AuditMode.CANDIDATE,
+    )
+
+    assert not policy.release_ready
+    assert policy.blocker_count == 1
+    assert policy.work_queue[0].release_blocking is True
 
 
 def test_catalog_missing_repository_is_release_blocking(tmp_path: Path) -> None:

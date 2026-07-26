@@ -13,8 +13,8 @@ from typing import Any
 from .dependencies import DependencyGraph
 from .javascript_analyzer import (
     INSTALLERS,
-    PORT_CALLEES,
     JavaScriptFileAnalysis,
+    is_listener_call,
     is_process_call,
 )
 from .model import (
@@ -183,6 +183,22 @@ class ProcessProfile:
         )
 
     def matches(self, use: "ProcessUse") -> bool:
+        normalized_path = use.path.replace("\\", "/").casefold()
+        test_scope = (
+            normalized_path.startswith(("tests/", "docs/", "scripts/"))
+            or "/test/" in normalized_path
+            or "/tests/" in normalized_path
+            or normalized_path.startswith(
+                (
+                    "packages/evaluation/zyra_evaluation/m1_hardening/",
+                    "packages/evaluation/zyra_evaluation/freeze_audit/",
+                )
+            )
+        )
+        if use.source == "manifest_script" and self.kind != "build":
+            return False
+        if use.source != "manifest_script" and test_scope and self.kind != "test":
+            return False
         if not any(
             fnmatch.fnmatch(use.path, pattern)
             or fnmatch.fnmatch(use.path, f"{pattern}/**")
@@ -191,6 +207,8 @@ class ProcessProfile:
             return False
         executable = PurePosixPath(use.executable.replace("\\", "/")).name.casefold()
         expected = PurePosixPath(self.executable).name.casefold()
+        if expected not in {"", "*"} and not executable:
+            return False
         if executable and expected not in {"", "*"} and executable != expected:
             return False
         if self.command_prefixes and use.argv:
@@ -537,7 +555,7 @@ class ProcessAuditor:
                             source="javascript_call",
                         )
                     )
-                if call.callee in PORT_CALLEES or tail in PORT_CALLEES:
+                if is_listener_call(call):
                     port = _first_port(call.literal_arguments)
                     uses.append(
                         ProcessUse(
@@ -729,12 +747,15 @@ class ProcessAuditor:
                     )
                 )
             if len(matches) > 1:
+                runtime_scope = _runtime_process_scope(use)
                 findings.append(
                     finding(
                         "process_use_ambiguous",
                         "Process use matches multiple custody profiles.",
                         "processes",
-                        severity=Severity.ERROR,
+                        severity=(
+                            Severity.ERROR if runtime_scope else Severity.WARNING
+                        ),
                         path=use.path,
                         line=use.line,
                         disposition=Disposition.DECLARE,
@@ -743,6 +764,7 @@ class ProcessAuditor:
                         attributes={
                             "use": use.identity,
                             "profiles": [item.profile_id for item in matches],
+                            "runtime_scope": runtime_scope,
                         },
                     )
                 )
@@ -790,18 +812,36 @@ class ProcessAuditor:
         }
         for use in uses:
             if use.port and use.port not in declared:
+                runtime_scope = _runtime_process_scope(use)
                 findings.append(
                     finding(
                         "listener_port_undeclared",
                         f"Listener uses undeclared port {use.port}.",
                         "processes",
-                        severity=Severity.BLOCKER,
+                        severity=(
+                            Severity.BLOCKER if runtime_scope else Severity.WARNING
+                        ),
                         path=use.path,
                         line=use.line,
-                        disposition=Disposition.DECLARE,
-                        remediation="Declare the port in its process/deployment profile.",
-                        default_path_impact="Clean startup and isolation policy cannot reserve the port.",
-                        attributes={"port": use.port},
+                        disposition=(
+                            Disposition.DECLARE
+                            if runtime_scope
+                            else Disposition.TRACK
+                        ),
+                        remediation=(
+                            "Declare the port in its process/deployment profile."
+                            if runtime_scope
+                            else "Keep ephemeral listener ports inside the test harness."
+                        ),
+                        default_path_impact=(
+                            "Clean startup and isolation policy cannot reserve the port."
+                            if runtime_scope
+                            else "Test-only listener cannot own a release port."
+                        ),
+                        attributes={
+                            "port": use.port,
+                            "runtime_scope": runtime_scope,
+                        },
                     )
                 )
         return findings
@@ -948,6 +988,22 @@ def _is_dynamic_installer(use: ProcessUse) -> bool:
         # local binary can instead be invoked through a package script.
         return "--no-install" not in arguments
     return False
+
+
+def _runtime_process_scope(use: ProcessUse) -> bool:
+    normalized = use.path.replace("\\", "/").casefold()
+    if normalized.startswith(("tests/", "docs/", "scripts/")):
+        return False
+    if "/test/" in normalized or "/tests/" in normalized:
+        return False
+    if normalized.endswith((".test.ts", ".test.tsx", ".test.js", ".test.jsx")):
+        return False
+    if use.source == "manifest_script" and any(
+        marker in use.callee.casefold()
+        for marker in ("test", "typecheck", "lint", "build")
+    ):
+        return False
+    return normalized.startswith(("apps/", "packages/"))
 
 
 def _port(value: Any) -> int:

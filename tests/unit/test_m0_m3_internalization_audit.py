@@ -58,6 +58,7 @@ class M0M3InternalizationAuditTests(unittest.TestCase):
 
     def test_m3_01b_verifiers_bootstrap_repository_packages(self) -> None:
         for script in (
+            "scripts/verify_m3_01_source_custody_closure.py",
             "scripts/verify_m3_s01b01_runtime_absorption.py",
             "scripts/verify_m3_s01b02_config_migration.py",
         ):

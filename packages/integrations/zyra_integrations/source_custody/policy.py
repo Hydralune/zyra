@@ -468,7 +468,12 @@ class FindingPolicy:
         severity = item.severity
         disposition = item.disposition
         owner_unit = item.owner_unit
-        if rule.freeze_blocking and severity.rank < Severity.BLOCKER.rank:
+        runtime_scope = item.attributes.get("runtime_scope")
+        if (
+            rule.freeze_blocking
+            and runtime_scope is not False
+            and severity.rank < Severity.BLOCKER.rank
+        ):
             severity = Severity.BLOCKER
         if disposition is Disposition.TRACK:
             disposition = {

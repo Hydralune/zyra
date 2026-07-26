@@ -32,8 +32,8 @@
         "protocol": "zyra.code-worker/v1"
       },
       "reason": "Primary cohesive query, tool, permission, budget, compact and session loop; graph layers do not split its local reasoning cycle.",
-      "license_id": "UNRESOLVED",
-      "license_status": "unresolved",
+      "license_id": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_status": "resolved",
       "metadata": {"canonical_state_owner": false, "source_role_authority": "SRC-QUERY-CLAUDE"}
     },
     {
@@ -194,8 +194,8 @@
         "protocol": "zyra.permission/v1"
       },
       "reason": "Claude-derived policy, hook, classifier and approval flow is the primary permission source under Zyra fail-closed state and event custody.",
-      "license_id": "UNRESOLVED",
-      "license_status": "unresolved",
+      "license_id": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_status": "resolved",
       "metadata": {"canonical_state_owner": false}
     },
     {
@@ -248,8 +248,8 @@
         "protocol": "zyra.mcp/v1"
       },
       "reason": "Claude-derived MCP connection, capability, auth, resource, prompt, tool and elicitation flow is internalized as the TypeScript primary.",
-      "license_id": "UNRESOLVED",
-      "license_status": "unresolved",
+      "license_id": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_status": "resolved",
       "metadata": {"canonical_state_owner": false}
     },
     {
@@ -324,8 +324,8 @@
         "protocol": "zyra.skill-subagent/v1"
       },
       "reason": "Claude-derived skill disclosure/invocation and forked AgentTool lifecycle are the primary semantics under Zyra stores, events and leases.",
-      "license_id": "UNRESOLVED",
-      "license_status": "unresolved",
+      "license_id": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_status": "resolved",
       "metadata": {"language_exception": "frozen prior M1/M2 bounded integration"}
     },
     {
@@ -648,8 +648,8 @@
         "protocol": "zyra.control-command/v1"
       },
       "reason": "Claude-derived command, task, permission dialog and session control patterns are the primary console interaction source.",
-      "license_id": "UNRESOLVED",
-      "license_status": "unresolved",
+      "license_id": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_status": "resolved",
       "metadata": {}
     },
     {

@@ -88,11 +88,13 @@ NETWORK_CALLEES = frozenset(
 )
 PORT_CALLEES = frozenset(
     {
-        "listen",
         "serve",
         "Bun.serve",
         "Deno.serve",
         "createServer",
+        "server.listen",
+        "httpServer.listen",
+        "httpsServer.listen",
     }
 )
 INSTALLERS = frozenset(
@@ -806,6 +808,7 @@ class JavaScriptAnalyzer:
         self, analysis: JavaScriptFileAnalysis
     ) -> list[Finding]:
         findings: list[Finding] = []
+        runtime_scope = _runtime_dependency_scope(analysis.path)
         for imported in analysis.imports:
             if imported.dynamic and not imported.literal:
                 findings.append(
@@ -813,12 +816,27 @@ class JavaScriptAnalyzer:
                         "javascript_dynamic_import_nonliteral",
                         "Dynamic JavaScript import uses a non-literal specifier.",
                         "dependencies",
-                        severity=Severity.BLOCKER,
+                        severity=(
+                            Severity.BLOCKER if runtime_scope else Severity.WARNING
+                        ),
                         path=analysis.path,
                         line=imported.line,
-                        disposition=Disposition.BLOCK_RELEASE,
-                        remediation="Use a declared allowlisted module registry.",
-                        default_path_impact="Runtime dependency cannot be frozen.",
+                        disposition=(
+                            Disposition.BLOCK_RELEASE
+                            if runtime_scope
+                            else Disposition.TRACK
+                        ),
+                        remediation=(
+                            "Use a declared allowlisted module registry."
+                            if runtime_scope
+                            else "Keep the test/audit loader outside product runtime custody."
+                        ),
+                        default_path_impact=(
+                            "Runtime dependency cannot be frozen."
+                            if runtime_scope
+                            else "Non-runtime loader cannot own task execution."
+                        ),
+                        attributes={"runtime_scope": runtime_scope},
                     )
                 )
             normalized = imported.specifier.replace("\\", "/")
@@ -863,16 +881,31 @@ class JavaScriptAnalyzer:
                         "javascript_source_path_literal",
                         "JavaScript/TypeScript embeds a source-repository filesystem path.",
                         "dependencies",
-                        severity=Severity.BLOCKER,
+                        severity=(
+                            Severity.BLOCKER if runtime_scope else Severity.WARNING
+                        ),
                         source_repo=(parent.group(1) if parent else absolute.group(1)),
                         path=analysis.path,
                         line=line,
-                        disposition=Disposition.BLOCK_RELEASE,
-                        remediation="Use project-local paths or declared dependencies.",
-                        default_path_impact="Clean-machine package is not self-contained.",
+                        disposition=(
+                            Disposition.BLOCK_RELEASE
+                            if runtime_scope
+                            else Disposition.TRACK
+                        ),
+                        remediation=(
+                            "Use project-local paths or declared dependencies."
+                            if runtime_scope
+                            else "Keep negative fixtures and provenance paths outside product runtime."
+                        ),
+                        default_path_impact=(
+                            "Clean-machine package is not self-contained."
+                            if runtime_scope
+                            else "Test/audit provenance is non-runtime."
+                        ),
                         attributes={
                             "interpolated": interpolated,
                             "literal_digest": content_digest(value.encode()),
+                            "runtime_scope": runtime_scope,
                         },
                     )
                 )
@@ -882,6 +915,7 @@ class JavaScriptAnalyzer:
         self, analysis: JavaScriptFileAnalysis
     ) -> list[Finding]:
         findings: list[Finding] = []
+        runtime_scope = _runtime_dependency_scope(analysis.path)
         for call in analysis.calls:
             tail = call.callee.rsplit(".", 1)[-1]
             if not is_process_call(analysis, call):
@@ -900,13 +934,30 @@ class JavaScriptAnalyzer:
                         "javascript_shell_process_call",
                         "JavaScript/TypeScript starts a shell-mediated process.",
                         "processes",
-                        severity=Severity.BLOCKER,
+                        severity=(
+                            Severity.BLOCKER if runtime_scope else Severity.WARNING
+                        ),
                         path=analysis.path,
                         line=call.line,
-                        disposition=Disposition.EXTERNALIZE,
-                        remediation="Use an argv-based declared process profile.",
-                        default_path_impact="Shell expansion bypasses process/dependency custody.",
-                        attributes={"callee": call.callee},
+                        disposition=(
+                            Disposition.EXTERNALIZE
+                            if runtime_scope
+                            else Disposition.TRACK
+                        ),
+                        remediation=(
+                            "Use an argv-based declared process profile."
+                            if runtime_scope
+                            else "Keep shell-based audit tooling outside product runtime."
+                        ),
+                        default_path_impact=(
+                            "Shell expansion bypasses process/dependency custody."
+                            if runtime_scope
+                            else "Repository audit tooling cannot own runtime decisions."
+                        ),
+                        attributes={
+                            "callee": call.callee,
+                            "runtime_scope": runtime_scope,
+                        },
                     )
                 )
             elif not command:
@@ -1065,7 +1116,7 @@ class JavaScriptAnalyzer:
                     )
                 )
         for call in analysis.calls:
-            if call.callee in PORT_CALLEES or call.callee.rsplit(".", 1)[-1] in PORT_CALLEES:
+            if is_listener_call(call):
                 if call.literal_arguments and any(
                     value.isdigit() for value in call.literal_arguments
                 ):
@@ -1159,6 +1210,33 @@ def is_process_call(
         for imported in analysis.imports
     )
     return imported_process_runtime
+
+
+def is_listener_call(call: JavaScriptCall) -> bool:
+    if call.callee in PORT_CALLEES:
+        return True
+    lowered = call.callee.casefold()
+    if not lowered.endswith(".listen"):
+        return False
+    owner = lowered.rsplit(".", 1)[0].rsplit(".", 1)[-1]
+    return owner in {
+        "server",
+        "httpserver",
+        "httpsserver",
+        "socketserver",
+        "listener",
+    }
+
+
+def _runtime_dependency_scope(path: str) -> bool:
+    normalized = path.replace("\\", "/").casefold()
+    if normalized.startswith(("tests/", "docs/", "scripts/")):
+        return False
+    if "/test/" in normalized or "/tests/" in normalized:
+        return False
+    if normalized.endswith((".test.ts", ".test.tsx", ".test.js", ".test.jsx")):
+        return False
+    return normalized.startswith(("apps/", "packages/"))
 
 
 def _download_like(url: str) -> bool:

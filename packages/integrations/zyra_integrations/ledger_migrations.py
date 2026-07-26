@@ -25,6 +25,7 @@ SOURCE_POOL_PREFIX = "vendor-runtimes/claude-code-runtime/productized/claude-cod
 FOUNDATION_TEST_COMMAND = "python scripts/verify_claude_productization_foundation.py"
 RETIRED_TARGET_PATHS = {
     "apps/code-worker/src/main.mjs": "apps/code-worker/src/main.ts",
+    "tests/unit/test_tool_loop_budget_runtime.py": "packages/runtime/claude-runtime/test/runtime.test.ts",
     "packages/workers/zyra_workers/code_query_loop.py": "packages/runtime/claude-runtime/src/query-engine.ts",
     "packages/runtime/zyra_runtime/tool_runtime_foundation.py": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
     "packages/runtime/zyra_runtime/permission/action_gate.py": "packages/runtime/claude-runtime/src/permission/coordinator.ts",

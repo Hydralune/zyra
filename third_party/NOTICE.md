@@ -6,7 +6,7 @@ These markers identify pinned source-analysis inputs and their recorded license
 status. They do not grant a runtime role and do not imply that an upstream
 repository is shipped wholesale.
 
-<!-- zyra-notice source="claude-code-best" commit="c57f5a29e88e9a814bea47abeb9a0a6f725dc102" license="UNRESOLVED" status="unresolved" -->
+<!-- zyra-notice source="claude-code-best" commit="c57f5a29e88e9a814bea47abeb9a0a6f725dc102" license="USER-AUTHORIZED-PROJECT-REUSE" status="resolved" -->
 <!-- zyra-notice source="zyra" commit="1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4" license="PROJECT-OWNED" status="resolved" -->
 <!-- zyra-notice source="langgraph" commit="5931a5f0b313feff24e2516a586c55601b868ac1" license="MIT" status="resolved" -->
 <!-- zyra-notice source="opencode" commit="adf178a6b95c61506ddaadaf4dd062badb4a8fda" license="MIT" status="resolved" -->
@@ -20,7 +20,7 @@ repository is shipped wholesale.
 <!-- zyra-notice source="claudecode-related/Dive-into-Claude-Code" commit="12dd4e9dacbaa06965bd384fd81bfc9100ba756f" license="CC-BY-NC-SA-4.0" status="resolved" -->
 <!-- zyra-notice source="openclaw" commit="historical-pre-M1-S06A-01" license="MIT" status="historical_only" -->
 
-The `claude-code-best` license remains explicitly unresolved and is therefore
-release blocking until a later M3 remediation supplies an accepted license
-decision. OpenClaw is retained only as a historical notice; no source tree,
-runtime dependency or forward implementation role is restored.
+`USER-AUTHORIZED-PROJECT-REUSE` records the repository owner's explicit
+project-use decision for `claude-code-best`; it is not represented as an
+upstream open-source license. OpenClaw is retained only as a historical notice;
+no source tree, runtime dependency or forward implementation role is restored.

@@ -192,12 +192,34 @@
       "reason": "Code-index helper processes are optional tool-scoped executions with owned supervision, result verification and event integration."
     },
     {
+      "profile_id": "workspace_isolated_shell",
+      "kind": "tool",
+      "owner": "WorkspaceIsolationRuntime",
+      "executable": "*",
+      "command_prefixes": [],
+      "callsite_patterns": ["packages/workspace/zyra_workspace/isolation.py"],
+      "modes": ["required", "test"],
+      "transport": "stdio",
+      "ports": [],
+      "environment": ["COMSPEC", "SHELL"],
+      "package": "platform-shell",
+      "entrypoint": "zyra_workspace.isolation.WorkspaceIsolationRuntime",
+      "healthcheck": "python -m pytest tests/unit/test_workspace_manager_integration.py",
+      "source_role_entry_ids": ["src_openhands_workspace", "src_agentscope_workspace", "src_omp_workspace"],
+      "default_reachable": true,
+      "external": true,
+      "reason": "Admission-gated task commands run only inside a child workspace through an explicit platform shell argv; subprocess shell mode remains disabled."
+    },
+    {
       "profile_id": "workspace_git_process",
       "kind": "tool",
       "owner": "WorkspaceManager",
-      "executable": "git",
+      "executable": "*",
       "command_prefixes": [],
-      "callsite_patterns": ["packages/workspace/zyra_workspace", "packages/workers/zyra_workers/subagents"],
+      "callsite_patterns": [
+        "packages/workspace/zyra_workspace/git_boundary.py",
+        "packages/workers/zyra_workers/subagents/typescript_port.py"
+      ],
       "modes": ["required", "test"],
       "transport": "stdio",
       "ports": [],
@@ -254,7 +276,11 @@
       "owner": "ReleaseAuditTooling",
       "executable": "*",
       "command_prefixes": [],
-      "callsite_patterns": ["scripts"],
+      "callsite_patterns": [
+        "scripts",
+        "packages/evaluation/zyra_evaluation/freeze_audit",
+        "packages/integrations/zyra_integrations/ledger_*"
+      ],
       "modes": ["development", "test"],
       "transport": "stdio",
       "ports": [],
@@ -273,7 +299,12 @@
       "owner": "ReleaseBuildTooling",
       "executable": "*",
       "command_prefixes": [],
-      "callsite_patterns": ["package.json", "apps/*/package.json", "packages/*/*/package.json"],
+      "callsite_patterns": [
+        "package.json",
+        "apps/*/package.json",
+        "packages/*/package.json",
+        "packages/*/*/package.json"
+      ],
       "modes": ["required", "development", "test"],
       "transport": "stdio",
       "ports": [],

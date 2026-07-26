@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..ledger_store import InternalizationLedger
 from .catalog import SourceCatalog
 from .model import (
     AuditSection,
@@ -34,6 +35,9 @@ from .repository import RepositoryInventory
 PACKAGE_ANNOTATION_SCHEMA = "zyra.package-source-annotation/v1"
 VENDOR_MAP_SCHEMA = "zyra.vendor-map/v1"
 NOTICE_SCHEMA = "zyra.third-party-notice/v1"
+VENDOR_ROOT_SOURCE_ALIASES = {
+    "vendor-runtimes/claude-code-runtime": "claude-code-best",
+}
 VENDOR_MAP_MARKER = re.compile(
     r"<!--\s*zyra-source-entry\s+"
     r"id=\"([^\"]+)\"\s+digest=\"([^\"]+)\"\s*-->",
@@ -216,6 +220,17 @@ class CustodyAuditor:
         findings.extend(notice_findings)
         ledger_payload, ledger_findings = self._load_ledger(ledger_path)
         findings.extend(ledger_findings)
+        if isinstance(ledger_payload, Mapping):
+            try:
+                ledger_payload = InternalizationLedger.from_dict(
+                    dict(ledger_payload),
+                    normalize_current_policy=True,
+                ).to_dict()
+            except (TypeError, ValueError):
+                # _load_ledger already emitted the authoritative schema
+                # finding. Keep auditing instead of replacing it with a
+                # normalization exception.
+                pass
         ledger_entries = (
             ledger_payload.get("entries") if isinstance(ledger_payload, Mapping) else []
         )
@@ -1007,7 +1022,12 @@ class CustodyAuditor:
                     )
                 )
         for root in sorted(vendor_roots):
-            source_name = PurePosixPath(root).name.casefold()
+            if root == "vendor/README.md":
+                continue
+            source_name = VENDOR_ROOT_SOURCE_ALIASES.get(
+                root,
+                PurePosixPath(root).name.casefold(),
+            )
             matching = [
                 entry
                 for entry in catalog.entries

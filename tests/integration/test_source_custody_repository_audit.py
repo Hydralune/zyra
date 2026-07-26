@@ -54,6 +54,8 @@ def _prepare_mutation_fixture(tmp_path: Path) -> None:
         / "source_custody_catalog.json"
     )
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["entries"][0]["license_id"] = "UNRESOLVED"
+    catalog["entries"][0]["license_status"] = "unresolved"
     duplicate = dict(catalog["entries"][0])
     duplicate["entry_id"] = "src_mutation_second_primary"
     duplicate["source_repo"] = "hermes-agent"

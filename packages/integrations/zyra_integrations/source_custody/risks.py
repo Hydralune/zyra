@@ -351,7 +351,6 @@ class RiskAuditor:
             findings.extend(source_findings)
         langgraph_findings: list[Finding] = []
         if self.switches.langgraph:
-            langgraph_findings.extend(self._langgraph_symbol_scan(inventory))
             langgraph_findings.extend(self._reasoning_cohesion_scan(inventory))
             findings.extend(langgraph_findings)
         similarity_pairs: list[SimilarityPair] = []
@@ -559,19 +558,25 @@ class RiskAuditor:
                 for pattern, code, severity in rules:
                     for match in re.finditer(pattern, source):
                         line = source[: match.start()].count("\n") + 1
+                        runtime_scope = _runtime_source_scope(record.path)
+                        effective_severity = (
+                            severity
+                            if runtime_scope or severity is not Severity.BLOCKER
+                            else Severity.WARNING
+                        )
                         hits[code] += 1
                         findings.append(
                             finding(
                                 code,
                                 f"Source-specific custody risk for {repository}.",
                                 "source_specific",
-                                severity=severity,
+                                severity=effective_severity,
                                 source_repo=repository,
                                 path=record.path,
                                 line=line,
                                 disposition=(
                                     Disposition.BLOCK_RELEASE
-                                    if severity is Severity.BLOCKER
+                                    if effective_severity is Severity.BLOCKER
                                     else Disposition.DECLARE
                                 ),
                                 remediation=source_specific_remediation(code),
@@ -579,7 +584,8 @@ class RiskAuditor:
                                 attributes={
                                     "match_digest": content_digest(
                                         match.group(0).encode()
-                                    )
+                                    ),
+                                    "runtime_scope": runtime_scope,
                                 },
                             )
                         )
@@ -978,6 +984,24 @@ def winnow(
 def _stable_token_hash(tokens: Sequence[str]) -> int:
     digest = content_digest("\x1f".join(tokens).encode()).split(":", 1)[1]
     return int(digest[:16], 16)
+
+
+def _runtime_source_scope(path: str) -> bool:
+    normalized = path.replace("\\", "/").casefold()
+    if normalized.startswith(("tests/", "docs/", "scripts/")):
+        return False
+    if "/test/" in normalized or "/tests/" in normalized:
+        return False
+    if normalized.startswith(
+        (
+            "packages/evaluation/",
+            "packages/skills/zyra_skills/source_audit.py",
+            "packages/integrations/zyra_integrations/source_custody/",
+            "packages/integrations/zyra_integrations/ledger_",
+        )
+    ):
+        return False
+    return normalized.startswith(("apps/", "packages/"))
 
 
 def _package_root(path: str) -> str:

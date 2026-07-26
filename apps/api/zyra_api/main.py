@@ -513,28 +513,14 @@ from zyra_integrations.e02_ports import (
     materialize_bundled_skills,
 )
 
-if __package__:
-    from .mcp_api import (
-        McpApiFacade,
-    )
-    from .provider_backend_api import (
-        ProviderBackendApi,
-        get_provider_control_client,
-        reset_provider_control_client,
-    )
-    from .worker_pool_api import WorkerPoolApiService
-    from .recovery_api import RecoveryRuntimeApiService
-else:  # pragma: no cover - direct development script entry.
-    from mcp_api import (
-        McpApiFacade,
-    )
-    from provider_backend_api import (
-        ProviderBackendApi,
-        get_provider_control_client,
-        reset_provider_control_client,
-    )
-    from worker_pool_api import WorkerPoolApiService
-    from recovery_api import RecoveryRuntimeApiService
+from .mcp_api import McpApiFacade
+from .provider_backend_api import (
+    ProviderBackendApi,
+    get_provider_control_client,
+    reset_provider_control_client,
+)
+from .worker_pool_api import WorkerPoolApiService
+from .recovery_api import RecoveryRuntimeApiService
 
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 from zyra_scheduler.worker_pool import (

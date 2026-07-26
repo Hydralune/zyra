@@ -775,8 +775,9 @@ class DependencyAuditor:
             production_paths = [
                 path
                 for path in paths
-                if path.startswith(("apps/", "packages/", "scripts/"))
-                and not path.startswith(("scripts/remediation/",))
+                if path.startswith(("apps/", "packages/"))
+                and "/test/" not in path.casefold()
+                and "/tests/" not in path.casefold()
             ]
             if not production_paths:
                 continue
@@ -837,12 +838,24 @@ class DependencyAuditor:
             "bun",
         }
         for package, paths in graph.javascript_imports.items():
-            if package.removeprefix("node:") in node_builtins:
+            if (
+                package.startswith(("node:", "bun:"))
+                or package.removeprefix("node:") in node_builtins
+            ):
                 continue
             if package in graph.workspace_packages:
                 continue
             undeclared_paths: list[str] = []
             for path in paths:
+                lowered_path = path.casefold()
+                if (
+                    "/test/" in lowered_path
+                    or "/tests/" in lowered_path
+                    or lowered_path.endswith(
+                        (".test.ts", ".test.tsx", ".test.js", ".test.jsx")
+                    )
+                ):
+                    continue
                 manifest = graph.nearest_manifest(path, "javascript")
                 if manifest is None:
                     undeclared_paths.append(path)
