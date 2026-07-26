@@ -706,6 +706,29 @@ def _derive_paths(
     state = values["state"]
     if not isinstance(state, MutableMapping):
         raise AssertionError("validated state configuration is mutable mapping")
+    root_origin = origins.get(
+        "state.root",
+        ConfigOrigin("defaults", "state.root", 0),
+    )
+    database_origin = origins.get("state.database")
+    if (
+        root_origin.source == "defaults"
+        and database_origin is not None
+        and database_origin.source != "defaults"
+    ):
+        database_path = _resolve_path(
+            str(state["database"]),
+            project_root=project_root,
+            config_path=config_path,
+            source=database_origin,
+        )
+        state["root"] = str(database_path.parent)
+        root_origin = ConfigOrigin(
+            source=f"derived:{database_origin.source}",
+            key="state.root",
+            precedence=database_origin.precedence,
+        )
+        origins["state.root"] = root_origin
     root_value = str(state["root"])
     root = _resolve_path(
         root_value,
@@ -728,7 +751,6 @@ def _derive_paths(
         "migration_journal": ".productization/migrations.sqlite3",
         "lifecycle_log": ".productization/lifecycle.jsonl",
     }
-    root_origin = origins.get("state.root", ConfigOrigin("defaults", "state.root", 0))
     for name, relative in derivations.items():
         leaf_path = f"state.{name}"
         origin = origins.get(leaf_path)

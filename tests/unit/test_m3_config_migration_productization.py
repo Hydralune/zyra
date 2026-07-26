@@ -185,6 +185,29 @@ def test_equal_precedence_leaf_paths_override_environment_derivation(
     assert configuration.origin("state.permission").source == "environment"
 
 
+def test_legacy_database_path_derives_an_isolated_state_root(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "isolated" / "api.sqlite3"
+    configuration = load_runtime_configuration(
+        tmp_path,
+        environ={"ZYRA_SQLITE_PATH": str(database)},
+    )
+
+    assert configuration.path("state.root") == database.parent
+    assert configuration.path("state.database") == database
+    assert configuration.path("state.worker_pool") == (
+        database.parent / "zyra.worker-pool.sqlite3"
+    )
+    assert configuration.path("state.graph") == (
+        database.parent / "zyra.graph-state.sqlite3"
+    )
+    assert configuration.path("state.migration_journal") == (
+        database.parent / ".productization" / "migrations.sqlite3"
+    )
+    assert configuration.origin("state.root").source == "derived:environment"
+
+
 @pytest.mark.parametrize(
     ("document", "code"),
     [
