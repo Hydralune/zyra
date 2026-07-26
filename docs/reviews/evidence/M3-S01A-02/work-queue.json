@@ -1,0 +1,3188 @@
+{
+  "digest": "sha256:e599de11291df3818d00fc2b847130ddd195608820bf011af70b943b5f2c835c",
+  "items": [
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event artifact.created cannot prove a real artifact effect.",
+      "domains": [
+        "artifact"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing",
+        "causal_event_not_emitted"
+      ],
+      "finding_fingerprints": [
+        "a1ce9fd263da4a102b70ae94",
+        "c475312e2b07b304578a100d"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/zyra_runtime/sandbox_gateway/artifact_port.py"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_0d7f50599e18b451c9fd"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event permission.decision.recorded cannot prove a real permission effect.",
+      "domains": [
+        "permission"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing",
+        "causal_event_not_emitted"
+      ],
+      "finding_fingerprints": [
+        "0af632e45d426713ead603bf",
+        "56451e9b3bcff834550cf6f5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/permission/approval-runtime.ts"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_0fffc909af8b93769eab"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event mcp.request.completed cannot prove a real tool effect.",
+      "domains": [
+        "mcp_plugin_registry"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing",
+        "causal_event_not_emitted"
+      ],
+      "finding_fingerprints": [
+        "e80496a9e8d3db8c98777a9d",
+        "fc39622377108a8775a5b9aa"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/integrations/claude-mcp/src/runtime/coordinator.ts"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_267c2282d60025337759"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event worker_dispatch_started cannot prove a real placement effect.",
+      "domains": [
+        "worker_route"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing"
+      ],
+      "finding_fingerprints": [
+        "cfcdafca152d930f40641325"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/integration.py"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_43f74b02d7a62086ec18"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event memory.committed cannot prove a real compact effect.",
+      "domains": [
+        "memory_compact"
+      ],
+      "finding_codes": [
+        "event_mutation_path_unreachable"
+      ],
+      "finding_fingerprints": [
+        "8f1aab316a7d2ecbbc27968a"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/zyra_memory/curator_commit.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an executable call/import edge; hand-written evidence mapping is insufficient.",
+      "requirements": [],
+      "work_id": "m3_work_4bd25a9c92afc0b4423a"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event agent_message cannot prove a real state_mutation effect.",
+      "domains": [
+        "session_event_projection"
+      ],
+      "finding_codes": [
+        "causal_event_not_emitted",
+        "event_mutation_path_unreachable"
+      ],
+      "finding_fingerprints": [
+        "03e54c54a176fd1ced343776",
+        "1f58818b5dbbfe21c3afc6f5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/zyra_runtime/claude_session_store.py"
+      ],
+      "priority": "p0",
+      "remediation": "Emit a typed canonical event/receipt after the effect or remove the unsupported evidence claim.",
+      "requirements": [],
+      "work_id": "m3_work_66af0bebc2b09bac8254"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event session_recovered cannot prove a real recovery effect.",
+      "domains": [
+        "gateway_lease_busy"
+      ],
+      "finding_codes": [
+        "causal_event_not_emitted"
+      ],
+      "finding_fingerprints": [
+        "0f28fa3cccbf5676245b2e77"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/zyra_runtime/sandbox_gateway/runtime.py"
+      ],
+      "priority": "p0",
+      "remediation": "Emit a typed canonical event/receipt after the effect or remove the unsupported evidence claim.",
+      "requirements": [],
+      "work_id": "m3_work_8cfb9282adf3f598e153"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event recovery_applied cannot prove a real recovery effect.",
+      "domains": [
+        "scheduler_recovery"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing"
+      ],
+      "finding_fingerprints": [
+        "5ddaa7f6c3a2276a0585624f"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/recovery_runtime/application.py"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_a7df57fd2bf94731a647"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": true,
+      "default_path_impact": "Event provider.dispatch.completed cannot prove a real route effect.",
+      "domains": [
+        "provider_credential_failover"
+      ],
+      "finding_codes": [
+        "causal_event_identity_attributes_missing"
+      ],
+      "finding_fingerprints": [
+        "4b6a8a8b0befb7ba5a4448a7"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/provider-control-plane/src/control-plane.ts"
+      ],
+      "priority": "p0",
+      "remediation": "Bind exact run/task/span/call/mutation/revision identities required by the contract.",
+      "requirements": [],
+      "work_id": "m3_work_ae8e8841ce9f06e5463b"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical graph_checkpoint state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "graph_checkpoint"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "07f3db0c8dbcfaf154e2268a",
+        "41a47dfbb22c2a72cd2a113a",
+        "9d6305f25ea49c36077108cd"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/recovery_runtime/continuation_runtime.py",
+        "scripts/remediation/m1_r01_e01_v6.ts",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_18cc1780b1b7637c6e87"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical terminal_browser_session state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "terminal_browser_session"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "29a784c2468d1070281c0d08",
+        "50dd9cfb70f5198c35728be6",
+        "7f6c6a29e119f59d4f704bf6",
+        "ca454102df348342c2c6871d",
+        "d8199f5470bbdc97c80fe126",
+        "da2eebbc752682e273718d35",
+        "fbb409c67b44684c57d84805"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/api/zyra_api/main.py",
+        "packages/commands/zyra_commands/runtime/session_control.py",
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        "packages/workers/zyra_workers/browser_action/plan_adapter.py",
+        "tests/integration/test_terminal_websocket_integration.py",
+        "tests/unit/test_browser_session_runtime_foundation.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_3c509d7893739bc323f5"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical mcp_plugin_registry state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "mcp_plugin_registry"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "state_owner_test_not_bound",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "d237fd6be565955cc908f74a",
+        "d34bf0b8b69ce06467721fd4",
+        "dfc10d1a81e946799df08695"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/commands/zyra_commands/runtime/source_audit.py",
+        "tests/unit/test_mcp_source_audit.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_47d00db295685e1622fb"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical permission state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "permission"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "state_owner_test_not_bound",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "62a06ab11e2140d238c69d4b",
+        "65fc10e91995209ca7dd7aa3",
+        "6ebd936f8ee965a8e8f9b259",
+        "7602b5812f0bb30a565c55e2",
+        "80eeeec2e6870919f1cf1e49",
+        "c062ab5b3cea3e8c907e720c",
+        "f1d3c8118e427e52a3825ac6"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/permissions/response-proof.ts",
+        "packages/runtime/claude-runtime/src/permission/response-proof.ts",
+        "packages/scheduler/zyra_scheduler/fault_runtime/observer_registry.py",
+        "tests/integration/test_permission_console_api.py",
+        "tests/unit/test_permission_continuation.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_7e9ede96f0c5fefe41df"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical artifact state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "artifact"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing"
+      ],
+      "finding_fingerprints": [
+        "3b3c50831110999d4ac90178",
+        "8dced9f23fb5531786c42437"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_artifact_custody_catalog_viewers.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_8ac6603049da9d3e38e7"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical memory_compact state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "memory_compact"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "state_owner_test_not_bound"
+      ],
+      "finding_fingerprints": [
+        "03edd37d25a5ec05527ba40b",
+        "260fc7a30e8edfae8a3f3add",
+        "a5045a6da30fe5cfcf336707",
+        "da1611ed0838252b05ad2c44"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_skill_memory_compact_restore_integration.py",
+        "tests/unit/test_memory_fabric.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_8d2a6c69cbde43deab09"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical worker_route state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "worker_route"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "24d42d74f00e1ff39e5c0627",
+        "581fbc3833c1ef8620bf5f78",
+        "7d739db5fdf0ffecb3a75bdf",
+        "85b3e4d27a1dd17e574c3a11",
+        "a35d8c1642af5fa0d5d15d34",
+        "c1337ad73c0a883a264e10ad",
+        "c290ae021441669b1e78b4de",
+        "d7ce504b34559ea2860cd31f"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/evaluation/zyra_evaluation/m1_hardening/owner_matrix.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/audit_runtime.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/causal_runtime.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/continuation_runtime.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/route_memory_runtime.py",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "tests/unit/test_worker_pool_foundation.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_8e40055c304975c4a591"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical provider_credential_failover state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "provider_credential_failover"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "259016dfd80fbb10c40dbe95",
+        "9d3fe30383074690d1bcdfa4",
+        "a4554baa80c67a8423c20afe",
+        "af74aec7d4aa33968c9ad824",
+        "b8d987ba12b561c06b5ec0d5",
+        "c5b37b19b74a2215cfd6104e"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/commands/zyra_commands/runtime/source_audit.py",
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        "packages/scheduler/zyra_scheduler/fault_runtime/observer_registry.py",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_8e7ec0c1c55cd20fe484"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical gateway_lease_busy state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "gateway_lease_busy"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "e0cea12156c37be4a259586c",
+        "efe80dcbf8b056a6843f35e9",
+        "f00fe7737174776163e5246c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/unit/test_sandbox_gateway_state.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_a5c554c0d167a11096cd"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical scheduler_recovery state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "scheduler_recovery"
+      ],
+      "finding_codes": [
+        "state_owner_disable_probe_missing",
+        "state_owner_test_not_bound",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "0666b2e33f04f1d35c0d60f3",
+        "09bdd5f701f16ad1bfbbfa8c",
+        "4c476ad426816ff1779e0a0c",
+        "81ae62b2cce8a3bbd24b91fe",
+        "c14c825536f9dcd5c7e199ce",
+        "cfe72eedcfc2df79c75208cd"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/recovery_runtime/integration_runtime.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/restart_runtime.py",
+        "tests/integration/test_recovery_planner_routing_memory_api.py",
+        "tests/unit/test_recovery_planner_routing_memory_foundation.py"
+      ],
+      "priority": "p0",
+      "remediation": "Add an owner-disable or owner-loss test that prevents fallback success.",
+      "requirements": [],
+      "work_id": "m3_work_d1f2fe30542d4b7626d3"
+    },
+    {
+      "action": "resolve_owner",
+      "blocking": true,
+      "default_path_impact": "Canonical session_event_projection state may be ambiguous, non-durable, or fallback-owned.",
+      "domains": [
+        "session_event_projection"
+      ],
+      "finding_codes": [
+        "state_owner_test_missing",
+        "undeclared_canonical_owner_candidate"
+      ],
+      "finding_fingerprints": [
+        "1579db29ce73bceed211986d",
+        "26274fca7f2eda1cf7fafaa0",
+        "35c5324657317bdc8e50e774",
+        "3b1f939116e5f21bc55a0cdb",
+        "53cbaec2e3777a0f4978a3ab",
+        "82ea4c61e2d1adfbb2a068fd",
+        "93e5eea386cb3cdf63f27aea",
+        "a7623313b62a7078a5124d0a",
+        "bcbadd3ba96f6d681e58505d",
+        "bf6c500b39c978958525e7e6",
+        "cbae5ade761a63dc0c2b3fc7"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/api/zyra_api/event_stream_ingress.py",
+        "apps/api/zyra_api/main.py",
+        "apps/web/src/features/skills/admission.ts",
+        "packages/commands/zyra_commands/runtime/session_control.py",
+        "packages/evaluation/zyra_evaluation/m1_hardening/custody.py",
+        "packages/evaluation/zyra_evaluation/m1_hardening/owner_matrix.py",
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        "packages/scheduler/zyra_scheduler/worker_pool/execution_gate.py",
+        "tests/integration/test_claude_session_store_integration.py"
+      ],
+      "priority": "p0",
+      "remediation": "Restore a real behavior test for this state domain.",
+      "requirements": [],
+      "work_id": "m3_work_d316cc028650233e1509"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default api entry api.artifact.catalog cannot prove the selected canonical owner.",
+      "domains": [
+        "artifact"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "0f35dd1b3e7f237820fe5d38",
+        "8e8c123b0ed322eb91ea257e",
+        "bb1597f481041197709dcd84"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/api/zyra_api/main.py",
+        "packages/runtime/zyra_runtime/sandbox_gateway/artifact_port.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_1f635dc0d27c93707e63"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default worker entry worker.memory.retrieval cannot prove the selected canonical owner.",
+      "domains": [
+        "memory_compact"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "default_trace_edge_unverified",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "77172c8d603d51d01074f2b8",
+        "801b093e26c5c4766a87823d",
+        "88272a0cf438395e1906a660",
+        "b3f87baebc804550915e7732",
+        "e91aaa113088260b5acb571d"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/zyra_memory/curator_commit.py",
+        "packages/memory/zyra_memory/integration_runtime.py",
+        "packages/memory/zyra_memory/retrieval_store.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_48c28300af9ac6904d8e"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default worker entry worker.mcp.coordinator cannot prove the selected canonical owner.",
+      "domains": [
+        "mcp_plugin_registry"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "8bb369a29bb3f4eb7071f1de",
+        "a5efa37c80575388ff83424b",
+        "c9d4908a2d4ef0a9bd543cfc",
+        "f233e08b16f0ff5d9fdfc09c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+        "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+        "packages/runtime/claude-runtime/src/skills/registry-runtime.ts"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_5b871aba3778fe5f6219"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default web entry web.permission.runtime cannot prove the selected canonical owner.",
+      "domains": [
+        "permission"
+      ],
+      "finding_codes": [
+        "canonical_owner_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "default_trace_edge_unverified",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "29aba7504954ffbd771de215",
+        "3bd14665d21664ef6299e500",
+        "52255d5fc06c564d0ea69aa6",
+        "8ccb863dad8f86f759cd3a59",
+        "d89e639832908eb72b6f74b5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/permissions/runtime.ts",
+        "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+        "packages/runtime/claude-runtime/src/permission/audit-runtime.ts"
+      ],
+      "priority": "p0",
+      "remediation": "Wire the selected owner into the real default path or remove the dead capability claim.",
+      "requirements": [],
+      "work_id": "m3_work_7172df00718ffedb71f1"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default worker entry worker.pool.dispatch cannot prove the selected canonical owner.",
+      "domains": [
+        "worker_route"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "5caf41d4f3e87341f362b38e",
+        "7951b09b50a572ddeb610b54"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/integration.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_8415640f015b03a5fc07"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default cli entry cli.session.runtime cannot prove the selected canonical owner.",
+      "domains": [
+        "session_event_projection"
+      ],
+      "finding_codes": [
+        "canonical_owner_default_unreachable",
+        "canonical_write_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "default_trace_edge_unverified",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "1b828da7b3e32c307441b63e",
+        "42f4f9cc9f0c14c91c566aa8",
+        "61963c2dddd3e6bc3ab1ed77",
+        "73ec4626e79cde493ab4b962",
+        "815a9ad847ee2bde4550662f",
+        "a0a91bb370ac6f4dfe4cc699"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/api/zyra_api/main.py",
+        "packages/runtime/claude-runtime/src/query-engine.ts",
+        "packages/runtime/zyra_runtime/claude_session_store.py"
+      ],
+      "priority": "p0",
+      "remediation": "Wire the selected owner into the real default path or remove the dead capability claim.",
+      "requirements": [],
+      "work_id": "m3_work_96e88a07fe739a40d776"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default web entry web.interactive.sessions cannot prove the selected canonical owner.",
+      "domains": [
+        "terminal_browser_session"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "catalog_runtime_reference_dead_code",
+        "default_trace_edge_unverified",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "260f8f5302cb4358700c2585",
+        "681584e4535ee4486b322675",
+        "79d041e85eaaa209af85cf9e",
+        "7ec50cb09d5d136f7a9445f3",
+        "929153b571b8a75ebc1592fa"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/terminal/runtime.ts",
+        "packages/workers/zyra_workers/browser_session/session_runtime.py",
+        "packages/workers/zyra_workers/terminal/runtime.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_a91eee1d37d3317ac273"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "Default worker entry worker.graph.topology cannot prove the selected canonical owner.",
+      "domains": [
+        "graph_checkpoint"
+      ],
+      "finding_codes": [
+        "canonical_write_default_unreachable",
+        "state_domain_no_reachable_default_entry"
+      ],
+      "finding_fingerprints": [
+        "90088d14d9ea37abe39ff950",
+        "be5b9f22339ab22039866c41"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/orchestration/zyra_orchestration/graph_custody/runtime.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the owner to its durable write path without event-only, projection-only, or fallback-only success.",
+      "requirements": [],
+      "work_id": "m3_work_f1fbcb40e534ac75ec92"
+    },
+    {
+      "action": "rewire_default",
+      "blocking": true,
+      "default_path_impact": "File existence or import smoke is the only evidence.",
+      "domains": [
+        "scheduler_recovery"
+      ],
+      "finding_codes": [
+        "catalog_runtime_reference_dead_code"
+      ],
+      "finding_fingerprints": [
+        "9dfb104dce4220bddfec2033"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/recovery_runtime/store.py"
+      ],
+      "priority": "p0",
+      "remediation": "Connect the runtime to a default entry or remove the dead owner/write claim.",
+      "requirements": [],
+      "work_id": "m3_work_fb19c55a214528bb1b2c"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "42065985dc3fdf7f1d98a06a"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_source_custody_audit.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_02378ba7998af698ac0d"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "75c7db196ee0be1e6bef4f6b"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_codeworker_context_compact_api_foundation.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_03dd8ab4ac84053f5e21"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "70770dfb2a0a5daeaeb2359c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_0d051d35729ae61c7000"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "937a36541fec4168e9694e58"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_provider_backend_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_1115a65f996ff1828926"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "8181ea85065c45d866f019e3"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/integrations/zyra_integrations/ledger_reachability.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_132ff81ff3c1dd4761f1"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "73e54b15550c661b946b3cdc"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_worker_pool_foundation_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_17796ae0a34d633b35ef"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "e5eb38d8fcf6fa9b178d8e99"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_m1_hardening_main_path.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_1e529c9c82f46319fcc3"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "3c890ea733d27b772b5c2ea2",
+        "92d1a2b7b7ac3dd0a91317d8"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_workspace_manager_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_27af1c0f930f368353ca"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "52f94228a30a37191d34e771"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/commands/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_2c5c1cc5641567940dad"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "084af1c077867e89f39f8997"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_memory_curator_api_main_path.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_2d9e171af18a26dfc519"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "ac42d1cc3d9d974ed9f99cc2"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_memory_curator_worker_integration.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_302cf706381f95ad1718"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "2c704de6d0ff80306e1ecdde"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_topology_interaction_control.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_38569c560651bdf5e39a"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "dde7103c1be5bb076b6dbacb"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_internalization_ledger_policy_linecount.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_3a4340e03e3c09eb5c7c"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "321cb08873d50a589bac5f63"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_3f5f519deae62be4d40a"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "35aef70096ee118b9c4035ad"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/index.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_41609b2c1a2a69984497"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "dcf564af8bbc64d314226dfa"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_m2_02_source_to_target_audit.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_41d1c8122cadab9977c5"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "31ca8496e2a205000453e1d4"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/normalizers.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_4549948e47130991dc3b"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "95ed97f4e3b4a1a34b841e0e"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/retrieval-algorithms/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_483ee82aa5a70763ae05"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "d5f7ac09a5336029d1459773"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/workers/zyra_workers/browser_observability/source_audit.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_4c04c069fec854b1ec6e"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "8566eb446ee7e9e96d55e365"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_4e2249f1de7be66bd33e"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "5cacf599f0a7c694a8598406"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_4fc9359788de2bc7ea93"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "512ba6f539e1ab39055305fd"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_m2_typed_api_client_transport.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_5108ca2f06ef5098fff6"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "dda743de8de5830e5da93728"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_scenario_evidence_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_5e8b3f4c4a65bfa12dba"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "9ca8a0912feb554dccfdb2a5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_topology_projection_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_61ca98c9ddfed6d54744"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "28280b6d3c077b8befe119f7",
+        "d4a2da880b02f55257976fa4"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_submission_boundary.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_628f0c6f34755ab87568"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "13e89ba18d189239e44ff3a7",
+        "1b2e443ea347e93f65dea4dd",
+        "1faafe0c827df7b26d1eb27a",
+        "3802f24c4b12b6df4f4f40da",
+        "47f9a6864f3f4fd67f472fcb",
+        "563f657b396e7dd1d4ad1550",
+        "6e7a7d9e1eee684fcd7815e3",
+        "77b85a2eb8d3e4496f522db4",
+        "92ba99c25c8faa4791792410",
+        "c4bdcc43694dacace70ec4a3",
+        "c69849912a7885b1e048b263",
+        "d1a980b9e341c17d3b5e215c",
+        "d4f9912acb18941114e0cf17",
+        "d7cc03ef4809ba4b88c2939b",
+        "f2039188cbc546ded751d79a",
+        "fe6f70bad19b872ed7ee4eeb"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/omp-rpc-mapper.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_678801515c12b4f28ad2"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "38f703730fe731027075c427"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/audit_browser_session_cleanroom.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_6a1f6e1df88023d66c38"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "775fd6af518188c6867a72e6",
+        "ef79b9f2da62a3fe3b00c530"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_terminal_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_7022ed5971e81b86b1ed"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "a6583a194aaeab5de74ae94c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_command_queue_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_7563db6179175ac3f8fa"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "0ace6c95a5b310d177f9b6b2"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_code_index_api_main_path.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_7ad6a23966d59a6ed7e7"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "4c89a5548ccb3eaed86da0c9"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_api_control_commands.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_7ec9e68983e2c5f1f526"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "133bb75c4ccac45259720def"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_permission_console_api.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_80754642dc51015c6cd7"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "363182c024c3e7f553c3866a"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_e02_typescript_api_cutover.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_8285eb6b498962a27931"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "ad57826d090f301bcb4599b3"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_reusable_procedure_api_main_path.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_86838dbcdfd0e2cb79d8"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "f7930720d6a3f99117c2e218"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/skill-memory-runtime/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_89504bd621bbde9d0b4d"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "fb745beb4027519706a3c0f5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_928fe123dfe79a9055be"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "e1024268c9df239e67f24b71"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_typed_transport_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_935ebfb87cd10ad01a0b"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "d78671d122b40d7df59bdcd2"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_964e99f60d6a3a1a678f"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "15ff44ecad4a786978e57ecb"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/code-worker/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_97415ea4d01de2f48c95"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "b93fe8cce865bfdb6a2fa016"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_watchdog_fault_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_a09b089f9c7363b32383"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "2e631f03a06ada46634621f7"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_internalization_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_a102b5636b3da251ad1d"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "5894c33885bff386839613d4",
+        "6009d2dedf3752fc7bc3bec0"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_terminal_pty_platform_integration.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_a2bc7ea6f71ccdb763da"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "760ab7290cf87d53d2b2f668"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/watchdog/worker-restart-supervisor.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_a7e1a6f126b4214f05b8"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "b0b09a9f254e94b0f3a345ba"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_worker_pool_integration_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_ab0b6e0e7e09778d335a"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "aa8af415e73630d9609f991f"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/curator-state-machine/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_b0822dc29989b44ed097"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "627d11c16a78d3b41ef5cd71"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_recovery_planner_routing_memory_api.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_b3f1507ed85524f060fd"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "464baf3dc9510339ba85c221",
+        "beca394736dc0db9cac54852"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/verify_typescript_runtime_custody.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_b891417d673e911cb466"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "4b851ddcf517a52c3cd70143",
+        "5c1b702f4249686768b20557"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_m2_browser_viewer_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_c45314fb64cb58e5647c"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "c6c0dc293ea7fd5c0a9518a6"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_retrieval_api_main_path.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_c68f440d18c861d4e469"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "b5f1b37aa00fa914174975af"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/integration-runtime.ts"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_d1144e19c5de2ff2dd01"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "4531471c1bd594d139a99a0d",
+        "6d241810d1e602ece9a9cfa0",
+        "722b0cfe3cedb904674a5029",
+        "bb6ab2e09c3a3913a3d02bef"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_d1ada694aa7b5de05cb2"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Core behavior may be unavailable for source audit.",
+      "domains": [],
+      "finding_codes": [
+        "opaque_binary_process"
+      ],
+      "finding_fingerprints": [
+        "08c0bd52ec0355af609d9e10"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Bind source/build checksum/package owner and semantic health.",
+      "requirements": [],
+      "work_id": "m3_work_d2029ab31bfdf7d6e6da"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "53c342813e8e4fa33f7a2a4b"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/remediation/probe_m1_r01_e04.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_de5270739310820c9d22"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "3a583f3a8742558796c5578e",
+        "5e6bf770c55b7713c75b15f9",
+        "6fe790646e339bef92d9dc89",
+        "8881ad17d3125a14daabd972",
+        "8f5277860f89d6aa03cb012e",
+        "948c6fa08d9c942a8355c58b",
+        "99b23f9fd19d92645d120ad6",
+        "bb9e349294d2fa351bb65c20",
+        "fd085d251cac722455593064"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/scheduler/zyra_scheduler/recovery_runtime/component_runtime.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_de9859ff096f461d4dd8"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "2c81b270c5fd9e1ca09d85ee"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_browser_observability_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_e3fbcb4472afe91ba770"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "a90da150b0206c8933e8a634"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_tool_loop_budget_runtime.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_e805b041bc1778412323"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "7160a1f0d95dad73a6dbcecf"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/zyra_runtime/runtime_events/integration.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_e9c4caafe96b1e373e1f"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "6c37bc158373227d3ad00b9b"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/core/typed-api-client/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_eb0a9e65d6c6d60a79a2"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "1caf080b37391888aff50510",
+        "2b8e893f2c853d8c9cb5f07b",
+        "bc6852956c7ec0fd163e6dc9",
+        "ca3c7971907b3e91c8c73665"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/remediation/m1_r01_e04_g0.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_ed0030a7411c1aab9854"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Clean submission would depend on a sibling repository.",
+      "domains": [],
+      "finding_codes": [
+        "python_parent_source_path"
+      ],
+      "finding_fingerprints": [
+        "4a0a29cbd143e1bbeb667425",
+        "56468b5042978ddf33dc744f",
+        "96d71737a2c54af03461dcd9",
+        "c24afc01cff4e93dfa46d10c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/integration/test_e04_candidate_closure.py"
+      ],
+      "priority": "p1",
+      "remediation": "Use project-local source or a declared package boundary.",
+      "requirements": [],
+      "work_id": "m3_work_f4b01d2a295a580e863b"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime may acquire undeclared mutable code.",
+      "domains": [],
+      "finding_codes": [
+        "process_dynamic_installer"
+      ],
+      "finding_fingerprints": [
+        "9634ccae7bd3ea87aa4948b3"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "vendor/claude-code-best/package.json"
+      ],
+      "priority": "p1",
+      "remediation": "Move dependency acquisition to frozen install/build.",
+      "requirements": [],
+      "work_id": "m3_work_f663856a66ef5e3d9b28"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "An upstream runtime/process may retain core decision custody.",
+      "domains": [],
+      "finding_codes": [
+        "omp_external_process"
+      ],
+      "finding_fingerprints": [
+        "684585d9de4d36d5bd431ea7"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "scripts/sync_recovery_planner_integration_source_ledger.py"
+      ],
+      "priority": "p1",
+      "remediation": "Remove black-box runtime custody or bind it behind an explicit Zyra contract.",
+      "requirements": [],
+      "work_id": "m3_work_f7f27fe22196cf32f3e2"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": true,
+      "default_path_impact": "Runtime dependency cannot be resolved at freeze time.",
+      "domains": [],
+      "finding_codes": [
+        "python_dynamic_import_nonliteral"
+      ],
+      "finding_fingerprints": [
+        "1fd110e73c434f41a03ae174"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "tests/unit/test_python_workspace_packaging.py"
+      ],
+      "priority": "p1",
+      "remediation": "Replace with a declared import registry and allowlist.",
+      "requirements": [],
+      "work_id": "m3_work_f960b355e6db4f700953"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "1b0bb5805c9b71473fd097c0",
+        "33d9db5b33f46fadd2936407",
+        "dc9063190feee2d9abc0e4ed",
+        "e5676b7cfbb04ecd87192093"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-FAULT-01"
+      ],
+      "work_id": "m3_work_10510c829ecce8e1635b"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "36283a2b30006f6a3312b89f",
+        "ac55db72b5a80a2a328dc394",
+        "b8ee54d96fd6b57bb1def206",
+        "bfaddbda3516b79332c8b7bc"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-ORG"
+      ],
+      "work_id": "m3_work_1eaf8a2889c883f38c7c"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "35e5dd6376b40bd0410741fe",
+        "5a7710049a8d0ff0a665c79c",
+        "c9528810cd3b3a078778fe18"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-ROBUST"
+      ],
+      "work_id": "m3_work_23301be8aa23d5a9225c"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "157a53029a7d2fa61706e30a",
+        "610131063cffba1aa3de2ae9",
+        "c9d912aeb2130963000d23d8",
+        "feafb331b7b5501e2a80166f"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-CLOSE-01"
+      ],
+      "work_id": "m3_work_85cab8a4bed2be0a7cfe"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "647bd5d5455335c8eba0bb84",
+        "8bfc4815ddc817289afc485a",
+        "9afc83896ec0e4b432f91401",
+        "b1017da83eb56d778345be0a"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-EFF"
+      ],
+      "work_id": "m3_work_9830e161b198384adfc3"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "298727eea377b9dad37e3752",
+        "320ef8fcb9e9223a8975d0fe",
+        "88f1a02f5587b915347c3089",
+        "ec5be7af14a37a36ade86a01"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-TRACE-01"
+      ],
+      "work_id": "m3_work_a67cc5141dae2330182a"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "174b9252e69cbb9605041496",
+        "3e80191aef18b8131d38ca9f",
+        "4cb215f639b8cd0c87a0a0af",
+        "d056b920c2d41daf7fd1f654"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-TOPO-01"
+      ],
+      "work_id": "m3_work_afc6c1bbda500409a302"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "2ed78aa913e74c7656f6c2ee",
+        "3a1d654f1e1f530c7b2f6f99",
+        "9119594846e74d6dcba98c85",
+        "fbff3ae19b941f841e13dc57"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-MEM-01"
+      ],
+      "work_id": "m3_work_bed2f3a3834ae91d129e"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "cf5c4d20cdbc1248873e678c",
+        "d3051b5f79ddf2bbd60cd340",
+        "f0dc6b641b31ce4018ad96f3",
+        "f490801c047f80c553222173"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-LOOP"
+      ],
+      "work_id": "m3_work_e5de474beaa3da223f0d"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "996e1a8717f4a6669f2195eb",
+        "be3d86d435385d62a99bfdd6",
+        "c84606b2d41c51d2e45323a5",
+        "d230af1f2b04efdd4d947b1e"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-COMM-01"
+      ],
+      "work_id": "m3_work_e8136120d4de92e32a76"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "1967ae32e874fbc9b6afe669",
+        "515a08d1ad7bafe4a17fd989",
+        "51e62d2bd23a68738ddbb81e",
+        "be5454150e569506351628cb"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-NOISE"
+      ],
+      "work_id": "m3_work_eb079290e39a11651f3e"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "5260c40a6afd439f133c1523",
+        "8d4bf9094270a9adc98def7c",
+        "8dd66fd5ba69fe9537784cd9",
+        "d56712ed20cf11bdc03e9228",
+        "dbc32ba879fe4ba50dd8ca7c"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-COMPAT"
+      ],
+      "work_id": "m3_work_bb232460a601c55bc531"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "0311209b40b08ae035d011c2",
+        "357e197d002e8ceaeeba7334",
+        "3e3075823f52f14c600c9665",
+        "5632e411d30c5b289e920a6f",
+        "565bdfc95fcfc9410b7b6bbc"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-EDGE-01"
+      ],
+      "work_id": "m3_work_d13fd73f27a5a44046c5"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "59fd5eac59ab7115bd5766f1",
+        "8deed820228643b512a1378a",
+        "e84049daeae1f3baf3f81f0f",
+        "ed81e1a61d19934cb555b9de"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-SCENE"
+      ],
+      "work_id": "m3_work_134eb23d434e6ceebf0e"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "3ce74468ffccd1151a6d419e",
+        "481e7b2ff208ec56b865f904",
+        "a5fa9b6b5ccfeaebf2676b73",
+        "e4269be5ef2be95fb2f97f23"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real reachable default entry evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-ALGO"
+      ],
+      "work_id": "m3_work_733da7459b755bb8c188"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "24727dff2af342d356b4aca5",
+        "2b7454f2a6f1dfb9a8999fa1",
+        "3177b9b83f64f5635dfbe79e",
+        "f0f396a0704cd4be62c7b12c"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real reachable default entry evidence at the exact target commit.",
+      "requirements": [
+        "REQ-DOC-01"
+      ],
+      "work_id": "m3_work_9203cca052258b9467cb"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_config_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "6059c39254b95ae885a7dee9",
+        "7868b59b8a8be7c3a7f0efa2",
+        "7b23d36e0ecded49ca50c9b9",
+        "96b44a5d27c65adf46785a0e",
+        "fdf792aefe8d3c6c0f83194c"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-UX"
+      ],
+      "work_id": "m3_work_d6719da6daed5bb265a4"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "1a63423426b43c2c39fa9e89",
+        "33c48b6cc2d46c7ef99230b2",
+        "ce8b476730e7767be5d91c8b",
+        "e7a4a678c6e7085e1fc3a7d3"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-VALUE"
+      ],
+      "work_id": "m3_work_e441b1a87f2645746177"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "142db9099a6b1673ac89545a",
+        "3448a0eb4bdac203aab73eb9",
+        "851882d4069d027c6f466be2",
+        "fd80c2102c00d6d70043e412"
+      ],
+      "owner_unit": "M3-03",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-TASKS"
+      ],
+      "work_id": "m3_work_f915f363e43aa3f29dd6"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "12f6d787a80e2547624fd616"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-03/cross-source-research-experiment-evidence.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_4a4e6d9370cf98e4b2f7"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Similarity is reviewed provenance, not an automatic failure.",
+      "domains": [],
+      "finding_codes": [
+        "source_similarity_vendor_like"
+      ],
+      "finding_fingerprints": [
+        "7f1096f5aa5ff8b2edd73c6c"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/workers/zyra_workers/browser_state/serializer.py"
+      ],
+      "priority": "p3",
+      "remediation": "Retain cropped-control-flow provenance and Zyra custody evidence.",
+      "requirements": [],
+      "work_id": "m3_work_8d10c4e8d32048195024"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "303d61ec1a19d54fc144cd0d"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-03/software-delivery-experiment-evidence.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_9a82e51682cd89be2b76"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "68d3bcba96f25947248e174f"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-02/software-causal-archive.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_a2c97456649cb24c4791"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "8c21161b71ed9f9864ea02e1"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-02/research-delivery-artifacts.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_a7e2a102abb940154e9d"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "74c027a212db77f16c926b12"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-02/software-delivery-artifacts.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_b2a32f46ded980068367"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "35f8feae368c48984c7d6305"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-03/M2-exit-competition-evidence-bundle.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_e38f48cada3d214cf91a"
+    },
+    {
+      "action": "dispose_source_risk",
+      "blocking": false,
+      "default_path_impact": "Evidence archive must remain non-runtime.",
+      "domains": [],
+      "finding_codes": [
+        "archive_artifact_present"
+      ],
+      "finding_fingerprints": [
+        "7aab33069e80218f451951fb"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "docs/reviews/evidence/M2-S05-02/research-causal-archive.zip"
+      ],
+      "priority": "p3",
+      "remediation": "Remove it from runtime paths or declare it as checksum-bound evidence.",
+      "requirements": [],
+      "work_id": "m3_work_f71b3ff3451c23ad9a2e"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "347a113196b1d60c1f6d1922",
+        "583dc8e69c3faa8e16d0cb58",
+        "e2b4cbaa66efb54e881aaad8"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/code_index/zyra_code_index/worker.py"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_072c5ae1ac524e6c999c"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "3e36432dcfc25c1184f393d6",
+        "bff4bd240c78a3a4f611f857"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_100636cb682f7fbfc862"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "00fce2cbf073402adbaf75a6",
+        "abc21a80445d184c60fcb239",
+        "d12c5544b376252522e9eba8"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/memory/zyra_memory/index_worker.py"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_2dcc15240064e37a1f9f"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "ca0f8509e93ce125697a8ee7"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/artifact-read-service.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_3701aef8f221c551b4f7"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "6f7e1183dfbec4d9a073308f"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/omp-rpc-mapper.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_5b7a59c860c5f10d12fb"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "7bc3f1d5948a7758447a63ab",
+        "bc939e1b84eecec3bdf655a5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/stdio-probe.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_68a9bf79111eaf9a84cc"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "972b0d98ab7e227360b533dc",
+        "b52ba6e5d37b768c7cb1d052"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/tasks/registry.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_7192eeaa21131669cb7b"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "3dd6ece288456448276cb966",
+        "8fd7237b5aa552091dc7f272",
+        "98ed31db186707221fa883b4",
+        "aa75df7a1ae49922b221b99c",
+        "b02f2ba3650646880f755e0f",
+        "d02b9ddf7d19ef4144bf4a75",
+        "e24725e6e90b28ad22b2217d",
+        "fb7b05ee6d02fd5f9a885449"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/provider-control-plane/src/control-plane.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_7db46059517edb3f530f"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "0aed9a06b0810a41d34199b4",
+        "0c35b853c1c5b5072a5af433",
+        "1c3e57b01bcc5931cd03f7b7",
+        "8040137810a2317a3404ee88",
+        "e2e8115d2d634093e97606bc",
+        "e69b7ad1843d15eaad63811d",
+        "f66df89776974950a42748b3"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/core/typed-api-client/src/normalizers.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_83b5f80a4f726d5c68d7"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "bdf48bd40eecb78323ef5b3e"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/workers/zyra_workers/subagents/typescript_port.py"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_891a1a994b6a7409dfca"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "1da636c524e76bbabed98b45"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/runtime-event-spine/src/integration-contracts.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_99c1626b86b413f3712e"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "e86963b5793b8c01f1c95bbc"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_a323a5447abb317450be"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "6496b81054bc13245ea3694e",
+        "74984c1c2cec22324a0d1830"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/workspace/zyra_workspace/manager.py"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_c1789c19ba232bf2434e"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "567e8aec1d2e80a818275ac4"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/terminal/contracts.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_c334fd41a23655bf39fc"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "0679badf7990804ce64faec5"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/artifacts/contracts.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_cf1f035689c82a8bcb24"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "6cc2dbe8b03b60e366460ee1"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/core/typed-api-client/src/receipt.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_d3aa4225da999947b523"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "203d9021d5e3d1ea43811efb",
+        "7acd461ec5cb1b8468de49b4"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/runtime/claude-runtime/src/stdio.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_de496614a720837f7fcd"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "9d68fabd4d710a5f0247ec77"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_df9ea54cd0f0606c6186"
+    },
+    {
+      "action": "repair_causality",
+      "blocking": false,
+      "default_path_impact": "",
+      "domains": [],
+      "finding_codes": [
+        "semantic_event_not_in_causality_catalog"
+      ],
+      "finding_fingerprints": [
+        "d5848d46de8e3d5ae245e407"
+      ],
+      "owner_unit": "M3-01B",
+      "paths": [
+        "apps/web/src/features/terminal/transcript.ts"
+      ],
+      "priority": "p3",
+      "remediation": "Classify the event as canonical mutation evidence or document why it is derived/non-semantic.",
+      "requirements": [],
+      "work_id": "m3_work_eaf0da43cce9289c7e3f"
+    }
+  ],
+  "receipt_digest": "sha256:8d2e533a42681301cf5b5b142f0bbf391c0c78042ee9c06adcaeb25ba478cdec",
+  "revision": "2de115f565667eda0ab9664f98af3181f45460e9",
+  "schema": "zyra.m3-freeze-audit-work-queue/v1",
+  "source_slice": "M3-S01A-02",
+  "summary": {
+    "blocking": 111,
+    "by_action": {
+      "add_requirement_evidence": 19,
+      "dispose_source_risk": 71,
+      "repair_causality": 28,
+      "resolve_owner": 11,
+      "rewire_default": 9
+    },
+    "by_owner_unit": {
+      "M3-01B": 119,
+      "M3-02A": 11,
+      "M3-02B": 2,
+      "M3-03": 6
+    },
+    "by_priority": {
+      "p0": 29,
+      "p1": 82,
+      "p3": 27
+    },
+    "items": 138
+  }
+}

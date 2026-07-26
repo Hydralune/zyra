@@ -1,0 +1,66 @@
+{
+  "digest": "sha256:9b971d8b10db3cb0a9404a528f1e0e7bc01c9c6ea3198e16c893597167eee40e",
+  "items": [
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "5260c40a6afd439f133c1523",
+        "8d4bf9094270a9adc98def7c",
+        "8dd66fd5ba69fe9537784cd9",
+        "d56712ed20cf11bdc03e9228",
+        "dbc32ba879fe4ba50dd8ca7c"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-COMPAT"
+      ],
+      "work_id": "m3_work_bb232460a601c55bc531"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "0311209b40b08ae035d011c2",
+        "357e197d002e8ceaeeba7334",
+        "3e3075823f52f14c600c9665",
+        "5632e411d30c5b289e920a6f",
+        "565bdfc95fcfc9410b7b6bbc"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-EDGE-01"
+      ],
+      "work_id": "m3_work_d13fd73f27a5a44046c5"
+    }
+  ],
+  "owner_unit": "M3-02B",
+  "receipt_digest": "sha256:8d2e533a42681301cf5b5b142f0bbf391c0c78042ee9c06adcaeb25ba478cdec",
+  "revision": "2de115f565667eda0ab9664f98af3181f45460e9",
+  "schema": "zyra.m3-freeze-audit-work-queue/v1",
+  "source_slice": "M3-S01A-02"
+}

@@ -1,0 +1,294 @@
+{
+  "digest": "sha256:e08166dd188ef926c34bf6e9e9caf59b139c122ab2bbccd3d034a68c2e748cd4",
+  "items": [
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "1b0bb5805c9b71473fd097c0",
+        "33d9db5b33f46fadd2936407",
+        "dc9063190feee2d9abc0e4ed",
+        "e5676b7cfbb04ecd87192093"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-FAULT-01"
+      ],
+      "work_id": "m3_work_10510c829ecce8e1635b"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "36283a2b30006f6a3312b89f",
+        "ac55db72b5a80a2a328dc394",
+        "b8ee54d96fd6b57bb1def206",
+        "bfaddbda3516b79332c8b7bc"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-ORG"
+      ],
+      "work_id": "m3_work_1eaf8a2889c883f38c7c"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "35e5dd6376b40bd0410741fe",
+        "5a7710049a8d0ff0a665c79c",
+        "c9528810cd3b3a078778fe18"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-ROBUST"
+      ],
+      "work_id": "m3_work_23301be8aa23d5a9225c"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "157a53029a7d2fa61706e30a",
+        "610131063cffba1aa3de2ae9",
+        "c9d912aeb2130963000d23d8",
+        "feafb331b7b5501e2a80166f"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-CLOSE-01"
+      ],
+      "work_id": "m3_work_85cab8a4bed2be0a7cfe"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "647bd5d5455335c8eba0bb84",
+        "8bfc4815ddc817289afc485a",
+        "9afc83896ec0e4b432f91401",
+        "b1017da83eb56d778345be0a"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-EFF"
+      ],
+      "work_id": "m3_work_9830e161b198384adfc3"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "298727eea377b9dad37e3752",
+        "320ef8fcb9e9223a8975d0fe",
+        "88f1a02f5587b915347c3089",
+        "ec5be7af14a37a36ade86a01"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-TRACE-01"
+      ],
+      "work_id": "m3_work_a67cc5141dae2330182a"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "174b9252e69cbb9605041496",
+        "3e80191aef18b8131d38ca9f",
+        "4cb215f639b8cd0c87a0a0af",
+        "d056b920c2d41daf7fd1f654"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-TOPO-01"
+      ],
+      "work_id": "m3_work_afc6c1bbda500409a302"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "2ed78aa913e74c7656f6c2ee",
+        "3a1d654f1e1f530c7b2f6f99",
+        "9119594846e74d6dcba98c85",
+        "fbff3ae19b941f841e13dc57"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-MEM-01"
+      ],
+      "work_id": "m3_work_bed2f3a3834ae91d129e"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "cf5c4d20cdbc1248873e678c",
+        "d3051b5f79ddf2bbd60cd340",
+        "f0dc6b641b31ce4018ad96f3",
+        "f490801c047f80c553222173"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-LOOP"
+      ],
+      "work_id": "m3_work_e5de474beaa3da223f0d"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "996e1a8717f4a6669f2195eb",
+        "be3d86d435385d62a99bfdd6",
+        "c84606b2d41c51d2e45323a5",
+        "d230af1f2b04efdd4d947b1e"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-COMM-01"
+      ],
+      "work_id": "m3_work_e8136120d4de92e32a76"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_event_link_invalid",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "1967ae32e874fbc9b6afe669",
+        "515a08d1ad7bafe4a17fd989",
+        "51e62d2bd23a68738ddbb81e",
+        "be5454150e569506351628cb"
+      ],
+      "owner_unit": "M3-02A",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-NOISE"
+      ],
+      "work_id": "m3_work_eb079290e39a11651f3e"
+    }
+  ],
+  "owner_unit": "M3-02A",
+  "receipt_digest": "sha256:8d2e533a42681301cf5b5b142f0bbf391c0c78042ee9c06adcaeb25ba478cdec",
+  "revision": "2de115f565667eda0ab9664f98af3181f45460e9",
+  "schema": "zyra.m3-freeze-audit-work-queue/v1",
+  "source_slice": "M3-S01A-02"
+}
