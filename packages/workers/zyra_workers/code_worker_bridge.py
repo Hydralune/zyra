@@ -27,7 +27,7 @@ class CodeWorkerSidecarClient:
         host_process_runtime: GatewayHostProcessRuntime | None = None,
     ) -> None:
         self.project_root = Path(project_root)
-        self.bun_executable = shutil.which("bun")
+        self.bun_executable = self._resolve_bun()
         self.node_executable = node_executable or shutil.which("node") or "node"
         self.entrypoint = code_worker_entrypoint(self.project_root)
         self.host_process_runtime = host_process_runtime or GatewayHostProcessRuntime(
@@ -37,6 +37,19 @@ class CodeWorkerSidecarClient:
                 file_policy=GatewayFilePolicy(),
             ),
             allowed_roots=(self.project_root,),
+        )
+
+    def _resolve_bun(self) -> str | None:
+        installed = shutil.which("bun")
+        if installed:
+            return installed
+        candidates = (
+            self.project_root / "node_modules" / ".bin" / "bun.exe",
+            self.project_root / "node_modules" / ".bin" / "bun",
+        )
+        return next(
+            (str(candidate.resolve()) for candidate in candidates if candidate.is_file()),
+            None,
         )
 
     def health(self) -> dict[str, Any]:
