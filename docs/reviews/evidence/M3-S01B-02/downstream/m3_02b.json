@@ -1,0 +1,62 @@
+{
+  "digest": "sha256:39aa6f8a08df92a2c8621da1bff7552522b9aed84cde98c5b4da1a8265b28eaf",
+  "items": [
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "5260c40a6afd439f133c1523",
+        "8d4bf9094270a9adc98def7c",
+        "8dd66fd5ba69fe9537784cd9",
+        "dbc32ba879fe4ba50dd8ca7c"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "SCORE-COMPAT"
+      ],
+      "work_id": "m3_work_979bfdc4f96123e0ddbd"
+    },
+    {
+      "action": "add_requirement_evidence",
+      "blocking": true,
+      "default_path_impact": "Competition evidence cannot be reproduced from canonical runtime facts at the frozen commit.",
+      "domains": [],
+      "finding_codes": [
+        "requirement_commit_invalid",
+        "requirement_default_entry_invalid",
+        "requirement_evidence_not_verified",
+        "requirement_live_evidence_invalid"
+      ],
+      "finding_fingerprints": [
+        "357e197d002e8ceaeeba7334",
+        "3e3075823f52f14c600c9665",
+        "5632e411d30c5b289e920a6f",
+        "565bdfc95fcfc9410b7b6bbc"
+      ],
+      "owner_unit": "M3-02B",
+      "paths": [],
+      "priority": "p1",
+      "remediation": "Bind the requirement to real Git commit evidence at the exact target commit.",
+      "requirements": [
+        "REQ-EDGE-01"
+      ],
+      "work_id": "m3_work_cb9acb5f8224a7c8c869"
+    }
+  ],
+  "owner_unit": "M3-02B",
+  "receipt_digest": "sha256:689f436ebf1b39c6c918576f2b852aa8e85f04dc8082e075fe48ec6e0fe3a8d2",
+  "revision": "7ff45a7c52539c920539d398a9469c3ef7c7aeb8",
+  "schema": "zyra.m3-freeze-audit-work-queue/v1",
+  "source_slice": "M3-S01A-02"
+}

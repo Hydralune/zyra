@@ -1,0 +1,80 @@
+{
+  "schema": "zyra.m3-s01b-02.cleanroom-result/v1",
+  "slice_id": "M3-S01B-02",
+  "revision": "7ff45a7c52539c920539d398a9469c3ef7c7aeb8",
+  "source": {
+    "kind": "git_archive",
+    "archive": ".tmp/m3-s01b02-7ff45a7-cleanroom.zip",
+    "cleanroom": ".tmp/m3-s01b02-7ff45a7-cleanroom",
+    "copied_worktree_state": false
+  },
+  "install": {
+    "bun": {
+      "command": "bun install --frozen-lockfile --cache-dir G:/agent-zoo/zyra/.tmp/m3-s01b02-bun-cache",
+      "status": "passed",
+      "version": "1.2.15",
+      "packages_installed": 26,
+      "lockfile_changed": false,
+      "network_used": false
+    },
+    "python": {
+      "command": "python -m pip install --cache-dir .pip-cache --no-deps --no-build-isolation .",
+      "status": "passed",
+      "artifact": "zyra-0.1.0-py3-none-any.whl",
+      "installed_into": ".venv-clean",
+      "cleanroom_imports_verified": [
+        "zyra_runtime",
+        "zyra_api"
+      ]
+    }
+  },
+  "validation": [
+    {
+      "command": "cleanroom-source python -m pytest productization/config/API/worker focused suites",
+      "status": "passed",
+      "passed": 21,
+      "failed": 0,
+      "isolation": "The external pytest executable supplied test dependencies only; sys.path was prepended with the exact archived apps/** and packages/** roots."
+    },
+    {
+      "command": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/*.test.ts",
+      "status": "passed",
+      "passed": 25,
+      "failed": 0
+    },
+    {
+      "command": "node_modules/.bin/bun.exe test",
+      "status": "passed",
+      "passed": 1268,
+      "failed": 0
+    },
+    {
+      "command": "node_modules/.bin/bun.exe run apps/code-worker/src/main.ts --health",
+      "status": "passed",
+      "clean_default": true,
+      "requires_root_source_repo": false,
+      "requires_vendor_runtime": false,
+      "requires_legacy_inspection_sidecar": false,
+      "source_runtime_fallback": false,
+      "demo_runtime_fallback": false,
+      "source_store_fallback": false
+    },
+    {
+      "command": "node_modules/.bin/bun.exe run --cwd apps/web build",
+      "status": "passed",
+      "bundled_modules": 370
+    }
+  ],
+  "dependency_boundary": {
+    "parent_source_runtime_dependency": false,
+    "openclaw_runtime_dependency": false,
+    "external_docker_context": false,
+    "npm_link_or_editable_parent_path": false,
+    "source_store_fallback": false
+  },
+  "notes": [
+    "The archive was created from the frozen implementation revision and never copied dirty worktree state.",
+    "The product currently launches from the repository-root source composition. Standalone wheel-only service startup remains a packaging/freeze concern for M3-03; the wheel build, install, and package imports passed here."
+  ],
+  "passed": true
+}

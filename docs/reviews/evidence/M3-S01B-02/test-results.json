@@ -1,0 +1,113 @@
+{
+  "schema": "zyra.m3-s01b-02.test-results/v1",
+  "slice_id": "M3-S01B-02",
+  "baseline_revision": "9f2bfe85bc8324e2531e0ba636cc4410bda9334e",
+  "parent_baseline_revision": "4b6d0d1d81332886385adcd32ff6205f6403d0f0",
+  "implementation_revision": "7ff45a7c52539c920539d398a9469c3ef7c7aeb8",
+  "results": [
+    {
+      "command": ".venv/Scripts/python.exe -m pytest tests/unit/test_m3_config_migration_productization.py -q",
+      "status": "passed",
+      "passed": 16,
+      "failed": 0,
+      "purpose": "configuration precedence and validation, credential presence/redaction, lifecycle, migration lease, commit/restart, crash rollback, corrupt backup, owner migration, module disable, and missing credential behavior"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_runtime_owner_productization_api.py tests/integration/test_claude_code_productized_runtime.py -q",
+      "status": "passed",
+      "passed": 5,
+      "failed": 0,
+      "purpose": "API bootstrap/readiness, all canonical owners, owner disable, and locked Bun worker bridge"
+    },
+    {
+      "command": "source-custody/runtime-owner focused and sandbox gateway adjacent suites",
+      "status": "passed",
+      "passed": 44,
+      "failed": 0,
+      "purpose": "M3-01B parent queue, source custody, 11-domain owner/default behavior, owner-disable, gateway artifact, and worker integration regression"
+    },
+    {
+      "command": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/*.test.ts",
+      "status": "passed",
+      "passed": 25,
+      "failed": 0,
+      "purpose": "provider catalog/credential/route behavior plus atomic v0-to-v1 schema migration, rollback, restart recovery, and future-version fail-closed behavior"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe test",
+      "status": "passed",
+      "passed": 1268,
+      "failed": 0,
+      "purpose": "full TypeScript/Bun behavior suite at the frozen implementation revision"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe run typecheck",
+      "status": "passed",
+      "projects": 9,
+      "failed": 0,
+      "purpose": "all TypeScript package and Web typecheck projects"
+    },
+    {
+      "command": "node_modules/.bin/bun.exe run --cwd apps/web build",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0,
+      "purpose": "Web production build"
+    },
+    {
+      "command": "submission boundary plus CodeWorker inventory/session route focused tests",
+      "status": "passed",
+      "passed": 8,
+      "failed": 0,
+      "purpose": "AST source-boundary precision, TypeScript-only inventory/session contracts, and fail-closed 503 behavior when the canonical runtime is unavailable"
+    },
+    {
+      "command": ".venv/Scripts/python.exe scripts/verify_m3_s01b02_config_migration.py --project-root . --revision 7ff45a7c52539c920539d398a9469c3ef7c7aeb8",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0,
+      "purpose": "checksum-bound B01 predecessor, effective-code gates, clean bootstrap, owner migrations, restart, crash rollback, and 11 owner-loss proofs"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m pytest tests -q --maxfail=10",
+      "status": "failed_pre_existing_cutover_expectations",
+      "passed_before_stop": 10,
+      "failed": 10,
+      "duration_seconds": 414.35,
+      "purpose": "M3-01 numeric-stage bounded full Python repository regression",
+      "disposition": "All failures remain in tests/integration/test_api_control_commands.py and exercise pre-existing E02 permission/skill/command response shapes or retired direct Python tool assumptions. The implementation interval does not change those affected endpoints. The focused canonical TypeScript permission/skill/command suite passes in the 1268-test Bun run; this Python test debt must be retired or remapped before M3 freeze."
+    },
+    {
+      "command": "git diff --check and Python compileall for affected API/productization/audit modules",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    }
+  ],
+  "cleanroom": {
+    "receipt": "docs/reviews/evidence/M3-S01B-02/cleanroom-result.json",
+    "status": "passed",
+    "python_focused_passed": 21,
+    "provider_passed": 25,
+    "bun_passed": 1268,
+    "worker_health_passed": true,
+    "web_build_passed": true
+  },
+  "known_residuals": [
+    {
+      "kind": "python_cutover_test_debt",
+      "blocking_for_slice": false,
+      "blocking_before_final_freeze": true,
+      "path": "tests/integration/test_api_control_commands.py",
+      "owner": "M3-03",
+      "reason": "The remaining failures assert retired Python projections or pre-E02 response shapes while the canonical TypeScript runtime behavior passes."
+    },
+    {
+      "kind": "wheel_only_service_startup",
+      "blocking_for_slice": false,
+      "blocking_before_final_freeze": false,
+      "owner": "M3-03",
+      "reason": "The clean checkout source composition is the current default entrypoint; standalone wheel-only startup should be included in final packaging health if that delivery form is retained."
+    }
+  ]
+}
