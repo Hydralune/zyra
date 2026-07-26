@@ -262,7 +262,9 @@ def test_javascript_lexer_handles_division_and_nested_templates(
     source.parent.mkdir(parents=True)
     source.write_text(
         "const ratio = weights[0]! / total;\n"
-        "const value = `aliases: ${JSON.stringify([`${name}-alias`])}`;\n",
+        "const value = `aliases: ${JSON.stringify([`${name}-alias`])}`;\n"
+        "const quoted = `value=${name.replace(/\"/g, '\\\\\"')}`;\n"
+        "if (!/^[!#$%&'*+\\\\-.^_`|~0-9a-z]+$/.test(name)) throw Error();\n",
         encoding="utf-8",
     )
     inventory = _scan(tmp_path)

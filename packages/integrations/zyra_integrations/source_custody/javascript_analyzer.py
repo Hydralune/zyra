@@ -198,6 +198,7 @@ class JavaScriptLexer:
 
     def tokens(self) -> Iterator[Token]:
         previous: Token | None = None
+        before_previous: Token | None = None
         while self.index < self.length:
             character = self.source[self.index]
             if character.isspace():
@@ -213,7 +214,9 @@ class JavaScriptLexer:
                 token = self._consume_string(character)
             elif character == "`":
                 token = self._consume_template()
-            elif character == "/" and self._regex_allowed(previous):
+            elif character == "/" and self._regex_allowed(
+                previous, before_previous
+            ):
                 token = self._consume_regex()
             elif _identifier_start(character):
                 token = self._consume_identifier()
@@ -223,7 +226,7 @@ class JavaScriptLexer:
                 line, column = self.line, self.column
                 operator = self._consume_operator()
                 token = Token("punctuation", operator, line, column)
-            previous = token
+            before_previous, previous = previous, token
             yield token
 
     def _starts(self, value: str) -> bool:
@@ -295,6 +298,15 @@ class JavaScriptLexer:
                 buffer.append("${")
                 self._advance(2)
                 continue
+            if (
+                brace_depth
+                and character == "/"
+                and self._regex_character_context()
+            ):
+                nested = self._consume_regex()
+                if nested.kind == "error":
+                    return nested
+                continue
             if brace_depth and character in {"'", '"'}:
                 nested = self._consume_string(character)
                 buffer.append(nested.value)
@@ -330,10 +342,23 @@ class JavaScriptLexer:
             buffer.append(self._advance())
         return Token("error", "unterminated template", line, column)
 
-    def _regex_allowed(self, previous: Token | None) -> bool:
+    def _regex_allowed(
+        self,
+        previous: Token | None,
+        before_previous: Token | None,
+    ) -> bool:
         if previous is None:
             return True
         if previous.kind == "punctuation":
+            if previous.value == "!":
+                return (
+                    before_previous is None
+                    or (
+                        before_previous.kind == "punctuation"
+                        and before_previous.value
+                        in {"(", "[", "{", ",", ";", ":", "=", "=>"}
+                    )
+                )
             return previous.value in {
                 "(",
                 "[",
@@ -363,6 +388,20 @@ class JavaScriptLexer:
             "in",
             "of",
         }
+
+    def _regex_character_context(self) -> bool:
+        cursor = self.index - 1
+        while cursor >= 0 and self.source[cursor].isspace():
+            cursor -= 1
+        if cursor < 0:
+            return True
+        previous = self.source[cursor]
+        if previous != "!":
+            return previous in "([{,;:=?"
+        cursor -= 1
+        while cursor >= 0 and self.source[cursor].isspace():
+            cursor -= 1
+        return cursor < 0 or self.source[cursor] in "([{,;:="
 
     def _consume_regex(self) -> Token:
         line, column = self.line, self.column

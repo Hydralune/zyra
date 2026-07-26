@@ -119,7 +119,11 @@ def audit(*, target: str) -> dict[str, Any]:
     finally:
         common.source_role = original_role
 
-    effective = int(report["totals"]["effective_production"])
+    effective = sum(
+        int(item["effective_production"])
+        for item in report["files"]
+        if str(item["path"]).startswith(AUDIT_ROOT)
+    )
     blockers: list[str] = []
     if effective < SLICE_MINIMUM:
         blockers.append(
@@ -162,6 +166,7 @@ def audit(*, target: str) -> dict[str, Any]:
             "target": resolved_target,
         },
         "slice": report,
+        "accounted_effective_production": effective,
         "large_file_audit": large_files,
         "gate": {
             "ok": not blockers,
