@@ -1,0 +1,260 @@
+{
+  "accounted_effective_production": 8205,
+  "audit_tool_is_nonproduction": true,
+  "gate": {
+    "blockers": [],
+    "effective": 8205,
+    "margin": 3705,
+    "minimum": 4500,
+    "ok": true
+  },
+  "large_file_audit": [
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 671,
+      "line_count": 746,
+      "path": "packages/integrations/zyra_integrations/source_custody/catalog.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 8
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 992,
+      "line_count": 1080,
+      "path": "packages/integrations/zyra_integrations/source_custody/custody.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 9
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 886,
+      "line_count": 990,
+      "path": "packages/integrations/zyra_integrations/source_custody/dependencies.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 8
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 1060,
+      "line_count": 1189,
+      "path": "packages/integrations/zyra_integrations/source_custody/javascript_analyzer.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 14
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 336,
+      "line_count": 600,
+      "path": "packages/integrations/zyra_integrations/source_custody/model.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 28
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 583,
+      "line_count": 702,
+      "path": "packages/integrations/zyra_integrations/source_custody/policy.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 10
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 858,
+      "line_count": 972,
+      "path": "packages/integrations/zyra_integrations/source_custody/processes.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 10
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 685,
+      "line_count": 776,
+      "path": "packages/integrations/zyra_integrations/source_custody/python_analyzer.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 9
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 685,
+      "line_count": 770,
+      "path": "packages/integrations/zyra_integrations/source_custody/repository.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 11
+    },
+    {
+      "cohesion": "The file owns one audit domain and exposes typed findings, evidence and deterministic failure paths for that domain.",
+      "effective_production": 876,
+      "line_count": 969,
+      "path": "packages/integrations/zyra_integrations/source_custody/risks.py",
+      "split_assessment": "Retained as a cohesive domain module; splitting parser, normalization and findings would duplicate state or weaken the mutation boundary.",
+      "symbol_count": 12
+    }
+  ],
+  "method": {
+    "baseline": "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4",
+    "effective": "production_runtime only; tests, docs, JSON data, annotations, exports and audit scripts are excluded",
+    "python": "AST/token exclusion of Protocol, dataclass/enum fields, DTO mapping, schema constants, comments and blank lines",
+    "raw": "target-side added lines from git diff --unified=0",
+    "target": "a8273df7601b57cf3fecfb03936c815b9ca63f38"
+  },
+  "parent_unit": "M3-01A",
+  "schema": "zyra.effective-code-language-gate-audit/v1",
+  "slice": {
+    "allowed_implementation_commits": [],
+    "base": "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4",
+    "by_source_role_and_language": [
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 621,
+        "source_role": "behavior_verification",
+        "test": 621
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 1084,
+        "language": "json",
+        "production": 0,
+        "raw_additions": 1084,
+        "source_role": "evidence_or_machine_readable_data",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 191,
+        "language": "markdown",
+        "production": 0,
+        "raw_additions": 191,
+        "source_role": "evidence_or_machine_readable_data",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 216,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 216,
+        "source_role": "nonproduction_audit_tooling",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 180,
+        "language": "json",
+        "production": 0,
+        "raw_additions": 180,
+        "source_role": "provenance_data",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 26,
+        "language": "markdown",
+        "production": 0,
+        "raw_additions": 26,
+        "source_role": "provenance_data",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 28,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 28,
+        "source_role": "public_exports",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 1,
+        "language": "toml",
+        "production": 2,
+        "raw_additions": 3,
+        "source_role": "slice_supporting_configuration",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 264,
+        "language": "python",
+        "production": 336,
+        "raw_additions": 600,
+        "source_role": "zyra_owned_audit_contracts",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 303,
+        "language": "python",
+        "production": 2429,
+        "raw_additions": 2732,
+        "source_role": "zyra_owned_dependency_and_process_inventory",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 220,
+        "language": "python",
+        "production": 1745,
+        "raw_additions": 1965,
+        "source_role": "zyra_owned_language_semantic_analysis",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 100,
+        "language": "python",
+        "production": 573,
+        "raw_additions": 673,
+        "source_role": "zyra_owned_release_audit_main_path",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 119,
+        "language": "python",
+        "production": 583,
+        "raw_additions": 702,
+        "source_role": "zyra_owned_release_policy_and_queue",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 163,
+        "language": "python",
+        "production": 1663,
+        "raw_additions": 1826,
+        "source_role": "zyra_owned_source_role_and_custody",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 93,
+        "language": "python",
+        "production": 876,
+        "raw_additions": 969,
+        "source_role": "zyra_owned_source_specific_and_opaque_risk",
+        "test": 0
+      }
+    ],
+    "target": "a8273df7601b57cf3fecfb03936c815b9ca63f38",
+    "totals": {
+      "adapter_only": 0,
+      "docs_comments_blank": 508,
+      "effective_production": 8207,
+      "generated": 0,
+      "nonproduction_tooling": 216,
+      "production_runtime": 8207,
+      "raw_additions": 11816,
+      "schema_dto_data": 2225,
+      "test_mock_fixture": 621,
+      "type_declaration": 39,
+      "ui_behavior": 0,
+      "ui_presentation": 0,
+      "unrelated_scope": 0
+    }
+  },
+  "slice_id": "M3-S01A-01"
+}

@@ -1,0 +1,261 @@
+{
+  "baseline_revision": "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4",
+  "mode": "inventory",
+  "policy": {
+    "blockers": 450,
+    "digest": "sha256:c3e5df99b32a6d2d7fa8db68d405737dc82a12845cebff6fa0f91f2bba5db8c1",
+    "errors": 122,
+    "findings": 602,
+    "warnings": 30,
+    "work_queue": {
+      "blocking": 143,
+      "by_action": {
+        "absorb": 21,
+        "declare": 89,
+        "externalize": 3,
+        "remove": 11,
+        "repair": 6,
+        "track": 120,
+        "verify": 1
+      },
+      "by_owner_unit": {
+        "M3-01B": 246,
+        "M3-02B": 5
+      },
+      "by_priority": {
+        "P0": 114,
+        "P1": 13,
+        "P2": 124
+      },
+      "items": 251
+    }
+  },
+  "receipt_digest": "sha256:ab935910aa18f3e8ce4bf0d9292b1dae551bc70ab48a72e5d54b6845831048bb",
+  "release_ready": false,
+  "revision": "a8273df7601b57cf3fecfb03936c815b9ca63f38",
+  "schema": "zyra.source-custody-audit-receipt/v1",
+  "sections": {
+    "catalog": {
+      "finding_count": 5,
+      "metrics": {
+        "active": 25,
+        "capabilities": 14,
+        "digest": "sha256:65621ffc5cec4cc2736ba75fe936b4c386e3f8f702a7cf6867fa9492e984d453",
+        "entries": 28,
+        "inactive": 3,
+        "loaded": true,
+        "repositories": 12
+      },
+      "valid": false
+    },
+    "custody": {
+      "finding_count": 160,
+      "metrics": {
+        "digest": "sha256:296027777643e886659df9668db03f2d026aacfd0161130b793eb509b5313d24",
+        "ledger_entries": 1294,
+        "ledger_sources": {
+          "OpenHands": 101,
+          "agent-framework": 99,
+          "agentscope": 110,
+          "browser-use": 117,
+          "claude-code-best": 518,
+          "hermes-agent": 93,
+          "langgraph": 91,
+          "oh-my-pi": 38,
+          "openclaw": 86,
+          "opencode": 36,
+          "zyra": 5
+        },
+        "ledger_target_paths": 768,
+        "notices": 13,
+        "package_annotations": 15,
+        "vendor_map_entries": 28
+      },
+      "valid": false
+    },
+    "dependencies": {
+      "finding_count": 52,
+      "metrics": {
+        "dependency_count": 184,
+        "dependency_ecosystems": {
+          "javascript": 127,
+          "python": 57
+        },
+        "javascript_import_root_count": 31,
+        "local_python_root_count": 16,
+        "lockfile_count": 2,
+        "manifest_count": 26,
+        "manifest_ecosystems": {
+          "javascript": 24,
+          "python": 2
+        },
+        "python_import_root_count": 118,
+        "workspace_package_count": 24
+      },
+      "valid": false
+    },
+    "javascript_source": {
+      "finding_count": 46,
+      "metrics": {
+        "calls": 260835,
+        "files": 842,
+        "imports": 3357,
+        "lex_errors": 0,
+        "parsed": 842,
+        "process_call_count": 88,
+        "tokens": 2857194,
+        "top_import_roots": {
+          "@zyra/skill-memory-runtime": 3,
+          "abort-agent": 1,
+          "absent-peer": 1,
+          "alpha": 6,
+          "bun:test": 63,
+          "create-agent": 1,
+          "failure-peer": 1,
+          "missing-root": 1,
+          "node:assert": 50,
+          "node:child_process": 39,
+          "node:crypto": 73,
+          "node:events": 2,
+          "node:fs": 82,
+          "node:http": 6,
+          "node:os": 23,
+          "node:path": 94,
+          "node:readline": 9,
+          "node:sqlite": 5,
+          "node:stream": 2,
+          "node:test": 31,
+          "node:url": 15,
+          "plugin-skills": 1,
+          "policy-server": 3,
+          "project-skills": 2,
+          "react": 31,
+          "react-dom": 2,
+          "registry-commit": 1,
+          "review": 3,
+          "run-agent": 1,
+          "typescript": 18
+        }
+      },
+      "valid": false
+    },
+    "processes": {
+      "finding_count": 86,
+      "metrics": {
+        "catalog_loaded": true,
+        "listener_uses": 10,
+        "literal_uses": 190,
+        "matched_uses": 288,
+        "profiles": 16,
+        "shell_uses": 114,
+        "unmatched_uses": 78,
+        "use_sources": {
+          "javascript_call": 88,
+          "javascript_listener": 64,
+          "manifest_script": 97,
+          "python_call": 117
+        },
+        "uses": 366
+      },
+      "valid": false
+    },
+    "python_source": {
+      "finding_count": 179,
+      "metrics": {
+        "calls": 159817,
+        "files": 964,
+        "imports": 20516,
+        "parse_errors": 0,
+        "parsed": 964,
+        "process_call_count": 117,
+        "top_import_roots": {
+          "__future__": 912,
+          "apps": 77,
+          "argparse": 75,
+          "collections": 834,
+          "copy": 84,
+          "dataclasses": 1156,
+          "datetime": 158,
+          "enum": 267,
+          "hashlib": 178,
+          "http": 101,
+          "json": 400,
+          "os": 200,
+          "pathlib": 561,
+          "re": 122,
+          "subprocess": 87,
+          "sys": 205,
+          "tempfile": 123,
+          "threading": 250,
+          "time": 148,
+          "typing": 1670,
+          "unittest": 123,
+          "urllib": 165,
+          "zyra_core": 795,
+          "zyra_evaluation": 163,
+          "zyra_integrations": 523,
+          "zyra_memory": 151,
+          "zyra_runtime": 592,
+          "zyra_scheduler": 339,
+          "zyra_workers": 430,
+          "zyra_workspace": 77
+        }
+      },
+      "valid": false
+    },
+    "repository": {
+      "finding_count": 7,
+      "metrics": {
+        "archive_count": 7,
+        "binary_count": 14,
+        "byte_count": 120419510,
+        "error_count": 0,
+        "file_count": 6101,
+        "generated_count": 5,
+        "kind_counts": {
+          "archive": 7,
+          "asset": 32,
+          "binary": 7,
+          "config": 412,
+          "document": 292,
+          "source": 5351
+        },
+        "language_counts": {
+          "javascript": 57,
+          "jsx": 1,
+          "python": 1326,
+          "shell": 4,
+          "tsx": 606,
+          "typescript": 3357
+        },
+        "line_count": 2222547,
+        "minified_count": 63,
+        "skipped_directory_count": 87,
+        "symlink_count": 0,
+        "vendor_like_count": 3689
+      },
+      "valid": true
+    },
+    "risks": {
+      "finding_count": 67,
+      "metrics": {
+        "digest": "sha256:4d8f49440b0e402cd893ac6e337b44d80900e7840fd0b6e2c5f2aa139f07ad43",
+        "langgraph_forbidden_hits": 9,
+        "opaque_runtime_hits": 3,
+        "similarity_pairs": 1,
+        "source_specific_hits": {
+          "hermes_cli_runtime": 7,
+          "omp_external_process": 41,
+          "omp_local_state": 3,
+          "omp_native_boundary": 2,
+          "opencode_job_process": 3
+        },
+        "structural_capabilities": 4,
+        "structural_valid": 4
+      },
+      "valid": false
+    }
+  },
+  "slice_id": "M3-S01A-01",
+  "valid": true
+}
