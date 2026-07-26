@@ -407,7 +407,11 @@ class PythonLineClassifier:
                     exclude_signature_continuation(node, effective, exclusions)
             if isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
                 literal_size = literal_node_size(node)
-                if literal_size >= 32 and is_data_literal(node):
+                if (
+                    literal_size >= 32
+                    and is_data_literal(node)
+                    and data_literal_candidate(node, parents, literal_size)
+                ):
                     node_lines = node_line_set(node) & effective
                     data_lines.update(node_lines)
         for number in data_lines:
@@ -1136,6 +1140,50 @@ def is_data_literal(node: ast.AST) -> bool:
         for item in ast.walk(node)
     )
     return not executable
+
+
+DATA_LITERAL_NAME_PATTERN = re.compile(
+    r"(?i)(?:catalog|dataset|records?|fixtures?|samples?|inventory|manifest|"
+    r"source_?map|evidence|rows?|lookup_?data|static_?data)"
+)
+
+
+def data_literal_candidate(
+    node: ast.AST,
+    parents: Mapping[ast.AST, ast.AST],
+    literal_size: int,
+) -> bool:
+    """Separate inflated payload tables from executable algorithm constants.
+
+    A vocabulary set such as WRITE_METHODS or an in-function tuple of package
+    roots participates directly in control flow and must not make the audit
+    fail merely because it has many short constants.  Data-shaped assignments
+    (catalogs, records, manifests, fixtures, evidence rows) remain excluded and
+    blocking.  Extremely large unlabelled literals are conservatively treated
+    as data as well.
+    """
+
+    current = node
+    while isinstance(parents.get(current), (ast.Dict, ast.List, ast.Tuple, ast.Set)):
+        current = parents[current]
+    parent = parents.get(current)
+    targets: list[ast.AST] = []
+    if isinstance(parent, ast.Assign):
+        targets.extend(parent.targets)
+    elif isinstance(parent, ast.AnnAssign):
+        targets.append(parent.target)
+    elif isinstance(parent, ast.NamedExpr):
+        targets.append(parent.target)
+    names = {
+        item.id
+        for target in targets
+        for item in ast.walk(target)
+        if isinstance(item, ast.Name)
+    }
+    return (
+        any(DATA_LITERAL_NAME_PATTERN.search(name) for name in names)
+        or literal_size >= 256
+    )
 
 
 def node_line_set(node: ast.AST) -> set[int]:

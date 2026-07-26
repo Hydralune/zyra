@@ -327,6 +327,23 @@ def test_data_as_code_inflation_is_removed_from_effective_lines() -> None:
     )
 
 
+def test_algorithm_vocabulary_is_not_misclassified_as_data_payload() -> None:
+    methods = ",\n".join(f"    'operation_{index}'" for index in range(40))
+    source = (
+        "WRITE_METHODS = {\n"
+        f"{methods}\n"
+        "}\n\n"
+        "def is_write(method: str) -> bool:\n"
+        "    return method in WRITE_METHODS\n"
+    )
+    added = frozenset(range(1, len(source.splitlines()) + 1))
+
+    result = PythonLineClassifier().classify(source, added)
+
+    assert not result.data_as_code_lines
+    assert len(result.effective_lines) >= 40
+
+
 def test_protected_source_custody_receipt_is_bridged_read_only() -> None:
     result = SourceRiskBridge(ROOT).audit(
         receipt_path=SOURCE_RECEIPT,
