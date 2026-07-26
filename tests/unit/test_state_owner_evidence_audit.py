@@ -344,6 +344,19 @@ def test_algorithm_vocabulary_is_not_misclassified_as_data_payload() -> None:
     assert len(result.effective_lines) >= 40
 
 
+def test_license_provenance_is_zero_credit_without_hiding_vendor_source() -> None:
+    assert classify_bucket("third_party/NOTICE.md") is LineBucket.DOCS
+    assert classify_bucket("vendor/LICENSE.txt") is LineBucket.DOCS
+    assert (
+        classify_bucket("third_party/upstream/runtime.py")
+        is LineBucket.VENDOR_LIKE
+    )
+    assert (
+        classify_bucket("runtime-sources/upstream/index.ts")
+        is LineBucket.VENDOR_LIKE
+    )
+
+
 def test_protected_source_custody_receipt_is_bridged_read_only() -> None:
     result = SourceRiskBridge(ROOT).audit(
         receipt_path=SOURCE_RECEIPT,
