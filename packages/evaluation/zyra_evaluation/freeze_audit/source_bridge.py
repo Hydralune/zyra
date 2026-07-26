@@ -69,10 +69,15 @@ REQUIRED_SOURCE_RULES = (
 @dataclass(frozen=True, slots=True)
 class SourceRiskRecord:
     code: str
+    message: str
     severity: str
     blocking: bool
+    capability: str
     path: str
     owner_unit: str
+    disposition: str
+    default_path_impact: str
+    remediation: str
     categories: tuple[str, ...]
     fingerprint: str
     attributes: Mapping[str, Any]
@@ -80,10 +85,15 @@ class SourceRiskRecord:
     def to_dict(self) -> dict[str, Any]:
         return {
             "code": self.code,
+            "message": self.message,
             "severity": self.severity,
             "blocking": self.blocking,
+            "capability": self.capability,
             "path": self.path,
             "owner_unit": self.owner_unit,
+            "disposition": self.disposition,
+            "default_path_impact": self.default_path_impact,
+            "remediation": self.remediation,
             "categories": list(self.categories),
             "fingerprint": self.fingerprint,
             "attributes": dict(self.attributes),
@@ -268,6 +278,8 @@ class SourceRiskBridge:
                     remediation="Regenerate checksum-bound source evidence.",
                 )
             )
+        input_valid = not any(item.blocking for item in findings)
+        findings.extend(self._record_findings(records))
         evidence.append(
             EvidencePointer(
                 kind="source_custody_receipt",
@@ -283,7 +295,7 @@ class SourceRiskBridge:
         )
         metrics = {
             "rule_enabled": True,
-            "input_valid": not any(item.blocking for item in findings),
+            "input_valid": input_valid,
             "source_revision": revision,
             "source_receipt_digest": receipt_digest,
             "risk_records": len(records),
@@ -380,10 +392,22 @@ class SourceRiskBridge:
                 records.append(
                     SourceRiskRecord(
                         code=code,
+                        message=str(
+                            raw.get(
+                                "message",
+                                f"Source custody risk {code} remains unresolved.",
+                            )
+                        ),
                         severity=str(raw.get("severity", "warning")),
                         blocking=bool(raw.get("blocking", False)),
+                        capability=str(raw.get("capability", "")),
                         path=str(raw.get("path", "")),
                         owner_unit=str(raw.get("owner_unit", "M3-01B")),
+                        disposition=str(raw.get("disposition", "track")),
+                        default_path_impact=str(
+                            raw.get("default_path_impact", "")
+                        ),
+                        remediation=str(raw.get("remediation", "")),
                         categories=categories,
                         fingerprint=str(raw.get("fingerprint", "")),
                         attributes=(
@@ -407,6 +431,56 @@ class SourceRiskBridge:
                 ),
             )
         )
+
+    @staticmethod
+    def _record_findings(
+        records: Sequence[SourceRiskRecord],
+    ) -> tuple[Finding, ...]:
+        findings: list[Finding] = []
+        for record in records:
+            try:
+                severity = Severity(record.severity)
+            except ValueError:
+                severity = (
+                    Severity.BLOCKER if record.blocking else Severity.WARNING
+                )
+            try:
+                disposition = Disposition(record.disposition)
+            except ValueError:
+                disposition = (
+                    Disposition.BLOCK_RELEASE
+                    if record.blocking
+                    else Disposition.TRACK
+                )
+            if record.blocking and not (
+                severity is Severity.BLOCKER
+                or disposition is Disposition.BLOCK_RELEASE
+            ):
+                disposition = Disposition.BLOCK_RELEASE
+            attributes = dict(record.attributes)
+            attributes.update(
+                {
+                    "source_risk_categories": list(record.categories),
+                    "source_fingerprint": record.fingerprint,
+                    "bridged_from": "M3-S01A-01",
+                }
+            )
+            findings.append(
+                finding(
+                    record.code,
+                    record.message,
+                    "source_risks",
+                    severity=severity,
+                    domain=record.capability,
+                    path=record.path,
+                    owner_unit=record.owner_unit or "M3-01B",
+                    disposition=disposition,
+                    default_path_impact=record.default_path_impact,
+                    remediation=record.remediation,
+                    attributes=attributes,
+                )
+            )
+        return deduplicate_findings(findings)
 
     def _manifest_cross_check(
         self,

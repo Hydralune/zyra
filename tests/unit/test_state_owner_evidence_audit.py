@@ -367,6 +367,12 @@ def test_protected_source_custody_receipt_is_bridged_read_only() -> None:
     assert result.section.metrics["input_valid"] is True
     assert result.section.metrics["risk_records"] == len(result.records)
     assert len(result.records) > 100
+    assert not result.section.valid
+    assert len(result.section.findings) == len(result.records)
+    assert {
+        item.attributes["source_fingerprint"]
+        for item in result.section.findings
+    } == {item.fingerprint for item in result.records}
     assert {
         category
         for record in result.records
