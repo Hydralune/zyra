@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/memory/retrieval-algorithms",
+  "package_name": "@zyra/retrieval-algorithms",
+  "source_entry_ids": ["src_omp_retrieval"],
+  "owners": ["MemoryRetrievalRuntime"],
+  "default_reachable": true,
+  "build_entry": "bun run typecheck:retrieval-algorithms",
+  "health_entry": "bun run test:retrieval-algorithms",
+  "state_custody": ["stateless-retrieval-ranking"],
+  "notes": "Bounded TypeScript ranking algorithms; all durable memory and job state remains with Python Zyra owners."
+}

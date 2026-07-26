@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/memory/skill-memory-runtime",
+  "package_name": "@zyra/skill-memory-runtime",
+  "source_entry_ids": ["src_omp_skill_subagent"],
+  "owners": ["SkillMemoryRuntime and SubagentTaskStore"],
+  "default_reachable": true,
+  "build_entry": "bun run typecheck:skill-memory",
+  "health_entry": "bun run test:skill-memory",
+  "state_custody": ["skill-memory-projection", "compact-continuity"],
+  "notes": "Bounded TypeScript skill-memory mechanisms; OMP JSONL, SQLite, RPC and native state remain unreachable."
+}

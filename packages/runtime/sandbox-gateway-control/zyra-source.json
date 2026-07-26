@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/runtime/sandbox-gateway-control",
+  "package_name": "@zyra/sandbox-gateway-control",
+  "source_entry_ids": ["src_omp_workspace"],
+  "owners": ["SandboxGatewayRuntime"],
+  "default_reachable": true,
+  "build_entry": "tsc -p packages/runtime/sandbox-gateway-control/tsconfig.json",
+  "health_entry": "python -m pytest tests/integration/test_sandbox_gateway_runtime.py",
+  "state_custody": ["sandbox-policy-projection"],
+  "notes": "Bounded TypeScript gateway supplement; process admission and canonical state remain Zyra-owned."
+}

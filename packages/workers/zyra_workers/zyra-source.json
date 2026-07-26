@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/workers/zyra_workers",
+  "package_name": "zyra-workers",
+  "source_entry_ids": ["src_browser_use_browser"],
+  "owners": ["BrowserWorkerRuntime"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/workers/zyra_workers",
+  "health_entry": "python -m pytest tests/integration/test_browser_session_productization_integration.py",
+  "state_custody": ["browser-session", "browser-message-state", "worker-lease"],
+  "notes": "Zyra worker/session custody around internalized browser-use mechanisms and declared optional Chrome process."
+}

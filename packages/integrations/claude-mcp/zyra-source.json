@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/integrations/claude-mcp",
+  "package_name": "@zyra/claude-mcp",
+  "source_entry_ids": ["src_claude_mcp"],
+  "owners": ["McpConnectionRuntime"],
+  "default_reachable": false,
+  "build_entry": "bun run typecheck:e02",
+  "health_entry": "bun test packages/integrations/claude-mcp/test",
+  "state_custody": ["mcp-connection", "mcp-request-journal"],
+  "notes": "Productized TypeScript MCP runtime with Zyra capability, auth, permission, result and event custody."
+}

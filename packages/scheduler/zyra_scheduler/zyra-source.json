@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/scheduler/zyra_scheduler",
+  "package_name": "zyra-scheduler",
+  "source_entry_ids": ["src_langgraph_exact_resume", "src_zyra_immutable_state"],
+  "owners": ["GraphCommitRuntime and CheckpointRecoveryRuntime", "GraphStateCustody"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/scheduler/zyra_scheduler",
+  "health_entry": "python -m pytest tests/unit/test_recovery_planner_routing_memory_integration.py",
+  "state_custody": ["pending-writes", "committed-writes", "checkpoint-lineage", "branch-delta"],
+  "notes": "Zyra-owned immutable commit and exact-resume runtime; LangGraph contributes only narrow semantic provenance."
+}

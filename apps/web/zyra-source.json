@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "apps/web",
+  "package_name": "@zyra/web",
+  "source_entry_ids": ["src_openhands_console", "src_openhands_session_projection", "src_opencode_console", "src_opencode_session_projection"],
+  "owners": ["CanonicalProjectionStore", "CanonicalProjectionStore and CommandSurfaceRuntime"],
+  "default_reachable": true,
+  "build_entry": "bun run --cwd apps/web build",
+  "health_entry": "bun test apps/web/test/canonical-projection-store.test.ts",
+  "state_custody": ["disposable-browser-projection"],
+  "notes": "Single frontend projection pipeline; browser state is disposable and never replaces backend canonical owners."
+}

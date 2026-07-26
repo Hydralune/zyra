@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/skills/zyra_skills",
+  "package_name": "zyra-skills",
+  "source_entry_ids": ["src_claude_skill_subagent", "src_hermes_skill_subagent"],
+  "owners": ["SkillCoordinator and SubagentTaskStore"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/skills/zyra_skills",
+  "health_entry": "python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py",
+  "state_custody": ["skill-revision", "skill-admission", "fork-scope"],
+  "notes": "Zyra skill admission, revision and fork boundary; no external skill registry or CLI owns state."
+}

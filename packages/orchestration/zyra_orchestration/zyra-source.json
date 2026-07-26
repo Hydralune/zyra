@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/orchestration/zyra_orchestration",
+  "package_name": "zyra-orchestration",
+  "source_entry_ids": ["src_zyra_dynamic_topology"],
+  "owners": ["DynamicTopologyRuntime"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/orchestration/zyra_orchestration",
+  "health_entry": "python -m pytest tests/unit/test_dynamic_graph_custody.py",
+  "state_custody": ["dynamic-topology", "graph-snapshot"],
+  "notes": "Zyra-owned runtime-evolvable topology and graph custody; no precompiled framework graph owns decisions."
+}

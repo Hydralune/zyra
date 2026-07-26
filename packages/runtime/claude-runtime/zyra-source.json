@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/runtime/claude-runtime",
+  "package_name": "@zyra/claude-runtime",
+  "source_entry_ids": ["src_claude_code_worker", "src_claude_permission", "src_hermes_permission"],
+  "owners": ["ToolPermissionRuntime", "TypeScript CodeWorkerRuntime"],
+  "default_reachable": true,
+  "build_entry": "bun run typecheck:e01",
+  "health_entry": "bun run runtime:health",
+  "state_custody": ["query-session", "tool-loop", "permission-continuation"],
+  "notes": "Productized TypeScript runtime; Zyra owns protocol, permission, event, error and maintenance boundaries."
+}

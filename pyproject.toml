@@ -7,6 +7,9 @@ dependencies = [
     "browser-use[core]==0.13.3",
 ]
 
+[project.scripts]
+zyra-source-custody = "zyra_integrations.source_custody.cli:main"
+
 [project.optional-dependencies]
 test = [
     "pytest>=8,<10",

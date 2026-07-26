@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/commands",
+  "package_name": "@zyra/commands",
+  "source_entry_ids": ["src_claude_console"],
+  "owners": ["CommandSurfaceRuntime"],
+  "default_reachable": true,
+  "build_entry": "tsc -p packages/commands/tsconfig.json",
+  "health_entry": "bun test packages/commands/test/commands.test.ts",
+  "state_custody": ["command-receipt", "prompt-queue", "result-projection"],
+  "notes": "Productized command surface with backend receipts and queues; browser result state is disposable."
+}

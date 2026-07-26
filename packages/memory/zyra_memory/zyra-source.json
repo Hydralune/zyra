@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/memory/zyra_memory",
+  "package_name": "zyra-memory",
+  "source_entry_ids": ["src_agentscope_retrieval"],
+  "owners": ["MemoryRetrievalRuntime"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/memory/zyra_memory",
+  "health_entry": "python -m pytest tests/integration/test_retrieval_api_main_path.py",
+  "state_custody": ["memory-index", "retrieval-job", "retrieval-lease"],
+  "notes": "Zyra-owned memory index, retrieval job, lease, provenance and context export state."
+}

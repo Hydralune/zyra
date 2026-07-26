@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/workspace/zyra_workspace",
+  "package_name": "zyra-workspace",
+  "source_entry_ids": ["src_agentscope_workspace", "src_openhands_workspace"],
+  "owners": ["WorkspaceManager", "WorkspaceManager and SandboxGatewayRuntime"],
+  "default_reachable": true,
+  "build_entry": "python -m compileall packages/workspace/zyra_workspace",
+  "health_entry": "python -m pytest tests/integration/test_workspace_worker_gateway.py",
+  "state_custody": ["workspace-epoch", "transaction-journal", "write-set-snapshot"],
+  "notes": "Zyra-owned workspace transactions, dirty-state and restore; no OpenHands service or AgentScope store."
+}

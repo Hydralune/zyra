@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.package-source-annotation/v1",
+  "package_path": "packages/runtime/provider-control-plane",
+  "package_name": "@zyra/provider-control-plane",
+  "source_entry_ids": ["src_hermes_provider", "src_omp_provider", "src_opencode_provider"],
+  "owners": ["ProviderControlPlane"],
+  "default_reachable": true,
+  "build_entry": "bun run typecheck:providers",
+  "health_entry": "bun run test:providers",
+  "state_custody": ["provider-catalog", "credential-presence", "route-policy"],
+  "notes": "Productized provider catalog and route runtime; no OpenCode job, Hermes CLI or OMP RPC owns state."
+}
