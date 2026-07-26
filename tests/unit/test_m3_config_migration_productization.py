@@ -155,6 +155,36 @@ port = 8123
     )
 
 
+def test_equal_precedence_leaf_paths_override_environment_derivation(
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "state"
+    graph_path = tmp_path / "explicit" / "graph.sqlite3"
+    artifact_root = tmp_path / "explicit" / "artifacts"
+    permission_path = tmp_path / "explicit" / "permission.json"
+    configuration = load_runtime_configuration(
+        tmp_path,
+        environ={
+            "ZYRA_STATE_ROOT": str(state_root),
+            "ZYRA_GRAPH_STATE_STORE": str(graph_path),
+            "ZYRA_ARTIFACT_ROOT": str(artifact_root),
+            "ZYRA_PERMISSION_STATE": str(permission_path),
+        },
+    )
+
+    assert configuration.path("state.database") == (
+        state_root / "zyra.sqlite3"
+    )
+    assert configuration.path("state.graph") == graph_path
+    assert configuration.path("state.artifacts") == artifact_root
+    assert configuration.path("state.permission") == permission_path
+    assert configuration.path("state.mcp") == (
+        artifact_root / ".mcp" / "state.json"
+    )
+    assert configuration.origin("state.graph").source == "environment"
+    assert configuration.origin("state.permission").source == "environment"
+
+
 @pytest.mark.parametrize(
     ("document", "code"),
     [

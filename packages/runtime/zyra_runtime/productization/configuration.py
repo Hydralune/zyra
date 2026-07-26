@@ -732,7 +732,7 @@ def _derive_paths(
     for name, relative in derivations.items():
         leaf_path = f"state.{name}"
         origin = origins.get(leaf_path)
-        if origin is not None and origin.precedence > root_origin.precedence:
+        if _origin_overrides_derivation(origin, root_origin):
             continue
         state[name] = str(root / relative)
         origins[leaf_path] = ConfigOrigin(
@@ -761,7 +761,7 @@ def _derive_paths(
     for name, relative in artifact_derivations.items():
         leaf_path = f"state.{name}"
         origin = origins.get(leaf_path)
-        if origin is not None and origin.precedence > artifact_origin.precedence:
+        if _origin_overrides_derivation(origin, artifact_origin):
             continue
         state[name] = str(artifact_root / relative)
         origins[leaf_path] = ConfigOrigin(
@@ -769,6 +769,19 @@ def _derive_paths(
             key=leaf_path,
             precedence=artifact_origin.precedence,
         )
+
+
+def _origin_overrides_derivation(
+    leaf: ConfigOrigin | None,
+    base: ConfigOrigin,
+) -> bool:
+    if leaf is None:
+        return False
+    if leaf.precedence > base.precedence:
+        return True
+    if leaf.precedence < base.precedence:
+        return False
+    return leaf.source != "defaults" and not leaf.source.startswith("derived:")
 
 
 def _validate_effective(
