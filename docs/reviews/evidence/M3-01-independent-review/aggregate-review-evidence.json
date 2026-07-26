@@ -1,0 +1,163 @@
+{
+  "schema": "zyra.m3-01.independent-aggregate-review/v1",
+  "review_date": "2026-07-27",
+  "verdict": "PASS_AFTER_FIXES",
+  "numeric_stage": "M3-01",
+  "slices": [
+    "M3-S01A-01",
+    "M3-S01A-02",
+    "M3-S01B-01",
+    "M3-S01B-02"
+  ],
+  "revisions": {
+    "numeric_stage_baseline": "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4",
+    "original_evidence_target": "a853e4748e5590fd1f292416d4c3202024ad7b5b",
+    "review_fix_commits": [
+      "650aa4d24f319f2cebe715840bf9b47b47b55e83",
+      "f40eb720138e6e0e37ba45050765a82b53b048a3"
+    ],
+    "exact_review_target": "f40eb720138e6e0e37ba45050765a82b53b048a3"
+  },
+  "fixed_findings": {
+    "count": 4,
+    "items": [
+      {
+        "priority": "P0",
+        "code": "m3_01b_protected_source_queue_not_consumed",
+        "resolution": "Added checksum-bound closure verifier; all 142 protected M3-01B blocking items are resolved and the current M3-01B blocking count is zero."
+      },
+      {
+        "priority": "P1",
+        "code": "aggregate_verifier_entrypoints_stale",
+        "resolution": "Made B01/B02 verifiers self-bootstrapping, executed the real TypeScript skill verifier, repaired internalization paths, and enforced current 11/11 causality."
+      },
+      {
+        "priority": "P1",
+        "code": "source_custody_runtime_scope_false_positives",
+        "resolution": "Separated runtime/test/build/audit/provenance scopes, made listener analysis structural, fixed dependency/process profiles, and added fail-closed mutations."
+      },
+      {
+        "priority": "P1",
+        "code": "dependency_and_custody_metadata_drift",
+        "resolution": "Declared psutil, removed the API import fallback, normalized platform shell argv, repaired catalogs/NOTICE/digests, and corrected the claude-code-best project-use decision label."
+      }
+    ]
+  },
+  "source_custody": {
+    "protected_input": {
+      "items": 251,
+      "blocking_items": 143,
+      "m3_01b_items": 246,
+      "m3_01b_blocking_items": 142,
+      "digest": "sha256:8f2a7958f5837cf63080cf84c37c580bc823fd01c16b5c9b033a05480dfaf8be"
+    },
+    "exact_target_scan": {
+      "findings": 257,
+      "work_queue_items": 164,
+      "blocking_items": 1,
+      "m3_01b_blocking_items": 0,
+      "deferred_blocker": "python_lockfile_missing",
+      "deferred_owner": "M3-02B",
+      "parse_errors": 0,
+      "javascript_lex_errors": 0,
+      "langgraph_forbidden_hits": 0,
+      "opaque_runtime_hits": 0,
+      "blocking_source_risk_records": 0,
+      "receipt_digest": "sha256:a429a369f1849546c80d904865ec770b549f0d4eaf5bb10c82988d32a2bb6dc3",
+      "closure_digest": "sha256:597e427149d5baed2ea69969c7a060ce0a5c2c0e6eb074add9c7faa3749857a2",
+      "release_ready_for_m3_01": true,
+      "repository_release_ready": false
+    }
+  },
+  "state_owner": {
+    "domains": 11,
+    "valid_causal_links": 11,
+    "invalid_causal_links": 0,
+    "runtime_owner_loss_proofs": 11,
+    "runtime_fallback_successes": 0,
+    "runtime_absorption_release_ready": true,
+    "runtime_absorption_receipt_digest": "sha256:f5fe9726fed1ac845c0c18f03184b18520f12ffab5c2cfdb13054786193d3ab2",
+    "config_migration_release_ready": true,
+    "config_migration_receipt_digest": "sha256:7aa5058da3a41977e60cebd26e92483cde45393719a507ade912d0097bde3a1b",
+    "static_inventory_release_ready": false,
+    "static_reachability": "3/11",
+    "static_m3_01b_blocking_work_items": 20,
+    "static_residual_reason": "The reusable static graph does not resolve dynamic composition and verifier-bound owner-loss probes; exact runtime verifiers close all 11 domains without fallback."
+  },
+  "effective_code": {
+    "interval": "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4..f40eb720138e6e0e37ba45050765a82b53b048a3",
+    "raw_added": 374485,
+    "raw_deleted": 2841,
+    "production_raw": 37724,
+    "effective_production": 30435,
+    "effective_python": 30380,
+    "effective_typescript": 55,
+    "minimum": 18000,
+    "margin": 12435,
+    "files_over_20_percent": 0,
+    "generated_data_docs_tests_vendor_counted": 0
+  },
+  "language_custody": {
+    "all_passed": true,
+    "violations": 0,
+    "cross_language_exceptions": 0,
+    "records": {
+      "M3-S01A-01": {
+        "python_added_production_lines": 9276
+      },
+      "M3-S01A-02": {
+        "python_added_production_lines": 10603
+      },
+      "M3-S01B-01": {
+        "python_added_production_lines": 7380,
+        "typescript_added_production_lines": 21
+      },
+      "M3-S01B-02": {
+        "python_added_production_lines": 6975,
+        "typescript_added_production_lines": 1022
+      }
+    }
+  },
+  "verification": {
+    "exact_target_python": "105 passed, 7 subtests passed",
+    "focused_source_custody": "64 passed, 7 subtests passed",
+    "bun_full": "1268 passed, 0 failed, 1489 assertions",
+    "typescript_typecheck": "9 projects passed",
+    "web_build": "passed",
+    "source_language_custody": "4/4 passed",
+    "verify_m3": "passed",
+    "full_python_repository": "incomplete after the 30-minute aggregate budget; no PASS claimed and final full-suite execution is deferred to M3 exit review",
+    "legacy_baseline_reproduction": {
+      "test_code_worker_tool_loop_budget": "4 failed and 3 passed at both the M3-01 baseline and current target",
+      "test_api_control_commands": "15 failed and 10 passed currently; representative failures reproduce at the M3-01 baseline",
+      "owner": "M3-03"
+    }
+  },
+  "cleanroom": {
+    "revision": "f40eb720138e6e0e37ba45050765a82b53b048a3",
+    "detached_worktree": true,
+    "source_worktree_clean": true,
+    "bun_version": "1.2.15",
+    "frozen_lock_install_packages": 26,
+    "wheel": "zyra-0.1.0-py3-none-any.whl",
+    "wheel_sha256": "c440fbd95eb7ff96494f8f69722a3a344738ea7d7936b37b308403ed45881439",
+    "python_import_origins_inside_cleanroom_venv": true,
+    "environment_outside_scanned_repository": true,
+    "source_scan_findings": 257,
+    "source_scan_blockers": 1,
+    "source_scan_m3_01b_blockers": 0,
+    "source_scan_receipt_digest": "sha256:1459b791067c762533d32f4a7b26493beb43620cc595c6a5e59cc5fe6d7885b1",
+    "source_closure_digest": "sha256:5405cd74c017ba7bcff4f818168cc9200cc623f7b53709892b86c1068f4a9113",
+    "python_focused": "40 passed",
+    "bun_full": "1268 passed, 0 failed",
+    "typescript_typecheck": "9 projects passed",
+    "web_build": "passed",
+    "python_release_lock": "missing; explicit M3-02B blocker"
+  },
+  "progression": {
+    "m3_01_complete": true,
+    "repository_freeze_ready": false,
+    "next_slice": "docs/milestones/M3-freeze-productization/slice-02a-01-default-path-security-regression-hardening.md",
+    "blocked": false
+  }
+}
