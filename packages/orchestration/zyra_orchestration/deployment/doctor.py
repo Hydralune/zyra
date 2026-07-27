@@ -275,7 +275,12 @@ class DeploymentDoctor:
             "bun.lock": (self.project_root / "bun.lock").is_file(),
             "python_lock": any(
                 (self.project_root / name).is_file()
-                for name in ("requirements.lock", "uv.lock", "poetry.lock")
+                for name in (
+                    "requirements.txt",
+                    "requirements.lock",
+                    "uv.lock",
+                    "poetry.lock",
+                )
             ),
         }
         warnings = [] if lockfiles["python_lock"] else ["python_lockfile_missing"]
@@ -432,18 +437,29 @@ class DeploymentDoctor:
         }
 
     def check_source_boundary(self) -> dict[str, Any]:
+        excluded_directories = {
+            ".git",
+            ".tmp",
+            ".venv",
+            "artifacts",
+            "dist",
+            "node_modules",
+            "third_party",
+            "vendor",
+            "vendor-runtimes",
+        }
+        package_manifests: list[Path] = []
+        for root, directories, files in os.walk(self.project_root):
+            directories[:] = [
+                name for name in directories if name not in excluded_directories
+            ]
+            if "package.json" in files:
+                package_manifests.append(Path(root) / "package.json")
         candidates = [
             self.project_root / "pyproject.toml",
             self.project_root / "package.json",
             self.project_root / "bun.lock",
-            *(
-                path
-                for path in self.project_root.rglob("package.json")
-                if not any(
-                    part in {"node_modules", "vendor", "vendor-runtimes", "third_party"}
-                    for part in path.parts
-                )
-            ),
+            *package_manifests,
         ]
         findings: list[dict[str, Any]] = []
         for path in dict.fromkeys(candidates):

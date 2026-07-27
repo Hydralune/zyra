@@ -1,0 +1,43 @@
+{
+  "profiles": {
+    "cloud": {
+      "enabled": true,
+      "endpoint": "",
+      "network_mode": "public",
+      "resource_limit": {
+        "cpu": 4,
+        "memory_mb": 4096
+      }
+    },
+    "device": {
+      "enabled": true,
+      "endpoint": "",
+      "network_mode": "offline",
+      "resource_limit": {
+        "cpu": 1,
+        "memory_mb": 1024
+      }
+    },
+    "edge": {
+      "enabled": true,
+      "endpoint": "",
+      "network_mode": "limited",
+      "resource_limit": {
+        "cpu": 2,
+        "memory_mb": 2048
+      }
+    }
+  },
+  "public": {
+    "bind_host": "127.0.0.1",
+    "log_level": "INFO",
+    "offline": false,
+    "telemetry": false
+  },
+  "schema": "zyra.release-configuration/v1",
+  "secrets": {
+    "deepseek_api_key": "${DEEPSEEK_API_KEY}",
+    "deployment_supervisor_secret": "${ZYRA_DEPLOYMENT_SUPERVISOR_SECRET}",
+    "openai_api_key": "${OPENAI_API_KEY}"
+  }
+}

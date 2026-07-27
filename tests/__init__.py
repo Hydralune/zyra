@@ -15,6 +15,7 @@ for package in (
     "scheduler",
     "workspace",
     "code_index",
+    "productization",
 ):
     path = ROOT / "packages" / package
     if path.exists() and str(path) not in sys.path:

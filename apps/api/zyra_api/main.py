@@ -328,6 +328,7 @@ def get_runtime_event_spine_bridge():
             _RUNTIME_EVENT_SPINE = get_runtime_event_spine(
                 database_path=database,
                 artifact_root=artifact_root,
+                workspace_root=PROJECT_ROOT,
             )
             _RUNTIME_EVENT_SPINE_KEY = key
         return _RUNTIME_EVENT_SPINE
@@ -429,6 +430,7 @@ from zyra_runtime.productization.composition import (
 )
 from zyra_runtime.productization.contracts import RuntimeDomain
 from zyra_runtime.productization.bootstrap import (
+    BootstrapError,
     ProductBootstrapRuntime,
     get_product_bootstrap,
     reset_product_bootstrap,
@@ -4401,7 +4403,23 @@ def reset_runtime_owner_composition() -> None:
 
 def get_api_product_bootstrap(*, auto_start: bool = False) -> ProductBootstrapRuntime:
     def owner_probe() -> Mapping[str, Any]:
-        result = dict(get_runtime_owner_composition().probe_all())
+        attempts: list[dict[str, Any]] = []
+        result: dict[str, Any] = {}
+        for attempt in range(1, 4):
+            result = dict(get_runtime_owner_composition().probe_all())
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "ready": result.get("ready") is True,
+                    "blockers": list(result.get("blockers") or ()),
+                    "digest": result.get("digest"),
+                }
+            )
+            if result.get("ready") is True:
+                break
+            if attempt < 3:
+                time.sleep(0.15 * attempt)
+        result["probe_attempts"] = attempts
         result.setdefault("schema", "zyra.bootstrap-owner-readiness/v1")
         return result
 
@@ -10394,7 +10412,24 @@ def run(host: str | None = None, port: int | None = None) -> None:
     bind_host = host or str(configuration.require("api.host"))
     bind_port = port or int(configuration.require("api.port"))
     bootstrap = get_api_product_bootstrap()
-    receipt = bootstrap.start()
+    try:
+        receipt = bootstrap.start()
+    except BootstrapError as error:
+        print(
+            json.dumps(
+                {
+                    "schema": "zyra.api-bootstrap-failure/v1",
+                    "code": error.code,
+                    "phase": error.phase.value,
+                    "retryable": error.retryable,
+                    "details": error.details,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        raise
     server = ThreadingHTTPServer((bind_host, bind_port), ZyraRequestHandler)
     bootstrap.lifecycle.register_resource(
         "api-http-server",

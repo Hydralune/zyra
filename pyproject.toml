@@ -13,6 +13,7 @@ zyra-source-custody = "zyra_integrations.source_custody.cli:main"
 zyra-freeze-audit = "zyra_evaluation.freeze_audit.cli:main"
 zyra-regression-hardening = "zyra_evaluation.regression_hardening.cli:main"
 zyra-deploy = "zyra_orchestration.deployment.cli:main"
+zyra-release = "zyra_productization.release.cli:main"
 
 [project.optional-dependencies]
 test = [
@@ -36,6 +37,7 @@ where = [
     "packages/integrations",
     "packages/memory",
     "packages/orchestration",
+    "packages/productization",
     "packages/runtime",
     "packages/scheduler",
     "packages/skills",

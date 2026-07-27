@@ -133,19 +133,48 @@ class DeploymentOrchestrator:
                 timeout=10,
             )
         except (OSError, subprocess.SubprocessError) as error:
-            raise ProcessUnavailable(
-                "deployment_git_revision_unavailable",
-                "deployment runtime cannot resolve the current Git revision",
-                operation="target_commit",
-                details={"error": f"{type(error).__name__}: {error}"},
-            ) from error
+            return self._release_manifest_commit(git_error=error)
         commit = result.stdout.strip()
         if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
+            return self._release_manifest_commit(
+                git_error=ValueError(f"invalid revision: {commit}")
+            )
+        return commit
+
+    def _release_manifest_commit(self, *, git_error: BaseException) -> str:
+        manifest_path = self.project_root / "release" / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
             raise ProcessUnavailable(
-                "deployment_git_revision_invalid",
-                "deployment runtime observed an invalid Git revision",
+                "deployment_revision_unavailable",
+                "deployment runtime cannot resolve a Git or release revision",
                 operation="target_commit",
-                details={"revision": commit},
+                details={
+                    "git_error": f"{type(git_error).__name__}: {git_error}",
+                    "manifest": str(manifest_path),
+                    "manifest_error": f"{type(error).__name__}: {error}",
+                },
+            ) from error
+        if not isinstance(manifest, Mapping):
+            raise ProcessUnavailable(
+                "deployment_release_manifest_invalid",
+                "deployment release manifest must be an object",
+                operation="target_commit",
+                details={"manifest": str(manifest_path)},
+            )
+        commit = str(manifest.get("source_commit") or "")
+        if len(commit) != 40 or any(
+            character not in "0123456789abcdef" for character in commit
+        ):
+            raise ProcessUnavailable(
+                "deployment_release_revision_invalid",
+                "deployment release manifest has an invalid source revision",
+                operation="target_commit",
+                details={
+                    "manifest": str(manifest_path),
+                    "revision": commit,
+                },
             )
         return commit
 

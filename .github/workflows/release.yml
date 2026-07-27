@@ -1,0 +1,79 @@
+name: release-admission
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release-${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-amd64
+            os: windows-latest
+          - platform: linux-x86_64
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      PYTHONNOUSERSITE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_INPUT: "1"
+      SOURCE_DATE_EPOCH: "1700000000"
+      ZYRA_RELEASE_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.28"
+          enable-cache: true
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.15"
+
+      - name: Install hash-locked Python dependencies
+        run: uv pip install --system --require-hashes -r requirements.txt
+
+      - name: Install frozen JavaScript workspace
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Run exact-revision release pipeline
+        shell: bash
+        run: >-
+          python scripts/run_release_pipeline.py
+          --release-id "zyra-${GITHUB_SHA}"
+          --expected-commit "${GITHUB_SHA}"
+          --benchmark-commit "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6"
+          --output-root "dist/release-${{ matrix.platform }}"
+
+      - name: Upload release and machine-readable admission
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-release-${{ matrix.platform }}
+          path: |
+            dist/release-${{ matrix.platform }}/*.tar.gz
+            dist/release-${{ matrix.platform }}/pipeline-report.json
+            dist/release-${{ matrix.platform }}/admission/ci/ci-report.json
+            dist/release-${{ matrix.platform }}/admission/ci/release-admission.json
+            dist/release-${{ matrix.platform }}/admission/ci/clean-install.json
+            dist/release-${{ matrix.platform }}/admission/ci/benchmark-link.json
+          if-no-files-found: error
+          retention-days: 14
