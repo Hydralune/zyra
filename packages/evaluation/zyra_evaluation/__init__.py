@@ -11,6 +11,13 @@ from .scenario_runner import (
     SealedPolicyRuntime,
     SourceRoleAuditor,
 )
+from .live_benchmark import (
+    BenchmarkReportBuilder,
+    BenchmarkStore,
+    LiveBenchmarkFreezeGate,
+    LiveBenchmarkRuntime,
+    create_campaign as create_live_benchmark_campaign,
+)
 from .experiment_runtime import (
     EvidenceBundleBuilder,
     EvidenceBundleVerifier,
@@ -44,6 +51,11 @@ __all__ = [
     "ScenarioRunStore",
     "ScenarioRunnerApi",
     "ScenarioRunnerService",
+    "BenchmarkReportBuilder",
+    "BenchmarkStore",
+    "LiveBenchmarkFreezeGate",
+    "LiveBenchmarkRuntime",
+    "create_live_benchmark_campaign",
     "SealedPolicyRuntime",
     "SourceRoleAuditor",
     "RequirementEvidenceMapper",
