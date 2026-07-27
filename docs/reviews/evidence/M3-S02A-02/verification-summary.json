@@ -1,7 +1,7 @@
 {
   "schema": "zyra.m3-s02a-02-verification-summary/v1",
   "slice_id": "M3-S02A-02",
-  "target_commit": "a057335d43cb83209905750383340084ae044545",
+  "target_commit": "a0573357ff7d0d467079bf0ce05440291bfcb79b",
   "verdict": "BLOCKED_FORMAL_LIVE_EXECUTION",
   "implemented_product_responsibilities": 12,
   "domain_count": 2,

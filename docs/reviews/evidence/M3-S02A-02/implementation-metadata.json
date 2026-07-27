@@ -2,8 +2,8 @@
   "schema": "zyra.m3-s02a-02-implementation-metadata/v1",
   "slice_id": "M3-S02A-02",
   "baseline_commit": "c01fcacf7cd30c37aa9629aed76a7df5256dad63",
-  "decision_commit": "dc44781f12eea1cddef6b5a2953050033d15def3",
-  "implementation_commit": "a057335d43cb83209905750383340084ae044545",
+  "decision_commit": "dc44781b4ef2a6c28e14dbccd645687fb25aaaf5",
+  "implementation_commit": "a0573357ff7d0d467079bf0ce05440291bfcb79b",
   "verdict": "BLOCKED_FORMAL_LIVE_EXECUTION",
   "line_gate": {
     "minimum_effective_production": 6000,
