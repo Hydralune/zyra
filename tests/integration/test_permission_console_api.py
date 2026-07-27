@@ -227,6 +227,8 @@ class PermissionConsoleApiTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
                 api.reset_mcp_runtime()
+                api.reset_experiment_api(wait=True)
+                api.reset_scenario_runner_api(wait=True)
 
     def test_http_console_rejects_tampered_proof_without_settling_request(
         self,
@@ -350,6 +352,8 @@ class PermissionConsoleApiTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
                 api.reset_mcp_runtime()
+                api.reset_experiment_api(wait=True)
+                api.reset_scenario_runner_api(wait=True)
 
 
 if __name__ == "__main__":

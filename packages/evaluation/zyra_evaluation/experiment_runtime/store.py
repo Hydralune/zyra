@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -37,8 +38,17 @@ class ExperimentStore:
         connection.execute("PRAGMA busy_timeout=30000")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterable[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def _initialize(self) -> None:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS experiment_runs (
@@ -173,7 +183,7 @@ class ExperimentStore:
         payload = run.to_dict()
         serialized = pretty_json(payload)
         payload_digest = digest(payload)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
                 connection.execute(
@@ -232,7 +242,7 @@ class ExperimentStore:
         payload = run.to_dict()
         serialized = pretty_json(payload)
         payload_digest = digest(payload)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
                 row = connection.execute(
@@ -314,7 +324,7 @@ class ExperimentStore:
         return run
 
     def require(self, experiment_id: str) -> ExperimentRun:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT payload_json, payload_digest
@@ -358,7 +368,7 @@ class ExperimentStore:
             parameters.append(ExperimentPhase.ARCHIVED.value)
         query += " ORDER BY created_at DESC, experiment_id DESC LIMIT ? OFFSET ?"
         parameters.extend([selected_limit, selected_offset])
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, parameters).fetchall()
         output: list[ExperimentRun] = []
         for row in rows:
@@ -392,7 +402,7 @@ class ExperimentStore:
         }
         serialized = pretty_json(selected)
         selected_digest = digest(selected)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO experiment_receipts(
@@ -437,7 +447,7 @@ class ExperimentStore:
             + " AND ".join(clauses)
             + " ORDER BY sequence"
         )
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, parameters).fetchall()
         output: list[dict[str, Any]] = []
         for row in rows:
@@ -457,7 +467,7 @@ class ExperimentStore:
         samples: Iterable[RawMetricSample],
     ) -> tuple[RawMetricSample, ...]:
         selected = tuple(samples)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
                 for sample in selected:
@@ -537,7 +547,7 @@ class ExperimentStore:
             + " AND ".join(clauses)
             + " ORDER BY variant_id, repetition, sequence, sample_id LIMIT ? OFFSET ?"
         )
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, parameters).fetchall()
         output: list[RawMetricSample] = []
         for row in rows:
@@ -562,7 +572,7 @@ class ExperimentStore:
         summary: Mapping[str, Any],
     ) -> None:
         selected = canonicalize(summary)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO experiment_sources(
@@ -597,7 +607,7 @@ class ExperimentStore:
             )
 
     def source(self, experiment_id: str) -> dict[str, Any]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT *
@@ -640,7 +650,7 @@ class ExperimentStore:
         manifest: Mapping[str, Any],
         verification: Mapping[str, Any],
     ) -> None:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO experiment_bundles(
@@ -669,7 +679,7 @@ class ExperimentStore:
             )
 
     def bundles(self, experiment_id: str) -> tuple[dict[str, Any], ...]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT *
@@ -694,7 +704,7 @@ class ExperimentStore:
         )
 
     def transitions(self, experiment_id: str) -> tuple[dict[str, Any], ...]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT *
@@ -731,7 +741,7 @@ class ExperimentStore:
         return tuple(output)
 
     def integrity(self) -> dict[str, Any]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             result = connection.execute("PRAGMA integrity_check").fetchone()
             counts = {
                 table: int(

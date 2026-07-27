@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -23,6 +25,7 @@ for package_path in [
 
 from zyra_core import EventRecord, EventType, PlanNodeStatus, create_task_state, to_jsonable
 from zyra_evaluation import evaluate_task_trace
+from zyra_evaluation.regression_hardening import RegressionFreezeGate
 from zyra_orchestration import GraphExecutionContext, run_task_graph
 from zyra_runtime import default_tool_registry, default_worker_descriptors
 from zyra_symbolic import ConstraintKeeper, TopologyRouter, apply_failure_injection, apply_requirement_change
@@ -56,7 +59,7 @@ def verify_typescript_skill_owner() -> None:
         )
 
 
-def main() -> None:
+def verify_runtime() -> None:
     workers = {worker.name for worker in default_worker_descriptors()}
     assert "CodeWorkerRuntime" in workers
     assert "BrowserWorker" in workers
@@ -163,6 +166,82 @@ def main() -> None:
         assert evaluation["metrics"]["decision_record_count"] >= 3
         assert evaluation["metrics"]["replanned_node_count"] >= 1
 
+    print("M3 runtime verification passed")
+
+
+def verify_regression_freeze_admission() -> None:
+    evidence_root = (
+        ROOT
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M3-S02A-01"
+    )
+    metadata_path = evidence_root / "implementation-metadata.json"
+    receipt_path = (
+        evidence_root
+        / "runtime-artifacts"
+        / "suite"
+        / "suite-receipt.json"
+    )
+    live_matrix_path = evidence_root / "live-matrix-receipt.json"
+    if not metadata_path.is_file():
+        raise AssertionError(
+            f"M3 regression implementation metadata is missing: {metadata_path}"
+        )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    implementation_commit = str(metadata.get("implementation_commit") or "")
+    if len(implementation_commit) != 40:
+        raise AssertionError(
+            "M3 regression implementation metadata lacks an exact commit"
+        )
+    report = RegressionFreezeGate(
+        ROOT,
+        live_matrix_path=live_matrix_path,
+    ).verify_file(
+        receipt_path,
+        expected_revision=implementation_commit,
+    )
+    if not report.valid:
+        raise AssertionError(
+            "M3 regression freeze admission failed: "
+            + json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True)
+        )
+    if report.live_matrix_digest != str(
+        metadata.get("live_matrix_receipt_digest") or ""
+    ):
+        raise AssertionError(
+            "M3 regression live-matrix digest differs from implementation metadata"
+        )
+    if report.suite_digest != str(
+        metadata.get("suite_receipt_digest") or ""
+    ):
+        raise AssertionError(
+            "M3 regression suite digest differs from implementation metadata"
+        )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Verify the M3 runtime and exact-revision regression freeze gate."
+    )
+    parser.add_argument(
+        "--runtime-only",
+        action="store_true",
+        help=(
+            "run the inner generated-task runtime probe used by the live matrix; "
+            "the outer default invocation also requires regression admission"
+        ),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    verify_runtime()
+    if args.runtime_only:
+        return
+    verify_regression_freeze_admission()
     print("M3 verification passed")
 
 

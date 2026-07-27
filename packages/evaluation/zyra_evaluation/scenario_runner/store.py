@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -69,9 +70,18 @@ class ScenarioRunStore:
         self._lock = threading.RLock()
         self._initialize()
 
+    @contextmanager
+    def _connection(self) -> Iterable[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def create(self, run: ScenarioRun) -> ScenarioRun:
         payload = self._encode(run)
-        with self._connect() as connection:
+        with self._connection() as connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute(
@@ -122,7 +132,7 @@ class ScenarioRunStore:
         return run
 
     def load(self, scenario_run_id: str) -> ScenarioRun | None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 "SELECT record_json FROM scenario_runs WHERE scenario_run_id = ?",
                 (scenario_run_id,),
@@ -148,7 +158,7 @@ class ScenarioRunStore:
         detail: Mapping[str, Any] | None = None,
     ) -> ScenarioRun:
         payload = self._encode(run)
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             current = connection.execute(
                 "SELECT phase, revision FROM scenario_runs WHERE scenario_run_id = ?",
@@ -275,7 +285,7 @@ class ScenarioRunStore:
             clauses.append("archived = 0")
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         arguments.extend([max(1, min(10_000, limit)), max(0, offset)])
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 "SELECT record_json FROM scenario_runs"
                 + where
@@ -291,11 +301,11 @@ class ScenarioRunStore:
             query += " AND scenario_run_id != ?"
             arguments.append(excluding_run_id)
         query += " LIMIT 1"
-        with self._connect() as connection:
+        with self._connection() as connection:
             return connection.execute(query, arguments).fetchone() is not None
 
     def transitions(self, scenario_run_id: str) -> tuple[dict[str, Any], ...]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT transition_id, sequence, from_phase, to_phase, reason,
@@ -336,7 +346,7 @@ class ScenarioRunStore:
         )
         payload = canonical_json(receipt)
         checksum = digest(receipt)
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO scenario_receipts (
@@ -373,7 +383,7 @@ class ScenarioRunStore:
             query += " AND kind = ?"
             arguments.append(kind)
         query += " ORDER BY created_at, receipt_id"
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, arguments).fetchall()
         return tuple(
             {
@@ -421,7 +431,7 @@ class ScenarioRunStore:
         return tuple(output)
 
     def summary(self) -> dict[str, Any]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             phases = {
                 str(row[0]): int(row[1])
                 for row in connection.execute(
@@ -498,7 +508,7 @@ class ScenarioRunStore:
         )
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS scenario_runs (
