@@ -15,6 +15,12 @@ import {
   type TransportProtocol,
 } from "../src/index.ts";
 import { ProviderControlPlaneRpcServer, RPC_PROTOCOL } from "../src/stdio-server.ts";
+import {
+  DEEPSEEK_API_KEY_ENV,
+  DEEPSEEK_CREDENTIAL_ID,
+  deepSeekV4ProProfile,
+  installDeepSeekV4ProProfile,
+} from "../src/profiles/deepseek.ts";
 
 interface CapturedRequest {
   readonly url: string;
@@ -77,6 +83,38 @@ function makeControlPlane(t: TestContext): { controlPlane: ProviderControlPlane;
   });
   return { controlPlane, secrets };
 }
+
+test("DeepSeek V4 Pro profile binds an environment reference without persisting secret bytes", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const secret = "deepseek-test-secret";
+  const installed = installDeepSeekV4ProProfile(controlPlane, {
+    [DEEPSEEK_API_KEY_ENV]: secret,
+  });
+  const profile = deepSeekV4ProProfile();
+
+  assert.equal(profile.provider.baseUrl, "https://api.deepseek.com");
+  assert.equal(profile.provider.protocol, "openai_chat");
+  assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
+  assert.equal(profile.model.modelId, "deepseek-v4-pro");
+  assert.equal(profile.model.endpointPath, "/chat/completions");
+  assert.equal(profile.provider.requestDefaults.thinking, undefined);
+  assert.deepEqual(profile.model.requestDefaults.thinking, { type: "disabled" });
+  assert.equal(installed.credential.credentialId, DEEPSEEK_CREDENTIAL_ID);
+  assert.equal(installed.credential.secretRef, `env://${DEEPSEEK_API_KEY_ENV}`);
+  assert.notEqual(installed.credential.fingerprint, secret);
+  assert.equal(JSON.stringify(controlPlane.catalog.snapshot()).includes(secret), false);
+  assert.equal(JSON.stringify(controlPlane.credentials.list()).includes(secret), false);
+});
+
+test("DeepSeek V4 Pro profile fails closed when its environment secret is absent", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  assert.throws(
+    () => installDeepSeekV4ProProfile(controlPlane, {}),
+    new RegExp(`${DEEPSEEK_API_KEY_ENV} is required`),
+  );
+  assert.deepEqual(controlPlane.catalog.providers(), []);
+  assert.deepEqual(controlPlane.credentials.list(), []);
+});
 
 test("RPC server fails closed when the provider control-plane owner is disabled", async (t) => {
   const { controlPlane } = makeControlPlane(t);

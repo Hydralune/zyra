@@ -24,3 +24,4 @@ export * from "./transport/provider-codecs.ts";
 export * from "./transport/response-codecs.ts";
 export * from "./transport/sse.ts";
 export * from "./quirks/error-classifier.ts";
+export * from "./profiles/deepseek.ts";

@@ -29,6 +29,7 @@
     "typecheck:retrieval-algorithms": "tsc -p packages/memory/retrieval-algorithms/tsconfig.json",
     "test:retrieval-algorithms": "bun test ./packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts",
     "test:providers": "npm --workspace @zyra/provider-control-plane test",
+    "provider:deepseek:smoke": "node --env-file=.env.deepseek.local --experimental-strip-types scripts/smoke_deepseek_provider.ts",
     "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
     "typecheck:e02": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",
     "typecheck:e03": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
