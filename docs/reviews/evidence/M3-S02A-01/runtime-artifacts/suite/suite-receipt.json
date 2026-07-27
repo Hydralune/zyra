@@ -1,0 +1,2756 @@
+{
+  "artifact_root": "G:/agent-zoo/zyra/docs/reviews/evidence/M3-S02A-01/runtime-artifacts",
+  "cancelled": false,
+  "cases": [
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:8764e74adc013ccd37c527474185fcefd95eb1efe9f12a99c964254f8a9b76b0",
+              "media_type": "application/json",
+              "name": "default-path-report",
+              "redacted": false,
+              "relative_path": "default-path-report.json",
+              "size_bytes": 11908
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "default-path.cli-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.cli"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "cli entry must reach selected owner and commit an effect"
+            },
+            {
+              "assertion_id": "default-path.cli-disable-commandruntime-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.cli-disable-commandruntime"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "disabling CommandRuntime must fail explicitly without fallback"
+            },
+            {
+              "assertion_id": "default-path.cli-mutation-forged-owner-receipt-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.cli-mutation-forged-owner-receipt"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged-owner-receipt must have the declared semantic effect"
+            },
+            {
+              "assertion_id": "default-path.api-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.api"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "api entry must reach selected owner and commit an effect"
+            },
+            {
+              "assertion_id": "default-path.api-disable-sessioneventruntime-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.api-disable-sessioneventruntime"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "disabling SessionEventRuntime must fail explicitly without fallback"
+            },
+            {
+              "assertion_id": "default-path.api-mutation-forged-owner-receipt-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.api-mutation-forged-owner-receipt"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged-owner-receipt must have the declared semantic effect"
+            },
+            {
+              "assertion_id": "default-path.web-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.web"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "web entry must reach selected owner and commit an effect"
+            },
+            {
+              "assertion_id": "default-path.web-disable-canonicalprojectionstore-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.web-disable-canonicalprojectionstore"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "disabling CanonicalProjectionStore must fail explicitly without fallback"
+            },
+            {
+              "assertion_id": "default-path.web-mutation-forged-owner-receipt-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.web-mutation-forged-owner-receipt"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged-owner-receipt must have the declared semantic effect"
+            },
+            {
+              "assertion_id": "default-path.worker-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.worker"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "worker entry must reach selected owner and commit an effect"
+            },
+            {
+              "assertion_id": "default-path.worker-disable-codeworkerruntime-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.worker-disable-codeworkerruntime"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "disabling CodeWorkerRuntime must fail explicitly without fallback"
+            },
+            {
+              "assertion_id": "default-path.worker-mutation-forged-owner-receipt-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.worker-mutation-forged-owner-receipt"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged-owner-receipt must have the declared semantic effect"
+            },
+            {
+              "assertion_id": "default-path.report-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "default-path.summary"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "all default entries, owner disables and mutations must pass"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.449Z",
+          "duration_seconds": 0.009874,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "committed_effect": true,
+                "selected_owner_ids": [
+                  "CommandRuntime"
+                ],
+                "trace_digest": "sha256:476845fb2b8a3d1d164cc7aa5647acc81c5af7e9990d1818a2ef1bf8076c6312"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.141724,
+              "correlation_id": "",
+              "duration_seconds": 0.00017,
+              "kind": "entrypoint",
+              "observation_id": "default-path.cli",
+              "run_id": "run-m3-regression",
+              "started_monotonic": 47343.141553,
+              "status": "completed",
+              "subject": "cli-default-entry"
+            },
+            {
+              "attributes": {
+                "baseline_succeeded": true,
+                "disabled_succeeded": false,
+                "entry_kind": "cli",
+                "explicit_error_code": "canonical_owner_disabled",
+                "fallback_owner_id": "",
+                "owner_id": "CommandRuntime",
+                "state_changed_while_disabled": false,
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.14187,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "owner",
+              "observation_id": "default-path.cli-disable-commandruntime",
+              "run_id": "",
+              "started_monotonic": 47343.14187,
+              "status": "owner-disabled",
+              "subject": "CommandRuntime"
+            },
+            {
+              "attributes": {
+                "admitted": false,
+                "baseline_digest": "sha256:a66803438fd136e31a6fbf3e31ca7817343990857ceebe6f90dbe6626cfaeded",
+                "candidate_digest": "sha256:469900b448e1661d4026e28e637219776edeae01038912119dd5204c257e1aa5",
+                "entry_kind": "cli",
+                "expected_change": "reject",
+                "mutation_id": "forged-owner-receipt",
+                "mutation_kind": "forged-owner-receipt",
+                "observed_change": "",
+                "reason": "forged_owner_receipt",
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.141938,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "default-path.cli-mutation-forged-owner-receipt",
+              "run_id": "",
+              "started_monotonic": 47343.141938,
+              "status": "mutation-rejected",
+              "subject": "cli-default-entry:forged-owner-receipt"
+            },
+            {
+              "attributes": {
+                "committed_effect": true,
+                "selected_owner_ids": [
+                  "SessionEventRuntime"
+                ],
+                "trace_digest": "sha256:d3a4859fcf6c511adb34474e12580db8b23405317152565748f01d1713ef1179"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142027,
+              "correlation_id": "",
+              "duration_seconds": 6.7e-05,
+              "kind": "entrypoint",
+              "observation_id": "default-path.api",
+              "run_id": "run-m3-regression",
+              "started_monotonic": 47343.14196,
+              "status": "completed",
+              "subject": "api-default-entry"
+            },
+            {
+              "attributes": {
+                "baseline_succeeded": true,
+                "disabled_succeeded": false,
+                "entry_kind": "api",
+                "explicit_error_code": "canonical_owner_disabled",
+                "fallback_owner_id": "",
+                "owner_id": "SessionEventRuntime",
+                "state_changed_while_disabled": false,
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142068,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "owner",
+              "observation_id": "default-path.api-disable-sessioneventruntime",
+              "run_id": "",
+              "started_monotonic": 47343.142068,
+              "status": "owner-disabled",
+              "subject": "SessionEventRuntime"
+            },
+            {
+              "attributes": {
+                "admitted": false,
+                "baseline_digest": "sha256:66c6fb7693c2badf29c383f694c36693bcb8194a9aaab0875046970bb4c734de",
+                "candidate_digest": "sha256:811010ce227655ddf7d1fcb6a9260fd0812505e0c21f83e219650762b8f8bd85",
+                "entry_kind": "api",
+                "expected_change": "reject",
+                "mutation_id": "forged-owner-receipt",
+                "mutation_kind": "forged-owner-receipt",
+                "observed_change": "",
+                "reason": "forged_owner_receipt",
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142112,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "default-path.api-mutation-forged-owner-receipt",
+              "run_id": "",
+              "started_monotonic": 47343.142112,
+              "status": "mutation-rejected",
+              "subject": "api-default-entry:forged-owner-receipt"
+            },
+            {
+              "attributes": {
+                "committed_effect": true,
+                "selected_owner_ids": [
+                  "CanonicalProjectionStore"
+                ],
+                "trace_digest": "sha256:ffa21fb90fce3de44c8db8d8b20099fe5bb51fa54e2734e1662e982af2b7762b"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142188,
+              "correlation_id": "",
+              "duration_seconds": 5.6e-05,
+              "kind": "entrypoint",
+              "observation_id": "default-path.web",
+              "run_id": "run-m3-regression",
+              "started_monotonic": 47343.142132,
+              "status": "completed",
+              "subject": "web-default-entry"
+            },
+            {
+              "attributes": {
+                "baseline_succeeded": true,
+                "disabled_succeeded": false,
+                "entry_kind": "web",
+                "explicit_error_code": "canonical_owner_disabled",
+                "fallback_owner_id": "",
+                "owner_id": "CanonicalProjectionStore",
+                "state_changed_while_disabled": false,
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142226,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "owner",
+              "observation_id": "default-path.web-disable-canonicalprojectionstore",
+              "run_id": "",
+              "started_monotonic": 47343.142226,
+              "status": "owner-disabled",
+              "subject": "CanonicalProjectionStore"
+            },
+            {
+              "attributes": {
+                "admitted": false,
+                "baseline_digest": "sha256:3efe7d471cdfced86d681c608d61d78c94e6fc87c789ab865237a37d4bbe2570",
+                "candidate_digest": "sha256:25a3fa40791454440ad3d477398332e3e4458a332ad0ca0474c543efdc85ec37",
+                "entry_kind": "web",
+                "expected_change": "reject",
+                "mutation_id": "forged-owner-receipt",
+                "mutation_kind": "forged-owner-receipt",
+                "observed_change": "",
+                "reason": "forged_owner_receipt",
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142266,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "default-path.web-mutation-forged-owner-receipt",
+              "run_id": "",
+              "started_monotonic": 47343.142266,
+              "status": "mutation-rejected",
+              "subject": "web-default-entry:forged-owner-receipt"
+            },
+            {
+              "attributes": {
+                "committed_effect": true,
+                "selected_owner_ids": [
+                  "CodeWorkerRuntime"
+                ],
+                "trace_digest": "sha256:9376d820a9ab9af6fbb266d0f26ac9d9ae29ee433f637aace54a63306ade7834"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142342,
+              "correlation_id": "",
+              "duration_seconds": 5.7e-05,
+              "kind": "entrypoint",
+              "observation_id": "default-path.worker",
+              "run_id": "run-m3-regression",
+              "started_monotonic": 47343.142284,
+              "status": "completed",
+              "subject": "worker-default-entry"
+            },
+            {
+              "attributes": {
+                "baseline_succeeded": true,
+                "disabled_succeeded": false,
+                "entry_kind": "worker",
+                "explicit_error_code": "canonical_owner_disabled",
+                "fallback_owner_id": "",
+                "owner_id": "CodeWorkerRuntime",
+                "state_changed_while_disabled": false,
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142377,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "owner",
+              "observation_id": "default-path.worker-disable-codeworkerruntime",
+              "run_id": "",
+              "started_monotonic": 47343.142377,
+              "status": "owner-disabled",
+              "subject": "CodeWorkerRuntime"
+            },
+            {
+              "attributes": {
+                "admitted": false,
+                "baseline_digest": "sha256:302c7403ef96aea2e5a66498c9fec6f4777f269aa04f7ea9d6c05b473b51f889",
+                "candidate_digest": "sha256:c356aa692a7375797923ad407111dd5bd3739ee5c502f0b67bdb998093241f84",
+                "entry_kind": "worker",
+                "expected_change": "reject",
+                "mutation_id": "forged-owner-receipt",
+                "mutation_kind": "forged-owner-receipt",
+                "observed_change": "",
+                "reason": "forged_owner_receipt",
+                "valid": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142418,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "default-path.worker-mutation-forged-owner-receipt",
+              "run_id": "",
+              "started_monotonic": 47343.142418,
+              "status": "mutation-rejected",
+              "subject": "worker-default-entry:forged-owner-receipt"
+            },
+            {
+              "attributes": {
+                "disable_count": 4,
+                "mutation_count": 4,
+                "report_digest": "sha256:921b603f9c70354c19405936d62bbdbff53853d5d4dd0cb0f0fa5052612bd3f5",
+                "trace_count": 4
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.142643,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "default-path.summary",
+              "run_id": "",
+              "started_monotonic": 47343.142643,
+              "status": "mutation-verified",
+              "subject": "cli-api-web-worker-default-path"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.439Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "default-path-report",
+            "relative_path": "default-path-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "default-path-reachability",
+        "clean_state_required": false,
+        "dependencies": [],
+        "disable_required": true,
+        "exclusive_resources": [],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "default-path-probes"
+        ],
+        "security_required": false,
+        "tags": [
+          "default-path",
+          "security",
+          "smoke"
+        ],
+        "timeout_seconds": 240,
+        "title": "Default CLI/API/Web/worker reachability, disable and mutation",
+        "version": "1"
+      },
+      "dependency_receipts": {},
+      "input_digest": "sha256:e73cb868076bca7d13ff1128af578045d62dd0ab13911e5e511af70440844b6c",
+      "isolation_id": "sha256:ba3a25b3bbd250f73b6cfd91dca4e94e5a05886562d71fd8c8179987a6262159",
+      "passed": true,
+      "receipt_digest": "sha256:47d499d3355bc9782cfe074230d2328a1e547695671898f00e0bd7aaa90b4fb2",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-002-of-004",
+      "spec_digest": "sha256:ff54dd6b00f001aa34b9bfa12dff26292db4e959aaca528fd32dc2509bc42a46",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:36da35387064e7c724121376c76a901f2e7a7303cb7a9677f78044358496cb94",
+              "media_type": "application/json",
+              "name": "causality-report",
+              "redacted": false,
+              "relative_path": "causality-report.json",
+              "size_bytes": 5555
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "causality.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.baseline"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "valid event/effect graph must be accepted"
+            },
+            {
+              "assertion_id": "causality.reject-fake",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.fake"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "fake causality mutation must be rejected"
+            },
+            {
+              "assertion_id": "causality.reject-late",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.late"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "late causality mutation must be rejected"
+            },
+            {
+              "assertion_id": "causality.reject-cross_run",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.cross_run"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "cross_run causality mutation must be rejected"
+            },
+            {
+              "assertion_id": "causality.reject-no_effect",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.no_effect"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "no_effect causality mutation must be rejected"
+            },
+            {
+              "assertion_id": "causality.reject-orphan_event",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "causality.orphan_event"
+              ],
+              "failure_kind": "contract",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "orphan_event causality mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.465Z",
+          "duration_seconds": 0.008947,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "digest": "sha256:dcb42c8d133ab5a03c6a472ba153ef0f5872c8901708b006a17c87c88709fbad",
+                "fact_count": 6,
+                "link_count": 5
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.158866,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "event",
+              "observation_id": "causality.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.158866,
+              "status": "accepted",
+              "subject": "event-effect-bidirectional-graph"
+            },
+            {
+              "attributes": {
+                "digest": "sha256:152b107d9e1d0c94e68ce08a8adf3a7f0a94b3c4c9e5b28ae90778c3e67f1ec3",
+                "invalid_link_count": 1,
+                "orphan_effect_count": 1,
+                "orphan_event_count": 0
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.158891,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "causality.fake",
+              "run_id": "",
+              "started_monotonic": 47343.158891,
+              "status": "mutation-rejected",
+              "subject": "causality-negative:fake"
+            },
+            {
+              "attributes": {
+                "digest": "sha256:f2be9702fa4f5ca76bf688030b37532461fe1c1ca323403afed634fea649a3f0",
+                "invalid_link_count": 1,
+                "orphan_effect_count": 1,
+                "orphan_event_count": 0
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.158906,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "causality.late",
+              "run_id": "",
+              "started_monotonic": 47343.158906,
+              "status": "mutation-rejected",
+              "subject": "causality-negative:late"
+            },
+            {
+              "attributes": {
+                "digest": "sha256:e0d9a6838461bef1c0fb70a1f2932fd66c5b460b803a5b19e32694a72497900c",
+                "invalid_link_count": 1,
+                "orphan_effect_count": 1,
+                "orphan_event_count": 0
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.158918,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "causality.cross_run",
+              "run_id": "",
+              "started_monotonic": 47343.158918,
+              "status": "mutation-rejected",
+              "subject": "causality-negative:cross_run"
+            },
+            {
+              "attributes": {
+                "digest": "sha256:93c953480d2216e7398fec767d44f320b7d43a797566bb3d6ba2e6e342d5c13a",
+                "invalid_link_count": 1,
+                "orphan_effect_count": 1,
+                "orphan_event_count": 0
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.15893,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "causality.no_effect",
+              "run_id": "",
+              "started_monotonic": 47343.15893,
+              "status": "mutation-rejected",
+              "subject": "causality-negative:no_effect"
+            },
+            {
+              "attributes": {
+                "digest": "sha256:bbb09dd3989cfeb468cf1ed5c7b67aaa9f4078e1cff5ff80e148a6e11e3f9086",
+                "invalid_link_count": 0,
+                "orphan_effect_count": 0,
+                "orphan_event_count": 1
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.158942,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "causality.orphan_event",
+              "run_id": "",
+              "started_monotonic": 47343.158942,
+              "status": "mutation-rejected",
+              "subject": "causality-negative:orphan_event"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.456Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "causality-report",
+            "relative_path": "causality-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "bidirectional-causality",
+        "clean_state_required": false,
+        "dependencies": [
+          "default-path-reachability"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "causality-subject"
+        ],
+        "security_required": false,
+        "tags": [
+          "causality",
+          "default-path",
+          "smoke"
+        ],
+        "timeout_seconds": 90,
+        "title": "Event/span/tool/artifact/route/mutation bidirectional causality",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "default-path-reachability": "sha256:47d499d3355bc9782cfe074230d2328a1e547695671898f00e0bd7aaa90b4fb2"
+      },
+      "input_digest": "sha256:6ad2c7b09c4bed04a64331c12073d227422a37dfc0b4a1b24ef1488583784512",
+      "isolation_id": "sha256:0a684ec7f27f59b9ac3e72b4f5fd1cba6a40d4d9feb9d8ea32c0a1415545931a",
+      "passed": true,
+      "receipt_digest": "sha256:b778ec5f4d4bab26bae266af23aa8576d42b3bad8db8006bb47da489acf119c6",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-003-of-004",
+      "spec_digest": "sha256:8eb0fa871d7b4906cfe945e82b1e1a3a8231da5f6d9b4c07c3566647d38a867c",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:aaf19622158e7a4054fe642f6923ec76062afa81f9fc16dca8256dcd51bc56e6",
+              "media_type": "application/json",
+              "name": "clean-state-report",
+              "redacted": false,
+              "relative_path": "clean-state-report.json",
+              "size_bytes": 10041
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "clean-state.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "clean-state.result"
+              ],
+              "failure_kind": "pollution",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "generated-input subject must use only declared clean-state outputs"
+            },
+            {
+              "assertion_id": "clean-state.pollution-rejected",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "clean-state.pollution-negative"
+              ],
+              "failure_kind": "pollution",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "undeclared state pollution must be detected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.559Z",
+          "duration_seconds": 0.100443,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "deltas": [
+                  {
+                    "after_digest": "sha256:ffc1551e728906d8f5b9dc756ceb7de44540a86d7cd5bb1064c0ce38a4e248d7",
+                    "allowed_changes": [
+                      "subject.cache"
+                    ],
+                    "before_digest": "sha256:bc9447770c1562c855bf72cf57fc845e3b9a55e636d336ae76b518b67d858c7b",
+                    "clean": true,
+                    "created": [
+                      "subject.cache"
+                    ],
+                    "deleted": [],
+                    "metadata_only": [],
+                    "modified": [],
+                    "pollution": [],
+                    "root_id": "cache"
+                  },
+                  {
+                    "after_digest": "sha256:9966ff9448246fcf19e5c8d0e0bd313fdcc2756d87382f0ed439f561919d152c",
+                    "allowed_changes": [
+                      "subject.db"
+                    ],
+                    "before_digest": "sha256:ed2480579b7db508173ae809db6e6363ea72ca36ca2772cb3f809159a2b2e549",
+                    "clean": true,
+                    "created": [
+                      "subject.db"
+                    ],
+                    "deleted": [],
+                    "metadata_only": [],
+                    "modified": [],
+                    "pollution": [],
+                    "root_id": "sqlite"
+                  },
+                  {
+                    "after_digest": "sha256:e6e8d85f97d1d3a86ee4712deaf9eac392e1568d17f73205d391f473c1d19e65",
+                    "allowed_changes": [
+                      "subject.idx"
+                    ],
+                    "before_digest": "sha256:8490f27954a56a407549b7be7a8a50b340790300c9af5023e6a80bcd784291f7",
+                    "clean": true,
+                    "created": [
+                      "subject.idx"
+                    ],
+                    "deleted": [],
+                    "metadata_only": [],
+                    "modified": [],
+                    "pollution": [],
+                    "root_id": "index"
+                  },
+                  {
+                    "after_digest": "sha256:2001534ce39a7c6df1cbacc50cb6c49c7f38cd3bb0e24b3c3a3734a64f3925f9",
+                    "allowed_changes": [
+                      "subject.json"
+                    ],
+                    "before_digest": "sha256:cab8ed56d58bcf056462c62e7bb19909ceb65c8f7c4b08faa2397cbde4880639",
+                    "clean": true,
+                    "created": [
+                      "subject.json"
+                    ],
+                    "deleted": [],
+                    "metadata_only": [],
+                    "modified": [],
+                    "pollution": [],
+                    "root_id": "artifacts"
+                  },
+                  {
+                    "after_digest": "sha256:64ba274119880969410e29eacf92af639a9a1857740b3fbefc9a63feef894533",
+                    "allowed_changes": [
+                      "subject.build"
+                    ],
+                    "before_digest": "sha256:9ef131e27f77af077cea5e7ffba72d1258a22f19f7b8e7dfba0a08d0d881c119",
+                    "clean": true,
+                    "created": [
+                      "subject.build"
+                    ],
+                    "deleted": [],
+                    "metadata_only": [],
+                    "modified": [],
+                    "pollution": [],
+                    "root_id": "build"
+                  }
+                ],
+                "fresh_state": true,
+                "report_digest": "sha256:3286617398c51c2382b39978eda8a3a6a7f380e31b94eac0c2fd2ef9bc8f52bc",
+                "subject_result_digest": "sha256:aef874cac7f7e565cf71c80455f160ebc2ccac6f771c0dc63a0cadbf3372b954"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.246752,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "clean_state",
+              "observation_id": "clean-state.result",
+              "run_id": "",
+              "started_monotonic": 47343.246752,
+              "status": "verified",
+              "subject": "cache-sqlite-index-artifact-build"
+            },
+            {
+              "attributes": {
+                "report_digest": "sha256:c1df4b5ef691f252abf098f926339d574d737b0fd55fe4b69d303d80365d2e32"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.253138,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "clean-state.pollution-negative",
+              "run_id": "",
+              "started_monotonic": 47343.253138,
+              "status": "mutation-rejected",
+              "subject": "undeclared-output"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.458Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "clean-state-report",
+            "relative_path": "clean-state-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "clean-state-isolation",
+        "clean_state_required": true,
+        "dependencies": [
+          "default-path-reachability"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [
+          "clean-state"
+        ],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "clean-state-subject"
+        ],
+        "security_required": false,
+        "tags": [
+          "clean-state",
+          "default-path",
+          "smoke"
+        ],
+        "timeout_seconds": 180,
+        "title": "Clean cache/SQLite/index/artifact/build generated-input isolation",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "default-path-reachability": "sha256:47d499d3355bc9782cfe074230d2328a1e547695671898f00e0bd7aaa90b4fb2"
+      },
+      "input_digest": "sha256:f5d1f64011c8cbd1191b52dc74d57232b9524a4ecd35a9a84f3764052b41b77e",
+      "isolation_id": "sha256:ad0a0064d1dfe8851235d3db7cd2f103ceb13eb746e79b2b50664339248f262e",
+      "passed": true,
+      "receipt_digest": "sha256:4bd01426b27b71e6a11f6ea6c2fc817bba82e522504d00150430178b13e8083d",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-004-of-004",
+      "spec_digest": "sha256:8b00256d1d05035ab399c69fcaed415fb8eae5eb18da6192fec5793b0fc37946",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:e5a2e93c3285e3cd2e53fabf9c96533168a848fe37717856c5bbf5bb9e785315",
+              "media_type": "application/json",
+              "name": "control-boundary-report",
+              "redacted": false,
+              "relative_path": "control-boundary-report.json",
+              "size_bytes": 6220
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "control-boundary.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.baseline"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "all four control domains must have deterministic Zyra-owned receipts"
+            },
+            {
+              "assertion_id": "control-boundary.reject-forged_owner",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.forged_owner"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged_owner control-boundary mutation must be rejected"
+            },
+            {
+              "assertion_id": "control-boundary.reject-nondeterministic",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.nondeterministic"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "nondeterministic control-boundary mutation must be rejected"
+            },
+            {
+              "assertion_id": "control-boundary.reject-missing_rule",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.missing_rule"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "missing_rule control-boundary mutation must be rejected"
+            },
+            {
+              "assertion_id": "control-boundary.reject-cross_run",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.cross_run"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "cross_run control-boundary mutation must be rejected"
+            },
+            {
+              "assertion_id": "control-boundary.reject-direct_suggestion",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "control-boundary.direct_suggestion"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "direct_suggestion control-boundary mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.579Z",
+          "duration_seconds": 0.009628,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "domain_counts": {
+                  "compact": 1,
+                  "permission": 1,
+                  "recovery": 1,
+                  "scheduler": 1
+                },
+                "owner_counts": {
+                  "MessageManagerRuntime": 1,
+                  "RecoveryPlannerRuntime": 1,
+                  "ResourceSchedulerRuntime": 1,
+                  "ToolPermissionRuntime": 1
+                },
+                "report_digest": "sha256:b234e1147082667de3ae27d9af56ba552d7f790610e6c4fd20b447dda9ec2beb"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272029,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "control",
+              "observation_id": "control-boundary.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.272029,
+              "status": "deterministic",
+              "subject": "permission-scheduler-recovery-compact"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "owner_invalid"
+                ],
+                "report_digest": "sha256:a1ae8ec38abecd88a250f2ea17cca31544417c9374add67b3cf25e3b4769857e"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272153,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "control-boundary.forged_owner",
+              "run_id": "",
+              "started_monotonic": 47343.272153,
+              "status": "mutation-rejected",
+              "subject": "llm-boundary-negative:forged_owner"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "nondeterministic_receipt"
+                ],
+                "report_digest": "sha256:30ffcc9a70d8d74de7c4bcd9fdeb39b599141c57c7dfb7e2882e1aaa5e6faa0c"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272171,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "control-boundary.nondeterministic",
+              "run_id": "",
+              "started_monotonic": 47343.272171,
+              "status": "mutation-rejected",
+              "subject": "llm-boundary-negative:nondeterministic"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "rule_id_missing",
+                  "policy_digest_missing"
+                ],
+                "report_digest": "sha256:340d98a15310af6a6646ba2fdb834b2cb4d1211345d6c3c1502aab97e0f15dbf"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272184,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "control-boundary.missing_rule",
+              "run_id": "",
+              "started_monotonic": 47343.272184,
+              "status": "mutation-rejected",
+              "subject": "llm-boundary-negative:missing_rule"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "cross_run_suggestion"
+                ],
+                "report_digest": "sha256:f001874f1dd7c451848611eafb93850dea57b28de031478fa7f26902e35a58b4"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272196,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "control-boundary.cross_run",
+              "run_id": "",
+              "started_monotonic": 47343.272196,
+              "status": "mutation-rejected",
+              "subject": "llm-boundary-negative:cross_run"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "owner_invalid",
+                  "model_output_used_as_rule_input",
+                  "model_rule_owner"
+                ],
+                "report_digest": "sha256:18bb35de26db0b7eba92556bafc5f353ed13c5d4159699a3e02ba46097654db3"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.272207,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "control-boundary.direct_suggestion",
+              "run_id": "",
+              "started_monotonic": 47343.272207,
+              "status": "mutation-rejected",
+              "subject": "llm-boundary-negative:direct_suggestion"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.569Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "control-boundary-report",
+            "relative_path": "control-boundary-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "llm-control-boundary",
+        "clean_state_required": false,
+        "dependencies": [
+          "bidirectional-causality"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "control-boundary-subject"
+        ],
+        "security_required": false,
+        "tags": [
+          "control",
+          "security",
+          "smoke"
+        ],
+        "timeout_seconds": 90,
+        "title": "Deterministic permission/scheduler/recovery/compact custody",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "bidirectional-causality": "sha256:b778ec5f4d4bab26bae266af23aa8576d42b3bad8db8006bb47da489acf119c6"
+      },
+      "input_digest": "sha256:dee667527e5017cb14670f9233c9062b3146836c6e8d609dc03c12d714b4c4dc",
+      "isolation_id": "sha256:1e7b2d7ef411510354577d12926c2b38177f8d798230ca9b8a93079abdf4143e",
+      "passed": true,
+      "receipt_digest": "sha256:d027e9c28bb06129c859ad8b4f2a22133e58a64578afd84d61528eaeee9985cc",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-001-of-004",
+      "spec_digest": "sha256:20347a1f864446a1de86a00a2d911a8b8cc5b6a2ad7a07b38c987b3abd08b4c9",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:f45c53c76c8b2d3c6df1c6bcc12ef63a8f4f082f3522b6255c47ea9f4b9e333a",
+              "media_type": "application/json",
+              "name": "repository-security-report",
+              "redacted": false,
+              "relative_path": "repository-security-report.json",
+              "size_bytes": 7056
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "repository-security.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.baseline"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "patch lifecycle and Git friction baseline must pass"
+            },
+            {
+              "assertion_id": "repository-security.reject-stale_commit",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.stale_commit"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "stale_commit repository-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "repository-security.reject-non_atomic",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.non_atomic"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "non_atomic repository-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "repository-security.reject-missing_history",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.missing_history"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "missing_history repository-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "repository-security.reject-dirty_bypass",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.dirty_bypass"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "dirty_bypass repository-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "repository-security.reject-replay_unfenced",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.replay_unfenced"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "replay_unfenced repository-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "repository-security.reject-destructive_allowed",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "repository-security.destructive_allowed"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "destructive_allowed repository-security mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.578Z",
+          "duration_seconds": 0.01154,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "phase_counts": {
+                  "committed": 1,
+                  "prepared": 1,
+                  "read": 1,
+                  "rejected": 1,
+                  "rolled_back": 1
+                },
+                "report_digest": "sha256:77aa2b13e9c15b376a5429d67f9cd67006150860473160a86bb45dd964a4d619",
+                "risk_counts": {
+                  "destructive": 1,
+                  "medium": 1,
+                  "read_only": 1
+                }
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270135,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "security",
+              "observation_id": "repository-security.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.270135,
+              "status": "verified",
+              "subject": "patch-git-progressive-friction"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "stale_patch_committed"
+                ],
+                "report_digest": "sha256:61a8b3726ac8e408205ddf1e6b50a4c052c6b897980970b89932f243eff4d4b2"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270175,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.stale_commit",
+              "run_id": "",
+              "started_monotonic": 47343.270175,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:stale_commit"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "non_atomic_commit"
+                ],
+                "report_digest": "sha256:73c14fa62b2b2464c313df7d88056c9348b54d6359da36a5bb1ba03feaac8324"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270189,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.non_atomic",
+              "run_id": "",
+              "started_monotonic": 47343.270189,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:non_atomic"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "history_missing"
+                ],
+                "report_digest": "sha256:0c0b12645a98e66c927900930a5ac46b9f4961f9f18c438a172815998d729d1c"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270201,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.missing_history",
+              "run_id": "",
+              "started_monotonic": 47343.270201,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:missing_history"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "dirty_worktree_bypass"
+                ],
+                "report_digest": "sha256:7288c1fb8200ced9b502e6c1718ef4ac8efe2e60cffaf77c00cc8cef956a2e0c"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270211,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.dirty_bypass",
+              "run_id": "",
+              "started_monotonic": 47343.270211,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:dirty_bypass"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "idempotency_missing"
+                ],
+                "report_digest": "sha256:9ea7b2915e7079cd825aea3373731f4b6e95a9e306fd56c4468e87b56a9f1bdf"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270221,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.replay_unfenced",
+              "run_id": "",
+              "started_monotonic": 47343.270221,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:replay_unfenced"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "git_friction_mismatch"
+                ],
+                "report_digest": "sha256:f63aacb2e287e0eab1988a26bb7fd1a32935a1c3173c4cedc89ce792dd6893ff"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.270232,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "repository-security.destructive_allowed",
+              "run_id": "",
+              "started_monotonic": 47343.270232,
+              "status": "mutation-rejected",
+              "subject": "repository-negative:destructive_allowed"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.567Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "repository-security-report",
+            "relative_path": "repository-security-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "repository-security",
+        "clean_state_required": false,
+        "dependencies": [
+          "clean-state-isolation"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [
+          "workspace"
+        ],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "repository-security-subject"
+        ],
+        "security_required": true,
+        "tags": [
+          "patch-git",
+          "security"
+        ],
+        "timeout_seconds": 120,
+        "title": "Patch/Git stale, atomic, rollback, dirty and destructive guards",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "clean-state-isolation": "sha256:4bd01426b27b71e6a11f6ea6c2fc817bba82e522504d00150430178b13e8083d"
+      },
+      "input_digest": "sha256:96caa1ba57d4dd16f3da8b84b19ade079bb80261d5a3bd0a8012a571fc4bb6a8",
+      "isolation_id": "sha256:a02d2e39662c35bfd746012be708e7c47b8f95dd3d5fc75281319f508f2d621a",
+      "passed": true,
+      "receipt_digest": "sha256:176cf6b848c02abbdf5142b25c881fc34f110cae800a0221d34de333811d54eb",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-003-of-004",
+      "spec_digest": "sha256:72ea91fdbcd5845cecd0698590f3c244d80bb50f3d1f9221fc1af7d61a6fdf87",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:b69e78490210562c4acb70165333fe59ca24a5db92d2cfb609aa65d9de54896d",
+              "media_type": "application/json",
+              "name": "content-security-report",
+              "redacted": false,
+              "relative_path": "content-security-report.json",
+              "size_bytes": 6463
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "content-security.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.baseline"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "all secret and injection surfaces must enforce their admissions"
+            },
+            {
+              "assertion_id": "content-security.reject-surface_leak",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.surface_leak"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "surface_leak content-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "content-security.reject-memory_secret_accepted",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.memory_secret_accepted"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "memory_secret_accepted content-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "content-security.reject-injection_accepted",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.injection_accepted"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "injection_accepted content-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "content-security.reject-wrong_owner",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.wrong_owner"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "wrong_owner content-security mutation must be rejected"
+            },
+            {
+              "assertion_id": "content-security.reject-missing_provenance",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "content-security.missing_provenance"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "missing_provenance content-security mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.596Z",
+          "duration_seconds": 0.010329,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "canary_digests": [
+                  "sha256:bff7f38e4f678dd7d0b6e0ff7c90ee03558c5f3070e8b6e3dfd868664acca4bb"
+                ],
+                "effect_counts": {
+                  "quarantine": 3,
+                  "redact": 4,
+                  "reject": 1
+                },
+                "report_digest": "sha256:fdaf3792c2e9b67950effe55a9784971cf7e39d89c16974fb62a642975f4067e",
+                "surface_counts": {
+                  "api": 1,
+                  "artifact": 1,
+                  "browser": 1,
+                  "event": 1,
+                  "mcp": 1,
+                  "shared_memory": 1,
+                  "ui": 1,
+                  "web": 1
+                }
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288854,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "security",
+              "observation_id": "content-security.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.288854,
+              "status": "verified",
+              "subject": "secret-redaction-and-untrusted-content"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "secret_leak",
+                  "secret_not_redacted"
+                ],
+                "report_digest": "sha256:2added3bc3f90ab69df2ecebb02fce40679653bc50ac84100bf080726965fcc2"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288897,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "content-security.surface_leak",
+              "run_id": "",
+              "started_monotonic": 47343.288897,
+              "status": "mutation-rejected",
+              "subject": "content-security-negative:surface_leak"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "secret_memory_write",
+                  "injection_memory_write",
+                  "untrusted_effect_accepted"
+                ],
+                "report_digest": "sha256:656ace760d9dbe43120525bcf123e45e830df64832faf444282af38db0f8af94"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288912,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "content-security.memory_secret_accepted",
+              "run_id": "",
+              "started_monotonic": 47343.288912,
+              "status": "mutation-rejected",
+              "subject": "content-security-negative:memory_secret_accepted"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "untrusted_injection_accepted",
+                  "untrusted_effect_accepted"
+                ],
+                "report_digest": "sha256:4a449e7b733e577f99806a04f15d9c91630164eb2b55bc21b1e1daa14c52b4d2"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288931,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "content-security.injection_accepted",
+              "run_id": "",
+              "started_monotonic": 47343.288931,
+              "status": "mutation-rejected",
+              "subject": "content-security-negative:injection_accepted"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "owner_invalid"
+                ],
+                "report_digest": "sha256:419ed059d75be1bc2a4627e995b195c40a4330ff3a94074c71a47163a1ac1432"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288945,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "content-security.wrong_owner",
+              "run_id": "",
+              "started_monotonic": 47343.288945,
+              "status": "mutation-rejected",
+              "subject": "content-security-negative:wrong_owner"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "provenance_missing"
+                ],
+                "report_digest": "sha256:7507256e95d0f271a186f5793bc787b968d6711df5ab84326a00cd655d08a163"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.288956,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "content-security.missing_provenance",
+              "run_id": "",
+              "started_monotonic": 47343.288956,
+              "status": "mutation-rejected",
+              "subject": "content-security-negative:missing_provenance"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.585Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "content-security-report",
+            "relative_path": "content-security-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "content-security",
+        "clean_state_required": false,
+        "dependencies": [
+          "llm-control-boundary"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "content-security-subject"
+        ],
+        "security_required": true,
+        "tags": [
+          "content",
+          "security",
+          "smoke"
+        ],
+        "timeout_seconds": 90,
+        "title": "Secret redaction, memory blocking and untrusted injection",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "llm-control-boundary": "sha256:d027e9c28bb06129c859ad8b4f2a22133e58a64578afd84d61528eaeee9985cc"
+      },
+      "input_digest": "sha256:8b32e62a64025f7e18c5f9ccbf8ca1abcab08ed6a684dd89c7a9134d612ca39c",
+      "isolation_id": "sha256:7cbec0a7ac4ba6eb9dcf56872cecdfe56f74778e000d51a18d1dfc00559dfa1f",
+      "passed": true,
+      "receipt_digest": "sha256:8304378b97a145805deeeb58da4854f56db242c12424c27a8169b47038189747",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-004-of-004",
+      "spec_digest": "sha256:d70a58389666d77d71a590f830105478039fba051436572b768f5b7e13c3f279",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:206e0f2d453af69923ad9afa2bf8be55d38ac8d20f63343239aba5a4ee6f6a09",
+              "media_type": "application/json",
+              "name": "code-index-security-report",
+              "redacted": false,
+              "relative_path": "code-index-security-report.json",
+              "size_bytes": 8474
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "code-index-security.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.baseline"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "code-index baseline must enforce budgets/permission and change selections"
+            },
+            {
+              "assertion_id": "code-index-security.reject-over_budget",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.over_budget"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "over_budget code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-no_permission",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.no_permission"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "no_permission code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-denied_success",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.denied_success"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "denied_success code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-stale_rebuild",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.stale_rebuild"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "stale_rebuild code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-patch_refresh_without_cause",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.patch_refresh_without_cause"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "patch_refresh_without_cause code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-mock_fallback",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.mock_fallback"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "mock_fallback code-index mutation must be rejected"
+            },
+            {
+              "assertion_id": "code-index-security.reject-no_selection_effect",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "code-index-security.no_selection_effect"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "no_selection_effect code-index mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.598Z",
+          "duration_seconds": 0.009796,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "context_changed": true,
+                "generations": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "phase_counts": {
+                  "admission": 1,
+                  "build": 1,
+                  "invalidate": 1,
+                  "patch_refresh": 1,
+                  "query": 1,
+                  "rebuild": 1,
+                  "rejected": 1,
+                  "select_context": 2,
+                  "select_tests": 2
+                },
+                "report_digest": "sha256:8474832c94e50e01b9268ac3cb74523edf1dec5a5fe4e47a9d6ce46faed4cdca",
+                "test_selection_changed": true
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292063,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "index",
+              "observation_id": "code-index-security.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.292063,
+              "status": "verified",
+              "subject": "budget-permission-incremental-selection"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "budget_exceeded",
+                  "generation_regression",
+                  "stale_source_revision"
+                ],
+                "report_digest": "sha256:f08a9503e40987af09ccd5fae2159187c6324312fad401d858941212cfd2507c"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292108,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.over_budget",
+              "run_id": "",
+              "started_monotonic": 47343.292108,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:over_budget"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "permission_receipt_missing",
+                  "generation_regression",
+                  "stale_source_revision"
+                ],
+                "report_digest": "sha256:ff12f03bbe53f0dac488d2cd2dc87de2932cfc7fba5b4ea9eda1bb69868cc01a"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292123,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.no_permission",
+              "run_id": "",
+              "started_monotonic": 47343.292123,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:no_permission"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "permission_not_allowed",
+                  "generation_regression",
+                  "stale_source_revision"
+                ],
+                "report_digest": "sha256:c9f1f7d78cdbbd5354c1a06c587cea91a0659a18e7803dddb5b7f0a96a05ce3e"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292135,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.denied_success",
+              "run_id": "",
+              "started_monotonic": 47343.292135,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:denied_success"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "generation_regression"
+                ],
+                "report_digest": "sha256:512315fe0e451f73fe1468830c98e21756a40dcf0ec7074af52a9c7552e69fe9"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292147,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.stale_rebuild",
+              "run_id": "",
+              "started_monotonic": 47343.292147,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:stale_rebuild"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "patch_refresh_unbound",
+                  "generation_regression"
+                ],
+                "report_digest": "sha256:63d1bbb2d81998fae07d374b7fad55dce5adbe981e4e50633b02b7800be72ada"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.29216,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.patch_refresh_without_cause",
+              "run_id": "",
+              "started_monotonic": 47343.29216,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:patch_refresh_without_cause"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "fallback_masked",
+                  "generation_regression",
+                  "stale_source_revision"
+                ],
+                "report_digest": "sha256:969486dbf0bab206414dedecc37ff0f8cd44a9a445e79681aff4d34858c2ebe0"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292172,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.mock_fallback",
+              "run_id": "",
+              "started_monotonic": 47343.292172,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:mock_fallback"
+            },
+            {
+              "attributes": {
+                "finding_codes": [],
+                "report_digest": "sha256:542b969132fb2dc4589e1f345f73ff1868f5cc139a86ba1bc230080c8b2df6d2"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.292183,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "code-index-security.no_selection_effect",
+              "run_id": "",
+              "started_monotonic": 47343.292183,
+              "status": "mutation-rejected",
+              "subject": "code-index-negative:no_selection_effect"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.588Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "code-index-security-report",
+            "relative_path": "code-index-security-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "code-index-security",
+        "clean_state_required": false,
+        "dependencies": [
+          "repository-security"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [
+          "workspace"
+        ],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "code-index-subject"
+        ],
+        "security_required": false,
+        "tags": [
+          "code-index",
+          "security"
+        ],
+        "timeout_seconds": 180,
+        "title": "Code-index budget, permission, patch refresh and selection effects",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "repository-security": "sha256:176cf6b848c02abbdf5142b25c881fc34f110cae800a0221d34de333811d54eb"
+      },
+      "input_digest": "sha256:61075ec06a58731c0dd734454488ac5cdf33c6037213e611a077614f0b801a5e",
+      "isolation_id": "sha256:97a7a2353236cc32f18ad97c5e64cc19b85fe8e9af7387b58ba8331f121a9b41",
+      "passed": true,
+      "receipt_digest": "sha256:eefbfe666504ca239c29dff71ef5e44d82ecdf9d44b09e90690407e16e50cdc5",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-004-of-004",
+      "spec_digest": "sha256:629111f80beda7f2c01942a8257f2d98af15d2c4663a34992cf0e4d05246f1e6",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:5a6334012dc672f8980b8b896d9e47888991505d0c253f1cf276bd33015c5531",
+              "media_type": "application/json",
+              "name": "approval-security-report",
+              "redacted": false,
+              "relative_path": "approval-security-report.json",
+              "size_bytes": 11304
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "approval-security.baseline-valid",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.baseline"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "approval lifecycle must be identity-bound, terminal and restorable"
+            },
+            {
+              "assertion_id": "approval-security.reject-forged_identity",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.forged_identity"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged_identity approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-forged_action",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.forged_action"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged_action approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-forged_policy",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.forged_policy"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged_policy approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-forged_nonce",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.forged_nonce"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "forged_nonce approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-cross_session",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.cross_session"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "cross_session approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-stale_generation",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.stale_generation"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "stale_generation approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-late_allow",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.late_allow"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "late_allow approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-duplicate_terminal",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.duplicate_terminal"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "duplicate_terminal approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-missing_idempotency",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.missing_idempotency"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "missing_idempotency approval mutation must be rejected"
+            },
+            {
+              "assertion_id": "approval-security.reject-restore_without_digest",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "approval-security.restore_without_digest"
+              ],
+              "failure_kind": "security",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "restore_without_digest approval mutation must be rejected"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.615Z",
+          "duration_seconds": 0.010681,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "effect_counts": {
+                  "allow": 2,
+                  "expired": 1,
+                  "pending": 5,
+                  "rejected": 1
+                },
+                "phase_counts": {
+                  "claimed": 1,
+                  "consumed": 1,
+                  "created": 3,
+                  "rejected": 1,
+                  "resolved": 1,
+                  "restored": 1,
+                  "timed_out": 1
+                },
+                "report_digest": "sha256:51cda01cc00055ddf6d0c0cfc7c94bc6ca4e628696101d2b03cbc87b59ca99c6",
+                "terminal_counts": {
+                  "approval-normal": 1,
+                  "approval-restored": 1,
+                  "approval-timeout": 1
+                }
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309029,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "approval",
+              "observation_id": "approval-security.baseline",
+              "run_id": "",
+              "started_monotonic": 47343.309029,
+              "status": "verified",
+              "subject": "approval-identity-race-restore-sealed"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "identity_digest_mismatch",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:15debeb0d4138c35734daa7e53b0ced23f915b1e46f8bfb53928c9a72b733ec6"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309085,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.forged_identity",
+              "run_id": "",
+              "started_monotonic": 47343.309085,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:forged_identity"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "action_digest_mismatch",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:5bcb8988ed8b7fad6c9a1bc2f4c220255cacfbbf56d97ffc51da5e2cc7a529b4"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309103,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.forged_action",
+              "run_id": "",
+              "started_monotonic": 47343.309103,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:forged_action"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "policy_digest_mismatch",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:c315fd06d7b3b43850f154e851547695596cd6bce3db261da317c07ed3d0d513"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309117,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.forged_policy",
+              "run_id": "",
+              "started_monotonic": 47343.309117,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:forged_policy"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "nonce_mismatch",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:7057d577bec5379e400870cdb9497d4e7da1d703910385ee76a5c0472798c51c"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.30913,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.forged_nonce",
+              "run_id": "",
+              "started_monotonic": 47343.30913,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:forged_nonce"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "cross_session",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:511bc083cc700dc2e3d19c3c3d2e66b25338b101120a5f95c9484e7b2426a30a"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309143,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.cross_session",
+              "run_id": "",
+              "started_monotonic": 47343.309143,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:cross_session"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "stale_generation",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:a7cf43190e4577e237883353e4181a820866ecfa25d3cebbae45c00b293ba998"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309156,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.stale_generation",
+              "run_id": "",
+              "started_monotonic": 47343.309156,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:stale_generation"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "late_resolution",
+                  "duplicate_sequence",
+                  "multiple_terminal_effects"
+                ],
+                "report_digest": "sha256:e8c76888ee757a292b7af8f6c1c57f3e09676e9bbd21c976501a92795999cc32"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309169,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.late_allow",
+              "run_id": "",
+              "started_monotonic": 47343.309169,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:late_allow"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "multiple_terminal_effects",
+                  "phase_regression"
+                ],
+                "report_digest": "sha256:4ee8b7caa417344da1e2db6a50ae056ca4fc9daa04d391f36281407bd216c369"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309182,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.duplicate_terminal",
+              "run_id": "",
+              "started_monotonic": 47343.309182,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:duplicate_terminal"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "idempotency_missing",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:b8a649e4531f3ae677a1d8449d652898c1bbc02bc9027d48e15deb31b4b3540b"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309194,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.missing_idempotency",
+              "run_id": "",
+              "started_monotonic": 47343.309194,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:missing_idempotency"
+            },
+            {
+              "attributes": {
+                "finding_codes": [
+                  "restore_digest_missing",
+                  "duplicate_sequence"
+                ],
+                "report_digest": "sha256:869351a340b4b93fc181e8a13219af03913580dab2d38a0ab84b3af935484db4"
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.309207,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "approval-security.restore_without_digest",
+              "run_id": "",
+              "started_monotonic": 47343.309207,
+              "status": "mutation-rejected",
+              "subject": "approval-negative:restore_without_digest"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.604Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "approval-security-report",
+            "relative_path": "approval-security-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "approval-security",
+        "clean_state_required": false,
+        "dependencies": [
+          "content-security"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [
+          "approval-ledger"
+        ],
+        "isolation": "process",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [
+          "approval-security-subject"
+        ],
+        "security_required": false,
+        "tags": [
+          "approval",
+          "security",
+          "smoke"
+        ],
+        "timeout_seconds": 180,
+        "title": "Approval binding, nonce, stale, race, crash restore and sealed no-hang",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "content-security": "sha256:8304378b97a145805deeeb58da4854f56db242c12424c27a8169b47038189747"
+      },
+      "input_digest": "sha256:6faf16a9b17d1ce6a0878d35c13ba670e6fbfa46e0289040d80703194e6362b5",
+      "isolation_id": "sha256:b296d84c34fd8916e0d6f913a4b899735d6a2624022239c4ba3620a6cee229c1",
+      "passed": true,
+      "receipt_digest": "sha256:8910740db3b5cb307d98649a3d7fc3deb17a2d1e828ec9dc2f824114752cd551",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-001-of-004",
+      "spec_digest": "sha256:4f47b2d5722282b9807e0bfe431c001011ea042a5e43436cb419e6d9d1e15554",
+      "status": "passed"
+    },
+    {
+      "attempts": [
+        {
+          "artifacts": [
+            {
+              "digest": "sha256:fb70813e9aad9838a4dee0c096d06dabfe028ca9d0259e89a32f2159ba853a0e",
+              "media_type": "application/json",
+              "name": "freeze-preflight-report",
+              "redacted": false,
+              "relative_path": "freeze-preflight-report.json",
+              "size_bytes": 475
+            }
+          ],
+          "assertions": [
+            {
+              "assertion_id": "freeze-preflight.dependencies-pass",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "freeze-preflight.dependencies"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "freeze preflight dependencies must all have passing receipts"
+            },
+            {
+              "assertion_id": "freeze-preflight.artifacts-present",
+              "blocking": false,
+              "details": {},
+              "evidence_ids": [
+                "freeze-preflight.artifacts"
+              ],
+              "failure_kind": "assertion",
+              "passed": true,
+              "severity": "blocker",
+              "summary": "freeze preflight dependencies must expose integrity-bound artifacts"
+            }
+          ],
+          "attempt": 1,
+          "completed_at": "2026-07-27T02:50:54.626Z",
+          "duration_seconds": 0.006223,
+          "failure_kind": "",
+          "failure_message": "",
+          "observations": [
+            {
+              "attributes": {
+                "dependency_digests": {
+                  "approval-security": "sha256:8910740db3b5cb307d98649a3d7fc3deb17a2d1e828ec9dc2f824114752cd551",
+                  "code-index-security": "sha256:eefbfe666504ca239c29dff71ef5e44d82ecdf9d44b09e90690407e16e50cdc5"
+                }
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.322036,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "mutation",
+              "observation_id": "freeze-preflight.dependencies",
+              "run_id": "",
+              "started_monotonic": 47343.322036,
+              "status": "mutation-verified",
+              "subject": "regression-dependency-receipts"
+            },
+            {
+              "attributes": {
+                "artifacts": {
+                  "approval-security": [
+                    "approval-security-report.json"
+                  ],
+                  "code-index-security": [
+                    "code-index-security-report.json"
+                  ]
+                }
+              },
+              "causation_id": "",
+              "completed_monotonic": 47343.322067,
+              "correlation_id": "",
+              "duration_seconds": 0.0,
+              "kind": "artifact",
+              "observation_id": "freeze-preflight.artifacts",
+              "run_id": "",
+              "started_monotonic": 47343.322067,
+              "status": "verified",
+              "subject": "regression-case-artifacts"
+            }
+          ],
+          "passed": true,
+          "started_at": "2026-07-27T02:50:54.620Z",
+          "status": "passed"
+        }
+      ],
+      "case": {
+        "artifacts": [
+          {
+            "contains_secrets": false,
+            "maximum_bytes": 16777216,
+            "media_type": "application/json",
+            "name": "freeze-preflight-report",
+            "relative_path": "freeze-preflight-report.json",
+            "required": true
+          }
+        ],
+        "case_id": "freeze-receipt-preflight",
+        "clean_state_required": false,
+        "dependencies": [
+          "approval-security",
+          "code-index-security"
+        ],
+        "disable_required": false,
+        "exclusive_resources": [],
+        "isolation": "temporary",
+        "maximum_attempts": 1,
+        "mutation_required": true,
+        "required_capabilities": [],
+        "security_required": false,
+        "tags": [
+          "freeze",
+          "smoke"
+        ],
+        "timeout_seconds": 60,
+        "title": "Preflight all regression case outputs before freeze admission",
+        "version": "1"
+      },
+      "dependency_receipts": {
+        "approval-security": "sha256:8910740db3b5cb307d98649a3d7fc3deb17a2d1e828ec9dc2f824114752cd551",
+        "code-index-security": "sha256:eefbfe666504ca239c29dff71ef5e44d82ecdf9d44b09e90690407e16e50cdc5"
+      },
+      "input_digest": "sha256:0cf995975a56083f70a30c71eb8981581af89ef6f67c23fbfbd9abe9dcbe951f",
+      "isolation_id": "sha256:b833e19d4786da68f37b4a9b95564a585dd77c080a158d9ccc72c0418c9a294a",
+      "passed": true,
+      "receipt_digest": "sha256:c8ba6bebc3c99882182677cdc4a0e9344e5f171d066ced71b56eff216de14afe",
+      "schema": "zyra.m3-regression-hardening/v1/case-receipt",
+      "shard_id": "shard-002-of-004",
+      "spec_digest": "sha256:8d738dc8a67b1dff5644906a4a4acc7a23cdb158851aa649294f53d1cf0485bb",
+      "status": "passed"
+    }
+  ],
+  "completed_at": "2026-07-27T02:50:54.628Z",
+  "duration_seconds": 0.22549,
+  "metadata": {
+    "case_count": 9,
+    "dependency_order": [
+      "default-path-reachability",
+      "bidirectional-causality",
+      "clean-state-isolation",
+      "llm-control-boundary",
+      "repository-security",
+      "content-security",
+      "code-index-security",
+      "approval-security",
+      "freeze-receipt-preflight"
+    ],
+    "live_matrix_passed": true,
+    "live_matrix_receipt_digest": "sha256:1f715835abbf1a9e4a55d783434ab29787f625c111fb83024b03a8fd8ce0440b",
+    "maximum_workers": 4,
+    "shard_ids": [
+      "shard-001-of-004",
+      "shard-002-of-004",
+      "shard-003-of-004",
+      "shard-004-of-004"
+    ]
+  },
+  "passed": true,
+  "profile": {
+    "case_ids": [],
+    "exclude_tags": [],
+    "fail_fast": false,
+    "include_tags": [],
+    "maximum_workers": 4,
+    "profile_id": "m3-regression-full",
+    "retry_transient": true,
+    "shard_count": 4
+  },
+  "receipt_digest": "sha256:5982ff76eb7bacb4fba6a41bc722a591f6780245f04be11f8a278702ba37de44",
+  "registry_digest": "sha256:475ab719490f9fe8d130bd1624c9e0f7caf9c503be9238d67f79617952955ec1",
+  "revision": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "schema": "zyra.m3-regression-hardening/v1/suite-receipt",
+  "started_at": "2026-07-27T02:50:54.402Z",
+  "status_counts": {
+    "passed": 9
+  },
+  "suite_id": "m3-default-security-regression",
+  "suite_version": "1"
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "zyra.m3-s02a01-implementation-metadata/v1",
+  "slice_id": "M3-S02A-01",
+  "baseline_commit": "42f760229588aba917c7283b841587afc7142b0b",
+  "preimplementation_decision_commit": "8d204c418d56970ba0b4bf53d9396229a953dc27",
+  "implementation_commits": [
+    "3b85bbcd674882d967b9d1cd39f6c63f17de92a0",
+    "c5fa87cccab900dfaa9b8a4148d8cbd896a04013"
+  ],
+  "implementation_commit": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "implementation_interval": "42f760229588aba917c7283b841587afc7142b0b..c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "live_matrix_receipt_digest": "sha256:1f715835abbf1a9e4a55d783434ab29787f625c111fb83024b03a8fd8ce0440b",
+  "suite_receipt_digest": "sha256:5982ff76eb7bacb4fba6a41bc722a591f6780245f04be11f8a278702ba37de44",
+  "triage_digest": "sha256:e3048bcf1c17d7a3800e1df559240178352ecb6740aeab4ce6f336a2b00efffd",
+  "freeze_admission_digest": "sha256:17deda912fe39d9dfbe3ad1b9c7b811382fbf3a1c439737fc05230a73eb4a218",
+  "line_gate": {
+    "minimum_effective_production": 6000,
+    "accounted_effective_production": 8561,
+    "margin": 2561,
+    "range_effective_production": 8605,
+    "raw_additions": 12705,
+    "tests_docs_scripts_counted": false,
+    "passed": true
+  },
+  "source_language_matrix": {
+    "python": {
+      "role": "evaluation orchestration, clean-state, security campaigns, live runner and freeze gate",
+      "production_added": true
+    },
+    "typescript": {
+      "role": "unchanged tested runtime owners for Web, approval and patch review",
+      "production_added": false,
+      "verified_by_live_matrix": true
+    },
+    "tsx": {
+      "role": "unchanged tested Web presentation and interaction path",
+      "production_added": false,
+      "verified_by_live_matrix": true
+    }
+  },
+  "migration_mode": "test_eval_hardening_only",
+  "openclaw": "excluded_forward_only",
+  "langgraph": "narrow checkpoint/exact-resume conformance only; no production owner added"
+}

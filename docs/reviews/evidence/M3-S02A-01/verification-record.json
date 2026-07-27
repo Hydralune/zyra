@@ -1,0 +1,92 @@
+{
+  "schema": "zyra.m3-s02a01-verification-record/v1",
+  "slice_id": "M3-S02A-01",
+  "implementation_commit": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "required_gate": {
+    "command": ".venv\\Scripts\\python.exe scripts/verify_m3.py",
+    "result": "passed",
+    "observed": [
+      "M3 runtime verification passed",
+      "M3 verification passed"
+    ]
+  },
+  "generated_input_live_matrix": {
+    "command": ".venv\\Scripts\\python.exe -m zyra_evaluation.regression_hardening run-live --output docs/reviews/evidence/M3-S02A-01/live-matrix-receipt.json --maximum-workers 1",
+    "result": "10 passed, 0 failed",
+    "revision": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+    "receipt_digest": "sha256:1f715835abbf1a9e4a55d783434ab29787f625c111fb83024b03a8fd8ce0440b",
+    "entry_kinds": [
+      "cli",
+      "api",
+      "web",
+      "worker"
+    ],
+    "source_languages": [
+      "python",
+      "typescript",
+      "tsx"
+    ]
+  },
+  "regression_suite": {
+    "result": "9 passed, 0 failed",
+    "revision": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+    "receipt_digest": "sha256:5982ff76eb7bacb4fba6a41bc722a591f6780245f04be11f8a278702ba37de44",
+    "triage_digest": "sha256:e3048bcf1c17d7a3800e1df559240178352ecb6740aeab4ce6f336a2b00efffd",
+    "mutation_assertions": 42,
+    "security_observations": 2
+  },
+  "freeze_admission": {
+    "command": ".venv\\Scripts\\python.exe -m zyra_evaluation.regression_hardening verify-receipt docs/reviews/evidence/M3-S02A-01/runtime-artifacts/suite/suite-receipt.json --revision c5fa87cccab900dfaa9b8a4148d8cbd896a04013 --live-matrix docs/reviews/evidence/M3-S02A-01/live-matrix-receipt.json",
+    "result": "passed",
+    "findings": 0,
+    "digest": "sha256:17deda912fe39d9dfbe3ad1b9c7b811382fbf3a1c439737fc05230a73eb4a218"
+  },
+  "focused_python": [
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/unit/test_m3_regression_hardening.py tests/integration/test_permission_console_api.py",
+      "result": "7 passed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/unit/test_sandbox_gateway_artifacts.py tests/unit/test_sandbox_gateway_policy.py tests/unit/test_workspace_git_dirty_boundary.py tests/integration/test_code_index_api_main_path.py tests/integration/test_code_index_patch_event_integration.py tests/integration/test_diff_patch_review_integration.py tests/integration/test_browser_worker_permission_gate.py",
+      "result": "57 passed, 6 subtests passed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/scenarios/test_scenario_runner_foundation.py tests/scenarios/test_m2_s05_03_experiment_matrix.py tests/integration/test_scenario_runner_api_main_path.py tests/integration/test_experiment_evidence_api_main_path.py tests/integration/test_permission_console_api.py",
+      "result": "19 passed, 1 timed out, 2 warnings",
+      "nonpassing_case": "test_live_software_scenario_reaches_canonical_api_owners",
+      "nonpassing_detail": "The HTTP client reached its pre-existing 120-second wait limit without an assertion failure."
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/integration/test_scenario_runner_api_main_path.py::test_live_software_scenario_reaches_canonical_api_owners",
+      "result": "timed out again at the pre-existing 120-second HTTP client limit",
+      "disposition": "Recorded as an adjacent long-scenario timeout; it is not counted as passing evidence and is deferred to the M3 exit live-scenario run."
+    }
+  ],
+  "typescript_and_build": [
+    {
+      "command": "node_modules\\.bin\\bun.exe run typecheck:web",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules\\.bin\\bun.exe run build:web",
+      "result": "passed"
+    },
+    {
+      "command": "Live matrix Bun scenarios for CanonicalProjectionStore, diff/patch review and ApprovalLedger",
+      "result": "3 passed scenarios"
+    }
+  ],
+  "effective_code_gate": {
+    "command": ".venv\\Scripts\\python.exe scripts/audit_m3_s02a01_effective_code_gate.py --target c5fa87cccab900dfaa9b8a4148d8cbd896a04013 --fail-on-gate",
+    "result": "passed",
+    "raw_additions": 12705,
+    "range_effective_production": 8605,
+    "accounted_slice_effective_production": 8561,
+    "minimum": 6000,
+    "margin": 2561
+  },
+  "not_run": {
+    "full_python_repository": "Not run for this ordinary slice; the documented 30-minute incremental budget prioritizes changed and adjacent paths. Full repository execution remains mandatory at the M3 numeric-stage/exit review.",
+    "full_bun_repository": "Not run because no TypeScript production source changed; real affected TypeScript owner scenarios plus Web typecheck/build were run."
+  }
+}

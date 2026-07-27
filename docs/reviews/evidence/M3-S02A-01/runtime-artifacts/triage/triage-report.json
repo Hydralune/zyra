@@ -1,0 +1,124 @@
+{
+  "blocking_cases": [],
+  "cases": [
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "default-path-reachability",
+      "duration_seconds": 0.009874,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "bidirectional-causality",
+      "duration_seconds": 0.008947,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "clean-state-isolation",
+      "duration_seconds": 0.100443,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "llm-control-boundary",
+      "duration_seconds": 0.009628,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "repository-security",
+      "duration_seconds": 0.01154,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "content-security",
+      "duration_seconds": 0.010329,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "code-index-security",
+      "duration_seconds": 0.009796,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "approval-security",
+      "duration_seconds": 0.010681,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    },
+    {
+      "attempts": 1,
+      "blocker_assertions": [],
+      "case_id": "freeze-receipt-preflight",
+      "duration_seconds": 0.006223,
+      "failed_assertions": [],
+      "failure_kind": "",
+      "flaky": false,
+      "remediation": "Repair the failed assertion passed and rerun its generated-input case.",
+      "signature": "",
+      "status": "passed"
+    }
+  ],
+  "digest": "sha256:e3048bcf1c17d7a3800e1df559240178352ecb6740aeab4ce6f336a2b00efffd",
+  "failure_kind_counts": {},
+  "flaky_cases": [],
+  "schema": "zyra.m3-regression-triage/v1",
+  "signatures": [],
+  "slow_cases": [],
+  "status_counts": {
+    "passed": 9
+  },
+  "suite_digest": "sha256:5982ff76eb7bacb4fba6a41bc722a591f6780245f04be11f8a278702ba37de44",
+  "valid": true
+}

@@ -1,0 +1,330 @@
+{
+  "baseline": {
+    "after": [
+      {
+        "digest": "sha256:ffc1551e728906d8f5b9dc756ceb7de44540a86d7cd5bb1064c0ce38a4e248d7",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:e0cb800a5ccda4cb1b2ad7990de082aaa1e40e771898c0bcb28fcb23c261e422",
+            "kind": "file",
+            "mode": 33206,
+            "modified_ns": 1785120654463005800,
+            "relative_path": "subject.cache",
+            "size_bytes": 9
+          }
+        ],
+        "kind": "cache",
+        "root_id": "cache",
+        "sqlite_integrity": {},
+        "total_bytes": 9,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:9966ff9448246fcf19e5c8d0e0bd313fdcc2756d87382f0ed439f561919d152c",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:7c51d493cae59c420ae4eeee79f4ebaaf72c21cd24b8a6eb2ab62df261be6e26",
+            "kind": "sqlite",
+            "mode": 33206,
+            "modified_ns": 1785120654531734800,
+            "relative_path": "subject.db",
+            "size_bytes": 8192
+          }
+        ],
+        "kind": "sqlite",
+        "root_id": "sqlite",
+        "sqlite_integrity": {
+          "subject.db": "ok"
+        },
+        "total_bytes": 8192,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:e6e8d85f97d1d3a86ee4712deaf9eac392e1568d17f73205d391f473c1d19e65",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:b76a7ca153c24671658335bbd08946350ffc621fa1c516e7123095d4ffd5c581",
+            "kind": "index",
+            "mode": 33206,
+            "modified_ns": 1785120654463005800,
+            "relative_path": "subject.idx",
+            "size_bytes": 6
+          }
+        ],
+        "kind": "index",
+        "root_id": "index",
+        "sqlite_integrity": {},
+        "total_bytes": 6,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:2001534ce39a7c6df1cbacc50cb6c49c7f38cd3bb0e24b3c3a3734a64f3925f9",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:4062edaf750fb8074e7e83e0c9028c94e32468a8b6f1614774328ef045150f93",
+            "kind": "file",
+            "mode": 33206,
+            "modified_ns": 1785120654464006000,
+            "relative_path": "subject.json",
+            "size_bytes": 11
+          }
+        ],
+        "kind": "artifacts",
+        "root_id": "artifacts",
+        "sqlite_integrity": {},
+        "total_bytes": 11,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:64ba274119880969410e29eacf92af639a9a1857740b3fbefc9a63feef894533",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:586a866f990ab55e36decfffc2011f172e4452d5141c939a5436baffba11111d",
+            "kind": "file",
+            "mode": 33206,
+            "modified_ns": 1785120654464006000,
+            "relative_path": "subject.build",
+            "size_bytes": 5
+          }
+        ],
+        "kind": "build",
+        "root_id": "build",
+        "sqlite_integrity": {},
+        "total_bytes": 5,
+        "unreadable_paths": []
+      }
+    ],
+    "before": [
+      {
+        "digest": "sha256:bc9447770c1562c855bf72cf57fc845e3b9a55e636d336ae76b518b67d858c7b",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "cache",
+        "root_id": "cache",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:ed2480579b7db508173ae809db6e6363ea72ca36ca2772cb3f809159a2b2e549",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "sqlite",
+        "root_id": "sqlite",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:8490f27954a56a407549b7be7a8a50b340790300c9af5023e6a80bcd784291f7",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "index",
+        "root_id": "index",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:cab8ed56d58bcf056462c62e7bb19909ceb65c8f7c4b08faa2397cbde4880639",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "artifacts",
+        "root_id": "artifacts",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      },
+      {
+        "digest": "sha256:9ef131e27f77af077cea5e7ffba72d1258a22f19f7b8e7dfba0a08d0d881c119",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "build",
+        "root_id": "build",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      }
+    ],
+    "deltas": [
+      {
+        "after_digest": "sha256:ffc1551e728906d8f5b9dc756ceb7de44540a86d7cd5bb1064c0ce38a4e248d7",
+        "allowed_changes": [
+          "subject.cache"
+        ],
+        "before_digest": "sha256:bc9447770c1562c855bf72cf57fc845e3b9a55e636d336ae76b518b67d858c7b",
+        "clean": true,
+        "created": [
+          "subject.cache"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [],
+        "root_id": "cache"
+      },
+      {
+        "after_digest": "sha256:9966ff9448246fcf19e5c8d0e0bd313fdcc2756d87382f0ed439f561919d152c",
+        "allowed_changes": [
+          "subject.db"
+        ],
+        "before_digest": "sha256:ed2480579b7db508173ae809db6e6363ea72ca36ca2772cb3f809159a2b2e549",
+        "clean": true,
+        "created": [
+          "subject.db"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [],
+        "root_id": "sqlite"
+      },
+      {
+        "after_digest": "sha256:e6e8d85f97d1d3a86ee4712deaf9eac392e1568d17f73205d391f473c1d19e65",
+        "allowed_changes": [
+          "subject.idx"
+        ],
+        "before_digest": "sha256:8490f27954a56a407549b7be7a8a50b340790300c9af5023e6a80bcd784291f7",
+        "clean": true,
+        "created": [
+          "subject.idx"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [],
+        "root_id": "index"
+      },
+      {
+        "after_digest": "sha256:2001534ce39a7c6df1cbacc50cb6c49c7f38cd3bb0e24b3c3a3734a64f3925f9",
+        "allowed_changes": [
+          "subject.json"
+        ],
+        "before_digest": "sha256:cab8ed56d58bcf056462c62e7bb19909ceb65c8f7c4b08faa2397cbde4880639",
+        "clean": true,
+        "created": [
+          "subject.json"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [],
+        "root_id": "artifacts"
+      },
+      {
+        "after_digest": "sha256:64ba274119880969410e29eacf92af639a9a1857740b3fbefc9a63feef894533",
+        "allowed_changes": [
+          "subject.build"
+        ],
+        "before_digest": "sha256:9ef131e27f77af077cea5e7ffba72d1258a22f19f7b8e7dfba0a08d0d881c119",
+        "clean": true,
+        "created": [
+          "subject.build"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [],
+        "root_id": "build"
+      }
+    ],
+    "digest": "sha256:3286617398c51c2382b39978eda8a3a6a7f380e31b94eac0c2fd2ef9bc8f52bc",
+    "environment_leaks": [],
+    "fresh_state": true,
+    "generated_input_digest": "sha256:a1170b63aa38c64203babd2f9fbf6696fc647e2b37f8a205e5ecb0452ba4bb44",
+    "schema": "zyra.m3-clean-state-report/v1",
+    "valid": true
+  },
+  "pollution_negative": {
+    "after": [
+      {
+        "digest": "sha256:f9cc5eca4fc37ab65bed8548c08a419e085a598b60d889059bf82cc5e2ca539f",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 1,
+        "files": [
+          {
+            "digest": "sha256:de2c2dcff9ee57e1065a87ba590324ca9b8ca67f204acff7080834a2379236ee",
+            "kind": "file",
+            "mode": 33206,
+            "modified_ns": 1785120654547557200,
+            "relative_path": "hidden-pollution.bin",
+            "size_bytes": 9
+          }
+        ],
+        "kind": "pollution",
+        "root_id": "pollution-probe",
+        "sqlite_integrity": {},
+        "total_bytes": 9,
+        "unreadable_paths": []
+      }
+    ],
+    "before": [
+      {
+        "digest": "sha256:8ca9153522c22b8de37b3a800f12b743a38774375e36f3ae954cb3b70565ded4",
+        "escaped_symlinks": [],
+        "exists": true,
+        "file_count": 0,
+        "files": [],
+        "kind": "pollution",
+        "root_id": "pollution-probe",
+        "sqlite_integrity": {},
+        "total_bytes": 0,
+        "unreadable_paths": []
+      }
+    ],
+    "deltas": [
+      {
+        "after_digest": "sha256:f9cc5eca4fc37ab65bed8548c08a419e085a598b60d889059bf82cc5e2ca539f",
+        "allowed_changes": [],
+        "before_digest": "sha256:8ca9153522c22b8de37b3a800f12b743a38774375e36f3ae954cb3b70565ded4",
+        "clean": false,
+        "created": [
+          "hidden-pollution.bin"
+        ],
+        "deleted": [],
+        "metadata_only": [],
+        "modified": [],
+        "pollution": [
+          "hidden-pollution.bin"
+        ],
+        "root_id": "pollution-probe"
+      }
+    ],
+    "digest": "sha256:c1df4b5ef691f252abf098f926339d574d737b0fd55fe4b69d303d80365d2e32",
+    "environment_leaks": [],
+    "fresh_state": true,
+    "generated_input_digest": "sha256:f61abf452f4dc02191f539632ba2c8803db5b380b84a8cb0606cf523f9fb9f01",
+    "schema": "zyra.m3-clean-state-report/v1",
+    "valid": false
+  },
+  "subject_result": {
+    "generated": true,
+    "sqlite": "subject.db"
+  }
+}

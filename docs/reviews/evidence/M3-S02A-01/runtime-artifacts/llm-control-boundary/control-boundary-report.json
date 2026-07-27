@@ -1,0 +1,202 @@
+{
+  "assertions": [
+    {
+      "assertion_id": "control-boundary.baseline-valid",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.baseline"
+      ],
+      "failure_kind": "assertion",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "all four control domains must have deterministic Zyra-owned receipts"
+    },
+    {
+      "assertion_id": "control-boundary.reject-forged_owner",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.forged_owner"
+      ],
+      "failure_kind": "security",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "forged_owner control-boundary mutation must be rejected"
+    },
+    {
+      "assertion_id": "control-boundary.reject-nondeterministic",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.nondeterministic"
+      ],
+      "failure_kind": "security",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "nondeterministic control-boundary mutation must be rejected"
+    },
+    {
+      "assertion_id": "control-boundary.reject-missing_rule",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.missing_rule"
+      ],
+      "failure_kind": "security",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "missing_rule control-boundary mutation must be rejected"
+    },
+    {
+      "assertion_id": "control-boundary.reject-cross_run",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.cross_run"
+      ],
+      "failure_kind": "security",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "cross_run control-boundary mutation must be rejected"
+    },
+    {
+      "assertion_id": "control-boundary.reject-direct_suggestion",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "control-boundary.direct_suggestion"
+      ],
+      "failure_kind": "security",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "direct_suggestion control-boundary mutation must be rejected"
+    }
+  ],
+  "case_id": "llm-control-boundary",
+  "input_digest": "sha256:0bb05481aa0cc97fa72ab4ef267d8d2bd91e571bea5ce2d8609287c603657184",
+  "observations": [
+    {
+      "attributes": {
+        "domain_counts": {
+          "compact": 1,
+          "permission": 1,
+          "recovery": 1,
+          "scheduler": 1
+        },
+        "owner_counts": {
+          "MessageManagerRuntime": 1,
+          "RecoveryPlannerRuntime": 1,
+          "ResourceSchedulerRuntime": 1,
+          "ToolPermissionRuntime": 1
+        },
+        "report_digest": "sha256:b234e1147082667de3ae27d9af56ba552d7f790610e6c4fd20b447dda9ec2beb"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272029,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "control",
+      "observation_id": "control-boundary.baseline",
+      "run_id": "",
+      "started_monotonic": 47343.272029,
+      "status": "deterministic",
+      "subject": "permission-scheduler-recovery-compact"
+    },
+    {
+      "attributes": {
+        "finding_codes": [
+          "owner_invalid"
+        ],
+        "report_digest": "sha256:a1ae8ec38abecd88a250f2ea17cca31544417c9374add67b3cf25e3b4769857e"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272153,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "control-boundary.forged_owner",
+      "run_id": "",
+      "started_monotonic": 47343.272153,
+      "status": "mutation-rejected",
+      "subject": "llm-boundary-negative:forged_owner"
+    },
+    {
+      "attributes": {
+        "finding_codes": [
+          "nondeterministic_receipt"
+        ],
+        "report_digest": "sha256:30ffcc9a70d8d74de7c4bcd9fdeb39b599141c57c7dfb7e2882e1aaa5e6faa0c"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272171,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "control-boundary.nondeterministic",
+      "run_id": "",
+      "started_monotonic": 47343.272171,
+      "status": "mutation-rejected",
+      "subject": "llm-boundary-negative:nondeterministic"
+    },
+    {
+      "attributes": {
+        "finding_codes": [
+          "rule_id_missing",
+          "policy_digest_missing"
+        ],
+        "report_digest": "sha256:340d98a15310af6a6646ba2fdb834b2cb4d1211345d6c3c1502aab97e0f15dbf"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272184,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "control-boundary.missing_rule",
+      "run_id": "",
+      "started_monotonic": 47343.272184,
+      "status": "mutation-rejected",
+      "subject": "llm-boundary-negative:missing_rule"
+    },
+    {
+      "attributes": {
+        "finding_codes": [
+          "cross_run_suggestion"
+        ],
+        "report_digest": "sha256:f001874f1dd7c451848611eafb93850dea57b28de031478fa7f26902e35a58b4"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272196,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "control-boundary.cross_run",
+      "run_id": "",
+      "started_monotonic": 47343.272196,
+      "status": "mutation-rejected",
+      "subject": "llm-boundary-negative:cross_run"
+    },
+    {
+      "attributes": {
+        "finding_codes": [
+          "owner_invalid",
+          "model_output_used_as_rule_input",
+          "model_rule_owner"
+        ],
+        "report_digest": "sha256:18bb35de26db0b7eba92556bafc5f353ed13c5d4159699a3e02ba46097654db3"
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.272207,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "control-boundary.direct_suggestion",
+      "run_id": "",
+      "started_monotonic": 47343.272207,
+      "status": "mutation-rejected",
+      "subject": "llm-boundary-negative:direct_suggestion"
+    }
+  ],
+  "schema": "zyra.m3-regression-campaign-summary/v1",
+  "valid": true
+}

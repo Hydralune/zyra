@@ -1,0 +1,2243 @@
+{
+  "accounted_effective_production": 8561,
+  "audit_tool_is_nonproduction": true,
+  "gate": {
+    "blockers": [],
+    "effective": 8561,
+    "margin": 2561,
+    "minimum": 6000,
+    "ok": true
+  },
+  "large_file_audit": [
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 561,
+      "line_count": 784,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/approval_security.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 13,
+      "symbols": [
+        {
+          "end": 27,
+          "kind": "ClassDef",
+          "lines": 7,
+          "methods": [],
+          "name": "ApprovalEffect",
+          "start": 21
+        },
+        {
+          "end": 37,
+          "kind": "ClassDef",
+          "lines": 8,
+          "methods": [],
+          "name": "ApprovalPhase",
+          "start": 30
+        },
+        {
+          "end": 96,
+          "kind": "ClassDef",
+          "lines": 56,
+          "methods": [
+            "digest",
+            "to_dict"
+          ],
+          "name": "ApprovalChallenge",
+          "start": 41
+        },
+        {
+          "end": 146,
+          "kind": "ClassDef",
+          "lines": 47,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "ApprovalObservation",
+          "start": 100
+        },
+        {
+          "end": 162,
+          "kind": "ClassDef",
+          "lines": 13,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "ApprovalFinding",
+          "start": 150
+        },
+        {
+          "end": 206,
+          "kind": "ClassDef",
+          "lines": 41,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "ApprovalSecurityReport",
+          "start": 166
+        },
+        {
+          "end": 225,
+          "kind": "ClassDef",
+          "lines": 17,
+          "methods": [
+            "resolve",
+            "snapshot",
+            "restore"
+          ],
+          "name": "ApprovalSubject",
+          "start": 209
+        },
+        {
+          "end": 259,
+          "kind": "ClassDef",
+          "lines": 31,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "ConcurrencyProbeReceipt",
+          "start": 229
+        },
+        {
+          "end": 328,
+          "kind": "ClassDef",
+          "lines": 67,
+          "methods": [
+            "__init__",
+            "execute"
+          ],
+          "name": "ApprovalConcurrencyProbe",
+          "start": 262
+        },
+        {
+          "end": 637,
+          "kind": "ClassDef",
+          "lines": 307,
+          "methods": [
+            "audit",
+            "mutation_campaign",
+            "_observation_findings",
+            "_lifecycle_findings",
+            "_finding"
+          ],
+          "name": "ApprovalSecurityAuditor",
+          "start": 331
+        },
+        {
+          "end": 662,
+          "kind": "FunctionDef",
+          "lines": 23,
+          "methods": [],
+          "name": "approval_challenges_from_mappings",
+          "start": 640
+        },
+        {
+          "end": 697,
+          "kind": "FunctionDef",
+          "lines": 33,
+          "methods": [],
+          "name": "approval_observations_from_mappings",
+          "start": 665
+        },
+        {
+          "end": 767,
+          "kind": "FunctionDef",
+          "lines": 68,
+          "methods": [],
+          "name": "evaluate_approval_security",
+          "start": 700
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 560,
+      "line_count": 705,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/causality.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 8,
+      "symbols": [
+        {
+          "end": 26,
+          "kind": "ClassDef",
+          "lines": 9,
+          "methods": [],
+          "name": "FactKind",
+          "start": 18
+        },
+        {
+          "end": 40,
+          "kind": "ClassDef",
+          "lines": 12,
+          "methods": [],
+          "name": "LinkDisposition",
+          "start": 29
+        },
+        {
+          "end": 127,
+          "kind": "ClassDef",
+          "lines": 74,
+          "methods": [
+            "__post_init__",
+            "changed_state",
+            "effectful",
+            "to_dict"
+          ],
+          "name": "CausalFact",
+          "start": 54
+        },
+        {
+          "end": 150,
+          "kind": "ClassDef",
+          "lines": 20,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "CausalLink",
+          "start": 131
+        },
+        {
+          "end": 188,
+          "kind": "ClassDef",
+          "lines": 35,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "CausalityReport",
+          "start": 154
+        },
+        {
+          "end": 365,
+          "kind": "ClassDef",
+          "lines": 175,
+          "methods": [
+            "normalize_many",
+            "normalize",
+            "_kind",
+            "_first_nested",
+            "_integer"
+          ],
+          "name": "FactNormalizer",
+          "start": 191
+        },
+        {
+          "end": 639,
+          "kind": "ClassDef",
+          "lines": 272,
+          "methods": [
+            "__init__",
+            "audit",
+            "audit_mappings",
+            "mutation_campaign",
+            "_link",
+            "_references",
+            "_expects_effect",
+            "_sequence_regressions"
+          ],
+          "name": "BidirectionalCausalityAuditor",
+          "start": 368
+        },
+        {
+          "end": 693,
+          "kind": "FunctionDef",
+          "lines": 52,
+          "methods": [],
+          "name": "evaluate_causality_campaign",
+          "start": 642
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 428,
+      "line_count": 575,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/clean_state.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 9,
+      "symbols": [
+        {
+          "end": 20,
+          "kind": "ClassDef",
+          "lines": 2,
+          "methods": [],
+          "name": "CleanStateError",
+          "start": 19
+        },
+        {
+          "end": 49,
+          "kind": "ClassDef",
+          "lines": 26,
+          "methods": [
+            "__post_init__"
+          ],
+          "name": "StateRoot",
+          "start": 24
+        },
+        {
+          "end": 69,
+          "kind": "ClassDef",
+          "lines": 17,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "StateFile",
+          "start": 53
+        },
+        {
+          "end": 99,
+          "kind": "ClassDef",
+          "lines": 27,
+          "methods": [
+            "file_map",
+            "to_dict"
+          ],
+          "name": "StateSnapshot",
+          "start": 73
+        },
+        {
+          "end": 130,
+          "kind": "ClassDef",
+          "lines": 28,
+          "methods": [
+            "clean",
+            "to_dict"
+          ],
+          "name": "StateDelta",
+          "start": 103
+        },
+        {
+          "end": 169,
+          "kind": "ClassDef",
+          "lines": 36,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "CleanStateReport",
+          "start": 134
+        },
+        {
+          "end": 391,
+          "kind": "ClassDef",
+          "lines": 220,
+          "methods": [
+            "__init__",
+            "snapshot",
+            "compare",
+            "_digest",
+            "_kind",
+            "_looks_like_sqlite",
+            "_sqlite_integrity",
+            "_is_allowed"
+          ],
+          "name": "StateFingerprinter",
+          "start": 172
+        },
+        {
+          "end": 498,
+          "kind": "ClassDef",
+          "lines": 105,
+          "methods": [
+            "__init__",
+            "__enter__",
+            "__exit__",
+            "require_report",
+            "_root",
+            "_environment_leaks"
+          ],
+          "name": "CleanStateGuard",
+          "start": 394
+        },
+        {
+          "end": 562,
+          "kind": "ClassDef",
+          "lines": 62,
+          "methods": [
+            "__init__",
+            "create",
+            "state_roots",
+            "environment",
+            "cleanup"
+          ],
+          "name": "IsolatedStateFactory",
+          "start": 501
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 407,
+      "line_count": 560,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/code_index_security.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 8,
+      "symbols": [
+        {
+          "end": 27,
+          "kind": "ClassDef",
+          "lines": 10,
+          "methods": [],
+          "name": "IndexPhase",
+          "start": 18
+        },
+        {
+          "end": 52,
+          "kind": "ClassDef",
+          "lines": 22,
+          "methods": [
+            "__post_init__",
+            "to_dict"
+          ],
+          "name": "IndexBudget",
+          "start": 31
+        },
+        {
+          "end": 127,
+          "kind": "ClassDef",
+          "lines": 72,
+          "methods": [
+            "budget_valid",
+            "generation_advanced",
+            "to_dict"
+          ],
+          "name": "CodeIndexObservation",
+          "start": 56
+        },
+        {
+          "end": 143,
+          "kind": "ClassDef",
+          "lines": 13,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "IndexFinding",
+          "start": 131
+        },
+        {
+          "end": 191,
+          "kind": "ClassDef",
+          "lines": 45,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "CodeIndexSecurityReport",
+          "start": 147
+        },
+        {
+          "end": 450,
+          "kind": "ClassDef",
+          "lines": 257,
+          "methods": [
+            "audit",
+            "mutation_campaign",
+            "_observation_findings",
+            "_sequence_findings",
+            "_finding"
+          ],
+          "name": "CodeIndexSecurityAuditor",
+          "start": 194
+        },
+        {
+          "end": 499,
+          "kind": "FunctionDef",
+          "lines": 47,
+          "methods": [],
+          "name": "code_index_observations_from_mappings",
+          "start": 453
+        },
+        {
+          "end": 548,
+          "kind": "FunctionDef",
+          "lines": 47,
+          "methods": [],
+          "name": "evaluate_code_index_security",
+          "start": 502
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 544,
+      "line_count": 697,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/content_security.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 12,
+      "symbols": [
+        {
+          "end": 29,
+          "kind": "ClassDef",
+          "lines": 9,
+          "methods": [],
+          "name": "ContentSurface",
+          "start": 21
+        },
+        {
+          "end": 36,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "TrustLevel",
+          "start": 32
+        },
+        {
+          "end": 43,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "AdmissionEffect",
+          "start": 39
+        },
+        {
+          "end": 76,
+          "kind": "ClassDef",
+          "lines": 30,
+          "methods": [
+            "content_digest",
+            "to_dict"
+          ],
+          "name": "ContentEnvelope",
+          "start": 47
+        },
+        {
+          "end": 113,
+          "kind": "ClassDef",
+          "lines": 34,
+          "methods": [
+            "changed",
+            "to_dict"
+          ],
+          "name": "ContentAdmission",
+          "start": 80
+        },
+        {
+          "end": 129,
+          "kind": "ClassDef",
+          "lines": 13,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "ContentFinding",
+          "start": 117
+        },
+        {
+          "end": 168,
+          "kind": "ClassDef",
+          "lines": 36,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "ContentSecurityReport",
+          "start": 133
+        },
+        {
+          "end": 214,
+          "kind": "ClassDef",
+          "lines": 44,
+          "methods": [
+            "detect",
+            "_text"
+          ],
+          "name": "InjectionDetector",
+          "start": 171
+        },
+        {
+          "end": 582,
+          "kind": "ClassDef",
+          "lines": 366,
+          "methods": [
+            "__init__",
+            "audit",
+            "mutation_campaign",
+            "_admission_findings",
+            "_finding",
+            "_text"
+          ],
+          "name": "ContentSecurityAuditor",
+          "start": 217
+        },
+        {
+          "end": 605,
+          "kind": "FunctionDef",
+          "lines": 21,
+          "methods": [],
+          "name": "content_envelopes_from_mappings",
+          "start": 585
+        },
+        {
+          "end": 626,
+          "kind": "FunctionDef",
+          "lines": 19,
+          "methods": [],
+          "name": "content_admissions_from_mappings",
+          "start": 608
+        },
+        {
+          "end": 681,
+          "kind": "FunctionDef",
+          "lines": 53,
+          "methods": [],
+          "name": "evaluate_content_security",
+          "start": 629
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 426,
+      "line_count": 764,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/contracts.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 24,
+      "symbols": [
+        {
+          "end": 24,
+          "kind": "ClassDef",
+          "lines": 2,
+          "methods": [],
+          "name": "ContractError",
+          "start": 23
+        },
+        {
+          "end": 34,
+          "kind": "ClassDef",
+          "lines": 8,
+          "methods": [],
+          "name": "CaseStatus",
+          "start": 27
+        },
+        {
+          "end": 41,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "AssertionSeverity",
+          "start": 37
+        },
+        {
+          "end": 48,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "IsolationMode",
+          "start": 44
+        },
+        {
+          "end": 59,
+          "kind": "ClassDef",
+          "lines": 9,
+          "methods": [],
+          "name": "FailureKind",
+          "start": 51
+        },
+        {
+          "end": 75,
+          "kind": "ClassDef",
+          "lines": 14,
+          "methods": [],
+          "name": "ObservationKind",
+          "start": 62
+        },
+        {
+          "end": 79,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "methods": [],
+          "name": "utc_now",
+          "start": 78
+        },
+        {
+          "end": 89,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "methods": [],
+          "name": "canonical_json",
+          "start": 82
+        },
+        {
+          "end": 94,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "methods": [],
+          "name": "stable_digest",
+          "start": 92
+        },
+        {
+          "end": 101,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "methods": [],
+          "name": "bounded_text",
+          "start": 97
+        },
+        {
+          "end": 108,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "methods": [],
+          "name": "validate_identifier",
+          "start": 104
+        },
+        {
+          "end": 121,
+          "kind": "FunctionDef",
+          "lines": 11,
+          "methods": [],
+          "name": "validate_relative_path",
+          "start": 111
+        },
+        {
+          "end": 131,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "methods": [],
+          "name": "_json_default",
+          "start": 124
+        },
+        {
+          "end": 160,
+          "kind": "FunctionDef",
+          "lines": 27,
+          "methods": [],
+          "name": "_public_mapping",
+          "start": 134
+        },
+        {
+          "end": 194,
+          "kind": "ClassDef",
+          "lines": 31,
+          "methods": [
+            "__post_init__",
+            "to_dict"
+          ],
+          "name": "ArtifactDeclaration",
+          "start": 164
+        },
+        {
+          "end": 299,
+          "kind": "ClassDef",
+          "lines": 102,
+          "methods": [
+            "__post_init__",
+            "identity",
+            "digest",
+            "to_dict"
+          ],
+          "name": "CaseSpec",
+          "start": 198
+        },
+        {
+          "end": 344,
+          "kind": "ClassDef",
+          "lines": 42,
+          "methods": [
+            "__post_init__",
+            "duration_seconds",
+            "to_dict"
+          ],
+          "name": "Observation",
+          "start": 303
+        },
+        {
+          "end": 382,
+          "kind": "ClassDef",
+          "lines": 35,
+          "methods": [
+            "__post_init__",
+            "blocking",
+            "to_dict"
+          ],
+          "name": "AssertionResult",
+          "start": 348
+        },
+        {
+          "end": 410,
+          "kind": "ClassDef",
+          "lines": 25,
+          "methods": [
+            "__post_init__",
+            "to_dict"
+          ],
+          "name": "ArtifactReceipt",
+          "start": 386
+        },
+        {
+          "end": 477,
+          "kind": "ClassDef",
+          "lines": 64,
+          "methods": [
+            "passed",
+            "validate",
+            "to_dict"
+          ],
+          "name": "AttemptReceipt",
+          "start": 414
+        },
+        {
+          "end": 534,
+          "kind": "ClassDef",
+          "lines": 54,
+          "methods": [
+            "__post_init__",
+            "final_attempt",
+            "status",
+            "passed",
+            "digest",
+            "material",
+            "to_dict"
+          ],
+          "name": "CaseReceipt",
+          "start": 481
+        },
+        {
+          "end": 586,
+          "kind": "ClassDef",
+          "lines": 49,
+          "methods": [
+            "__post_init__",
+            "to_dict"
+          ],
+          "name": "SuiteProfile",
+          "start": 538
+        },
+        {
+          "end": 654,
+          "kind": "ClassDef",
+          "lines": 65,
+          "methods": [
+            "__post_init__",
+            "passed",
+            "status_counts",
+            "digest",
+            "material",
+            "to_dict",
+            "verify_digest"
+          ],
+          "name": "SuiteReceipt",
+          "start": 590
+        },
+        {
+          "end": 737,
+          "kind": "ClassDef",
+          "lines": 80,
+          "methods": [
+            "observe",
+            "assert_that",
+            "renamed"
+          ],
+          "name": "CaseExecutionBuffer",
+          "start": 658
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 415,
+      "line_count": 568,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/control_boundary.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 9,
+      "symbols": [
+        {
+          "end": 22,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "ControlDomain",
+          "start": 18
+        },
+        {
+          "end": 35,
+          "kind": "ClassDef",
+          "lines": 11,
+          "methods": [],
+          "name": "ControlEffect",
+          "start": 25
+        },
+        {
+          "end": 76,
+          "kind": "ClassDef",
+          "lines": 38,
+          "methods": [
+            "digest",
+            "to_dict"
+          ],
+          "name": "LlmSuggestion",
+          "start": 39
+        },
+        {
+          "end": 124,
+          "kind": "ClassDef",
+          "lines": 45,
+          "methods": [
+            "state_changed",
+            "to_dict"
+          ],
+          "name": "ControlReceipt",
+          "start": 80
+        },
+        {
+          "end": 144,
+          "kind": "ClassDef",
+          "lines": 17,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "BoundaryFinding",
+          "start": 128
+        },
+        {
+          "end": 174,
+          "kind": "ClassDef",
+          "lines": 27,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "ControlBoundaryReport",
+          "start": 148
+        },
+        {
+          "end": 475,
+          "kind": "ClassDef",
+          "lines": 299,
+          "methods": [
+            "audit",
+            "mutation_campaign",
+            "_validate_receipt",
+            "_finding"
+          ],
+          "name": "ControlBoundaryAuditor",
+          "start": 177
+        },
+        {
+          "end": 507,
+          "kind": "FunctionDef",
+          "lines": 30,
+          "methods": [],
+          "name": "control_receipts_from_mappings",
+          "start": 478
+        },
+        {
+          "end": 555,
+          "kind": "FunctionDef",
+          "lines": 46,
+          "methods": [],
+          "name": "evaluate_control_boundary",
+          "start": 510
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 461,
+      "line_count": 673,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/default_path.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 13,
+      "symbols": [
+        {
+          "end": 23,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "methods": [],
+          "name": "_slug",
+          "start": 21
+        },
+        {
+          "end": 30,
+          "kind": "ClassDef",
+          "lines": 5,
+          "methods": [],
+          "name": "EntryKind",
+          "start": 26
+        },
+        {
+          "end": 41,
+          "kind": "ClassDef",
+          "lines": 9,
+          "methods": [],
+          "name": "ProbePhase",
+          "start": 33
+        },
+        {
+          "end": 79,
+          "kind": "ClassDef",
+          "lines": 35,
+          "methods": [
+            "mutated_state",
+            "to_dict"
+          ],
+          "name": "PathStep",
+          "start": 45
+        },
+        {
+          "end": 112,
+          "kind": "ClassDef",
+          "lines": 30,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "DisableOutcome",
+          "start": 83
+        },
+        {
+          "end": 150,
+          "kind": "ClassDef",
+          "lines": 35,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "MutationOutcome",
+          "start": 116
+        },
+        {
+          "end": 206,
+          "kind": "ClassDef",
+          "lines": 53,
+          "methods": [
+            "reached_owner",
+            "committed_effect",
+            "valid",
+            "to_dict"
+          ],
+          "name": "EntryTrace",
+          "start": 154
+        },
+        {
+          "end": 246,
+          "kind": "ClassDef",
+          "lines": 37,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "DefaultPathReport",
+          "start": 210
+        },
+        {
+          "end": 268,
+          "kind": "ClassDef",
+          "lines": 20,
+          "methods": [
+            "execute",
+            "disable_owner",
+            "mutate"
+          ],
+          "name": "EntrypointProbe",
+          "start": 249
+        },
+        {
+          "end": 351,
+          "kind": "ClassDef",
+          "lines": 81,
+          "methods": [
+            "__init__",
+            "audit"
+          ],
+          "name": "DefaultPathAuditor",
+          "start": 271
+        },
+        {
+          "end": 470,
+          "kind": "ClassDef",
+          "lines": 117,
+          "methods": [
+            "__init__",
+            "execute",
+            "disable_owner",
+            "mutate",
+            "_trace"
+          ],
+          "name": "CallbackEntrypointProbe",
+          "start": 354
+        },
+        {
+          "end": 574,
+          "kind": "ClassDef",
+          "lines": 102,
+          "methods": [
+            "__init__",
+            "execute"
+          ],
+          "name": "DefaultPathCampaign",
+          "start": 473
+        },
+        {
+          "end": 657,
+          "kind": "FunctionDef",
+          "lines": 81,
+          "methods": [],
+          "name": "synthetic_trace_from_owner_events",
+          "start": 577
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 626,
+      "line_count": 701,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/freeze_gate.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 3,
+      "symbols": [
+        {
+          "end": 54,
+          "kind": "ClassDef",
+          "lines": 18,
+          "methods": [
+            "blocking",
+            "to_dict"
+          ],
+          "name": "AdmissionFinding",
+          "start": 37
+        },
+        {
+          "end": 92,
+          "kind": "ClassDef",
+          "lines": 35,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "FreezeAdmissionReport",
+          "start": 58
+        },
+        {
+          "end": 693,
+          "kind": "ClassDef",
+          "lines": 599,
+          "methods": [
+            "__init__",
+            "verify_file",
+            "verify_payload",
+            "_live_matrix",
+            "_suite_digest",
+            "_case_digest",
+            "_positive_fallback",
+            "_prerequisite",
+            "_revision"
+          ],
+          "name": "RegressionFreezeGate",
+          "start": 95
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 732,
+      "line_count": 868,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/live_matrix.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 9,
+      "symbols": [
+        {
+          "end": 27,
+          "kind": "ClassDef",
+          "lines": 2,
+          "methods": [],
+          "name": "LiveMatrixError",
+          "start": 26
+        },
+        {
+          "end": 125,
+          "kind": "ClassDef",
+          "lines": 95,
+          "methods": [
+            "__post_init__",
+            "digest",
+            "to_dict"
+          ],
+          "name": "LiveScenarioSpec",
+          "start": 31
+        },
+        {
+          "end": 201,
+          "kind": "ClassDef",
+          "lines": 73,
+          "methods": [
+            "passed",
+            "digest",
+            "material",
+            "to_dict"
+          ],
+          "name": "LiveScenarioReceipt",
+          "start": 129
+        },
+        {
+          "end": 262,
+          "kind": "ClassDef",
+          "lines": 58,
+          "methods": [
+            "passed",
+            "digest",
+            "material",
+            "to_dict"
+          ],
+          "name": "LiveMatrixReceipt",
+          "start": 205
+        },
+        {
+          "end": 322,
+          "kind": "ClassDef",
+          "lines": 58,
+          "methods": [
+            "__init__",
+            "register",
+            "digest",
+            "select",
+            "describe"
+          ],
+          "name": "LiveMatrixRegistry",
+          "start": 265
+        },
+        {
+          "end": 613,
+          "kind": "ClassDef",
+          "lines": 289,
+          "methods": [
+            "__init__",
+            "cancel",
+            "run",
+            "_run_one",
+            "_working_tree",
+            "_revision",
+            "_diagnostic_excerpt"
+          ],
+          "name": "LiveRegressionMatrixRunner",
+          "start": 325
+        },
+        {
+          "end": 628,
+          "kind": "FunctionDef",
+          "lines": 13,
+          "methods": [],
+          "name": "resolve_bun",
+          "start": 616
+        },
+        {
+          "end": 764,
+          "kind": "FunctionDef",
+          "lines": 134,
+          "methods": [],
+          "name": "default_live_registry",
+          "start": 631
+        },
+        {
+          "end": 854,
+          "kind": "FunctionDef",
+          "lines": 88,
+          "methods": [],
+          "name": "verify_live_matrix_payload",
+          "start": 767
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 951,
+      "line_count": 1074,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/orchestrator.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 7,
+      "symbols": [
+        {
+          "end": 41,
+          "kind": "ClassDef",
+          "lines": 2,
+          "methods": [],
+          "name": "OrchestrationError",
+          "start": 40
+        },
+        {
+          "end": 65,
+          "kind": "ClassDef",
+          "lines": 21,
+          "methods": [
+            "__post_init__"
+          ],
+          "name": "ProcessRequest",
+          "start": 45
+        },
+        {
+          "end": 105,
+          "kind": "ClassDef",
+          "lines": 37,
+          "methods": [
+            "passed",
+            "to_dict"
+          ],
+          "name": "ProcessReceipt",
+          "start": 69
+        },
+        {
+          "end": 346,
+          "kind": "ClassDef",
+          "lines": 239,
+          "methods": [
+            "__init__",
+            "run",
+            "_drain",
+            "_resolve_executable",
+            "_environment",
+            "_terminate",
+            "_kill",
+            "_signal_tree"
+          ],
+          "name": "BoundedProcessRunner",
+          "start": 108
+        },
+        {
+          "end": 396,
+          "kind": "ClassDef",
+          "lines": 47,
+          "methods": [
+            "require_active",
+            "process"
+          ],
+          "name": "CaseContext",
+          "start": 350
+        },
+        {
+          "end": 435,
+          "kind": "ClassDef",
+          "lines": 36,
+          "methods": [
+            "build"
+          ],
+          "name": "OrchestratorConfig",
+          "start": 400
+        },
+        {
+          "end": 1063,
+          "kind": "ClassDef",
+          "lines": 626,
+          "methods": [
+            "__init__",
+            "cancel",
+            "execute",
+            "_run_layer",
+            "_run_case",
+            "_execute_attempt",
+            "_merge_mapping_result",
+            "_assert_required_semantics",
+            "_assertion_failure_kind",
+            "_classify_exception",
+            "_retryable",
+            "_blocked_receipt",
+            "_cancelled_receipt",
+            "_internal_failure_receipt",
+            "_status_attempt",
+            "_revision",
+            "_write_suite_receipt"
+          ],
+          "name": "RegressionOrchestrator",
+          "start": 438
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 575,
+      "line_count": 731,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/repository_security.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 11,
+      "symbols": [
+        {
+          "end": 26,
+          "kind": "ClassDef",
+          "lines": 7,
+          "methods": [],
+          "name": "RepositoryRisk",
+          "start": 20
+        },
+        {
+          "end": 32,
+          "kind": "ClassDef",
+          "lines": 4,
+          "methods": [],
+          "name": "FrictionEffect",
+          "start": 29
+        },
+        {
+          "end": 40,
+          "kind": "ClassDef",
+          "lines": 6,
+          "methods": [],
+          "name": "PatchPhase",
+          "start": 35
+        },
+        {
+          "end": 62,
+          "kind": "ClassDef",
+          "lines": 19,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "GitAssessment",
+          "start": 44
+        },
+        {
+          "end": 272,
+          "kind": "ClassDef",
+          "lines": 208,
+          "methods": [
+            "classify",
+            "_argv",
+            "_strip_global_options",
+            "_key"
+          ],
+          "name": "GitCommandClassifier",
+          "start": 65
+        },
+        {
+          "end": 329,
+          "kind": "ClassDef",
+          "lines": 54,
+          "methods": [
+            "stale",
+            "changed",
+            "to_dict"
+          ],
+          "name": "PatchReceiptObservation",
+          "start": 276
+        },
+        {
+          "end": 345,
+          "kind": "ClassDef",
+          "lines": 13,
+          "methods": [
+            "to_dict"
+          ],
+          "name": "RepositoryFinding",
+          "start": 333
+        },
+        {
+          "end": 381,
+          "kind": "ClassDef",
+          "lines": 33,
+          "methods": [
+            "valid",
+            "to_dict"
+          ],
+          "name": "RepositorySecurityReport",
+          "start": 349
+        },
+        {
+          "end": 624,
+          "kind": "ClassDef",
+          "lines": 241,
+          "methods": [
+            "audit",
+            "mutation_campaign",
+            "_patch_findings",
+            "_transaction_findings"
+          ],
+          "name": "RepositorySecurityAuditor",
+          "start": 384
+        },
+        {
+          "end": 662,
+          "kind": "FunctionDef",
+          "lines": 36,
+          "methods": [],
+          "name": "patch_observations_from_mappings",
+          "start": 627
+        },
+        {
+          "end": 716,
+          "kind": "FunctionDef",
+          "lines": 52,
+          "methods": [],
+          "name": "evaluate_repository_security",
+          "start": 665
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one regression domain, its deterministic findings and its negative-input failure paths.",
+      "effective_production": 697,
+      "line_count": 796,
+      "path": "packages/evaluation/zyra_evaluation/regression_hardening/service.py",
+      "split_assessment": "Kept cohesive because splitting state validation from its mutation campaign would duplicate invariants and weaken receipt causality.",
+      "symbol_count": 10,
+      "symbols": [
+        {
+          "end": 67,
+          "kind": "ClassDef",
+          "lines": 3,
+          "methods": [
+            "__call__"
+          ],
+          "name": "CleanStateSubject",
+          "start": 65
+        },
+        {
+          "end": 73,
+          "kind": "ClassDef",
+          "lines": 3,
+          "methods": [],
+          "name": "ControlCampaignInput",
+          "start": 71
+        },
+        {
+          "end": 80,
+          "kind": "ClassDef",
+          "lines": 4,
+          "methods": [],
+          "name": "RepositoryCampaignInput",
+          "start": 77
+        },
+        {
+          "end": 87,
+          "kind": "ClassDef",
+          "lines": 4,
+          "methods": [],
+          "name": "ContentCampaignInput",
+          "start": 84
+        },
+        {
+          "end": 94,
+          "kind": "ClassDef",
+          "lines": 4,
+          "methods": [],
+          "name": "ApprovalCampaignInput",
+          "start": 91
+        },
+        {
+          "end": 122,
+          "kind": "ClassDef",
+          "lines": 25,
+          "methods": [
+            "capability_map"
+          ],
+          "name": "SubjectPorts",
+          "start": 98
+        },
+        {
+          "end": 144,
+          "kind": "ClassDef",
+          "lines": 19,
+          "methods": [
+            "passed",
+            "to_dict"
+          ],
+          "name": "RegressionRunResult",
+          "start": 126
+        },
+        {
+          "end": 759,
+          "kind": "ClassDef",
+          "lines": 613,
+          "methods": [
+            "__init__",
+            "run",
+            "cancel",
+            "describe",
+            "_registry",
+            "_default_path_case",
+            "_causality_case",
+            "_clean_state_case",
+            "_control_boundary_case",
+            "_repository_security_case",
+            "_content_security_case",
+            "_code_index_security_case",
+            "_approval_security_case",
+            "_freeze_preflight_case",
+            "_write_buffer_report",
+            "_generated_inputs"
+          ],
+          "name": "RegressionHardeningService",
+          "start": 147
+        },
+        {
+          "end": 770,
+          "kind": "FunctionDef",
+          "lines": 9,
+          "methods": [],
+          "name": "smoke_profile",
+          "start": 762
+        },
+        {
+          "end": 780,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "methods": [],
+          "name": "full_profile",
+          "start": 773
+        }
+      ]
+    }
+  ],
+  "method": {
+    "baseline": "42f760229588aba917c7283b841587afc7142b0b",
+    "effective": "production regression orchestration, live/disable/clean/security verification and freeze reporting only",
+    "python": "AST/token exclusion of Protocol, dataclass/enum fields, DTO mapping, schema constants, comments and blank lines",
+    "raw": "target-side added lines from git diff --unified=0",
+    "target": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+    "tests_docs_scripts_count_toward_minimum": false
+  },
+  "parent_unit": "M3-02A",
+  "schema": "zyra.effective-code-language-gate-audit/v1",
+  "slice": {
+    "allowed_implementation_commits": [],
+    "base": "42f760229588aba917c7283b841587afc7142b0b",
+    "by_source_role_and_language": [
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 916,
+        "source_role": "behavior_verification",
+        "test": 916
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 248,
+        "language": "markdown",
+        "production": 0,
+        "raw_additions": 248,
+        "source_role": "evidence_or_documentation",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 324,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 324,
+        "source_role": "nonproduction_gate_or_verifier",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 190,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 190,
+        "source_role": "public_exports",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "toml",
+        "production": 1,
+        "raw_additions": 1,
+        "source_role": "slice_supporting_configuration",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 2,
+        "language": "python",
+        "production": 43,
+        "raw_additions": 45,
+        "source_role": "zyra_owned_clean_sqlite_lifecycle",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 147,
+        "language": "python",
+        "production": 428,
+        "raw_additions": 575,
+        "source_role": "zyra_owned_clean_state_and_pollution",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 357,
+        "language": "python",
+        "production": 1021,
+        "raw_additions": 1378,
+        "source_role": "zyra_owned_default_path_and_causality",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 232,
+        "language": "python",
+        "production": 1510,
+        "raw_additions": 1742,
+        "source_role": "zyra_owned_live_matrix_and_freeze_gate",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 526,
+        "language": "python",
+        "production": 1199,
+        "raw_additions": 1725,
+        "source_role": "zyra_owned_regression_contract_and_registry",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 320,
+        "language": "python",
+        "production": 1901,
+        "raw_additions": 2221,
+        "source_role": "zyra_owned_regression_orchestration_and_triage",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 838,
+        "language": "python",
+        "production": 2502,
+        "raw_additions": 3340,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test": 0
+      }
+    ],
+    "files": [
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "markdown",
+        "nonproduction_tooling": 0,
+        "path": "docs/plans/M3-S02A-01-default-path-security-regression-hardening-decision.md",
+        "production_runtime": 0,
+        "raw_additions": 233,
+        "schema_dto_data": 233,
+        "source_role": "evidence_or_documentation",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "markdown",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/README.md",
+        "production_runtime": 0,
+        "raw_additions": 15,
+        "schema_dto_data": 15,
+        "source_role": "evidence_or_documentation",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 1,
+        "effective_production": 24,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/experiment_runtime/store.py",
+        "production_runtime": 24,
+        "raw_additions": 25,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_clean_sqlite_lifecycle",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 2,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/__init__.py",
+        "production_runtime": 0,
+        "raw_additions": 190,
+        "schema_dto_data": 0,
+        "source_role": "public_exports",
+        "test_mock_fixture": 0,
+        "type_declaration": 188,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 2,
+        "effective_production": 3,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/__main__.py",
+        "production_runtime": 3,
+        "raw_additions": 5,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_live_matrix_and_freeze_gate",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 51,
+        "effective_production": 561,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/approval_security.py",
+        "production_runtime": 561,
+        "raw_additions": 784,
+        "schema_dto_data": 156,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test_mock_fixture": 0,
+        "type_declaration": 16,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 33,
+        "effective_production": 322,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/artifacts.py",
+        "production_runtime": 322,
+        "raw_additions": 389,
+        "schema_dto_data": 33,
+        "source_role": "zyra_owned_regression_contract_and_registry",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 47,
+        "effective_production": 560,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/causality.py",
+        "production_runtime": 560,
+        "raw_additions": 705,
+        "schema_dto_data": 97,
+        "source_role": "zyra_owned_default_path_and_causality",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 51,
+        "effective_production": 428,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/clean_state.py",
+        "production_runtime": 428,
+        "raw_additions": 575,
+        "schema_dto_data": 95,
+        "source_role": "zyra_owned_clean_state_and_pollution",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 18,
+        "effective_production": 149,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/cli.py",
+        "production_runtime": 149,
+        "raw_additions": 168,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_live_matrix_and_freeze_gate",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 34,
+        "effective_production": 407,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/code_index_security.py",
+        "production_runtime": 407,
+        "raw_additions": 560,
+        "schema_dto_data": 118,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 43,
+        "effective_production": 544,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/content_security.py",
+        "production_runtime": 544,
+        "raw_additions": 697,
+        "schema_dto_data": 109,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 89,
+        "effective_production": 426,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/contracts.py",
+        "production_runtime": 426,
+        "raw_additions": 764,
+        "schema_dto_data": 248,
+        "source_role": "zyra_owned_regression_contract_and_registry",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 36,
+        "effective_production": 415,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/control_boundary.py",
+        "production_runtime": 415,
+        "raw_additions": 568,
+        "schema_dto_data": 116,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 55,
+        "effective_production": 461,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/default_path.py",
+        "production_runtime": 461,
+        "raw_additions": 673,
+        "schema_dto_data": 139,
+        "source_role": "zyra_owned_default_path_and_causality",
+        "test_mock_fixture": 0,
+        "type_declaration": 18,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 10,
+        "effective_production": 63,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/engine_io.py",
+        "production_runtime": 63,
+        "raw_additions": 74,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_regression_contract_and_registry",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 29,
+        "effective_production": 626,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/freeze_gate.py",
+        "production_runtime": 626,
+        "raw_additions": 701,
+        "schema_dto_data": 45,
+        "source_role": "zyra_owned_live_matrix_and_freeze_gate",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 47,
+        "effective_production": 732,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/live_matrix.py",
+        "production_runtime": 732,
+        "raw_additions": 868,
+        "schema_dto_data": 88,
+        "source_role": "zyra_owned_live_matrix_and_freeze_gate",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 57,
+        "effective_production": 951,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/orchestrator.py",
+        "production_runtime": 951,
+        "raw_additions": 1074,
+        "schema_dto_data": 65,
+        "source_role": "zyra_owned_regression_orchestration_and_triage",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 54,
+        "effective_production": 388,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/registry.py",
+        "production_runtime": 388,
+        "raw_additions": 498,
+        "schema_dto_data": 53,
+        "source_role": "zyra_owned_regression_contract_and_registry",
+        "test_mock_fixture": 0,
+        "type_declaration": 3,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 42,
+        "effective_production": 575,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/repository_security.py",
+        "production_runtime": 575,
+        "raw_additions": 731,
+        "schema_dto_data": 113,
+        "source_role": "zyra_owned_semantic_and_security_campaign",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 46,
+        "effective_production": 697,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/service.py",
+        "production_runtime": 697,
+        "raw_additions": 796,
+        "schema_dto_data": 49,
+        "source_role": "zyra_owned_regression_orchestration_and_triage",
+        "test_mock_fixture": 0,
+        "type_declaration": 4,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 24,
+        "effective_production": 253,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/regression_hardening/triage.py",
+        "production_runtime": 253,
+        "raw_additions": 351,
+        "schema_dto_data": 73,
+        "source_role": "zyra_owned_regression_orchestration_and_triage",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 1,
+        "effective_production": 19,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/evaluation/zyra_evaluation/scenario_runner/store.py",
+        "production_runtime": 19,
+        "raw_additions": 20,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_clean_sqlite_lifecycle",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 1,
+        "generated": 0,
+        "language": "toml",
+        "nonproduction_tooling": 0,
+        "path": "pyproject.toml",
+        "production_runtime": 1,
+        "raw_additions": 1,
+        "schema_dto_data": 0,
+        "source_role": "slice_supporting_configuration",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 244,
+        "path": "scripts/audit_m3_s02a01_effective_code_gate.py",
+        "production_runtime": 0,
+        "raw_additions": 244,
+        "schema_dto_data": 0,
+        "source_role": "nonproduction_gate_or_verifier",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 80,
+        "path": "scripts/verify_m3.py",
+        "production_runtime": 0,
+        "raw_additions": 80,
+        "schema_dto_data": 0,
+        "source_role": "nonproduction_gate_or_verifier",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_permission_console_api.py",
+        "production_runtime": 0,
+        "raw_additions": 4,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 4,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_m3_regression_hardening.py",
+        "production_runtime": 0,
+        "raw_additions": 912,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 912,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      }
+    ],
+    "target": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+    "totals": {
+      "adapter_only": 0,
+      "docs_comments_blank": 772,
+      "effective_production": 8605,
+      "generated": 0,
+      "nonproduction_tooling": 324,
+      "production_runtime": 8605,
+      "raw_additions": 12705,
+      "schema_dto_data": 1845,
+      "test_mock_fixture": 916,
+      "type_declaration": 243,
+      "ui_behavior": 0,
+      "ui_presentation": 0,
+      "unrelated_scope": 0
+    }
+  },
+  "slice_id": "M3-S02A-01"
+}

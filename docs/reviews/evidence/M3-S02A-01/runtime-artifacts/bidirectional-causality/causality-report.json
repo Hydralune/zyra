@@ -1,0 +1,188 @@
+{
+  "assertions": [
+    {
+      "assertion_id": "causality.baseline-valid",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.baseline"
+      ],
+      "failure_kind": "assertion",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "valid event/effect graph must be accepted"
+    },
+    {
+      "assertion_id": "causality.reject-fake",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.fake"
+      ],
+      "failure_kind": "contract",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "fake causality mutation must be rejected"
+    },
+    {
+      "assertion_id": "causality.reject-late",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.late"
+      ],
+      "failure_kind": "contract",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "late causality mutation must be rejected"
+    },
+    {
+      "assertion_id": "causality.reject-cross_run",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.cross_run"
+      ],
+      "failure_kind": "contract",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "cross_run causality mutation must be rejected"
+    },
+    {
+      "assertion_id": "causality.reject-no_effect",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.no_effect"
+      ],
+      "failure_kind": "contract",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "no_effect causality mutation must be rejected"
+    },
+    {
+      "assertion_id": "causality.reject-orphan_event",
+      "blocking": false,
+      "details": {},
+      "evidence_ids": [
+        "causality.orphan_event"
+      ],
+      "failure_kind": "contract",
+      "passed": true,
+      "severity": "blocker",
+      "summary": "orphan_event causality mutation must be rejected"
+    }
+  ],
+  "input_count": 6,
+  "input_digest": "sha256:1b6416653a1018bae8fd4419edcc3978937c0d811a0174531509b109dab14d75",
+  "observations": [
+    {
+      "attributes": {
+        "digest": "sha256:dcb42c8d133ab5a03c6a472ba153ef0f5872c8901708b006a17c87c88709fbad",
+        "fact_count": 6,
+        "link_count": 5
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.158866,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "event",
+      "observation_id": "causality.baseline",
+      "run_id": "",
+      "started_monotonic": 47343.158866,
+      "status": "accepted",
+      "subject": "event-effect-bidirectional-graph"
+    },
+    {
+      "attributes": {
+        "digest": "sha256:152b107d9e1d0c94e68ce08a8adf3a7f0a94b3c4c9e5b28ae90778c3e67f1ec3",
+        "invalid_link_count": 1,
+        "orphan_effect_count": 1,
+        "orphan_event_count": 0
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.158891,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "causality.fake",
+      "run_id": "",
+      "started_monotonic": 47343.158891,
+      "status": "mutation-rejected",
+      "subject": "causality-negative:fake"
+    },
+    {
+      "attributes": {
+        "digest": "sha256:f2be9702fa4f5ca76bf688030b37532461fe1c1ca323403afed634fea649a3f0",
+        "invalid_link_count": 1,
+        "orphan_effect_count": 1,
+        "orphan_event_count": 0
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.158906,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "causality.late",
+      "run_id": "",
+      "started_monotonic": 47343.158906,
+      "status": "mutation-rejected",
+      "subject": "causality-negative:late"
+    },
+    {
+      "attributes": {
+        "digest": "sha256:e0d9a6838461bef1c0fb70a1f2932fd66c5b460b803a5b19e32694a72497900c",
+        "invalid_link_count": 1,
+        "orphan_effect_count": 1,
+        "orphan_event_count": 0
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.158918,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "causality.cross_run",
+      "run_id": "",
+      "started_monotonic": 47343.158918,
+      "status": "mutation-rejected",
+      "subject": "causality-negative:cross_run"
+    },
+    {
+      "attributes": {
+        "digest": "sha256:93c953480d2216e7398fec767d44f320b7d43a797566bb3d6ba2e6e342d5c13a",
+        "invalid_link_count": 1,
+        "orphan_effect_count": 1,
+        "orphan_event_count": 0
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.15893,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "causality.no_effect",
+      "run_id": "",
+      "started_monotonic": 47343.15893,
+      "status": "mutation-rejected",
+      "subject": "causality-negative:no_effect"
+    },
+    {
+      "attributes": {
+        "digest": "sha256:bbb09dd3989cfeb468cf1ed5c7b67aaa9f4078e1cff5ff80e148a6e11e3f9086",
+        "invalid_link_count": 0,
+        "orphan_effect_count": 0,
+        "orphan_event_count": 1
+      },
+      "causation_id": "",
+      "completed_monotonic": 47343.158942,
+      "correlation_id": "",
+      "duration_seconds": 0.0,
+      "kind": "mutation",
+      "observation_id": "causality.orphan_event",
+      "run_id": "",
+      "started_monotonic": 47343.158942,
+      "status": "mutation-rejected",
+      "subject": "causality-negative:orphan_event"
+    }
+  ],
+  "schema": "zyra.m3-causality-campaign-summary/v1"
+}

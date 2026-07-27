@@ -1,0 +1,28 @@
+{
+  "case_ids": [
+    "default-path-reachability",
+    "bidirectional-causality",
+    "clean-state-isolation",
+    "llm-control-boundary",
+    "repository-security",
+    "content-security",
+    "code-index-security",
+    "approval-security",
+    "freeze-receipt-preflight"
+  ],
+  "case_status_counts": {
+    "passed": 9
+  },
+  "digest": "sha256:17deda912fe39d9dfbe3ad1b9c7b811382fbf3a1c439737fc05230a73eb4a218",
+  "expected_revision": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "findings": [],
+  "live_matrix_digest": "sha256:1f715835abbf1a9e4a55d783434ab29787f625c111fb83024b03a8fd8ce0440b",
+  "mutation_assertions": 42,
+  "observed_revision": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+  "prerequisite_digest": "sha256:e740f389b6a4335d88a009550f620fba93a1b4d7b63b2b14068e60bf47c4473e",
+  "receipt_path": "G:\\agent-zoo\\zyra\\docs\\reviews\\evidence\\M3-S02A-01\\runtime-artifacts\\suite\\suite-receipt.json",
+  "schema": "zyra.m3-regression-freeze-admission/v1",
+  "security_observations": 2,
+  "suite_digest": "sha256:5982ff76eb7bacb4fba6a41bc722a591f6780245f04be11f8a278702ba37de44",
+  "valid": true
+}

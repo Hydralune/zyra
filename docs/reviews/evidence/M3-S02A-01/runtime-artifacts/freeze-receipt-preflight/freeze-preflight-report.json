@@ -1,0 +1,16 @@
+{
+  "artifacts": {
+    "approval-security": [
+      "approval-security-report.json"
+    ],
+    "code-index-security": [
+      "code-index-security-report.json"
+    ]
+  },
+  "dependency_digests": {
+    "approval-security": "sha256:8910740db3b5cb307d98649a3d7fc3deb17a2d1e828ec9dc2f824114752cd551",
+    "code-index-security": "sha256:eefbfe666504ca239c29dff71ef5e44d82ecdf9d44b09e90690407e16e50cdc5"
+  },
+  "schema": "zyra.m3-regression-freeze-preflight/v1",
+  "valid": true
+}

@@ -1,0 +1,354 @@
+{
+  "digest": "sha256:921b603f9c70354c19405936d62bbdbff53853d5d4dd0cb0f0fa5052612bd3f5",
+  "disable_outcomes": [
+    {
+      "baseline_succeeded": true,
+      "disabled_succeeded": false,
+      "entry_kind": "cli",
+      "explicit_error_code": "canonical_owner_disabled",
+      "fallback_owner_id": "",
+      "owner_id": "CommandRuntime",
+      "state_changed_while_disabled": false,
+      "valid": true
+    },
+    {
+      "baseline_succeeded": true,
+      "disabled_succeeded": false,
+      "entry_kind": "api",
+      "explicit_error_code": "canonical_owner_disabled",
+      "fallback_owner_id": "",
+      "owner_id": "SessionEventRuntime",
+      "state_changed_while_disabled": false,
+      "valid": true
+    },
+    {
+      "baseline_succeeded": true,
+      "disabled_succeeded": false,
+      "entry_kind": "web",
+      "explicit_error_code": "canonical_owner_disabled",
+      "fallback_owner_id": "",
+      "owner_id": "CanonicalProjectionStore",
+      "state_changed_while_disabled": false,
+      "valid": true
+    },
+    {
+      "baseline_succeeded": true,
+      "disabled_succeeded": false,
+      "entry_kind": "worker",
+      "explicit_error_code": "canonical_owner_disabled",
+      "fallback_owner_id": "",
+      "owner_id": "CodeWorkerRuntime",
+      "state_changed_while_disabled": false,
+      "valid": true
+    }
+  ],
+  "duplicate_entries": [],
+  "invalid_disables": [],
+  "invalid_mutations": [],
+  "invalid_traces": [],
+  "missing_entries": [],
+  "mutation_outcomes": [
+    {
+      "admitted": false,
+      "baseline_digest": "sha256:a66803438fd136e31a6fbf3e31ca7817343990857ceebe6f90dbe6626cfaeded",
+      "candidate_digest": "sha256:469900b448e1661d4026e28e637219776edeae01038912119dd5204c257e1aa5",
+      "entry_kind": "cli",
+      "expected_change": "reject",
+      "mutation_id": "forged-owner-receipt",
+      "mutation_kind": "forged-owner-receipt",
+      "observed_change": "",
+      "reason": "forged_owner_receipt",
+      "valid": true
+    },
+    {
+      "admitted": false,
+      "baseline_digest": "sha256:66c6fb7693c2badf29c383f694c36693bcb8194a9aaab0875046970bb4c734de",
+      "candidate_digest": "sha256:811010ce227655ddf7d1fcb6a9260fd0812505e0c21f83e219650762b8f8bd85",
+      "entry_kind": "api",
+      "expected_change": "reject",
+      "mutation_id": "forged-owner-receipt",
+      "mutation_kind": "forged-owner-receipt",
+      "observed_change": "",
+      "reason": "forged_owner_receipt",
+      "valid": true
+    },
+    {
+      "admitted": false,
+      "baseline_digest": "sha256:3efe7d471cdfced86d681c608d61d78c94e6fc87c789ab865237a37d4bbe2570",
+      "candidate_digest": "sha256:25a3fa40791454440ad3d477398332e3e4458a332ad0ca0474c543efdc85ec37",
+      "entry_kind": "web",
+      "expected_change": "reject",
+      "mutation_id": "forged-owner-receipt",
+      "mutation_kind": "forged-owner-receipt",
+      "observed_change": "",
+      "reason": "forged_owner_receipt",
+      "valid": true
+    },
+    {
+      "admitted": false,
+      "baseline_digest": "sha256:302c7403ef96aea2e5a66498c9fec6f4777f269aa04f7ea9d6c05b473b51f889",
+      "candidate_digest": "sha256:c356aa692a7375797923ad407111dd5bd3739ee5c502f0b67bdb998093241f84",
+      "entry_kind": "worker",
+      "expected_change": "reject",
+      "mutation_id": "forged-owner-receipt",
+      "mutation_kind": "forged-owner-receipt",
+      "observed_change": "",
+      "reason": "forged_owner_receipt",
+      "valid": true
+    }
+  ],
+  "owner_counts": {
+    "CanonicalProjectionStore": 1,
+    "CodeWorkerRuntime": 1,
+    "CommandRuntime": 1,
+    "SessionEventRuntime": 1
+  },
+  "schema": "zyra.[REDACTED]",
+  "traces": [
+    {
+      "committed_effect": true,
+      "completed": true,
+      "entry_id": "cli-default-entry",
+      "entry_kind": "cli",
+      "error_code": "",
+      "generated_input_digest": "sha256:a20841546fb1fa3959369d2c1cde6f1ee2d01a0d500e79db2208d923f7739fa8",
+      "output_digest": "sha256:a66803438fd136e31a6fbf3e31ca7817343990857ceebe6f90dbe6626cfaeded",
+      "reached_owner": true,
+      "run_id": "run-m3-regression",
+      "selected_owner_ids": [
+        "CommandRuntime"
+      ],
+      "steps": [
+        {
+          "attributes": {},
+          "causation_id": "",
+          "entry_kind": "cli",
+          "mutated_state": false,
+          "owner_id": "",
+          "phase": "started",
+          "run_id": "run-m3-regression",
+          "sequence": 1,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "cli-started"
+        },
+        {
+          "attributes": {},
+          "causation_id": "cli-started",
+          "entry_kind": "cli",
+          "mutated_state": false,
+          "owner_id": "CommandRuntime",
+          "phase": "owner_reached",
+          "run_id": "run-m3-regression",
+          "sequence": 2,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "cli-owner"
+        },
+        {
+          "attributes": {
+            "effect_digest": "sha256:6503d86ce36da62ecb26ac1317993198c0158f97bc601785def1367d126a72b9"
+          },
+          "causation_id": "cli-owner",
+          "entry_kind": "cli",
+          "mutated_state": true,
+          "owner_id": "CommandRuntime",
+          "phase": "effect_committed",
+          "run_id": "run-m3-regression",
+          "sequence": 3,
+          "state_after_digest": "sha256:e4f3db4ad457465ebf8646827505a63a7390e88d0ada42219a9309568914fa01",
+          "state_before_digest": "sha256:1196b4dde40da92193d597bb05b4fef1beaaeaeee7ca6560078d98dbca9362bf",
+          "status": "",
+          "step_id": "cli-effect"
+        }
+      ],
+      "valid": true
+    },
+    {
+      "committed_effect": true,
+      "completed": true,
+      "entry_id": "api-default-entry",
+      "entry_kind": "api",
+      "error_code": "",
+      "generated_input_digest": "sha256:b4c9ada4227e710980b5b16172d5774b4ece7b0d4d4258846992f926925f88de",
+      "output_digest": "sha256:66c6fb7693c2badf29c383f694c36693bcb8194a9aaab0875046970bb4c734de",
+      "reached_owner": true,
+      "run_id": "run-m3-regression",
+      "selected_owner_ids": [
+        "SessionEventRuntime"
+      ],
+      "steps": [
+        {
+          "attributes": {},
+          "causation_id": "",
+          "entry_kind": "api",
+          "mutated_state": false,
+          "owner_id": "",
+          "phase": "started",
+          "run_id": "run-m3-regression",
+          "sequence": 1,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "api-started"
+        },
+        {
+          "attributes": {},
+          "causation_id": "api-started",
+          "entry_kind": "api",
+          "mutated_state": false,
+          "owner_id": "SessionEventRuntime",
+          "phase": "owner_reached",
+          "run_id": "run-m3-regression",
+          "sequence": 2,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "api-owner"
+        },
+        {
+          "attributes": {
+            "effect_digest": "sha256:ca6ec2cc08b1df0cdcac0a2de68f56020958fa7e2d1aabbc3958a5b7732c11c9"
+          },
+          "causation_id": "api-owner",
+          "entry_kind": "api",
+          "mutated_state": true,
+          "owner_id": "SessionEventRuntime",
+          "phase": "effect_committed",
+          "run_id": "run-m3-regression",
+          "sequence": 3,
+          "state_after_digest": "sha256:427af3e0ccc7e4c06f4c2406a1f549e3e36e08f5b42e375b420d37680f7beb28",
+          "state_before_digest": "sha256:0ec652aa148a6a6df5b38bc2abc008fd27f11fdf77c3e922b46c12e9c3388d14",
+          "status": "",
+          "step_id": "api-effect"
+        }
+      ],
+      "valid": true
+    },
+    {
+      "committed_effect": true,
+      "completed": true,
+      "entry_id": "web-default-entry",
+      "entry_kind": "web",
+      "error_code": "",
+      "generated_input_digest": "sha256:9898c27f3426e7f3b47ff60553346193dfebd025592f40a64a494c6281f2a3f3",
+      "output_digest": "sha256:3efe7d471cdfced86d681c608d61d78c94e6fc87c789ab865237a37d4bbe2570",
+      "reached_owner": true,
+      "run_id": "run-m3-regression",
+      "selected_owner_ids": [
+        "CanonicalProjectionStore"
+      ],
+      "steps": [
+        {
+          "attributes": {},
+          "causation_id": "",
+          "entry_kind": "web",
+          "mutated_state": false,
+          "owner_id": "",
+          "phase": "started",
+          "run_id": "run-m3-regression",
+          "sequence": 1,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "web-started"
+        },
+        {
+          "attributes": {},
+          "causation_id": "web-started",
+          "entry_kind": "web",
+          "mutated_state": false,
+          "owner_id": "CanonicalProjectionStore",
+          "phase": "owner_reached",
+          "run_id": "run-m3-regression",
+          "sequence": 2,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "web-owner"
+        },
+        {
+          "attributes": {
+            "effect_digest": "sha256:f4947902035b39675ebaaae0399ed7b10ee67d383393f22d7410c26d7d39ee11"
+          },
+          "causation_id": "web-owner",
+          "entry_kind": "web",
+          "mutated_state": true,
+          "owner_id": "CanonicalProjectionStore",
+          "phase": "effect_committed",
+          "run_id": "run-m3-regression",
+          "sequence": 3,
+          "state_after_digest": "sha256:336bd911f370d17131bb6051805376af42483c325e2dd512a4152f5bb6c9dda5",
+          "state_before_digest": "sha256:354b221ae978ba82dbc35a8e10e486f2084fa6df134e45194d0b92fb4db806d2",
+          "status": "",
+          "step_id": "web-effect"
+        }
+      ],
+      "valid": true
+    },
+    {
+      "committed_effect": true,
+      "completed": true,
+      "entry_id": "worker-default-entry",
+      "entry_kind": "worker",
+      "error_code": "",
+      "generated_input_digest": "sha256:08b11767197389c1a3acde9c6991048423386a6aa71013046f1886a1fb1ecefe",
+      "output_digest": "sha256:302c7403ef96aea2e5a66498c9fec6f4777f269aa04f7ea9d6c05b473b51f889",
+      "reached_owner": true,
+      "run_id": "run-m3-regression",
+      "selected_owner_ids": [
+        "CodeWorkerRuntime"
+      ],
+      "steps": [
+        {
+          "attributes": {},
+          "causation_id": "",
+          "entry_kind": "worker",
+          "mutated_state": false,
+          "owner_id": "",
+          "phase": "started",
+          "run_id": "run-m3-regression",
+          "sequence": 1,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "worker-started"
+        },
+        {
+          "attributes": {},
+          "causation_id": "worker-started",
+          "entry_kind": "worker",
+          "mutated_state": false,
+          "owner_id": "CodeWorkerRuntime",
+          "phase": "owner_reached",
+          "run_id": "run-m3-regression",
+          "sequence": 2,
+          "state_after_digest": "",
+          "state_before_digest": "",
+          "status": "",
+          "step_id": "worker-owner"
+        },
+        {
+          "attributes": {
+            "effect_digest": "sha256:94d4694db15bb2292c0cbd4fb96f3ea66efd408cbf8ec90954caadb1b6c00eb3"
+          },
+          "causation_id": "worker-owner",
+          "entry_kind": "worker",
+          "mutated_state": true,
+          "owner_id": "CodeWorkerRuntime",
+          "phase": "effect_committed",
+          "run_id": "run-m3-regression",
+          "sequence": 3,
+          "state_after_digest": "sha256:b2940dcba98dab133fc26216beb306c4cc2f6b6f4e34a4cae76e91f57935f16e",
+          "state_before_digest": "sha256:b52cf7f053609a87222232ecb28ea71fd713a5b8b121ab61db689d1ef4c9aabd",
+          "status": "",
+          "step_id": "worker-effect"
+        }
+      ],
+      "valid": true
+    }
+  ],
+  "valid": true
+}
