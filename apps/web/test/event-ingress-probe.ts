@@ -99,7 +99,20 @@ async function run() {
   await waitFor(
     () => batches.some((batch) => batch.sequence > initialSequence),
     "post-snapshot live delta",
-  )
+  ).catch((error) => {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)} ` +
+      JSON.stringify({
+        initialSequence,
+        batches: batches.map((batch) => ({
+          sequence: batch.sequence,
+          snapshot: batch.snapshot,
+          eventIds: batch.events.map((event) => event.eventId),
+        })),
+        state: api.events.exportState(),
+      }),
+    )
+  })
   await waitFor(
     () => statuses.some((snapshot) => snapshot.generation >= 2),
     "SSE reconnect generation",

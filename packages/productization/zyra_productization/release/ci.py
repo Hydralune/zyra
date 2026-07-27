@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .cleanroom import CommandRunner
-from .errors import GateFailure
+from .errors import GateFailure, ReleaseError
 from .integrity import sha256_file, stable_digest
 from .models import GateReceipt, GateState
 from .policy import DEFAULT_RELEASE_POLICY, ReleasePolicy
@@ -334,9 +334,15 @@ class GateExecutor:
         ) as pool:
             while pending or running:
                 progress = False
+                exclusive_running = any(
+                    not self.registry.get(gate_id).allow_parallel
+                    for gate_id in running.values()
+                )
                 for gate_id in order:
                     if gate_id not in pending:
                         continue
+                    if exclusive_running:
+                        break
                     spec = self.registry.get(gate_id)
                     dependency_states = {
                         dependency: self._receipts[dependency].state
@@ -454,6 +460,14 @@ class GateExecutor:
                     "error": str(error),
                     "type": type(error).__name__,
                 }
+                if isinstance(error, ReleaseError):
+                    details.update(
+                        {
+                            "code": error.code,
+                            "retryable": error.retryable,
+                            "error_details": error.details,
+                        }
+                    )
                 ready = False
                 exit_code = 1
                 stdout = ""

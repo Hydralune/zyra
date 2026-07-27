@@ -671,6 +671,7 @@ export class EventIngressCoordinator {
       if (
         frame.kind === FrameKind.HEARTBEAT &&
         frame.cursor &&
+        this.#barrier.snapshotComplete &&
         frame.sequence >= this.#cursor.committedSequence &&
         this.#buffer.size === 0 &&
         !this.#gaps.snapshot()
@@ -681,7 +682,11 @@ export class EventIngressCoordinator {
       return
     }
     if (frame.kind === FrameKind.CLOSE) {
-      if (frame.cursor && frame.sequence >= this.#cursor.committedSequence) {
+      if (
+        frame.cursor &&
+        this.#barrier.snapshotComplete &&
+        frame.sequence >= this.#cursor.committedSequence
+      ) {
         this.#cursor.updateCursor(frame.cursor, frame.sequence)
       }
       if (frame.retryable) {

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tarfile
+import threading
+import time
 import tomllib
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from zyra_productization.release import (
     BunLock,
     ChecksumBuilder,
     ChecksumVerifier,
+    CleanInstallRunner,
     CleanInstallReceiptVerifier,
     ConfigurationProvisioner,
     DeterministicWheelBuilder,
@@ -784,6 +787,71 @@ def test_crashed_gate_preserves_exception_when_success_artifact_is_absent(
     assert report["details"]["crash"]["type"] == "RuntimeError"
 
 
+def test_non_parallel_gate_excludes_later_parallel_work(tmp_path: Path) -> None:
+    transitions: list[str] = []
+    transition_lock = threading.Lock()
+
+    def record(value: str) -> None:
+        with transition_lock:
+            transitions.append(value)
+
+    def exclusive(_: object) -> dict[str, object]:
+        record("exclusive-start")
+        time.sleep(0.1)
+        record("exclusive-end")
+        return {"ready": True}
+
+    def parallel(_: object) -> dict[str, object]:
+        record("parallel-start")
+        return {"ready": True}
+
+    report = GateExecutor(
+        GateRegistry(
+            (
+                GateSpec(
+                    gate_id="exclusive",
+                    callable=exclusive,
+                    allow_parallel=False,
+                ),
+                GateSpec(gate_id="parallel", callable=parallel),
+            )
+        ),
+        project_root=tmp_path,
+        output_root=tmp_path / "out",
+        source_commit="a" * 40,
+        environment=dict(os.environ),
+        maximum_parallel=2,
+    ).execute()
+
+    assert report["ready"] is True
+    assert transitions.index("exclusive-end") < transitions.index(
+        "parallel-start"
+    )
+
+
+def test_callable_release_error_preserves_machine_details(
+    tmp_path: Path,
+) -> None:
+    def fail(_: object) -> dict[str, object]:
+        raise GateFailure(
+            "actionable failure",
+            code="actionable_gate_failure",
+            details={"command": ["tool", "check"], "returncode": 7},
+        )
+
+    report = GateExecutor(
+        GateRegistry((GateSpec(gate_id="failure", callable=fail),)),
+        project_root=tmp_path,
+        output_root=tmp_path / "out",
+        source_commit="a" * 40,
+        environment=dict(os.environ),
+    ).execute()
+
+    details = report["details"]["failure"]
+    assert details["code"] == "actionable_gate_failure"
+    assert details["error_details"]["returncode"] == 7
+
+
 def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
     policy = ReleasePolicy()
     assert policy.environment_allowed("SystemRoot") is True
@@ -851,6 +919,24 @@ def test_python_test_policy_rejects_an_unknown_schema(tmp_path: Path) -> None:
         PythonTestPolicy.load(tmp_path, policy_path)
 
     assert raised.value.code == "python_test_policy_schema_unsupported"
+
+
+def test_cleanroom_bun_cache_stays_outside_release_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("BUN_INSTALL_CACHE_DIR", raising=False)
+    plan = PlatformPlanner(tmp_path).current()
+    environment = CleanInstallRunner._environment(
+        workspace=tmp_path / "cleanroom",
+        plan=plan,
+        ports=(41001, 41002, 41003, 41004, 41005),
+    )
+
+    assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_absolute()
+    assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
+        tmp_path / "cleanroom"
+    )
 
 
 def test_gate_registry_rejects_cycles() -> None:

@@ -1035,9 +1035,11 @@ class CleanInstallRunner:
             }
         }
         allowed.update(plan.environment)
-        external_bun_cache = os.environ.get("BUN_INSTALL_CACHE_DIR")
-        if external_bun_cache:
-            allowed["BUN_INSTALL_CACHE_DIR"] = external_bun_cache
+        bun_cache = (workspace / "cache" / "bun").resolve()
+        # Bun may materialize platform executables in its cache.  Keep that
+        # cache outside the extracted release payload so lifecycle doctor and
+        # submission-boundary scans observe only deliverable files.
+        allowed["BUN_INSTALL_CACHE_DIR"] = str(bun_cache)
         if os.name == "nt":
             system_root = (
                 os.environ.get("SystemRoot")
