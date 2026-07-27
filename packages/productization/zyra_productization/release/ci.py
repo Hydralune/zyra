@@ -687,6 +687,7 @@ def standard_gate_registry(
     python: str,
     bun: str,
     output_root: Path,
+    python_basetemp: Path,
     callable_gates: Mapping[str, Callable[[GateContext], Mapping[str, Any]]],
     python_test_arguments: Sequence[str] = ("tests/unit", "tests/integration"),
 ) -> GateRegistry:
@@ -727,6 +728,10 @@ def standard_gate_registry(
                 python,
                 "-m",
                 "pytest",
+                "-p",
+                "no:cacheprovider",
+                "--basetemp",
+                str(python_basetemp.resolve()),
                 "-q",
                 *python_test_arguments,
             ),

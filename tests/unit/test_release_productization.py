@@ -40,6 +40,7 @@ from zyra_productization.release import (
     PythonTestPolicy,
     ReleaseAdmission,
     ReleaseInstaller,
+    ReleaseRuntime,
     ReproducibilityVerifier,
     SecretRedactor,
     SubmissionAssembler,
@@ -850,6 +851,109 @@ def test_callable_release_error_preserves_machine_details(
     details = report["details"]["failure"]
     assert details["code"] == "actionable_gate_failure"
     assert details["error_details"]["returncode"] == 7
+
+
+def test_standard_gate_registry_isolates_pytest_state_outside_project(
+    tmp_path: Path,
+) -> None:
+    from zyra_productization.release.ci import standard_gate_registry
+
+    basetemp = tmp_path.parent / "release-pytest-state"
+    callables = {
+        gate_id: (lambda _: {"ready": True})
+        for gate_id in (
+            "python-lock",
+            "javascript-lock",
+            "bundle-boundary",
+            "checksums",
+            "sbom-notice",
+            "source-custody",
+            "clean-install",
+            "semantic-health",
+            "benchmark-link",
+        )
+    }
+    registry = standard_gate_registry(
+        python="python",
+        bun="bun",
+        output_root=tmp_path / "output",
+        python_basetemp=basetemp,
+        callable_gates=callables,
+    )
+
+    command = registry.get("python-tests").command
+    assert command[:7] == (
+        "python",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        str(basetemp.resolve()),
+    )
+    assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
+
+
+def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
+    tmp_path: Path,
+) -> None:
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    expected_commit = "a" * 40
+    semantic_command = {
+        "name": "semantic-health",
+        "ready": True,
+        "returncode": 0,
+        "duration_ms": 123.0,
+        "command": ["python", "-m", "release", "lifecycle", "health"],
+        "stdout_digest": "b" * 64,
+        "stderr_digest": "c" * 64,
+        "timed_out": False,
+    }
+    receipt = {
+        "schema": "zyra.clean-install-receipt/v1",
+        "ready": True,
+        "source_commit": expected_commit,
+        "workspace_isolated": True,
+        "parent_source_repositories_present": False,
+        "product_lifecycle_exercised": True,
+        "commands": [],
+        "receipts": {
+            "install": {"state": "committed"},
+            "uninstall": {"state": "uninstalled"},
+            "lifecycle": {
+                "ready": True,
+                "commands": [semantic_command],
+            },
+        },
+    }
+    (evidence_root / "clean-install.json").write_text(
+        json.dumps(receipt),
+        encoding="utf-8",
+    )
+    runtime = ReleaseRuntime(
+        tmp_path,
+        output_root=tmp_path / "output",
+        state_root=tmp_path / "state",
+    )
+    gate = runtime._ci_callables(
+        archive=tmp_path / "release.tar.gz",
+        expected_commit=expected_commit,
+        evidence_root=evidence_root,
+    )["semantic-health"]
+
+    result = gate(None)
+    assert result["ready"] is True
+    assert result["semantic_health"]["returncode"] == 0
+
+    semantic_command["ready"] = False
+    (evidence_root / "clean-install.json").write_text(
+        json.dumps(receipt),
+        encoding="utf-8",
+    )
+    failed = gate(None)
+    assert failed["ready"] is False
+    assert failed["failures"] == ["semantic_health_not_ready"]
 
 
 def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:

@@ -6,6 +6,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
@@ -42,6 +43,7 @@ from .inventory import (
     SbomBuilder,
 )
 from .policy import DEFAULT_RELEASE_POLICY, ReleasePolicy
+from .submission import CleanInstallReceiptVerifier
 from .transactions import (
     InstallReceiptStore,
     MigrationExecutor,
@@ -672,25 +674,30 @@ class ReleaseRuntime:
             expected_commit=expected_commit,
             evidence_root=evidence_root,
         )
-        registry = standard_gate_registry(
-            python=python,
-            bun=bun,
-            output_root=evidence_root,
-            callable_gates=callables,
-            python_test_arguments=PythonTestPolicy.load(
-                self.project_root,
-                self.project_root / "config" / "release-python-tests.json",
-            ).pytest_arguments(),
-        )
-        executor = GateExecutor(
-            registry,
-            project_root=self.project_root,
-            output_root=evidence_root,
-            source_commit=expected_commit,
-            environment=self._ci_environment(),
-            maximum_parallel=maximum_parallel,
-        )
-        report = executor.execute()
+        with tempfile.TemporaryDirectory(
+            prefix="zyra-release-pytest-",
+            ignore_cleanup_errors=True,
+        ) as python_basetemp:
+            registry = standard_gate_registry(
+                python=python,
+                bun=bun,
+                output_root=evidence_root,
+                python_basetemp=Path(python_basetemp),
+                callable_gates=callables,
+                python_test_arguments=PythonTestPolicy.load(
+                    self.project_root,
+                    self.project_root / "config" / "release-python-tests.json",
+                ).pytest_arguments(),
+            )
+            executor = GateExecutor(
+                registry,
+                project_root=self.project_root,
+                output_root=evidence_root,
+                source_commit=expected_commit,
+                environment=self._ci_environment(),
+                maximum_parallel=maximum_parallel,
+            )
+            report = executor.execute()
         report_path = evidence_root / "ci-report.json"
         self._write_json(report_path, report)
         admission = ReleaseAdmission(policy=self.policy).verify(
@@ -833,44 +840,75 @@ class ReleaseRuntime:
                 )
 
         def semantic_health(_: GateContext) -> Mapping[str, Any]:
-            command = [
-                sys.executable,
-                "-m",
-                "zyra_orchestration.deployment.cli",
-                "--project-root",
-                str(self.project_root),
-                "--state-root",
-                str(self.state_root / "ci-deployment"),
-                "doctor",
-                "--check",
-                "source-boundary",
-                "--check",
-                "dependency-locks",
-            ]
-            completed = subprocess.run(
-                command,
-                cwd=self.project_root,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
             try:
-                output = json.loads(completed.stdout)
-            except json.JSONDecodeError:
-                output = {
-                    "ready": False,
-                    "stdout": completed.stdout,
-                    "stderr": completed.stderr,
-                }
+                clean_receipt = json.loads(
+                    (evidence_root / "clean-install.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                raise GateFailure(
+                    "Clean-install semantic evidence is unavailable.",
+                    code="release_semantic_evidence_invalid",
+                    details={"error": str(error)},
+                ) from error
+            if not isinstance(clean_receipt, Mapping):
+                raise GateFailure(
+                    "Clean-install semantic evidence is not an object.",
+                    code="release_semantic_evidence_invalid",
+                )
+            clean_admission = CleanInstallReceiptVerifier().verify(
+                clean_receipt,
+                expected_commit=expected_commit,
+            )
+            nested = clean_receipt.get("receipts")
+            lifecycle = (
+                nested.get("lifecycle")
+                if isinstance(nested, Mapping)
+                else None
+            )
+            commands = (
+                lifecycle.get("commands")
+                if isinstance(lifecycle, Mapping)
+                else None
+            )
+            semantic_receipts = [
+                item
+                for item in commands or ()
+                if isinstance(item, Mapping)
+                and item.get("name") == "semantic-health"
+            ]
+            semantic = semantic_receipts[0] if len(semantic_receipts) == 1 else {}
+            failures: list[str] = []
+            if len(semantic_receipts) != 1:
+                failures.append("semantic_receipt_count")
+            if semantic.get("ready") is not True:
+                failures.append("semantic_health_not_ready")
+            if semantic.get("returncode") != 0:
+                failures.append("semantic_health_returncode")
+            command = semantic.get("command")
+            if (
+                not isinstance(command, list)
+                or command[-2:] != ["lifecycle", "health"]
+            ):
+                failures.append("semantic_health_command")
             value = {
-                "ready": completed.returncode == 0
-                and isinstance(output, Mapping)
-                and output.get("ready") is True,
-                "command": command,
-                "returncode": completed.returncode,
-                "doctor": output,
+                "schema": "zyra.release-semantic-health-verification/v1",
+                "ready": not failures,
+                "source_commit": expected_commit,
+                "clean_install_admission": clean_admission,
+                "clean_install_digest": stable_digest(clean_receipt),
+                "semantic_health": {
+                    "command": command if isinstance(command, list) else [],
+                    "duration_ms": semantic.get("duration_ms"),
+                    "returncode": semantic.get("returncode"),
+                    "stdout_digest": semantic.get("stdout_digest"),
+                    "stderr_digest": semantic.get("stderr_digest"),
+                    "timed_out": semantic.get("timed_out"),
+                },
+                "failures": failures,
             }
+            value["digest"] = stable_digest(value)
             self._write_json(
                 evidence_root / "semantic-health.json",
                 value,
