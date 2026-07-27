@@ -169,9 +169,13 @@ class ReleasePolicy:
         return False, ""
 
     def environment_allowed(self, name: str) -> bool:
-        if name in self.environment_allowlist:
+        folded = name.casefold()
+        if folded in {item.casefold() for item in self.environment_allowlist}:
             return True
-        return any(name.startswith(prefix) for prefix in self.environment_prefix_allowlist)
+        return any(
+            folded.startswith(prefix.casefold())
+            for prefix in self.environment_prefix_allowlist
+        )
 
     def secret_name(self, name: str) -> bool:
         folded = name.casefold()

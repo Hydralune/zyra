@@ -329,7 +329,11 @@ class GateExecutor:
             exit_code = result.returncode
             stdout = result.stdout
             stderr = result.stderr
-        artifacts = self._collect_artifacts(spec)
+        # Preserve the originating gate failure when a callable aborts before
+        # it can write its success artifact.  Admission still fails closed, but
+        # the diagnostic remains actionable instead of being replaced by the
+        # secondary "artifact missing" symptom.
+        artifacts = self._collect_artifacts(spec) if ready else []
         state = GateState.PASSED if ready else GateState.FAILED
         receipt = GateReceipt(
             gate_id=spec.gate_id,
@@ -588,9 +592,13 @@ def standard_gate_registry(
         ),
         GateSpec(
             gate_id="source-custody",
-            command=(python, "scripts/verify_m3_01_source_custody_closure.py"),
+            callable=callable_gates["source-custody"],
             dependencies=("python-lock", "javascript-lock"),
             timeout_seconds=900,
+            artifacts=(
+                "source-custody-receipt.json",
+                "source-custody-work-queue.json",
+            ),
         ),
         GateSpec(
             gate_id="submission-boundary",

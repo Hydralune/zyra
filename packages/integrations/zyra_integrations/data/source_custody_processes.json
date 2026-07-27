@@ -335,6 +335,112 @@
       "default_reachable": false,
       "external": false,
       "reason": "Injected fake servers, listeners and child commands are test-only harnesses and cannot be used as release/live evidence."
+    },
+    {
+      "profile_id": "release_productization_lifecycle",
+      "kind": "deployment",
+      "owner": "ReleaseRuntime",
+      "executable": "*",
+      "command_prefixes": [],
+      "callsite_patterns": [
+        "packages/productization/zyra_productization/release"
+      ],
+      "modes": ["required", "development", "test"],
+      "transport": "stdio",
+      "ports": [],
+      "environment": [
+        "BUN_INSTALL_CACHE_DIR",
+        "SOURCE_DATE_EPOCH",
+        "UV_CACHE_DIR",
+        "ZYRA_BUN_EXECUTABLE"
+      ],
+      "package": "zyra-productization",
+      "entrypoint": "zyra_productization.release.cli",
+      "healthcheck": "python -m zyra_productization.release.cli doctor",
+      "source_role_entry_ids": ["src_zyra_dynamic_topology"],
+      "default_reachable": true,
+      "external": false,
+      "reason": "The release runtime owns locked build, clean install, lifecycle, migration, rollback and uninstall child-process custody."
+    },
+    {
+      "profile_id": "product_deployment_supervisor",
+      "kind": "deployment",
+      "owner": "DeploymentOrchestrator",
+      "executable": "*",
+      "command_prefixes": [],
+      "callsite_patterns": [
+        "packages/orchestration/zyra_orchestration/deployment"
+      ],
+      "modes": ["required", "development", "test"],
+      "transport": "http",
+      "ports": [],
+      "environment": [
+        "ZYRA_API_PORT",
+        "ZYRA_DEPLOYMENT_PROFILE_BASE_PORT",
+        "ZYRA_WEB_PORT"
+      ],
+      "package": "zyra-orchestration",
+      "entrypoint": "zyra_orchestration.deployment.cli",
+      "healthcheck": "python -m zyra_orchestration.deployment.cli doctor",
+      "source_role_entry_ids": [
+        "src_zyra_dynamic_topology",
+        "src_zyra_immutable_state"
+      ],
+      "default_reachable": true,
+      "external": false,
+      "reason": "The deployment orchestrator supervises the three profile nodes, API and web process graph with explicit ports and semantic health."
+    },
+    {
+      "profile_id": "regression_hardening_processes",
+      "kind": "deployment",
+      "owner": "RegressionHardeningRuntime",
+      "executable": "*",
+      "command_prefixes": [],
+      "callsite_patterns": [
+        "packages/evaluation/zyra_evaluation/regression_hardening"
+      ],
+      "modes": ["development", "test"],
+      "transport": "stdio",
+      "ports": [],
+      "environment": ["ZYRA_HARDENING_PROFILE"],
+      "package": "zyra-evaluation",
+      "entrypoint": "zyra_evaluation.regression_hardening",
+      "healthcheck": "python -m pytest tests/unit/test_regression_hardening.py",
+      "source_role_entry_ids": [
+        "src_zyra_dynamic_topology",
+        "src_zyra_immutable_state"
+      ],
+      "default_reachable": false,
+      "external": false,
+      "reason": "Regression hardening child commands are bounded evaluation processes and cannot become canonical runtime state owners."
+    },
+    {
+      "profile_id": "formal_live_benchmark_port",
+      "kind": "deployment",
+      "owner": "LiveBenchmarkPort",
+      "executable": "*",
+      "command_prefixes": [],
+      "callsite_patterns": [
+        "apps/api/zyra_api/live_benchmark_port.py"
+      ],
+      "modes": ["required", "test"],
+      "transport": "http",
+      "ports": [],
+      "environment": [
+        "ZYRA_API_PORT",
+        "ZYRA_DEPLOYMENT_PROFILE_BASE_PORT",
+        "ZYRA_WEB_PORT"
+      ],
+      "package": "zyra-api",
+      "entrypoint": "zyra_api.live_benchmark_port",
+      "healthcheck": "python -m pytest tests/integration/test_m3_s02a02_formal_live_pipeline.py",
+      "source_role_entry_ids": [
+        "src_zyra_dynamic_topology",
+        "src_zyra_immutable_state"
+      ],
+      "default_reachable": true,
+      "external": false,
+      "reason": "The formal live benchmark port invokes the productized deployment and verification surfaces without introducing an external source runtime."
     }
   ]
 }

@@ -727,6 +727,42 @@ def test_gate_registry_dependency_failure_blocks_downstream(
     assert receipts["second"]["state"] == GateState.BLOCKED.value
 
 
+def test_failed_gate_preserves_primary_error_when_success_artifact_is_absent(
+    tmp_path: Path,
+) -> None:
+    registry = GateRegistry(
+        (
+            GateSpec(
+                gate_id="failure",
+                callable=lambda _: {
+                    "ready": False,
+                    "error": "primary gate failure",
+                },
+                artifacts=("success.json",),
+            ),
+        )
+    )
+    report = GateExecutor(
+        registry,
+        project_root=tmp_path,
+        output_root=tmp_path / "out",
+        source_commit="a" * 40,
+        environment=dict(os.environ),
+    ).execute()
+    receipt = report["receipts"][0]
+    assert receipt["state"] == GateState.FAILED.value
+    assert receipt["reason"] == "primary gate failure"
+    assert report["details"]["failure"]["error"] == "primary gate failure"
+
+
+def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
+    policy = ReleasePolicy()
+    assert policy.environment_allowed("SystemRoot") is True
+    assert policy.environment_allowed("SYSTEMROOT") is True
+    assert policy.environment_allowed("zyra_release_ci") is True
+    assert policy.environment_allowed("UNRELATED_SECRET") is False
+
+
 def test_gate_registry_rejects_cycles() -> None:
     registry = GateRegistry(
         (

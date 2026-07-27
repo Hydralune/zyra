@@ -764,6 +764,57 @@ class ReleaseRuntime:
             )
             return value
 
+        def source_custody(context: GateContext) -> Mapping[str, Any]:
+            receipt_path = evidence_root / "source-custody-receipt.json"
+            queue_path = evidence_root / "source-custody-work-queue.json"
+            command = [
+                sys.executable,
+                "scripts/audit_source_custody.py",
+                "--project-root",
+                str(self.project_root),
+                "--mode",
+                "candidate",
+                "--revision",
+                expected_commit,
+                "--receipt",
+                str(receipt_path),
+                "--work-queue",
+                str(queue_path),
+                "--json",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.project_root,
+                env=dict(context.environment),
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=900,
+            )
+            try:
+                summary = json.loads(completed.stdout)
+            except json.JSONDecodeError:
+                summary = {
+                    "release_ready": False,
+                    "stdout_digest": stable_digest(completed.stdout),
+                }
+            ready = (
+                completed.returncode == 0
+                and isinstance(summary, Mapping)
+                and summary.get("release_ready") is True
+                and receipt_path.is_file()
+                and queue_path.is_file()
+            )
+            return {
+                "ready": ready,
+                "command": command,
+                "returncode": completed.returncode,
+                "summary": summary,
+                "stderr": completed.stderr[-16_384:],
+            }
+
         def clean_install(_: GateContext) -> Mapping[str, Any]:
             return CleanInstallRunner(
                 self.project_root,
@@ -844,6 +895,7 @@ class ReleaseRuntime:
             "bundle-boundary": bundle_boundary,
             "checksums": checksums,
             "sbom-notice": sbom_notice,
+            "source-custody": source_custody,
             "clean-install": clean_install,
             "semantic-health": semantic_health,
             "benchmark-link": benchmark_link,
