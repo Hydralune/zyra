@@ -134,6 +134,13 @@ class GatewayToolExecutionRouter:
             # runtime cannot be masked by a direct file adapter.
             self.bundle.runtime.assert_enabled()
             identity = self._identity(call)
+            if call.tool_name != "shell":
+                # WorkspaceEditPort operations commit through the same
+                # session-scoped artifact/state custody as shell execution.
+                # Ensure that custody exists before read/write/edit/delete;
+                # otherwise a clean product state rejects the first ordinary
+                # file effect with session_not_found.
+                self._ensure_session(identity)
             if call.tool_name == "shell":
                 return self._shell(
                     call,

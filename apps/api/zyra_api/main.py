@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import ipaddress
 import json
 import os
 import sqlite3
@@ -138,6 +139,16 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/hardening/m1/integration/runs"),
     ("GET", "/hardening/m1/integration/runs/{run_id}"),
     ("POST", "/hardening/m1/integration"),
+    ("GET", "/deployment/status"),
+    ("GET", "/deployment/profiles"),
+    ("GET", "/deployment/events"),
+    ("GET", "/deployment/semantic-health/latest"),
+    ("POST", "/deployment/doctor"),
+    ("POST", "/deployment/semantic-health"),
+    ("POST", "/deployment/dispatch"),
+    ("POST", "/deployment/faults/{profile}"),
+    ("POST", "/deployment/exercise"),
+    ("POST", "/deployment/shutdown"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -160,6 +171,7 @@ from .diff_review_api import (
 from .terminal_api import TerminalApiService
 from .scenario_api import get_scenario_runner_api, reset_scenario_runner_api
 from .experiment_api import get_experiment_api, reset_experiment_api
+from .deployment_api import get_deployment_api, reset_deployment_api
 
 from zyra_core import (
     AgentMessage,
@@ -5006,7 +5018,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                         try:
                                             reset_scenario_runner_api(wait=False)
                                         finally:
-                                            reset_experiment_api(wait=False)
+                                            try:
+                                                reset_experiment_api(wait=False)
+                                            finally:
+                                                reset_deployment_api()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -5522,6 +5537,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if not self._prepare_typed_transport():
             return
         store = get_store()
+
+        deployment_response = get_deployment_api().route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if deployment_response is not None:
+            self._send_json(
+                deployment_response.status,
+                deployment_response.body,
+                headers=dict(deployment_response.headers),
+            )
+            return
 
         scenario_response = get_scenario_runner_api().route_get(
             tuple(parts),
@@ -7248,6 +7275,49 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        if parts == ["deployment", "shutdown"]:
+            try:
+                shutdown_caller_is_local = ipaddress.ip_address(
+                    self.client_address[0]
+                ).is_loopback
+            except ValueError:
+                shutdown_caller_is_local = False
+            if not shutdown_caller_is_local:
+                self._send_json(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "schema": "zyra.deployment-error/v1",
+                        "error": "deployment_shutdown_remote_forbidden",
+                        "message": "Deployment shutdown is restricted to the local supervisor.",
+                        "fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+                return
+            self._send_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "schema": "zyra.deployment-api-shutdown/v1",
+                    "accepted": True,
+                    "fallback": False,
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
+
+        deployment_response = get_deployment_api().route_post(
+            tuple(parts),
+            payload,
+        )
+        if deployment_response is not None:
+            self._send_json(
+                deployment_response.status,
+                deployment_response.body,
+                headers=dict(deployment_response.headers),
+            )
             return
 
         scenario_response = get_scenario_runner_api().route_post(
