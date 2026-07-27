@@ -259,9 +259,32 @@ def verify_live_benchmark_freeze_admission() -> None:
         evidence_root,
         expected_commit=implementation_commit,
     )
-    if receipt["receipt_digest"] != pointer.get("freeze_admission_digest"):
+    stored_path = evidence_root / "freeze-admission.json"
+    stored = json.loads(stored_path.read_text(encoding="utf-8"))
+    stored_projection = dict(stored)
+    stored_digest = str(stored_projection.pop("receipt_digest", "") or "")
+    if stored_digest != digest(stored_projection):
         raise AssertionError(
-            "M3 formal live benchmark freeze receipt differs from its pointer"
+            "M3 stored formal live benchmark freeze receipt digest is invalid"
+        )
+    if stored_digest != pointer.get("freeze_admission_digest"):
+        raise AssertionError(
+            "M3 stored formal live benchmark freeze receipt differs from its pointer"
+        )
+    stable_fields = (
+        "valid",
+        "target_commit",
+        "campaign_id",
+        "report_digest",
+        "evidence_index_digest",
+        "manifest_digest",
+        "score",
+        "human_intervention_count",
+        "operator_intervention_count",
+    )
+    if any(stored.get(key) != receipt.get(key) for key in stable_fields):
+        raise AssertionError(
+            "M3 formal live benchmark repeat verification changed stable fields"
         )
 
 

@@ -1,0 +1,49 @@
+{
+  "content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+  "file_sha256": "ce9b659581625d0f7362a0c25221f622e6a237d7bc8703b48d5e952185b7a2da",
+  "no_new_provider_call": true,
+  "providers": [
+    {
+      "model_id": "claude-sonnet-5",
+      "provider_id": "anthropic",
+      "request_path": "/v1/messages",
+      "simulated": false,
+      "tool_call_and_result": true,
+      "wire_dialect": "anthropic-compatible"
+    },
+    {
+      "model_id": "gpt-5.5",
+      "provider_id": "openai",
+      "request_path": "/v1/responses",
+      "simulated": false,
+      "tool_call_and_result": true,
+      "wire_dialect": "openai-compatible"
+    }
+  ],
+  "schema": "zyra.protected-deployment-evidence/v1",
+  "source_path": "G:\\agent-zoo\\zyra\\docs\\reviews\\evidence\\M1-08-and-M1-exit-review-2026-07-23.json",
+  "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+  "tiers": [
+    {
+      "protocol": "zyra-local-worker/v1",
+      "simulated": false,
+      "tier": "local",
+      "transport": "in-process-terminal"
+    },
+    {
+      "isolated_process": true,
+      "loopback": false,
+      "protocol": "zyra-authenticated-edge-tcp/v1",
+      "simulated": false,
+      "tier": "edge",
+      "transport": "tcp+hmac"
+    },
+    {
+      "protocol": "openai-compatible",
+      "simulated": false,
+      "tier": "cloud",
+      "transport": "provider-owned-managed-cli"
+    }
+  ],
+  "verified_at": "2026-07-27T05:17:18.065860Z"
+}

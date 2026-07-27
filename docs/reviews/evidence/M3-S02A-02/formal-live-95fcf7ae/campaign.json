@@ -1,0 +1,835 @@
+{
+  "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+  "cells": [
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-bd3cd849ad185c2915ff3942",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-78770ed1b81005c3bccf6fc5",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-a6618264547b39cb3e1fe05c",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-e23ba99476747b659c6f8bb6",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-781228698dea72c94c9ad9d4",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-8f1be6e9e45151bc2ac76d62",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-2dd16a95497edaf90ae02bf4",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-54dd164c8eddbfca7e79ac6b",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-c4a742f8092e2613d6c67fe2",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-fd970b7b23b355e9d0283109",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-72181bc265f44e8d1d5b5077",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-dfd3f5035a92d8fbe24afe6c",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-be9a0d0e7d761a698b40e5ff",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-75eb38133aacabef6b70fd34",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-8cac47a402219bde094bf00d",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-0692ee54691ca5233e426dd4",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-2849867e6943a0d510a16be2",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-c2f5b4f8d3f2a3d3d7674cfb",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-f3c39ae124192a4edc5f39cc",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-69e33afd9e0dec73aea3af3f",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-758698b5a96a5f051e863e93",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "software-delivery",
+      "input_revision": "software-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-d96f160a6bc25d753235abb0",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-b4f1ab6ffb60338348e212c9",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-42fde1f284be3dbac04cb748",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-d3088c3d28a9574a95e47eea",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-23c315f3f936eb47e64f04ce",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-fa5b7f3931b828c49474b4d5",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-03ceba3440f88fa0466ea5b2",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-e4b4006a3d57a2c94cde0e52",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-e17317f5fd5f91ead703d3f4",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-1f1487f96c809ade750f2a2c",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-e728aa22e20733bc5e684622",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-e39c62d9e048f3377d7c6d59",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-a1422108e47225c8ba3d344f",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-2f9b6d82c2221b029dddd440",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-9aef2d9bf4701a3a5881d28a",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-8c12451e8c62872e27f4f785",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-bcccc5610b6531addef25e46",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-94c38bd4c96cde03091daaf4",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-bf67ffe4ed89fbb04ff021fb",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r1",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-db3474baddfa3a2eec431c77",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r2",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+      "cell_id": "cell-340e1b8bb86521f52fe88011",
+      "condition_digest": "c333bfda9eb4d04151089f30eb411f620c22e7d377b57821597530be4a958411",
+      "domain": "cross-source-research",
+      "input_revision": "research-95fcf7aeaed5-r3",
+      "planned_at": "2026-07-27T05:17:18.201654Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    }
+  ],
+  "conditions": {
+    "budget_digest": "137f720edc6c23379df89da5cd44db2e0ba3c60c6b09b1ada27df67786255a7a",
+    "commit_sha": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "deployment_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+    "environment_digest": "708810e50e865c0ed13d25b6d0485caa61bf9dc56b9794eb7daab44baf5a91f7",
+    "failure_schedule_digest": "5b67bc0ea06c7dbe2943c076032039ef6cf605dbf60d27eacd59f7610df5535c",
+    "hardware_digest": "637e349a2a97dd0fc91ae8fe18c5257483aeb67319b2c3e6aaa53a05a956946d",
+    "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+    "sealed_policy_digest": "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd",
+    "source_evidence_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+    "verifier_digest": "163e8c59deafd72f5893515cd9b95ef4bc25a7dc4b7edf685b4d4068ef565705"
+  },
+  "created_at": "2026-07-27T05:17:18.201654Z",
+  "domains": [
+    "software-delivery",
+    "cross-source-research"
+  ],
+  "metadata": {
+    "budget": {
+      "maximum_campaign_wall_seconds": 10800,
+      "maximum_cost_usd": 0,
+      "maximum_provider_requests": 0,
+      "maximum_source_wall_seconds": 1200,
+      "maximum_workers": 1
+    },
+    "deployment": {
+      "current": {
+        "model_id": "none",
+        "no_new_provider_call": true,
+        "provider_id": "none",
+        "tier": "device"
+      },
+      "protected_m1_bundle_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+      "protected_providers": [
+        {
+          "model_id": "claude-sonnet-5",
+          "provider_id": "anthropic",
+          "request_path": "/v1/messages",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "anthropic-compatible"
+        },
+        {
+          "model_id": "gpt-5.5",
+          "provider_id": "openai",
+          "request_path": "/v1/responses",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "openai-compatible"
+        }
+      ],
+      "protected_tiers": [
+        {
+          "protocol": "zyra-local-worker/v1",
+          "simulated": false,
+          "tier": "local",
+          "transport": "in-process-terminal"
+        },
+        {
+          "isolated_process": true,
+          "loopback": false,
+          "protocol": "zyra-authenticated-edge-tcp/v1",
+          "simulated": false,
+          "tier": "edge",
+          "transport": "tcp+hmac"
+        },
+        {
+          "protocol": "openai-compatible",
+          "simulated": false,
+          "tier": "cloud",
+          "transport": "provider-owned-managed-cli"
+        }
+      ]
+    },
+    "environment": {
+      "benchmark_entry": "scripts/run_m3_s02a02_live_benchmark.py",
+      "live_product_owner": "ScenarioRunnerService",
+      "machine": "AMD64",
+      "new_provider_calls_allowed": false,
+      "os": "Windows",
+      "os_release": "11",
+      "public_research_proxy_cidrs": "198.18.0.0/15",
+      "python": "3.13.9",
+      "source_entry": "scripts/run_m3_live_source.py",
+      "variant_owner": "EvidenceBackedWorkloadRuntime"
+    },
+    "failure_schedule": {
+      "deterministic": true,
+      "recovery_ablation_expected_to_fail_delivery": true,
+      "research": [
+        "acceptance-criteria-change",
+        "tool-failure",
+        "node-loss",
+        "provider-failure",
+        "network-failure"
+      ],
+      "software": [
+        "scope-change",
+        "exception",
+        "worker-loss",
+        "provider-failure",
+        "edge-disconnect"
+      ]
+    },
+    "formal_cell_count": 42,
+    "fresh_source_run_count": 6,
+    "hardware": {
+      "architecture": "AMD64",
+      "logical_cpu_count": 32,
+      "memory_total_bytes": 34158272512,
+      "physical_cpu_count": 24,
+      "resource_observation": "current-process-psutil"
+    },
+    "no_new_provider_call": true,
+    "paired_source_sharing": "within-domain-repetition-only",
+    "protected_m1_evidence": {
+      "content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+      "file_sha256": "ce9b659581625d0f7362a0c25221f622e6a237d7bc8703b48d5e952185b7a2da",
+      "no_new_provider_call": true,
+      "providers": [
+        {
+          "model_id": "claude-sonnet-5",
+          "provider_id": "anthropic",
+          "request_path": "/v1/messages",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "anthropic-compatible"
+        },
+        {
+          "model_id": "gpt-5.5",
+          "provider_id": "openai",
+          "request_path": "/v1/responses",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "openai-compatible"
+        }
+      ],
+      "schema": "zyra.protected-deployment-evidence/v1",
+      "source_path": "G:\\agent-zoo\\zyra\\docs\\reviews\\evidence\\M1-08-and-M1-exit-review-2026-07-23.json",
+      "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+      "tiers": [
+        {
+          "protocol": "zyra-local-worker/v1",
+          "simulated": false,
+          "tier": "local",
+          "transport": "in-process-terminal"
+        },
+        {
+          "isolated_process": true,
+          "loopback": false,
+          "protocol": "zyra-authenticated-edge-tcp/v1",
+          "simulated": false,
+          "tier": "edge",
+          "transport": "tcp+hmac"
+        },
+        {
+          "protocol": "openai-compatible",
+          "simulated": false,
+          "tier": "cloud",
+          "transport": "provider-owned-managed-cli"
+        }
+      ],
+      "verified_at": "2026-07-27T05:17:18.065860Z"
+    },
+    "provider_policy": {
+      "authenticated_provider_cli_allowed": false,
+      "current_model_id": "none",
+      "current_provider_id": "none",
+      "external_model_request_allowed": false,
+      "policy_id": "m3-s02a02-no-new-provider-call",
+      "protected_evidence_only": true,
+      "protected_m1_content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb"
+    },
+    "slice": "M3-S02A-02",
+    "verifier": {
+      "deterministic_failure_overrides_model_judge": true,
+      "model_judge_enabled": false,
+      "research": "M3ProductDomainVerifier/research",
+      "software": "M3ProductDomainVerifier/software"
+    }
+  },
+  "minimum_effective_steps": 2000,
+  "phase": "planned",
+  "required_long_run_steps": 2000,
+  "schema_version": "zyra.live-benchmark-campaign/v1",
+  "seeds": [
+    27072001,
+    27072002,
+    27072003
+  ],
+  "updated_at": "2026-07-27T05:17:18.201654Z",
+  "variants": [
+    {
+      "capabilities": {
+        "communication_mode": "self",
+        "dynamic_topology": false,
+        "heterogeneous_roles": false,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": false,
+        "worker_limit": 1
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "topology": "single-node"
+      },
+      "title": "Single agent",
+      "variant_id": "single-agent"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "broadcast",
+        "dynamic_topology": false,
+        "heterogeneous_roles": true,
+        "low_entropy": false,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "topology": "static-complete-graph"
+      },
+      "title": "Static full-connect multi-agent",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "production": true,
+        "topology": "runtime-evolvable-sparse"
+      },
+      "title": "Dynamic heterogeneous swarm",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": false,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "scheduler",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No scheduler",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": false,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "memory_compact",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No memory/compact",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": false,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "recovery",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No recovery",
+      "variant_id": "no-recovery"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "broadcast",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": false,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "low_entropy",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No low-entropy communication",
+      "variant_id": "no-low-entropy-communication"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "authenticated_provider_cli_invoked": false,
+  "campaign_digest": "2d6d8d1b31ca7d8f34a96a70f6e380edc15466ab93541167cb0d062680dae3c1",
+  "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+  "created_at": "2026-07-27T05:39:22.471551Z",
+  "evidence_index_digest": "7c69a994abc38ad4298537db4b63bb5f7326c1001f46bcbe39cfe81ba2782931",
+  "external_model_request_made": false,
+  "formal_cell_count": 42,
+  "implementation_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+  "no_new_provider_call": true,
+  "protected_m1_bundle_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+  "protected_m1_content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+  "raw_sample_count": 1554,
+  "report_digest": "df0fb5203ece7a27b4acb4e1241508347b0cc2a4c0b59a8964c05f55c1de3293",
+  "schema": "zyra.m3-s02a02-implementation-metadata/v1",
+  "slice_id": "M3-S02A-02",
+  "source_run_count": 6
+}

@@ -1,0 +1,324 @@
+{
+  "journal_verification": {
+    "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+    "entry_count": 132,
+    "journal_head": "54932c4ae486ee39fb8b604d72d666a2371cda2b394933979509c39ea9d36151",
+    "receipt_digest": "2a33fa2e68db082f0a774f5e83318018bdd96bacf0454365cbad3ed3820937ba",
+    "schema": "zyra.live-benchmark-journal-verification/v1",
+    "valid": true,
+    "verified_at": "2026-07-27T05:39:22.506224Z"
+  },
+  "schema": "zyra.m3-live-campaign-store-receipt/v1",
+  "state": {
+    "campaign_digest": "2d6d8d1b31ca7d8f34a96a70f6e380edc15466ab93541167cb0d062680dae3c1",
+    "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+    "cancel_requested": false,
+    "cell_states": {
+      "cell-03ceba3440f88fa0466ea5b2": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "d7bf30f186828ae6e96a1ec4e11fa6ae828e305e27d55b4d616b367fef8f0be8",
+        "updated_at": "2026-07-27T05:22:51.301027Z"
+      },
+      "cell-0692ee54691ca5233e426dd4": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "5ff6ac6692252d6c7097505ee51af2361678a902a05cea1ee2945d19267c5e82",
+        "updated_at": "2026-07-27T05:26:03.707258Z"
+      },
+      "cell-1f1487f96c809ade750f2a2c": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "93444ba1323808157e1d757c62add0a302de95202de0903ed1d75a5af15fe630",
+        "updated_at": "2026-07-27T05:26:07.640182Z"
+      },
+      "cell-23c315f3f936eb47e64f04ce": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "e4d0e8ec6b4afcf2e8cb4caca3f001e5c91b92d89482995276bc40d677e492b1",
+        "updated_at": "2026-07-27T05:30:37.963115Z"
+      },
+      "cell-2849867e6943a0d510a16be2": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "9fcdddc4d5adf4880316646b8082f6a6c9071b70e05853fd99040947279c9573",
+        "updated_at": "2026-07-27T05:32:13.558268Z"
+      },
+      "cell-2dd16a95497edaf90ae02bf4": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "d318a215e8336ef0f3abdcbe56c6cb0c6e746d43b172b59b708ba051e4d23740",
+        "updated_at": "2026-07-27T05:32:15.098230Z"
+      },
+      "cell-2f9b6d82c2221b029dddd440": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "0a1b2241cc25fe5e9247955daa272273cba15d32d3bdf1a38f95611b910ef4e8",
+        "updated_at": "2026-07-27T05:32:17.375948Z"
+      },
+      "cell-340e1b8bb86521f52fe88011": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "dab24f5ac84f2990a3efe00194ba349e91f7a362035702d09a4fc40029033d4f",
+        "updated_at": "2026-07-27T05:35:27.184213Z"
+      },
+      "cell-42fde1f284be3dbac04cb748": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "49b42e141d92e0ef9c4c33ba13a1ed899794049782f540a8b7a7e3c11462c032",
+        "updated_at": "2026-07-27T05:35:29.409496Z"
+      },
+      "cell-54dd164c8eddbfca7e79ac6b": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "87f533a33a1cebdcc7ce0511d2baef9f745c933e0a3da873dd460ad4c6223680",
+        "updated_at": "2026-07-27T05:35:30.872365Z"
+      },
+      "cell-69e33afd9e0dec73aea3af3f": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "221026c5c0c587199f0b01213190ebf7946238c6d7bb478b9047ef4695af09f9",
+        "updated_at": "2026-07-27T05:35:32.225900Z"
+      },
+      "cell-72181bc265f44e8d1d5b5077": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "c5655f164b7d805ceff4c10d04e723d880e3f3237aacc04a7ab032dc9846d18c",
+        "updated_at": "2026-07-27T05:35:33.601999Z"
+      },
+      "cell-758698b5a96a5f051e863e93": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "e31cac30a163b009d19bef511b8b496a4df737426a31d465fd9f44ff73d987e4",
+        "updated_at": "2026-07-27T05:37:19.871038Z"
+      },
+      "cell-75eb38133aacabef6b70fd34": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "4a479c10b09374be9e5469b668e21b6e5a44290870a4462e3b712abcf5047b9a",
+        "updated_at": "2026-07-27T05:37:21.294417Z"
+      },
+      "cell-781228698dea72c94c9ad9d4": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "8935fa66212d345065f0c9d8b6ade0151c148a83d2db52f996cf9d197578458d",
+        "updated_at": "2026-07-27T05:37:22.846495Z"
+      },
+      "cell-78770ed1b81005c3bccf6fc5": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "ab3fb863124f74187e2db9d45a32112afb8b5fad4cb3b9eab218f2734e6f5c14",
+        "updated_at": "2026-07-27T05:37:24.302921Z"
+      },
+      "cell-8c12451e8c62872e27f4f785": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "cfd8cf84103bc1a895e966645b7ca921817cfdc94325ed3bbd3c6e1405651305",
+        "updated_at": "2026-07-27T05:37:26.965854Z"
+      },
+      "cell-8cac47a402219bde094bf00d": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "e9dfd9278bbafa44b46d7d11304e9ace3b105fd259685401ff83bee785d645fe",
+        "updated_at": "2026-07-27T05:37:28.342776Z"
+      },
+      "cell-8f1be6e9e45151bc2ac76d62": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "0394ed7996c2f5491d5d11dabd321347d6902a985b52b7e49ed9804691bc18ad",
+        "updated_at": "2026-07-27T05:37:29.798580Z"
+      },
+      "cell-94c38bd4c96cde03091daaf4": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "2fcc3092d0bebe33839168e5a62f29b2927ae4ab2184aa32dfa98df9bf1573ee",
+        "updated_at": "2026-07-27T05:37:32.447077Z"
+      },
+      "cell-9aef2d9bf4701a3a5881d28a": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "d348bcf551f4fb955e93f6497db0980ad3d62d8cbabb2d2d18f8ce987648cfd1",
+        "updated_at": "2026-07-27T05:37:34.827579Z"
+      },
+      "cell-a1422108e47225c8ba3d344f": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "aa7e480f111b468661649b9e16c662f3f06ee7d09f00c6f8e81e58ed41572f69",
+        "updated_at": "2026-07-27T05:37:37.379111Z"
+      },
+      "cell-a6618264547b39cb3e1fe05c": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "583a2056b1168ffd4ecf29ec3461ba1717021b6bbff9c42de248b1c92860d91d",
+        "updated_at": "2026-07-27T05:37:38.659957Z"
+      },
+      "cell-b4f1ab6ffb60338348e212c9": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "bcba42b6ef26ab23979df424c6ae87783ad13dc9d8b9a3fe8d7e3e2bac13728d",
+        "updated_at": "2026-07-27T05:37:41.073609Z"
+      },
+      "cell-bcccc5610b6531addef25e46": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "70253eb57239e7d55d4df5b52d574f619332a5b1a96b2125ee785a4189c814e7",
+        "updated_at": "2026-07-27T05:37:43.698220Z"
+      },
+      "cell-bd3cd849ad185c2915ff3942": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "353d9c2e088e4afe0358c55d167bbc2e5c9b914de1e0ff29a8141070b1a46007",
+        "updated_at": "2026-07-27T05:37:44.901921Z"
+      },
+      "cell-be9a0d0e7d761a698b40e5ff": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "e9c78b244d68c623ff93d9e2f34bc14c12b7efbe3ce03cc63549342d7168fce3",
+        "updated_at": "2026-07-27T05:37:46.241711Z"
+      },
+      "cell-bf67ffe4ed89fbb04ff021fb": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "dc213d25fbd2791b372fa29417518218ad749e62608050080274490941019b94",
+        "updated_at": "2026-07-27T05:37:48.888215Z"
+      },
+      "cell-c2f5b4f8d3f2a3d3d7674cfb": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "87145bb9b2ce7d3afcef26e9a67a306ed2a4a8cac7bf0939949fb49051bf8f12",
+        "updated_at": "2026-07-27T05:37:50.388963Z"
+      },
+      "cell-c4a742f8092e2613d6c67fe2": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "07a677465b5f58d65ee29ee9c285c5020d7f09217cd792e9822f93c584f16610",
+        "updated_at": "2026-07-27T05:37:51.908750Z"
+      },
+      "cell-d3088c3d28a9574a95e47eea": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "48a68c298dd3fe33bb2013e1890437e9405fb5cd0e01b75451ebb0955801cb38",
+        "updated_at": "2026-07-27T05:37:54.582691Z"
+      },
+      "cell-d96f160a6bc25d753235abb0": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "809569d917245195060dfa670d8f368d01529847a6520c2612c35eff9343384e",
+        "updated_at": "2026-07-27T05:37:56.766879Z"
+      },
+      "cell-db3474baddfa3a2eec431c77": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "44506aa493d50499d154fffd707a4d8ec5633b07cb9a19e7c35bc2c7baaa2542",
+        "updated_at": "2026-07-27T05:37:59.469953Z"
+      },
+      "cell-dfd3f5035a92d8fbe24afe6c": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "f066947e1ae2eaa3d8682cc3715ec15939b8e13f5dbdbb7f217ede80e7954978",
+        "updated_at": "2026-07-27T05:38:00.857772Z"
+      },
+      "cell-e17317f5fd5f91ead703d3f4": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "4eb222bbb55b521a5e4f72bdab1b5d416a00751ed15fa93849c6e9c174af7a8a",
+        "updated_at": "2026-07-27T05:38:03.527766Z"
+      },
+      "cell-e23ba99476747b659c6f8bb6": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "41383e83dd3a0007f390d6f98832908162e6f1c7eff586ba8b1f94cfb0acf63b",
+        "updated_at": "2026-07-27T05:38:05.027631Z"
+      },
+      "cell-e39c62d9e048f3377d7c6d59": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "e78e2076e1e96b07c9008d9ee3bbe6bac906d6441078c90bff9a327509b0ecec",
+        "updated_at": "2026-07-27T05:38:07.561505Z"
+      },
+      "cell-e4b4006a3d57a2c94cde0e52": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "30260de8bf1e380eebb518613cfa0ff0cb9aadce215a722f40549519a9f50c53",
+        "updated_at": "2026-07-27T05:38:10.086940Z"
+      },
+      "cell-e728aa22e20733bc5e684622": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "fc3e6b21ea24d8a709ffc352ef91981fceba5f93a8662b7a24d57eca9bdde975",
+        "updated_at": "2026-07-27T05:38:12.705232Z"
+      },
+      "cell-f3c39ae124192a4edc5f39cc": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "85bef75dd031cceb4923c2f5c5621f89ca5c28f5bb989f82df069302c786a36e",
+        "updated_at": "2026-07-27T05:38:14.222475Z"
+      },
+      "cell-fa5b7f3931b828c49474b4d5": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "3f02dd375cd40c523122cb367a451ec93c3197fa78255798727724c110a434d8",
+        "updated_at": "2026-07-27T05:38:16.892601Z"
+      },
+      "cell-fd970b7b23b355e9d0283109": {
+        "attempt": 1,
+        "lease": null,
+        "phase": "admitted",
+        "result_digest": "31bd6aad6e75d5a1876ec8d9ae643221dd26ea4848fe36db7d2f8e59e88aaa12",
+        "updated_at": "2026-07-27T05:38:18.318536Z"
+      }
+    },
+    "created_at": "2026-07-27T05:17:18.209525Z",
+    "evidence_index_digest": "7c69a994abc38ad4298537db4b63bb5f7326c1001f46bcbe39cfe81ba2782931",
+    "frozen": true,
+    "frozen_at": "2026-07-27T05:39:22.484372Z",
+    "journal_head": "54932c4ae486ee39fb8b604d72d666a2371cda2b394933979509c39ea9d36151",
+    "journal_length": 132,
+    "phase": "frozen",
+    "report_digest": "df0fb5203ece7a27b4acb4e1241508347b0cc2a4c0b59a8964c05f55c1de3293",
+    "revision": 132,
+    "schema": "zyra.live-benchmark-store-state/v1",
+    "updated_at": "2026-07-27T05:39:22.484379Z"
+  }
+}

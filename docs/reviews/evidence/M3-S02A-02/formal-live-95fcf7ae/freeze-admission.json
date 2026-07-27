@@ -1,0 +1,14 @@
+{
+  "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+  "evidence_index_digest": "7c69a994abc38ad4298537db4b63bb5f7326c1001f46bcbe39cfe81ba2782931",
+  "human_intervention_count": 0,
+  "manifest_digest": "7e5e4e10bccc38739f544c7a0739b85c832dc5141ae2a7fe20d021c93564dec9",
+  "operator_intervention_count": 0,
+  "receipt_digest": "7dc4368baf10e1a5d1d10b01248df4131379f71d10601a77fbe88257befc5e24",
+  "report_digest": "df0fb5203ece7a27b4acb4e1241508347b0cc2a4c0b59a8964c05f55c1de3293",
+  "schema": "zyra.live-benchmark-freeze-admission/v1",
+  "score": 100,
+  "target_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+  "valid": true,
+  "verified_at": "2026-07-27T05:39:22.660712Z"
+}

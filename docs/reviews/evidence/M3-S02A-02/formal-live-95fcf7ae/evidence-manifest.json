@@ -1,0 +1,153 @@
+{
+  "campaign_id": "campaign-m3-s02a02-95fcf7aeaed5",
+  "commit_sha": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+  "created_at": "2026-07-27T05:39:22.539532Z",
+  "manifest_digest": "7e5e4e10bccc38739f544c7a0739b85c832dc5141ae2a7fe20d021c93564dec9",
+  "member_count": 19,
+  "members": [
+    {
+      "bytes": 691222,
+      "kind": "m3-03-evidence-index",
+      "path": "100-point-evidence-index.json",
+      "required": true,
+      "sha256": "c7ee026cf90efeaffefa99d86686d5b84454f04bf586fbe2f7296625c8c33f87"
+    },
+    {
+      "bytes": 13521,
+      "kind": "formal-benchmark-report",
+      "path": "benchmark-report.json",
+      "required": true,
+      "sha256": "2105b6f8b34c958149cd9b9ff9f6010e583ed94b57421f8bc2dab1b4a1a81b20"
+    },
+    {
+      "bytes": 12556,
+      "kind": "frozen-campaign-custody",
+      "path": "campaign-store-receipt.json",
+      "required": true,
+      "sha256": "4f50d553f16e703772f05508a89acafee256e26a5aee442fb45ae8d7f0156ac7"
+    },
+    {
+      "bytes": 33289,
+      "kind": "formal-campaign",
+      "path": "campaign.json",
+      "required": true,
+      "sha256": "ffe95e0e9617cf8a4607ddefe0bbbccad015a6db3ac622eed8f8e8293656071b"
+    },
+    {
+      "bytes": 5262,
+      "kind": "campaign-evaluation",
+      "path": "evaluation-summary.json",
+      "required": true,
+      "sha256": "55f3290aecf9654b4c9b97582862f8dc12e35dbfa2ac78a245841f44708fb003"
+    },
+    {
+      "bytes": 929,
+      "kind": "implementation-provenance",
+      "path": "implementation-metadata.json",
+      "required": true,
+      "sha256": "9d0f20542d9674b825eb8fc5e384909d35292435cf7790affd2bba248e535bbf"
+    },
+    {
+      "bytes": 1456,
+      "kind": "protected-m1-deployment-provider-evidence",
+      "path": "protected-deployment-evidence.json",
+      "required": true,
+      "sha256": "147abaea1c0499f9cf300546956cee0b94f3325e059f8cf5a81f85a3e7657c3c"
+    },
+    {
+      "bytes": 1363816,
+      "kind": "raw-metric-samples",
+      "path": "raw-samples.json",
+      "required": true,
+      "sha256": "fa6b80c9ad7d9b32fc1e24635896fe39ecbb8d6ea478b1266885e817c7f7ad09"
+    },
+    {
+      "bytes": 109373,
+      "kind": "100-point-requirement-evidence",
+      "path": "requirement-evidence.json",
+      "required": true,
+      "sha256": "8e2825435bbf43986988bbbd25e66d252e7e53464bb8e059d9198920acaaceb6"
+    },
+    {
+      "bytes": 128456,
+      "kind": "formal-cell-receipts",
+      "path": "run-receipts.json",
+      "required": true,
+      "sha256": "29f55846263086be8093e5dd96239f0dc41a35910f7b96cc38dd9613adf2585e"
+    },
+    {
+      "bytes": 471206,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-01.zip",
+      "required": true,
+      "sha256": "2da06815840434ea2d44c303febcb7c6b1ff6295616d9fe1ad0035cb7797ae36"
+    },
+    {
+      "bytes": 470880,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-02.zip",
+      "required": true,
+      "sha256": "5e1736f87e5634aa34592f6d9b8cec2b7cd9796bfb9f194c3f70fbc0d23085df"
+    },
+    {
+      "bytes": 470927,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-03.zip",
+      "required": true,
+      "sha256": "04909dc4ce0623524961e78465387f7fea44f3ad93245752f674de5f4386eb05"
+    },
+    {
+      "bytes": 289750,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-01.zip",
+      "required": true,
+      "sha256": "a36176459b7f452a3ebf7bec5fe8da11d92a558ef97d6a1059ff13cac0f65e90"
+    },
+    {
+      "bytes": 289940,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-02.zip",
+      "required": true,
+      "sha256": "179fe42e21035f576bb6603dd66501b44b981983f4640ba07faf02e828846cd9"
+    },
+    {
+      "bytes": 289824,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-03.zip",
+      "required": true,
+      "sha256": "a628706c4762cfc1ae0cb41f72583275df8d34b840d09e46afb5d7219df68df6"
+    },
+    {
+      "bytes": 1128740,
+      "kind": "fresh-product-source-runs",
+      "path": "source-runs.json",
+      "required": true,
+      "sha256": "700ad57cfde0f2c5c6b9b51244c0befadc8ee5d727bedebb1b5570d2abc89b15"
+    },
+    {
+      "bytes": 518056,
+      "kind": "paired-statistical-evaluation",
+      "path": "statistical-evaluation.json",
+      "required": true,
+      "sha256": "3181b6fad35e94b0a643bd2d9bbe1b2c1160e29d68f7f4bdefec282a22ea4f0b"
+    },
+    {
+      "bytes": 7711,
+      "kind": "exact-commit-validation",
+      "path": "validation-receipt.json",
+      "required": true,
+      "sha256": "f35a3168e69768fafa10cd191432d9c9bec2c6b89674646669ce3aecee5a99ec"
+    }
+  ],
+  "merkle_root": "d7f02eae50617b5fd0b93f43a6c4857dc8c072746a214a9f658e87257d75ae17",
+  "roots": {
+    "campaign": "2d6d8d1b31ca7d8f34a96a70f6e380edc15466ab93541167cb0d062680dae3c1",
+    "evidence_index": "7c69a994abc38ad4298537db4b63bb5f7326c1001f46bcbe39cfe81ba2782931",
+    "journal": "2a33fa2e68db082f0a774f5e83318018bdd96bacf0454365cbad3ed3820937ba",
+    "protected_deployment": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+    "report": "df0fb5203ece7a27b4acb4e1241508347b0cc2a4c0b59a8964c05f55c1de3293",
+    "statistics": "68f46249686d060859ef2a53ad27889fa31204d74b440a3eabeb21b6b99c3025",
+    "validation": "d87401ac6a4ef7d8ff334f99fefdc546a0d2e7c560c77fcceb9ffe48a06494cf"
+  },
+  "schema": "zyra.live-benchmark-evidence-manifest/v1"
+}
