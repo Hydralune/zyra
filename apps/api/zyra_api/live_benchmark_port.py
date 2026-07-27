@@ -132,10 +132,22 @@ class SubprocessScenarioSourceRunner:
         campaign: Campaign,
         cell: BenchmarkCell,
     ) -> FreshScenarioSource:
+        domain_code = (
+            "sw"
+            if cell.domain is DomainKind.SOFTWARE_DELIVERY
+            else "rs"
+        )
+        source_key = digest(
+            {
+                "campaign_id": campaign.campaign_id,
+                "domain": cell.domain.value,
+                "repetition": cell.repetition,
+                "input_revision": cell.input_revision,
+            }
+        )[:10]
         root = (
             self.source_root
-            / cell.domain.value
-            / f"repetition-{cell.repetition:02d}-{cell.input_revision}"
+            / f"{domain_code}{cell.repetition:02d}-{source_key}"
         ).resolve(strict=False)
         if root.exists():
             raise invalid(
