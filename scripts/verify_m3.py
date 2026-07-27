@@ -28,6 +28,7 @@ from zyra_evaluation import evaluate_task_trace
 from zyra_evaluation.live_benchmark import LiveBenchmarkFreezeGate
 from zyra_evaluation.live_benchmark.canonical import digest
 from zyra_evaluation.regression_hardening import RegressionFreezeGate
+from zyra_orchestration.deployment import DeploymentEvidenceGate
 from zyra_orchestration import GraphExecutionContext, run_task_graph
 from zyra_runtime import default_tool_registry, default_worker_descriptors
 from zyra_symbolic import ConstraintKeeper, TopologyRouter, apply_failure_injection, apply_requirement_change
@@ -288,6 +289,35 @@ def verify_live_benchmark_freeze_admission() -> None:
         )
 
 
+def verify_deployment_freeze_admission() -> None:
+    evidence_path = (
+        ROOT
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M3-S02B-01"
+        / "verification-summary.json"
+    )
+    if not evidence_path.is_file():
+        raise AssertionError(
+            f"M3 deployment verification summary is missing: {evidence_path}"
+        )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    implementation_commit = str(evidence.get("target_commit") or "")
+    if len(implementation_commit) != 40:
+        raise AssertionError(
+            "M3 deployment verification summary lacks an exact implementation commit"
+        )
+    result = DeploymentEvidenceGate(
+        ROOT,
+        evidence_path=evidence_path,
+    ).require(expected_commit=implementation_commit)
+    if result.get("ready") is not True:
+        raise AssertionError(
+            "M3 deployment freeze admission did not return a ready receipt"
+        )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Verify the M3 runtime and exact-revision regression freeze gate."
@@ -310,6 +340,7 @@ def main(argv: list[str] | None = None) -> None:
         return
     verify_regression_freeze_admission()
     verify_live_benchmark_freeze_admission()
+    verify_deployment_freeze_admission()
     print("M3 verification passed")
 
 

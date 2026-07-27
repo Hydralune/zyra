@@ -1,0 +1,134 @@
+{
+  "schema": "zyra.m3-s02b-01.verification-summary/v1",
+  "slice_id": "M3-S02B-01",
+  "target_commit": "81b08adaabc00cf18917a89418ff73dea3f6c67f",
+  "verdict": "PASS",
+  "deployment_profiles": {
+    "device": {
+      "pid": 20676,
+      "node_id": "zyra-device-f54c655d08b74e05",
+      "generation_id": "generation_e88c1cab32ad43d6",
+      "endpoint": "http://127.0.0.1:40000",
+      "in_process": false,
+      "credential_values_exposed": false
+    },
+    "edge": {
+      "pid": 47940,
+      "node_id": "zyra-edge-6655a8a203484594",
+      "generation_id": "generation_6f8b80f2ca4d43b5",
+      "endpoint": "http://127.0.0.1:40001",
+      "in_process": false,
+      "credential_values_exposed": false
+    },
+    "cloud": {
+      "pid": 23764,
+      "node_id": "zyra-cloud-584a1b9ad6c14683",
+      "generation_id": "generation_5f2a28aa40454e9c",
+      "endpoint": "http://127.0.0.1:40002",
+      "in_process": false,
+      "credential_values_exposed": false
+    }
+  },
+  "semantic_health": {
+    "ready": true,
+    "status": "degraded",
+    "report_id": "semantic_health_425e64f29d63448d",
+    "report_digest": "sha256:194037e6bdaebd9a81b034e74f3c6d84461cacec349ca30a35dbe2dce23beb7b",
+    "clean_state_verified": true,
+    "blockers": [],
+    "degraded_reason": "No cloud provider credential was present; non-provider profile verification remained ready and provider-required dispatch remained fail-closed.",
+    "probe_statuses": {
+      "api": "ready",
+      "web": "ready",
+      "runtime-owners": "ready",
+      "event-reducer": "ready",
+      "provider-failover": "degraded",
+      "mcp-skills": "ready",
+      "workspace-artifact": "ready",
+      "scheduler-recovery": "ready",
+      "memory-checkpoint": "ready",
+      "sealed-permission": "ready",
+      "node-device": "ready",
+      "node-edge": "ready",
+      "node-cloud": "degraded",
+      "profile-isolation": "ready",
+      "doctor": "degraded",
+      "short-task": "ready"
+    }
+  },
+  "placement": {
+    "binding_verified": true,
+    "independent_processes": true,
+    "profiles": [
+      "device",
+      "edge",
+      "cloud"
+    ]
+  },
+  "failure_migration": {
+    "migrated": true,
+    "source_profile": "edge",
+    "target_profile": "device",
+    "checkpoint_handoff_verified": true,
+    "source_checkpoint_ref": "deployment_checkpoint_8895ee3f2b1a4ef7",
+    "imported_checkpoint_ref": "deployment_checkpoint_3e70d439f30a4cf0",
+    "predecessor_attempt_id": "attempt_66425e0fa7c64272",
+    "fallback": false
+  },
+  "short_task": {
+    "accepted": true,
+    "task_id": "task_85edf9971acd",
+    "event_count": 85,
+    "artifact_count": 4,
+    "failed_assertions": [],
+    "fixture": false,
+    "replay": false,
+    "human_intervention_count": 0,
+    "receipt_digest": "sha256:f07dc7ebf4b4a5cefa0f226266e20bfadc847adc049a3aa264bf48a8b3cfc5b7"
+  },
+  "doctor": {
+    "ready": true,
+    "status": "degraded",
+    "report_digest": "sha256:24eec81de0bcc833515491c08a24ca81eb29d7393c9cc36c043e86837097986f"
+  },
+  "source_boundary": {
+    "ready": true,
+    "scanned_files": 303,
+    "findings": [],
+    "root_source_runtime_dependencies": 0,
+    "source_processes": 0
+  },
+  "effective_code": {
+    "conservative_production_lines": 9579,
+    "minimum": 6000,
+    "margin": 3579,
+    "raw_additions": 12112,
+    "tests_docs_scripts_counted": false,
+    "audit_path": "docs/reviews/evidence/M3-S02B-01/effective-code-audit.json"
+  },
+  "validation": [
+    {
+      "command": "python -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m3-exact tests/integration/test_deployment_node_processes.py -s",
+      "result": "2 passed in 130.79s"
+    },
+    {
+      "command": "python -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m3-precommit tests/unit/test_deployment_profiles_runtime.py plus sandbox gateway suites",
+      "result": "41 passed, 4 subtests passed in 19.10s"
+    },
+    {
+      "command": "python scripts/verify_submission_boundary.py",
+      "result": "passed"
+    },
+    {
+      "command": "python scripts/verify_m3.py",
+      "result": "passed before this deployment admission was appended"
+    },
+    {
+      "command": "bun run typecheck && bun run build:web",
+      "result": "passed; 370 web modules bundled"
+    }
+  ],
+  "secret_leak_count": 0,
+  "captured_at": "2026-07-27T07:55:45.626Z",
+  "evidence_digest": "sha256:d201d7fd6c7b4b47100e6e31e5011416b0edc9a3df0f7dcf94754c04b3ece9c9"
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "zyra.m3-s02b-01.implementation-metadata/v1",
+  "slice_id": "M3-S02B-01",
+  "baseline_commit": "f241d33c011e7f0adabb2f390395034ac064c9d6",
+  "preimplementation_decision_commit": "e1d828964f9b909d34c053c90780a9817f184997",
+  "implementation_commit": "81b08adaabc00cf18917a89418ff73dea3f6c67f",
+  "source_language": [
+    "python",
+    "typescript",
+    "bun-node"
+  ],
+  "migration_mode": "packaging_and_release_integration_only",
+  "minimum_effective_production_lines": 6000,
+  "accounted_effective_production_lines": 9579,
+  "evidence_commit_record": "docs/milestones/execution-state.yaml"
+}

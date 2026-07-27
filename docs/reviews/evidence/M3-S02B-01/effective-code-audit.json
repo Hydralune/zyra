@@ -1,0 +1,235 @@
+{
+  "accounted_effective_production": 9579,
+  "audit_tool_is_nonproduction": true,
+  "gate": {
+    "blockers": [],
+    "effective": 9579,
+    "margin": 3579,
+    "minimum": 6000,
+    "ok": true
+  },
+  "large_file_audit": [
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 68,
+      "line_count": 13287,
+      "path": "apps/api/zyra_api/main.py",
+      "source_role": "zyra_owned_deployment_control_surface",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 196
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 629,
+      "line_count": 666,
+      "path": "packages/orchestration/zyra_orchestration/deployment/doctor.py",
+      "source_role": "zyra_owned_semantic_health_and_diagnostics",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 2
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 1106,
+      "line_count": 1172,
+      "path": "packages/orchestration/zyra_orchestration/deployment/node_runtime.py",
+      "source_role": "zyra_owned_supervisor_node_and_security_runtime",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 2
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 937,
+      "line_count": 969,
+      "path": "packages/orchestration/zyra_orchestration/deployment/orchestrator.py",
+      "source_role": "zyra_owned_deployment_product_orchestration",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 1
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 747,
+      "line_count": 808,
+      "path": "packages/orchestration/zyra_orchestration/deployment/process_manager.py",
+      "source_role": "zyra_owned_supervisor_node_and_security_runtime",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 5
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 517,
+      "line_count": 546,
+      "path": "packages/orchestration/zyra_orchestration/deployment/profiles.py",
+      "source_role": "zyra_owned_profile_policy_and_placement",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 2
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 805,
+      "line_count": 849,
+      "path": "packages/orchestration/zyra_orchestration/deployment/semantic_health.py",
+      "source_role": "zyra_owned_semantic_health_and_diagnostics",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 3
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 950,
+      "line_count": 1090,
+      "path": "packages/orchestration/zyra_orchestration/deployment/state_store.py",
+      "source_role": "zyra_owned_dispatch_state_handoff_and_recovery",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 1
+    },
+    {
+      "cohesion": "The module owns one deployment lifecycle, state, semantic-health, or fail-closed security responsibility.",
+      "effective_production": 2,
+      "line_count": 1159,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_tools.py",
+      "source_role": "zyra_owned_sandbox_session_custody_fix",
+      "split_assessment": "The boundary keeps its state invariants and failure paths together without introducing another canonical owner.",
+      "symbol_count": 12
+    }
+  ],
+  "method": {
+    "baseline": "e1d828964f9b909d34c053c90780a9817f184997",
+    "effective": "behavior-bearing deployment profiles, supervisor, node protocol, state, dispatch, recovery, semantic diagnostics, control surface and product lifecycle only",
+    "python": "AST/token exclusion of Protocol, dataclass/enum fields, DTO mapping, schema constants, comments and blank lines",
+    "raw": "target-side added lines from git diff --unified=0",
+    "target": "81b08adaabc00cf18917a89418ff73dea3f6c67f",
+    "tests_docs_scripts_count_toward_minimum": false
+  },
+  "parent_unit": "M3-02B",
+  "schema": "zyra.effective-code-language-gate-audit/v1",
+  "slice": {
+    "allowed_implementation_commits": [],
+    "base": "e1d828964f9b909d34c053c90780a9817f184997",
+    "by_source_role_and_language": [
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 758,
+        "source_role": "behavior_verification",
+        "test": 758
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 246,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 246,
+        "source_role": "nonproduction_gate_or_runner",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 444,
+        "language": "python",
+        "production": 217,
+        "raw_additions": 661,
+        "source_role": "schema_declaration_or_public_exports",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "toml",
+        "production": 1,
+        "raw_additions": 1,
+        "source_role": "slice_supporting_configuration",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 34,
+        "language": "python",
+        "production": 371,
+        "raw_additions": 405,
+        "source_role": "zyra_owned_deployment_control_surface",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 65,
+        "language": "python",
+        "production": 1421,
+        "raw_additions": 1486,
+        "source_role": "zyra_owned_deployment_product_orchestration",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 260,
+        "language": "python",
+        "production": 1611,
+        "raw_additions": 1871,
+        "source_role": "zyra_owned_dispatch_state_handoff_and_recovery",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 57,
+        "language": "python",
+        "production": 972,
+        "raw_additions": 1029,
+        "source_role": "zyra_owned_profile_policy_and_placement",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 5,
+        "language": "python",
+        "production": 2,
+        "raw_additions": 7,
+        "source_role": "zyra_owned_sandbox_session_custody_fix",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 142,
+        "language": "python",
+        "production": 2164,
+        "raw_additions": 2306,
+        "source_role": "zyra_owned_semantic_health_and_diagnostics",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 304,
+        "language": "python",
+        "production": 3038,
+        "raw_additions": 3342,
+        "source_role": "zyra_owned_supervisor_node_and_security_runtime",
+        "test": 0
+      }
+    ],
+    "target": "81b08adaabc00cf18917a89418ff73dea3f6c67f",
+    "totals": {
+      "adapter_only": 0,
+      "docs_comments_blank": 612,
+      "effective_production": 9797,
+      "generated": 0,
+      "nonproduction_tooling": 246,
+      "production_runtime": 9797,
+      "raw_additions": 12112,
+      "schema_dto_data": 608,
+      "test_mock_fixture": 758,
+      "type_declaration": 91,
+      "ui_behavior": 0,
+      "ui_presentation": 0,
+      "unrelated_scope": 0
+    }
+  },
+  "slice_id": "M3-S02B-01",
+  "source_role_totals": {
+    "zyra_owned_deployment_control_surface": 371,
+    "zyra_owned_deployment_product_orchestration": 1421,
+    "zyra_owned_dispatch_state_handoff_and_recovery": 1611,
+    "zyra_owned_profile_policy_and_placement": 972,
+    "zyra_owned_sandbox_session_custody_fix": 2,
+    "zyra_owned_semantic_health_and_diagnostics": 2164,
+    "zyra_owned_supervisor_node_and_security_runtime": 3038
+  }
+}
