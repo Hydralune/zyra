@@ -41,6 +41,7 @@ from zyra_evaluation.live_benchmark.protected_evidence import (
     ProtectedDeploymentEvidence,
     protected_fact_receipt,
 )
+from zyra_evaluation.scenario_runner.canonical import digest as scenario_digest
 
 
 VARIANT_ID_MAP = {
@@ -213,7 +214,10 @@ class SubprocessScenarioSourceRunner:
             )
         outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
         declared = str(outcome.pop("outcome_digest", "") or "")
-        if require_digest(declared, "source outcome digest") != digest(outcome):
+        if (
+            require_digest(declared, "source outcome digest")
+            != scenario_digest(outcome)
+        ):
             raise invalid(
                 "benchmark_source_outcome_digest_mismatch",
                 "Product scenario source outcome changed after settlement.",
