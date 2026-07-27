@@ -1,0 +1,44 @@
+{
+  "schema": "zyra.m3-s02a-02-verification-summary/v1",
+  "slice_id": "M3-S02A-02",
+  "target_commit": "a057335d43cb83209905750383340084ae044545",
+  "verdict": "BLOCKED_FORMAL_LIVE_EXECUTION",
+  "implemented_product_responsibilities": 12,
+  "domain_count": 2,
+  "variant_count": 7,
+  "required_repetition_count": 3,
+  "formal_live_run_count": 0,
+  "human_intervention_count": 0,
+  "operator_intervention_count": 0,
+  "line_gate": {
+    "status": "passed",
+    "minimum": 6000,
+    "effective": 6797
+  },
+  "focused_validation": {
+    "status": "passed",
+    "tests": 5
+  },
+  "adjacent_regression": {
+    "status": "passed",
+    "tests": 11,
+    "warnings": 2
+  },
+  "source_boundary": {
+    "status": "passed",
+    "new_external_dependencies": 0,
+    "new_ports": 0,
+    "new_provider_cli_calls": 0,
+    "forbidden_root_runtime_paths": 0
+  },
+  "formal_benchmark": {
+    "status": "blocked",
+    "reason": "No product-bound fresh-live execution owner exists; the only DualDomainOwnerBindings composition is a test harness and protected M2 inputs are archive/controlled-workload evidence.",
+    "replay_or_fixture_relabelled": false
+  },
+  "parent_closeout": {
+    "status": "blocked",
+    "reason": "Formal benchmark evidence and M3 freeze admission are absent."
+  },
+  "execution_state_update_authorized": false
+}

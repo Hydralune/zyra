@@ -1,0 +1,27 @@
+{
+  "schema": "zyra.m3-s02a-02-implementation-metadata/v1",
+  "slice_id": "M3-S02A-02",
+  "baseline_commit": "c01fcacf7cd30c37aa9629aed76a7df5256dad63",
+  "decision_commit": "dc44781f12eea1cddef6b5a2953050033d15def3",
+  "implementation_commit": "a057335d43cb83209905750383340084ae044545",
+  "verdict": "BLOCKED_FORMAL_LIVE_EXECUTION",
+  "line_gate": {
+    "minimum_effective_production": 6000,
+    "raw_production_additions": 7456,
+    "conservative_effective_production": 6797,
+    "status": "passed"
+  },
+  "validation": {
+    "focused": "5 passed in 0.77s",
+    "adjacent": "11 passed, 2 warnings in 135.66s",
+    "compileall": "passed"
+  },
+  "formal_evidence": {
+    "fresh_live_owner_bound": false,
+    "formal_cell_receipts": 0,
+    "benchmark_report": false,
+    "evidence_index": false,
+    "freeze_admission": false
+  },
+  "execution_state_update_authorized": false
+}
