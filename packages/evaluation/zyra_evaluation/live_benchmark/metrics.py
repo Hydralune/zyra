@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from .canonical import (
+    digest,
     finite_number,
     identity,
     invalid,
@@ -467,4 +468,5 @@ def verify_campaign_metric_completeness(
         "matrix_width": len(expected_metrics),
         "verified_at": utc_now(),
     }
+    output["receipt_digest"] = digest(output)
     return output

@@ -16,6 +16,7 @@ from zyra_evaluation.live_benchmark import (
     default_variants,
     validate_variants,
     verify_campaign_fault_coverage,
+    verify_campaign_metric_completeness,
     verify_campaign_plan,
     verify_campaign_run_uniqueness,
 )
@@ -374,6 +375,13 @@ def test_statistics_report_p50_p95_confidence_and_paired_deltas() -> None:
     assert receipt["distribution_count"] == 14
     assert receipt["comparison_count"] == 12
     assert all("p50" in item and "p95" in item for item in receipt["distributions"])
+    completeness = verify_campaign_metric_completeness(
+        samples,
+        expected_cell_ids=[item.cell_id for item in samples],
+        catalog=catalog,
+    )
+    assert completeness["valid"] is True
+    assert len(completeness["receipt_digest"]) == 64
 
 
 def test_protected_m1_evidence_is_exact_and_tamper_fails_closed(

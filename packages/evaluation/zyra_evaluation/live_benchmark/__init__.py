@@ -12,7 +12,11 @@ from .matrix import (
     verify_campaign_plan,
     validate_variants,
 )
-from .metrics import MetricCatalog, MetricExtractor
+from .metrics import (
+    MetricCatalog,
+    MetricExtractor,
+    verify_campaign_metric_completeness,
+)
 from .models import (
     BenchmarkCell,
     Campaign,
@@ -81,6 +85,7 @@ __all__ = [
     "validate_variants",
     "verify_campaign_plan",
     "verify_campaign_fault_coverage",
+    "verify_campaign_metric_completeness",
     "verify_campaign_run_uniqueness",
     "protected_fact_receipt",
 ]
