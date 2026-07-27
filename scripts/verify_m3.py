@@ -25,6 +25,8 @@ for package_path in [
 
 from zyra_core import EventRecord, EventType, PlanNodeStatus, create_task_state, to_jsonable
 from zyra_evaluation import evaluate_task_trace
+from zyra_evaluation.live_benchmark import LiveBenchmarkFreezeGate
+from zyra_evaluation.live_benchmark.canonical import digest
 from zyra_evaluation.regression_hardening import RegressionFreezeGate
 from zyra_orchestration import GraphExecutionContext, run_task_graph
 from zyra_runtime import default_tool_registry, default_worker_descriptors
@@ -221,6 +223,48 @@ def verify_regression_freeze_admission() -> None:
         )
 
 
+def verify_live_benchmark_freeze_admission() -> None:
+    evidence_parent = (
+        ROOT
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M3-S02A-02"
+    )
+    pointer_path = evidence_parent / "formal-current.json"
+    if not pointer_path.is_file():
+        raise AssertionError(
+            f"M3 formal live benchmark pointer is missing: {pointer_path}"
+        )
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    projection = dict(pointer)
+    declared = str(projection.pop("pointer_digest", "") or "")
+    if declared != digest(projection):
+        raise AssertionError("M3 formal live benchmark pointer digest is invalid")
+    relative = str(pointer.get("relative_evidence_root") or "")
+    evidence_root = (ROOT / relative).resolve(strict=True)
+    parent = evidence_parent.resolve(strict=True)
+    if evidence_root == parent or parent not in evidence_root.parents:
+        raise AssertionError("M3 formal live benchmark evidence path escaped")
+    implementation_commit = str(pointer.get("implementation_commit") or "")
+    if len(implementation_commit) != 40:
+        raise AssertionError(
+            "M3 formal live benchmark pointer lacks an exact implementation commit"
+        )
+    if pointer.get("no_new_provider_call") is not True:
+        raise AssertionError(
+            "M3 formal live benchmark changed the no-new-provider-call boundary"
+        )
+    receipt = LiveBenchmarkFreezeGate().verify(
+        evidence_root,
+        expected_commit=implementation_commit,
+    )
+    if receipt["receipt_digest"] != pointer.get("freeze_admission_digest"):
+        raise AssertionError(
+            "M3 formal live benchmark freeze receipt differs from its pointer"
+        )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Verify the M3 runtime and exact-revision regression freeze gate."
@@ -242,6 +286,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.runtime_only:
         return
     verify_regression_freeze_admission()
+    verify_live_benchmark_freeze_admission()
     print("M3 verification passed")
 
 

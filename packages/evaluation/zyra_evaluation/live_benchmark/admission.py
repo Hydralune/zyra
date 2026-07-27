@@ -127,6 +127,10 @@ class LiveRunAdmission:
                 "Live run receipt digest does not match its canonical payload.",
                 phase="integrity",
             )
+        source = mapping(
+            receipt.get("source") or {},
+            "run source",
+        )
         output = {
             "schema": "zyra.live-benchmark-run-admission/v1",
             "valid": True,
@@ -137,6 +141,18 @@ class LiveRunAdmission:
             "variant_id": cell.variant_id,
             "repetition": cell.repetition,
             "input_revision": cell.input_revision,
+            "source_run_id": identity(
+                source.get("source_live_run_id"),
+                "source live run id",
+            ),
+            "source_archive_digest": require_digest(
+                source.get("source_archive_digest"),
+                "source archive digest",
+            ),
+            "variant_execution_digest": require_digest(
+                source.get("variant_execution_digest"),
+                "variant execution digest",
+            ),
             "live_receipt_digest": computed_digest,
             "condition_receipt": condition_receipt,
             "live_freshness_receipt": live_receipt,
@@ -511,28 +527,34 @@ def verify_campaign_run_uniqueness(
     receipts: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
-    dimensions = {
+    unique_dimensions = {
         "run_id": [],
-        "input_revision": [],
         "live_receipt_digest": [],
         "event_stream_digest": [],
+        "variant_execution_digest": [],
     }
+    paired_groups: dict[tuple[str, int], list[Mapping[str, Any]]] = {}
     for receipt in receipts:
-        dimensions["run_id"].append(str(receipt.get("run_id") or ""))
-        dimensions["input_revision"].append(
-            str(receipt.get("input_revision") or "")
-        )
-        dimensions["live_receipt_digest"].append(
+        unique_dimensions["run_id"].append(str(receipt.get("run_id") or ""))
+        unique_dimensions["live_receipt_digest"].append(
             str(receipt.get("live_receipt_digest") or "")
+        )
+        unique_dimensions["variant_execution_digest"].append(
+            str(receipt.get("variant_execution_digest") or "")
         )
         semantic = mapping(
             receipt.get("semantic_step_receipt") or {},
             "semantic receipt",
         )
-        dimensions["event_stream_digest"].append(
+        unique_dimensions["event_stream_digest"].append(
             str(semantic.get("event_stream_digest") or "")
         )
-    for field, values in dimensions.items():
+        group = (
+            str(receipt.get("domain") or ""),
+            int(receipt.get("repetition") or 0),
+        )
+        paired_groups.setdefault(group, []).append(receipt)
+    for field, values in unique_dimensions.items():
         duplicates = sorted(
             item for item, count in Counter(values).items() if item and count > 1
         )
@@ -545,6 +567,61 @@ def verify_campaign_run_uniqueness(
             )
         if any(not item for item in values):
             findings.append({"code": f"{field.replace('_', '-')}-missing"})
+    source_run_ids: list[str] = []
+    source_archives: list[str] = []
+    input_revisions: list[str] = []
+    expected_variants = {
+        "single-agent",
+        "static-full-connect-multi-agent",
+        "dynamic-heterogeneous-swarm",
+        "no-scheduler",
+        "no-memory-compact",
+        "no-recovery",
+        "no-low-entropy-communication",
+    }
+    for (domain, repetition), group in sorted(paired_groups.items()):
+        source_runs = {str(item.get("source_run_id") or "") for item in group}
+        archives = {
+            str(item.get("source_archive_digest") or "") for item in group
+        }
+        revisions = {str(item.get("input_revision") or "") for item in group}
+        variants = {str(item.get("variant_id") or "") for item in group}
+        if (
+            len(group) != len(expected_variants)
+            or len(source_runs) != 1
+            or len(archives) != 1
+            or len(revisions) != 1
+            or variants != expected_variants
+        ):
+            findings.append(
+                {
+                    "code": "paired-source-block-invalid",
+                    "domain": domain,
+                    "repetition": repetition,
+                    "cell_count": len(group),
+                    "source_run_count": len(source_runs),
+                    "archive_count": len(archives),
+                    "input_revision_count": len(revisions),
+                    "missing_variants": sorted(expected_variants - variants),
+                    "unexpected_variants": sorted(variants - expected_variants),
+                }
+            )
+            continue
+        source_run_ids.extend(source_runs)
+        source_archives.extend(archives)
+        input_revisions.extend(revisions)
+    for field, values in (
+        ("source-run-id", source_run_ids),
+        ("source-archive-digest", source_archives),
+        ("input-revision", input_revisions),
+    ):
+        duplicates = sorted(
+            item for item, count in Counter(values).items() if item and count > 1
+        )
+        if duplicates:
+            findings.append({"code": f"{field}-reused-across-pairs", "values": duplicates})
+        if any(not item for item in values):
+            findings.append({"code": f"{field}-missing"})
     if findings:
         raise invalid(
             "benchmark_run_uniqueness_invalid",
@@ -556,7 +633,16 @@ def verify_campaign_run_uniqueness(
         "schema": "zyra.live-benchmark-run-uniqueness/v1",
         "valid": True,
         "run_count": len(receipts),
-        "run_identity_digest": digest(dimensions),
+        "source_run_count": len(source_run_ids),
+        "paired_block_count": len(paired_groups),
+        "run_identity_digest": digest(
+            {
+                "unique_dimensions": unique_dimensions,
+                "source_run_ids": source_run_ids,
+                "source_archives": source_archives,
+                "input_revisions": input_revisions,
+            }
+        ),
         "verified_at": utc_now(),
     }
     output["receipt_digest"] = digest(output)

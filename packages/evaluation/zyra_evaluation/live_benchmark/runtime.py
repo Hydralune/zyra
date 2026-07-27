@@ -9,7 +9,7 @@ from typing import Any, Protocol
 from .admission import LiveRunAdmission, verify_campaign_run_uniqueness
 from .canonical import BenchmarkValidationError, identity, invalid, utc_now
 from .deployment import DeploymentEvidenceVerifier
-from .faults import FaultCoverageVerifier
+from .faults import FaultCoverageVerifier, verify_campaign_fault_coverage
 from .matrix import cell_for, verify_campaign_plan
 from .metrics import (
     MetricCatalog,
@@ -196,6 +196,9 @@ class LiveBenchmarkRuntime:
         results = tuple(result_from_dict(item, campaign) for item in raw_results)
         admissions = [item.admission_receipt for item in results]
         uniqueness = verify_campaign_run_uniqueness(admissions)
+        fault_coverage = verify_campaign_fault_coverage(
+            [item.fault_receipt for item in results]
+        )
         samples = tuple(sample for result in results for sample in result.samples)
         completeness = verify_campaign_metric_completeness(
             samples,
@@ -226,6 +229,7 @@ class LiveBenchmarkRuntime:
             "sample_count": len(samples),
             "long_run_ids": sorted(long_runs),
             "uniqueness_receipt": uniqueness,
+            "fault_coverage_receipt": fault_coverage,
             "metric_completeness_receipt": completeness,
             "statistical_evaluation": statistics,
             "results": results,

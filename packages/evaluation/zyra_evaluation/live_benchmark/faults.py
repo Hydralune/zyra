@@ -41,6 +41,7 @@ REQUIRED_CHANGE_KINDS = frozenset(
 class FaultCoverageVerifier:
     def verify(self, value: Mapping[str, Any], *, run_id: str) -> dict[str, Any]:
         selected_run_id = identity(run_id, "run id")
+        recovery_expected = value.get("recovery_expected") is not False
         injections = tuple(
             mapping(item, "fault injection")
             for item in sequence(value.get("injections"), "fault injections")
@@ -52,12 +53,27 @@ class FaultCoverageVerifier:
                 "requirement changes",
             )
         )
-        fault_receipt = self._faults(injections, selected_run_id)
-        change_receipt = self._changes(changes, selected_run_id)
-        if value.get("final_delivery_succeeded") is not True:
+        fault_receipt = self._faults(
+            injections,
+            selected_run_id,
+            recovery_expected=recovery_expected,
+        )
+        change_receipt = self._changes(
+            changes,
+            selected_run_id,
+            recovery_expected=recovery_expected,
+        )
+        delivery_succeeded = value.get("final_delivery_succeeded") is True
+        if recovery_expected and not delivery_succeeded:
             raise invalid(
                 "benchmark_delivery_after_fault_failed",
                 "Run did not complete its final delivery after faults.",
+                phase="fault",
+            )
+        if not recovery_expected and delivery_succeeded:
+            raise invalid(
+                "benchmark_disabled_recovery_delivery_inconsistent",
+                "No-recovery ablation incorrectly reported successful post-fault delivery.",
                 phase="fault",
             )
         final_artifact_digest = require_digest(
@@ -70,7 +86,8 @@ class FaultCoverageVerifier:
             "run_id": selected_run_id,
             "fault_receipt": fault_receipt,
             "requirement_change_receipt": change_receipt,
-            "final_delivery_succeeded": True,
+            "recovery_expected": recovery_expected,
+            "final_delivery_succeeded": delivery_succeeded,
             "final_artifact_digest": final_artifact_digest,
             "fault_bundle_digest": digest(value),
             "verified_at": utc_now(),
@@ -82,6 +99,8 @@ class FaultCoverageVerifier:
         self,
         injections: Sequence[Mapping[str, Any]],
         run_id: str,
+        *,
+        recovery_expected: bool,
     ) -> dict[str, Any]:
         if not injections:
             raise invalid(
@@ -145,17 +164,26 @@ class FaultCoverageVerifier:
                         "injection_id": injection_id,
                     }
                 )
-            if item.get("recovered") is not True:
+            recovered = item.get("recovered") is True
+            resumed = item.get("resumed") is True
+            if recovery_expected and not recovered:
                 findings.append(
                     {
                         "code": "fault-not-recovered",
                         "injection_id": injection_id,
                     }
                 )
-            if item.get("resumed") is not True:
+            if recovery_expected and not resumed:
                 findings.append(
                     {
                         "code": "fault-not-resumed",
+                        "injection_id": injection_id,
+                    }
+                )
+            if not recovery_expected and (recovered or resumed):
+                findings.append(
+                    {
+                        "code": "disabled-recovery-fault-inconsistent",
                         "injection_id": injection_id,
                     }
                 )
@@ -212,12 +240,9 @@ class FaultCoverageVerifier:
             detection_values.append(injected_to_detected)
             recovery_values.append(detected_to_recovered)
             mttr_values.append(injected_to_resumed)
-        missing = sorted(REQUIRED_FAULT_KINDS - set(kinds))
-        if missing:
-            findings.append({"code": "fault-kinds-missing", "kinds": missing})
-        if route_change_count == 0:
+        if recovery_expected and route_change_count == 0:
             findings.append({"code": "fault-route-change-missing"})
-        if checkpoint_restore_count == 0:
+        if recovery_expected and checkpoint_restore_count == 0:
             findings.append({"code": "fault-checkpoint-restore-missing"})
         if len(stage_counts) < 3:
             findings.append(
@@ -241,6 +266,10 @@ class FaultCoverageVerifier:
             "stage_counts": dict(sorted(stage_counts.items())),
             "route_change_count": route_change_count,
             "checkpoint_restore_count": checkpoint_restore_count,
+            "recovery_expected": recovery_expected,
+            "recovered_count": sum(
+                item.get("recovered") is True for item in injections
+            ),
             "detection_ms": range_summary(detection_values),
             "recovery_ms": range_summary(recovery_values),
             "mttr_ms": range_summary(mttr_values),
@@ -254,6 +283,8 @@ class FaultCoverageVerifier:
         self,
         changes: Sequence[Mapping[str, Any]],
         run_id: str,
+        *,
+        recovery_expected: bool,
     ) -> dict[str, Any]:
         if not changes:
             raise invalid(
@@ -295,31 +326,42 @@ class FaultCoverageVerifier:
                         "change_id": change_id,
                     }
                 )
-            if item.get("accepted") is not True:
+            accepted = item.get("accepted") is True
+            replanned = item.get("replanned") is True
+            reverified = item.get("reverified") is True
+            delivered = item.get("delivered") is True
+            if not accepted:
                 findings.append(
                     {
                         "code": "requirement-change-not-accepted",
                         "change_id": change_id,
                     }
                 )
-            if item.get("replanned") is not True:
+            if recovery_expected and not replanned:
                 findings.append(
                     {
                         "code": "requirement-change-not-replanned",
                         "change_id": change_id,
                     }
                 )
-            if item.get("reverified") is not True:
+            if recovery_expected and not reverified:
                 findings.append(
                     {
                         "code": "requirement-change-not-reverified",
                         "change_id": change_id,
                     }
                 )
-            if item.get("delivered") is not True:
+            if recovery_expected and not delivered:
                 findings.append(
                     {
                         "code": "requirement-change-not-delivered",
+                        "change_id": change_id,
+                    }
+                )
+            if not recovery_expected and (replanned or reverified or delivered):
+                findings.append(
+                    {
+                        "code": "disabled-recovery-change-inconsistent",
                         "change_id": change_id,
                     }
                 )
@@ -345,11 +387,6 @@ class FaultCoverageVerifier:
                     f"requirement change {change_id}",
                 )
             )
-        missing = sorted(REQUIRED_CHANGE_KINDS - set(kinds))
-        if missing:
-            findings.append(
-                {"code": "requirement-change-kinds-missing", "kinds": missing}
-            )
         if findings:
             raise invalid(
                 "benchmark_requirement_change_coverage_invalid",
@@ -362,12 +399,94 @@ class FaultCoverageVerifier:
             "valid": True,
             "change_count": len(changes),
             "kind_counts": dict(sorted(kinds.items())),
+            "recovery_expected": recovery_expected,
+            "delivered_count": sum(
+                item.get("delivered") is True for item in changes
+            ),
             "delivery_latency_ms": range_summary(latencies),
             "change_digest": digest(changes),
             "verified_at": utc_now(),
         }
         output["receipt_digest"] = digest(output)
         return output
+
+
+def verify_campaign_fault_coverage(
+    receipts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    if not receipts:
+        raise invalid(
+            "benchmark_campaign_fault_receipts_empty",
+            "Formal campaign contains no admitted fault receipts.",
+            phase="fault",
+        )
+    fault_kinds: Counter[str] = Counter()
+    change_kinds: Counter[str] = Counter()
+    recovery_modes: Counter[str] = Counter()
+    successful_delivery_count = 0
+    expected_failure_count = 0
+    for receipt in receipts:
+        fault = mapping(receipt.get("fault_receipt"), "fault receipt")
+        changes = mapping(
+            receipt.get("requirement_change_receipt"),
+            "requirement change receipt",
+        )
+        fault_kinds.update(
+            {
+                str(key): int(value)
+                for key, value in dict(fault.get("kind_counts") or {}).items()
+            }
+        )
+        change_kinds.update(
+            {
+                str(key): int(value)
+                for key, value in dict(changes.get("kind_counts") or {}).items()
+            }
+        )
+        recovery_expected = receipt.get("recovery_expected") is not False
+        recovery_modes["enabled" if recovery_expected else "disabled"] += 1
+        successful_delivery_count += int(
+            receipt.get("final_delivery_succeeded") is True
+        )
+        expected_failure_count += int(
+            not recovery_expected
+            and receipt.get("final_delivery_succeeded") is not True
+        )
+    findings: list[dict[str, Any]] = []
+    missing_faults = sorted(REQUIRED_FAULT_KINDS - set(fault_kinds))
+    missing_changes = sorted(REQUIRED_CHANGE_KINDS - set(change_kinds))
+    if missing_faults:
+        findings.append({"code": "fault-kinds-missing", "kinds": missing_faults})
+    if missing_changes:
+        findings.append(
+            {"code": "requirement-change-kinds-missing", "kinds": missing_changes}
+        )
+    if recovery_modes["enabled"] == 0 or recovery_modes["disabled"] == 0:
+        findings.append({"code": "recovery-ablation-mode-missing"})
+    if successful_delivery_count == 0:
+        findings.append({"code": "successful-post-fault-delivery-missing"})
+    if expected_failure_count == 0:
+        findings.append({"code": "no-recovery-effect-missing"})
+    if findings:
+        raise invalid(
+            "benchmark_campaign_fault_coverage_invalid",
+            "Formal campaign fault and requirement-change coverage is incomplete.",
+            phase="fault",
+            detail={"findings": findings},
+        )
+    output = {
+        "schema": "zyra.live-benchmark-campaign-fault-coverage/v1",
+        "valid": True,
+        "receipt_count": len(receipts),
+        "fault_kind_counts": dict(sorted(fault_kinds.items())),
+        "requirement_change_kind_counts": dict(sorted(change_kinds.items())),
+        "recovery_modes": dict(sorted(recovery_modes.items())),
+        "successful_delivery_count": successful_delivery_count,
+        "expected_no_recovery_failure_count": expected_failure_count,
+        "verified_at": utc_now(),
+    }
+    output["receipt_digest"] = digest(output)
+    return output
 
 
 def range_summary(values: Sequence[int]) -> dict[str, Any]:

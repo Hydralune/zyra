@@ -10,11 +10,14 @@ from zyra_evaluation.live_benchmark import (
     DeploymentEvidenceVerifier,
     MetricCatalog,
     MetricDefinition,
+    ProtectedDeploymentEvidenceLoader,
     StatisticalEvaluator,
     create_campaign,
     default_variants,
     validate_variants,
+    verify_campaign_fault_coverage,
     verify_campaign_plan,
+    verify_campaign_run_uniqueness,
 )
 from zyra_evaluation.live_benchmark.canonical import BenchmarkValidationError, digest
 from zyra_evaluation.live_benchmark.models import (
@@ -128,6 +131,15 @@ def test_semantic_step_verifier_rejects_inflation() -> None:
 
 
 def protected_observation(tier: str, index: int) -> dict:
+    protected_tier = "local" if tier == "device" else tier
+    protected_fact = {
+        "tier": protected_tier,
+        "protocol": f"protocol-{protected_tier}",
+        "transport": f"transport-{protected_tier}",
+        "simulated": False,
+    }
+    if tier == "edge":
+        protected_fact.update({"loopback": False, "isolated_process": True})
     return {
         "observation_id": f"tier-{tier}",
         "tier": tier,
@@ -150,6 +162,7 @@ def protected_observation(tier: str, index: int) -> dict:
         "prior_receipt_id": f"M1-{tier}",
         "prior_receipt_digest": digest(("prior", tier)),
         "prior_receipt_still_valid": True,
+        "protected_fact": protected_fact,
         "started_at": "2026-07-27T00:00:00Z",
         "completed_at": "2026-07-27T00:00:01Z",
         "request_digest": digest(("request", tier)),
@@ -169,6 +182,16 @@ def provider_observation(index: int) -> dict:
         "prior_receipt_id": f"M1-provider-{index}",
         "prior_receipt_digest": digest(("prior-provider", index)),
         "prior_receipt_still_valid": True,
+        "protected_fact": {
+            "provider_id": f"provider-{index}",
+            "model_id": f"model-{index}",
+            "wire_dialect": f"dialect-{index}",
+            "request_path": f"/v1/path-{index}",
+            "tool_call_and_result": True,
+            "simulated": False,
+        },
+        "current_request_made": False,
+        "no_new_provider_call": True,
         "simulated": False,
         "authenticated": True,
         "response_status": 200,
@@ -192,6 +215,8 @@ def test_deployment_verifier_binds_tiers_models_privacy_and_failover() -> None:
             "selected_at": "2026-07-27T00:00:00Z",
             "privacy_compliant": True,
             "sla_compliant": True,
+            "evidence_mode": "live",
+            "fresh": True,
         },
         {
             "route_id": "route-2",
@@ -204,6 +229,8 @@ def test_deployment_verifier_binds_tiers_models_privacy_and_failover() -> None:
             "selected_at": "2026-07-27T00:00:01Z",
             "privacy_compliant": True,
             "sla_compliant": True,
+            "evidence_mode": "live",
+            "fresh": True,
         },
     ]
     value = {
@@ -347,3 +374,113 @@ def test_statistics_report_p50_p95_confidence_and_paired_deltas() -> None:
     assert receipt["distribution_count"] == 14
     assert receipt["comparison_count"] == 12
     assert all("p50" in item and "p95" in item for item in receipt["distributions"])
+
+
+def test_protected_m1_evidence_is_exact_and_tamper_fails_closed(
+    tmp_path: Path,
+) -> None:
+    source = (
+        Path(__file__).resolve().parents[2]
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M1-08-and-M1-exit-review-2026-07-23.json"
+    )
+    bundle = ProtectedDeploymentEvidenceLoader().load(source)
+    assert {item["tier"] for item in bundle.tiers} == {
+        "local",
+        "edge",
+        "cloud",
+    }
+    assert {item["provider_id"] for item in bundle.providers} == {
+        "anthropic",
+        "openai",
+    }
+    assert bundle.to_dict()["no_new_provider_call"] is True
+
+    tampered = tmp_path / "tampered-m1.json"
+    tampered.write_bytes(source.read_bytes() + b"\n")
+    with pytest.raises(BenchmarkValidationError) as raised:
+        ProtectedDeploymentEvidenceLoader().load(tampered)
+    assert raised.value.code == "benchmark-protected-evidence-changed"
+
+
+def test_campaign_fault_coverage_is_union_and_measures_no_recovery() -> None:
+    enabled = {
+        "fault_receipt": {
+            "kind_counts": {
+                "exception": 1,
+                "worker-loss": 1,
+                "provider-failure": 1,
+                "edge-disconnect": 1,
+            }
+        },
+        "requirement_change_receipt": {
+            "kind_counts": {"scope-change": 1}
+        },
+        "recovery_expected": True,
+        "final_delivery_succeeded": True,
+    }
+    disabled = {
+        "fault_receipt": {
+            "kind_counts": {
+                "tool-failure": 1,
+                "node-loss": 1,
+                "provider-failure": 1,
+                "network-failure": 1,
+            }
+        },
+        "requirement_change_receipt": {
+            "kind_counts": {"acceptance-criteria-change": 1}
+        },
+        "recovery_expected": False,
+        "final_delivery_succeeded": False,
+    }
+    receipt = verify_campaign_fault_coverage((enabled, disabled))
+    assert receipt["valid"] is True
+    assert receipt["recovery_modes"] == {"disabled": 1, "enabled": 1}
+    assert receipt["expected_no_recovery_failure_count"] == 1
+
+    disabled["fault_receipt"]["kind_counts"].pop("network-failure")
+    with pytest.raises(BenchmarkValidationError) as raised:
+        verify_campaign_fault_coverage((enabled, disabled))
+    assert raised.value.code == "benchmark-campaign-fault-coverage-invalid"
+
+
+def test_campaign_uniqueness_shares_only_paired_source_block() -> None:
+    variants = [item.variant_id for item in default_variants()]
+    receipts = []
+    for domain in ("software-delivery", "cross-source-research"):
+        for repetition in range(1, 4):
+            source = f"{domain}-source-{repetition}"
+            archive = digest((domain, repetition, "archive"))
+            revision = f"{domain}-revision-{repetition}"
+            for variant in variants:
+                identity = f"{domain}-{repetition}-{variant}"
+                receipts.append(
+                    {
+                        "run_id": f"run-{identity}",
+                        "live_receipt_digest": digest((identity, "live")),
+                        "variant_execution_digest": digest(
+                            (identity, "variant-execution")
+                        ),
+                        "semantic_step_receipt": {
+                            "event_stream_digest": digest((identity, "events"))
+                        },
+                        "domain": domain,
+                        "repetition": repetition,
+                        "source_run_id": source,
+                        "source_archive_digest": archive,
+                        "input_revision": revision,
+                        "variant_id": variant,
+                    }
+                )
+    receipt = verify_campaign_run_uniqueness(receipts)
+    assert receipt["valid"] is True
+    assert receipt["run_count"] == 42
+    assert receipt["source_run_count"] == 6
+
+    receipts[0]["source_run_id"] = "unexpected-second-source"
+    with pytest.raises(BenchmarkValidationError) as raised:
+        verify_campaign_run_uniqueness(receipts)
+    assert raised.value.code == "benchmark-run-uniqueness-invalid"

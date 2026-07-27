@@ -142,6 +142,51 @@ class DeploymentEvidenceVerifier:
                         "observation_id": observation_id,
                     }
                 )
+            mode = evidence_mode(item, f"tier observation {observation_id}")
+            evidence_modes[mode.value] += 1
+            self._validate_protected_evidence(item, mode, findings, observation_id)
+            if mode is EvidenceMode.PROTECTED_PRIOR:
+                fact = mapping(
+                    item.get("protected_fact"),
+                    f"tier observation {observation_id} protected fact",
+                )
+                expected_tier = "local" if tier == "device" else tier
+                if str(fact.get("tier") or "") != expected_tier:
+                    findings.append(
+                        {
+                            "code": "protected-tier-fact-mismatch",
+                            "observation_id": observation_id,
+                        }
+                    )
+                if fact.get("simulated") is not False:
+                    findings.append(
+                        {
+                            "code": "protected-tier-simulated",
+                            "observation_id": observation_id,
+                        }
+                    )
+                if tier == "edge" and (
+                    fact.get("loopback") is not False
+                    or fact.get("isolated_process") is not True
+                ):
+                    findings.append(
+                        {
+                            "code": "protected-edge-isolation-invalid",
+                            "observation_id": observation_id,
+                        }
+                    )
+                if item.get("current_dispatch_claimed") is True:
+                    findings.append(
+                        {
+                            "code": "protected-tier-relabeled-current",
+                            "observation_id": observation_id,
+                        }
+                    )
+                isolation_ids[tier] = f"protected-evidence:{tier}"
+                runtime_ids[tier] = f"protected-runtime-fact:{tier}"
+                process_ids[tier] = f"protected-process-fact:{tier}"
+                endpoints[tier] = f"protected-evidence://{tier}"
+                continue
             if item.get("handshake_ok") is not True:
                 findings.append(
                     {
@@ -156,9 +201,6 @@ class DeploymentEvidenceVerifier:
                         "observation_id": observation_id,
                     }
                 )
-            mode = evidence_mode(item, f"tier observation {observation_id}")
-            evidence_modes[mode.value] += 1
-            self._validate_protected_evidence(item, mode, findings, observation_id)
             isolation_id = identity(
                 item.get("isolation_id"),
                 f"tier observation {observation_id} isolation id",
@@ -235,6 +277,7 @@ class DeploymentEvidenceVerifier:
                     "count": len(values),
                 }
                 for key, values in sorted(latencies.items())
+                if values
             },
             "verified_at": utc_now(),
         }
@@ -268,6 +311,48 @@ class DeploymentEvidenceVerifier:
                 item.get("model_id"),
                 f"provider observation {observation_id} model id",
             )
+            mode = evidence_mode(item, f"provider observation {observation_id}")
+            modes[mode.value] += 1
+            self._validate_protected_evidence(item, mode, findings, observation_id)
+            if mode is EvidenceMode.PROTECTED_PRIOR:
+                fact = mapping(
+                    item.get("protected_fact"),
+                    f"provider observation {observation_id} protected fact",
+                )
+                if (
+                    str(fact.get("provider_id") or "") != provider_id
+                    or str(fact.get("model_id") or "") != model_id
+                ):
+                    findings.append(
+                        {
+                            "code": "protected-provider-fact-mismatch",
+                            "observation_id": observation_id,
+                        }
+                    )
+                if (
+                    fact.get("simulated") is not False
+                    or fact.get("tool_call_and_result") is not True
+                ):
+                    findings.append(
+                        {
+                            "code": "protected-provider-fact-invalid",
+                            "observation_id": observation_id,
+                        }
+                    )
+                if (
+                    item.get("current_request_made") is not False
+                    or item.get("no_new_provider_call") is not True
+                ):
+                    findings.append(
+                        {
+                            "code": "protected-provider-current-call-ambiguous",
+                            "observation_id": observation_id,
+                        }
+                    )
+                provider_ids.add(provider_id)
+                model_ids.add(model_id)
+                provider_models[provider_id].add(model_id)
+                continue
             request_id = identity(
                 item.get("request_id"),
                 f"provider observation {observation_id} request id",
@@ -280,9 +365,6 @@ class DeploymentEvidenceVerifier:
                 item.get("request_digest"),
                 f"provider observation {observation_id} request digest",
             )
-            mode = evidence_mode(item, f"provider observation {observation_id}")
-            modes[mode.value] += 1
-            self._validate_protected_evidence(item, mode, findings, observation_id)
             if item.get("run_id") not in {None, run_id}:
                 findings.append(
                     {
@@ -400,8 +482,8 @@ class DeploymentEvidenceVerifier:
             "evidence_modes": dict(sorted(modes.items())),
             "total_cost_usd": round(total_cost, 8),
             "latency_ms": {
-                "minimum": min(latencies),
-                "maximum": max(latencies),
+                "minimum": min(latencies) if latencies else None,
+                "maximum": max(latencies) if latencies else None,
                 "count": len(latencies),
             },
             "provider_observation_digest": digest(observations),
@@ -457,7 +539,12 @@ class DeploymentEvidenceVerifier:
                         "tier": tier,
                     }
                 )
-            if provider not in known_providers:
+            no_provider = (
+                provider in {"", "none"}
+                and model in {"", "none"}
+                and route.get("no_new_provider_call") is True
+            )
+            if provider not in known_providers and not no_provider:
                 findings.append(
                     {
                         "code": "route-provider-unobserved",
@@ -465,7 +552,7 @@ class DeploymentEvidenceVerifier:
                         "provider_id": provider,
                     }
                 )
-            if model not in known_models:
+            if model not in known_models and not no_provider:
                 findings.append(
                     {
                         "code": "route-model-unobserved",
@@ -505,14 +592,18 @@ class DeploymentEvidenceVerifier:
                             "route_id": route_id,
                         }
                     )
+            if route.get("evidence_mode") != EvidenceMode.LIVE.value:
+                findings.append(
+                    {"code": "route-not-current-live", "route_id": route_id}
+                )
+            if route.get("fresh") is not True:
+                findings.append(
+                    {"code": "route-not-fresh", "route_id": route_id}
+                )
             privacy_counts[privacy] += 1
             sla_counts[sla] += 1
             tier_counts[tier] += 1
             model_counts[model] += 1
-        if len(tier_counts) < 2:
-            findings.append({"code": "route-tier-split-missing"})
-        if len(model_counts) < 2:
-            findings.append({"code": "route-model-split-missing"})
         if findings:
             raise invalid(
                 "benchmark_route_evidence_invalid",
@@ -577,13 +668,23 @@ class DeploymentEvidenceVerifier:
                 findings.append(
                     {"code": "failover-route-unobserved", "failover_id": failover_id}
                 )
-            if item.get("successful") is not True:
+            recovery_expected = item.get("recovery_expected") is not False
+            successful = item.get("successful") is True
+            delivery_resumed = item.get("delivery_resumed") is True
+            if recovery_expected and not successful:
                 findings.append(
                     {"code": "failover-unsuccessful", "failover_id": failover_id}
                 )
-            if item.get("delivery_resumed") is not True:
+            if recovery_expected and not delivery_resumed:
                 findings.append(
                     {"code": "failover-delivery-not-resumed", "failover_id": failover_id}
+                )
+            if not recovery_expected and (successful or delivery_resumed):
+                findings.append(
+                    {
+                        "code": "disabled-recovery-observation-inconsistent",
+                        "failover_id": failover_id,
+                    }
                 )
             recovery_latencies.append(
                 elapsed_ms(
@@ -635,10 +736,15 @@ class DeploymentEvidenceVerifier:
             findings.append({"code": "disconnect-run-mismatch"})
         if value.get("observed") is not True:
             findings.append({"code": "disconnect-not-observed"})
-        if value.get("safe") is not True:
+        recovery_expected = value.get("recovery_expected") is not False
+        if recovery_expected and value.get("safe") is not True:
             findings.append({"code": "disconnect-not-safe"})
-        if value.get("delivery_resumed") is not True:
+        if recovery_expected and value.get("delivery_resumed") is not True:
             findings.append({"code": "disconnect-delivery-not-resumed"})
+        if not recovery_expected and (
+            value.get("safe") is True or value.get("delivery_resumed") is True
+        ):
+            findings.append({"code": "disabled-recovery-disconnect-inconsistent"})
         if value.get("browser_required") is True:
             findings.append({"code": "browser-required-for-degradation"})
         if value.get("relabeled_as_cloud") is True:

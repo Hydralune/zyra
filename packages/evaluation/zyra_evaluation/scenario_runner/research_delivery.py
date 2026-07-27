@@ -23,7 +23,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import uuid4
 
 from .canonical import canonicalize, digest, file_digest, path_within, utc_now
-from .errors import conflict, invalid, unavailable
+from .errors import ScenarioRunnerError, conflict, invalid, unavailable
 from .live_models import (
     ActionKind,
     ActionResult,
@@ -285,12 +285,14 @@ class LiveHttpSourceAcquirer:
         maximum_bytes: int = 8 * 1024 * 1024,
         maximum_redirects: int = 5,
         timeout_seconds: float = 45.0,
+        maximum_attempts: int = 3,
     ) -> None:
         self.artifact_root = Path(artifact_root).resolve(strict=False)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
         self.maximum_bytes = maximum_bytes
         self.maximum_redirects = maximum_redirects
         self.timeout_seconds = timeout_seconds
+        self.maximum_attempts = max(1, min(5, int(maximum_attempts)))
         self._opener = build_opener(_NoAutomaticRedirect())
 
     def acquire_all(
@@ -324,7 +326,27 @@ class LiveHttpSourceAcquirer:
                     "Research acquisition was cancelled before source fetch.",
                     phase="research-acquisition",
                 )
-            output.append(self.acquire(url, source_index=index))
+            last_error: ScenarioRunnerError | None = None
+            for attempt in range(1, self.maximum_attempts + 1):
+                try:
+                    output.append(self.acquire(url, source_index=index))
+                    last_error = None
+                    break
+                except ScenarioRunnerError as error:
+                    last_error = error
+                    if (
+                        error.code
+                        not in {
+                            "research_network_error",
+                            "research_http_error",
+                            "research_dns_empty",
+                        }
+                        or attempt >= self.maximum_attempts
+                    ):
+                        raise
+                    time.sleep(0.25 * attempt)
+            if last_error is not None:
+                raise last_error
         authorities = {item.authority for item in output}
         if len(authorities) < 2:
             raise conflict(
@@ -950,8 +972,18 @@ class DeterministicClaimEngine:
     ) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
         question_tokens = _tokens(domain_input.request_text)
         source_by_id = {item.source_id: item for item in acquisitions}
+        # The deterministic verifier rejects claims shorter than 16 normalized
+        # characters and citation spans shorter than 12.  Filter those fragments
+        # before ranking so a short CSV cell cannot poison an otherwise valid
+        # live cross-source run merely because it scores highly for one token.
+        eligible = tuple(
+            item
+            for item in fragments
+            if len(item.normalized_text.strip()) >= 16
+            and item.byte_end - item.byte_start >= 12
+        )
         candidates = sorted(
-            fragments,
+            eligible,
             key=lambda item: (
                 -self._score(item, question_tokens),
                 item.source_id,

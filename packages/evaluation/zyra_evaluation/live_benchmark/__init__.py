@@ -1,7 +1,7 @@
 from .admission import LiveRunAdmission, verify_campaign_run_uniqueness
 from .canonical import BenchmarkValidationError
 from .deployment import DeploymentEvidenceVerifier
-from .faults import FaultCoverageVerifier
+from .faults import FaultCoverageVerifier, verify_campaign_fault_coverage
 from .freeze_gate import LiveBenchmarkFreezeGate
 from .integrity import EvidenceIntegrityBuilder, EvidenceIntegrityVerifier
 from .matrix import (
@@ -26,6 +26,12 @@ from .models import (
     PairedComparison,
     RawSample,
     Variant,
+)
+from .protected_evidence import (
+    M1_EXIT_EVIDENCE_SHA256,
+    ProtectedDeploymentEvidence,
+    ProtectedDeploymentEvidenceLoader,
+    protected_fact_receipt,
 )
 from .reporting import BenchmarkReportBuilder, COMPETITION_REQUIREMENTS
 from .runtime import LiveBenchmarkRuntime, LiveRunPort, UnboundLiveRunPort
@@ -59,7 +65,10 @@ __all__ = [
     "MetricCatalog",
     "MetricDefinition",
     "MetricExtractor",
+    "M1_EXIT_EVIDENCE_SHA256",
     "PairedComparison",
+    "ProtectedDeploymentEvidence",
+    "ProtectedDeploymentEvidenceLoader",
     "REQUIRED_DOMAINS",
     "REQUIRED_VARIANT_IDS",
     "RawSample",
@@ -71,5 +80,7 @@ __all__ = [
     "default_variants",
     "validate_variants",
     "verify_campaign_plan",
+    "verify_campaign_fault_coverage",
     "verify_campaign_run_uniqueness",
+    "protected_fact_receipt",
 ]
