@@ -1051,7 +1051,15 @@ class RegressionOrchestrator:
             ),
             secret_canaries=self.config.secret_canaries,
         )
-        store.write_json("suite-receipt", receipt.to_dict())
+        # Suite fields are already public, bounded projections.  Rewriting the
+        # serialized receipt after its digest is computed would invalidate the
+        # freeze proof (and entropy heuristics can mistake long evidence paths
+        # for credentials).  The store still performs exact canary rejection.
+        store.write_json(
+            "suite-receipt",
+            receipt.to_dict(),
+            redact=False,
+        )
         store.finalize().require_valid()
 
 

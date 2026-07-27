@@ -828,7 +828,14 @@ class RegressionHardeningTests(unittest.TestCase):
             root = Path(temporary)
             service = RegressionHardeningService(
                 ROOT,
-                root / "artifacts",
+                (
+                    root
+                    / "docs"
+                    / "reviews"
+                    / "evidence"
+                    / "M3-S02A-01"
+                    / "runtime-artifacts"
+                ),
                 _ports(),
                 temporary_parent=root,
             )
