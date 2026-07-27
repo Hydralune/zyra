@@ -114,9 +114,10 @@ def test_configuration_disconnect_fails_before_process_launch(tmp_path: Path) ->
     )
 
     assert run.worker_result.ok is False
-    assert run.worker_result.error == "productized_query_engine_runtime_disabled"
+    assert run.worker_result.error == "typescript_runtime_disabled"
     assert run.worker_result.metadata["canonical_runtime_owner"] == "typescript"
     assert run.worker_result.metadata["python_policy_fallback"] == "false"
+    assert run.worker_result.metadata["python_query_engine_fallback"] == "false"
 
 
 def test_checkpoint_is_reused_for_same_session(tmp_path: Path) -> None:

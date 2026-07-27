@@ -136,9 +136,9 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
         events = {probe.event_type for probe in discover_event_producers(ROOT)}
 
         self.assertIn(("GET", "/mcp"), routes)
-        self.assertIn(("POST", "/mcp/servers/{server_id}/connect"), routes)
-        self.assertIn(("POST", "/mcp/servers/{server_id}/auth/install"), routes)
-        self.assertIn(("POST", "/mcp/elicitations/resolve"), routes)
+        self.assertIn(("POST", "/mcp/reload"), routes)
+        self.assertIn(("POST", "/mcp/resources/read"), routes)
+        self.assertIn(("POST", "/mcp/prompts/get"), routes)
         self.assertIn("/mcp", commands)
         self.assertIn("mcp_connection_changed", events)
         self.assertIn("mcp_capabilities_changed", events)

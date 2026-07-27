@@ -25,6 +25,7 @@ def test_root_pyproject_is_the_authoritative_python_workspace() -> None:
         "packages/integrations",
         "packages/memory",
         "packages/orchestration",
+        "packages/productization",
         "packages/runtime",
         "packages/scheduler",
         "packages/skills",

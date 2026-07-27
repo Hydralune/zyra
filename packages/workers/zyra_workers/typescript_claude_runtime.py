@@ -1416,6 +1416,14 @@ class TypeScriptClaudeQueryEngine:
         runtime_constraints = dict(self.config.runtime_constraints)
         runtime_constraints.setdefault("workspaceRoot", str(self.context.workspace_root))
         runtime_constraints.setdefault("projectRoot", str(self.project_root))
+        runtime_constraints.setdefault(
+            "disable_context_security_runtime",
+            self.config.disable_context_security_runtime,
+        )
+        runtime_constraints.setdefault(
+            "disable_restore_integration_runtime",
+            self.config.disable_restore_integration_runtime,
+        )
         if runtime_constraints.get("permission_transport_queue_enabled") is True:
             runtime_constraints["hostApprovalResponses"] = self._host_permission_responses(
                 session_id

@@ -51,7 +51,7 @@ class RetrievalIndexIntegrationTests(unittest.TestCase):
             canonical_store=self.canonical,
             index_path=self.index,
             worker_id="integration-inline",
-            lease_ttl_seconds=0.5,
+            lease_ttl_seconds=2.0,
             heartbeat_interval_seconds=0.05,
         )
         self.integration = RetrievalIntegrationRuntime(

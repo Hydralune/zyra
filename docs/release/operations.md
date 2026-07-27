@@ -150,3 +150,25 @@ The workflow `.github/workflows/release.yml` runs the same admission graph on
 Windows amd64 and Linux x86_64 and uploads the archive and exact machine
 receipts. GitHub status alone is not the evidence authority; the uploaded
 release-admission digest is.
+
+The Python gate runs both `tests/unit` and `tests/integration`. Its only
+exclusions are frozen in `config/release-python-tests.json`: six legacy
+integration files, twelve bounded M1 scaffold/aggregate nodes, and the protected
+M1-03B MCP source audit. The first groups assert superseded pre-E02 Python-owned API,
+QuerySession, tool-loop, and compact/restore projection contracts, including an
+M1 foundation CLI that imports the deliberately deleted Python tool owner.
+Current TypeScript lifecycle, API, and owner-disconnect behavior remains in the
+release suite. The five aggregate hardening exclusions rerun internalization,
+live main-path, and disable audits already enforced by the dedicated
+source-custody, formal benchmark, semantic-health, and admission gates. The MCP
+audit intentionally inspects sibling source repositories that a clean release
+must not contain. M3-03 owns the legacy-contract cleanup and source-audit
+normalization. The policy validates every path and node id, and the exact
+pytest arguments remain visible in the CI receipt; a missing exclusion path or
+node-id file fails closed.
+
+The Python gate has a 5,400-second ceiling. This is a fail-closed upper bound
+for the M3-02 aggregate suite, not a target duration; Windows integration
+measurements include real Bun runtimes, API servers, ledger audits, live
+scenarios, and process cleanup and exceed the former 1,800-second ceiling while
+still making forward progress.

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
+HTTP_TIMEOUT_SECONDS = 120
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -201,7 +202,10 @@ def _get(base_url: str, path: str, query: dict[str, str] | None = None) -> dict[
     suffix = ""
     if query:
         suffix = "?" + urllib.parse.urlencode(query)
-    with urllib.request.urlopen(f"{base_url}{path}{suffix}", timeout=30) as response:
+    with urllib.request.urlopen(
+        f"{base_url}{path}{suffix}",
+        timeout=HTTP_TIMEOUT_SECONDS,
+    ) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -212,7 +216,7 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -224,7 +228,7 @@ def _post_error(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, 
         method="POST",
     )
     try:
-        urllib.request.urlopen(request, timeout=30)
+        urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS)
     except Exception as error:
         response = getattr(error, "fp", None)
         if response is None:

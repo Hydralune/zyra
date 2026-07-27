@@ -356,9 +356,11 @@ class RecoveryApplication:
     def task_view(self, task_id: str) -> dict[str, Any]:
         snapshot = self.store.task_snapshot(task_id)
         snapshot["route_scores"] = [item.to_dict() for item in self.feedback.scores(task_id)]
-        snapshot["route"] = self.routes.current_route(
-            str(snapshot.get("run_id") or self._run_id(task_id)),
-            task_id,
+        run_id = str(snapshot.get("run_id") or self._run_id(task_id))
+        snapshot["route"] = (
+            self.routes.current_route(run_id, task_id)
+            if run_id
+            else {}
         )
         snapshot["integrity"] = self.store.integrity_report(task_id=task_id)
         snapshot["runtime_audit"] = RecoveryInvariantAuditor(self.store).audit_task(task_id).to_dict()
@@ -400,7 +402,10 @@ class RecoveryApplication:
 
     def _run_id(self, task_id: str) -> str:
         plans = self.store.plans(task_id=task_id, limit=1)
-        return plans[0].signal.refs.run_id if plans else "unknown-run"
+        if plans:
+            return plans[0].signal.refs.run_id
+        signals = self.store.signals(task_id=task_id, limit=1)
+        return signals[0].refs.run_id if signals else ""
 
     @staticmethod
     def _checkpoint_request(payload: Mapping[str, Any]) -> CheckpointCommitRequest:

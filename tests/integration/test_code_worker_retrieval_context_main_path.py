@@ -208,6 +208,41 @@ class CodeWorkerRetrievalContextMainPathTests(unittest.TestCase):
         self.assertNotIn("code_index_selected_files", config.runtime_constraints)
         self.assertIsNone(self.memory.store.delivery(request.request_id))
 
+    def test_mapping_message_is_normalized_before_retrieval_selection(self) -> None:
+        request = WorkerRequest(
+            run_id="run-1",
+            task_id="test-task",
+            worker_name="CodeWorkerRuntime",
+            request_id="worker-request-mapping-message",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Inspect fenced lease renewal from browser context.",
+                    "metadata": {
+                        "browser_context_source_id": "browser-disclosure:test",
+                        "external": True,
+                    },
+                }
+            ],
+            constraints={"session_id": "session-mapping-message", "query_turns": []},
+        )
+
+        context = self.retrieval.prepare(
+            request,
+            session_id="session-mapping-message",
+        )
+
+        self.assertTrue(context.delivery_claimed)
+        self.assertIsNotNone(context.memory_execution)
+        self.assertIsNotNone(context.code_selection)
+        self.assertIn("src/lease.py", context.constraint_delta["code_index_selected_files"])
+        self.retrieval.finish(
+            context,
+            committed=False,
+            terminal_event_ids=("mapping-message-cleanup",),
+            reason="mapping_message_test_cleanup",
+        )
+
     def test_real_typescript_queryengine_commits_retrieval_delivery(self) -> None:
         request = WorkerRequest(
             run_id="run-1",

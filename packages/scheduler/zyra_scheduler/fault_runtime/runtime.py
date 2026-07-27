@@ -149,11 +149,16 @@ class RuntimeWatchdog:
             "phase": str(event.get("phase") or ""),
         }
 
-    def stop(self) -> tuple[Mapping[str, Any], ...]:
+    def stop(
+        self,
+        *,
+        persist_observer_state: bool = True,
+    ) -> tuple[Mapping[str, Any], ...]:
         self.polling.stop()
         self.browser_source.detach_all(intentional=True)
         stopped = []
-        for state in self.store.observers():
+        states = self.store.observers() if persist_observer_state else ()
+        for state in states:
             if state.lifecycle.accepts_observations and state.descriptor.maturity is not ObserverMaturity.INJECTION_ONLY:
                 stopped.append(self.registry.stop(state.descriptor.observer_id, reason="runtime watchdog shutdown"))
                 self.lifecycle.mark_stopped(state.descriptor.observer_id)
@@ -381,13 +386,20 @@ class FaultRuntimeApplication:
 
     def close(self) -> None:
         self.integration.close()
-        self.watchdog.stop()
-        injection_state = self.store.observer("same-run-fault-injector")
-        if injection_state is not None and injection_state.lifecycle.accepts_observations:
-            self.watchdog.registry.stop(
-                "same-run-fault-injector",
-                reason="fault injection runtime shutdown",
-            )
+        durable_state_available = self.store.path.is_file()
+        self.watchdog.stop(
+            persist_observer_state=durable_state_available,
+        )
+        if durable_state_available:
+            injection_state = self.store.observer("same-run-fault-injector")
+            if (
+                injection_state is not None
+                and injection_state.lifecycle.accepts_observations
+            ):
+                self.watchdog.registry.stop(
+                    "same-run-fault-injector",
+                    reason="fault injection runtime shutdown",
+                )
         self.store.close()
 
     @staticmethod

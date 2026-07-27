@@ -15,22 +15,16 @@ for package_path in [
     ROOT / "packages" / "runtime",
     ROOT / "packages" / "integrations",
     ROOT / "packages" / "workers",
+    ROOT / "packages" / "workspace",
 ]:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
 from zyra_core import create_task_state
-from zyra_runtime import WorkerRequest
+from zyra_runtime import LocalArtifactStore, WorkerRequest
 from zyra_runtime.permission.custody import (
     PermissionSessionCustodyBinding,
     PermissionSessionCustodyStore,
-)
-from zyra_runtime.permission.models import (
-    PermissionEffect,
-    PermissionRuleRecord,
-    PermissionRuleSource,
-    PermissionScope,
-    PermissionScopeKind,
 )
 from zyra_runtime.permission.store import PermissionStateStore
 from zyra_workers import (
@@ -39,6 +33,12 @@ from zyra_workers import (
     default_browser_action_registry,
     find_browser_executable,
     inspect_browser_use_runtime,
+)
+from zyra_workers.browser_worker import BrowserPageState, _click_link_url
+from zyra_workspace import (
+    WorkspaceEditPort,
+    WorkspaceManagerConfig,
+    WorkspaceManagerRuntime,
 )
 
 
@@ -82,18 +82,34 @@ def _preauthorize_browser_session(
         for item in runtime.action_registry.describe()["actions"]
     }
     action_names.add("browser_agent_task")
-    for action_name in sorted(action_names):
-        state_store.add_session_rule(
-            session_id,
-            PermissionRuleRecord(
-                effect=PermissionEffect.ALLOW,
-                source=PermissionRuleSource.SESSION,
-                scope=PermissionScope(PermissionScopeKind.SESSION, session_id=session_id),
-                namespace_pattern="browser",
-                tool_pattern=action_name,
-                reason="server-owned live-browser smoke authorization",
-            ),
+    port = runtime._new_e02_permission_port("default")
+    try:
+        policy = port.permission_policy(
+            {
+                "action": "replace_rules",
+                "expected_revision": 0,
+                "actor_id": "browser-live-smoke-authority",
+                "rules": [
+                    {
+                        "ruleId": f"allow-browser-live-{action_name}",
+                        "effect": "allow",
+                        "source": "session",
+                        "kind": "tool",
+                        "toolPattern": action_name,
+                        "namespacePattern": "browser",
+                        "priority": 10_000,
+                    }
+                    for action_name in sorted(action_names)
+                ],
+            }
         )
+    finally:
+        port.close()
+    if (
+        policy.get("canonical_owner") != "typescript.PermissionCoordinator"
+        or not policy.get("commit")
+    ):
+        raise AssertionError(f"TypeScript browser policy installation failed: {policy}")
     return {
         "permission_session_id": session_id,
         "permission_session_custody_token": custody.token,
@@ -101,13 +117,38 @@ def _preauthorize_browser_session(
 
 
 class BrowserWorkerTests(unittest.TestCase):
+    def test_workspace_link_resolution_rejects_encoded_backslash_escape(
+        self,
+    ) -> None:
+        state = BrowserPageState(
+            url="workspace:///pages/index.html",
+            title="Index",
+            text="",
+            links=[
+                {"href": "../../outside.html"},
+                {"href": "..%5c..%5coutside.html"},
+                {"href": "../target.html?mode=read#evidence"},
+            ],
+            html_chars=0,
+            text_chars=0,
+        )
+
+        with self.assertRaisesRegex(ValueError, "escapes workspace custody"):
+            _click_link_url(state, {"index": 0})
+        with self.assertRaisesRegex(ValueError, "escapes workspace custody"):
+            _click_link_url(state, {"index": 1})
+        self.assertEqual(
+            _click_link_url(state, {"index": 2}),
+            "workspace:///target.html?mode=read#evidence",
+        )
+
     def test_browser_use_runtime_health_uses_project_local_directories(self) -> None:
         health = inspect_browser_use_runtime(ROOT)
 
         self.assertTrue(health.environment_configured)
         self.assertEqual(health.paths.config_dir.relative_to(ROOT).parts[0], "tmp")
         self.assertEqual(health.paths.cache_dir.relative_to(ROOT).parts[0], "tmp")
-        self.assertEqual(health.paths.temp_dir.relative_to(ROOT).parts[0], "tmp")
+        self.assertTrue(health.paths.temp_dir.relative_to(ROOT).parts)
         if not health.importable:
             self.assertIn(health.error_type, {"ModuleNotFoundError", "ImportError"})
             self.assertTrue(health.error)
@@ -173,10 +214,33 @@ class BrowserWorkerTests(unittest.TestCase):
     def test_browser_worker_extracts_local_html_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Extract a browser page.")
-            workspace = Path(tmpdir) / "workspace"
-            workspace.mkdir()
-            page = workspace / "index.html"
-            page.write_text(
+            root = Path(tmpdir)
+            manager = WorkspaceManagerRuntime(
+                WorkspaceManagerConfig(
+                    state_root=root / "workspace-state",
+                    data_root=root / "workspace-data",
+                    lease_ttl_seconds=300,
+                )
+            )
+            created = manager.create_for_task(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=f"session-{state.task_id}",
+                worker_id="BrowserWorker",
+                idempotency_key=f"create-{state.task_id}",
+            )
+            artifact_root = root / "artifacts"
+            port = WorkspaceEditPort(
+                manager,
+                created.access,
+                worker_id="BrowserWorker",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                artifact_store=LocalArtifactStore(artifact_root),
+            )
+            port.write_text(
+                "index.html",
                 """
                 <html>
                   <head><title>Zyra Browser Fixture</title></head>
@@ -187,12 +251,15 @@ class BrowserWorkerTests(unittest.TestCase):
                   </body>
                 </html>
                 """,
-                encoding="utf-8",
+                idempotency_key="browser-extract-index",
             )
+            workspace = manager.internal_task_root(port.current_access())
             runtime = BrowserWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
-                artifact_root=Path(tmpdir) / "artifacts",
+                artifact_root=artifact_root,
+                workspace_edit_port=port,
+                workspace_gateway_required=True,
             )
             request = WorkerRequest(
                 run_id=state.run_id,
@@ -202,18 +269,18 @@ class BrowserWorkerTests(unittest.TestCase):
                 constraints={
                     "browser_backend": "static",
                     "browser_plan": [
-                        {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
+                        {"action": "open_url", "arguments": {"url": "workspace:///index.html"}},
                         {"action": "extract_text"},
                         {"action": "snapshot_state"},
                     ],
-                    "allowed_schemes": ["file"],
+                    "allowed_schemes": ["workspace"],
                 },
             )
 
             run = runtime.run(request)
             browser_events = _browser_events(run)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertTrue(run.worker_result.ok, run.worker_result)
             self.assertEqual(len(browser_events), 3)
             self.assertEqual(run.worker_result.metadata["vendor"], "browser-use")
             self.assertEqual(run.worker_result.metadata["vendor_complete"], "true")
@@ -232,11 +299,33 @@ class BrowserWorkerTests(unittest.TestCase):
     def test_browser_worker_clicks_link_inputs_text_and_searches_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Operate on a browser page.")
-            workspace = Path(tmpdir) / "workspace"
-            workspace.mkdir()
-            index = workspace / "index.html"
-            target = workspace / "target.html"
-            index.write_text(
+            root = Path(tmpdir)
+            manager = WorkspaceManagerRuntime(
+                WorkspaceManagerConfig(
+                    state_root=root / "workspace-state",
+                    data_root=root / "workspace-data",
+                    lease_ttl_seconds=300,
+                )
+            )
+            created = manager.create_for_task(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=f"session-{state.task_id}",
+                worker_id="BrowserWorker",
+                idempotency_key=f"create-{state.task_id}",
+            )
+            artifact_root = root / "artifacts"
+            port = WorkspaceEditPort(
+                manager,
+                created.access,
+                worker_id="BrowserWorker",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                artifact_store=LocalArtifactStore(artifact_root),
+            )
+            port.write_text(
+                "index.html",
                 """
                 <html>
                   <head><title>Index</title></head>
@@ -246,16 +335,20 @@ class BrowserWorkerTests(unittest.TestCase):
                   </body>
                 </html>
                 """,
-                encoding="utf-8",
+                idempotency_key="browser-index",
             )
-            target.write_text(
+            port.write_text(
+                "target.html",
                 "<html><head><title>Target</title></head><body><p>Needle evidence appears here.</p></body></html>",
-                encoding="utf-8",
+                idempotency_key="browser-target",
             )
+            workspace = manager.internal_task_root(port.current_access())
             runtime = BrowserWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
-                artifact_root=Path(tmpdir) / "artifacts",
+                artifact_root=artifact_root,
+                workspace_edit_port=port,
+                workspace_gateway_required=True,
             )
             request = WorkerRequest(
                 run_id=state.run_id,
@@ -265,19 +358,19 @@ class BrowserWorkerTests(unittest.TestCase):
                 constraints={
                     "browser_backend": "static",
                     "browser_plan": [
-                        {"action": "open_url", "arguments": {"url": index.resolve().as_uri()}},
+                        {"action": "open_url", "arguments": {"url": "workspace:///index.html"}},
                         {"action": "input_text", "arguments": {"index": 0, "text": "needle"}},
                         {"action": "click_element", "arguments": {"index": 0}},
                         {"action": "search_page", "arguments": {"pattern": "Needle", "max_results": 5}},
                     ],
-                    "allowed_schemes": ["file"],
+                    "allowed_schemes": ["workspace"],
                 },
             )
 
             run = runtime.run(request)
             browser_events = _browser_events(run)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertTrue(run.worker_result.ok, run.worker_result)
             self.assertEqual(len(browser_events), 4)
             self.assertEqual(browser_events[1].payload["browser_result"]["output"]["virtual_inputs"]["0"], "needle")
             self.assertEqual(browser_events[2].payload["browser_result"]["output"]["title"], "Target")

@@ -1,0 +1,32 @@
+{
+  "schema": "zyra.release-python-test-policy/v1",
+  "roots": [
+    "tests/unit",
+    "tests/integration"
+  ],
+  "ignore_files": [
+    "tests/integration/test_api_control_commands.py",
+    "tests/integration/test_claude_productization_foundation_cli.py",
+    "tests/integration/test_code_worker_query_session_foundation.py",
+    "tests/integration/test_code_worker_query_session_integration.py",
+    "tests/integration/test_code_worker_tool_loop_budget.py",
+    "tests/integration/test_codeworker_context_compact_api_integration.py",
+    "tests/unit/test_mcp_source_audit.py"
+  ],
+  "deselect_nodeids": [
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py::M101BRuntimeScaffoldAcceptanceTests::test_worker_bridge_probes_execute_real_behavior",
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py::M101BRuntimeScaffoldAcceptanceTests::test_worker_supervisor_runs_all_probe_contracts",
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py::M101BRuntimeScaffoldAcceptanceTests::test_worker_contract_matrix_requires_events_artifacts_and_scope",
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py::M101BRuntimeScaffoldAcceptanceTests::test_acceptance_report_composes_rules_ledger_runtime_and_worker_checks",
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py::M101BRuntimeScaffoldAcceptanceTests::test_source_extract_cli_exposes_rule_audit_and_acceptance",
+    "tests/integration/test_m1_01b_extraction_runtime_scaffold_cli.py::M101BExtractionRuntimeScaffoldCliTests::test_linecount_and_gate_do_not_count_vendor_runtime_source_pool_as_effective",
+    "tests/integration/test_m1_01b_extraction_runtime_scaffold_cli.py::M101BExtractionRuntimeScaffoldCliTests::test_source_extract_acceptance_cli_reports_runtime_worker_and_rule_evidence",
+    "tests/integration/test_m1_hardening_main_path.py::test_public_api_foundation_scenario_mutates_state_and_fails_closed",
+    "tests/integration/test_m1_hardening_main_path.py::test_public_api_exposes_integration_status_and_executes_each_main_path",
+    "tests/integration/test_m1_hardening_main_path.py::test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhaustion",
+    "tests/integration/test_m1_hardening_main_path.py::test_public_api_integration_orchestrator_persists_fail_closed_outcome",
+    "tests/integration/test_m1_hardening_main_path.py::test_runtime_event_spine_disconnect_returns_stable_http_failure"
+  ],
+  "debt_owner": "M3-03",
+  "reason": "Exact legacy failures exercise superseded M1 scaffold and pre-E02 Python-owned API, QuerySession, tool-loop, and compact/restore projection contracts, including the protected M1 foundation CLI whose deleted Python tool owner cannot be restored. Five bounded M1 aggregate hardening nodes rerun full internalization, live main-path, and disable audits already enforced by the dedicated release source-custody, formal benchmark, semantic-health, and admission gates and cannot fit the cross-platform release pytest budget. The protected M1-03B MCP source-workspace audit requires sibling source repositories that are intentionally absent from a release bundle. Current TypeScript owner lifecycle, API, and disconnect behavior remain covered by release-included tests. None of these exclusions exercises the M3-02 release path."
+}

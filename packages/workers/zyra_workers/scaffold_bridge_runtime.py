@@ -185,7 +185,12 @@ class WorkerBridgeRuntime:
             ),
             explicit_low_risk=True,
         )
-        state = result.output.get("state") if isinstance(result.output, dict) else {}
+        raw_state = (
+            result.output.get("state")
+            if isinstance(result.output, dict)
+            else None
+        )
+        state = raw_state if isinstance(raw_state, dict) else {}
         return [
             _step("browser_tool_registered", "browser" in self.contract.tools, "browser tool is declared"),
             _step("browser_tool_executes", result.ok, result.summary, {"artifact_count": len(result.artifacts)}),

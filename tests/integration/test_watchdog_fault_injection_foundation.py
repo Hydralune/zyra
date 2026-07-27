@@ -80,6 +80,18 @@ def _request(state: Any, kind: InjectionKind, idempotency_key: str) -> FaultInje
     )
 
 
+def test_close_does_not_reopen_a_released_missing_store(tmp_path: Path) -> None:
+    _, _, application = _application(tmp_path)
+    application.watchdog.polling.stop()
+    application.store.release_connection()
+    for suffix in ("", "-shm", "-wal"):
+        Path(f"{application.store.path}{suffix}").unlink(missing_ok=True)
+
+    application.close()
+
+    assert not application.store.path.exists()
+
+
 def test_five_same_run_injections_write_events_and_recovery_handoffs(tmp_path: Path) -> None:
     state, events, application = _application(tmp_path)
     try:
@@ -953,7 +965,13 @@ def test_http_fault_route_is_dynamically_reachable(tmp_path: Path, monkeypatch: 
     monkeypatch.setenv("ZYRA_EVENT_LOG", str(tmp_path / "events.jsonl"))
     monkeypatch.setenv("ZYRA_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
     monkeypatch.setenv("ZYRA_FAULT_RUNTIME_STORE", str(tmp_path / "fault-runtime.sqlite3"))
-    from apps.api.zyra_api.main import ZyraRequestHandler
+    from apps.api.zyra_api import main as api
+
+    api.reset_api_product_bootstrap()
+    api.reset_runtime_owner_composition()
+    api.reset_fault_runtime_api()
+    api.reset_recovery_runtime_api()
+    ZyraRequestHandler = api.ZyraRequestHandler
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -993,3 +1011,7 @@ def test_http_fault_route_is_dynamically_reachable(tmp_path: Path, monkeypatch: 
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+        api.reset_api_product_bootstrap()
+        api.reset_runtime_owner_composition()
+        api.reset_fault_runtime_api()
+        api.reset_recovery_runtime_api()

@@ -8,6 +8,7 @@ import html
 import asyncio
 import json
 import os
+import posixpath
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -3277,6 +3278,26 @@ def _click_link_url(state: BrowserPageState, arguments: dict[str, Any]) -> str:
     href = state.links[index].get("href") or ""
     if not href:
         raise ValueError(f"click_element target has no href: {index}")
+    current = urlparse(state.url)
+    target = urlparse(href)
+    if current.scheme == "workspace" and not target.scheme:
+        if target.netloc:
+            raise ValueError("workspace link authority is not allowed")
+        current_path = unquote(current.path).replace("\\", "/").lstrip("/")
+        target_path = unquote(target.path).replace("\\", "/")
+        base = posixpath.dirname(current_path)
+        candidate = (
+            target_path.lstrip("/")
+            if target.path.startswith("/")
+            else posixpath.join(base, target_path)
+        )
+        logical_path = posixpath.normpath(candidate)
+        if logical_path in {"", ".", ".."} or logical_path.startswith("../"):
+            raise ValueError("workspace link escapes workspace custody")
+        suffix = f"?{target.query}" if target.query else ""
+        if target.fragment:
+            suffix += f"#{target.fragment}"
+        return f"workspace:///{logical_path}{suffix}"
     return urljoin(state.url, href)
 
 

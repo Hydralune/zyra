@@ -148,9 +148,15 @@ class CodeWorkerRuntime:
 
     def run(self, request: WorkerRequest) -> CodeWorkerRun:
         constraints = dict(request.constraints)
+        if constraints.get("disable_typescript_runtime") is True:
+            return self._failure(
+                request,
+                error="typescript_runtime_disabled",
+                summary="CodeWorkerRuntime canonical TypeScript runtime is disabled.",
+                session_id=self._session_id(request),
+            )
         if (
             constraints.get("disable_productized_runtime") is True
-            or constraints.get("disable_typescript_runtime") is True
             or self.query_engine_factory is None
         ):
             return self._failure(
@@ -328,6 +334,9 @@ class CodeWorkerRuntime:
                     ),
                     disable_context_security_runtime=(
                         constraints.get("disable_context_security_runtime") is True
+                    ),
+                    disable_restore_integration_runtime=(
+                        constraints.get("disable_restore_integration_runtime") is True
                     ),
                     model_name=str(
                         constraints.get("model_name") or "zyra-local-code-model"
@@ -522,6 +531,7 @@ class CodeWorkerRuntime:
             metadata={
                 "canonical_runtime_owner": "typescript",
                 "python_runtime_role": "process-durability-side-effect-host",
+                "python_query_engine_fallback": "false",
                 "python_policy_fallback": "false",
                 "query_session_id": session_id,
             },

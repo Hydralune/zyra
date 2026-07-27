@@ -34,6 +34,7 @@ from zyra_productization.release import (
     PlatformPlanner,
     PortAvailabilityProbe,
     PythonLock,
+    PythonTestPolicy,
     ReleaseAdmission,
     ReleaseInstaller,
     ReproducibilityVerifier,
@@ -755,12 +756,101 @@ def test_failed_gate_preserves_primary_error_when_success_artifact_is_absent(
     assert report["details"]["failure"]["error"] == "primary gate failure"
 
 
+def test_crashed_gate_preserves_exception_when_success_artifact_is_absent(
+    tmp_path: Path,
+) -> None:
+    def crash(_: object) -> dict[str, object]:
+        raise RuntimeError("primary callable exception")
+
+    registry = GateRegistry(
+        (
+            GateSpec(
+                gate_id="crash",
+                callable=crash,
+                artifacts=("success.json",),
+            ),
+        )
+    )
+    report = GateExecutor(
+        registry,
+        project_root=tmp_path,
+        output_root=tmp_path / "out",
+        source_commit="a" * 40,
+        environment=dict(os.environ),
+    ).execute()
+    receipt = report["receipts"][0]
+    assert receipt["state"] == GateState.FAILED.value
+    assert receipt["reason"] == "primary callable exception"
+    assert report["details"]["crash"]["type"] == "RuntimeError"
+
+
 def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
     policy = ReleasePolicy()
     assert policy.environment_allowed("SystemRoot") is True
     assert policy.environment_allowed("SYSTEMROOT") is True
     assert policy.environment_allowed("zyra_release_ci") is True
     assert policy.environment_allowed("UNRELATED_SECRET") is False
+
+
+def test_python_test_policy_is_explicit_path_checked_and_reproducible(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "tests" / "unit").mkdir(parents=True)
+    (tmp_path / "tests" / "integration").mkdir()
+    ignored = tmp_path / "tests" / "integration" / "legacy.py"
+    ignored.write_text("def test_legacy(): pass\n", encoding="utf-8")
+    selected = tmp_path / "tests" / "unit" / "test_current.py"
+    selected.write_text("def test_current(): pass\n", encoding="utf-8")
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "schema": PythonTestPolicy.SCHEMA,
+                "roots": ["tests/unit", "tests/integration"],
+                "ignore_files": ["tests/integration/legacy.py"],
+                "deselect_nodeids": [
+                    "tests/unit/test_current.py::test_current"
+                ],
+                "debt_owner": "M3-03",
+                "reason": (
+                    "A baseline-reproduced legacy contract is not release "
+                    "applicable."
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy = PythonTestPolicy.load(tmp_path, policy_path)
+    assert policy.debt_owner == "M3-03"
+    assert policy.digest
+    assert policy.pytest_arguments() == (
+        "--ignore=tests/integration/legacy.py",
+        "--deselect=tests/unit/test_current.py::test_current",
+        "tests/unit",
+        "tests/integration",
+    )
+
+
+def test_python_test_policy_rejects_an_unknown_schema(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "schema": "zyra.release-python-test-policy/v0",
+                "roots": ["tests"],
+                "ignore_files": [],
+                "deselect_nodeids": [],
+                "debt_owner": "M3-03",
+                "reason": "This obsolete policy must fail closed before collection.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GateFailure) as raised:
+        PythonTestPolicy.load(tmp_path, policy_path)
+
+    assert raised.value.code == "python_test_policy_schema_unsupported"
 
 
 def test_gate_registry_rejects_cycles() -> None:
@@ -901,7 +991,9 @@ def test_deployment_resolves_commit_from_installed_release_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from zyra_orchestration.deployment.orchestrator import DeploymentOrchestrator
+    from zyra_orchestration.deployment import orchestrator as deployment_orchestrator
+
+    DeploymentOrchestrator = deployment_orchestrator.DeploymentOrchestrator
 
     release = tmp_path / "release"
     release.mkdir()
@@ -913,10 +1005,7 @@ def test_deployment_resolves_commit_from_installed_release_manifest(
     def unavailable(*_: object, **__: object) -> object:
         raise OSError("git unavailable in installed release")
 
-    monkeypatch.setattr(
-        "zyra_orchestration.deployment.orchestrator.subprocess.run",
-        unavailable,
-    )
+    monkeypatch.setattr(deployment_orchestrator.subprocess, "run", unavailable)
     orchestrator = DeploymentOrchestrator(
         tmp_path,
         state_root=tmp_path / "state",

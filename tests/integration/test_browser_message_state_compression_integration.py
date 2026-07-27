@@ -624,7 +624,7 @@ class BrowserMessageStateCompressionIntegrationTests(unittest.TestCase):
                             "arguments": {"path": "provider-input.txt"},
                         }]}},
                     )
-                    self.assertEqual(code_status, 201, code.get("browser_context_provider_selection"))
+                    self.assertEqual(code_status, 201, code)
                     self.assertTrue(code["browser_context_provider_selection"]["valid"])
                     self.assertEqual(code["browser_context"]["pending_count"], 0)
                     self.assertEqual(code["browser_context"]["consumed_count"], 1)

@@ -446,9 +446,32 @@ class WorkerRetrievalContextRuntime:
 
     @staticmethod
     def _query_text(request: WorkerRequest) -> str:
-        parts = [message.content.strip() for message in request.messages if message.content.strip()]
+        parts: list[str] = []
+        for message in request.messages:
+            if isinstance(message, Mapping):
+                raw_content = message.get("content")
+            else:
+                raw_content = getattr(message, "content", "")
+            if isinstance(raw_content, str):
+                content = raw_content.strip()
+            elif raw_content is None:
+                content = ""
+            else:
+                content = json.dumps(
+                    raw_content,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    default=str,
+                ).strip()
+            if content:
+                parts.append(content)
         if parts:
-            return "\n\n".join(parts[-8:])[-24_000:]
+            # MemoryFilterQuery owns the canonical retrieval-input budget and
+            # defaults to 4,096 characters.  Context providers (notably the
+            # browser disclosure port) may legitimately deliver much larger
+            # model messages, so derive a bounded retrieval hint without
+            # weakening that owner's fail-closed limit.
+            return "\n\n".join(parts[-8:])[-4_096:]
         # AgentTool/API requests encode the current instruction in the
         # canonical tool turn rather than a user AgentMessage.
         turns = request.constraints.get("query_turns") or request.constraints.get("tool_plan") or ()

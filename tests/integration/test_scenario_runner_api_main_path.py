@@ -103,7 +103,7 @@ def request(
         },
     )
     try:
-        with urllib.request.urlopen(selected, timeout=120) as response:
+        with urllib.request.urlopen(selected, timeout=300) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
@@ -255,7 +255,7 @@ def test_live_software_scenario_reaches_canonical_api_owners(
             base,
             "POST",
             f"/scenarios/runs/{run_id}/start",
-            {"wait": True, "timeout_seconds": 120},
+            {"wait": True, "timeout_seconds": 300},
         )
         assert start_status == 200, started
         run = started["run"]

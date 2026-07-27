@@ -30,6 +30,13 @@ def _fresh_api_handler() -> type[BaseHTTPRequestHandler]:
     return module.ZyraRequestHandler
 
 
+def _shutdown_api_product_bootstrap() -> None:
+    module = sys.modules.get("apps.api.zyra_api.main")
+    reset = getattr(module, "reset_api_product_bootstrap", None)
+    if callable(reset):
+        reset(shutdown=True)
+
+
 def _request(
     base_url: str,
     path: str,
@@ -175,6 +182,7 @@ class M2TypedApiClientTransportTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=10)
+                _shutdown_api_product_bootstrap()
                 os.environ.pop("ZYRA_API_AUTH_TOKEN", None)
 
     def test_real_server_rejects_auth_and_version_mismatch_with_correlation(self) -> None:
@@ -232,6 +240,7 @@ class M2TypedApiClientTransportTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=10)
+                _shutdown_api_product_bootstrap()
                 os.environ.pop("ZYRA_API_AUTH_TOKEN", None)
 
 

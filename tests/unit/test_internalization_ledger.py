@@ -163,7 +163,7 @@ class InternalizationLedgerTests(unittest.TestCase):
             source_repo="claude-code-best",
             owner_unit="M1-02B",
             main_path_status=MainPathStatus.VENDORED,
-            target_contains="packages/workers",
+            target_contains="packages/runtime",
             capability_contains="query",
             limit=5,
         )

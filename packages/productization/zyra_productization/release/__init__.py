@@ -4,7 +4,13 @@ from .bundle import (
     ReleaseBundleBuilder,
     ReleaseManifest,
 )
-from .ci import GateExecutor, GateRegistry, GateSpec, ReleaseAdmission
+from .ci import (
+    GateExecutor,
+    GateRegistry,
+    GateSpec,
+    PythonTestPolicy,
+    ReleaseAdmission,
+)
 from .cleanroom import (
     CleanInstallRunner,
     OfflineArtifactResolver,
@@ -91,6 +97,7 @@ __all__ = [
     "PlatformPlanner",
     "PortAvailabilityProbe",
     "PythonLock",
+    "PythonTestPolicy",
     "ReleaseAdmission",
     "ReleaseBundleBuilder",
     "ReleaseDoctor",

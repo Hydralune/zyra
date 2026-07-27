@@ -24,6 +24,147 @@ def utc_now() -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class PythonTestPolicy:
+    SCHEMA = "zyra.release-python-test-policy/v1"
+
+    roots: tuple[str, ...]
+    ignore_files: tuple[str, ...]
+    deselect_nodeids: tuple[str, ...]
+    debt_owner: str
+    reason: str
+    digest: str
+
+    @classmethod
+    def load(
+        cls,
+        project_root: Path,
+        path: Path,
+    ) -> "PythonTestPolicy":
+        project_root = project_root.resolve()
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise GateFailure(
+                "Release Python test policy is missing or invalid.",
+                code="python_test_policy_invalid",
+                details={"path": str(path), "error": str(error)},
+            ) from error
+        if not isinstance(payload, Mapping):
+            raise GateFailure(
+                "Release Python test policy must be an object.",
+                code="python_test_policy_invalid",
+            )
+        schema = str(payload.get("schema") or "").strip()
+        if schema != cls.SCHEMA:
+            raise GateFailure(
+                "Release Python test policy schema is unsupported.",
+                code="python_test_policy_schema_unsupported",
+                details={"expected": cls.SCHEMA, "actual": schema},
+            )
+        roots = cls._paths(payload.get("roots"), field_name="roots")
+        ignored = cls._paths(
+            payload.get("ignore_files"),
+            field_name="ignore_files",
+        )
+        nodeids = cls._strings(
+            payload.get("deselect_nodeids"),
+            field_name="deselect_nodeids",
+        )
+        debt_owner = str(payload.get("debt_owner") or "").strip()
+        reason = str(payload.get("reason") or "").strip()
+        if not roots or not debt_owner or len(reason) < 24:
+            raise GateFailure(
+                "Release Python test policy lacks roots or debt ownership.",
+                code="python_test_policy_incomplete",
+            )
+        for relative in (*roots, *ignored):
+            candidate = project_root.joinpath(
+                *relative.replace("\\", "/").split("/")
+            ).resolve()
+            try:
+                candidate.relative_to(project_root)
+            except ValueError as error:
+                raise GateFailure(
+                    "Release Python test path escapes the project.",
+                    code="python_test_policy_path_escape",
+                    details={"path": relative},
+                ) from error
+            if not candidate.exists():
+                raise GateFailure(
+                    "Release Python test policy references a missing path.",
+                    code="python_test_policy_path_missing",
+                    details={"path": relative},
+                )
+        for nodeid in nodeids:
+            file_part = nodeid.split("::", 1)[0]
+            if "::" not in nodeid or not (project_root / file_part).is_file():
+                raise GateFailure(
+                    "Release Python test policy has an invalid node id.",
+                    code="python_test_policy_nodeid_invalid",
+                    details={"nodeid": nodeid},
+                )
+        normalized = {
+            "schema": schema,
+            "roots": list(roots),
+            "ignore_files": list(ignored),
+            "deselect_nodeids": list(nodeids),
+            "debt_owner": debt_owner,
+            "reason": reason,
+        }
+        return cls(
+            roots=roots,
+            ignore_files=ignored,
+            deselect_nodeids=nodeids,
+            debt_owner=debt_owner,
+            reason=reason,
+            digest=stable_digest(normalized),
+        )
+
+    @staticmethod
+    def _strings(value: Any, *, field_name: str) -> tuple[str, ...]:
+        if not isinstance(value, list):
+            raise GateFailure(
+                "Release Python test policy field must be an array.",
+                code="python_test_policy_invalid",
+                details={"field": field_name},
+            )
+        output = tuple(str(item).strip() for item in value)
+        if any(not item for item in output) or len(set(output)) != len(output):
+            raise GateFailure(
+                "Release Python test policy contains empty or duplicate values.",
+                code="python_test_policy_invalid",
+                details={"field": field_name},
+            )
+        return output
+
+    @classmethod
+    def _paths(cls, value: Any, *, field_name: str) -> tuple[str, ...]:
+        output = cls._strings(value, field_name=field_name)
+        for item in output:
+            normalized = item.replace("\\", "/")
+            if (
+                normalized.startswith("/")
+                or ":" in normalized.split("/", 1)[0]
+                or ".." in normalized.split("/")
+            ):
+                raise GateFailure(
+                    "Release Python test policy path is unsafe.",
+                    code="python_test_policy_path_escape",
+                    details={"field": field_name, "path": item},
+                )
+        return output
+
+    def pytest_arguments(self) -> tuple[str, ...]:
+        arguments: list[str] = []
+        arguments.extend(f"--ignore={item}" for item in self.ignore_files)
+        arguments.extend(
+            f"--deselect={item}" for item in self.deselect_nodeids
+        )
+        arguments.extend(self.roots)
+        return tuple(arguments)
+
+
+@dataclass(frozen=True, slots=True)
 class GateSpec:
     gate_id: str
     command: tuple[str, ...] = ()
@@ -313,6 +454,7 @@ class GateExecutor:
                     "error": str(error),
                     "type": type(error).__name__,
                 }
+                ready = False
                 exit_code = 1
                 stdout = ""
                 stderr = json.dumps(details, ensure_ascii=False, sort_keys=True)
@@ -532,6 +674,7 @@ def standard_gate_registry(
     bun: str,
     output_root: Path,
     callable_gates: Mapping[str, Callable[[GateContext], Mapping[str, Any]]],
+    python_test_arguments: Sequence[str] = ("tests/unit", "tests/integration"),
 ) -> GateRegistry:
     specifications = [
         GateSpec(
@@ -571,11 +714,10 @@ def standard_gate_registry(
                 "-m",
                 "pytest",
                 "-q",
-                "tests/unit",
-                "tests/integration",
+                *python_test_arguments,
             ),
             dependencies=("python-lock",),
-            timeout_seconds=1800,
+            timeout_seconds=5400,
             allow_parallel=False,
         ),
         GateSpec(
@@ -643,6 +785,7 @@ __all__ = [
     "GateExecutor",
     "GateRegistry",
     "GateSpec",
+    "PythonTestPolicy",
     "ReleaseAdmission",
     "standard_gate_registry",
 ]

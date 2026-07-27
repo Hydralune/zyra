@@ -285,6 +285,8 @@ export class ClaudeRuntimeCore {
       "disable_provider_transport_runtime",
       "disable_provider_credential_runtime",
       "disable_runtime_budget_state",
+      "disable_context_security_runtime",
+      "disable_restore_integration_runtime",
     ].filter((name) => asBoolean(config.runtimeConstraints[name]));
     if (disabledComponents.length > 0) {
       ok = false;

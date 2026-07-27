@@ -674,7 +674,10 @@ def _python_runtime_dependency_fragments(text: str, forbidden: list[str]) -> lis
     found: set[str] = set()
 
     def is_static_denylist(name: str) -> bool:
-        return name in {"FORBIDDEN_PATH_MARKERS", "FORBIDDEN_LITERAL_PATTERNS"} or name.endswith("_DENYLIST")
+        return (
+            name.startswith("FORBIDDEN_")
+            or name.endswith("_DENYLIST")
+        )
 
     class RuntimeLiteralVisitor(ast.NodeVisitor):
         def visit_Assign(self, node: ast.Assign) -> None:
@@ -697,6 +700,21 @@ def _python_runtime_dependency_fragments(text: str, forbidden: list[str]) -> lis
             if literals and any(fragment in value for value in literals for fragment in forbidden):
                 for statement in [*node.body, *node.orelse]:
                     self.visit(statement)
+                return
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            # Audit and metric code commonly counts forbidden literals in
+            # inspected source text.  A comparison needle is evidence of a
+            # deny check, not an executable path dependency.
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr
+                in {"count", "endswith", "find", "startswith"}
+            ):
+                self.visit(node.func.value)
+                for keyword in node.keywords:
+                    self.visit(keyword.value)
                 return
             self.generic_visit(node)
 

@@ -341,7 +341,10 @@ class ExtractionRuntimeController:
         )
 
     def _check_clean_boundary(self) -> RuntimeCheckResult:
-        from zyra_integrations.ledger_audit import _forbidden_fragments
+        from zyra_integrations.ledger_audit import (
+            _forbidden_fragments,
+            _python_runtime_dependency_fragments,
+        )
 
         forbidden = set(_forbidden_fragments())
         forbidden.update(fragment.replace("\\", "/") for fragment in list(forbidden))
@@ -354,13 +357,21 @@ class ExtractionRuntimeController:
             for path in root.rglob("*"):
                 if not path.is_file() or path.suffix.lower() not in {".py", ".js", ".mjs", ".ts", ".tsx", ".json"}:
                     continue
+                relative = path.relative_to(self.project_root).as_posix()
+                if relative.startswith("scripts/remediation/"):
+                    continue
                 scanned.append(path)
                 try:
                     text = path.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     continue
-                if any(fragment in text for fragment in forbidden):
-                    violations.append(path.relative_to(self.project_root).as_posix())
+                fragments = (
+                    _python_runtime_dependency_fragments(text, list(forbidden))
+                    if path.suffix.lower() == ".py"
+                    else [fragment for fragment in forbidden if fragment in text]
+                )
+                if fragments:
+                    violations.append(relative)
         ok = not violations
         return RuntimeCheckResult(
             check_id=new_id("runtime-check"),

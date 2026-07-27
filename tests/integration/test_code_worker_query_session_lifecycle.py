@@ -71,11 +71,12 @@ class CodeWorkerQuerySessionLifecycleTests(unittest.TestCase):
                 "turn_end",
                 "session_completed",
                 "query_session_snapshot",
-                "transcript_event_mapping",
-                "session_acceptance",
             ):
                 self.assertIn(phase, phases)
-            self.assertLess(phases.index("session_completed"), phases.index("transcript_event_mapping"))
+            self.assertLess(
+                phases.index("session_completed"),
+                phases.index("query_session_snapshot"),
+            )
             metadata = run.worker_result.metadata
             self.assertEqual(metadata["canonical_runtime_owner"], "typescript")
             self.assertEqual(metadata["python_query_engine_fallback"], "false")
@@ -114,6 +115,7 @@ class CodeWorkerQuerySessionLifecycleTests(unittest.TestCase):
                     worker_name="CodeWorkerRuntime",
                     constraints={
                         "continue_on_error": True,
+                        "e02PermissionPolicy": {"default_effect": "allow"},
                         "query_turns": [[
                             {"tool_name": "file_read", "arguments": {"path": "missing.txt"}},
                             {
@@ -132,6 +134,72 @@ class CodeWorkerQuerySessionLifecycleTests(unittest.TestCase):
             self.assertEqual(len(completed), 2)
             self.assertTrue(any(item["tool_name"] == "artifact_write" for item in completed))
             self.assertEqual(run.worker_result.metadata["query_session_consistent"], "true")
+
+    def test_context_security_disconnect_fails_closed_before_stream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Disconnect the TypeScript context-security owner.")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            run = runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "disable_context_security_runtime": True,
+                        "query_turns": [[
+                            {"tool_name": "trace", "arguments": {"limit": 1}},
+                        ]],
+                    },
+                )
+            )
+
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "codeworker_api_foundation_disabled")
+            self.assertEqual(
+                run.worker_result.metadata["tool_runtime_gate_failures"],
+                "disable_context_security_runtime",
+            )
+            phases = _query_phases(run.event_records)
+            self.assertIn("codeworker_api_foundation", phases)
+            self.assertNotIn("stream_request_start", phases)
+
+    def test_restore_integration_disconnect_fails_closed_before_stream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Disconnect the TypeScript restore-integration owner.")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            run = runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "disable_restore_integration_runtime": True,
+                        "query_turns": [[
+                            {"tool_name": "trace", "arguments": {"limit": 1}},
+                        ]],
+                    },
+                )
+            )
+
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "codeworker_api_foundation_disabled")
+            self.assertEqual(
+                run.worker_result.metadata["tool_runtime_gate_failures"],
+                "disable_restore_integration_runtime",
+            )
+            phases = _query_phases(run.event_records)
+            self.assertIn("codeworker_api_foundation", phases)
+            self.assertNotIn("stream_request_start", phases)
 
 
 def _query_events(events: list[object], phase: str) -> list[dict[str, object]]:

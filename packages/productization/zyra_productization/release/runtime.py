@@ -20,6 +20,7 @@ from .bundle import (
 from .ci import (
     GateContext,
     GateExecutor,
+    PythonTestPolicy,
     ReleaseAdmission,
     standard_gate_registry,
 )
@@ -676,6 +677,10 @@ class ReleaseRuntime:
             bun=bun,
             output_root=evidence_root,
             callable_gates=callables,
+            python_test_arguments=PythonTestPolicy.load(
+                self.project_root,
+                self.project_root / "config" / "release-python-tests.json",
+            ).pytest_arguments(),
         )
         executor = GateExecutor(
             registry,
