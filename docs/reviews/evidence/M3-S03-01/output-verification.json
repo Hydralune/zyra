@@ -1,0 +1,13 @@
+{
+  "archive_manifest_digest": "c24ca309322e89eceddd5f10d588dbee4d237a61ee884a6494323a679f87a12f",
+  "archive_sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13",
+  "ledger_row_count": 60,
+  "output_digest": "dda293ac0947c8c97c349b01e863814f481e558110adcd7b3d03bc5dc2bfcf7d",
+  "receipt_digest": "62ecc124affa8751ccbb96c386041f673d28ec80d72229640042af8a737023b0",
+  "replay_projection_count": 3,
+  "schema": "zyra.m3-s03-01-output-verification/v1",
+  "score": 100,
+  "target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "task_success_recomputed": false,
+  "valid": true
+}

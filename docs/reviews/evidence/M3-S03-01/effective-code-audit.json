@@ -1,0 +1,127 @@
+{
+  "schema": "zyra.m3-s03-01-effective-line-audit/v1",
+  "slice_id": "M3-S03-01",
+  "baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67",
+  "target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "raw_additions": 8798,
+  "minimum_effective_lines": 4500,
+  "production_effective_lines": 6770,
+  "margin": 2270,
+  "production": [
+    {
+      "effective_lines": 193,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/ablation.py"
+    },
+    {
+      "effective_lines": 338,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/algorithms.py"
+    },
+    {
+      "effective_lines": 660,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/archive.py"
+    },
+    {
+      "effective_lines": 398,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/canonical.py"
+    },
+    {
+      "effective_lines": 299,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/cases.py"
+    },
+    {
+      "effective_lines": 438,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/compatibility.py"
+    },
+    {
+      "effective_lines": 270,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/evidence_index.py"
+    },
+    {
+      "effective_lines": 693,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/inputs.py"
+    },
+    {
+      "effective_lines": 231,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/langgraph.py"
+    },
+    {
+      "effective_lines": 655,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/ledger.py"
+    },
+    {
+      "effective_lines": 245,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/links.py"
+    },
+    {
+      "effective_lines": 930,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/pipeline.py"
+    },
+    {
+      "effective_lines": 433,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/replay.py"
+    },
+    {
+      "effective_lines": 414,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/report.py"
+    },
+    {
+      "effective_lines": 271,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/scoring.py"
+    },
+    {
+      "effective_lines": 302,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/value.py"
+    }
+  ],
+  "excluded": [
+    {
+      "bucket": "interface-and-contract",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/contracts.py",
+      "physical_lines": 340
+    },
+    {
+      "bucket": "interface-and-contract",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/errors.py",
+      "physical_lines": 120
+    },
+    {
+      "bucket": "mapping-data",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/sources.py",
+      "physical_lines": 239
+    },
+    {
+      "bucket": "wrapper-and-entrypoint",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/__init__.py",
+      "physical_lines": 15
+    },
+    {
+      "bucket": "wrapper-and-entrypoint",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/__main__.py",
+      "physical_lines": 4
+    },
+    {
+      "bucket": "wrapper-and-entrypoint",
+      "effective_lines": 0,
+      "path": "packages/evaluation/zyra_evaluation/freeze_reporting/cli.py",
+      "physical_lines": 137
+    }
+  ],
+  "excluded_categories": [
+    "tests",
+    "generated report/JSON/Markdown/archive",
+    "documentation and review evidence",
+    "DTO/type/interface-only code",
+    "thin CLI and entrypoint wrappers",
+    "mapping/data tables",
+    "mock/fixture-only code",
+    "vendor/source-pool code"
+  ],
+  "audit_command": "python scripts/audit_m3_s03_01_effective_lines.py --repository-root . --minimum 4500",
+  "blockers": [],
+  "valid": true
+}

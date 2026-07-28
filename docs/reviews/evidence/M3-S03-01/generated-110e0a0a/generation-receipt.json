@@ -1,0 +1,118 @@
+{
+  "archive": {
+    "bytes": 3444628,
+    "chain_root": "e7465f69e7fdf23bbf1e0388e036fad2e56e017fdca757a43a4ce6fe16a03dcd",
+    "manifest_digest": "c24ca309322e89eceddd5f10d588dbee4d237a61ee884a6494323a679f87a12f",
+    "member_count": 41,
+    "path": "first-stage-evidence.zip",
+    "sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13"
+  },
+  "archive_verification_digest": "d029cc821b4035762c95a89f90ae48461f7241911679d84aee66f81e0ab7c27b",
+  "final_freeze_claimed": false,
+  "generated": [
+    {
+      "bytes": 317653,
+      "object_digest": "b3e97247785486f44d53d845cb5f8c88f57e7b41881e6c2df066c02f279280dd",
+      "path": "generated/100-point-evidence-index.json",
+      "sha256": "482770174cf85d64ae5618d0b7ab945ac10c04a4466c3498f88fda405c46c814"
+    },
+    {
+      "bytes": 370461,
+      "object_digest": "e87192c6c2f5c3ac5d0e303cebf90cf61ca22403e3010cac44f8cf50aa760533",
+      "path": "generated/ablation-material.json",
+      "sha256": "e8a98acb63e3eaf00a1b80353acebc4eea9c214156bac691a8d14f15c1880287"
+    },
+    {
+      "bytes": 89222,
+      "object_digest": "7ae340029eadb5aa5f522b426463e83bf0964947d5dcdac09d57ebdfc4b73edb",
+      "path": "generated/algorithm-material.json",
+      "sha256": "97d696b8272a1db3626fa84e91ff1ccdcfcce8ee563b12d7909c427f5ef54af4"
+    },
+    {
+      "bytes": 7677,
+      "object_digest": "cf74016591da1438fb4bc5b5510c2cbd8622fe4cccbcb5a4c6adbf398618a6d2",
+      "path": "generated/application-value.json",
+      "sha256": "ccbb412f28001fbebed6228ab8abc37f6f254d4b002bda6ff75c8ad4fcc36b84"
+    },
+    {
+      "bytes": 9591,
+      "object_digest": "c51b47e4cf7ef639934d65f2fa12197063349c80095056c1116c4bc998d5b1cb",
+      "path": "generated/case-studies.json",
+      "sha256": "73a5d79bc85b42ad408fa00bea328c0fbc8cd48793a6c378011cfd6f31773e06"
+    },
+    {
+      "bytes": 20876,
+      "object_digest": "e3069c423c2ba7619bb2b21882145ec6a07eda4255bc8b44e97b04cdc3c69827",
+      "path": "generated/compatibility-material.json",
+      "sha256": "bc428d21e50115417fb7649d5e9196384f1b7ecdb869fc711928b3dc18c36d5a"
+    },
+    {
+      "bytes": 10758,
+      "object_digest": "ebc3e42ff1e7514d852c8d4cb66ee1824e38390df76b32d8a70b3b1700ceb970",
+      "path": "generated/freeze-report.json",
+      "sha256": "9ea69237fe806cca948b1bfea828d5334b11c1492a70fc3285ec783713023944"
+    },
+    {
+      "bytes": 8965,
+      "object_digest": "a6b4d0e944fbe2ca9ce683bb00da8136f34f104826522ad89d7ff7babb4ac9fa",
+      "path": "generated/input-set.json",
+      "sha256": "2d3d68a6513dbd7e8a859629ad4a1b804d49e6fc509d14a660de4a20c6b805e0"
+    },
+    {
+      "bytes": 65217,
+      "object_digest": "188fd6270c9c109c85744040cbe4a381536767e92fb209cc441b28fa0528ffe3",
+      "path": "generated/internalization-ledger.json",
+      "sha256": "c367d1ad10e8c2f0b5f5e23c37c980a4d20baa0660218210586bce582fe7d460"
+    },
+    {
+      "bytes": 10311,
+      "object_digest": "6996f240f07afc7ea2b31421c4a3426cb347b080a272f6cadbf6d0cde7d1fca0",
+      "path": "generated/langgraph-correction-matrix.json",
+      "sha256": "3c9b585e95a2df480dd06c850a734d9088da5a40c8f6629cf9b845abb04d2d37"
+    },
+    {
+      "bytes": 5495,
+      "object_digest": "",
+      "path": "freeze-report.md",
+      "sha256": "531c42aade3b3d95f2fc94c21ab9c45284194327a243506c068aa1c7334fbfde"
+    }
+  ],
+  "generated_at": "2026-07-28T14:45:07.195631Z",
+  "input_set_digest": "a6b4d0e944fbe2ca9ce683bb00da8136f34f104826522ad89d7ff7babb4ac9fa",
+  "next_freeze_owner": "M3-S03-02",
+  "receipt_digest": "57ea9c086c1751bdb70217f530c39e5ca7c09f6965f5986e46fa15d83fb0f6ce",
+  "release_input": "release-summary",
+  "release_required": true,
+  "replay_verification_digest": "ed8c1c3f432c46b38d64f6c1ca06e532ffed7abd0cf875623e040cda9ac77db2",
+  "schema": "zyra.m3-s03-01-generation-receipt/v1",
+  "score": {
+    "complete": true,
+    "dimensions": {
+      "application-innovation": {
+        "complete": true,
+        "maximum": 25,
+        "verified": 25
+      },
+      "performance-efficiency": {
+        "complete": true,
+        "maximum": 15,
+        "verified": 15
+      },
+      "technical-innovation": {
+        "complete": true,
+        "maximum": 20,
+        "verified": 20
+      },
+      "works-completeness": {
+        "complete": true,
+        "maximum": 40,
+        "verified": 40
+      }
+    },
+    "maximum": 100,
+    "verified": 100
+  },
+  "slice_id": "M3-S03-01",
+  "target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "task_success_recomputed": false
+}

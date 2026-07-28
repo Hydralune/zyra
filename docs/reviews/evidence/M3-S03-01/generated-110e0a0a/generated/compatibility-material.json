@@ -1,0 +1,457 @@
+{
+  "credential_policy": {
+    "missing_credentials": "provider-required work fails closed",
+    "receipt_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+    "secrets_in_evidence": false
+  },
+  "deployment_profiles": [
+    {
+      "cost_class": "measured",
+      "degradation_result": "fail-closed",
+      "latency_class": "measured",
+      "network_class": "in-process",
+      "privacy_class": "sensitive-ok",
+      "profile_id": "local-1",
+      "receipt_digest": "82bb07897d6550f224c71cf3022483ebfc33b2c2aea77a58945191a9ebabc22e",
+      "tier": "local"
+    },
+    {
+      "cost_class": "measured",
+      "degradation_result": "fail-closed",
+      "latency_class": "measured",
+      "network_class": "isolated",
+      "privacy_class": "sensitive-ok",
+      "profile_id": "edge-2",
+      "receipt_digest": "3aee140be4017a858c68f5188ed493a27676ae6e6ffe827985f831ee0013fa39",
+      "tier": "edge"
+    },
+    {
+      "cost_class": "measured",
+      "degradation_result": "fail-closed",
+      "latency_class": "measured",
+      "network_class": "isolated",
+      "privacy_class": "public-only",
+      "profile_id": "cloud-3",
+      "receipt_digest": "2757db65382dc6fd11f37212e81d7f69f83579411a9b9e280b38407693f1a814",
+      "tier": "cloud"
+    }
+  ],
+  "failover_policy": {
+    "credential_failure": "fail closed; credentials are never synthesized",
+    "network_failure": "bounded retry then lower-tier/offline recovery",
+    "node_failure": "lease invalidation and placement migration",
+    "provider_failure": "failover within admitted capability policy",
+    "receipt_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c"
+  },
+  "generated_at": "2026-07-28T14:45:06.322913Z",
+  "material_digest": "e3069c423c2ba7619bb2b21882145ec6a07eda4255bc8b44e97b04cdc3c69827",
+  "models": [
+    {
+      "capabilities": [],
+      "model_id": "claude-sonnet-5",
+      "provider_id": "anthropic",
+      "receipt_digest": "67a2409103c2d51c75bafef310601403741ed2666d907b970d84cf34653b92ba"
+    },
+    {
+      "capabilities": [],
+      "model_id": "gpt-5.5",
+      "provider_id": "openai",
+      "receipt_digest": "918baa5f1c4ee14439244e41059a87870688b286a063d48d8aa74f3bdef8160a"
+    }
+  ],
+  "privacy_policy": {
+    "cloud": "public-or-explicitly-approved",
+    "edge": "bounded-sensitive",
+    "local": "sensitive-ok",
+    "receipt_digest": "e9954fa94ad5881373b2a11a93e710655439be219663490270d6640f91282e1c",
+    "violation_result": "placement denied and recovery/replan required"
+  },
+  "providers": [
+    {
+      "capabilities": [],
+      "credential_presence": "protected-receipt",
+      "failover_result": "protected-receipt",
+      "provider_id": "anthropic",
+      "receipt_digest": "67a2409103c2d51c75bafef310601403741ed2666d907b970d84cf34653b92ba"
+    },
+    {
+      "capabilities": [],
+      "credential_presence": "protected-receipt",
+      "failover_result": "protected-receipt",
+      "provider_id": "openai",
+      "receipt_digest": "918baa5f1c4ee14439244e41059a87870688b286a063d48d8aa74f3bdef8160a"
+    }
+  ],
+  "schema": "zyra.first-stage-compatibility-material/v1",
+  "source_receipts": {
+    "benchmark_report": {
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/benchmark-report.json",
+      "sha256": "2105b6f8b34c958149cd9b9ff9f6010e583ed94b57421f8bc2dab1b4a1a81b20"
+    },
+    "campaign": {
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/campaign.json",
+      "sha256": "ffe95e0e9617cf8a4607ddefe0bbbccad015a6db3ac622eed8f8e8293656071b"
+    },
+    "protected_deployment": {
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/protected-deployment-evidence.json",
+      "sha256": "147abaea1c0499f9cf300546956cee0b94f3325e059f8cf5a81f85a3e7657c3c"
+    }
+  },
+  "task_model_split": [
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "domain": "software-delivery",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "single-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-recovery"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "domain": "cross-source-research",
+      "model_split": "protected-profile-and-provider-policy",
+      "placement_policy_digest": "3b9e86d1c80afda8a381da8971cc290668f747a4164de4ad7c9ea73ed5f55f04",
+      "provider_policy_digest": "6418639ebe07b65da929fef2e52d15d7dabec4621588c021d656648943c86166",
+      "task_role": "formal-live-cell",
+      "variant_id": "no-low-entropy-communication"
+    }
+  ],
+  "tiers": [
+    "cloud",
+    "edge",
+    "local"
+  ],
+  "verification": {
+    "model_count": 2,
+    "profile_count": 3,
+    "provider_count": 2,
+    "receipt_digest": "caff01e59f1702b1f4326cf1cea4d2c39d1405b904a7a7228257cb090210db2e",
+    "schema": "zyra.first-stage-compatibility-verification/v1",
+    "split_count": 42,
+    "tiers": [
+      "cloud",
+      "edge",
+      "local"
+    ],
+    "valid": true
+  }
+}

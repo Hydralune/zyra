@@ -1,0 +1,190 @@
+{
+  "expected_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "formal_evidence_root": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae",
+  "input_set_digest": "a6b4d0e944fbe2ca9ce683bb00da8136f34f104826522ad89d7ff7babb4ac9fa",
+  "members": [
+    {
+      "input_id": "benchmark-admission",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/freeze-admission.json",
+      "schema": "zyra.live-benchmark-freeze-admission/v1",
+      "sha256": "e6990e1295400f47065b65f77347b2d741546a4156bc59f03c4f7a16a52a8410"
+    },
+    {
+      "input_id": "benchmark-campaign",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/campaign.json",
+      "schema": "",
+      "sha256": "ffe95e0e9617cf8a4607ddefe0bbbccad015a6db3ac622eed8f8e8293656071b"
+    },
+    {
+      "input_id": "benchmark-campaign-store",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/campaign-store-receipt.json",
+      "schema": "zyra.m3-live-campaign-store-receipt/v1",
+      "sha256": "4f50d553f16e703772f05508a89acafee256e26a5aee442fb45ae8d7f0156ac7"
+    },
+    {
+      "input_id": "benchmark-index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/100-point-evidence-index.json",
+      "schema": "zyra.100-point-evidence-index/v1",
+      "sha256": "c7ee026cf90efeaffefa99d86686d5b84454f04bf586fbe2f7296625c8c33f87"
+    },
+    {
+      "input_id": "benchmark-manifest",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/evidence-manifest.json",
+      "schema": "zyra.live-benchmark-evidence-manifest/v1",
+      "sha256": "4e73dd3272bd91b5aaf3e90b925088a63679100320549441d60cdbcc2ed102e8"
+    },
+    {
+      "input_id": "benchmark-metadata",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/implementation-metadata.json",
+      "schema": "zyra.m3-s02a02-implementation-metadata/v1",
+      "sha256": "9d0f20542d9674b825eb8fc5e384909d35292435cf7790affd2bba248e535bbf"
+    },
+    {
+      "input_id": "benchmark-protected-deployment",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/protected-deployment-evidence.json",
+      "schema": "zyra.protected-deployment-evidence/v1",
+      "sha256": "147abaea1c0499f9cf300546956cee0b94f3325e059f8cf5a81f85a3e7657c3c"
+    },
+    {
+      "input_id": "benchmark-raw-samples",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/raw-samples.json",
+      "schema": "zyra.m3-live-raw-samples/v1",
+      "sha256": "fa6b80c9ad7d9b32fc1e24635896fe39ecbb8d6ea478b1266885e817c7f7ad09"
+    },
+    {
+      "input_id": "benchmark-report",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/benchmark-report.json",
+      "schema": "zyra.live-benchmark-report/v1",
+      "sha256": "2105b6f8b34c958149cd9b9ff9f6010e583ed94b57421f8bc2dab1b4a1a81b20"
+    },
+    {
+      "input_id": "benchmark-requirements",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/requirement-evidence.json",
+      "schema": "zyra.m3-live-requirement-evidence/v1",
+      "sha256": "8e2825435bbf43986988bbbd25e66d252e7e53464bb8e059d9198920acaaceb6"
+    },
+    {
+      "input_id": "benchmark-run-receipts",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/run-receipts.json",
+      "schema": "zyra.m3-live-run-receipts/v1",
+      "sha256": "29f55846263086be8093e5dd96239f0dc41a35910f7b96cc38dd9613adf2585e"
+    },
+    {
+      "input_id": "benchmark-source-archive-01",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/cross-source-research-repetition-01.zip",
+      "schema": "application/zip",
+      "sha256": "2da06815840434ea2d44c303febcb7c6b1ff6295616d9fe1ad0035cb7797ae36"
+    },
+    {
+      "input_id": "benchmark-source-archive-02",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/cross-source-research-repetition-02.zip",
+      "schema": "application/zip",
+      "sha256": "5e1736f87e5634aa34592f6d9b8cec2b7cd9796bfb9f194c3f70fbc0d23085df"
+    },
+    {
+      "input_id": "benchmark-source-archive-03",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/cross-source-research-repetition-03.zip",
+      "schema": "application/zip",
+      "sha256": "04909dc4ce0623524961e78465387f7fea44f3ad93245752f674de5f4386eb05"
+    },
+    {
+      "input_id": "benchmark-source-archive-04",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/software-delivery-repetition-01.zip",
+      "schema": "application/zip",
+      "sha256": "a36176459b7f452a3ebf7bec5fe8da11d92a558ef97d6a1059ff13cac0f65e90"
+    },
+    {
+      "input_id": "benchmark-source-archive-05",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/software-delivery-repetition-02.zip",
+      "schema": "application/zip",
+      "sha256": "179fe42e21035f576bb6603dd66501b44b981983f4640ba07faf02e828846cd9"
+    },
+    {
+      "input_id": "benchmark-source-archive-06",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-archives/software-delivery-repetition-03.zip",
+      "schema": "application/zip",
+      "sha256": "a628706c4762cfc1ae0cb41f72583275df8d34b840d09e46afb5d7219df68df6"
+    },
+    {
+      "input_id": "benchmark-source-runs",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/source-runs.json",
+      "schema": "zyra.m3-live-source-runs/v1",
+      "sha256": "700ad57cfde0f2c5c6b9b51244c0befadc8ee5d727bedebb1b5570d2abc89b15"
+    },
+    {
+      "input_id": "benchmark-statistics",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/statistical-evaluation.json",
+      "schema": "zyra.live-benchmark-statistical-evaluation/v1",
+      "sha256": "3181b6fad35e94b0a643bd2d9bbe1b2c1160e29d68f7f4bdefec282a22ea4f0b"
+    },
+    {
+      "input_id": "benchmark-summary",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/evaluation-summary.json",
+      "schema": "zyra.live-benchmark-evaluation/v1",
+      "sha256": "55f3290aecf9654b4c9b97582862f8dc12e35dbfa2ac78a245841f44708fb003"
+    },
+    {
+      "input_id": "benchmark-validation",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/validation-receipt.json",
+      "schema": "zyra.m3-s02a02-validation-receipt/v1",
+      "sha256": "f35a3168e69768fafa10cd191432d9c9bec2c6b89674646669ce3aecee5a99ec"
+    },
+    {
+      "input_id": "benchmark-verification",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/verification-summary.json",
+      "schema": "zyra.m3-s02a-02-verification-summary/v2",
+      "sha256": "580ee1041ac8a1f530bcd3a5775dd108bc7c7fd320782c280e0aeccfdf3bb5c4"
+    },
+    {
+      "input_id": "custody-01",
+      "path": "docs/reviews/evidence/M3-S01A-01/source-custody-receipt.json",
+      "schema": "zyra.source-custody-audit-receipt/v1",
+      "sha256": "2434026d3be665f31f8c4be88279f97fe603e2eb9dc4797c1a9cef6c5dad8878"
+    },
+    {
+      "input_id": "custody-02",
+      "path": "docs/reviews/evidence/M3-S01A-02/state-owner-reachability-receipt.json",
+      "schema": "zyra.state-owner-reachability-evidence-audit/v1",
+      "sha256": "42b204835922c7f2f12da393e5d5182c72f890710b04da1ce4bdd6fad010de81"
+    },
+    {
+      "input_id": "custody-03",
+      "path": "docs/reviews/evidence/M3-S01B-02/config-migration-runtime-receipt.json",
+      "schema": "zyra.m3-s01b-02.config-migration-evidence/v1",
+      "sha256": "0abf341620ee9a0b46bf32cf654b81b4622f53829dc58c06cc50b9b1fec68f15"
+    },
+    {
+      "input_id": "custody-04",
+      "path": "docs/reviews/evidence/M3-01-independent-review/aggregate-review-evidence.json",
+      "schema": "zyra.m3-01.independent-aggregate-review/v1",
+      "sha256": "29f1b8e819aa249f0995f2db7049124b6f536809e8f8383f308a9d0831047916"
+    },
+    {
+      "input_id": "formal-pointer",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current.json",
+      "schema": "zyra.m3-s02a02-formal-evidence-pointer/v1",
+      "sha256": "10b2bde309462b5fdd9de4129b75f3db79f7db68a06521cab4abe3ead4bf6c4b"
+    },
+    {
+      "input_id": "release-effective-code",
+      "path": "docs/reviews/evidence/M3-S02B-02/effective-code-audit.json",
+      "schema": "zyra.effective-code-language-gate-audit/v1",
+      "sha256": "250eb3a8073e3956dc92e9c4db44902c78e71136f6b89260e130eaa3284a49d8"
+    },
+    {
+      "input_id": "release-metadata",
+      "path": "docs/reviews/evidence/M3-S02B-02/implementation-metadata.json",
+      "schema": "zyra.m3-s02b-02.implementation-metadata/v1",
+      "sha256": "4124e790e1408b58cced6268ba5e903098bf8800cb2e95bedaf265889919d427"
+    },
+    {
+      "input_id": "release-summary",
+      "path": "docs/reviews/evidence/M3-S02B-02/verification-summary.json",
+      "schema": "zyra.m3-s02b-02.verification-summary/v1",
+      "sha256": "150a87c1c7238e3952a0c6a29aa66a54a6b9b8580cad320bda294df2a14d09a0"
+    }
+  ],
+  "release_input": "release-summary",
+  "repository_root": ".",
+  "schema": "zyra.freeze-input-set/v1"
+}

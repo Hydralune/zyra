@@ -1,0 +1,55 @@
+{
+  "schema": "zyra.m3-s03-01.implementation-metadata/v1",
+  "slice_id": "M3-S03-01",
+  "baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67",
+  "preimplementation_decision_commits": [
+    "af63654b1b1c65fab9307d1b29717461c57933d5",
+    "490b652dbeff730feae89845b2fbc2deb759a200"
+  ],
+  "implementation_commits": [
+    "aaea1676a17c082e09f18bdf231a1af142fa76ad",
+    "bf7b4f839582c8120e4240300e05a4615b89796e",
+    "f3cbc7f2398e13822a28cdc369e3483ee66a780e",
+    "110e0a0aa40fdc9e31f256c088caddfd258ca173"
+  ],
+  "prerequisite_merge_commit": "013f7a2c4f5ca5295a588210eb4a7d80af4222c3",
+  "implementation_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "source_languages": [
+    "python"
+  ],
+  "target_languages": [
+    "python"
+  ],
+  "migration_mode": "report_and_freeze_only",
+  "line_gate": {
+    "minimum_effective_production": 4500,
+    "accounted_effective_production": 6770,
+    "margin": 2270,
+    "raw_additions": 8798,
+    "tests_docs_generated_contracts_wrappers_mapping_counted": false,
+    "passed": true
+  },
+  "release_prerequisite": {
+    "slice_id": "M3-S02B-02",
+    "implementation_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "evidence_commit": "8fb1624a3703f5b3a8d3f37b29e7ad925f447d3e",
+    "verification_schema": "zyra.m3-s02b-02.verification-summary/v1",
+    "verdict": "PASS",
+    "bound_fail_closed": true
+  },
+  "formal_output": {
+    "directory": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a",
+    "release_required": true,
+    "final_freeze_claimed": false,
+    "next_freeze_owner": "M3-S03-02"
+  },
+  "canonical_owners": {
+    "source_evidence": "protected slice artifacts and their original verifiers",
+    "report_projection": "zyra_evaluation.freeze_reporting",
+    "archive_integrity": "zyra_evaluation.freeze_reporting.archive",
+    "progression": "docs/milestones/execution-state.yaml"
+  },
+  "openclaw": "excluded_forward_only",
+  "langgraph": "narrow checkpoint identity, pending/committed writes, interrupt/resume correlation and exact-resume conformance only; no StateGraph or production graph owner added",
+  "evidence_commit_record": "docs/milestones/execution-state.yaml"
+}

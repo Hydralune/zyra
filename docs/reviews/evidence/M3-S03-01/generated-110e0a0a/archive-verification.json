@@ -1,0 +1,11 @@
+{
+  "archive_bytes": 3444628,
+  "archive_sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13",
+  "chain_root": "e7465f69e7fdf23bbf1e0388e036fad2e56e017fdca757a43a4ce6fe16a03dcd",
+  "manifest_digest": "c24ca309322e89eceddd5f10d588dbee4d237a61ee884a6494323a679f87a12f",
+  "member_count": 41,
+  "receipt_digest": "d029cc821b4035762c95a89f90ae48461f7241911679d84aee66f81e0ab7c27b",
+  "schema": "zyra.first-stage-evidence-archive-verification/v1",
+  "target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "valid": true
+}
