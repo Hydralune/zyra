@@ -1,0 +1,134 @@
+{
+  "schema": "zyra.m3-s02b-02.verification-summary/v1",
+  "slice_id": "M3-S02B-02",
+  "target_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+  "verdict": "PASS",
+  "release_pipeline": {
+    "release_id": "M3-S02B-02-final-e87eeb3",
+    "ready": true,
+    "duration_ms": 3500882.674,
+    "mandatory_gate_count": 13,
+    "passed_gate_count": 13,
+    "failed_gate_count": 0,
+    "blocked_gate_count": 0,
+    "required_failures": [],
+    "gates": [
+      "javascript-lock",
+      "python-lock",
+      "typescript-typecheck",
+      "bundle-boundary",
+      "python-tests",
+      "source-custody",
+      "web-build",
+      "checksums",
+      "sbom-notice",
+      "submission-boundary",
+      "benchmark-link",
+      "clean-install",
+      "semantic-health"
+    ]
+  },
+  "python_release_suite": {
+    "passed": 886,
+    "failed": 0,
+    "deselected_by_policy": 22,
+    "warnings": 5,
+    "subtests_passed": 68,
+    "duration_seconds": 2941.96,
+    "per_test_fail_closed_timeout_seconds": 300,
+    "warning_classes": [
+      "PytestCollectionWarning for the TestEntry dataclass name",
+      "Windows Proactor closed-pipe PytestUnraisableExceptionWarning"
+    ]
+  },
+  "typescript_and_web": {
+    "bun_tests_passed": 1268,
+    "bun_tests_failed": 0,
+    "bun_expect_calls": 1489,
+    "bun_test_files": 55,
+    "typecheck": "passed",
+    "web_build": "passed",
+    "web_modules_bundled": 370,
+    "verify_m3": "M3 runtime verification passed; M3 verification passed"
+  },
+  "reproducible_bundle": {
+    "archive": "dist/release-pipeline-M3-S02B-02-final-e87eeb3/M3-S02B-02-final-e87eeb3.tar.gz",
+    "archive_sha256": "c18ed2ff1853faf71c69c6f0f02b722cbd04d0a5d19c4042ea460ef9234714f6",
+    "archive_size": 12929493,
+    "file_count": 2238,
+    "manifest_digest": "b9fed50cfd885021627f4f296ab86c74313f2ccce666a845399213f4efa72ef4",
+    "payload_digest": "effb62437f7733d052bb153ec5639b08c394e40183009271356b03226a05255e",
+    "byte_identical_rebuilds": true,
+    "size_delta": 0,
+    "wheel": "zyra-0.1.0-py3-none-any.whl",
+    "wheel_sha256": "222a65dfa29f86b220f8b62a954c5485fb4e57e4113ccfedd214ddda4f9ec3aa",
+    "wheel_size": 4320287,
+    "wheel_entry_count": 846
+  },
+  "clean_install": {
+    "ready": true,
+    "workspace_isolated": true,
+    "parent_source_repositories_present": false,
+    "product_lifecycle_exercised": true,
+    "offline": false,
+    "duration_ms": 183127.789,
+    "locked_python_packages_installed": 113,
+    "frozen_bun_packages_installed": 26,
+    "wheel_import_verified": true,
+    "typecheck_in_cleanroom": true,
+    "bun_and_node_builds_in_cleanroom": true,
+    "web_build_in_cleanroom": true,
+    "migration_install_activate_stop_uninstall": true
+  },
+  "semantic_health": {
+    "ready": true,
+    "failures": [],
+    "clean_install_admission_ready": true,
+    "lifecycle_health_returncode": 0,
+    "lifecycle_health_duration_ms": 34810.475,
+    "runtime_status": "degraded",
+    "degraded_reason": "No cloud provider credential was present. Provider-required dispatch remained fail-closed while device/edge/cloud product lifecycle and the sealed short task remained ready.",
+    "human_intervention_count": 0
+  },
+  "source_and_bundle_boundary": {
+    "source_custody_ready": true,
+    "source_custody_blockers": 0,
+    "source_custody_release_ready": true,
+    "python_parse_errors": 0,
+    "javascript_lex_errors": 0,
+    "langgraph_forbidden_hits": 0,
+    "opaque_runtime_hits": 0,
+    "bundle_boundary_ready": true,
+    "bundle_blockers": 0,
+    "secret_files": 0,
+    "undeclared_native_artifacts": 0,
+    "parent_source_runtime_dependencies": 0
+  },
+  "benchmark_binding": {
+    "source_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "release_source_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "ready": true,
+    "score": 100,
+    "domain_count": 2,
+    "variant_count": 7,
+    "formal_cell_count": 42,
+    "minimum_effective_transitions": 2310,
+    "maximum_effective_transitions": 4003,
+    "human_intervention_count": 0
+  },
+  "effective_code": {
+    "minimum": 6000,
+    "accounted_effective_production": 9285,
+    "margin": 3285,
+    "raw_additions": 17582,
+    "tests_docs_locks_runners_counted": false,
+    "audit_sha256": "250eb3a8073e3956dc92e9c4db44902c78e71136f6b89260e130eaa3284a49d8"
+  },
+  "residual_non_blockers": [
+    "The governed Python release suite intentionally deselects 22 legacy or superseded cases; an unqualified raw pytest-all PASS is not claimed.",
+    "Five warning instances remain: three TestEntry collection warnings and two Windows Proactor closed-pipe warnings.",
+    "The clean install used the network and is not an offline wheelhouse proof.",
+    "Cloud provider credentials were absent, so semantic health was ready but degraded and provider-required placement remained fail-closed."
+  ],
+  "execution_state_update_authorized": true
+}

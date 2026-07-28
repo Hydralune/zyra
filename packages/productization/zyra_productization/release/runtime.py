@@ -677,7 +677,10 @@ class ReleaseRuntime:
         with tempfile.TemporaryDirectory(
             prefix="zyra-release-pytest-",
             ignore_cleanup_errors=True,
-        ) as python_basetemp:
+        ) as python_basetemp, tempfile.TemporaryDirectory(
+            prefix="zyra-release-ci-home-",
+            ignore_cleanup_errors=True,
+        ) as ci_home:
             registry = standard_gate_registry(
                 python=python,
                 bun=bun,
@@ -694,7 +697,7 @@ class ReleaseRuntime:
                 project_root=self.project_root,
                 output_root=evidence_root,
                 source_commit=expected_commit,
-                environment=self._ci_environment(),
+                environment=self._ci_environment(Path(ci_home)),
                 maximum_parallel=maximum_parallel,
             )
             report = executor.execute()
@@ -953,14 +956,30 @@ class ReleaseRuntime:
             encoding="utf-8",
         )
 
-    def _ci_environment(self) -> dict[str, str]:
+    def _ci_environment(self, home_root: Path) -> dict[str, str]:
+        host_user_profile = os.environ.get("USERPROFILE")
         allowed = {
             name: value
             for name, value in os.environ.items()
             if self.policy.environment_allowed(name)
         }
+        home_root = home_root.resolve()
+        cache_root = home_root / "cache"
+        temp_root = home_root / "temp"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        temp_root.mkdir(parents=True, exist_ok=True)
         allowed.update(
             {
+                "HOME": str(home_root),
+                "TEMP": str(temp_root),
+                "TMP": str(temp_root),
+                "TMPDIR": str(temp_root),
+                "XDG_CACHE_HOME": str(cache_root),
+                "BUN_INSTALL_CACHE_DIR": str(cache_root / "bun"),
+                "npm_config_cache": str(cache_root / "npm"),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "safe.directory",
+                "GIT_CONFIG_VALUE_0": self.project_root.as_posix(),
                 "PYTHONNOUSERSITE": "1",
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PIP_DISABLE_PIP_VERSION_CHECK": "1",
@@ -969,6 +988,20 @@ class ReleaseRuntime:
                 "ZYRA_RELEASE_CI": "1",
             }
         )
+        # Do not synthesize Windows account-profile variables.  Chrome rejects
+        # remote debugging when USERPROFILE points at a release sandbox rather
+        # than the real Windows account, even with an explicit non-default
+        # --user-data-dir.  Preserve the real Windows account identity so
+        # pathlib.expanduser() and Chrome both remain valid; HOME/XDG/tool
+        # caches and application data variables stay isolated or omitted.
+        for name in ("APPDATA", "LOCALAPPDATA"):
+            allowed.pop(name, None)
+        if os.name == "nt" and host_user_profile:
+            allowed["USERPROFILE"] = str(
+                Path(host_user_profile).resolve(strict=False)
+            )
+        else:
+            allowed.pop("USERPROFILE", None)
         return allowed
 
 

@@ -10,6 +10,9 @@ import json
 import os
 import posixpath
 import re
+import shutil
+import tempfile
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
@@ -97,6 +100,114 @@ class BrowserPageState:
     links: list[dict[str, str]]
     html_chars: int
     text_chars: int
+
+
+class _BrowserUseProcessDeadline:
+    """Hard-stop a local browser when async teardown misses its deadline."""
+
+    def __init__(self, session: Any, *, timeout_seconds: float) -> None:
+        self._session = session
+        self._timer = threading.Timer(
+            max(float(timeout_seconds), 0.01),
+            self.force_terminate,
+        )
+        self._timer.daemon = True
+        self._started = False
+        self._guard = threading.Lock()
+        self._terminated = False
+
+    def start(self) -> None:
+        if not self._started:
+            self._timer.start()
+            self._started = True
+
+    def finish(self) -> None:
+        if self._started:
+            self._timer.cancel()
+        # BrowserSession.stop()/close() may leave a local Chrome tree alive.
+        # This exact-PID fence is idempotent and runs after normal cleanup too.
+        self.force_terminate()
+
+    def force_terminate(self) -> None:
+        with self._guard:
+            if self._terminated:
+                return
+            watchdog = getattr(self._session, "_local_browser_watchdog", None)
+            process_id = getattr(watchdog, "browser_pid", None)
+            if not isinstance(process_id, int) or process_id <= 0:
+                return
+            self._terminated = True
+        try:
+            import psutil
+        except ImportError:
+            return
+        try:
+            try:
+                root = psutil.Process(process_id)
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                return
+            processes = [*root.children(recursive=True), root]
+            for process in reversed(processes):
+                try:
+                    process.terminate()
+                except psutil.NoSuchProcess:
+                    continue
+            _gone, alive = psutil.wait_procs(processes, timeout=2)
+            for process in alive:
+                try:
+                    process.kill()
+                except psutil.NoSuchProcess:
+                    continue
+        except (OSError, psutil.Error):
+            return
+
+
+def _run_browser_use_with_hard_deadline(
+    coroutine: Any,
+    *,
+    timeout_seconds: float,
+) -> Any:
+    """Run one browser-use task without awaiting vendor background tasks forever."""
+
+    loop = asyncio.new_event_loop()
+    deadline_reached = threading.Event()
+
+    def stop_at_deadline() -> None:
+        deadline_reached.set()
+        try:
+            loop.call_soon_threadsafe(loop.stop)
+        except RuntimeError:
+            return
+
+    timer = threading.Timer(max(float(timeout_seconds), 0.01), stop_at_deadline)
+    timer.daemon = True
+    task = loop.create_task(coroutine)
+    timer.start()
+    asyncio.set_event_loop(loop)
+    try:
+        try:
+            loop.run_until_complete(task)
+        except RuntimeError:
+            if not deadline_reached.is_set():
+                raise
+        if not task.done():
+            raise TimeoutError(
+                f"Browser-use live task exceeded {timeout_seconds:g} seconds."
+            )
+        return task.result()
+    finally:
+        timer.cancel()
+        pending = [item for item in asyncio.all_tasks(loop) if not item.done()]
+        for item in pending:
+            item.cancel()
+        if pending:
+            # Give cancellation/finally blocks one bounded loop turn.  Do not
+            # gather vendor observers: that is the unbounded shutdown path this
+            # runtime boundary is designed to contain.
+            loop.call_soon(loop.stop)
+            loop.run_forever()
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1896,17 +2007,16 @@ class BrowserWorkerRuntime:
             maximum=300,
         )
         try:
-            return asyncio.run(
-                asyncio.wait_for(
-                    self._run_browser_use_live_async(
-                        request=request,
-                        snapshot=snapshot,
-                        plan=plan,
-                        executable=executable,
-                        permission_gate=permission_gate,
-                    ),
-                    timeout=timeout,
-                )
+            return _run_browser_use_with_hard_deadline(
+                self._run_browser_use_live_async(
+                    request=request,
+                    snapshot=snapshot,
+                    plan=plan,
+                    executable=executable,
+                    permission_gate=permission_gate,
+                    lifetime_timeout_seconds=timeout,
+                ),
+                timeout_seconds=timeout,
             )
         except Exception as error:  # noqa: BLE001 - live browser failures must be surfaced as worker results.
             worker_result = WorkerResult(
@@ -2153,6 +2263,7 @@ class BrowserWorkerRuntime:
         plan: list[dict[str, Any]],
         executable: Path,
         permission_gate: BrowserActionPermissionGate,
+        lifetime_timeout_seconds: int,
     ) -> BrowserWorkerRun:
         paths = configure_browser_use_environment(self.project_root)
         from browser_use.browser.session import BrowserSession
@@ -2187,11 +2298,16 @@ class BrowserWorkerRuntime:
         allowed_domains_arg = [str(item) for item in allowed_domains] if isinstance(allowed_domains, list) else None
         downloads_dir = paths.root / "downloads" / request.request_id
         downloads_dir.mkdir(parents=True, exist_ok=True)
+        # browser-use treats this prefix as an already-ephemeral profile and
+        # therefore does not create an untracked second copy.
+        profile_dir = Path(
+            tempfile.mkdtemp(prefix="browser-use-user-data-dir-zyra-")
+        )
         session = BrowserSession(
             executable_path=executable,
             headless=request.constraints.get("headless", True) is not False,
             keep_alive=False,
-            user_data_dir=paths.temp_dir / f"browser-use-user-data-dir-{request.request_id}",
+            user_data_dir=profile_dir,
             downloads_path=downloads_dir,
             traces_dir=paths.root / "traces" / request.request_id,
             enable_default_extensions=False,
@@ -2203,12 +2319,18 @@ class BrowserWorkerRuntime:
                 "--disable-background-networking",
                 "--disable-component-extensions-with-background-pages",
                 "--disable-extensions",
+                "--disable-gpu",
             ],
         )
         tools = Tools()
         browser_use_file_system = FileSystem(paths.root / "files" / request.request_id, create_default_files=False)
         current_url = ""
         session_started = False
+        process_deadline = _BrowserUseProcessDeadline(
+            session,
+            timeout_seconds=max(lifetime_timeout_seconds - 2, 1),
+        )
+        process_deadline.start()
 
         try:
             for index, step in enumerate(plan, start=1):
@@ -2723,8 +2845,16 @@ class BrowserWorkerRuntime:
                     if not continue_on_error:
                         break
         finally:
-            if session_started:
-                await session.close()
+            try:
+                if session_started:
+                    # Normal completion drains the event bus so no observer
+                    # coroutine escapes the worker loop.  If vendor teardown
+                    # stalls, the outer hard deadline and exact-PID process
+                    # guard still bound this await.
+                    await session.close()
+            finally:
+                process_deadline.finish()
+                shutil.rmtree(profile_dir, ignore_errors=True)
 
         browser_events = _browser_action_events(event_records)
         ok = bool(browser_events) and all(_event_browser_result_ok(event) for event in browser_events)

@@ -52,10 +52,41 @@ from zyra_integrations.ledger_reachability import (
     discover_cli_commands,
     discover_event_producers,
 )
+from zyra_integrations.ledger_source_scan import iter_scannable_files
 from tests.unit.test_internalization_ledger_policy_linecount import sample_entry
 
 
 class InternalizationLedgerControlPlaneTests(unittest.TestCase):
+    def test_source_scan_fallback_prunes_generated_and_cache_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write(root / "packages/runtime.py", "value = 1\n")
+            _write(root / "tests/test_runtime.py", "def test_runtime(): pass\n")
+            for generated in (
+                ".tmp/generated.py",
+                "tmp/generated.py",
+                "dist/generated.py",
+                "build/generated.py",
+                "node_modules/generated.py",
+                "docs/reviews/evidence.json",
+            ):
+                _write(root / generated, "value = 'generated'\n")
+
+            production = {
+                path.relative_to(root).as_posix()
+                for path in iter_scannable_files(root)
+            }
+            with_tests = {
+                path.relative_to(root).as_posix()
+                for path in iter_scannable_files(root, include_tests=True)
+            }
+
+        self.assertEqual(production, {"packages/runtime.py"})
+        self.assertEqual(
+            with_tests,
+            {"packages/runtime.py", "tests/test_runtime.py"},
+        )
+
     def test_vendor_runtime_path_requires_review_not_effective_by_default(self) -> None:
         classification = classify_path("vendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts")
 

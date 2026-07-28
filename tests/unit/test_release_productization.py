@@ -891,6 +891,12 @@ def test_standard_gate_registry_isolates_pytest_state_outside_project(
         "--basetemp",
         str(basetemp.resolve()),
     )
+    assert command[7:11] == (
+        "-o",
+        "faulthandler_timeout=300",
+        "-o",
+        "faulthandler_exit_on_timeout=true",
+    )
     assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
 
 
@@ -962,6 +968,46 @@ def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
     assert policy.environment_allowed("SYSTEMROOT") is True
     assert policy.environment_allowed("zyra_release_ci") is True
     assert policy.environment_allowed("UNRELATED_SECRET") is False
+
+
+def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    home_root = tmp_path / "ci-home"
+    home_root.mkdir()
+    host_profile = tmp_path / "host-profile"
+    monkeypatch.setenv("USERPROFILE", str(host_profile))
+    runtime = ReleaseRuntime(
+        project_root,
+        output_root=tmp_path / "output",
+        state_root=tmp_path / "state",
+    )
+
+    environment = runtime._ci_environment(home_root)
+
+    assert Path(environment["HOME"]) == home_root.resolve()
+    if os.name == "nt":
+        assert Path(environment["USERPROFILE"]) == host_profile.resolve()
+    else:
+        assert "USERPROFILE" not in environment
+    assert "APPDATA" not in environment
+    assert "LOCALAPPDATA" not in environment
+    assert Path(environment["TEMP"]) == (home_root / "temp").resolve()
+    assert Path(environment["TMP"]) == (home_root / "temp").resolve()
+    assert Path(environment["TMPDIR"]) == (home_root / "temp").resolve()
+    assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
+        home_root.resolve()
+    )
+    assert Path(environment["npm_config_cache"]).is_relative_to(
+        home_root.resolve()
+    )
+    assert environment["GIT_CONFIG_COUNT"] == "1"
+    assert environment["GIT_CONFIG_KEY_0"] == "safe.directory"
+    assert environment["GIT_CONFIG_VALUE_0"] == project_root.as_posix()
+    assert environment["ZYRA_RELEASE_CI"] == "1"
 
 
 def test_python_test_policy_is_explicit_path_checked_and_reproducible(

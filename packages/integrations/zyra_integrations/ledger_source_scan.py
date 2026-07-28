@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -49,12 +51,18 @@ SCAN_SUFFIXES = {
 }
 
 IGNORED_PARTS = {
+    ".cache",
     ".git",
     ".venv",
     "__pycache__",
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
+    ".tmp",
+    "build",
+    "coverage",
+    "dist",
+    "docs",
     "node_modules",
     "tmp",
 }
@@ -173,15 +181,10 @@ def verify_target_paths(project_root: Path, ledger: InternalizationLedger) -> li
 
 
 def scan_forbidden_dependencies(project_root: Path, *, include_tests: bool = False) -> list[ForbiddenDependencyHit]:
-    hits: list[ForbiddenDependencyHit] = []
-    for path in iter_scannable_files(project_root, include_tests=include_tests):
-        text = _read_text(path)
-        if not text:
-            continue
-        hits.extend(_scan_literal_patterns(project_root, path, text))
-        if path.suffix == ".py":
-            hits.extend(_scan_python_dynamic_parent_refs(project_root, path, text))
-    return hits
+    return _scan_forbidden_dependency_files(
+        project_root,
+        iter_scannable_files(project_root, include_tests=include_tests),
+    )
 
 
 def build_source_scan_report(
@@ -195,14 +198,20 @@ def build_source_scan_report(
     for entry in ledger.entries():
         source_verifications.extend(verify_source_evidence(source_root, entry))
     target_verifications = verify_target_paths(project_root, ledger)
-    forbidden_hits = scan_forbidden_dependencies(project_root, include_tests=include_tests)
+    scannable_files = list(
+        iter_scannable_files(project_root, include_tests=include_tests)
+    )
+    forbidden_hits = _scan_forbidden_dependency_files(
+        project_root,
+        scannable_files,
+    )
     missing_source_count = sum(1 for item in source_verifications if not item.exists_in_workspace)
     missing_target_count = sum(1 for item in target_verifications if not item.exists_in_project)
     unverified_evidence_count = sum(1 for item in source_verifications if not item.reason and not item.symbols and not item.tags)
     return SourceScanReport(
         project_root=str(project_root),
         source_root=str(source_root),
-        scanned_files=sum(1 for _ in iter_scannable_files(project_root, include_tests=include_tests)),
+        scanned_files=len(scannable_files),
         source_verifications=source_verifications,
         target_verifications=target_verifications,
         forbidden_hits=forbidden_hits,
@@ -213,18 +222,136 @@ def build_source_scan_report(
 
 
 def iter_scannable_files(project_root: Path, *, include_tests: bool = False) -> Iterable[Path]:
-    for path in project_root.rglob("*"):
-        if not path.is_file() or path.suffix not in SCAN_SUFFIXES:
+    project_root = project_root.resolve()
+    git_files = _git_scannable_files(
+        project_root,
+        include_tests=include_tests,
+    )
+    if git_files is not None:
+        yield from git_files
+        return
+    yield from _walk_scannable_files(
+        project_root,
+        include_tests=include_tests,
+    )
+
+
+def _git_scannable_files(
+    project_root: Path,
+    *,
+    include_tests: bool,
+) -> list[Path] | None:
+    try:
+        root_probe = subprocess.run(
+            [
+                "git",
+                "-c",
+                f"safe.directory={project_root.as_posix()}",
+                "rev-parse",
+                "--show-toplevel",
+            ],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+        )
+        if Path(root_probe.stdout.strip()).resolve() != project_root:
+            return None
+        completed = subprocess.run(
+            [
+                "git",
+                "-c",
+                f"safe.directory={project_root.as_posix()}",
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+
+    files: list[Path] = []
+    for raw_path in completed.stdout.splitlines():
+        if not raw_path:
             continue
+        relative = Path(raw_path)
+        if not _scannable_relative_path(
+            relative,
+            include_tests=include_tests,
+        ):
+            continue
+        candidate = project_root / relative
+        if candidate.is_file():
+            files.append(candidate)
+    return files
+
+
+def _walk_scannable_files(
+    project_root: Path,
+    *,
+    include_tests: bool,
+) -> Iterable[Path]:
+    for root, dirnames, filenames in os.walk(project_root):
+        root_path = Path(root)
         try:
-            parts = set(path.relative_to(project_root).parts)
+            relative_root = root_path.relative_to(project_root)
         except ValueError:
+            dirnames[:] = []
             continue
-        if parts & IGNORED_PARTS:
+        relative_parts = {part.casefold() for part in relative_root.parts}
+        if relative_parts & IGNORED_PARTS:
+            dirnames[:] = []
             continue
-        if not include_tests and "tests" in parts:
+        dirnames[:] = [
+            dirname
+            for dirname in dirnames
+            if dirname.casefold() not in IGNORED_PARTS
+            and (include_tests or dirname.casefold() != "tests")
+        ]
+        for filename in filenames:
+            relative = relative_root / filename
+            if _scannable_relative_path(
+                relative,
+                include_tests=include_tests,
+            ):
+                yield root_path / filename
+
+
+def _scannable_relative_path(
+    relative: Path,
+    *,
+    include_tests: bool,
+) -> bool:
+    parts = {part.casefold() for part in relative.parts}
+    return (
+        relative.suffix.casefold() in SCAN_SUFFIXES
+        and not parts & IGNORED_PARTS
+        and (include_tests or "tests" not in parts)
+    )
+
+
+def _scan_forbidden_dependency_files(
+    project_root: Path,
+    files: Iterable[Path],
+) -> list[ForbiddenDependencyHit]:
+    hits: list[ForbiddenDependencyHit] = []
+    for path in files:
+        text = _read_text(path)
+        if not text:
             continue
-        yield path
+        hits.extend(_scan_literal_patterns(project_root, path, text))
+        if path.suffix == ".py":
+            hits.extend(_scan_python_dynamic_parent_refs(project_root, path, text))
+    return hits
 
 
 def repo_from_source_path(path: str) -> str:

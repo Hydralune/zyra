@@ -1,0 +1,139 @@
+{
+  "schema": "zyra.m3-02.independent-aggregate-review/v1",
+  "review_date": "2026-07-28",
+  "verdict": "PASS_AFTER_FIXES",
+  "numeric_stage": "M3-02",
+  "slices": [
+    "M3-S02A-01",
+    "M3-S02A-02",
+    "M3-S02B-01",
+    "M3-S02B-02"
+  ],
+  "revisions": {
+    "numeric_stage_baseline": "42f760229588aba917c7283b841587afc7142b0b",
+    "m3_s02a01_implementation": "c5fa87cccab900dfaa9b8a4148d8cbd896a04013",
+    "m3_s02a02_implementation": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "m3_s02b01_implementation": "81b08adaabc00cf18917a89418ff73dea3f6c67f",
+    "m3_s02b02_decision": "1774cd21fa430f0d626987a80dabc62d51ff9048",
+    "m3_s02b02_exact_target": "e87eeb37a915b38f1aef85f420010c594c9bad6d"
+  },
+  "aggregate_findings_closed": [
+    {
+      "priority": "P0",
+      "code": "release_browser_lifecycle_unbounded",
+      "resolution": "Added exact-PID process-tree deadline while preserving normal browser close."
+    },
+    {
+      "priority": "P0",
+      "code": "release_source_scan_includes_generated_runtime_trees",
+      "resolution": "Bound ledger scans to exact git files with a pruned fallback."
+    },
+    {
+      "priority": "P1",
+      "code": "release_python_gate_has_no_per_test_fail_closed_deadline",
+      "resolution": "Added a 300-second faulthandler timeout with exit-on-timeout."
+    },
+    {
+      "priority": "P1",
+      "code": "windows_release_identity_breaks_home_and_chrome",
+      "resolution": "Preserved the real Windows USERPROFILE while isolating HOME, temporary directories and tool caches."
+    },
+    {
+      "priority": "P1",
+      "code": "deployment_doctor_scans_runtime_tmp_fixtures",
+      "resolution": "Excluded runtime tmp while mutation-testing that equivalent source-package dependencies remain blocking."
+    }
+  ],
+  "benchmark_and_requirements": {
+    "formal_evidence_pointer": "docs/reviews/evidence/M3-S02A-02/formal-current.json",
+    "benchmark_source_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "domains": 2,
+    "variants": 7,
+    "repetitions": 3,
+    "formal_cells": 42,
+    "fresh_source_runs": 6,
+    "raw_metric_samples": 1554,
+    "minimum_effective_transitions": 2310,
+    "maximum_effective_transitions": 4003,
+    "score": 100,
+    "human_intervention_count": 0,
+    "operator_intervention_count": 0,
+    "release_benchmark_link_ready": true
+  },
+  "effective_code": {
+    "m3_02a": {
+      "effective_production": 17155,
+      "minimum": 12000,
+      "margin": 5155
+    },
+    "m3_02b": {
+      "effective_production": 18864,
+      "minimum": 12000,
+      "margin": 6864
+    },
+    "m3_02_total": {
+      "effective_production": 36019,
+      "minimum": 24000,
+      "margin": 12019
+    },
+    "slice_records": {
+      "M3-S02A-01": 8561,
+      "M3-S02A-02": 8594,
+      "M3-S02B-01": 9579,
+      "M3-S02B-02": 9285
+    },
+    "generated_data_docs_tests_vendor_counted": 0
+  },
+  "release_admission": {
+    "release_id": "M3-S02B-02-final-e87eeb3",
+    "source_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "ready": true,
+    "mandatory_gates": 13,
+    "passed": 13,
+    "failed": 0,
+    "blocked": 0,
+    "archive_sha256": "c18ed2ff1853faf71c69c6f0f02b722cbd04d0a5d19c4042ea460ef9234714f6",
+    "archive_size": 12929493,
+    "wheel_sha256": "222a65dfa29f86b220f8b62a954c5485fb4e57e4113ccfedd214ddda4f9ec3aa",
+    "byte_identical_rebuilds": true,
+    "clean_install_ready": true,
+    "semantic_health_ready": true
+  },
+  "verification": {
+    "python_release_suite": "886 passed, 22 deselected, 5 warnings, 68 subtests passed",
+    "bun_full": "1268 passed, 0 failed, 1489 assertions",
+    "typescript_typecheck": "passed",
+    "web_build": "passed",
+    "verify_m3": "passed",
+    "submission_boundary": "passed",
+    "source_custody": "release ready with 0 blockers",
+    "clean_install": "passed from isolated extracted archive",
+    "semantic_health": "ready; degraded only by absent cloud credentials with provider-required dispatch fail-closed"
+  },
+  "source_and_state_boundary": {
+    "source_custody_blockers": 0,
+    "python_parse_errors": 0,
+    "javascript_lex_errors": 0,
+    "langgraph_forbidden_hits": 0,
+    "opaque_runtime_hits": 0,
+    "bundle_secret_files": 0,
+    "undeclared_native_artifacts": 0,
+    "parent_source_repositories_present_in_cleanroom": false,
+    "canonical_owner_transfers": 0,
+    "openclaw": "excluded_forward_only"
+  },
+  "residual_non_blockers": [
+    "The governed Python release suite has 22 explicit policy deselections; raw pytest-all PASS is not claimed.",
+    "Three TestEntry collection warnings and two Windows Proactor closed-pipe warnings remain.",
+    "The clean install is online, not an offline wheelhouse proof.",
+    "Cloud provider credentials were absent; provider-required placement remained fail-closed."
+  ],
+  "progression": {
+    "m3_02a_complete": true,
+    "m3_02b_complete": true,
+    "m3_02_complete": true,
+    "m3_milestone_exit_complete": false,
+    "blocked": false,
+    "next_slice": "docs/milestones/M3-freeze-productization/slice-03-01-evidence-report-archive-generation.md"
+  }
+}

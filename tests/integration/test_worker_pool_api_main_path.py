@@ -318,6 +318,11 @@ def test_subagent_fanout_maps_each_child_to_one_physical_attempt_and_receipt(
             payload=payload,
             suspended=suspended,
             route="subagents/fanout",
+            # The product route deliberately drains foreground children
+            # serially through one stdio provider-stream supervisor.  Preserve
+            # the physical lease/receipt assertions without imposing the
+            # single-child HTTP deadline on a two-child transaction.
+            request_timeout=180,
         )
         assert [item["task_id"] for item in completed["physical_workers"]] == [
             "physical-fanout-a",
@@ -659,6 +664,12 @@ def _api(root: Path) -> Iterator[str]:
             "ZYRA_WORKER_POOL_STORE",
             "ZYRA_GRAPH_STATE_STORE",
             "ZYRA_WORKSPACE_STORE",
+            "ZYRA_PERMISSION_STORE",
+            "ZYRA_PERMISSION_STATE",
+            "ZYRA_MCP_STATE",
+            "ZYRA_SUBAGENT_STATE",
+            "ZYRA_CONTROL_STATE",
+            "ZYRA_E02_API_PERMISSION_MODE",
         )
     }
     os.environ.update(
@@ -670,6 +681,12 @@ def _api(root: Path) -> Iterator[str]:
             "ZYRA_WORKER_POOL_STORE": str(root / "worker-pool.sqlite3"),
             "ZYRA_GRAPH_STATE_STORE": str(root / "graph-state.sqlite3"),
             "ZYRA_WORKSPACE_STORE": str(root / "workspace.sqlite3"),
+            "ZYRA_PERMISSION_STORE": str(root / "permission-compat.json"),
+            "ZYRA_PERMISSION_STATE": str(root / "permission-state.json"),
+            "ZYRA_MCP_STATE": str(root / "mcp-state.json"),
+            "ZYRA_SUBAGENT_STATE": str(root / "subagent-state.json"),
+            "ZYRA_CONTROL_STATE": str(root / "control-state"),
+            "ZYRA_E02_API_PERMISSION_MODE": "default",
         }
     )
     api_main._WORKER_POOL_API = None
@@ -677,6 +694,7 @@ def _api(root: Path) -> Iterator[str]:
     api_main._WORKER_POOL_KEY = None
     api_main.reset_control_runtime()
     api_main.reset_subagent_runtime()
+    api_main.reset_mcp_runtime()
     server = ThreadingHTTPServer(("127.0.0.1", 0), api_main.ZyraRequestHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -691,6 +709,7 @@ def _api(root: Path) -> Iterator[str]:
         api_main._WORKER_POOL_KEY = None
         api_main.reset_control_runtime()
         api_main.reset_subagent_runtime()
+        api_main.reset_mcp_runtime()
         for name, value in previous.items():
             if value is None:
                 os.environ.pop(name, None)
@@ -749,6 +768,7 @@ def _post_with_status(
     payload: dict[str, Any],
     *,
     headers: dict[str, str] | None = None,
+    timeout: float = 60,
 ) -> tuple[int, dict[str, Any]]:
     request = urllib.request.Request(
         f"{base_url}{path}",
@@ -757,7 +777,7 @@ def _post_with_status(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
@@ -781,6 +801,7 @@ def _approve_and_retry_subagent(
     suspended: dict[str, Any],
     expected_status: int = 201,
     route: str = "subagents",
+    request_timeout: float = 60,
 ) -> dict[str, Any]:
     session = suspended["permission_session"]
     token = session["session_custody_token"]
@@ -816,6 +837,7 @@ def _approve_and_retry_subagent(
         f"/tasks/{parent['task_id']}/{route}",
         {**payload, "session_id": session_id},
         headers=headers,
+        timeout=request_timeout,
     )
     metadata = retry.get("worker_result", {}).get("metadata", {})
     diagnostic = {
