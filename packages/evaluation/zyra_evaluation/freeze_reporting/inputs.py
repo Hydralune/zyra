@@ -28,6 +28,7 @@ FORMAL_POINTER = Path(
 FORMAL_REQUIRED_MEMBERS = {
     "100-point-evidence-index.json": "benchmark-index",
     "benchmark-report.json": "benchmark-report",
+    "campaign-store-receipt.json": "benchmark-campaign-store",
     "campaign.json": "benchmark-campaign",
     "evaluation-summary.json": "benchmark-summary",
     "evidence-manifest.json": "benchmark-manifest",
@@ -94,6 +95,7 @@ class FreezeInputSet:
         self._verify_formal_pointer(pointer)
         evidence_root = self._resolve_formal_root(pointer)
         self._load_formal_members(evidence_root)
+        self._verify_formal_manifest_members(evidence_root)
         self._verify_formal_cross_links(pointer)
         self._load_optional_custody()
         release_id = self._load_release(required=require_release)
@@ -209,6 +211,28 @@ class FreezeInputSet:
         self._digests[input_id] = file_digest(path)
         return document
 
+    def _load_binary(
+        self,
+        input_id: str,
+        path: Path,
+        *,
+        schema: str,
+        manifest_path: str,
+    ) -> None:
+        if input_id in self._documents:
+            raise fail(
+                "freeze-input-duplicate-id",
+                "Freeze input identifier is duplicated.",
+                phase="input",
+                detail={"input_id": input_id},
+            )
+        self._documents[input_id] = {
+            "schema": schema,
+            "manifest_path": manifest_path,
+        }
+        self._paths[input_id] = path
+        self._digests[input_id] = file_digest(path)
+
     def _verify_formal_pointer(self, pointer: Mapping[str, Any]) -> None:
         schema = require_text(
             pointer.get("schema"),
@@ -287,6 +311,116 @@ class FreezeInputSet:
                     detail={"member": filename},
                 )
             self._load(input_id, path)
+
+    def _verify_formal_manifest_members(self, root: Path) -> None:
+        manifest = self.document("benchmark-manifest")
+        members = [
+            require_mapping(item, "formal manifest member")
+            for item in require_sequence(
+                manifest.get("members"),
+                "formal manifest members",
+            )
+        ]
+        findings: list[dict[str, Any]] = []
+        if manifest.get("member_count") != len(members):
+            findings.append(
+                blocker(
+                    "formal-manifest-member-count-mismatch",
+                    "Formal evidence manifest member count is inconsistent.",
+                    declared=manifest.get("member_count"),
+                    observed=len(members),
+                )
+            )
+        known_by_path = {
+            path.relative_to(root).as_posix(): input_id
+            for input_id, path in self._paths.items()
+            if path == root or root in path.parents
+        }
+        identities: set[str] = set()
+        source_archive_index = 0
+        for member in members:
+            relative = safe_relative_path(
+                member.get("path"),
+                "formal manifest member path",
+            )
+            if relative in identities:
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-duplicate",
+                        "Formal evidence manifest path is duplicated.",
+                        path=relative,
+                    )
+                )
+                continue
+            identities.add(relative)
+            try:
+                path = resolve_inside(root, relative, must_exist=True)
+            except Exception:
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-missing",
+                        "Formal evidence manifest member is missing.",
+                        path=relative,
+                    )
+                )
+                continue
+            if not path.is_file() or path.is_symlink():
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-not-regular-file",
+                        "Formal evidence member must be a regular non-symlink file.",
+                        path=relative,
+                    )
+                )
+                continue
+            observed_digest = file_digest(path)
+            observed_bytes = path.stat().st_size
+            if member.get("sha256") != observed_digest:
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-digest-mismatch",
+                        "Formal evidence member checksum does not match its manifest.",
+                        path=relative,
+                    )
+                )
+            if member.get("bytes") != observed_bytes:
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-size-mismatch",
+                        "Formal evidence member size does not match its manifest.",
+                        path=relative,
+                    )
+                )
+            if member.get("required") is not True:
+                findings.append(
+                    blocker(
+                        "formal-manifest-member-not-required",
+                        "Formal evidence manifest cannot downgrade a member to optional.",
+                        path=relative,
+                    )
+                )
+            if relative.startswith("source-archives/"):
+                source_archive_index += 1
+                self._load_binary(
+                    f"benchmark-source-archive-{source_archive_index:02d}",
+                    path,
+                    schema="application/zip",
+                    manifest_path=relative,
+                )
+            elif relative not in known_by_path:
+                findings.append(
+                    blocker(
+                        "formal-manifest-json-not-admitted",
+                        "Formal manifest JSON member is not part of the admitted input set.",
+                        path=relative,
+                    )
+                )
+        require_no_blockers(
+            findings,
+            code="formal-manifest-members-invalid",
+            message="Formal benchmark manifest members failed admission.",
+            phase="input",
+        )
 
     def _verify_formal_cross_links(self, pointer: Mapping[str, Any]) -> None:
         report = self.document("benchmark-report")

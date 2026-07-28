@@ -242,9 +242,14 @@ class FreezeEvidencePipeline:
                 if input_id == "formal-pointer"
                 else path.name
             )
+            archive_path = (
+                f"inputs/benchmark/source-archives/{filename}"
+                if input_id.startswith("benchmark-source-archive-")
+                else f"inputs/{category}/{filename}"
+            )
             builder.add_file(
                 path,
-                archive_path=f"inputs/{category}/{filename}",
+                archive_path=archive_path,
                 kind=f"admitted-{category}-input",
             )
         return builder.build(staging / ARCHIVE_NAME)

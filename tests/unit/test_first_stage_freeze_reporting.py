@@ -104,6 +104,14 @@ def test_real_formal_inputs_build_a_complete_100_point_index(
     assert index["score"]["complete"] is True
     assert receipt["valid"] is True
     assert len(index["requirements"]) == 19
+    assert "benchmark-campaign-store" in admitted_inputs.documents
+    assert len(
+        [
+            input_id
+            for input_id in admitted_inputs.documents
+            if input_id.startswith("benchmark-source-archive-")
+        ]
+    ) == 6
 
 
 def test_score_matrix_fails_when_a_requirement_is_removed(
@@ -350,6 +358,16 @@ def test_full_pipeline_builds_report_archive_and_replay_receipts(
     assert generation["release_required"] is False
     assert (built_output / "freeze-report.md").is_file()
     assert (built_output / "first-stage-evidence.zip").is_file()
+    with zipfile.ZipFile(
+        built_output / "first-stage-evidence.zip",
+        mode="r",
+    ) as archive:
+        source_archives = [
+            name
+            for name in archive.namelist()
+            if name.startswith("inputs/benchmark/source-archives/")
+        ]
+    assert len(source_archives) == 6
 
 
 def test_archive_tamper_is_rejected(
