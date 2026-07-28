@@ -1,0 +1,197 @@
+{
+  "days_to_submission": 49,
+  "digest": "fa471a93fcce6bed4066c62b021930e7581105d276bc3ee291e4744241780580",
+  "evaluated_at": "2026-07-28T00:04:00Z",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "gates": [
+    {
+      "acceptance": [
+        "offline installation path is explicit",
+        "restart and provider-failure drills pass",
+        "feature freeze admission policy is active"
+      ],
+      "blocking": true,
+      "dependency_states": [
+        {
+          "due_at": "2026-09-01T00:00:00Z",
+          "gate_id": "rc1",
+          "state": "pending"
+        }
+      ],
+      "depends_on": [
+        "rc1"
+      ],
+      "description": "Fixed first-stage release gate for 2026-09-08.",
+      "due_at": "2026-09-08T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/rehearsal-receipt.json"
+      ],
+      "gate_id": "clean-rehearsal",
+      "overdue": false,
+      "owner": "rehearsal-owner",
+      "recorded_at": "2026-07-28T00:00:00Z",
+      "recorded_evidence_paths": [],
+      "state": "pending",
+      "terminal": false,
+      "title": "Complete rehearsal and feature freeze"
+    },
+    {
+      "acceptance": [
+        "two distinct reviewers attest to the same manifest",
+        "no unresolved first-stage blocker exists"
+      ],
+      "blocking": true,
+      "dependency_states": [
+        {
+          "due_at": "2026-09-08T00:00:00Z",
+          "gate_id": "clean-rehearsal",
+          "state": "pending"
+        }
+      ],
+      "depends_on": [
+        "clean-rehearsal"
+      ],
+      "description": "Fixed first-stage release gate for 2026-09-12.",
+      "due_at": "2026-09-12T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/dual-review-receipt.json"
+      ],
+      "gate_id": "dual-review",
+      "overdue": false,
+      "owner": "review-owner",
+      "recorded_at": "2026-07-28T00:00:00Z",
+      "recorded_evidence_paths": [],
+      "state": "pending",
+      "terminal": false,
+      "title": "Complete independent dual-review sign-off"
+    },
+    {
+      "acceptance": [
+        "manifest and checksums independently verify",
+        "submission naming and material inventory pass"
+      ],
+      "blocking": true,
+      "dependency_states": [
+        {
+          "due_at": "2026-07-28T00:00:00Z",
+          "gate_id": "stage-freeze",
+          "state": "passed"
+        }
+      ],
+      "depends_on": [
+        "stage-freeze"
+      ],
+      "description": "Fixed first-stage release gate for 2026-09-01.",
+      "due_at": "2026-09-01T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/submission-verification.json"
+      ],
+      "gate_id": "rc1",
+      "overdue": false,
+      "owner": "submission-owner",
+      "recorded_at": "2026-07-28T00:00:00Z",
+      "recorded_evidence_paths": [],
+      "state": "pending",
+      "terminal": false,
+      "title": "Build release candidate 1"
+    },
+    {
+      "acceptance": [
+        "M3-S03-02 final verifier passes",
+        "the evidence commit is immutable and named"
+      ],
+      "blocking": true,
+      "dependency_states": [],
+      "depends_on": [],
+      "description": "Fixed first-stage release gate for 2026-07-28.",
+      "due_at": "2026-07-28T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/final-freeze-receipt.json"
+      ],
+      "gate_id": "stage-freeze",
+      "overdue": false,
+      "owner": "release-owner",
+      "recorded_at": "2026-07-28T00:03:00Z",
+      "recorded_evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/final-freeze-receipt.json"
+      ],
+      "state": "passed",
+      "terminal": true,
+      "title": "Freeze first-stage implementation and evidence"
+    },
+    {
+      "acceptance": [
+        "archive digests equal the reviewed candidate",
+        "last-mile instructions are executable"
+      ],
+      "blocking": true,
+      "dependency_states": [
+        {
+          "due_at": "2026-09-12T00:00:00Z",
+          "gate_id": "dual-review",
+          "state": "pending"
+        }
+      ],
+      "depends_on": [
+        "dual-review"
+      ],
+      "description": "Fixed first-stage release gate for 2026-09-12.",
+      "due_at": "2026-09-12T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/submission-lock.json"
+      ],
+      "gate_id": "submission-lock",
+      "overdue": false,
+      "owner": "release-owner",
+      "recorded_at": "2026-07-28T00:00:00Z",
+      "recorded_evidence_paths": [],
+      "state": "pending",
+      "terminal": false,
+      "title": "Lock the exact submission artifacts"
+    },
+    {
+      "acceptance": [
+        "submission confirmation is retained",
+        "submitted digests equal the locked manifest"
+      ],
+      "blocking": true,
+      "dependency_states": [
+        {
+          "due_at": "2026-09-12T00:00:00Z",
+          "gate_id": "submission-lock",
+          "state": "pending"
+        }
+      ],
+      "depends_on": [
+        "submission-lock"
+      ],
+      "description": "Fixed first-stage release gate for 2026-09-15.",
+      "due_at": "2026-09-15T00:00:00Z",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/submission-confirmation.json"
+      ],
+      "gate_id": "submit",
+      "overdue": false,
+      "owner": "submission-owner",
+      "recorded_at": "2026-07-28T00:00:00Z",
+      "recorded_evidence_paths": [],
+      "state": "pending",
+      "terminal": false,
+      "title": "Submit before the official deadline"
+    }
+  ],
+  "require_all_passed": false,
+  "schema": "zyra.final-freeze.release-schedule.v1",
+  "submission_date": "2026-09-15",
+  "valid": true
+}

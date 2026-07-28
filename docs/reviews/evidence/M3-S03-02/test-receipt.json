@@ -1,0 +1,13 @@
+{
+  "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\test_first_stage_freeze_reporting.py tests\\unit\\test_final_first_stage_freeze.py -q --basetemp .tmp\\pytest-m3-s03-02-evidence",
+  "digest": "789cc082a79c3e3129042f964b906577344b0ac637cdc1293d038763d454c632",
+  "duration_seconds": 21.08,
+  "failed": 0,
+  "passed": 38,
+  "schema": "zyra.m3-s03-02.test-receipt/v1",
+  "scope": "M3-S03-01 reporting adjacency plus M3-S03-02 final-freeze implementation",
+  "target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+  "valid": true,
+  "warning_detail": "Pytest cache write was denied by the managed workspace; test execution and temporary fixtures used the explicit workspace basetemp successfully.",
+  "warnings": 1
+}

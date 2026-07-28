@@ -1,0 +1,264 @@
+{
+  "cases": [
+    {
+      "archive_digests": [
+        "53276b4abf57c46ff65c1796b24506fc24fdf21262b75e6695ac294ab1a3c580",
+        "598963a573d3907fa10702ebaee735e2377b98a4386e3ec3fe7b34a4ccd39e39",
+        "6b75e1fe151600d9558c7d7268503944278121cdf5d78b36d6fe6fa3177f5f41"
+      ],
+      "artifact_counts": [
+        13,
+        13,
+        13
+      ],
+      "case_id": "case-cross-source-research",
+      "configuration_digests": [
+        "92387573c29cffe1416cf870a38791cb055abbcfa675ad7c75ec0abdb2aa5c6a",
+        "cdc7497101781dbf0c707409628679076fa8a932d7fd73c16512cb4a2e6e3310",
+        "e2d4b8f77ed821a983d024a2f98081442438a7403fd62ca15d0efaf4238cd0a8"
+      ],
+      "domain": "cross-source-research",
+      "fault_counts": [
+        5,
+        5,
+        5
+      ],
+      "final_outcome_digests": [
+        "586b34209c6ce309101f7364468d799557f22d93dd8eb65d05bb2a6f09c2dadc",
+        "ae2fffce589917a27bfad7e543c29d4f3c9211b318739b4392c10ea8a5c18f78",
+        "c5819a712dc6f2648cc91ce21bd1d11e46549adc860e749ef7eeaad55451946d"
+      ],
+      "human_intervention_count": 0,
+      "live_source": true,
+      "maximum_effective_transitions": 4003,
+      "minimum_effective_transitions": 4003,
+      "new_input_digests": [
+        "ace12d61d2c55d7e0b7db22959e788ae06ba0a152797a752703fe1e1afc01694",
+        "d9d4a4c2c7bce9691c0a25f809c024e0728b7d05eff8d17d7a889d65f2c12aa8",
+        "eade41e8e6f5d72fd451b6fac84822e035e12a0910ca35b6aae94503e54bac43"
+      ],
+      "operator_intervention_count": 0,
+      "repetition_count": 3,
+      "repetitions": [
+        1,
+        2,
+        3
+      ],
+      "replay_only": false,
+      "runs": [
+        {
+          "archive_digest": "6b75e1fe151600d9558c7d7268503944278121cdf5d78b36d6fe6fa3177f5f41",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "c5819a712dc6f2648cc91ce21bd1d11e46549adc860e749ef7eeaad55451946d",
+          "repetition": 1,
+          "scenario_run_id": "scenario_9eeeed5dc4dd4fd894c4c280d5fb31e1",
+          "task_id": "task_5283d36b432f"
+        },
+        {
+          "archive_digest": "53276b4abf57c46ff65c1796b24506fc24fdf21262b75e6695ac294ab1a3c580",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "ae2fffce589917a27bfad7e543c29d4f3c9211b318739b4392c10ea8a5c18f78",
+          "repetition": 2,
+          "scenario_run_id": "scenario_c574dcbb718142dc81e87e3b6219423d",
+          "task_id": "task_41b32175283c"
+        },
+        {
+          "archive_digest": "598963a573d3907fa10702ebaee735e2377b98a4386e3ec3fe7b34a4ccd39e39",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "586b34209c6ce309101f7364468d799557f22d93dd8eb65d05bb2a6f09c2dadc",
+          "repetition": 3,
+          "scenario_run_id": "scenario_52d07f4e23d948d89b4eef63929d9796",
+          "task_id": "task_9f3e12a52922"
+        }
+      ],
+      "sealed_policy_hashes": [
+        "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd"
+      ],
+      "total_effective_transitions": 12009,
+      "total_events": 12009,
+      "verifier_receipts": [
+        "4122c6fff1bd64d52875729bc723d09d5609291b24884adb7ab1da2c5134c854",
+        "984459131698269a9f34d9144b686467224235b6f89e63e5568094b20b1446cc",
+        "e0cdb94bdbdedf666addb7b78611b0f89633eb82538d33efd0231baa96b0c63f"
+      ],
+      "worker_roles": {
+        "MemoryCuratorRuntime": 3,
+        "artifact": 3,
+        "checkpoint": 3,
+        "delivery": 3,
+        "fault": 3,
+        "live-scenario-worker-1": 3,
+        "memory": 3,
+        "network-degradation": 3,
+        "placement-policy": 3,
+        "placement-verification": 3,
+        "recovery": 3,
+        "restore": 3,
+        "scheduler": 3,
+        "task": 3,
+        "topology": 3,
+        "verification": 3
+      }
+    },
+    {
+      "archive_digests": [
+        "39df1a3b6048121e97bb58c0d93c7de384afa2c0ad56a95c750f3fd2c2cf4712",
+        "9abe0ad9341e843a03b0d4ec8bd502ac2adc2c740b7dc99561c5eb77660340ed",
+        "f78515ec12adeae2ce9522520815fd55ac72db9dabcd884e50bc54c51467ae8c"
+      ],
+      "artifact_counts": [
+        6,
+        6,
+        6
+      ],
+      "case_id": "case-software-delivery",
+      "configuration_digests": [
+        "3ae51aa88d138fd2a12997d19b5496782da903a64a8af7c6eaf7512878296d27",
+        "a3693b0afe1149fa249fd6bf5208984bc8d3fff50e197a9ae9d006ae31623375",
+        "c1791d5501ea38f6fba0cd8e82a6588c60cc445ca5bf4720fbb47f91f3127e50"
+      ],
+      "domain": "software-delivery",
+      "fault_counts": [
+        5,
+        5,
+        5
+      ],
+      "final_outcome_digests": [
+        "1c5386caea52edbbbce531b3b888d774c820690e4af5613419d9c789a4a10f85",
+        "2ea0a5da14c618658a155a43bb158ec5f2afd2038b270898cf744823767e1c81",
+        "c2c2d41902d156da84d842103cf3bf619dc6435c231d6bd8fc1c32090be02231"
+      ],
+      "human_intervention_count": 0,
+      "live_source": true,
+      "maximum_effective_transitions": 2310,
+      "minimum_effective_transitions": 2310,
+      "new_input_digests": [
+        "62421ebe31e918c5e9a8480399f0caf712f99920949b9916fb0a7358636911af",
+        "645660776efd47fbc534899805bb7052a9c1b830a0c1465fa34b008498079f94",
+        "eee9e95a563dd445a0dc73785dd555a4911023708eee77227d8f5c37e8cd46dc"
+      ],
+      "operator_intervention_count": 0,
+      "repetition_count": 3,
+      "repetitions": [
+        1,
+        2,
+        3
+      ],
+      "replay_only": false,
+      "runs": [
+        {
+          "archive_digest": "f78515ec12adeae2ce9522520815fd55ac72db9dabcd884e50bc54c51467ae8c",
+          "artifact_count": 6,
+          "effective_transitions": 2310,
+          "event_count": 2310,
+          "fault_count": 5,
+          "outcome_digest": "2ea0a5da14c618658a155a43bb158ec5f2afd2038b270898cf744823767e1c81",
+          "repetition": 1,
+          "scenario_run_id": "scenario_5d253c82e75f489a93c59422a6ebcc87",
+          "task_id": "task_a5f90d29326c"
+        },
+        {
+          "archive_digest": "9abe0ad9341e843a03b0d4ec8bd502ac2adc2c740b7dc99561c5eb77660340ed",
+          "artifact_count": 6,
+          "effective_transitions": 2310,
+          "event_count": 2310,
+          "fault_count": 5,
+          "outcome_digest": "c2c2d41902d156da84d842103cf3bf619dc6435c231d6bd8fc1c32090be02231",
+          "repetition": 2,
+          "scenario_run_id": "scenario_9fbd12558fee4bb99816a1c7d1a24564",
+          "task_id": "task_25cf921df206"
+        },
+        {
+          "archive_digest": "39df1a3b6048121e97bb58c0d93c7de384afa2c0ad56a95c750f3fd2c2cf4712",
+          "artifact_count": 6,
+          "effective_transitions": 2310,
+          "event_count": 2310,
+          "fault_count": 5,
+          "outcome_digest": "1c5386caea52edbbbce531b3b888d774c820690e4af5613419d9c789a4a10f85",
+          "repetition": 3,
+          "scenario_run_id": "scenario_d0178526d2614f94af871af958713fb1",
+          "task_id": "task_9e637f45d839"
+        }
+      ],
+      "sealed_policy_hashes": [
+        "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd"
+      ],
+      "total_effective_transitions": 6930,
+      "total_events": 6930,
+      "verifier_receipts": [
+        "0fc2580e6a2f6675f7daee202c086580cae56e26d390569b1af9e2af34716d94",
+        "228166870b9218aec303453a2a9d9b98a59522a0bf2a63c124175f4520348c58",
+        "bce0c30343bbeda522eabb84a5620d7608ac8aa2192da365e21b8215585f3ed1"
+      ],
+      "worker_roles": {
+        "MemoryCuratorRuntime": 3,
+        "artifact": 3,
+        "checkpoint": 3,
+        "delivery": 3,
+        "fault": 3,
+        "live-scenario-worker-1": 3,
+        "memory": 3,
+        "network-degradation": 3,
+        "placement-policy": 3,
+        "placement-verification": 3,
+        "recovery": 3,
+        "restore": 3,
+        "scheduler": 3,
+        "task": 3,
+        "topology": 3,
+        "verification": 3
+      }
+    }
+  ],
+  "deployment_compatibility": {
+    "case_runs_no_new_provider_call": true,
+    "evidence_role": "protected live deployment compatibility; M3 case runs prove long-horizon sealed autonomy and do not claim new provider calls",
+    "providers": [
+      {
+        "model_id": "claude-sonnet-5",
+        "provider_id": "anthropic",
+        "receipt_digest": "67a2409103c2d51c75bafef310601403741ed2666d907b970d84cf34653b92ba",
+        "simulated": false,
+        "wire_dialect": "anthropic-compatible"
+      },
+      {
+        "model_id": "gpt-5.5",
+        "provider_id": "openai",
+        "receipt_digest": "918baa5f1c4ee14439244e41059a87870688b286a063d48d8aa74f3bdef8160a",
+        "simulated": false,
+        "wire_dialect": "openai-compatible"
+      }
+    ],
+    "same_run_as_case": false,
+    "source_path": "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/protected-deployment-evidence.json",
+    "source_sha256": "147abaea1c0499f9cf300546956cee0b94f3325e059f8cf5a81f85a3e7657c3c",
+    "tiers": [
+      "cloud",
+      "edge",
+      "local"
+    ]
+  },
+  "generated_at": "2026-07-28T15:55:42.301826Z",
+  "material_digest": "62c650c19668bd38aeb4ca5ef9ba0e466b82d56319f758756b161b26e441de14",
+  "schema": "zyra.first-stage-case-studies/v1",
+  "verification": {
+    "case_count": 2,
+    "domain_count": 2,
+    "domains": [
+      "cross-source-research",
+      "software-delivery"
+    ],
+    "receipt_digest": "471a0ecf2192bcd8948da600580def252c8382c5916d0f6275a6ba8eeaeb5a80",
+    "schema": "zyra.first-stage-case-study-verification/v1",
+    "valid": true
+  }
+}

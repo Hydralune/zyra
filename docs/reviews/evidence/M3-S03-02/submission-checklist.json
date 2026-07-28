@@ -1,0 +1,59 @@
+{
+  "blockers": [],
+  "digest": "4347d0c93ecfb4628c3f5587ef724e34808501d07fb65ff8138f1d6414c21ee8",
+  "dual_human_check": {
+    "automation_prechecks": [
+      "critical-review",
+      "submission-independent-verifier"
+    ],
+    "due_date": "2026-09-12",
+    "human_submission_claimed": false,
+    "owner_roles": [
+      "technical-reviewer",
+      "submission-reviewer"
+    ],
+    "status": "scheduled"
+  },
+  "email": {
+    "owner": "submission-owner",
+    "recipient": "competition-submission-owner@zyra.local",
+    "required_actions": [
+      "attach exact archive",
+      "compare SHA-256",
+      "retain send or platform confirmation",
+      "compare received digest with submission lock"
+    ],
+    "status": "dry-run-ready"
+  },
+  "materials": {
+    "owner": "release-owner",
+    "required_roles": [
+      "source",
+      "documentation",
+      "evidence",
+      "runbook"
+    ],
+    "status": "verified-by-manifest"
+  },
+  "naming": {
+    "archive_name": "zyra-first-stage-2026-8825722359e2.zip",
+    "rule": "zyra-first-stage-2026-<12-char-implementation-commit>.zip",
+    "status": "verified"
+  },
+  "official_deadline": "2026-09-15",
+  "registration_form": {
+    "completion_evidence": "submission-confirmation.json",
+    "owner": "submission-owner",
+    "required_fields": [
+      "project-name",
+      "team-identity",
+      "primary-contact",
+      "competition-track",
+      "project-summary",
+      "repository-or-package-link"
+    ],
+    "status": "ready-for-human-entry"
+  },
+  "schema": "zyra.final-freeze.submission-checklist.v1",
+  "target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31"
+}

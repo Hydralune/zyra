@@ -1,0 +1,334 @@
+{
+  "ablation_material_digest": "10a527d4b7b90d52ac51cc2eaaf899b5ba6b079e5242be76446efa67fd1cc776",
+  "algorithm_material_digest": "112e80e87e95ff9b9f83ca19a4dd0daf943eab2a94047901084ccd1aa63536d8",
+  "application_value_digest": "fe821f6ee7cb6a5debd43b4ac99e5bf48dc6c2308cad77a48170849edc38692a",
+  "case_material_digest": "62c650c19668bd38aeb4ca5ef9ba0e466b82d56319f758756b161b26e441de14",
+  "compatibility_material_digest": "aab40e3192769df0d2a4d62ab5636901503cac81e3bcdfa1bf20208e9e1b6a2a",
+  "evidence_index_digest": "8b24afc9df502001fd2bd404d9385e13cc3154b8bc06ac23ad84112d6d82b276",
+  "freeze_claimed": false,
+  "generated_at": "2026-07-28T15:55:42.741597Z",
+  "input_set_digest": "0bf5a876ccb695ff97a947a9496892db3b3dcc84bb986165a06f5a2a1f8476d6",
+  "internalization_ledger_digest": "bf903165f5f265438d6c75176e45c7903219d66051debe4e3057c56ca6a02393",
+  "langgraph_correction_digest": "f119a01e83cce77ae5fdfd8131717c133f5206c0be6c13f1f8622a001ca6caac",
+  "report_digest": "87c78ef18644cad942b0ce507337f14974829f0cd636612eff41365ffc1ce47c",
+  "schema": "zyra.first-stage-freeze-report/v1",
+  "score": {
+    "complete": true,
+    "dimensions": {
+      "application-innovation": {
+        "complete": true,
+        "maximum": 25,
+        "verified": 25
+      },
+      "performance-efficiency": {
+        "complete": true,
+        "maximum": 15,
+        "verified": 15
+      },
+      "technical-innovation": {
+        "complete": true,
+        "maximum": 20,
+        "verified": 20
+      },
+      "works-completeness": {
+        "complete": true,
+        "maximum": 40,
+        "verified": 40
+      }
+    },
+    "maximum": 100,
+    "verified": 100
+  },
+  "sections": {
+    "algorithm_material": {
+      "evidence": [
+        "generated/algorithm-material.json"
+      ],
+      "facts": [
+        {
+          "label": "dynamic-sparse-topology-routing",
+          "value": "O(W log K + E_delta)"
+        },
+        {
+          "label": "low-entropy-structured-communication",
+          "value": "O(B + R log K)"
+        },
+        {
+          "label": "distributed-memory-compact-restore",
+          "value": "O(N + Q log I + K log K)"
+        },
+        {
+          "label": "neuro-symbolic-action-admission",
+          "value": "O(C + D + P + A)"
+        },
+        {
+          "label": "device-edge-cloud-placement",
+          "value": "O(W * (C + M) + W log K)"
+        },
+        {
+          "label": "fault-classification-exact-recovery",
+          "value": "O(L + P + W log W)"
+        }
+      ],
+      "summary": "Every pseudocode block is linked to executable symbols and behavior tests, with time, space, and communication complexity.",
+      "title": "Core algorithms, pseudocode, and complexity"
+    },
+    "application_value": {
+      "evidence": [
+        "generated/application-value.json"
+      ],
+      "facts": [
+        {
+          "label": "application_count",
+          "value": 2
+        },
+        {
+          "label": "receipt_digest",
+          "value": "771c22563cb7b4286801356ebc189f05adc1f337f3cd55fce95825c13d8092ea"
+        },
+        {
+          "label": "risk_count",
+          "value": 5
+        },
+        {
+          "label": "schema",
+          "value": "zyra.first-stage-application-value-verification/v1"
+        },
+        {
+          "label": "unsupported_savings_claims",
+          "value": 0
+        },
+        {
+          "label": "valid",
+          "value": true
+        }
+      ],
+      "summary": "The two live domains expose measured runtime, cost, throughput, success, autonomy, and recovery facts. Labor or economic savings remain explicit adopter-supplied projections.",
+      "title": "Application value and assumption boundaries"
+    },
+    "architecture": {
+      "evidence": [
+        "generated/algorithm-material.json",
+        "generated/internalization-ledger.json"
+      ],
+      "facts": [
+        {
+          "label": "algorithm_count",
+          "value": 6
+        },
+        {
+          "label": "source_count",
+          "value": 13
+        }
+      ],
+      "summary": "Zyra preserves one owner per state domain, an open-world dynamic topology, immutable commit/recovery, cohesive CodeWorker loops, and a single event/UI projection.",
+      "title": "Architecture and canonical ownership"
+    },
+    "edge_cloud_models": {
+      "evidence": [
+        "generated/compatibility-material.json"
+      ],
+      "facts": [
+        {
+          "label": "model_count",
+          "value": 2
+        },
+        {
+          "label": "profile_count",
+          "value": 3
+        },
+        {
+          "label": "provider_count",
+          "value": 2
+        },
+        {
+          "label": "receipt_digest",
+          "value": "caff01e59f1702b1f4326cf1cea4d2c39d1405b904a7a7228257cb090210db2e"
+        },
+        {
+          "label": "schema",
+          "value": "zyra.first-stage-compatibility-verification/v1"
+        },
+        {
+          "label": "split_count",
+          "value": 42
+        },
+        {
+          "label": "valid",
+          "value": true
+        }
+      ],
+      "summary": "Placement rows include actual protected receipts, network/privacy classes, credential state, task/model split, failover, and degradation outcomes; labels alone are rejected.",
+      "title": "Device-edge-cloud and multi-model compatibility"
+    },
+    "langgraph_correction": {
+      "evidence": [
+        "generated/langgraph-correction-matrix.json"
+      ],
+      "facts": [
+        {
+          "label": "active_semantic_count",
+          "value": 4
+        },
+        {
+          "label": "inactive_subsystem_count",
+          "value": 4
+        },
+        {
+          "label": "receipt_digest",
+          "value": "3fb70d21b70a7b4d9ddc85b46f5384db504b71d449451c22e9a6c8e600400d2d"
+        },
+        {
+          "label": "schema",
+          "value": "zyra.langgraph-forward-correction-verification/v1"
+        },
+        {
+          "label": "valid",
+          "value": true
+        },
+        {
+          "label": "zyra_owned_count",
+          "value": 5
+        }
+      ],
+      "summary": "Only checkpoint identity/lineage, pending versus committed writes, side-effect fencing, and exact-resume semantics remain active. Open-world topology and immutable commit are Zyra-owned.",
+      "title": "LangGraph forward correction boundary"
+    },
+    "metrics_and_ablation": {
+      "evidence": [
+        "generated/ablation-material.json",
+        "docs/reviews/evidence/M3-S02A-02/formal-live-95fcf7ae/raw-samples.json"
+      ],
+      "facts": [
+        {
+          "label": "raw_sample_count",
+          "value": 1554
+        },
+        {
+          "label": "comparison_count",
+          "value": 444
+        }
+      ],
+      "summary": "Raw samples, P50/P95 distributions, paired comparisons, repetition counts, and the seven required variants remain checksum-linked.",
+      "title": "Metrics, baselines, and module ablations"
+    },
+    "remaining_debt": {
+      "evidence": [
+        "generated/internalization-ledger.json",
+        "generated/compatibility-material.json"
+      ],
+      "facts": [
+        {
+          "label": "inactive_source_rows",
+          "value": 19
+        },
+        {
+          "label": "compatibility_valid",
+          "value": true
+        }
+      ],
+      "summary": "Inactive source rows are not defects by themselves. Only missing retained capability, active owner, main-path behavior, or first-stage evidence is a freeze blocker.",
+      "title": "Remaining debt and non-blocking inactive sources"
+    },
+    "runtime_evidence": {
+      "evidence": [
+        "generated/case-studies.json"
+      ],
+      "facts": [
+        {
+          "label": "cross-source-research",
+          "value": 4003
+        },
+        {
+          "label": "software-delivery",
+          "value": 2310
+        },
+        {
+          "label": "deployment_evidence_same_run",
+          "value": false
+        }
+      ],
+      "summary": "Case studies originate from new-input live source archives, not replay. Each formal run preserves policy, transition, fault, artifact, verifier, configuration, and outcome receipts. Protected real tier/provider evidence is cross-linked without pretending the M3 case cells made new provider calls.",
+      "title": "Dual-domain sealed live runtime evidence"
+    },
+    "second_stage_inputs": {
+      "evidence": [
+        "generated/internalization-ledger.json"
+      ],
+      "facts": [
+        {
+          "label": "first_stage_blockers",
+          "value": 0
+        },
+        {
+          "label": "final_classification_owner",
+          "value": "M3-S03-02"
+        }
+      ],
+      "summary": "M3-S03-01 records evidence generation only. M3-S03-02 must classify first-stage blockers, CI hardening, and pure optimization separately and cannot downgrade a main-path internalization defect.",
+      "title": "Second-stage inputs"
+    },
+    "source_custody": {
+      "evidence": [
+        "generated/internalization-ledger.json"
+      ],
+      "facts": [
+        {
+          "label": "active_row_count",
+          "value": 41
+        },
+        {
+          "label": "inactive_row_count",
+          "value": 19
+        },
+        {
+          "label": "primary_capability_count",
+          "value": 26
+        },
+        {
+          "label": "row_count",
+          "value": 60
+        },
+        {
+          "label": "source_count",
+          "value": 13
+        },
+        {
+          "label": "supplementary_capability_count",
+          "value": 13
+        }
+      ],
+      "summary": "Primary and supplementary rows carry owner, target, language, and behavior-test evidence. Inactive roles create no migration quota. OpenClaw remains excluded_forward_only.",
+      "title": "Role-aware source custody and debt"
+    },
+    "trajectory_and_archive": {
+      "evidence": [
+        "first-stage-evidence.zip!/manifest.json",
+        "archive-verification.json",
+        "replay-verification.json"
+      ],
+      "facts": [
+        {
+          "label": "archive_manifest_digest",
+          "value": null
+        },
+        {
+          "label": "replay_task_success_recomputed",
+          "value": null
+        }
+      ],
+      "summary": "The archive binds every member through SHA-256 and an ordered hash chain. Replay verifies projection consistency only and never redefines live task success.",
+      "title": "Causal trajectory, archive, and projection replay"
+    }
+  },
+  "slice_scope": "M3-S03-01-generation-only",
+  "target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+  "verification": {
+    "freeze_claimed": false,
+    "receipt_digest": "d213c6025959912ea43dcfaa1eb30bba677ceb9f069d4303c698db71ef58154d",
+    "schema": "zyra.first-stage-freeze-report-verification/v1",
+    "score": 100,
+    "section_count": 11,
+    "valid": true
+  }
+}

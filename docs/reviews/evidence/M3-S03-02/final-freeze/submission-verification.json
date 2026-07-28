@@ -1,0 +1,44 @@
+{
+  "archive": {
+    "archive_path": "zyra-first-stage-2026-8825722359e2.zip",
+    "archive_sha256": "c4d6ecef3cbb43ee46989209e9b4d538388dd7930a81bd36a2bbf9847ee63589",
+    "archive_size_bytes": 16369223,
+    "expanded_bytes": 16394059,
+    "member_count": 7,
+    "valid": true
+  },
+  "candidate_directory": "submission-candidate",
+  "checksums": {
+    "entries": [
+      {
+        "actual": "457591d12122f86be0e64b00577c89e94bbb041906c4988395b2494742ba339c",
+        "expected": "457591d12122f86be0e64b00577c89e94bbb041906c4988395b2494742ba339c",
+        "file": "submission-manifest.json"
+      },
+      {
+        "actual": "c4d6ecef3cbb43ee46989209e9b4d538388dd7930a81bd36a2bbf9847ee63589",
+        "expected": "c4d6ecef3cbb43ee46989209e9b4d538388dd7930a81bd36a2bbf9847ee63589",
+        "file": "zyra-first-stage-2026-8825722359e2.zip"
+      }
+    ],
+    "sha256": "3f730195b58a4b747ce366b4f321fe65d02f539e4bc638ac662b4c57cce89f50",
+    "valid": true
+  },
+  "digest": "65adab75745d4673b281eb4fb9a1de89a890adf85ae6927b6332cb274ac7dcf8",
+  "email_digest": "0e3fce5c2a19e09b40cc522b1b9f3627a65567c555e4a2060a4eaca27a8c0134",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "manifest_digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+  "receipt_digest": "b56e3741a72eb3ecbfbfac626f67630ac398cd5a2645c6cffd68091f9d6cc725",
+  "schema": "zyra.final-freeze.submission-verification.v1",
+  "valid": true
+}

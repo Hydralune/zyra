@@ -1,0 +1,186 @@
+{
+  "baseline_commit": "98a001a44f2e506c0ef0144e912c3ba55699f11b",
+  "blockers": [],
+  "counting_method": "Python token-bearing physical lines minus blank/comment/docstring lines, imports, function/class signature and decorator lines, and class dataclass field declarations. Wrappers, tests, docs, generated outputs, archives, data, mocks, fixtures, adapters, and vendor/source-pool content count zero.",
+  "excluded": [
+    {
+      "bucket": "docs-and-preimplementation-decision",
+      "effective_lines": 0,
+      "paths": [
+        "docs/plans/M3-S03-02-preimplementation-decision.md"
+      ],
+      "raw_lines": 132
+    },
+    {
+      "bucket": "tests",
+      "effective_lines": 0,
+      "paths": [
+        "tests/unit/test_final_first_stage_freeze.py"
+      ],
+      "raw_lines": 824
+    },
+    {
+      "bucket": "wrapper-and-entrypoint",
+      "effective_lines": 0,
+      "paths": [
+        "packages/evaluation/zyra_evaluation/final_freeze/__init__.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/__main__.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/cli.py",
+        "scripts/verify_first_stage.py"
+      ],
+      "raw_lines": 287
+    },
+    {
+      "bucket": "type-declaration-import-signature-and-dataclass-fields",
+      "effective_lines": 0,
+      "paths": [
+        "packages/evaluation/zyra_evaluation/final_freeze/common.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/critical_review.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/handoff.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/navigation.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/orchestrator.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/rehearsal.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/schedule.py",
+        "packages/evaluation/zyra_evaluation/final_freeze/submission.py"
+      ],
+      "raw_lines": 900
+    },
+    {
+      "bucket": "generated-data-report-archive-evidence",
+      "effective_lines": 0,
+      "paths": [
+        "docs/reviews/evidence/M3-S03-02"
+      ],
+      "raw_lines": 0
+    },
+    {
+      "bucket": "vendor-source-pool-adapter-mock-fixture",
+      "effective_lines": 0,
+      "paths": [],
+      "raw_lines": 0
+    }
+  ],
+  "implementation_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+  "language_and_migration": [
+    {
+      "mode": "same-language module integration",
+      "production_owner": "Zyra evaluation final-freeze runtime",
+      "source": "M3-S03-01 freeze_reporting",
+      "source_language": "python",
+      "target": "packages/evaluation/zyra_evaluation/final_freeze",
+      "target_language": "python"
+    },
+    {
+      "mode": "protocol receipt binding; protected runtime not migrated",
+      "production_owner": "existing Zyra release runtime remains unchanged",
+      "source": "M3-S02B-02 release and clean-install receipts",
+      "source_language": "python/typescript/bun-node",
+      "target": "critical review and rehearsal bindings",
+      "target_language": "python"
+    },
+    {
+      "mode": "report_and_freeze_only; no runtime control-flow migration",
+      "production_owner": "existing Zyra modules remain canonical",
+      "source": "M1/M2 frozen runtime owners",
+      "source_language": "python/typescript",
+      "target": "final-freeze component gates",
+      "target_language": "python"
+    }
+  ],
+  "margin": 1188,
+  "minimum_effective_production_lines": 4500,
+  "parent_stage": {
+    "combined_effective_production_lines": 12458,
+    "minimum": 9000,
+    "passed": true,
+    "s03_01_effective_production_lines": 6770,
+    "s03_02_effective_production_lines": 5688,
+    "stage_id": "M3-03"
+  },
+  "production": [
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 717,
+      "effective_production_lines": 538,
+      "excluded_import_signature_decorator_dataclass_field_lines": 179,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/common.py",
+      "raw_physical_lines": 808,
+      "responsibility": "validation, digest, redaction, typed finding primitives",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 1106,
+      "effective_production_lines": 1044,
+      "excluded_import_signature_decorator_dataclass_field_lines": 62,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/critical_review.py",
+      "raw_physical_lines": 1150,
+      "responsibility": "M3-03 incremental critical review and inherited receipt verification",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 527,
+      "effective_production_lines": 457,
+      "excluded_import_signature_decorator_dataclass_field_lines": 70,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/handoff.py",
+      "raw_physical_lines": 563,
+      "responsibility": "fail-closed residual classification and owner handoff",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 517,
+      "effective_production_lines": 461,
+      "excluded_import_signature_decorator_dataclass_field_lines": 56,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/navigation.py",
+      "raw_physical_lines": 542,
+      "responsibility": "evidence/runbook navigation and target verification",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 938,
+      "effective_production_lines": 826,
+      "excluded_import_signature_decorator_dataclass_field_lines": 112,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/orchestrator.py",
+      "raw_physical_lines": 976,
+      "responsibility": "cross-gate freeze composition and independent verification",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 794,
+      "effective_production_lines": 690,
+      "excluded_import_signature_decorator_dataclass_field_lines": 104,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/rehearsal.py",
+      "raw_physical_lines": 851,
+      "responsibility": "bounded clean/offline/restart/provider failure drill execution",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 846,
+      "effective_production_lines": 711,
+      "excluded_import_signature_decorator_dataclass_field_lines": 135,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/schedule.py",
+      "raw_physical_lines": 909,
+      "responsibility": "deadline gates, state transitions, and post-freeze change admission",
+      "source_language": "python"
+    },
+    {
+      "code_token_lines_excluding_blank_comment_docstring": 1143,
+      "effective_production_lines": 961,
+      "excluded_import_signature_decorator_dataclass_field_lines": 182,
+      "path": "packages/evaluation/zyra_evaluation/final_freeze/submission.py",
+      "raw_physical_lines": 1208,
+      "responsibility": "manifest, deterministic archive, checksums, dual review, and tamper verification",
+      "source_language": "python"
+    }
+  ],
+  "production_effective_lines": 5688,
+  "production_raw_physical_lines": 7007,
+  "raw_additions": 8250,
+  "runtime_boundary": {
+    "langgraph": "narrow checkpoint/exact-resume conformance only; no production owner added",
+    "openclaw": "excluded_forward_only",
+    "root_source_dependency_count": 0,
+    "vendor_or_source_pool_additions": 0
+  },
+  "schema": "zyra.m3-s03-02-effective-code-audit/v1",
+  "slice_id": "M3-S03-02",
+  "valid": true
+}

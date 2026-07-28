@@ -1,0 +1,18 @@
+{
+  "attachment": "zyra-first-stage-2026-8825722359e2.zip",
+  "attachment_sha256": "c4d6ecef3cbb43ee46989209e9b4d538388dd7930a81bd36a2bbf9847ee63589",
+  "digest": "0e3fce5c2a19e09b40cc522b1b9f3627a65567c555e4a2060a4eaca27a8c0134",
+  "instructions": [
+    "Attach only the archive named in the checklist.",
+    "Compare the attachment SHA-256 before sending.",
+    "Record the platform or email acceptance receipt.",
+    "Confirm the received digest equals the submission lock manifest."
+  ],
+  "manifest_digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+  "recipients": [
+    "competition-submission-owner@zyra.local"
+  ],
+  "required_confirmation": "record the platform or email acceptance receipt and compare its attachment digest with this checklist",
+  "schema": "zyra.final-freeze.submission-email.v1",
+  "subject": "Zyra first-stage 2026 submission candidate"
+}

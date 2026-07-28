@@ -1,0 +1,96 @@
+{
+  "blocking": false,
+  "component_bindings": [
+    {
+      "component": "critical_review",
+      "digest": "1b45e83472a617dd3882262968e2f3efda3fe52d6ca508651336daf98f25c3f6",
+      "digest_key": "review_digest",
+      "schema": "zyra.final-critical-review/v1",
+      "valid_key": "verdict",
+      "valid_value": "PASS"
+    },
+    {
+      "component": "dual_review",
+      "digest": "d2d9e2b61bc99606e5d2d5e0421cfe3ca8744bcdec87d4ee82f9ffcccbe33fe0",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.dual-review.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    },
+    {
+      "component": "handoff",
+      "digest": "80cc6696cdacefff62f703aef6d5ac5265133d8b2698309797a1c15cd6cf4b7c",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.handoff-ledger.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    },
+    {
+      "component": "navigation",
+      "digest": "54f0926c581bb5b600468519ccefca67e8629020e531e40ad95f504c04ed548d",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.evidence-navigation.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    },
+    {
+      "component": "rehearsal",
+      "digest": "0cc9aa243e27fd2299e3cfa128d94d66c6d3ab6f6f788419ae9ae12e88d28616",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.rehearsal-receipt.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    },
+    {
+      "component": "schedule",
+      "digest": "fa471a93fcce6bed4066c62b021930e7581105d276bc3ee291e4744241780580",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.release-schedule.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    },
+    {
+      "component": "submission",
+      "digest": "65adab75745d4673b281eb4fb9a1de89a890adf85ae6927b6332cb274ac7dcf8",
+      "digest_key": "digest",
+      "schema": "zyra.final-freeze.submission-verification.v1",
+      "valid_key": "valid",
+      "valid_value": true
+    }
+  ],
+  "final_freeze_claimed": true,
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "freeze_digest": "ad3058fc5e555df436d5c9ec2091d19fd96a0ac92aecbada2572a811350b47c8",
+  "generated_at": "2026-07-28T16:06:02.712171Z",
+  "handoff_policy": {
+    "ci_hardening_may_be_handed_off": true,
+    "first_stage_blockers_deferred": false,
+    "future_optimization_may_be_handed_off": true
+  },
+  "identity": {
+    "evidence_commit": null,
+    "freeze_output_path": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a",
+    "implementation_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+    "s03_evidence_commit": "98a001a44f2e506c0ef0144e912c3ba55699f11b",
+    "slice_baseline_commit": "98a001a44f2e506c0ef0144e912c3ba55699f11b",
+    "stage_baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67"
+  },
+  "schema": "zyra.final-freeze.verdict.v1",
+  "scope": {
+    "inherited_receipts_reverified": true,
+    "protected_history_reopened": false,
+    "reviewed_increment": "M3-03",
+    "stage_baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67"
+  },
+  "verdict": "PASS"
+}

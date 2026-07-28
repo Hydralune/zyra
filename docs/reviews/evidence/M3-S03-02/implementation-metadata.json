@@ -1,0 +1,48 @@
+{
+  "baseline_commit": "98a001a44f2e506c0ef0144e912c3ba55699f11b",
+  "effective_code": {
+    "accounted_effective_production": 5688,
+    "audit_path": "effective-code-audit.json",
+    "audit_sha256": "d3fb8d51a4b022db92845f3c8f2f92cfa68123cf4001b6bdb03175195afa0afe",
+    "margin": 1188,
+    "minimum": 4500,
+    "raw_additions": 8250,
+    "tests_docs_generated_wrappers_counted": false
+  },
+  "evidence_commit": null,
+  "evidence_commit_record": "docs/milestones/execution-state.yaml",
+  "implementation_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+  "implementation_commits": [
+    "25c065e30928f78b350f8ee962f37d2667ea451f",
+    "614ccbabcf6cad950ffaa092c69789bcbb43e0c3",
+    "8825722359e2ca30998d42e9fccf4a35ee307f31"
+  ],
+  "langgraph": "narrow checkpoint/exact-resume conformance only; no StateGraph/Pregel/channel/ToolNode/SDK production owner",
+  "migration_mode": "report_and_freeze_only with same-language integration of M3-S03-01 reporting mechanisms",
+  "openclaw": "excluded_forward_only",
+  "outputs": {
+    "critical_review_sha256": "46d93d0512cc933c95154a8f0ff5a20ed500bba2a8e53b54bb32f9087afa1be1",
+    "final_freeze_verification_sha256": "1f51a8cf8e7b96ffc547f1b68aa3a8291dad307eeada0d7133b2699d49b04cf2",
+    "first_stage_report_archive_sha256": "85791559f8914c7f9ae2958e802e089ce8f55c0be655c2af6471fdec3e338764",
+    "rehearsal_sha256": "0e3e6d01a15b84eba3a9d146d358b30acff6e136d79d452cfe4d9466fbd79398",
+    "submission_archive_sha256": "c4d6ecef3cbb43ee46989209e9b4d538388dd7930a81bd36a2bbf9847ee63589",
+    "submission_verification_sha256": "1d5d6424b7f79ff64c8c3bda94e6075185cce2005fcf265260ccd6d6f42e4334"
+  },
+  "preimplementation_decision_commit": "e247ae2dda42f89f2dcd7ebf9255fdcd841b61e0",
+  "review_scope": {
+    "baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67",
+    "inherited_receipts_reverified": true,
+    "kind": "M3-03-increment-only",
+    "protected_history_reopened": false,
+    "target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31"
+  },
+  "schema": "zyra.m3-s03-02.implementation-metadata/v1",
+  "slice_id": "M3-S03-02",
+  "source_languages": [
+    "python",
+    "typescript",
+    "bun-node"
+  ],
+  "stage_baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67",
+  "target_language": "python"
+}

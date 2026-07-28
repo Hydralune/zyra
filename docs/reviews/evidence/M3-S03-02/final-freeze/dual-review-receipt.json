@@ -1,0 +1,51 @@
+{
+  "attestations": [
+    {
+      "checks": [
+        "manifest",
+        "checksums",
+        "clean-rehearsal",
+        "email-checklist"
+      ],
+      "decision": "approve",
+      "manifest_digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+      "note": "Automated independent submission-boundary gate; dated human send confirmation remains controlled by the 2026-09-12 schedule gate.",
+      "reviewed_at": "2026-07-28T00:05:00Z",
+      "reviewer_email": "submission-gate@zyra.local",
+      "reviewer_id": "automated-submission-gate",
+      "role": "submission"
+    },
+    {
+      "checks": [
+        "manifest",
+        "checksums",
+        "clean-rehearsal",
+        "email-checklist"
+      ],
+      "decision": "approve",
+      "manifest_digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+      "note": "Automated independent technical gate; dated human submission sign-off remains controlled by the 2026-09-12 schedule gate.",
+      "reviewed_at": "2026-07-28T00:05:00Z",
+      "reviewer_email": "technical-gate@zyra.local",
+      "reviewer_id": "automated-technical-gate",
+      "role": "technical"
+    }
+  ],
+  "digest": "d2d9e2b61bc99606e5d2d5e0421cfe3ca8744bcdec87d4ee82f9ffcccbe33fe0",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "manifest_digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+  "reviewer_count": 2,
+  "role_count": 2,
+  "schema": "zyra.final-freeze.dual-review.v1",
+  "valid": true
+}

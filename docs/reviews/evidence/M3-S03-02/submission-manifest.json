@@ -1,0 +1,100 @@
+{
+  "archive_name": "zyra-first-stage-2026-8825722359e2.zip",
+  "digest": "edbfe5d051707f7229e20d5e64360f12b1c80319946a73d235a751e77fde7f8d",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "member_count": 7,
+  "members": [
+    {
+      "archive_path": "evidence/first-stage-evidence.zip",
+      "description": "Immutable evidence archive",
+      "executable": false,
+      "required": true,
+      "role": "evidence",
+      "sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13",
+      "size_bytes": 3444628,
+      "source_path": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a/first-stage-evidence.zip"
+    },
+    {
+      "archive_path": "evidence/freeze-report.md",
+      "description": "First-stage 100-point freeze report",
+      "executable": false,
+      "required": true,
+      "role": "documentation",
+      "sha256": "531c42aade3b3d95f2fc94c21ab9c45284194327a243506c068aa1c7334fbfde",
+      "size_bytes": 5495,
+      "source_path": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a/freeze-report.md"
+    },
+    {
+      "archive_path": "metadata/M3-S03-02-preimplementation-decision.md",
+      "description": "Frozen implementation and review boundary",
+      "executable": false,
+      "required": true,
+      "role": "metadata",
+      "sha256": "176c72f87de61c2db81332edd7bf7d3d8954271fbd4de73afce2daab1643b09a",
+      "size_bytes": 8123,
+      "source_path": "docs/plans/M3-S03-02-preimplementation-decision.md"
+    },
+    {
+      "archive_path": "release/zyra-first-stage-product.tar.gz",
+      "description": "Reproducible Zyra product release archive",
+      "executable": false,
+      "required": true,
+      "role": "source",
+      "sha256": "c18ed2ff1853faf71c69c6f0f02b722cbd04d0a5d19c4042ea460ef9234714f6",
+      "size_bytes": 12929493,
+      "source_path": "dist/release-pipeline-M3-S02B-02-final-e87eeb3/M3-S02B-02-final-e87eeb3.tar.gz"
+    },
+    {
+      "archive_path": "runbook/first-stage-freeze-runbook.md",
+      "description": "Operator verification, failure, and submission runbook",
+      "executable": false,
+      "required": true,
+      "role": "runbook",
+      "sha256": "9ed17f081167d07cdc783fecc2c73677ddfe6bb486354dde3780ef1d75a61392",
+      "size_bytes": 3101,
+      "source_path": "docs/reviews/evidence/M3-S03-02/first-stage-freeze-runbook.md"
+    },
+    {
+      "archive_path": "submission/submission-checklist.json",
+      "description": "Registration, naming, material, email, and dual-human-check control",
+      "executable": false,
+      "required": true,
+      "role": "configuration",
+      "sha256": "a9ef2392d4f57d09af781ee651b205f1180bd1da2b73b6be67e59ea091a190f4",
+      "size_bytes": 1617,
+      "source_path": "docs/reviews/evidence/M3-S03-02/submission-checklist.json"
+    },
+    {
+      "archive_path": "tools/verify_first_stage.py",
+      "description": "Independent final-freeze verifier entry point",
+      "executable": false,
+      "required": true,
+      "role": "metadata",
+      "sha256": "19b5736a14089e6ef8222bdbddb8c8862ec923fb8bd8377287d4486565b1d738",
+      "size_bytes": 1602,
+      "source_path": "scripts/verify_first_stage.py"
+    }
+  ],
+  "role_counts": {
+    "configuration": 1,
+    "documentation": 1,
+    "evidence": 1,
+    "metadata": 2,
+    "runbook": 1,
+    "source": 1
+  },
+  "schema": "zyra.final-freeze.submission-manifest.v1",
+  "target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+  "total_bytes": 16394059,
+  "valid": true
+}

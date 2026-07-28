@@ -1,0 +1,1609 @@
+{
+  "generated_at": "2026-07-28T15:55:41.123151Z",
+  "ledger_digest": "bf903165f5f265438d6c75176e45c7903219d66051debe4e3057c56ca6a02393",
+  "rows": [
+    {
+      "capability": "artifact_runtime_console",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT-WITH-ENTERPRISE-EXCEPTIONS"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; WorkspaceManager and SandboxGatewayRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c105a82387898e744423c8831d412e26495b38a9"
+      ],
+      "source_id": "OpenHands",
+      "source_languages": [
+        "python",
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "apps/web/src",
+        "packages/commands"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_command_input_queue_control.py",
+        "packages/commands/test/commands.test.ts",
+        "packages/runtime/claude-runtime/test/control.test.ts",
+        "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-protocol-schema.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts"
+      ]
+    },
+    {
+      "capability": "conversation_event_projection",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT-WITH-ENTERPRISE-EXCEPTIONS"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; WorkspaceManager and SandboxGatewayRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c105a82387898e744423c8831d412e26495b38a9"
+      ],
+      "source_id": "OpenHands",
+      "source_languages": [
+        "python",
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "repository_workspace_sandbox",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT-WITH-ENTERPRISE-EXCEPTIONS"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; WorkspaceManager and SandboxGatewayRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c105a82387898e744423c8831d412e26495b38a9"
+      ],
+      "source_id": "OpenHands",
+      "source_languages": [
+        "python",
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/workspace/zyra_workspace",
+        "packages/orchestration/zyra_orchestration/deployment"
+      ],
+      "test_paths": [
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/integration/test_sandbox_gateway_worker_integration.py",
+        "tests/integration/test_workspace_manager_api.py",
+        "tests/integration/test_workspace_worker_gateway.py",
+        "tests/unit/test_python_workspace_packaging.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py",
+        "tests/unit/test_sandbox_gateway_integration_policy.py",
+        "tests/unit/test_sandbox_gateway_policy.py"
+      ]
+    },
+    {
+      "capability": "mcp_runtime",
+      "decision": "Protected custody receipt retains this capability as an inactive conformance/reference/deferred role.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "",
+      "role": "conformance_only",
+      "source_commits": [
+        "d50698bb797710bfd1ebf34eb621c905a4009b2d"
+      ],
+      "source_id": "agent-framework",
+      "source_languages": [
+        "csharp",
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "memory_retrieval",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "Apache-2.0"
+      ],
+      "owner": "MemoryRetrievalRuntime; WorkspaceManager",
+      "role": "primary_implementation",
+      "source_commits": [
+        "b6698c5dbaa1aa916925e27402767f45e2405fa4"
+      ],
+      "source_id": "agentscope",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/memory/zyra_memory"
+      ],
+      "test_paths": [
+        "packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts",
+        "packages/runtime/claude-runtime/test/e03/agent-definition-context-memory.behavior.test.ts",
+        "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "tests/integration/test_memory_curator_api_main_path.py",
+        "tests/integration/test_memory_curator_worker_integration.py",
+        "tests/integration/test_recovery_planner_routing_memory_api.py",
+        "tests/integration/test_retrieval_api_main_path.py",
+        "tests/integration/test_skill_memory_compact_restore_integration.py"
+      ]
+    },
+    {
+      "capability": "worker_workspace_sandbox",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "Apache-2.0"
+      ],
+      "owner": "MemoryRetrievalRuntime; WorkspaceManager",
+      "role": "primary_implementation",
+      "source_commits": [
+        "b6698c5dbaa1aa916925e27402767f45e2405fa4"
+      ],
+      "source_id": "agentscope",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/workspace/zyra_workspace",
+        "packages/orchestration/zyra_orchestration/deployment"
+      ],
+      "test_paths": [
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/integration/test_sandbox_gateway_worker_integration.py",
+        "tests/integration/test_workspace_manager_api.py",
+        "tests/integration/test_workspace_worker_gateway.py",
+        "tests/unit/test_python_workspace_packaging.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py",
+        "tests/unit/test_sandbox_gateway_integration_policy.py",
+        "tests/unit/test_sandbox_gateway_policy.py"
+      ]
+    },
+    {
+      "capability": "browser_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "BrowserWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "18484f23ac96bb955259a1c54530a7d265dfffdb"
+      ],
+      "source_id": "browser-use",
+      "source_languages": [
+        "python",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/workers/zyra_workers/browser_worker.py"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
+        "packages/runtime/claude-runtime/test/watchdog.test.ts",
+        "tests/integration/test_browser_artifact_control_viewer.py",
+        "tests/integration/test_browser_message_state_compression_foundation.py",
+        "tests/integration/test_browser_message_state_compression_integration.py",
+        "tests/integration/test_browser_observability_main_path.py",
+        "tests/integration/test_browser_session_productization_api.py",
+        "tests/integration/test_browser_session_productization_foundation.py"
+      ]
+    },
+    {
+      "capability": "code_worker_loop",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "UNRESOLVED"
+      ],
+      "owner": "CommandSurfaceRuntime; McpConnectionRuntime; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime; TypeScript CodeWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      ],
+      "source_id": "claude-code-best",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/claude-runtime/src",
+        "packages/workers/zyra_workers"
+      ],
+      "test_paths": [
+        "tests/integration/test_code_worker_clean_productized_runtime.py",
+        "tests/integration/test_code_worker_query_session_foundation.py",
+        "tests/integration/test_code_worker_query_session_integration.py",
+        "tests/integration/test_code_worker_query_session_lifecycle.py",
+        "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "tests/integration/test_code_worker_session_foundation_api.py",
+        "tests/integration/test_code_worker_sidecar.py",
+        "tests/integration/test_code_worker_tool_loop_budget.py"
+      ]
+    },
+    {
+      "capability": "interactive_runtime_console",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "UNRESOLVED"
+      ],
+      "owner": "CommandSurfaceRuntime; McpConnectionRuntime; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime; TypeScript CodeWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      ],
+      "source_id": "claude-code-best",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "apps/web/src",
+        "packages/commands"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_command_input_queue_control.py",
+        "packages/commands/test/commands.test.ts",
+        "packages/runtime/claude-runtime/test/control.test.ts",
+        "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-protocol-schema.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts"
+      ]
+    },
+    {
+      "capability": "mcp_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "UNRESOLVED"
+      ],
+      "owner": "CommandSurfaceRuntime; McpConnectionRuntime; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime; TypeScript CodeWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      ],
+      "source_id": "claude-code-best",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/integrations/zyra_integrations/mcp",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+        "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+        "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/mcp-catalog-proxy.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "tests/unit/test_mcp_source_audit.py"
+      ]
+    },
+    {
+      "capability": "permission_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "UNRESOLVED"
+      ],
+      "owner": "CommandSurfaceRuntime; McpConnectionRuntime; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime; TypeScript CodeWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      ],
+      "source_id": "claude-code-best",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime/permission",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/core/typed-api-client/test/permission-custody-headers.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-console-proof.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/permission-response-proof.test.ts",
+        "packages/runtime/claude-runtime/test/permission.test.ts",
+        "tests/integration/test_browser_worker_permission_gate.py"
+      ]
+    },
+    {
+      "capability": "skill_subagent_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "UNRESOLVED"
+      ],
+      "owner": "CommandSurfaceRuntime; McpConnectionRuntime; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime; TypeScript CodeWorkerRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      ],
+      "source_id": "claude-code-best",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/skills",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skills.test.ts",
+        "tests/integration/test_skill_memory_compact_restore_integration.py",
+        "tests/unit/test_skill_memory_reachability_contract.py"
+      ]
+    },
+    {
+      "capability": "claude_runtime_analysis_reference",
+      "decision": "Protected custody receipt retains this capability as an inactive conformance/reference/deferred role.",
+      "licenses": [
+        "CC-BY-NC-SA-4.0"
+      ],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [
+        "12dd4e9dacbaa06965bd384fd81bfc9100ba756f"
+      ],
+      "source_id": "claudecode-related/Dive-into-Claude-Code",
+      "source_languages": [
+        "markdown"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "claude_runtime_analysis_reference",
+      "decision": "Protected custody receipt retains this capability as an inactive conformance/reference/deferred role.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [
+        "a52d83b77961a2c5e2df60ba26f951bd2a0d7e40"
+      ],
+      "source_id": "claudecode-related/claude-reviews-claude",
+      "source_languages": [
+        "markdown"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "mcp_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "McpConnectionRuntime; ProviderControlPlane; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "44ddc552f5e054759a6970af8997ea588a9d81c9"
+      ],
+      "source_id": "hermes-agent",
+      "source_languages": [
+        "python",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/integrations/zyra_integrations/mcp",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+        "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+        "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/mcp-catalog-proxy.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "tests/unit/test_mcp_source_audit.py"
+      ]
+    },
+    {
+      "capability": "permission_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "McpConnectionRuntime; ProviderControlPlane; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "44ddc552f5e054759a6970af8997ea588a9d81c9"
+      ],
+      "source_id": "hermes-agent",
+      "source_languages": [
+        "python",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime/permission",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/core/typed-api-client/test/permission-custody-headers.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-console-proof.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/permission-response-proof.test.ts",
+        "packages/runtime/claude-runtime/test/permission.test.ts",
+        "tests/integration/test_browser_worker_permission_gate.py"
+      ]
+    },
+    {
+      "capability": "provider_control_plane",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "McpConnectionRuntime; ProviderControlPlane; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "44ddc552f5e054759a6970af8997ea588a9d81c9"
+      ],
+      "source_id": "hermes-agent",
+      "source_languages": [
+        "python",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "packages/integrations"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+        "packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ]
+    },
+    {
+      "capability": "skill_subagent_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "McpConnectionRuntime; ProviderControlPlane; SkillCoordinator and SubagentTaskStore; ToolPermissionRuntime",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "44ddc552f5e054759a6970af8997ea588a9d81c9"
+      ],
+      "source_id": "hermes-agent",
+      "source_languages": [
+        "python",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/skills",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skills.test.ts",
+        "tests/integration/test_skill_memory_compact_restore_integration.py",
+        "tests/unit/test_skill_memory_reachability_contract.py"
+      ]
+    },
+    {
+      "capability": "checkpoint-identity-lineage",
+      "decision": "Freeze-specific expansion of the protected langgraph custody summary for checkpoint-identity-lineage; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "capability": "checkpoint_exact_resume",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "GraphCommitRuntime and CheckpointRecoveryRuntime",
+      "role": "primary_implementation",
+      "source_commits": [
+        "5931a5f0b313feff24e2516a586c55601b868ac1"
+      ],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "capability": "codeworker-reasoning-cohesion",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "deterministic-commit",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "exact-resume",
+      "decision": "Freeze-specific expansion of the protected langgraph custody summary for exact-resume; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "capability": "generic-channel-reducer-inactive",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "immutable-branch-delta",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "open-world-topology",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "pending-committed-writes",
+      "decision": "Freeze-specific expansion of the protected langgraph custody summary for pending-committed-writes; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "capability": "sdk-server-inactive",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "side-effect-fence",
+      "decision": "Freeze-specific expansion of the protected langgraph custody summary for side-effect-fence; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "capability": "stategraph-pregel-inactive",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "toolnode-stream-store-inactive",
+      "decision": "Inactive by the 2026-07-13 correction: Zyra owns open-world topology and immutable commit; LangGraph does not own StateGraph, Pregel, channels, ToolNode, stream, Store, SDK, or server.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "langgraph",
+      "source_languages": [
+        "python"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "agentloop-session",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for agentloop-session; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Zyra EventStore/Projector and single frontend store",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "hashline",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for hashline; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Existing Zyra capability owner",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/sandbox-gateway-control/src/hashline.ts",
+        "apps/web/src/features/diff-review/hashline.ts"
+      ],
+      "test_paths": [
+        "packages/runtime/sandbox-gateway-control/test/hashline-control.test.ts"
+      ]
+    },
+    {
+      "capability": "memory_retrieval",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "MemoryRetrievalRuntime; ProviderControlPlane; SandboxGatewayRuntime; SkillMemoryRuntime and SubagentTaskStore",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+      ],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/memory/zyra_memory"
+      ],
+      "test_paths": [
+        "packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts",
+        "packages/runtime/claude-runtime/test/e03/agent-definition-context-memory.behavior.test.ts",
+        "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "tests/integration/test_memory_curator_api_main_path.py",
+        "tests/integration/test_memory_curator_worker_integration.py",
+        "tests/integration/test_recovery_planner_routing_memory_api.py",
+        "tests/integration/test_retrieval_api_main_path.py",
+        "tests/integration/test_skill_memory_compact_restore_integration.py"
+      ]
+    },
+    {
+      "capability": "mnemopi-compact",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for mnemopi-compact; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "MemoryFabric and compact/restore owners",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/memory/zyra_memory"
+      ],
+      "test_paths": [
+        "packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts",
+        "packages/runtime/claude-runtime/test/e03/agent-definition-context-memory.behavior.test.ts",
+        "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "tests/integration/test_memory_curator_api_main_path.py",
+        "tests/integration/test_memory_curator_worker_integration.py",
+        "tests/integration/test_recovery_planner_routing_memory_api.py",
+        "tests/integration/test_retrieval_api_main_path.py",
+        "tests/integration/test_skill_memory_compact_restore_integration.py"
+      ]
+    },
+    {
+      "capability": "permission-mcp-skills",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for permission-mcp-skills; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "provider-rpc-acp",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for provider-rpc-acp; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "ProviderControlPlane",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "packages/integrations"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+        "packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ]
+    },
+    {
+      "capability": "provider_control_plane",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "MemoryRetrievalRuntime; ProviderControlPlane; SandboxGatewayRuntime; SkillMemoryRuntime and SubagentTaskStore",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+      ],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "packages/integrations"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+        "packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ]
+    },
+    {
+      "capability": "roboomp",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for roboomp; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "skill_subagent_runtime",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "MemoryRetrievalRuntime; ProviderControlPlane; SandboxGatewayRuntime; SkillMemoryRuntime and SubagentTaskStore",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+      ],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/skills",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/skills.test.ts",
+        "tests/integration/test_skill_memory_compact_restore_integration.py",
+        "tests/unit/test_skill_memory_reachability_contract.py"
+      ]
+    },
+    {
+      "capability": "snapcompact",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for snapcompact; role=experimental. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "experimental",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "experimental",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "tasktool-pal",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for tasktool-pal; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "SubagentTaskStore / WorkspaceManager / WorkerPool",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/workspace/zyra_workspace",
+        "packages/orchestration/zyra_orchestration/deployment"
+      ],
+      "test_paths": [
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/integration/test_sandbox_gateway_worker_integration.py",
+        "tests/integration/test_workspace_manager_api.py",
+        "tests/integration/test_workspace_worker_gateway.py",
+        "tests/unit/test_python_workspace_packaging.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py",
+        "tests/unit/test_sandbox_gateway_integration_policy.py",
+        "tests/unit/test_sandbox_gateway_policy.py"
+      ]
+    },
+    {
+      "capability": "tui-native",
+      "decision": "Freeze-specific expansion of the protected oh-my-pi custody summary for tui-native; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "workspace_sandbox",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "MemoryRetrievalRuntime; ProviderControlPlane; SandboxGatewayRuntime; SkillMemoryRuntime and SubagentTaskStore",
+      "role": "supplementary_implementation",
+      "source_commits": [
+        "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+      ],
+      "source_id": "oh-my-pi",
+      "source_languages": [
+        "rust",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/workspace/zyra_workspace",
+        "packages/orchestration/zyra_orchestration/deployment"
+      ],
+      "test_paths": [
+        "tests/integration/test_sandbox_gateway_runtime.py",
+        "tests/integration/test_sandbox_gateway_worker_integration.py",
+        "tests/integration/test_workspace_manager_api.py",
+        "tests/integration/test_workspace_worker_gateway.py",
+        "tests/unit/test_python_workspace_packaging.py",
+        "tests/unit/test_sandbox_gateway_artifacts.py",
+        "tests/unit/test_sandbox_gateway_integration_policy.py",
+        "tests/unit/test_sandbox_gateway_policy.py"
+      ]
+    },
+    {
+      "capability": "historical-provenance-license-no-runtime-dependency",
+      "decision": "Protected through M1-S05D-02 only. No M3 source role, source reading, migration, adapter, conformance work, process, package, database, cache, or root-path runtime dependency is permitted.",
+      "licenses": [],
+      "owner": "",
+      "role": "excluded_forward_only",
+      "source_commits": [],
+      "source_id": "openclaw",
+      "source_languages": [
+        "typescript"
+      ],
+      "status": "historical-only",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "app-session-ui",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for app-session-ui; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Zyra EventStore/Projector and single frontend store",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "durable_session_event_projection",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; ProviderControlPlane",
+      "role": "primary_implementation",
+      "source_commits": [
+        "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+      ],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "mcp-skill-command-plugin",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for mcp-skill-command-plugin; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "permission-question",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for permission-question; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Existing Zyra capability owner",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime/permission",
+        "packages/runtime/claude-runtime/src"
+      ],
+      "test_paths": [
+        "packages/core/typed-api-client/test/permission-custody-headers.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-console-proof.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/permission-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/permission-response-proof.test.ts",
+        "packages/runtime/claude-runtime/test/permission.test.ts",
+        "tests/integration/test_browser_worker_permission_gate.py"
+      ]
+    },
+    {
+      "capability": "provider_control_plane",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; ProviderControlPlane",
+      "role": "primary_implementation",
+      "source_commits": [
+        "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+      ],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "packages/integrations"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+        "packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ]
+    },
+    {
+      "capability": "session_control_console",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "MIT"
+      ],
+      "owner": "CanonicalProjectionStore; CanonicalProjectionStore and CommandSurfaceRuntime; ProviderControlPlane",
+      "role": "primary_implementation",
+      "source_commits": [
+        "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+      ],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "apps/web/src",
+        "packages/commands"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_command_input_queue_control.py",
+        "packages/commands/test/commands.test.ts",
+        "packages/runtime/claude-runtime/test/control.test.ts",
+        "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-protocol-schema.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts"
+      ]
+    },
+    {
+      "capability": "task-background-location-worktree",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for task-background-location-worktree; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "terminal-review-diff",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for terminal-review-diff; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Existing Zyra capability owner",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "apps/web/src",
+        "packages/commands"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_command_input_queue_control.py",
+        "packages/commands/test/commands.test.ts",
+        "packages/runtime/claude-runtime/test/control.test.ts",
+        "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-protocol-schema.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts"
+      ]
+    },
+    {
+      "capability": "tui-control",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for tui-control; role=supplementary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Existing Zyra capability owner",
+      "role": "supplementary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "apps/web/src",
+        "packages/commands"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_command_input_queue_control.py",
+        "packages/commands/test/commands.test.ts",
+        "packages/runtime/claude-runtime/test/control.test.ts",
+        "packages/runtime/claude-runtime/test/e02/command-owner-lifecycle.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/skill-plugin-command-custody.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-protocol-schema.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts"
+      ]
+    },
+    {
+      "capability": "typed-protocol",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for typed-protocol; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Zyra EventStore/Projector and single frontend store",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "v1-provider-product-loop",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for v1-provider-product-loop; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "ProviderControlPlane",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "packages/integrations"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+        "packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts",
+        "tests/integration/test_provider_backend_api.py",
+        "tests/unit/test_provider_control_plane_port.py"
+      ]
+    },
+    {
+      "capability": "v2-durable-session-event",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for v2-durable-session-event; role=primary_implementation. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "Zyra EventStore/Projector and single frontend store",
+      "role": "primary_implementation",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "internalized",
+      "target_language": "typescript",
+      "target_paths": [
+        "packages/runtime/zyra_runtime",
+        "apps/web/src"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e02/projection-matrix.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-integration.test.ts",
+        "packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts",
+        "tests/integration/test_canonical_projection_recovery.py",
+        "tests/integration/test_code_index_patch_event_integration.py",
+        "tests/integration/test_event_stream_cursor_ingestion.py",
+        "tests/integration/test_runtime_event_message_bus_integration.py",
+        "tests/integration/test_runtime_event_spine_api.py"
+      ]
+    },
+    {
+      "capability": "web-desktop",
+      "decision": "Freeze-specific expansion of the protected opencode custody summary for web-desktop; role=reference_only. Listing does not create a new runtime or migration quota.",
+      "licenses": [],
+      "owner": "",
+      "role": "reference_only",
+      "source_commits": [],
+      "source_id": "opencode",
+      "source_languages": [
+        "tsx",
+        "typescript"
+      ],
+      "status": "inactive",
+      "target_language": "none",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "capability": "dynamic_topology",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "PROJECT-OWNED"
+      ],
+      "owner": "DynamicTopologyRuntime; GraphStateCustody",
+      "role": "primary_implementation",
+      "source_commits": [
+        "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4"
+      ],
+      "source_id": "zyra",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    },
+    {
+      "capability": "immutable_graph_state",
+      "decision": "Protected M3 custody receipt marks this capability active inside the listed Zyra owner.",
+      "licenses": [
+        "PROJECT-OWNED"
+      ],
+      "owner": "DynamicTopologyRuntime; GraphStateCustody",
+      "role": "primary_implementation",
+      "source_commits": [
+        "1d19ea39a8313091dcfbc00f78c79fdfdeab7cf4"
+      ],
+      "source_id": "zyra",
+      "source_languages": [
+        "python"
+      ],
+      "status": "internalized",
+      "target_language": "python",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    }
+  ],
+  "schema": "zyra.first-stage-internalization-ledger/v1",
+  "source_receipt_path": "docs/reviews/evidence/M3-S01A-01/source-custody-receipt.json",
+  "source_receipt_sha256": "2434026d3be665f31f8c4be88279f97fe603e2eb9dc4797c1a9cef6c5dad8878",
+  "summary": {
+    "active_row_count": 41,
+    "inactive_row_count": 19,
+    "language_counts": {
+      "csharp": 1,
+      "markdown": 2,
+      "python": 26,
+      "rust": 13,
+      "tsx": 21,
+      "typescript": 40
+    },
+    "primary_capability_count": 26,
+    "role_counts": {
+      "conformance_only": 1,
+      "excluded_forward_only": 1,
+      "experimental": 1,
+      "primary_implementation": 26,
+      "reference_only": 16,
+      "supplementary_implementation": 15
+    },
+    "row_count": 60,
+    "source_count": 13,
+    "source_row_counts": {
+      "OpenHands": 3,
+      "agent-framework": 1,
+      "agentscope": 2,
+      "browser-use": 1,
+      "claude-code-best": 5,
+      "claudecode-related/Dive-into-Claude-Code": 1,
+      "claudecode-related/claude-reviews-claude": 1,
+      "hermes-agent": 4,
+      "langgraph": 13,
+      "oh-my-pi": 13,
+      "openclaw": 1,
+      "opencode": 13,
+      "zyra": 2
+    },
+    "supplementary_capability_count": 13
+  }
+}

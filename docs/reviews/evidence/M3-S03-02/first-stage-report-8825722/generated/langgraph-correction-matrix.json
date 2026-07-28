@@ -1,0 +1,217 @@
+{
+  "active_langgraph_semantics": [
+    {
+      "decision": "LangGraph supplies narrow semantic conformance; Zyra owns the production implementation, persistence, events, and recovery.",
+      "mechanism": "checkpoint-identity-lineage",
+      "production_owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_semantic_source",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "decision": "LangGraph supplies narrow semantic conformance; Zyra owns the production implementation, persistence, events, and recovery.",
+      "mechanism": "pending-committed-writes",
+      "production_owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_semantic_source",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "decision": "LangGraph supplies narrow semantic conformance; Zyra owns the production implementation, persistence, events, and recovery.",
+      "mechanism": "side-effect-fence",
+      "production_owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_semantic_source",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    },
+    {
+      "decision": "LangGraph supplies narrow semantic conformance; Zyra owns the production implementation, persistence, events, and recovery.",
+      "mechanism": "exact-resume",
+      "production_owner": "GraphCommitRuntime / CheckpointRecoveryRuntime",
+      "role": "primary_semantic_source",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration"
+      ],
+      "test_paths": [
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e02/recovery-matrix.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/recovery-integration.test.ts"
+      ]
+    }
+  ],
+  "anti_patterns": [
+    "compile-time-only node and edge selection is not dynamic topology",
+    "in-place mutation of shared dict/list/object is forbidden",
+    "parallel completion order cannot decide reducer output",
+    "pending writes cannot be exposed as committed writes",
+    "external effects require an idempotency fence",
+    "CodeWorker reason-tool-observe-revise cannot be split into graph micro-nodes"
+  ],
+  "effective_from": "2026-07-13",
+  "generated_at": "2026-07-28T15:55:42.732705Z",
+  "inactive_langgraph_subsystems": [
+    {
+      "decision": "No production owner or migration quota after the 2026-07-13 forward correction.",
+      "mechanism": "stategraph-pregel",
+      "production_owner": "",
+      "role": "inactive",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "decision": "No production owner or migration quota after the 2026-07-13 forward correction.",
+      "mechanism": "generic-channel-reducer",
+      "production_owner": "",
+      "role": "inactive",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "decision": "No production owner or migration quota after the 2026-07-13 forward correction.",
+      "mechanism": "toolnode-stream-store",
+      "production_owner": "",
+      "role": "inactive",
+      "target_paths": [],
+      "test_paths": []
+    },
+    {
+      "decision": "No production owner or migration quota after the 2026-07-13 forward correction.",
+      "mechanism": "sdk-server-deploy",
+      "production_owner": "",
+      "role": "inactive",
+      "target_paths": [],
+      "test_paths": []
+    }
+  ],
+  "matrix_digest": "f119a01e83cce77ae5fdfd8131717c133f5206c0be6c13f1f8622a001ca6caac",
+  "schema": "zyra.langgraph-forward-correction-matrix/v1",
+  "scope": "narrow checkpoint/exact-resume semantics only; no generic graph runtime, reducer, channel, ToolNode, Store, SDK, or deploy owner",
+  "verification": {
+    "active_semantic_count": 4,
+    "inactive_subsystem_count": 4,
+    "receipt_digest": "3fb70d21b70a7b4d9ddc85b46f5384db504b71d449451c22e9a6c8e600400d2d",
+    "schema": "zyra.langgraph-forward-correction-verification/v1",
+    "valid": true,
+    "zyra_owned_count": 5
+  },
+  "zyra_owned_counterparts": [
+    {
+      "decision": "This mechanism is implemented and tested inside Zyra; LangGraph does not acquire production custody.",
+      "mechanism": "open-world-dynamic-topology",
+      "production_owner": "Zyra DynamicTopology / GraphCommitRuntime",
+      "role": "zyra_owned",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    },
+    {
+      "decision": "This mechanism is implemented and tested inside Zyra; LangGraph does not acquire production custody.",
+      "mechanism": "immutable-branch-local-delta",
+      "production_owner": "Zyra DynamicTopology / GraphCommitRuntime",
+      "role": "zyra_owned",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    },
+    {
+      "decision": "This mechanism is implemented and tested inside Zyra; LangGraph does not acquire production custody.",
+      "mechanism": "explicit-read-write-conflict",
+      "production_owner": "Zyra DynamicTopology / GraphCommitRuntime",
+      "role": "zyra_owned",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    },
+    {
+      "decision": "This mechanism is implemented and tested inside Zyra; LangGraph does not acquire production custody.",
+      "mechanism": "deterministic-commit",
+      "production_owner": "Zyra DynamicTopology / GraphCommitRuntime",
+      "role": "zyra_owned",
+      "target_paths": [
+        "packages/orchestration/zyra_orchestration",
+        "packages/symbolic"
+      ],
+      "test_paths": [
+        "tests/integration/test_topology_interaction_control.py",
+        "tests/integration/test_topology_route_placement_projection.py",
+        "tests/unit/test_dynamic_graph_custody.py"
+      ]
+    },
+    {
+      "decision": "This mechanism is implemented and tested inside Zyra; LangGraph does not acquire production custody.",
+      "mechanism": "cohesive-codeworker-reasoning-loop",
+      "production_owner": "CodeWorkerRuntime",
+      "role": "zyra_owned",
+      "target_paths": [
+        "packages/runtime/claude-runtime/src",
+        "packages/workers/zyra_workers"
+      ],
+      "test_paths": [
+        "tests/integration/test_code_worker_clean_productized_runtime.py",
+        "tests/integration/test_code_worker_query_session_foundation.py",
+        "tests/integration/test_code_worker_query_session_integration.py",
+        "tests/integration/test_code_worker_query_session_lifecycle.py",
+        "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "tests/integration/test_code_worker_session_foundation_api.py",
+        "tests/integration/test_code_worker_sidecar.py",
+        "tests/integration/test_code_worker_tool_loop_budget.py"
+      ]
+    }
+  ]
+}

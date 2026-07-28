@@ -1,0 +1,172 @@
+{
+  "blocking": false,
+  "checks": {
+    "algorithm_and_material_links": true,
+    "archive_and_replay": true,
+    "langgraph_boundary": true,
+    "live_cases": true,
+    "m3_03_increment_boundary": true,
+    "protected_history_reopened": false,
+    "release_binding": true,
+    "score_and_requirements": true,
+    "source_and_owner_custody": true
+  },
+  "classification": {
+    "first_stage_deferred": false,
+    "first_stage_must_fix": [],
+    "pure_optimization": [
+      {
+        "category": "evidence",
+        "code": "case-provider-evidence-separated",
+        "detail": {},
+        "evidence": [],
+        "message": "Case-study live runs and protected provider compatibility evidence are represented separately; the report does not claim they came from the same run.",
+        "severity": "observation"
+      },
+      {
+        "category": "runtime",
+        "code": "cloud-credentials-absent-fail-closed",
+        "detail": {},
+        "evidence": [],
+        "message": "Cloud provider credentials were absent in inherited semantic health; provider-required dispatch remained fail-closed and no paid-provider success was fabricated.",
+        "severity": "observation"
+      }
+    ],
+    "second_stage_ci_hardening": [
+      {
+        "category": "evidence",
+        "code": "inherited-residual",
+        "detail": {},
+        "evidence": [],
+        "message": "This slice binds the exact reviewed M3-S02B-02 release evidence and runs 20 focused plus 83 adjacent tests; it does not repeat the completed 13-gate hour-long release pipeline.",
+        "severity": "warning"
+      },
+      {
+        "category": "release",
+        "code": "offline-wheelhouse-not-proven",
+        "detail": {},
+        "evidence": [],
+        "message": "The inherited M3-S02B-02 clean install used the network and is not an offline wheelhouse proof.",
+        "severity": "warning"
+      }
+    ],
+    "valid_for_freeze": true
+  },
+  "evidence_output": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 2,
+      "total": 4,
+      "warning": 2
+    },
+    "digest": "b7771880c547496015f1286af5a2b0c4871e40b960341af21e167288e5ab918e",
+    "findings": [
+      {
+        "category": "evidence",
+        "code": "inherited-residual",
+        "detail": {},
+        "evidence": [],
+        "message": "This slice binds the exact reviewed M3-S02B-02 release evidence and runs 20 focused plus 83 adjacent tests; it does not repeat the completed 13-gate hour-long release pipeline.",
+        "severity": "warning"
+      },
+      {
+        "category": "release",
+        "code": "offline-wheelhouse-not-proven",
+        "detail": {},
+        "evidence": [],
+        "message": "The inherited M3-S02B-02 clean install used the network and is not an offline wheelhouse proof.",
+        "severity": "warning"
+      },
+      {
+        "category": "evidence",
+        "code": "case-provider-evidence-separated",
+        "detail": {},
+        "evidence": [],
+        "message": "Case-study live runs and protected provider compatibility evidence are represented separately; the report does not claim they came from the same run.",
+        "severity": "observation"
+      },
+      {
+        "category": "runtime",
+        "code": "cloud-credentials-absent-fail-closed",
+        "detail": {},
+        "evidence": [],
+        "message": "Cloud provider credentials were absent in inherited semantic health; provider-required dispatch remained fail-closed and no paid-provider success was fabricated.",
+        "severity": "observation"
+      }
+    ],
+    "valid": true
+  },
+  "generated_at": "2026-07-28T15:52:48.374277Z",
+  "identities": {
+    "ablation_path": "generated/ablation-material.json",
+    "ablation_sha256": "e8a98acb63e3eaf00a1b80353acebc4eea9c214156bac691a8d14f15c1880287",
+    "algorithms_path": "generated/algorithm-material.json",
+    "algorithms_sha256": "97d696b8272a1db3626fa84e91ff1ccdcfcce8ee563b12d7909c427f5ef54af4",
+    "application_value_path": "generated/application-value.json",
+    "application_value_sha256": "ccbb412f28001fbebed6228ab8abc37f6f254d4b002bda6ff75c8ad4fcc36b84",
+    "archive_verification_path": "archive-verification.json",
+    "archive_verification_sha256": "72dfbf8928e26b5176c464f810f16b56d1d88ca5b12ecc44ec94105eb35f5913",
+    "cases_path": "generated/case-studies.json",
+    "cases_sha256": "73a5d79bc85b42ad408fa00bea328c0fbc8cd48793a6c378011cfd6f31773e06",
+    "compatibility_path": "generated/compatibility-material.json",
+    "compatibility_sha256": "bc428d21e50115417fb7649d5e9196384f1b7ecdb869fc711928b3dc18c36d5a",
+    "evidence_index_path": "generated/100-point-evidence-index.json",
+    "evidence_index_sha256": "482770174cf85d64ae5618d0b7ab945ac10c04a4466c3498f88fda405c46c814",
+    "first_stage_archive_sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13",
+    "freeze_report_path": "generated/freeze-report.json",
+    "freeze_report_sha256": "9ea69237fe806cca948b1bfea828d5334b11c1492a70fc3285ec783713023944",
+    "generation_path": "generation-receipt.json",
+    "generation_sha256": "35b7afeb12bf961774c66e16f6c205a321be67ea00cb9a6fe16ef265eb6a8f12",
+    "input_set_path": "generated/input-set.json",
+    "input_set_sha256": "2d3d68a6513dbd7e8a859629ad4a1b804d49e6fc509d14a660de4a20c6b805e0",
+    "langgraph_active": [
+      "checkpoint-identity-lineage",
+      "exact-resume",
+      "pending-committed-writes",
+      "side-effect-fence"
+    ],
+    "langgraph_inactive": [
+      "generic-channel-reducer",
+      "sdk-server-deploy",
+      "stategraph-pregel",
+      "toolnode-stream-store"
+    ],
+    "langgraph_path": "generated/langgraph-correction-matrix.json",
+    "langgraph_sha256": "3c9b585e95a2df480dd06c850a734d9088da5a40c8f6629cf9b845abb04d2d37",
+    "ledger_path": "generated/internalization-ledger.json",
+    "ledger_row_count": 60,
+    "ledger_sha256": "c367d1ad10e8c2f0b5f5e23c37c980a4d20baa0660218210586bce582fe7d460",
+    "ledger_source_count": 13,
+    "live_case_count": 2,
+    "live_case_domains": [
+      "cross-source-research",
+      "software-delivery"
+    ],
+    "live_effective_transition_total": 18939,
+    "m3_03_changed_file_count": 78,
+    "m3_03_changed_paths_digest": "37003722bf45ac5f095edb1cc8a6a1ae6a131fbe296153384e289b17fd4a4419",
+    "release_evidence_commit": "8fb1624a3703f5b3a8d3f37b29e7ad925f447d3e",
+    "release_implementation_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "replay_projection_count": 3,
+    "replay_verification_path": "replay-verification.json",
+    "replay_verification_sha256": "869b705165f8ebd8f86bbd128dc0ed9a870e8f1ba125dced5c61d0ac9cf7f414",
+    "requirement_statuses": {
+      "verified": 19
+    },
+    "s03_output_verification_digest": "b7ed65b36ac94fef8c8215cb934df27372baad2afd40b3e441b61e7734471724",
+    "s03_summary_path": "docs/reviews/evidence/M3-S03-01/verification-summary.json",
+    "s03_summary_sha256": "c33c3fb9c03a572ac946aac203e6660caa6d394fb392dfb6317bedae811a5fc1",
+    "s03_target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173"
+  },
+  "review_digest": "1b45e83472a617dd3882262968e2f3efda3fe52d6ca508651336daf98f25c3f6",
+  "review_scope": {
+    "inherited_evidence_reverified": true,
+    "kind": "M3-03-increment-only",
+    "protected_history_reopened": false,
+    "review_target_commit": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+    "stage_baseline_commit": "944846fd484b465b3c4e2b4ec87565752b4baf67"
+  },
+  "schema": "zyra.final-critical-review/v1",
+  "verdict": "PASS"
+}

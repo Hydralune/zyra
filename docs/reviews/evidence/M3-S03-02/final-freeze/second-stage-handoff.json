@@ -1,0 +1,103 @@
+{
+  "classification_counts": {
+    "ci-hardening": 2,
+    "first-stage-blocker": 0,
+    "future-optimization": 2
+  },
+  "decisions": [
+    {
+      "acceptance": [
+        "add a deterministic CI gate",
+        "record failure and success fixtures",
+        "assign a regression owner and threshold"
+      ],
+      "classification": "ci-hardening",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json"
+      ],
+      "item_id": "offline-wheelhouse-proof",
+      "owner": "ci-owner",
+      "rank": 1,
+      "rationale": [
+        "impact is limited to continuous verification hardening"
+      ],
+      "risk_if_deferred": "Deferral reduces automated detection depth but does not change frozen product behavior.",
+      "state": "accepted",
+      "target_stage": "ci"
+    },
+    {
+      "acceptance": [
+        "add a deterministic CI gate",
+        "record failure and success fixtures",
+        "assign a regression owner and threshold"
+      ],
+      "classification": "ci-hardening",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json"
+      ],
+      "item_id": "repeat-hour-release-pipeline",
+      "owner": "ci-owner",
+      "rank": 2,
+      "rationale": [
+        "impact is limited to continuous verification hardening"
+      ],
+      "risk_if_deferred": "Deferral reduces automated detection depth but does not change frozen product behavior.",
+      "state": "accepted",
+      "target_stage": "ci"
+    },
+    {
+      "acceptance": [
+        "define a measurable improvement target",
+        "retain compatibility with the frozen first-stage contract"
+      ],
+      "classification": "future-optimization",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json"
+      ],
+      "item_id": "credentialed-cloud-repeat",
+      "owner": "evaluation-owner",
+      "rank": 3,
+      "rationale": [
+        "residual does not affect frozen correctness or submission"
+      ],
+      "risk_if_deferred": "Deferral preserves current behavior and postpones an optional improvement.",
+      "state": "accepted",
+      "target_stage": "post-submission"
+    },
+    {
+      "acceptance": [
+        "define a measurable improvement target",
+        "retain compatibility with the frozen first-stage contract"
+      ],
+      "classification": "future-optimization",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-01/generated-110e0a0a/generated/case-studies.json",
+        "docs/reviews/evidence/M3-S03-01/generated-110e0a0a/generated/compatibility-material.json"
+      ],
+      "item_id": "unified-case-provider-receipt",
+      "owner": "evaluation-owner",
+      "rank": 4,
+      "rationale": [
+        "residual does not affect frozen correctness or submission"
+      ],
+      "risk_if_deferred": "Deferral preserves current behavior and postpones an optional improvement.",
+      "state": "accepted",
+      "target_stage": "post-submission"
+    }
+  ],
+  "digest": "80cc6696cdacefff62f703aef6d5ac5265133d8b2698309797a1c15cd6cf4b7c",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "residual_count": 4,
+  "schema": "zyra.final-freeze.handoff-ledger.v1",
+  "valid": true
+}
