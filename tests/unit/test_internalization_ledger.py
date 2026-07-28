@@ -248,10 +248,41 @@ class InternalizationLedgerTests(unittest.TestCase):
             with patch(
                 "zyra_integrations.ledger_audit.subprocess.run",
                 return_value=SimpleNamespace(stdout="packages/runtime/live.py\n.git/config\n"),
-            ):
+            ) as run:
                 scanned = InternalizationLedgerAuditor(root, strict=True)._iter_scanned_project_files()
 
         self.assertEqual([path.as_posix() for path in scanned], [source.as_posix()])
+        self.assertEqual(
+            run.call_args.args[0][:3],
+            ["git", "-c", f"safe.directory={root.as_posix()}"],
+        )
+
+    def test_strict_audit_scanner_fallback_excludes_generated_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "packages" / "runtime" / "live.py"
+            generated = root / ".tmp" / "diagnostic.py"
+            dependency = root / "node_modules" / "dependency.js"
+            source.parent.mkdir(parents=True)
+            generated.parent.mkdir(parents=True)
+            dependency.parent.mkdir(parents=True)
+            source.write_text("LIVE = True\n", encoding="utf-8")
+            generated.write_text("RUNTIME_SOURCE = '../claude-code-best'\n", encoding="utf-8")
+            dependency.write_text("const source = '../browser-use';\n", encoding="utf-8")
+
+            with patch(
+                "zyra_integrations.ledger_audit.subprocess.run",
+                side_effect=OSError("git unavailable"),
+            ):
+                scanned = InternalizationLedgerAuditor(
+                    root,
+                    strict=True,
+                )._iter_scanned_project_files()
+
+        self.assertEqual(
+            [path.as_posix() for path in scanned],
+            [source.as_posix()],
+        )
 
 
 def sample_entry() -> InternalizationLedgerEntry:

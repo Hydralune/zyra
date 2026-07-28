@@ -519,7 +519,27 @@ class InternalizationLedgerAuditor:
 
     def _iter_scanned_project_files(self) -> list[Path]:
         suffixes = {".bat", ".cmd", ".css", ".html", ".js", ".json", ".jsx", ".mjs", ".ps1", ".py", ".sh", ".toml", ".ts", ".tsx", ".yaml", ".yml"}
-        ignored_dirs = {".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "__pycache__", "docs", "tests", "tmp"}
+        ignored_dirs = {
+            ".cache",
+            ".git",
+            ".mypy_cache",
+            ".next",
+            ".nox",
+            ".nuxt",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".tmp",
+            ".tox",
+            ".venv",
+            "__pycache__",
+            "build",
+            "coverage",
+            "dist",
+            "docs",
+            "node_modules",
+            "tests",
+            "tmp",
+        }
         git_files = self._git_scanned_project_files(suffixes, ignored_dirs)
         if git_files is not None:
             return git_files
@@ -528,7 +548,15 @@ class InternalizationLedgerAuditor:
     def _git_scanned_project_files(self, suffixes: set[str], ignored_dirs: set[str]) -> list[Path] | None:
         try:
             completed = subprocess.run(
-                ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                [
+                    "git",
+                    "-c",
+                    f"safe.directory={self.project_root.as_posix()}",
+                    "ls-files",
+                    "--cached",
+                    "--others",
+                    "--exclude-standard",
+                ],
                 cwd=self.project_root,
                 check=True,
                 capture_output=True,

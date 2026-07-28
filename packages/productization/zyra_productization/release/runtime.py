@@ -677,7 +677,10 @@ class ReleaseRuntime:
         with tempfile.TemporaryDirectory(
             prefix="zyra-release-pytest-",
             ignore_cleanup_errors=True,
-        ) as python_basetemp:
+        ) as python_basetemp, tempfile.TemporaryDirectory(
+            prefix="zyra-release-ci-home-",
+            ignore_cleanup_errors=True,
+        ) as ci_home:
             registry = standard_gate_registry(
                 python=python,
                 bun=bun,
@@ -694,7 +697,7 @@ class ReleaseRuntime:
                 project_root=self.project_root,
                 output_root=evidence_root,
                 source_commit=expected_commit,
-                environment=self._ci_environment(),
+                environment=self._ci_environment(Path(ci_home)),
                 maximum_parallel=maximum_parallel,
             )
             report = executor.execute()
@@ -953,14 +956,26 @@ class ReleaseRuntime:
             encoding="utf-8",
         )
 
-    def _ci_environment(self) -> dict[str, str]:
+    def _ci_environment(self, home_root: Path) -> dict[str, str]:
         allowed = {
             name: value
             for name, value in os.environ.items()
             if self.policy.environment_allowed(name)
         }
+        home_root = home_root.resolve()
+        cache_root = home_root / "cache"
         allowed.update(
             {
+                "HOME": str(home_root),
+                "USERPROFILE": str(home_root),
+                "APPDATA": str(home_root / "AppData" / "Roaming"),
+                "LOCALAPPDATA": str(home_root / "AppData" / "Local"),
+                "XDG_CACHE_HOME": str(cache_root),
+                "BUN_INSTALL_CACHE_DIR": str(cache_root / "bun"),
+                "npm_config_cache": str(cache_root / "npm"),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "safe.directory",
+                "GIT_CONFIG_VALUE_0": self.project_root.as_posix(),
                 "PYTHONNOUSERSITE": "1",
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PIP_DISABLE_PIP_VERSION_CHECK": "1",

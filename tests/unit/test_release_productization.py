@@ -964,6 +964,35 @@ def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
     assert policy.environment_allowed("UNRELATED_SECRET") is False
 
 
+def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    home_root = tmp_path / "ci-home"
+    home_root.mkdir()
+    runtime = ReleaseRuntime(
+        project_root,
+        output_root=tmp_path / "output",
+        state_root=tmp_path / "state",
+    )
+
+    environment = runtime._ci_environment(home_root)
+
+    assert Path(environment["HOME"]) == home_root.resolve()
+    assert Path(environment["USERPROFILE"]) == home_root.resolve()
+    assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
+        home_root.resolve()
+    )
+    assert Path(environment["npm_config_cache"]).is_relative_to(
+        home_root.resolve()
+    )
+    assert environment["GIT_CONFIG_COUNT"] == "1"
+    assert environment["GIT_CONFIG_KEY_0"] == "safe.directory"
+    assert environment["GIT_CONFIG_VALUE_0"] == project_root.as_posix()
+    assert environment["ZYRA_RELEASE_CI"] == "1"
+
+
 def test_python_test_policy_is_explicit_path_checked_and_reproducible(
     tmp_path: Path,
 ) -> None:
