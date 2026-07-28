@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from zyra_orchestration.deployment.doctor import DeploymentDoctor
 from zyra_orchestration.deployment.errors import (
     NodeAuthenticationError,
     NodeReplayRejected,
@@ -103,6 +104,38 @@ def _workload(
         preferred_provider=preferred_provider,
         idempotency_key=f"idempotency-{suffix}",
     )
+
+
+def test_deployment_source_boundary_ignores_runtime_tmp_but_scans_source_packages(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    runtime_fixture = project_root / "tmp" / "pytest" / "boundary-fixture"
+    runtime_fixture.mkdir(parents=True)
+    (runtime_fixture / "package.json").write_text(
+        '{"dependencies":{"fixture":"file:../../../../opencode"}}',
+        encoding="utf-8",
+    )
+    doctor = object.__new__(DeploymentDoctor)
+    doctor.project_root = project_root
+
+    clean_report = doctor.check_source_boundary()
+
+    assert clean_report["ready"] is True
+    assert clean_report["findings"] == []
+
+    source_package = project_root / "packages" / "unsafe"
+    source_package.mkdir(parents=True)
+    (source_package / "package.json").write_text(
+        '{"dependencies":{"unsafe":"file:../../../opencode"}}',
+        encoding="utf-8",
+    )
+
+    blocked_report = doctor.check_source_boundary()
+
+    assert blocked_report["ready"] is False
+    assert blocked_report["blockers"] == ["root_source_dependency_detected"]
+    assert blocked_report["findings"][0]["path"] == "packages/unsafe/package.json"
 
 
 def test_default_profiles_are_behaviorally_distinct_and_secret_safe(tmp_path: Path) -> None:

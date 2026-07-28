@@ -445,6 +445,7 @@ class DeploymentDoctor:
             "dist",
             "node_modules",
             "third_party",
+            "tmp",
             "vendor",
             "vendor-runtimes",
         }

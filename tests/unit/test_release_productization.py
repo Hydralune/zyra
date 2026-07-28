@@ -972,11 +972,14 @@ def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:
 
 def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir()
     home_root = tmp_path / "ci-home"
     home_root.mkdir()
+    host_profile = tmp_path / "host-profile"
+    monkeypatch.setenv("USERPROFILE", str(host_profile))
     runtime = ReleaseRuntime(
         project_root,
         output_root=tmp_path / "output",
@@ -986,7 +989,10 @@ def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
     environment = runtime._ci_environment(home_root)
 
     assert Path(environment["HOME"]) == home_root.resolve()
-    assert "USERPROFILE" not in environment
+    if os.name == "nt":
+        assert Path(environment["USERPROFILE"]) == host_profile.resolve()
+    else:
+        assert "USERPROFILE" not in environment
     assert "APPDATA" not in environment
     assert "LOCALAPPDATA" not in environment
     assert Path(environment["TEMP"]) == (home_root / "temp").resolve()

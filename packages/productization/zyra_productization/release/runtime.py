@@ -957,6 +957,7 @@ class ReleaseRuntime:
         )
 
     def _ci_environment(self, home_root: Path) -> dict[str, str]:
+        host_user_profile = os.environ.get("USERPROFILE")
         allowed = {
             name: value
             for name, value in os.environ.items()
@@ -990,10 +991,17 @@ class ReleaseRuntime:
         # Do not synthesize Windows account-profile variables.  Chrome rejects
         # remote debugging when USERPROFILE points at a release sandbox rather
         # than the real Windows account, even with an explicit non-default
-        # --user-data-dir.  HOME/XDG/tool caches remain isolated, while omitted
-        # Windows profile variables fall back to the operating-system account.
-        for name in ("USERPROFILE", "APPDATA", "LOCALAPPDATA"):
+        # --user-data-dir.  Preserve the real Windows account identity so
+        # pathlib.expanduser() and Chrome both remain valid; HOME/XDG/tool
+        # caches and application data variables stay isolated or omitted.
+        for name in ("APPDATA", "LOCALAPPDATA"):
             allowed.pop(name, None)
+        if os.name == "nt" and host_user_profile:
+            allowed["USERPROFILE"] = str(
+                Path(host_user_profile).resolve(strict=False)
+            )
+        else:
+            allowed.pop("USERPROFILE", None)
         return allowed
 
 
