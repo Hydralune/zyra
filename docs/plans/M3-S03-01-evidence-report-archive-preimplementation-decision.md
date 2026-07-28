@@ -4,7 +4,7 @@
 
 - Slice: `M3-S03-01`
 - Baseline commit: `944846fd484b465b3c4e2b4ec87565752b4baf67`
-- Baseline tree: `2e39acf1fa7f7f7582f28c258a779b51bc4f7951`
+- Baseline tree: `256a874f2e717338d502c73b3392f6c26241912e`
 - Decision timing: before the first production-code change
 - Migration mode: `report_and_freeze_only`
 - Canonical-state transfer: none
