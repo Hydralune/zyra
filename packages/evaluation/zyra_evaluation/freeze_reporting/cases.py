@@ -34,6 +34,7 @@ class CaseStudyBuilder:
         material = {
             "schema": "zyra.first-stage-case-studies/v1",
             "cases": cases,
+            "deployment_compatibility": self._deployment_compatibility(),
             "generated_at": now(),
         }
         material["verification"] = self.verify(material)
@@ -107,6 +108,40 @@ class CaseStudyBuilder:
                     "case-domain-count-insufficient",
                     "At least two cross-domain live case studies are required.",
                     domains=sorted(domains),
+                )
+            )
+        deployment = require_mapping(
+            material.get("deployment_compatibility"),
+            "case deployment compatibility",
+        )
+        if deployment.get("same_run_as_case") is not False:
+            findings.append(
+                blocker(
+                    "case-deployment-claim-conflated",
+                    "Protected M1 deployment evidence cannot be presented as a "
+                    "new provider call inside M3 case runs.",
+                )
+            )
+        if deployment.get("case_runs_no_new_provider_call") is not True:
+            findings.append(
+                blocker(
+                    "case-provider-call-boundary-invalid",
+                    "Formal M3 case material must preserve its no-new-provider-call "
+                    "boundary when using protected compatibility evidence.",
+                )
+            )
+        if set(deployment.get("tiers") or []) != {"local", "edge", "cloud"}:
+            findings.append(
+                blocker(
+                    "case-deployment-tier-evidence-incomplete",
+                    "Case material lacks protected local-edge-cloud evidence.",
+                )
+            )
+        if len(deployment.get("providers") or []) < 2:
+            findings.append(
+                blocker(
+                    "case-deployment-provider-evidence-incomplete",
+                    "Case material lacks two protected real provider/model receipts.",
                 )
             )
         require_no_blockers(
@@ -233,4 +268,42 @@ class CaseStudyBuilder:
             "final_outcome_digests": sorted(set(final_outcomes)),
             "worker_roles": dict(sorted(workers.items())),
             "runs": sorted(run_rows, key=lambda item: item["repetition"]),
+        }
+
+    def _deployment_compatibility(self) -> dict[str, Any]:
+        protected = self.inputs.document("benchmark-protected-deployment")
+        tiers = []
+        for row in protected.get("tiers") or []:
+            if not isinstance(row, Mapping):
+                continue
+            tier = str(row.get("tier") or "").lower()
+            tiers.append("local" if tier == "device" else tier)
+        providers = [
+            {
+                "provider_id": str(row.get("provider_id") or ""),
+                "model_id": str(row.get("model_id") or ""),
+                "wire_dialect": str(row.get("wire_dialect") or ""),
+                "simulated": row.get("simulated"),
+                "receipt_digest": digest(row),
+            }
+            for row in protected.get("providers") or []
+            if isinstance(row, Mapping)
+        ]
+        return {
+            "same_run_as_case": False,
+            "case_runs_no_new_provider_call": self.inputs.document(
+                "benchmark-source-runs"
+            ).get("no_new_provider_call"),
+            "evidence_role": (
+                "protected live deployment compatibility; M3 case runs prove "
+                "long-horizon sealed autonomy and do not claim new provider calls"
+            ),
+            "tiers": sorted(set(tiers)),
+            "providers": providers,
+            "source_path": self.inputs.relative_path(
+                "benchmark-protected-deployment"
+            ),
+            "source_sha256": self.inputs.digests[
+                "benchmark-protected-deployment"
+            ],
         }

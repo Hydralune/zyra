@@ -20,6 +20,7 @@ from zyra_evaluation.freeze_reporting.canonical import (
 from zyra_evaluation.freeze_reporting.compatibility import (
     CompatibilityMaterialBuilder,
 )
+from zyra_evaluation.freeze_reporting.cases import CaseStudyBuilder
 from zyra_evaluation.freeze_reporting.evidence_index import (
     FreezeEvidenceIndexBuilder,
 )
@@ -308,6 +309,21 @@ def test_compatibility_material_uses_actual_protected_providers(
         "gpt-5.5",
     }
     assert set(material["tiers"]) == {"local", "edge", "cloud"}
+
+
+def test_case_material_separates_case_runs_from_protected_provider_receipts(
+    admitted_inputs: FreezeInputSet,
+) -> None:
+    material = CaseStudyBuilder(admitted_inputs).build()
+    compatibility = material["deployment_compatibility"]
+
+    assert compatibility["same_run_as_case"] is False
+    assert compatibility["case_runs_no_new_provider_call"] is True
+    assert set(compatibility["tiers"]) == {"local", "edge", "cloud"}
+    assert {row["provider_id"] for row in compatibility["providers"]} == {
+        "anthropic",
+        "openai",
+    }
 
 
 def test_ablation_material_preserves_raw_samples_and_all_variants(

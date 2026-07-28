@@ -238,7 +238,9 @@ class FreezeReportBuilder:
             "summary": (
                 "Case studies originate from new-input live source archives, not "
                 "replay. Each formal run preserves policy, transition, fault, "
-                "artifact, verifier, configuration, and outcome receipts."
+                "artifact, verifier, configuration, and outcome receipts. Protected "
+                "real tier/provider evidence is cross-linked without pretending the "
+                "M3 case cells made new provider calls."
             ),
             "evidence": ["generated/case-studies.json"],
             "facts": [
@@ -247,6 +249,14 @@ class FreezeReportBuilder:
                     "value": case.get("minimum_effective_transitions"),
                 }
                 for case in values
+            ]
+            + [
+                {
+                    "label": "deployment_evidence_same_run",
+                    "value": cases.get("deployment_compatibility", {}).get(
+                        "same_run_as_case"
+                    ),
+                }
             ],
         }
 
