@@ -68,8 +68,8 @@ def admitted_inputs() -> Iterator[FreezeInputSet]:
         expected_commit=head_commit(),
         require_release=False,
     )
-    assert receipt["release_input"] == ""
-    assert len(receipt["members"]) >= 20
+    assert receipt["release_input"] == "release-summary"
+    assert len(receipt["members"]) >= 30
     yield inputs
 
 
@@ -171,8 +171,12 @@ def test_reviewed_release_is_mandatory_for_product_build(
 
     monkeypatch.setattr(
         input_module,
-        "RELEASE_CANDIDATES",
-        (Path("docs/reviews/evidence/M3-S02B-02/definitely-missing.json"),),
+        "RELEASE_REQUIRED_MEMBERS",
+        {
+            Path(
+                "docs/reviews/evidence/M3-S02B-02/definitely-missing.json"
+            ): "release-summary"
+        },
     )
     with pytest.raises(FreezeEvidenceError) as captured:
         load_freeze_input_set(
@@ -182,6 +186,27 @@ def test_reviewed_release_is_mandatory_for_product_build(
         )
 
     assert captured.value.code == "release-input-missing"
+
+
+def test_reviewed_release_fails_closed_on_forged_pass(
+    admitted_inputs: FreezeInputSet,
+) -> None:
+    summary = admitted_inputs.document("release-summary")
+    metadata = admitted_inputs.document("release-metadata")
+    effective = admitted_inputs.document("release-effective-code")
+    summary["release_pipeline"]["failed_gate_count"] = 1
+    summary["release_pipeline"]["ready"] = False
+
+    with pytest.raises(FreezeEvidenceError) as captured:
+        FreezeInputSet(
+            REPOSITORY_ROOT,
+            expected_commit=head_commit(),
+        )._verify_release(summary, metadata, effective)
+
+    assert any(
+        item["code"] == "release-pipeline-not-ready"
+        for item in captured.value.blockers
+    )
 
 
 def test_role_ledger_has_concrete_active_paths_and_openclaw_exclusion(

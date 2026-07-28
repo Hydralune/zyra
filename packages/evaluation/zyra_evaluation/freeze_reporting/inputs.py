@@ -51,11 +51,17 @@ SOURCE_CUSTODY_CANDIDATES = (
     Path("docs/reviews/evidence/M3-01-independent-review/aggregate-review-evidence.json"),
 )
 
-RELEASE_CANDIDATES = (
-    Path("docs/reviews/evidence/M3-S02B-02/release-verification-summary.json"),
-    Path("docs/reviews/evidence/M3-S02B-02/verification-summary.json"),
-    Path("docs/reviews/evidence/M3-S02B-02/release-pipeline-receipt.json"),
-)
+RELEASE_REQUIRED_MEMBERS = {
+    Path(
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json"
+    ): "release-summary",
+    Path(
+        "docs/reviews/evidence/M3-S02B-02/implementation-metadata.json"
+    ): "release-metadata",
+    Path(
+        "docs/reviews/evidence/M3-S02B-02/effective-code-audit.json"
+    ): "release-effective-code",
+}
 
 
 class FreezeInputSet:
@@ -526,40 +532,166 @@ class FreezeInputSet:
                 self._load(f"custody-{index:02d}", path)
 
     def _load_release(self, *, required: bool) -> str:
-        for index, relative in enumerate(RELEASE_CANDIDATES, 1):
-            path = self.repository_root / relative
-            if path.is_file():
-                document = self._load(f"release-{index:02d}", path)
-                if self._release_admitted(document):
-                    return f"release-{index:02d}"
-                if required:
-                    raise fail(
-                        "release-input-not-admitted",
-                        "Release evidence exists but is not admitted.",
-                        phase="input",
-                        detail={"path": relative.as_posix()},
-                    )
-        if required:
+        missing = [
+            relative.as_posix()
+            for relative in RELEASE_REQUIRED_MEMBERS
+            if not (self.repository_root / relative).is_file()
+        ]
+        if missing and required:
             raise fail(
                 "release-input-missing",
                 "Reviewed M3-S02B release evidence is required.",
                 phase="input",
-                detail={"candidates": [item.as_posix() for item in RELEASE_CANDIDATES]},
+                detail={"missing": missing},
             )
-        return ""
+        if missing:
+            return ""
+        for relative, input_id in RELEASE_REQUIRED_MEMBERS.items():
+            self._load(input_id, self.repository_root / relative)
+        self._verify_release(
+            self.document("release-summary"),
+            self.document("release-metadata"),
+            self.document("release-effective-code"),
+        )
+        return "release-summary"
 
-    @staticmethod
-    def _release_admitted(document: Mapping[str, Any]) -> bool:
-        verdict = str(
-            document.get("verdict")
-            or document.get("status")
-            or ""
-        ).lower()
-        if verdict in {"pass", "passed", "ready", "complete", "completed"}:
-            return True
-        if document.get("valid") is True or document.get("ready") is True:
-            return True
-        return False
+    def _verify_release(
+        self,
+        summary: Mapping[str, Any],
+        metadata: Mapping[str, Any],
+        effective_code: Mapping[str, Any],
+    ) -> None:
+        findings: list[dict[str, Any]] = []
+        if summary.get("schema") != "zyra.m3-s02b-02.verification-summary/v1":
+            findings.append(
+                blocker(
+                    "release-summary-schema-mismatch",
+                    "M3-S02B-02 release summary schema is unsupported.",
+                    schema=summary.get("schema"),
+                )
+            )
+        if metadata.get("schema") != (
+            "zyra.m3-s02b-02.implementation-metadata/v1"
+        ):
+            findings.append(
+                blocker(
+                    "release-metadata-schema-mismatch",
+                    "M3-S02B-02 implementation metadata schema is unsupported.",
+                    schema=metadata.get("schema"),
+                )
+            )
+        if effective_code.get("schema") != (
+            "zyra.effective-code-language-gate-audit/v1"
+        ):
+            findings.append(
+                blocker(
+                    "release-effective-code-schema-mismatch",
+                    "M3-S02B-02 effective-code audit schema is unsupported.",
+                    schema=effective_code.get("schema"),
+                )
+            )
+        if (
+            summary.get("slice_id") != "M3-S02B-02"
+            or metadata.get("slice_id") != "M3-S02B-02"
+        ):
+            findings.append(
+                blocker(
+                    "release-slice-identity-mismatch",
+                    "Release inputs do not identify M3-S02B-02.",
+                )
+            )
+        target = require_commit(
+            summary.get("target_commit"),
+            "M3-S02B-02 target commit",
+        )
+        metadata_target = require_commit(
+            metadata.get("implementation_commit"),
+            "M3-S02B-02 implementation commit",
+        )
+        if target != metadata_target:
+            findings.append(
+                blocker(
+                    "release-target-cross-link-mismatch",
+                    "Release summary and implementation metadata disagree.",
+                    summary_target=target,
+                    metadata_target=metadata_target,
+                )
+            )
+        if self.expected_commit and not self._commit_is_ancestor(
+            target,
+            self.expected_commit,
+        ):
+            findings.append(
+                blocker(
+                    "release-target-not-ancestor",
+                    "Reviewed release target is not an ancestor of the report target.",
+                    release_target=target,
+                    report_target=self.expected_commit,
+                )
+            )
+        pipeline = require_mapping(
+            summary.get("release_pipeline"),
+            "M3-S02B-02 release pipeline",
+        )
+        benchmark = require_mapping(
+            summary.get("benchmark_binding"),
+            "M3-S02B-02 benchmark binding",
+        )
+        effective = require_mapping(
+            summary.get("effective_code"),
+            "M3-S02B-02 effective-code summary",
+        )
+        if summary.get("verdict") != "PASS":
+            findings.append(
+                blocker(
+                    "release-verdict-not-pass",
+                    "M3-S02B-02 reviewed verdict is not PASS.",
+                    verdict=summary.get("verdict"),
+                )
+            )
+        if (
+            pipeline.get("ready") is not True
+            or int(pipeline.get("failed_gate_count") or 0) != 0
+            or int(pipeline.get("blocked_gate_count") or 0) != 0
+            or pipeline.get("required_failures")
+        ):
+            findings.append(
+                blocker(
+                    "release-pipeline-not-ready",
+                    "M3-S02B-02 release pipeline is not fully admitted.",
+                )
+            )
+        if (
+            benchmark.get("ready") is not True
+            or benchmark.get("score") != 100
+            or benchmark.get("human_intervention_count") != 0
+        ):
+            findings.append(
+                blocker(
+                    "release-benchmark-binding-invalid",
+                    "Release evidence is not bound to the formal zero-human score.",
+                )
+            )
+        if (
+            summary.get("execution_state_update_authorized") is not True
+            or effective.get("accounted_effective_production", 0)
+            < effective.get("minimum", 1)
+            or not isinstance(effective_code.get("gate"), Mapping)
+            or effective_code.get("gate", {}).get("ok") is not True
+            or effective_code.get("gate", {}).get("blockers")
+        ):
+            findings.append(
+                blocker(
+                    "release-completion-gate-invalid",
+                    "M3-S02B-02 completion/effective-code gate is not closed.",
+                )
+            )
+        require_no_blockers(
+            findings,
+            code="release-input-not-admitted",
+            message="Reviewed M3-S02B-02 release evidence is not admitted.",
+            phase="input",
+        )
 
     def _commit_is_ancestor(self, ancestor: str, descendant: str) -> bool:
         import subprocess
