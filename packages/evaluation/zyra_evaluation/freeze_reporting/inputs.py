@@ -1,0 +1,462 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from .canonical import (
+    digest,
+    file_digest,
+    load_json,
+    require_commit,
+    require_digest,
+    require_mapping,
+    require_sequence,
+    require_text,
+    resolve_inside,
+    safe_relative_path,
+    verify_embedded_digest,
+)
+from .errors import blocker, fail, require_no_blockers
+
+
+FORMAL_POINTER = Path(
+    "docs/reviews/evidence/M3-S02A-02/formal-current.json"
+)
+
+FORMAL_REQUIRED_MEMBERS = {
+    "100-point-evidence-index.json": "benchmark-index",
+    "benchmark-report.json": "benchmark-report",
+    "campaign.json": "benchmark-campaign",
+    "evaluation-summary.json": "benchmark-summary",
+    "evidence-manifest.json": "benchmark-manifest",
+    "freeze-admission.json": "benchmark-admission",
+    "implementation-metadata.json": "benchmark-metadata",
+    "protected-deployment-evidence.json": "benchmark-protected-deployment",
+    "raw-samples.json": "benchmark-raw-samples",
+    "requirement-evidence.json": "benchmark-requirements",
+    "run-receipts.json": "benchmark-run-receipts",
+    "source-runs.json": "benchmark-source-runs",
+    "statistical-evaluation.json": "benchmark-statistics",
+    "validation-receipt.json": "benchmark-validation",
+    "verification-summary.json": "benchmark-verification",
+}
+
+SOURCE_CUSTODY_CANDIDATES = (
+    Path("docs/reviews/evidence/M3-S01A-01/source-custody-receipt.json"),
+    Path("docs/reviews/evidence/M3-S01A-02/state-owner-reachability-receipt.json"),
+    Path("docs/reviews/evidence/M3-S01B-02/config-migration-runtime-receipt.json"),
+    Path("docs/reviews/evidence/M3-01-independent-review/aggregate-review-evidence.json"),
+)
+
+RELEASE_CANDIDATES = (
+    Path("docs/reviews/evidence/M3-S02B-02/release-verification-summary.json"),
+    Path("docs/reviews/evidence/M3-S02B-02/verification-summary.json"),
+    Path("docs/reviews/evidence/M3-S02B-02/release-pipeline-receipt.json"),
+)
+
+
+class FreezeInputSet:
+    """Admits immutable, cross-linked M3 inputs without taking their ownership."""
+
+    def __init__(
+        self,
+        repository_root: str | Path,
+        *,
+        expected_commit: str | None = None,
+    ) -> None:
+        self.repository_root = Path(repository_root).resolve(strict=True)
+        self.expected_commit = (
+            require_commit(expected_commit, "expected repository commit")
+            if expected_commit
+            else ""
+        )
+        self._documents: dict[str, dict[str, Any]] = {}
+        self._paths: dict[str, Path] = {}
+        self._digests: dict[str, str] = {}
+
+    @property
+    def documents(self) -> Mapping[str, Mapping[str, Any]]:
+        return dict(self._documents)
+
+    @property
+    def paths(self) -> Mapping[str, Path]:
+        return dict(self._paths)
+
+    @property
+    def digests(self) -> Mapping[str, str]:
+        return dict(self._digests)
+
+    def discover(self, *, require_release: bool = True) -> dict[str, Any]:
+        pointer_path = self._file(FORMAL_POINTER, "formal benchmark pointer")
+        pointer = self._load("formal-pointer", pointer_path)
+        self._verify_formal_pointer(pointer)
+        evidence_root = self._resolve_formal_root(pointer)
+        self._load_formal_members(evidence_root)
+        self._verify_formal_cross_links(pointer)
+        self._load_optional_custody()
+        release_id = self._load_release(required=require_release)
+        receipt = {
+            "schema": "zyra.freeze-input-set/v1",
+            "repository_root": ".",
+            "expected_commit": self.expected_commit,
+            "formal_evidence_root": evidence_root.relative_to(
+                self.repository_root
+            ).as_posix(),
+            "release_input": release_id,
+            "members": [
+                {
+                    "input_id": input_id,
+                    "path": path.relative_to(self.repository_root).as_posix(),
+                    "sha256": self._digests[input_id],
+                    "schema": str(self._documents[input_id].get("schema") or ""),
+                }
+                for input_id, path in sorted(self._paths.items())
+            ],
+        }
+        receipt["input_set_digest"] = digest(receipt)
+        return receipt
+
+    def document(self, input_id: str) -> dict[str, Any]:
+        try:
+            return dict(self._documents[input_id])
+        except KeyError as error:
+            raise fail(
+                "freeze-input-not-loaded",
+                "Requested freeze input was not admitted.",
+                phase="input",
+                detail={"input_id": input_id},
+            ) from error
+
+    def path(self, input_id: str) -> Path:
+        try:
+            return self._paths[input_id]
+        except KeyError as error:
+            raise fail(
+                "freeze-input-path-not-loaded",
+                "Requested freeze input path was not admitted.",
+                phase="input",
+                detail={"input_id": input_id},
+            ) from error
+
+    def relative_path(self, input_id: str) -> str:
+        return self.path(input_id).relative_to(self.repository_root).as_posix()
+
+    def member_reference(
+        self,
+        input_id: str,
+        *,
+        kind: str,
+        label: str,
+        selector: str = "",
+        commit: str = "",
+    ) -> dict[str, Any]:
+        reference = {
+            "reference_id": f"ref-{input_id}-{kind}".replace("_", "-"),
+            "kind": kind,
+            "path": self.relative_path(input_id),
+            "sha256": self._digests[input_id],
+            "label": label,
+        }
+        if selector:
+            reference["selector"] = selector
+        if commit:
+            reference["commit"] = require_commit(commit, "reference commit")
+        return reference
+
+    def find_by_schema(self, prefix: str) -> list[str]:
+        return sorted(
+            input_id
+            for input_id, document in self._documents.items()
+            if str(document.get("schema") or "").startswith(prefix)
+        )
+
+    def _file(self, relative: Path, label: str) -> Path:
+        try:
+            selected = resolve_inside(
+                self.repository_root,
+                relative.as_posix(),
+                must_exist=True,
+            )
+        except Exception as error:
+            raise fail(
+                "freeze-input-required-member-missing",
+                f"{label} is missing.",
+                phase="input",
+                detail={"path": relative.as_posix()},
+            ) from error
+        if not selected.is_file():
+            raise fail(
+                "freeze-input-member-not-file",
+                f"{label} must be a regular file.",
+                phase="input",
+                detail={"path": relative.as_posix()},
+            )
+        return selected
+
+    def _load(self, input_id: str, path: Path) -> dict[str, Any]:
+        if input_id in self._documents:
+            raise fail(
+                "freeze-input-duplicate-id",
+                "Freeze input identifier is duplicated.",
+                phase="input",
+                detail={"input_id": input_id},
+            )
+        document = load_json(path)
+        self._documents[input_id] = document
+        self._paths[input_id] = path
+        self._digests[input_id] = file_digest(path)
+        return document
+
+    def _verify_formal_pointer(self, pointer: Mapping[str, Any]) -> None:
+        schema = require_text(
+            pointer.get("schema"),
+            "formal pointer schema",
+            maximum=128,
+        )
+        supported_schemas = {
+            "zyra.formal-evidence-pointer/v1",
+            "zyra.m3-s02a02-formal-evidence-pointer/v1",
+        }
+        if schema not in supported_schemas:
+            raise fail(
+                "formal-pointer-schema-mismatch",
+                "Formal benchmark pointer has an unsupported schema.",
+                phase="input",
+                detail={"schema": schema},
+            )
+        implementation = require_commit(
+            pointer.get("implementation_commit"),
+            "formal benchmark implementation commit",
+        )
+        if (
+            self.expected_commit
+            and implementation != self.expected_commit
+            and not self._commit_is_ancestor(
+                implementation,
+                self.expected_commit,
+            )
+        ):
+            raise fail(
+                "formal-pointer-commit-not-ancestor",
+                "Formal benchmark evidence is not an ancestor of the target commit.",
+                phase="input",
+                detail={
+                    "formal_commit": implementation,
+                    "expected_commit": self.expected_commit,
+                },
+            )
+        projection = dict(pointer)
+        declared = projection.pop("pointer_digest", "")
+        observed = digest(projection)
+        if require_digest(declared, "formal pointer digest") != observed:
+            raise fail(
+                "formal-pointer-digest-mismatch",
+                "Formal benchmark pointer digest is invalid.",
+                phase="integrity",
+            )
+
+    def _resolve_formal_root(self, pointer: Mapping[str, Any]) -> Path:
+        relative = safe_relative_path(
+            pointer.get("relative_evidence_root"),
+            "formal evidence root",
+        )
+        selected = resolve_inside(
+            self.repository_root,
+            relative,
+            must_exist=True,
+        )
+        if not selected.is_dir():
+            raise fail(
+                "formal-evidence-root-not-directory",
+                "Formal evidence root must be a directory.",
+                phase="input",
+                detail={"path": relative},
+            )
+        return selected
+
+    def _load_formal_members(self, root: Path) -> None:
+        for filename, input_id in FORMAL_REQUIRED_MEMBERS.items():
+            path = root / filename
+            if not path.is_file():
+                raise fail(
+                    "formal-evidence-member-missing",
+                    "Formal benchmark member is missing.",
+                    phase="input",
+                    detail={"member": filename},
+                )
+            self._load(input_id, path)
+
+    def _verify_formal_cross_links(self, pointer: Mapping[str, Any]) -> None:
+        report = self.document("benchmark-report")
+        index = self.document("benchmark-index")
+        manifest = self.document("benchmark-manifest")
+        summary = self.document("benchmark-verification")
+        admission = self.document("benchmark-admission")
+        findings: list[dict[str, Any]] = []
+        report_digest = verify_embedded_digest(report, "report_digest")
+        index_digest = verify_embedded_digest(index, "index_digest")
+        manifest_digest = verify_embedded_digest(manifest, "manifest_digest")
+        expected_links = (
+            ("pointer.report_digest", pointer.get("report_digest"), report_digest),
+            (
+                "pointer.evidence_index_digest",
+                pointer.get("evidence_index_digest"),
+                index_digest,
+            ),
+            (
+                "pointer.manifest_digest",
+                pointer.get("manifest_digest"),
+                manifest_digest,
+            ),
+            ("index.report_digest", index.get("report_digest"), report_digest),
+            ("summary.report_digest", summary.get("report_digest"), report_digest),
+            (
+                "summary.evidence_index_digest",
+                summary.get("evidence_index_digest"),
+                index_digest,
+            ),
+            (
+                "summary.manifest_digest",
+                summary.get("manifest_digest"),
+                manifest_digest,
+            ),
+            ("admission.report_digest", admission.get("report_digest"), report_digest),
+            (
+                "admission.evidence_index_digest",
+                admission.get("evidence_index_digest"),
+                index_digest,
+            ),
+            (
+                "admission.manifest_digest",
+                admission.get("manifest_digest"),
+                manifest_digest,
+            ),
+        )
+        for label, declared, observed in expected_links:
+            if declared != observed:
+                findings.append(
+                    blocker(
+                        "formal-cross-link-mismatch",
+                        "Formal evidence cross-link does not match.",
+                        label=label,
+                        declared=declared,
+                        observed=observed,
+                    )
+                )
+        commit = require_commit(report.get("commit_sha"), "benchmark report commit")
+        for label, value in (
+            ("index", index.get("commit_sha")),
+            ("pointer", pointer.get("implementation_commit")),
+            ("summary", summary.get("target_commit")),
+            ("admission", admission.get("target_commit")),
+        ):
+            if value != commit:
+                findings.append(
+                    blocker(
+                        "formal-commit-cross-link-mismatch",
+                        "Formal evidence commit identities disagree.",
+                        member=label,
+                        expected=commit,
+                        observed=value,
+                    )
+                )
+        score = require_mapping(report.get("score"), "benchmark report score")
+        if score.get("complete") is not True or score.get("verified") != 100:
+            findings.append(
+                blocker(
+                    "formal-score-incomplete",
+                    "Formal benchmark does not close its source score matrix.",
+                )
+            )
+        if summary.get("verdict") != "PASS":
+            findings.append(
+                blocker(
+                    "formal-verification-not-pass",
+                    "Formal benchmark verification is not PASS.",
+                    verdict=summary.get("verdict"),
+                )
+            )
+        require_no_blockers(
+            findings,
+            code="formal-evidence-cross-links-invalid",
+            message="Formal benchmark evidence failed cross-link admission.",
+            phase="input",
+        )
+
+    def _load_optional_custody(self) -> None:
+        for index, relative in enumerate(SOURCE_CUSTODY_CANDIDATES, 1):
+            path = self.repository_root / relative
+            if path.is_file():
+                self._load(f"custody-{index:02d}", path)
+
+    def _load_release(self, *, required: bool) -> str:
+        for index, relative in enumerate(RELEASE_CANDIDATES, 1):
+            path = self.repository_root / relative
+            if path.is_file():
+                document = self._load(f"release-{index:02d}", path)
+                if self._release_admitted(document):
+                    return f"release-{index:02d}"
+                if required:
+                    raise fail(
+                        "release-input-not-admitted",
+                        "Release evidence exists but is not admitted.",
+                        phase="input",
+                        detail={"path": relative.as_posix()},
+                    )
+        if required:
+            raise fail(
+                "release-input-missing",
+                "Reviewed M3-S02B release evidence is required.",
+                phase="input",
+                detail={"candidates": [item.as_posix() for item in RELEASE_CANDIDATES]},
+            )
+        return ""
+
+    @staticmethod
+    def _release_admitted(document: Mapping[str, Any]) -> bool:
+        verdict = str(
+            document.get("verdict")
+            or document.get("status")
+            or ""
+        ).lower()
+        if verdict in {"pass", "passed", "ready", "complete", "completed"}:
+            return True
+        if document.get("valid") is True or document.get("ready") is True:
+            return True
+        return False
+
+    def _commit_is_ancestor(self, ancestor: str, descendant: str) -> bool:
+        import subprocess
+
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.repository_root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                descendant,
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+        return completed.returncode == 0
+
+
+def load_freeze_input_set(
+    repository_root: str | Path,
+    *,
+    expected_commit: str | None = None,
+    require_release: bool = True,
+) -> tuple[FreezeInputSet, dict[str, Any]]:
+    selected = FreezeInputSet(
+        repository_root,
+        expected_commit=expected_commit,
+    )
+    receipt = selected.discover(require_release=require_release)
+    return selected, receipt

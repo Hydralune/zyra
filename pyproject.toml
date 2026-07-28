@@ -14,6 +14,7 @@ zyra-freeze-audit = "zyra_evaluation.freeze_audit.cli:main"
 zyra-regression-hardening = "zyra_evaluation.regression_hardening.cli:main"
 zyra-deploy = "zyra_orchestration.deployment.cli:main"
 zyra-release = "zyra_productization.release.cli:main"
+zyra-first-stage-evidence = "zyra_evaluation.freeze_reporting.cli:main"
 
 [project.optional-dependencies]
 test = [
