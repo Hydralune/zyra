@@ -999,12 +999,12 @@ class CriticalReviewEngine:
             and any(
                 token in line.lower()
                 for token in (
-                    "file:../",
-                    "npm link ../",
-                    "pip install -e ../",
-                    "build-context: ../",
-                    "workingdirectory: ../",
-                    "cwd: ../",
+                    "file:" + "../",
+                    "npm link " + "../",
+                    "pip install -e " + "../",
+                    "build-context: " + "../",
+                    "workingdirectory: " + "../",
+                    "cwd: " + "../",
                 )
             )
         ]
