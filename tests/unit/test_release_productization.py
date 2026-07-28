@@ -891,6 +891,12 @@ def test_standard_gate_registry_isolates_pytest_state_outside_project(
         "--basetemp",
         str(basetemp.resolve()),
     )
+    assert command[7:11] == (
+        "-o",
+        "faulthandler_timeout=300",
+        "-o",
+        "faulthandler_exit_on_timeout=true",
+    )
     assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
 
 
