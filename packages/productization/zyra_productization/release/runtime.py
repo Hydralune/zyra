@@ -964,12 +964,15 @@ class ReleaseRuntime:
         }
         home_root = home_root.resolve()
         cache_root = home_root / "cache"
+        temp_root = home_root / "temp"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        temp_root.mkdir(parents=True, exist_ok=True)
         allowed.update(
             {
                 "HOME": str(home_root),
-                "USERPROFILE": str(home_root),
-                "APPDATA": str(home_root / "AppData" / "Roaming"),
-                "LOCALAPPDATA": str(home_root / "AppData" / "Local"),
+                "TEMP": str(temp_root),
+                "TMP": str(temp_root),
+                "TMPDIR": str(temp_root),
                 "XDG_CACHE_HOME": str(cache_root),
                 "BUN_INSTALL_CACHE_DIR": str(cache_root / "bun"),
                 "npm_config_cache": str(cache_root / "npm"),
@@ -984,6 +987,13 @@ class ReleaseRuntime:
                 "ZYRA_RELEASE_CI": "1",
             }
         )
+        # Do not synthesize Windows account-profile variables.  Chrome rejects
+        # remote debugging when USERPROFILE points at a release sandbox rather
+        # than the real Windows account, even with an explicit non-default
+        # --user-data-dir.  HOME/XDG/tool caches remain isolated, while omitted
+        # Windows profile variables fall back to the operating-system account.
+        for name in ("USERPROFILE", "APPDATA", "LOCALAPPDATA"):
+            allowed.pop(name, None)
         return allowed
 
 

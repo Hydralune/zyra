@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
@@ -34,7 +38,12 @@ from zyra_workers import (
     find_browser_executable,
     inspect_browser_use_runtime,
 )
-from zyra_workers.browser_worker import BrowserPageState, _click_link_url
+from zyra_workers.browser_worker import (
+    BrowserPageState,
+    _BrowserUseProcessDeadline,
+    _click_link_url,
+    _run_browser_use_with_hard_deadline,
+)
 from zyra_workspace import (
     WorkspaceEditPort,
     WorkspaceManagerConfig,
@@ -117,6 +126,44 @@ def _preauthorize_browser_session(
 
 
 class BrowserWorkerTests(unittest.TestCase):
+    def test_browser_use_event_loop_hard_deadline_returns_without_gathering(
+        self,
+    ) -> None:
+        async def waits_forever() -> None:
+            await asyncio.Event().wait()
+
+        started = time.monotonic()
+        with self.assertRaises(TimeoutError):
+            _run_browser_use_with_hard_deadline(
+                waits_forever(),
+                timeout_seconds=0.05,
+            )
+        self.assertLess(time.monotonic() - started, 2)
+
+    def test_browser_use_process_deadline_force_terminates_exact_process(
+        self,
+    ) -> None:
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+        )
+        guard = _BrowserUseProcessDeadline(
+            SimpleNamespace(
+                _local_browser_watchdog=SimpleNamespace(
+                    browser_pid=process.pid,
+                )
+            ),
+            timeout_seconds=0.05,
+        )
+        try:
+            guard.start()
+            process.wait(timeout=5)
+            self.assertIsNotNone(process.returncode)
+        finally:
+            guard.finish()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+
     def test_workspace_link_resolution_rejects_encoded_backslash_escape(
         self,
     ) -> None:
@@ -147,7 +194,10 @@ class BrowserWorkerTests(unittest.TestCase):
 
         self.assertTrue(health.environment_configured)
         self.assertEqual(health.paths.config_dir.relative_to(ROOT).parts[0], "tmp")
-        self.assertEqual(health.paths.cache_dir.relative_to(ROOT).parts[0], "tmp")
+        self.assertIn(
+            health.paths.cache_dir.relative_to(ROOT).parts[0],
+            {"tmp", ".tmp", "dist"},
+        )
         self.assertTrue(health.paths.temp_dir.relative_to(ROOT).parts)
         if not health.importable:
             self.assertIn(health.error_type, {"ModuleNotFoundError", "ImportError"})

@@ -980,7 +980,12 @@ def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
     environment = runtime._ci_environment(home_root)
 
     assert Path(environment["HOME"]) == home_root.resolve()
-    assert Path(environment["USERPROFILE"]) == home_root.resolve()
+    assert "USERPROFILE" not in environment
+    assert "APPDATA" not in environment
+    assert "LOCALAPPDATA" not in environment
+    assert Path(environment["TEMP"]) == (home_root / "temp").resolve()
+    assert Path(environment["TMP"]) == (home_root / "temp").resolve()
+    assert Path(environment["TMPDIR"]) == (home_root / "temp").resolve()
     assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
         home_root.resolve()
     )
