@@ -475,6 +475,24 @@ def test_navigation_is_backed_by_real_evidence_index() -> None:
     )
 
 
+def test_default_navigation_targets_existing_inherited_evidence() -> None:
+    entries = EvidenceNavigationBuilder(
+        REPOSITORY_ROOT,
+        S03_OUTPUT,
+    ).default_entries()
+    inherited = [
+        entry
+        for entry in entries
+        if entry.entry_id != "submission"
+    ]
+
+    assert inherited
+    assert all(
+        (REPOSITORY_ROOT / entry.path).is_file()
+        for entry in inherited
+    )
+
+
 def test_first_stage_blocker_cannot_be_moved_to_handoff() -> None:
     residual = {
         "item_id": "missing-clean-install",

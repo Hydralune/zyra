@@ -184,7 +184,7 @@ class EvidenceNavigationBuilder:
                 kind="semantic-health",
                 path=(
                     "docs/reviews/evidence/M3-S02B-02/"
-                    "release-verification.json"
+                    "verification-summary.json"
                 ),
                 purpose=(
                     "Inspect process, API, persistence, provider, and "
@@ -201,7 +201,7 @@ class EvidenceNavigationBuilder:
                 entry_id="live-cases",
                 title="Inspect two cross-domain live cases",
                 kind="live-case",
-                path=f"{evidence_root}/case-studies.json",
+                path=f"{evidence_root}/generated/case-studies.json",
                 purpose=(
                     "Validate independent seeded repetitions and useful "
                     "final artifacts for both required domains."
@@ -223,7 +223,7 @@ class EvidenceNavigationBuilder:
                 entry_id="ablation",
                 title="Compare dynamic and fixed-topology outcomes",
                 kind="ablation",
-                path=f"{evidence_root}/ablation-materials.json",
+                path=f"{evidence_root}/generated/ablation-material.json",
                 purpose=(
                     "Show dynamic sparse topology and low-entropy behavior "
                     "against the fixed comparison."
@@ -239,7 +239,7 @@ class EvidenceNavigationBuilder:
                 entry_id="fault-recovery",
                 title="Inspect injected failures and recovery",
                 kind="fault-recovery",
-                path=f"{evidence_root}/case-studies.json",
+                path=f"{evidence_root}/generated/case-studies.json",
                 purpose=(
                     "Trace abnormal input, requirement change, node loss, "
                     "and provider failure through recovery and completion."
@@ -271,7 +271,10 @@ class EvidenceNavigationBuilder:
                 entry_id="final-artifact",
                 title="Inspect final artifact and evidence index",
                 kind="final-artifact",
-                path=f"{evidence_root}/evidence-index.json",
+                path=(
+                    f"{evidence_root}/generated/"
+                    "100-point-evidence-index.json"
+                ),
                 purpose=(
                     "Navigate every requirement and scoring item from one "
                     "immutable index."
