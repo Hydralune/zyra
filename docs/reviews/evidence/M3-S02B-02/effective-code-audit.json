@@ -1,0 +1,3281 @@
+{
+  "accounted_effective_production": 9285,
+  "audit_tool_is_nonproduction": true,
+  "gate": {
+    "blockers": [],
+    "effective": 9285,
+    "margin": 3285,
+    "minimum": 6000,
+    "ok": true
+  },
+  "large_file_audit": [
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 37,
+      "line_count": 13322,
+      "path": "apps/api/zyra_api/main.py",
+      "source_role": "zyra_owned_installed_release_lifecycle_integration",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 196,
+      "symbols": [
+        {
+          "end": 334,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "get_runtime_event_spine_bridge",
+          "start": 317
+        },
+        {
+          "end": 338,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "get_runtime_event_api",
+          "start": 337
+        },
+        {
+          "end": 344,
+          "kind": "FunctionDef",
+          "lines": 4,
+          "name": "get_event_ingress_api",
+          "start": 341
+        },
+        {
+          "end": 360,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "reset_runtime_event_spine_bridge",
+          "start": 347
+        },
+        {
+          "end": 567,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "runtime_configuration",
+          "start": 566
+        },
+        {
+          "end": 571,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "event_log_path",
+          "start": 570
+        },
+        {
+          "end": 575,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "sqlite_path",
+          "start": 574
+        },
+        {
+          "end": 579,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "worker_pool_path",
+          "start": 578
+        },
+        {
+          "end": 583,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "graph_state_path",
+          "start": 582
+        },
+        {
+          "end": 602,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "_worker_pool_secret",
+          "start": 596
+        },
+        {
+          "end": 629,
+          "kind": "FunctionDef",
+          "lines": 25,
+          "name": "get_worker_pool_api",
+          "start": 605
+        },
+        {
+          "end": 772,
+          "kind": "FunctionDef",
+          "lines": 141,
+          "name": "ensure_api_edge_worker",
+          "start": 632
+        },
+        {
+          "end": 791,
+          "kind": "FunctionDef",
+          "lines": 17,
+          "name": "reset_worker_pool_api",
+          "start": 775
+        },
+        {
+          "end": 795,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "fault_runtime_path",
+          "start": 794
+        },
+        {
+          "end": 827,
+          "kind": "FunctionDef",
+          "lines": 25,
+          "name": "get_fault_runtime_api",
+          "start": 803
+        },
+        {
+          "end": 836,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "reset_fault_runtime_api",
+          "start": 830
+        },
+        {
+          "end": 840,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "recovery_runtime_path",
+          "start": 839
+        },
+        {
+          "end": 1403,
+          "kind": "FunctionDef",
+          "lines": 556,
+          "name": "_recovery_owner_callbacks",
+          "start": 848
+        },
+        {
+          "end": 1431,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "_recovery_continuation_request_digest",
+          "start": 1418
+        },
+        {
+          "end": 1455,
+          "kind": "FunctionDef",
+          "lines": 22,
+          "name": "_reopen_task_for_recovery_continuation",
+          "start": 1434
+        },
+        {
+          "end": 1504,
+          "kind": "FunctionDef",
+          "lines": 47,
+          "name": "_recovery_execution_projection",
+          "start": 1458
+        },
+        {
+          "end": 1734,
+          "kind": "FunctionDef",
+          "lines": 228,
+          "name": "_recovery_continuation_owners",
+          "start": 1507
+        },
+        {
+          "end": 1790,
+          "kind": "FunctionDef",
+          "lines": 54,
+          "name": "_recovery_projection_ports",
+          "start": 1737
+        },
+        {
+          "end": 1813,
+          "kind": "FunctionDef",
+          "lines": 21,
+          "name": "_persist_recovery_proof_event",
+          "start": 1793
+        },
+        {
+          "end": 1939,
+          "kind": "FunctionDef",
+          "lines": 124,
+          "name": "get_recovery_runtime_api",
+          "start": 1816
+        },
+        {
+          "end": 1946,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "reset_recovery_runtime_api",
+          "start": 1942
+        },
+        {
+          "end": 1963,
+          "kind": "FunctionDef",
+          "lines": 15,
+          "name": "_persist_recovery_event",
+          "start": 1949
+        },
+        {
+          "end": 1984,
+          "kind": "FunctionDef",
+          "lines": 19,
+          "name": "_persist_recovery_memory",
+          "start": 1966
+        },
+        {
+          "end": 2012,
+          "kind": "FunctionDef",
+          "lines": 26,
+          "name": "codeworker_fault_observation_sink",
+          "start": 1987
+        },
+        {
+          "end": 2016,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "memory_index_path",
+          "start": 2015
+        },
+        {
+          "end": 2020,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "code_index_root_path",
+          "start": 2019
+        },
+        {
+          "end": 2030,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "tool_workspace_path",
+          "start": 2023
+        },
+        {
+          "end": 2050,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "workspace_manager_config",
+          "start": 2043
+        },
+        {
+          "end": 2072,
+          "kind": "FunctionDef",
+          "lines": 20,
+          "name": "_queue_workspace_event",
+          "start": 2053
+        },
+        {
+          "end": 2077,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "name": "drain_workspace_events",
+          "start": 2075
+        },
+        {
+          "end": 2126,
+          "kind": "FunctionDef",
+          "lines": 47,
+          "name": "persist_workspace_events",
+          "start": 2080
+        },
+        {
+          "end": 2159,
+          "kind": "FunctionDef",
+          "lines": 31,
+          "name": "_admit_code_index_patch_event",
+          "start": 2129
+        },
+        {
+          "end": 2174,
+          "kind": "FunctionDef",
+          "lines": 13,
+          "name": "get_workspace_manager",
+          "start": 2162
+        },
+        {
+          "end": 2200,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "reset_workspace_manager",
+          "start": 2177
+        },
+        {
+          "end": 2221,
+          "kind": "FunctionDef",
+          "lines": 19,
+          "name": "get_code_index_service",
+          "start": 2203
+        },
+        {
+          "end": 2228,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "reset_code_index_service",
+          "start": 2224
+        },
+        {
+          "end": 2242,
+          "kind": "FunctionDef",
+          "lines": 12,
+          "name": "task_workspace_root",
+          "start": 2231
+        },
+        {
+          "end": 2246,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "artifact_root_path",
+          "start": 2245
+        },
+        {
+          "end": 2256,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "artifact_catalog_service",
+          "start": 2252
+        },
+        {
+          "end": 2290,
+          "kind": "FunctionDef",
+          "lines": 27,
+          "name": "get_diff_review_api",
+          "start": 2264
+        },
+        {
+          "end": 2299,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "reset_diff_review_api",
+          "start": 2293
+        },
+        {
+          "end": 2308,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "terminal_state_path",
+          "start": 2307
+        },
+        {
+          "end": 2343,
+          "kind": "FunctionDef",
+          "lines": 33,
+          "name": "_terminal_workspace",
+          "start": 2311
+        },
+        {
+          "end": 2460,
+          "kind": "FunctionDef",
+          "lines": 115,
+          "name": "_terminal_permission",
+          "start": 2346
+        },
+        {
+          "end": 2486,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "_terminal_event",
+          "start": 2463
+        },
+        {
+          "end": 2547,
+          "kind": "FunctionDef",
+          "lines": 59,
+          "name": "_terminal_spill_sink",
+          "start": 2489
+        },
+        {
+          "end": 2592,
+          "kind": "FunctionDef",
+          "lines": 43,
+          "name": "get_terminal_api",
+          "start": 2550
+        },
+        {
+          "end": 2601,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "reset_terminal_api",
+          "start": 2595
+        },
+        {
+          "end": 2632,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "m1_owner_probe_reset_registry",
+          "start": 2609
+        },
+        {
+          "end": 2658,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "get_m1_hardening_api",
+          "start": 2635
+        },
+        {
+          "end": 2667,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "reset_m1_hardening_api",
+          "start": 2661
+        },
+        {
+          "end": 2675,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_hardening_task_payload",
+          "start": 2670
+        },
+        {
+          "end": 2679,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "permission_store_path",
+          "start": 2678
+        },
+        {
+          "end": 2691,
+          "kind": "FunctionDef",
+          "lines": 10,
+          "name": "permission_state_path",
+          "start": 2682
+        },
+        {
+          "end": 2695,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "mcp_state_path",
+          "start": 2694
+        },
+        {
+          "end": 2770,
+          "kind": "FunctionDef",
+          "lines": 68,
+          "name": "_commit_mcp_runtime_event",
+          "start": 2703
+        },
+        {
+          "end": 2798,
+          "kind": "FunctionDef",
+          "lines": 26,
+          "name": "get_mcp_runtime",
+          "start": 2773
+        },
+        {
+          "end": 2817,
+          "kind": "FunctionDef",
+          "lines": 17,
+          "name": "reset_mcp_runtime",
+          "start": 2801
+        },
+        {
+          "end": 2855,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_e02_command_route",
+          "start": 2838
+        },
+        {
+          "end": 2861,
+          "kind": "FunctionDef",
+          "lines": 4,
+          "name": "get_runtime_command_registry",
+          "start": 2858
+        },
+        {
+          "end": 2885,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "browser_runtime_config",
+          "start": 2878
+        },
+        {
+          "end": 2897,
+          "kind": "FunctionDef",
+          "lines": 10,
+          "name": "get_browser_runtime",
+          "start": 2888
+        },
+        {
+          "end": 2949,
+          "kind": "FunctionDef",
+          "lines": 50,
+          "name": "get_browser_runtime_services",
+          "start": 2900
+        },
+        {
+          "end": 2964,
+          "kind": "FunctionDef",
+          "lines": 13,
+          "name": "_browser_projection_payload",
+          "start": 2952
+        },
+        {
+          "end": 2972,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_task_is_sealed_browser_viewer_control",
+          "start": 2967
+        },
+        {
+          "end": 2996,
+          "kind": "FunctionDef",
+          "lines": 22,
+          "name": "_task_is_sealed_control",
+          "start": 2975
+        },
+        {
+          "end": 3011,
+          "kind": "FunctionDef",
+          "lines": 13,
+          "name": "_task_control_competition_mode",
+          "start": 2999
+        },
+        {
+          "end": 3109,
+          "kind": "FunctionDef",
+          "lines": 96,
+          "name": "_browser_viewer_control_request",
+          "start": 3014
+        },
+        {
+          "end": 3158,
+          "kind": "FunctionDef",
+          "lines": 47,
+          "name": "_browser_viewer_execution_constraints",
+          "start": 3112
+        },
+        {
+          "end": 3208,
+          "kind": "FunctionDef",
+          "lines": 48,
+          "name": "_browser_viewer_receipt",
+          "start": 3161
+        },
+        {
+          "end": 3215,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "reset_browser_runtime",
+          "start": 3211
+        },
+        {
+          "end": 3219,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "control_state_path",
+          "start": 3218
+        },
+        {
+          "end": 3223,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "subagent_state_path",
+          "start": 3222
+        },
+        {
+          "end": 3233,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "get_control_command_registry",
+          "start": 3226
+        },
+        {
+          "end": 3240,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "get_command_source_coordinator",
+          "start": 3236
+        },
+        {
+          "end": 3304,
+          "kind": "FunctionDef",
+          "lines": 62,
+          "name": "_build_command_source_coordinator",
+          "start": 3243
+        },
+        {
+          "end": 3308,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_commit_runtime_event",
+          "start": 3307
+        },
+        {
+          "end": 3324,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "get_control_dispatcher",
+          "start": 3311
+        },
+        {
+          "end": 3350,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "get_structured_control_hub",
+          "start": 3327
+        },
+        {
+          "end": 3360,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "reset_control_runtime",
+          "start": 3353
+        },
+        {
+          "end": 3386,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "get_typescript_agent_port",
+          "start": 3363
+        },
+        {
+          "end": 3393,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "reset_subagent_runtime",
+          "start": 3389
+        },
+        {
+          "end": 3449,
+          "kind": "FunctionDef",
+          "lines": 54,
+          "name": "_authorize_typescript_agent_physical_execution",
+          "start": 3396
+        },
+        {
+          "end": 3689,
+          "kind": "FunctionDef",
+          "lines": 238,
+          "name": "_run_typescript_agent_request",
+          "start": 3452
+        },
+        {
+          "end": 3911,
+          "kind": "FunctionDef",
+          "lines": 220,
+          "name": "_acquire_subagent_physical_dispatch",
+          "start": 3692
+        },
+        {
+          "end": 3966,
+          "kind": "FunctionDef",
+          "lines": 53,
+          "name": "_settle_subagent_physical_dispatch",
+          "start": 3914
+        },
+        {
+          "end": 3976,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "_agent_permission_session",
+          "start": 3969
+        },
+        {
+          "end": 3996,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_agent_api_authority_error",
+          "start": 3979
+        },
+        {
+          "end": 4007,
+          "kind": "FunctionDef",
+          "lines": 9,
+          "name": "get_permission_control_plane",
+          "start": 3999
+        },
+        {
+          "end": 4020,
+          "kind": "FunctionDef",
+          "lines": 11,
+          "name": "permission_workspace_root",
+          "start": 4010
+        },
+        {
+          "end": 4038,
+          "kind": "FunctionDef",
+          "lines": 16,
+          "name": "permission_session_workspace_root",
+          "start": 4023
+        },
+        {
+          "end": 4050,
+          "kind": "FunctionDef",
+          "lines": 10,
+          "name": "get_permission_api_facade",
+          "start": 4041
+        },
+        {
+          "end": 4061,
+          "kind": "FunctionDef",
+          "lines": 9,
+          "name": "_task_skill_worker_messages",
+          "start": 4053
+        },
+        {
+          "end": 4065,
+          "kind": "FunctionDef",
+          "lines": 4,
+          "name": "get_store",
+          "start": 4062
+        },
+        {
+          "end": 4074,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "gateway_state_path",
+          "start": 4073
+        },
+        {
+          "end": 4094,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_session_owner_activation",
+          "start": 4077
+        },
+        {
+          "end": 4116,
+          "kind": "FunctionDef",
+          "lines": 20,
+          "name": "_permission_owner_activation",
+          "start": 4097
+        },
+        {
+          "end": 4141,
+          "kind": "FunctionDef",
+          "lines": 23,
+          "name": "_memory_owner_activation",
+          "start": 4119
+        },
+        {
+          "end": 4165,
+          "kind": "FunctionDef",
+          "lines": 22,
+          "name": "_scheduler_owner_activation",
+          "start": 4144
+        },
+        {
+          "end": 4190,
+          "kind": "FunctionDef",
+          "lines": 23,
+          "name": "_artifact_owner_activation",
+          "start": 4168
+        },
+        {
+          "end": 4210,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_worker_owner_activation",
+          "start": 4193
+        },
+        {
+          "end": 4224,
+          "kind": "FunctionDef",
+          "lines": 12,
+          "name": "_graph_owner_activation",
+          "start": 4213
+        },
+        {
+          "end": 4245,
+          "kind": "FunctionDef",
+          "lines": 19,
+          "name": "_provider_owner_activation",
+          "start": 4227
+        },
+        {
+          "end": 4271,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "_mcp_owner_activation",
+          "start": 4248
+        },
+        {
+          "end": 4293,
+          "kind": "FunctionDef",
+          "lines": 20,
+          "name": "_gateway_owner_activation",
+          "start": 4274
+        },
+        {
+          "end": 4310,
+          "kind": "FunctionDef",
+          "lines": 15,
+          "name": "_terminal_owner_activation",
+          "start": 4296
+        },
+        {
+          "end": 4326,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "_runtime_owner_activations",
+          "start": 4313
+        },
+        {
+          "end": 4357,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "_runtime_entry_activation",
+          "start": 4344
+        },
+        {
+          "end": 4394,
+          "kind": "FunctionDef",
+          "lines": 35,
+          "name": "get_runtime_owner_composition",
+          "start": 4360
+        },
+        {
+          "end": 4401,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "reset_runtime_owner_composition",
+          "start": 4397
+        },
+        {
+          "end": 4430,
+          "kind": "FunctionDef",
+          "lines": 27,
+          "name": "get_api_product_bootstrap",
+          "start": 4404
+        },
+        {
+          "end": 4434,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "reset_api_product_bootstrap",
+          "start": 4433
+        },
+        {
+          "end": 4531,
+          "kind": "FunctionDef",
+          "lines": 95,
+          "name": "runtime_readiness_probes",
+          "start": 4437
+        },
+        {
+          "end": 4541,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "graph_execution_context",
+          "start": 4534
+        },
+        {
+          "end": 4592,
+          "kind": "FunctionDef",
+          "lines": 49,
+          "name": "_graph_workspace_runtime_binding",
+          "start": 4544
+        },
+        {
+          "end": 4596,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "get_permission_store",
+          "start": 4595
+        },
+        {
+          "end": 4610,
+          "kind": "FunctionDef",
+          "lines": 12,
+          "name": "_memory_fabric",
+          "start": 4599
+        },
+        {
+          "end": 4650,
+          "kind": "FunctionDef",
+          "lines": 30,
+          "name": "get_memory_curator_runtime",
+          "start": 4621
+        },
+        {
+          "end": 4661,
+          "kind": "FunctionDef",
+          "lines": 9,
+          "name": "reset_memory_curator_runtime",
+          "start": 4653
+        },
+        {
+          "end": 4690,
+          "kind": "FunctionDef",
+          "lines": 27,
+          "name": "get_reusable_procedure_runtime",
+          "start": 4664
+        },
+        {
+          "end": 4722,
+          "kind": "FunctionDef",
+          "lines": 30,
+          "name": "curate_terminal_task",
+          "start": 4693
+        },
+        {
+          "end": 4807,
+          "kind": "FunctionDef",
+          "lines": 83,
+          "name": "_worker_retrieval_context",
+          "start": 4725
+        },
+        {
+          "end": 4819,
+          "kind": "FunctionDef",
+          "lines": 10,
+          "name": "make_task_created_event",
+          "start": 4810
+        },
+        {
+          "end": 4833,
+          "kind": "FunctionDef",
+          "lines": 12,
+          "name": "persist_events",
+          "start": 4822
+        },
+        {
+          "end": 4841,
+          "kind": "ClassDef",
+          "lines": 6,
+          "name": "JsonRequestError",
+          "start": 4836
+        },
+        {
+          "end": 4850,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "name": "_task_lock",
+          "start": 4848
+        },
+        {
+          "end": 4883,
+          "kind": "FunctionDef",
+          "lines": 31,
+          "name": "_task_node_ids",
+          "start": 4853
+        },
+        {
+          "end": 10407,
+          "kind": "ClassDef",
+          "lines": 5522,
+          "name": "ZyraRequestHandler",
+          "start": 4886
+        },
+        {
+          "end": 10471,
+          "kind": "FunctionDef",
+          "lines": 62,
+          "name": "run",
+          "start": 10410
+        },
+        {
+          "end": 10475,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_path_parts",
+          "start": 10474
+        },
+        {
+          "end": 10483,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_bounded_permission_limit",
+          "start": 10478
+        },
+        {
+          "end": 10500,
+          "kind": "FunctionDef",
+          "lines": 15,
+          "name": "_merge_permission_request_projections",
+          "start": 10486
+        },
+        {
+          "end": 10504,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_list_path",
+          "start": 10503
+        },
+        {
+          "end": 10508,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_audit_path",
+          "start": 10507
+        },
+        {
+          "end": 10512,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_readiness_path",
+          "start": 10511
+        },
+        {
+          "end": 10516,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_report_path",
+          "start": 10515
+        },
+        {
+          "end": 10520,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_accounting_path",
+          "start": 10519
+        },
+        {
+          "end": 10524,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_linecount_path",
+          "start": 10523
+        },
+        {
+          "end": 10528,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_buckets_path",
+          "start": 10527
+        },
+        {
+          "end": 10532,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_boundary_path",
+          "start": 10531
+        },
+        {
+          "end": 10536,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_reachability_path",
+          "start": 10535
+        },
+        {
+          "end": 10540,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_acceptance_path",
+          "start": 10539
+        },
+        {
+          "end": 10544,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_persistence_path",
+          "start": 10543
+        },
+        {
+          "end": 10548,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_cleanroom_path",
+          "start": 10547
+        },
+        {
+          "end": 10552,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_semantic_effects_path",
+          "start": 10551
+        },
+        {
+          "end": 10556,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_test_quality_path",
+          "start": 10555
+        },
+        {
+          "end": 10560,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_schema_contract_path",
+          "start": 10559
+        },
+        {
+          "end": 10564,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_evidence_graph_path",
+          "start": 10563
+        },
+        {
+          "end": 10568,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_state_custody_path",
+          "start": 10567
+        },
+        {
+          "end": 10572,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_mutation_consistency_path",
+          "start": 10571
+        },
+        {
+          "end": 10576,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_policy_matrix_path",
+          "start": 10575
+        },
+        {
+          "end": 10580,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_unit_review_path",
+          "start": 10579
+        },
+        {
+          "end": 10584,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_snapshots_path",
+          "start": 10583
+        },
+        {
+          "end": 10588,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_seed_path",
+          "start": 10587
+        },
+        {
+          "end": 10592,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_is_ledger_entries_path",
+          "start": 10591
+        },
+        {
+          "end": 10623,
+          "kind": "FunctionDef",
+          "lines": 29,
+          "name": "_ledger_entry_id_from_path",
+          "start": 10595
+        },
+        {
+          "end": 10631,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_ledger_advance_id_from_path",
+          "start": 10626
+        },
+        {
+          "end": 10635,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "_flatten_query",
+          "start": 10634
+        },
+        {
+          "end": 10640,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "name": "_split_csv",
+          "start": 10638
+        },
+        {
+          "end": 10648,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_truthy",
+          "start": 10643
+        },
+        {
+          "end": 10655,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "_int_or_default",
+          "start": 10651
+        },
+        {
+          "end": 10670,
+          "kind": "FunctionDef",
+          "lines": 13,
+          "name": "_optional_line_count_report",
+          "start": 10658
+        },
+        {
+          "end": 10705,
+          "kind": "FunctionDef",
+          "lines": 33,
+          "name": "_uses_advanced_ledger_selector",
+          "start": 10673
+        },
+        {
+          "end": 10728,
+          "kind": "FunctionDef",
+          "lines": 21,
+          "name": "_filtered_audit_payload",
+          "start": 10708
+        },
+        {
+          "end": 10736,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_positive_int",
+          "start": 10731
+        },
+        {
+          "end": 10744,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_bounded_int",
+          "start": 10739
+        },
+        {
+          "end": 10752,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_optional_query_value",
+          "start": 10747
+        },
+        {
+          "end": 10765,
+          "kind": "FunctionDef",
+          "lines": 11,
+          "name": "_artifact_refs_from_store",
+          "start": 10755
+        },
+        {
+          "end": 10772,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "_find_artifact_ref",
+          "start": 10768
+        },
+        {
+          "end": 10777,
+          "kind": "FunctionDef",
+          "lines": 3,
+          "name": "_checkpoint_json",
+          "start": 10775
+        },
+        {
+          "end": 10787,
+          "kind": "FunctionDef",
+          "lines": 8,
+          "name": "_worker_request_projection",
+          "start": 10780
+        },
+        {
+          "end": 10821,
+          "kind": "FunctionDef",
+          "lines": 32,
+          "name": "_browser_permission_session_envelope",
+          "start": 10790
+        },
+        {
+          "end": 10837,
+          "kind": "FunctionDef",
+          "lines": 14,
+          "name": "_artifact_entry",
+          "start": 10824
+        },
+        {
+          "end": 10857,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_safe_download_name",
+          "start": 10840
+        },
+        {
+          "end": 10883,
+          "kind": "FunctionDef",
+          "lines": 24,
+          "name": "_scheduler_task_view",
+          "start": 10860
+        },
+        {
+          "end": 10943,
+          "kind": "FunctionDef",
+          "lines": 58,
+          "name": "_control_command_request_from_text",
+          "start": 10886
+        },
+        {
+          "end": 12776,
+          "kind": "FunctionDef",
+          "lines": 1831,
+          "name": "_control_context_for_task",
+          "start": 10946
+        },
+        {
+          "end": 12799,
+          "kind": "FunctionDef",
+          "lines": 21,
+          "name": "_recovery_task_view",
+          "start": 12779
+        },
+        {
+          "end": 12806,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "_stage_node",
+          "start": 12802
+        },
+        {
+          "end": 12814,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_event_counts",
+          "start": 12809
+        },
+        {
+          "end": 13042,
+          "kind": "FunctionDef",
+          "lines": 226,
+          "name": "_command_result_for_event",
+          "start": 12817
+        },
+        {
+          "end": 13069,
+          "kind": "FunctionDef",
+          "lines": 25,
+          "name": "_compact_task_context",
+          "start": 13045
+        },
+        {
+          "end": 13077,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_attach_artifacts",
+          "start": 13072
+        },
+        {
+          "end": 13097,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "_record_compaction_metadata",
+          "start": 13080
+        },
+        {
+          "end": 13141,
+          "kind": "FunctionDef",
+          "lines": 42,
+          "name": "_code_worker_route_contract_events",
+          "start": 13100
+        },
+        {
+          "end": 13235,
+          "kind": "FunctionDef",
+          "lines": 92,
+          "name": "_record_code_worker_session_metadata",
+          "start": 13144
+        },
+        {
+          "end": 13243,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "_compact_policy_from_payload",
+          "start": 13238
+        },
+        {
+          "end": 13279,
+          "kind": "FunctionDef",
+          "lines": 34,
+          "name": "_export_task_run",
+          "start": 13246
+        },
+        {
+          "end": 13288,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "_command_groups",
+          "start": 13282
+        },
+        {
+          "end": 13295,
+          "kind": "FunctionDef",
+          "lines": 5,
+          "name": "_latest_metadata_item",
+          "start": 13291
+        },
+        {
+          "end": 13318,
+          "kind": "FunctionDef",
+          "lines": 21,
+          "name": "_apply_control_event_to_state",
+          "start": 13298
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 36,
+      "line_count": 998,
+      "path": "packages/orchestration/zyra_orchestration/deployment/orchestrator.py",
+      "source_role": "zyra_owned_installed_release_lifecycle_integration",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 1,
+      "symbols": [
+        {
+          "end": 995,
+          "kind": "ClassDef",
+          "lines": 948,
+          "name": "DeploymentOrchestrator",
+          "start": 48
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 1102,
+      "line_count": 1149,
+      "path": "packages/productization/zyra_productization/release/bundle.py",
+      "source_role": "zyra_owned_reproducible_bundle_and_wheel",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 6,
+      "symbols": [
+        {
+          "end": 74,
+          "kind": "FunctionDef",
+          "lines": 23,
+          "name": "source_revision",
+          "start": 52
+        },
+        {
+          "end": 104,
+          "kind": "FunctionDef",
+          "lines": 28,
+          "name": "assert_clean_git",
+          "start": 77
+        },
+        {
+          "end": 239,
+          "kind": "ClassDef",
+          "lines": 133,
+          "name": "ReleaseManifest",
+          "start": 107
+        },
+        {
+          "end": 585,
+          "kind": "ClassDef",
+          "lines": 344,
+          "name": "BenchmarkEvidenceLinker",
+          "start": 242
+        },
+        {
+          "end": 758,
+          "kind": "ClassDef",
+          "lines": 171,
+          "name": "DeterministicArchiveWriter",
+          "start": 588
+        },
+        {
+          "end": 1138,
+          "kind": "ClassDef",
+          "lines": 378,
+          "name": "ReleaseBundleBuilder",
+          "start": 761
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 744,
+      "line_count": 814,
+      "path": "packages/productization/zyra_productization/release/ci.py",
+      "source_role": "zyra_owned_release_admission_and_control_surface",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 8,
+      "symbols": [
+        {
+          "end": 23,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "utc_now",
+          "start": 22
+        },
+        {
+          "end": 164,
+          "kind": "ClassDef",
+          "lines": 138,
+          "name": "PythonTestPolicy",
+          "start": 27
+        },
+        {
+          "end": 203,
+          "kind": "ClassDef",
+          "lines": 36,
+          "name": "GateSpec",
+          "start": 168
+        },
+        {
+          "end": 232,
+          "kind": "ClassDef",
+          "lines": 26,
+          "name": "GateContext",
+          "start": 207
+        },
+        {
+          "end": 302,
+          "kind": "ClassDef",
+          "lines": 68,
+          "name": "GateRegistry",
+          "start": 235
+        },
+        {
+          "end": 586,
+          "kind": "ClassDef",
+          "lines": 282,
+          "name": "GateExecutor",
+          "start": 305
+        },
+        {
+          "end": 682,
+          "kind": "ClassDef",
+          "lines": 94,
+          "name": "ReleaseAdmission",
+          "start": 589
+        },
+        {
+          "end": 803,
+          "kind": "FunctionDef",
+          "lines": 119,
+          "name": "standard_gate_registry",
+          "start": 685
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 1119,
+      "line_count": 1196,
+      "path": "packages/productization/zyra_productization/release/cleanroom.py",
+      "source_role": "zyra_owned_cross_platform_clean_install_lifecycle",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 8,
+      "symbols": [
+        {
+          "end": 41,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "utc_now",
+          "start": 40
+        },
+        {
+          "end": 74,
+          "kind": "ClassDef",
+          "lines": 30,
+          "name": "CommandResult",
+          "start": 45
+        },
+        {
+          "end": 169,
+          "kind": "ClassDef",
+          "lines": 93,
+          "name": "CommandRunner",
+          "start": 77
+        },
+        {
+          "end": 332,
+          "kind": "ClassDef",
+          "lines": 161,
+          "name": "PlatformPlanner",
+          "start": 172
+        },
+        {
+          "end": 469,
+          "kind": "ClassDef",
+          "lines": 135,
+          "name": "OfflineArtifactResolver",
+          "start": 335
+        },
+        {
+          "end": 515,
+          "kind": "ClassDef",
+          "lines": 44,
+          "name": "PortAvailabilityProbe",
+          "start": 472
+        },
+        {
+          "end": 656,
+          "kind": "ClassDef",
+          "lines": 139,
+          "name": "ProcessLifecycle",
+          "start": 518
+        },
+        {
+          "end": 1185,
+          "kind": "ClassDef",
+          "lines": 527,
+          "name": "CleanInstallRunner",
+          "start": 659
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 1358,
+      "line_count": 1430,
+      "path": "packages/productization/zyra_productization/release/integrity.py",
+      "source_role": "zyra_owned_release_boundary_and_integrity",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 17,
+      "symbols": [
+        {
+          "end": 40,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "sha256_bytes",
+          "start": 39
+        },
+        {
+          "end": 44,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "sha256_text",
+          "start": 43
+        },
+        {
+          "end": 52,
+          "kind": "FunctionDef",
+          "lines": 6,
+          "name": "sha256_file",
+          "start": 47
+        },
+        {
+          "end": 61,
+          "kind": "FunctionDef",
+          "lines": 7,
+          "name": "stable_json",
+          "start": 55
+        },
+        {
+          "end": 65,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "stable_digest",
+          "start": 64
+        },
+        {
+          "end": 147,
+          "kind": "FunctionDef",
+          "lines": 80,
+          "name": "normalize_relative_path",
+          "start": 68
+        },
+        {
+          "end": 167,
+          "kind": "FunctionDef",
+          "lines": 18,
+          "name": "resolve_below",
+          "start": 150
+        },
+        {
+          "end": 200,
+          "kind": "FunctionDef",
+          "lines": 31,
+          "name": "classify_file",
+          "start": 170
+        },
+        {
+          "end": 216,
+          "kind": "ClassDef",
+          "lines": 13,
+          "name": "TreeEntry",
+          "start": 204
+        },
+        {
+          "end": 320,
+          "kind": "ClassDef",
+          "lines": 102,
+          "name": "CanonicalTreeWalker",
+          "start": 219
+        },
+        {
+          "end": 546,
+          "kind": "ClassDef",
+          "lines": 224,
+          "name": "BoundaryScanner",
+          "start": 323
+        },
+        {
+          "end": 794,
+          "kind": "ClassDef",
+          "lines": 246,
+          "name": "PythonLock",
+          "start": 549
+        },
+        {
+          "end": 952,
+          "kind": "ClassDef",
+          "lines": 156,
+          "name": "BunLock",
+          "start": 797
+        },
+        {
+          "end": 1032,
+          "kind": "ClassDef",
+          "lines": 78,
+          "name": "ChecksumBuilder",
+          "start": 955
+        },
+        {
+          "end": 1184,
+          "kind": "ClassDef",
+          "lines": 150,
+          "name": "ChecksumVerifier",
+          "start": 1035
+        },
+        {
+          "end": 1405,
+          "kind": "ClassDef",
+          "lines": 219,
+          "name": "ArchiveInspector",
+          "start": 1187
+        },
+        {
+          "end": 1409,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "encode_digest",
+          "start": 1408
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 868,
+      "line_count": 946,
+      "path": "packages/productization/zyra_productization/release/inventory.py",
+      "source_role": "zyra_owned_sbom_notice_config_and_runtime_inventory",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 10,
+      "symbols": [
+        {
+          "end": 66,
+          "kind": "ClassDef",
+          "lines": 31,
+          "name": "Component",
+          "start": 36
+        },
+        {
+          "end": 106,
+          "kind": "ClassDef",
+          "lines": 38,
+          "name": "LicenseNormalizer",
+          "start": 69
+        },
+        {
+          "end": 198,
+          "kind": "ClassDef",
+          "lines": 90,
+          "name": "PythonComponentInventory",
+          "start": 109
+        },
+        {
+          "end": 301,
+          "kind": "ClassDef",
+          "lines": 101,
+          "name": "JavaScriptComponentInventory",
+          "start": 201
+        },
+        {
+          "end": 412,
+          "kind": "ClassDef",
+          "lines": 109,
+          "name": "RuntimeInventory",
+          "start": 304
+        },
+        {
+          "end": 551,
+          "kind": "ClassDef",
+          "lines": 137,
+          "name": "SbomBuilder",
+          "start": 415
+        },
+        {
+          "end": 617,
+          "kind": "ClassDef",
+          "lines": 64,
+          "name": "NoticeBuilder",
+          "start": 554
+        },
+        {
+          "end": 677,
+          "kind": "ClassDef",
+          "lines": 58,
+          "name": "SecretRedactor",
+          "start": 620
+        },
+        {
+          "end": 895,
+          "kind": "ClassDef",
+          "lines": 216,
+          "name": "ConfigurationProvisioner",
+          "start": 680
+        },
+        {
+          "end": 932,
+          "kind": "FunctionDef",
+          "lines": 35,
+          "name": "default_release_configuration",
+          "start": 898
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 956,
+      "line_count": 1008,
+      "path": "packages/productization/zyra_productization/release/runtime.py",
+      "source_role": "zyra_owned_release_admission_and_control_surface",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 2,
+      "symbols": [
+        {
+          "end": 316,
+          "kind": "ClassDef",
+          "lines": 262,
+          "name": "ReleaseDoctor",
+          "start": 55
+        },
+        {
+          "end": 1005,
+          "kind": "ClassDef",
+          "lines": 687,
+          "name": "ReleaseRuntime",
+          "start": 319
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 472,
+      "line_count": 513,
+      "path": "packages/productization/zyra_productization/release/submission.py",
+      "source_role": "zyra_owned_submission_and_evidence_binding",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 5,
+      "symbols": [
+        {
+          "end": 63,
+          "kind": "ClassDef",
+          "lines": 46,
+          "name": "EvidenceReference",
+          "start": 18
+        },
+        {
+          "end": 208,
+          "kind": "ClassDef",
+          "lines": 143,
+          "name": "EvidenceIndex",
+          "start": 66
+        },
+        {
+          "end": 257,
+          "kind": "ClassDef",
+          "lines": 47,
+          "name": "ReproducibilityVerifier",
+          "start": 211
+        },
+        {
+          "end": 324,
+          "kind": "ClassDef",
+          "lines": 65,
+          "name": "CleanInstallReceiptVerifier",
+          "start": 260
+        },
+        {
+          "end": 504,
+          "kind": "ClassDef",
+          "lines": 178,
+          "name": "SubmissionAssembler",
+          "start": 327
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 1786,
+      "line_count": 1933,
+      "path": "packages/productization/zyra_productization/release/transactions.py",
+      "source_role": "zyra_owned_transaction_migration_rollback_uninstall",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 12,
+      "symbols": [
+        {
+          "end": 80,
+          "kind": "FunctionDef",
+          "lines": 2,
+          "name": "utc_now",
+          "start": 79
+        },
+        {
+          "end": 687,
+          "kind": "ClassDef",
+          "lines": 605,
+          "name": "InstallReceiptStore",
+          "start": 83
+        },
+        {
+          "end": 693,
+          "kind": "ClassDef",
+          "lines": 4,
+          "name": "MigrationContext",
+          "start": 690
+        },
+        {
+          "end": 697,
+          "kind": "ClassDef",
+          "lines": 2,
+          "name": "MigrationApply",
+          "start": 696
+        },
+        {
+          "end": 705,
+          "kind": "ClassDef",
+          "lines": 6,
+          "name": "MigrationRollback",
+          "start": 700
+        },
+        {
+          "end": 709,
+          "kind": "ClassDef",
+          "lines": 2,
+          "name": "MigrationVerify",
+          "start": 708
+        },
+        {
+          "end": 750,
+          "kind": "ClassDef",
+          "lines": 39,
+          "name": "MigrationStep",
+          "start": 712
+        },
+        {
+          "end": 872,
+          "kind": "ClassDef",
+          "lines": 120,
+          "name": "MigrationRegistry",
+          "start": 753
+        },
+        {
+          "end": 1047,
+          "kind": "ClassDef",
+          "lines": 173,
+          "name": "MigrationExecutor",
+          "start": 875
+        },
+        {
+          "end": 1060,
+          "kind": "ClassDef",
+          "lines": 11,
+          "name": "_InstallContext",
+          "start": 1050
+        },
+        {
+          "end": 1858,
+          "kind": "ClassDef",
+          "lines": 796,
+          "name": "ReleaseInstaller",
+          "start": 1063
+        },
+        {
+          "end": 1921,
+          "kind": "FunctionDef",
+          "lines": 61,
+          "name": "default_migration_registry",
+          "start": 1861
+        }
+      ]
+    },
+    {
+      "cohesion": "The module owns one release boundary: integrity, inventory, transaction, bundle, cleanroom or admission.",
+      "effective_production": 482,
+      "line_count": 524,
+      "path": "packages/productization/zyra_productization/release/wheel.py",
+      "source_role": "zyra_owned_reproducible_bundle_and_wheel",
+      "split_assessment": "State invariants and their fail-closed paths remain co-located without creating a second product owner.",
+      "symbol_count": 2,
+      "symbols": [
+        {
+          "end": 42,
+          "kind": "ClassDef",
+          "lines": 15,
+          "name": "WheelEntry",
+          "start": 28
+        },
+        {
+          "end": 517,
+          "kind": "ClassDef",
+          "lines": 473,
+          "name": "DeterministicWheelBuilder",
+          "start": 45
+        }
+      ]
+    }
+  ],
+  "method": {
+    "baseline": "1774cd21fa430f0d626987a80dabc62d51ff9048",
+    "excluded": "requirements lock, generated bundle/SBOM/report, tests, docs, CI YAML and audit/runner scripts",
+    "python": "AST/token exclusion of declarations, schema-only fields, comments, blank lines and non-behavioral mappings",
+    "raw": "target-side additions from git diff --unified=0",
+    "target": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "tests_docs_scripts_count_toward_minimum": false
+  },
+  "parent_unit": "M3-02B",
+  "schema": "zyra.effective-code-language-gate-audit/v1",
+  "slice": {
+    "allowed_implementation_commits": [],
+    "base": "1774cd21fa430f0d626987a80dabc62d51ff9048",
+    "by_source_role_and_language": [
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 1751,
+        "source_role": "behavior_verification",
+        "test": 1751
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "typescript",
+        "production": 0,
+        "raw_additions": 14,
+        "source_role": "behavior_verification",
+        "test": 14
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 174,
+        "language": "markdown",
+        "production": 0,
+        "raw_additions": 174,
+        "source_role": "evidence_or_documentation",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 478,
+        "language": "python",
+        "production": 0,
+        "raw_additions": 478,
+        "source_role": "nonproduction_gate_or_runner",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 181,
+        "language": "json",
+        "production": 0,
+        "raw_additions": 181,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 50,
+        "language": "python",
+        "production": 442,
+        "raw_additions": 492,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "toml",
+        "production": 2,
+        "raw_additions": 2,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "txt",
+        "production": 3882,
+        "raw_additions": 3882,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 0,
+        "language": "typescript",
+        "production": 8,
+        "raw_additions": 8,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 79,
+        "language": "yml",
+        "production": 0,
+        "raw_additions": 79,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 346,
+        "language": "python",
+        "production": 87,
+        "raw_additions": 433,
+        "source_role": "schema_declaration_or_public_exports",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 77,
+        "language": "python",
+        "production": 1119,
+        "raw_additions": 1196,
+        "source_role": "zyra_owned_cross_platform_clean_install_lifecycle",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 1,
+        "language": "python",
+        "production": 73,
+        "raw_additions": 74,
+        "source_role": "zyra_owned_installed_release_lifecycle_integration",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 152,
+        "language": "python",
+        "production": 1983,
+        "raw_additions": 2135,
+        "source_role": "zyra_owned_release_admission_and_control_surface",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 218,
+        "language": "python",
+        "production": 1400,
+        "raw_additions": 1618,
+        "source_role": "zyra_owned_release_boundary_and_integrity",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 89,
+        "language": "python",
+        "production": 1584,
+        "raw_additions": 1673,
+        "source_role": "zyra_owned_reproducible_bundle_and_wheel",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 78,
+        "language": "python",
+        "production": 868,
+        "raw_additions": 946,
+        "source_role": "zyra_owned_sbom_notice_config_and_runtime_inventory",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 41,
+        "language": "python",
+        "production": 472,
+        "raw_additions": 513,
+        "source_role": "zyra_owned_submission_and_evidence_binding",
+        "test": 0
+      },
+      {
+        "adapter": 0,
+        "generated_data_docs": 147,
+        "language": "python",
+        "production": 1786,
+        "raw_additions": 1933,
+        "source_role": "zyra_owned_transaction_migration_rollback_uninstall",
+        "test": 0
+      }
+    ],
+    "files": [
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "yml",
+        "nonproduction_tooling": 0,
+        "path": ".github/workflows/release.yml",
+        "production_runtime": 0,
+        "raw_additions": 79,
+        "schema_dto_data": 79,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 37,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "apps/api/zyra_api/main.py",
+        "production_runtime": 37,
+        "raw_additions": 37,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_installed_release_lifecycle_integration",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 6,
+        "generated": 0,
+        "language": "typescript",
+        "nonproduction_tooling": 0,
+        "path": "apps/web/src/events/ingress/coordinator.ts",
+        "production_runtime": 6,
+        "raw_additions": 6,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "typescript",
+        "nonproduction_tooling": 0,
+        "path": "apps/web/test/event-ingress-probe.ts",
+        "production_runtime": 0,
+        "raw_additions": 14,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 14,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "json",
+        "nonproduction_tooling": 0,
+        "path": "config/release-python-tests.json",
+        "production_runtime": 0,
+        "raw_additions": 32,
+        "schema_dto_data": 32,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "json",
+        "nonproduction_tooling": 0,
+        "path": "config/release.example.json",
+        "production_runtime": 0,
+        "raw_additions": 43,
+        "schema_dto_data": 43,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "markdown",
+        "nonproduction_tooling": 0,
+        "path": "docs/release/operations.md",
+        "production_runtime": 0,
+        "raw_additions": 174,
+        "schema_dto_data": 174,
+        "source_role": "evidence_or_documentation",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "json",
+        "nonproduction_tooling": 0,
+        "path": "packages/integrations/zyra_integrations/data/source_custody_processes.json",
+        "production_runtime": 0,
+        "raw_additions": 106,
+        "schema_dto_data": 106,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 4,
+        "effective_production": 45,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/integrations/zyra_integrations/ledger_audit.py",
+        "production_runtime": 45,
+        "raw_additions": 49,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 3,
+        "effective_production": 6,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+        "production_runtime": 6,
+        "raw_additions": 9,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 9,
+        "effective_production": 135,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/integrations/zyra_integrations/ledger_source_scan.py",
+        "production_runtime": 135,
+        "raw_additions": 144,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 26,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/orchestration/zyra_orchestration/deployment/doctor.py",
+        "production_runtime": 26,
+        "raw_additions": 26,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 1,
+        "effective_production": 36,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/orchestration/zyra_orchestration/deployment/orchestrator.py",
+        "production_runtime": 36,
+        "raw_additions": 37,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_installed_release_lifecycle_integration",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 3,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/__init__.py",
+        "production_runtime": 0,
+        "raw_additions": 5,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 2,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 1,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/__init__.py",
+        "production_runtime": 0,
+        "raw_additions": 114,
+        "schema_dto_data": 0,
+        "source_role": "schema_declaration_or_public_exports",
+        "test_mock_fixture": 0,
+        "type_declaration": 113,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 45,
+        "effective_production": 1102,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/bundle.py",
+        "production_runtime": 1102,
+        "raw_additions": 1149,
+        "schema_dto_data": 1,
+        "source_role": "zyra_owned_reproducible_bundle_and_wheel",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 41,
+        "effective_production": 744,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/ci.py",
+        "production_runtime": 744,
+        "raw_additions": 814,
+        "schema_dto_data": 28,
+        "source_role": "zyra_owned_release_admission_and_control_surface",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 50,
+        "effective_production": 1119,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/cleanroom.py",
+        "production_runtime": 1119,
+        "raw_additions": 1196,
+        "schema_dto_data": 26,
+        "source_role": "zyra_owned_cross_platform_clean_install_lifecycle",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 29,
+        "effective_production": 283,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/cli.py",
+        "production_runtime": 283,
+        "raw_additions": 313,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_release_admission_and_control_surface",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 27,
+        "effective_production": 62,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/errors.py",
+        "production_runtime": 62,
+        "raw_additions": 90,
+        "schema_dto_data": 0,
+        "source_role": "schema_declaration_or_public_exports",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 65,
+        "effective_production": 1358,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/integrity.py",
+        "production_runtime": 1358,
+        "raw_additions": 1430,
+        "schema_dto_data": 6,
+        "source_role": "zyra_owned_release_boundary_and_integrity",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 50,
+        "effective_production": 868,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/inventory.py",
+        "production_runtime": 868,
+        "raw_additions": 946,
+        "schema_dto_data": 27,
+        "source_role": "zyra_owned_sbom_notice_config_and_runtime_inventory",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 37,
+        "effective_production": 25,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/models.py",
+        "production_runtime": 25,
+        "raw_additions": 229,
+        "schema_dto_data": 166,
+        "source_role": "schema_declaration_or_public_exports",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 10,
+        "effective_production": 42,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/policy.py",
+        "production_runtime": 42,
+        "raw_additions": 188,
+        "schema_dto_data": 136,
+        "source_role": "zyra_owned_release_boundary_and_integrity",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 51,
+        "effective_production": 956,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/runtime.py",
+        "production_runtime": 956,
+        "raw_additions": 1008,
+        "schema_dto_data": 0,
+        "source_role": "zyra_owned_release_admission_and_control_surface",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 21,
+        "effective_production": 472,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/submission.py",
+        "production_runtime": 472,
+        "raw_additions": 513,
+        "schema_dto_data": 19,
+        "source_role": "zyra_owned_submission_and_evidence_binding",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 72,
+        "effective_production": 1786,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/transactions.py",
+        "production_runtime": 1786,
+        "raw_additions": 1933,
+        "schema_dto_data": 60,
+        "source_role": "zyra_owned_transaction_migration_rollback_uninstall",
+        "test_mock_fixture": 0,
+        "type_declaration": 15,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 34,
+        "effective_production": 482,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/productization/zyra_productization/release/wheel.py",
+        "production_runtime": 482,
+        "raw_additions": 524,
+        "schema_dto_data": 7,
+        "source_role": "zyra_owned_reproducible_bundle_and_wheel",
+        "test_mock_fixture": 0,
+        "type_declaration": 1,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 2,
+        "generated": 0,
+        "language": "typescript",
+        "nonproduction_tooling": 0,
+        "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+        "production_runtime": 2,
+        "raw_additions": 2,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 14,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/runtime/zyra_runtime/extraction_runtime.py",
+        "production_runtime": 14,
+        "raw_additions": 14,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 21,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/scheduler/zyra_scheduler/fault_runtime/runtime.py",
+        "production_runtime": 21,
+        "raw_additions": 21,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 9,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/application.py",
+        "production_runtime": 9,
+        "raw_additions": 9,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 24,
+        "effective_production": 141,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/workers/zyra_workers/browser_worker.py",
+        "production_runtime": 141,
+        "raw_additions": 165,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 11,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/workers/zyra_workers/code_worker_runtime.py",
+        "production_runtime": 11,
+        "raw_additions": 11,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 5,
+        "effective_production": 20,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/workers/zyra_workers/retrieval_context_runtime.py",
+        "production_runtime": 20,
+        "raw_additions": 25,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 6,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/workers/zyra_workers/scaffold_bridge_runtime.py",
+        "production_runtime": 6,
+        "raw_additions": 6,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 8,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "packages/workers/zyra_workers/typescript_claude_runtime.py",
+        "production_runtime": 8,
+        "raw_additions": 8,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 2,
+        "generated": 0,
+        "language": "toml",
+        "nonproduction_tooling": 0,
+        "path": "pyproject.toml",
+        "production_runtime": 2,
+        "raw_additions": 2,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 3882,
+        "generated": 0,
+        "language": "txt",
+        "nonproduction_tooling": 0,
+        "path": "requirements.txt",
+        "production_runtime": 3882,
+        "raw_additions": 3882,
+        "schema_dto_data": 0,
+        "source_role": "release_supporting_configuration_or_lock",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 213,
+        "path": "scripts/audit_m3_s02b02_effective_code_gate.py",
+        "production_runtime": 0,
+        "raw_additions": 213,
+        "schema_dto_data": 0,
+        "source_role": "nonproduction_gate_or_runner",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 265,
+        "path": "scripts/run_release_pipeline.py",
+        "production_runtime": 0,
+        "raw_additions": 265,
+        "schema_dto_data": 0,
+        "source_role": "nonproduction_gate_or_runner",
+        "test_mock_fixture": 0,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/__init__.py",
+        "production_runtime": 0,
+        "raw_additions": 1,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 1,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_browser_message_state_compression_integration.py",
+        "production_runtime": 0,
+        "raw_additions": 1,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 1,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_browser_worker.py",
+        "production_runtime": 0,
+        "raw_additions": 185,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 185,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_code_worker_query_session_lifecycle.py",
+        "production_runtime": 0,
+        "raw_additions": 71,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 71,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_code_worker_retrieval_context_main_path.py",
+        "production_runtime": 0,
+        "raw_additions": 35,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 35,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_e01_typescript_runtime_cutover.py",
+        "production_runtime": 0,
+        "raw_additions": 2,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 2,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_internalization_ledger_api.py",
+        "production_runtime": 0,
+        "raw_additions": 7,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 7,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_m2_typed_api_client_transport.py",
+        "production_runtime": 0,
+        "raw_additions": 9,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 9,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_scenario_runner_api_main_path.py",
+        "production_runtime": 0,
+        "raw_additions": 2,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 2,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_scheduler_api.py",
+        "production_runtime": 0,
+        "raw_additions": 41,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 41,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_watchdog_fault_injection_foundation.py",
+        "production_runtime": 0,
+        "raw_additions": 23,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 23,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/integration/test_worker_pool_api_main_path.py",
+        "production_runtime": 0,
+        "raw_additions": 23,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 23,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_deployment_profiles_runtime.py",
+        "production_runtime": 0,
+        "raw_additions": 33,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 33,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_internalization_ledger.py",
+        "production_runtime": 0,
+        "raw_additions": 33,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 33,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_internalization_ledger_control_plane.py",
+        "production_runtime": 0,
+        "raw_additions": 34,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 34,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_python_workspace_packaging.py",
+        "production_runtime": 0,
+        "raw_additions": 1,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 1,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_release_productization.py",
+        "production_runtime": 0,
+        "raw_additions": 1249,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 1249,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      },
+      {
+        "adapter_only": 0,
+        "docs_comments_blank": 0,
+        "effective_production": 0,
+        "generated": 0,
+        "language": "python",
+        "nonproduction_tooling": 0,
+        "path": "tests/unit/test_retrieval_index_adapters_integration.py",
+        "production_runtime": 0,
+        "raw_additions": 1,
+        "schema_dto_data": 0,
+        "source_role": "behavior_verification",
+        "test_mock_fixture": 1,
+        "type_declaration": 0,
+        "ui_behavior": 0,
+        "ui_presentation": 0,
+        "unrelated_scope": 0
+      }
+    ],
+    "target": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "totals": {
+      "adapter_only": 0,
+      "docs_comments_blank": 582,
+      "effective_production": 13706,
+      "generated": 0,
+      "nonproduction_tooling": 478,
+      "production_runtime": 13706,
+      "raw_additions": 17582,
+      "schema_dto_data": 910,
+      "test_mock_fixture": 1765,
+      "type_declaration": 141,
+      "ui_behavior": 0,
+      "ui_presentation": 0,
+      "unrelated_scope": 0
+    }
+  },
+  "slice_id": "M3-S02B-02",
+  "source_role_totals": {
+    "zyra_owned_cross_platform_clean_install_lifecycle": 1119,
+    "zyra_owned_installed_release_lifecycle_integration": 73,
+    "zyra_owned_release_admission_and_control_surface": 1983,
+    "zyra_owned_release_boundary_and_integrity": 1400,
+    "zyra_owned_reproducible_bundle_and_wheel": 1584,
+    "zyra_owned_sbom_notice_config_and_runtime_inventory": 868,
+    "zyra_owned_submission_and_evidence_binding": 472,
+    "zyra_owned_transaction_migration_rollback_uninstall": 1786
+  }
+}

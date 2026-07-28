@@ -1,0 +1,51 @@
+{
+  "schema": "zyra.m3-s02b-02.implementation-metadata/v1",
+  "slice_id": "M3-S02B-02",
+  "baseline_commit": "29fa59132c5c84f230e2ff3b94c75df510a4c20d",
+  "preimplementation_decision_commit": "1774cd21fa430f0d626987a80dabc62d51ff9048",
+  "implementation_commits": [
+    "8ccb5109722676ed2b5fb3c095d0ad2c5d6f3bf5",
+    "be46424da349bc5436636fc3bbbf6daa6147e3ae",
+    "370cd0e17f13e31c889e246e5354b9d9b5b94ef7",
+    "ba48e475ce3db1bb5e0f1e44dc4197dfceeaa133",
+    "944846fd484b465b3c4e2b4ec87565752b4baf67",
+    "948331dd2c377cf680cbf13ecb158f9fceed4ca3",
+    "e0500979debff157d832f748742147646b615d5a",
+    "fb3d5da95815848afeeff36aafcc4dcb498116bf",
+    "d10c4145a837d2acec6c0cb7300a8ba4f8b1657e",
+    "e87eeb37a915b38f1aef85f420010c594c9bad6d"
+  ],
+  "implementation_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+  "release_id": "M3-S02B-02-final-e87eeb3",
+  "source_languages": [
+    "python",
+    "typescript",
+    "bun-node"
+  ],
+  "migration_mode": "packaging_and_release_integration_only",
+  "line_gate": {
+    "minimum_effective_production": 6000,
+    "accounted_effective_production": 9285,
+    "margin": 3285,
+    "raw_additions": 17582,
+    "tests_docs_locks_runners_counted": false,
+    "passed": true
+  },
+  "release_pipeline": {
+    "ready": true,
+    "mandatory_gate_count": 13,
+    "passed_gate_count": 13,
+    "archive_sha256": "c18ed2ff1853faf71c69c6f0f02b722cbd04d0a5d19c4042ea460ef9234714f6",
+    "archive_size": 12929493,
+    "wheel_sha256": "222a65dfa29f86b220f8b62a954c5485fb4e57e4113ccfedd214ddda4f9ec3aa",
+    "byte_identical_rebuilds": true,
+    "pipeline_report_sha256": "1a39eddf34242d61e46eb9309f30f06637aaa73c6ea2f58640303c5369579ba2",
+    "ci_report_sha256": "b2e2c9abe9b5ba77ee935c944148c005709f6e76e377fbfbb239cdf4e01e3a7b",
+    "release_admission_sha256": "f33d48ee3f36c1a562c9cceb9a9d134a03c703ebdca58799d3e0103359d9357a",
+    "clean_install_sha256": "15e405523e4e80e6e7871aeebce166d69fdb8da36a77c0cb55ad0ea6fb72c233",
+    "semantic_health_sha256": "cbc24ce80a1ae311e2516edb95296aa2bb6eeda39b67e2c4a7e99bf8a55cf91e"
+  },
+  "openclaw": "excluded_forward_only",
+  "langgraph": "narrow checkpoint/exact-resume conformance only; no production owner added",
+  "evidence_commit_record": "docs/milestones/execution-state.yaml"
+}
