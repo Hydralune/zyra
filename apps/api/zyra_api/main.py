@@ -556,6 +556,7 @@ from .worker_pool_api import WorkerPoolApiService
 from .recovery_api import RecoveryRuntimeApiService
 
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
+from zyra_orchestration.topology_policy import policy_contract_schema_catalog
 from zyra_scheduler.worker_pool import (
     BackendCapability as PhysicalBackendCapability,
     BackendRegistryHealthAdapter,
@@ -5612,6 +5613,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(status, error.response())
             return
         if not self._prepare_typed_transport():
+            return
+        if parts == ["schema", "policy-contracts"]:
+            self._send_json(
+                HTTPStatus.OK,
+                policy_contract_schema_catalog(),
+                headers={"Cache-Control": "public, max-age=300"},
+            )
             return
         store = get_store()
 

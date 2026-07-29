@@ -406,6 +406,23 @@ class GraphStateStore:
             ).fetchone()
         return None if row is None else BranchGraphDelta.from_dict(self._decode(row["payload_json"]))
 
+    def delta_for_idempotency(
+        self,
+        graph_id: str,
+        branch_id: str,
+        idempotency_key: str,
+    ) -> BranchGraphDelta | None:
+        """Return the canonical prior delta without creating a second policy store."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json FROM graph_deltas
+                WHERE graph_id=? AND branch_id=? AND idempotency_key=?
+                """,
+                (graph_id, branch_id, idempotency_key),
+            ).fetchone()
+        return None if row is None else BranchGraphDelta.from_dict(self._decode(row["payload_json"]))
+
     def deltas_after(self, graph_id: str, revision: int) -> tuple[BranchGraphDelta, ...]:
         with self._connect() as connection:
             rows = connection.execute(
