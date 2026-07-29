@@ -27,6 +27,13 @@ import {
   installKimiK27CodeProfile,
   kimiK27CodeProfile,
 } from "../src/profiles/kimi-platform.ts";
+import {
+  GLM_52_MODEL_ID,
+  ZAI_API_KEY_ENV,
+  ZHIPU_CREDENTIAL_ID,
+  glm52Profile,
+  installGlm52Profile,
+} from "../src/profiles/zhipu.ts";
 
 interface CapturedRequest {
   readonly url: string;
@@ -149,6 +156,40 @@ test("Kimi Open Platform K2.7 Code profile fails closed when its environment sec
   assert.throws(
     () => installKimiK27CodeProfile(controlPlane, {}),
     new RegExp(`${KIMI_API_KEY_ENV} is required`),
+  );
+  assert.deepEqual(controlPlane.catalog.providers(), []);
+  assert.deepEqual(controlPlane.credentials.list(), []);
+});
+
+test("Zhipu AI GLM-5.2 profile enables reasoning and persists only an environment reference", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const secret = "zhipu-test-secret";
+  const installed = installGlm52Profile(controlPlane, {
+    [ZAI_API_KEY_ENV]: secret,
+  });
+  const profile = glm52Profile();
+
+  assert.equal(profile.provider.baseUrl, "https://open.bigmodel.cn/api/paas/v4");
+  assert.equal(profile.provider.protocol, "openai_chat");
+  assert.deepEqual(profile.provider.allowedHosts, ["open.bigmodel.cn"]);
+  assert.equal(profile.model.modelId, GLM_52_MODEL_ID);
+  assert.equal(profile.model.contextWindow, 1_000_000);
+  assert.equal(profile.model.maximumOutputTokens, 131_072);
+  assert.equal(profile.model.endpointPath, "/chat/completions");
+  assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
+  assert.equal(profile.model.requestDefaults.reasoning_effort, "max");
+  assert.equal(installed.credential.credentialId, ZHIPU_CREDENTIAL_ID);
+  assert.equal(installed.credential.secretRef, `env://${ZAI_API_KEY_ENV}`);
+  assert.notEqual(installed.credential.fingerprint, secret);
+  assert.equal(JSON.stringify(controlPlane.catalog.snapshot()).includes(secret), false);
+  assert.equal(JSON.stringify(controlPlane.credentials.list()).includes(secret), false);
+});
+
+test("Zhipu AI GLM-5.2 profile fails closed when its environment secret is absent", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  assert.throws(
+    () => installGlm52Profile(controlPlane, {}),
+    new RegExp(`${ZAI_API_KEY_ENV} is required`),
   );
   assert.deepEqual(controlPlane.catalog.providers(), []);
   assert.deepEqual(controlPlane.credentials.list(), []);

@@ -31,6 +31,7 @@
     "test:providers": "npm --workspace @zyra/provider-control-plane test",
     "provider:deepseek:smoke": "node --env-file=.env.deepseek.local --experimental-strip-types scripts/smoke_deepseek_provider.ts",
     "provider:kimi:smoke": "node --env-file=.env.kimi.local --experimental-strip-types scripts/smoke_kimi_provider.ts",
+    "provider:glm:smoke": "node --env-file=.env.glm.local --experimental-strip-types scripts/smoke_glm_provider.ts",
     "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
     "typecheck:e02": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",
     "typecheck:e03": "tsc -p packages/runtime/claude-runtime/tsconfig.json",

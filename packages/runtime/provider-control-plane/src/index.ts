@@ -26,3 +26,4 @@ export * from "./transport/sse.ts";
 export * from "./quirks/error-classifier.ts";
 export * from "./profiles/deepseek.ts";
 export * from "./profiles/kimi-platform.ts";
+export * from "./profiles/zhipu.ts";
