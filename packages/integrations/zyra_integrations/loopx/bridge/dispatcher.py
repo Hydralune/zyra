@@ -75,7 +75,7 @@ _RUNTIME_CACHE: dict[str, _LoadedRuntime] = {}
 _RUNTIME_CACHE_LOCK = threading.RLock()
 
 
-def _load_installed_runtime(module_root: Path) -> _LoadedRuntime:
+def _load_embedded_runtime(module_root: Path) -> _LoadedRuntime:
     root = module_root.resolve()
     package_init = root / "loopx" / "__init__.py"
     if not package_init.is_file():
@@ -103,7 +103,7 @@ def _load_installed_runtime(module_root: Path) -> _LoadedRuntime:
                 submodule_search_locations=[str(package_init.parent)],
             )
             if spec is None or spec.loader is None:
-                raise ImportError("cannot build pinned LoopX import spec")
+                raise ImportError("cannot build embedded LoopX import spec")
             package = importlib.util.module_from_spec(spec)
             sys.modules[alias] = package
             spec.loader.exec_module(package)
@@ -145,7 +145,7 @@ def _load_installed_runtime(module_root: Path) -> _LoadedRuntime:
 
 
 class LoopXRuntimeStateAdapter:
-    """Apply mapped commands through the real pinned LoopX event store."""
+    """Apply mapped commands through the real embedded LoopX event store."""
 
     def __init__(
         self,
@@ -160,11 +160,14 @@ class LoopXRuntimeStateAdapter:
         expected_state = (self.workspace_root / ".zyra" / "loopx" / "state").resolve()
         if (
             self.install_receipt.get("ready") is not True
-            or str(self.install_receipt.get("version") or "") != "0.2.4"
+            or str(self.install_receipt.get("version") or "") != "0.2.13"
+            or self.install_receipt.get("source_kind") != "embedded_source"
+            or self.install_receipt.get("archive_extraction") is not False
+            or self.install_receipt.get("archive_fallback") is not False
             or self.state_root != expected_state
         ):
             raise LoopXUnavailableError(
-                "LoopX install receipt does not satisfy the pinned workspace contract.",
+                "LoopX runtime receipt does not satisfy the embedded workspace contract.",
                 code="loopx_runtime_receipt_invalid",
                 retryable=False,
                 details={
@@ -209,7 +212,7 @@ class LoopXRuntimeStateAdapter:
                     "fence_workspace_id": fence.owner.workspace_id,
                 },
             )
-        runtime = _load_installed_runtime(self.module_root)
+        runtime = _load_embedded_runtime(self.module_root)
         goal_root = self.private_root / "goals" / command.update.goal_id
         event_log = goal_root / "events.jsonl"
         state_file = goal_root / "ACTIVE_GOAL_STATE.md"
@@ -302,6 +305,16 @@ class LoopXRuntimeStateAdapter:
         private_state = {
             "schema": LOOPX_PRIVATE_STATE_SCHEMA,
             "mapping_version": command.mapping_version,
+            "runtime": {
+                "version": str(self.install_receipt["version"]),
+                "source_commit": str(self.install_receipt["source_commit"]),
+                "source_tree_commit": str(
+                    self.install_receipt["source_tree_commit"]
+                ),
+                "source_digest": str(self.install_receipt["source_digest"]),
+                "source_kind": "embedded_source",
+                "module_origin": runtime.module_origin,
+            },
             "goal_id": command.update.goal_id,
             "connected": command.update.connected,
             "objective_ref": command.update.objective_ref,
@@ -372,7 +385,7 @@ class LoopXRuntimeStateAdapter:
         return value
 
     def load_events(self, goal_id: str) -> list[dict[str, Any]]:
-        runtime = _load_installed_runtime(self.module_root)
+        runtime = _load_embedded_runtime(self.module_root)
         event_log = self.private_root / "goals" / goal_id / "events.jsonl"
         return runtime.event_state.AppendOnlyStateEventStore(event_log).load()
 

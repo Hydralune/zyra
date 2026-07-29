@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -9,16 +8,16 @@ import pytest
 from zyra_integrations.loopx.install import (
     InstallProfile,
     LoopXDoctor,
-    LoopXInstallError,
     LoopXInstaller,
     LoopXPackageLock,
 )
+from zyra_integrations.loopx.runtime import LoopXRuntimeResolver
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_windows_release_install_is_offline_local_and_idempotent(
+def test_clean_workspace_resolves_embedded_runtime_without_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -27,32 +26,26 @@ def test_windows_release_install_is_offline_local_and_idempotent(
     monkeypatch.setenv("HOME", str(user_home))
     monkeypatch.setenv("USERPROFILE", str(user_home))
     workspace = tmp_path / "workspace"
-    installer = LoopXInstaller(PROJECT_ROOT)
 
-    first = installer.install(
-        workspace,
-        profile=InstallProfile.WINDOWS_RELEASE,
-        python_executable=Path(sys.executable),
-    )
-    second = installer.install(
-        workspace,
-        profile=InstallProfile.WINDOWS_RELEASE,
-        python_executable=Path(sys.executable),
-    )
+    first = LoopXRuntimeResolver(PROJECT_ROOT).receipt(workspace)
+    second = LoopXRuntimeResolver(PROJECT_ROOT).receipt(workspace)
 
+    assert first == second
     assert first["ready"] is True
-    assert first["idempotent_replay"] is False
-    assert second["idempotent_replay"] is True
-    assert first["receipt_digest"] == second["receipt_digest"]
-    assert Path(first["install_root"]).is_relative_to(workspace)
+    assert first["version"] == "0.2.13"
+    assert first["source_kind"] == "embedded_source"
+    assert first["archive_extraction"] is False
+    assert first["archive_fallback"] is False
+    assert Path(first["install_root"]) == (
+        PROJECT_ROOT / "packages" / "integrations" / "loopx_runtime"
+    ).resolve()
     assert Path(first["state_root"]).is_relative_to(workspace)
-    assert first["network_access"] is False
-    assert first["user_home_write"] is False
+    assert not workspace.exists()
     assert not list(user_home.rglob("*"))
 
     doctor = LoopXDoctor(PROJECT_ROOT).run(
         deep=True,
-        install_root=Path(first["install_root"]),
+        workspace_root=workspace,
         python_executable=Path(sys.executable),
     )
     assert doctor["ready"] is True
@@ -61,11 +54,14 @@ def test_windows_release_install_is_offline_local_and_idempotent(
         for item in doctor["checks"]
         if item["check"] == "import-and-cli-entry"
     )
-    assert canary["details"]["version"] == "0.2.4"
-    assert canary["details"]["user_level_write_count"] == 0
+    assert canary["details"]["version"] == "0.2.13"
+    assert Path(canary["details"]["module_origin"]).is_relative_to(
+        Path(first["install_root"])
+    )
+    assert canary["details"]["pythonpath_override"] is False
 
 
-def test_linux_and_windows_profiles_install_the_same_pinned_source(
+def test_historical_install_profiles_converge_on_one_embedded_runtime(
     tmp_path: Path,
 ) -> None:
     installer = LoopXInstaller(PROJECT_ROOT)
@@ -77,123 +73,68 @@ def test_linux_and_windows_profiles_install_the_same_pinned_source(
         tmp_path / "linux-workspace",
         profile=InstallProfile.LINUX_WSL,
     )
+    assert windows_plan.profile is InstallProfile.EMBEDDED_SOURCE
+    assert linux_plan.profile is InstallProfile.EMBEDDED_SOURCE
+    assert windows_plan.install_root == linux_plan.install_root
     assert windows_plan.source_digest == linux_plan.source_digest
-    assert windows_plan.artifact_name == "wheel"
-    assert linux_plan.artifact_name == "source_bundle"
-    assert dict(linux_plan.environment)["LOOPX_INSTALL_SKILL"] == "0"
-    assert dict(linux_plan.environment)["LOOPX_INSTALL_SLASH_COMMANDS"] == "0"
-    assert dict(linux_plan.environment)["LOOPX_INSTALL_CLAUDE"] == "0"
+    assert windows_plan.artifact_name == linux_plan.artifact_name == ""
+    assert dict(windows_plan.environment)["ZYRA_LOOPX_RUNTIME_SOURCE"] == "embedded"
 
-    installed = installer.install(
-        tmp_path / "linux-workspace",
-        profile=InstallProfile.LINUX_WSL,
-        python_executable=Path(sys.executable),
-    )
-    assert installed["source_digest"] == windows_plan.source_digest
-    assert installed["profile"] == InstallProfile.LINUX_WSL.value
-    assert (
-        Path(installed["install_root"])
-        .joinpath(str(installed["module_root"]), "loopx", "__init__.py")
-        .is_file()
-    )
-    doctor = LoopXDoctor(PROJECT_ROOT).run(
-        deep=True,
-        install_root=Path(installed["install_root"]),
-        python_executable=Path(sys.executable),
-    )
-    assert doctor["ready"] is True
-
-
-def test_install_fails_closed_for_partial_unwritable_and_missing_dependency(
-    tmp_path: Path,
-) -> None:
-    installer = LoopXInstaller(PROJECT_ROOT)
-    partial_workspace = tmp_path / "partial"
-    partial_plan = installer.plan(
-        partial_workspace,
+    receipt = installer.install(
+        tmp_path / "workspace",
         profile=InstallProfile.WINDOWS_RELEASE,
     )
-    partial_plan.install_root.mkdir(parents=True)
-    with pytest.raises(LoopXInstallError) as partial:
-        installer.install(
-            partial_workspace,
-            profile=InstallProfile.WINDOWS_RELEASE,
-        )
-    assert partial.value.code == "loopx_partial_install"
-    assert partial.value.recovery
-
-    workspace_file = tmp_path / "not-a-workspace"
-    workspace_file.write_text("blocked\n", encoding="utf-8")
-    with pytest.raises(LoopXInstallError) as unwritable:
-        installer.install(
-            workspace_file,
-            profile=InstallProfile.WINDOWS_RELEASE,
-        )
-    assert unwritable.value.code == "loopx_workspace_unwritable"
-
-    package = installer.package_lock.package
-    assert isinstance(package, dict)
-    package["runtime_dependency_imports"] = ["zyra_missing_loopx_dependency"]
-    with pytest.raises(LoopXInstallError) as missing:
-        installer.check_interpreter(Path(sys.executable))
-    assert missing.value.code == "loopx_dependency_missing"
-    assert missing.value.details["missing"] == ["zyra_missing_loopx_dependency"]
+    assert receipt["installer_retired"] is True
+    assert receipt["archive_extraction"] is False
+    assert receipt["profile"] == "pinned_embedded_source"
+    assert not (tmp_path / "workspace").exists()
 
 
-def test_installed_package_file_tamper_and_upgrade_drift_fail_closed(
+def test_historical_install_directory_is_preserved_but_ignored(
     tmp_path: Path,
 ) -> None:
-    installer = LoopXInstaller(PROJECT_ROOT)
     workspace = tmp_path / "workspace"
-    installed = installer.install(
-        workspace,
-        profile=InstallProfile.WINDOWS_RELEASE,
+    retired = workspace / ".zyra" / "loopx" / "install"
+    retired.mkdir(parents=True)
+    sentinel = retired / "historical-receipt.json"
+    sentinel.write_text('{"version":"0.2.4"}\n', encoding="utf-8")
+
+    receipt = LoopXRuntimeResolver(PROJECT_ROOT).receipt(workspace)
+    report = LoopXDoctor(PROJECT_ROOT).run(
+        deep=True,
+        workspace_root=workspace,
     )
-    install_root = Path(installed["install_root"])
-    package_init = (
-        install_root / str(installed["module_root"]) / "loopx" / "__init__.py"
+
+    assert receipt["retired_install_root_exists"] is True
+    assert Path(receipt["install_root"]) != retired
+    assert sentinel.read_text(encoding="utf-8") == '{"version":"0.2.4"}\n'
+    state = next(
+        item
+        for item in report["checks"]
+        if item["check"] == "workspace-private-state"
     )
-    package_init.write_text("__version__ = 'tampered'\n", encoding="utf-8")
-    with pytest.raises(LoopXInstallError) as tampered:
-        installer.validate_installed(install_root)
-    assert tampered.value.code == "loopx_installed_file_tampered"
-
-    receipt_path = install_root / "install-receipt.json"
-    value = installed.copy()
-    value["version"] = "9.9.9"
-    unsigned = {
-        key: item
-        for key, item in value.items()
-        if key
-        not in {
-            "receipt_digest",
-            "idempotent_replay",
-            "interpreter",
-            "artifact_verification",
-        }
-    }
-    from zyra_integrations.loopx.install.manifest import stable_digest
-
-    unsigned["receipt_digest"] = stable_digest(unsigned)
-    receipt_path.write_text(
-        json.dumps(unsigned, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    assert state["details"]["retired_install_root_used"] is False
+    assert (
+        state["details"]["retired_path_diagnostic"]
+        == "historical_install_path_ignored"
     )
-    with pytest.raises(LoopXInstallError) as upgrade:
-        installer.validate_installed(install_root)
-    assert upgrade.value.code == "loopx_upgrade_required"
 
 
-def test_package_lock_profiles_bind_one_source_and_no_external_runtime_path() -> None:
+def test_package_lock_binds_embedded_source_without_archive_fallback() -> None:
     lock = LoopXPackageLock.load(PROJECT_ROOT)
-    assert lock.package["version"] == "0.2.4"
+    assert lock.package["version"] == "0.2.13"
     assert (
         lock.package["source_commit"]
-        == "8e79843704a40d8069a9cab4ede6edc6d29f671b"
+        == "a2c072d412d90839132e1cf39c23dd431c394175"
     )
-    assert {
-        str(item["source_digest"]) for item in lock.profiles.values()
-    } == {lock.source_digest}
+    assert (
+        lock.package["source_tree_commit"]
+        == "7232dca45ec2ca996edc43b2d3558edc802c844e"
+    )
+    assert lock.package["migration_mode"] == "pinned_embedded_source_integration"
+    assert lock.artifacts == {}
+    assert list(lock.profiles) == ["pinned_embedded_source"]
     serialized = lock.path.read_text(encoding="utf-8").casefold()
     assert "../long-horizon-systems" not in serialized
-    assert "g:\\agent-zoo\\long-horizon-systems" not in serialized
+    assert ".whl" not in serialized
+    assert ".tar.gz" not in serialized

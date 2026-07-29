@@ -228,8 +228,7 @@ class ReleaseManifest:
                     )
             for name in (
                 "loopx_package_lock",
-                "loopx_wheel",
-                "loopx_source_bundle",
+                "loopx_source_manifest",
                 "loopx_doctor_metadata",
             ):
                 item = artifacts.get(name)
@@ -1070,17 +1069,9 @@ class ReleaseBundleBuilder:
                             payload_root,
                             payload_loopx_lock.path,
                         ),
-                        "loopx_wheel": self._artifact_reference(
+                        "loopx_source_manifest": self._artifact_reference(
                             payload_root,
-                            payload_loopx_lock.resolve_artifact(
-                                payload_loopx_lock.artifacts["wheel"]
-                            ),
-                        ),
-                        "loopx_source_bundle": self._artifact_reference(
-                            payload_root,
-                            payload_loopx_lock.resolve_artifact(
-                                payload_loopx_lock.artifacts["source_bundle"]
-                            ),
+                            payload_loopx_lock.manifest_path,
                         ),
                         "loopx_doctor_metadata": self._artifact_reference(
                             payload_root,
@@ -1134,7 +1125,7 @@ class ReleaseBundleBuilder:
                         "architectures": ["amd64", "arm64"],
                         "launcher": "zyra-release.exe-or-python",
                         "loopx_profile": (
-                            "windows_release_offline_wheel"
+                            "pinned_embedded_source"
                             if payload_loopx_lock is not None
                             else ""
                         ),
@@ -1144,7 +1135,7 @@ class ReleaseBundleBuilder:
                         "architectures": ["x86_64", "aarch64"],
                         "launcher": "zyra-release",
                         "loopx_profile": (
-                            "linux_wsl_upstream_semantics"
+                            "pinned_embedded_source"
                             if payload_loopx_lock is not None
                             else ""
                         ),

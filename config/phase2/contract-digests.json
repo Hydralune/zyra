@@ -1,7 +1,7 @@
 {
   "schema": "zyra.phase2.policy-contract-digests/v1",
   "slice_id": "P2-S00-02",
-  "updated_by_slice": "P2-S00-03",
+  "updated_by_slice": "P2-S01-04",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "documents": [
     {
@@ -44,7 +44,7 @@
     {
       "config_id": "source_roles",
       "path": "config/phase2/source-roles.yaml",
-      "sha256": "c9ab5ee7f060f8185d33259f9ead40e37a8c23171ee18a44593b18a92301a0c8"
+      "sha256": "429c531402c1ebbb7142946562bb617c17e1847107d4ebf0273a5d86b12a5844"
     },
     {
       "config_id": "state_owners",

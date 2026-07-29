@@ -16,3 +16,4 @@ docs/reviews/evidence/M3-S03-01/generated-*/*.zip binary
 docs/release/phase2-baseline-manifest.json text eol=lf
 docs/reviews/P2-S00-01-freeze-reconciliation-review.md text eol=lf
 docs/reviews/evidence/P2-S00-01/*.json text eol=lf
+packages/integrations/loopx_runtime/** -text

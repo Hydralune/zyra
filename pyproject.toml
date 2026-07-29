@@ -9,6 +9,10 @@ dependencies = [
 ]
 
 [project.scripts]
+loopx = "loopx.cli:main"
+loopx-finance-value-discovery = "loopx_finance_value_discovery.cli:main"
+loopx-lark-provider = "loopx.extensions.lark.provider:main"
+loopx-openviking-semantic-preference = "loopx.extensions.openviking_semantic_preference.provider:main"
 zyra-source-custody = "zyra_integrations.source_custody.cli:main"
 zyra-freeze-audit = "zyra_evaluation.freeze_audit.cli:main"
 zyra-regression-hardening = "zyra_evaluation.regression_hardening.cli:main"
@@ -36,6 +40,8 @@ where = [
     "packages/core",
     "packages/evaluation",
     "packages/integrations",
+    "packages/integrations/loopx_runtime",
+    "packages/integrations/loopx_runtime/packages/loopx-finance-value-discovery/src",
     "packages/memory",
     "packages/orchestration",
     "packages/productization",
@@ -46,16 +52,43 @@ where = [
     "packages/workers",
     "packages/workspace",
 ]
-include = ["zyra_*"]
-namespaces = false
+include = ["zyra_*", "loopx*", "loopx_finance_*"]
+namespaces = true
 
 [tool.setuptools.package-data]
-zyra_integrations = [
-    "data/*.json",
-    "loopx/install/assets/*.whl",
-    "loopx/install/assets/*.tar.gz",
+loopx = [
+    "capabilities/auto_research/worker_skill/SKILL.md",
+    "extensions/*/extension.toml",
+    "opencode_goal_mode/*.js",
+    "opencode_goal_mode/*.mjs",
+    "opencode_goal_mode/README.md",
 ]
+zyra_integrations = ["data/*.json", "loopx/runtime/*.json"]
 zyra_evaluation = ["data/*.json"]
+
+[tool.setuptools.data-files]
+"share/zyra/loopx/man" = ["packages/integrations/loopx_runtime/man/loopx.1"]
+"share/zyra/loopx/skills/loopx-doc-registry" = ["packages/integrations/loopx_runtime/skills/loopx-doc-registry/SKILL.md"]
+"share/zyra/loopx/skills/loopx-doc-registry/agents" = ["packages/integrations/loopx_runtime/skills/loopx-doc-registry/agents/openai.yaml"]
+"share/zyra/loopx/skills/loopx-pr-review" = ["packages/integrations/loopx_runtime/skills/loopx-pr-review/SKILL.md"]
+"share/zyra/loopx/skills/loopx-pr-review/agents" = ["packages/integrations/loopx_runtime/skills/loopx-pr-review/agents/openai.yaml"]
+"share/zyra/loopx/skills/loopx-project" = ["packages/integrations/loopx_runtime/skills/loopx-project/SKILL.md"]
+"share/zyra/loopx/skills/loopx-project/agents" = ["packages/integrations/loopx_runtime/skills/loopx-project/agents/openai.yaml"]
+"share/zyra/loopx/skills/loopx-self-repair" = ["packages/integrations/loopx_runtime/skills/loopx-self-repair/SKILL.md"]
+"share/zyra/loopx/skills/loopx-self-repair/agents" = ["packages/integrations/loopx_runtime/skills/loopx-self-repair/agents/openai.yaml"]
+"share/zyra/loopx/skills/loopx-self-repair/references" = [
+    "packages/integrations/loopx_runtime/skills/loopx-self-repair/references/repair-patterns.md",
+    "packages/integrations/loopx_runtime/skills/loopx-self-repair/references/upstream-issue-escalation.md",
+]
+"share/zyra/loopx/extensions/loopx-finance-value-discovery" = [
+    "packages/integrations/loopx_runtime/packages/loopx-finance-value-discovery/extension.toml",
+    "packages/integrations/loopx_runtime/packages/loopx-finance-value-discovery/README.md",
+]
+"share/zyra/loopx/extensions/loopx-finance-value-discovery/examples" = ["packages/integrations/loopx_runtime/packages/loopx-finance-value-discovery/examples/paypal-debeta-discovery.json"]
+"share/zyra/loopx/templates" = [
+    "packages/integrations/loopx_runtime/docs/research/long-horizon-agent-benchmarks/benchmark-experiment-report-template-v0.md",
+    "packages/integrations/loopx_runtime/examples/benchmark-experiment-report-template-smoke.py",
+]
 
 [tool.zyra]
 phase = "m3-symbolic-collaboration"

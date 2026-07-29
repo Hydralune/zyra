@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+while [[ -L "$script_path" ]]; do
+  script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+  script_path="$(readlink "$script_path")"
+  if [[ "$script_path" != /* ]]; then
+    script_path="$script_dir/$script_path"
+  fi
+done
+script_dir="$(cd -P "$(dirname "$script_path")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+loopx_command=""
+loopx_subcommand=""
+skip_next_arg=0
+for arg in "$@"; do
+  if [[ "$skip_next_arg" == "1" ]]; then
+    skip_next_arg=0
+    continue
+  fi
+  case "$arg" in
+    --format|--registry|--runtime-root|--goal-id|--agent-id|--git-diff-base|--tier|--timeout-seconds|--changed-file|--catalog|--surface|--family|--profile|--suite|--module|--exclude-module|--script|--limit|--offset|--max-checks-per-family|--max-checks-per-profile)
+      skip_next_arg=1
+      continue
+      ;;
+    --*)
+      continue
+      ;;
+  esac
+  if [[ -z "$loopx_command" ]]; then
+    loopx_command="$arg"
+  elif [[ -z "$loopx_subcommand" ]]; then
+    loopx_subcommand="$arg"
+    break
+  fi
+done
+
+python_bin="${LOOPX_PYTHON:-}"
+if [[ -z "$python_bin" && -f "$repo_root/.loopx-python" ]]; then
+  IFS= read -r python_bin <"$repo_root/.loopx-python"
+fi
+if [[ -z "$python_bin" ]]; then
+  python_bin="python3"
+fi
+if ! command -v "$python_bin" >/dev/null 2>&1; then
+  echo "loopx runtime error: configured Python executable not found: $python_bin" >&2
+  echo "Set LOOPX_PYTHON to Python 3.11+ and reinstall LoopX." >&2
+  exit 2
+fi
+
+if [[ "$loopx_command" == "canary" && "$loopx_subcommand" == "premerge" ]]; then
+  checkout_root=""
+  if command -v git >/dev/null 2>&1; then
+    checkout_root="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+  fi
+  if [[ -n "$checkout_root" && -f "$checkout_root/loopx/cli.py" && -d "$checkout_root/examples" ]]; then
+    # Pre-merge validation must exercise the checkout under review, not a stale release snapshot.
+    repo_root="$checkout_root"
+  fi
+fi
+
+export LOOPX_RELEASE_ROOT="$repo_root"
+export PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}"
+exec "$python_bin" -c '
+import os
+import runpy
+import sys
+
+if sys.version_info < (3, 11):
+    print(
+        "loopx runtime error: Python 3.11+ is required; "
+        f"selected Python is {sys.version_info.major}.{sys.version_info.minor}. "
+        "Set LOOPX_PYTHON to Python 3.11+ and reinstall LoopX.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+release_root = os.environ["LOOPX_RELEASE_ROOT"]
+cwd = os.getcwd()
+filtered_path = []
+for entry in sys.path:
+    if entry in ("", "."):
+        continue
+    absolute = os.path.abspath(entry)
+    if absolute in {cwd, release_root}:
+        continue
+    filtered_path.append(entry)
+sys.path[:] = [release_root, *filtered_path]
+sys.argv[0] = os.path.join(release_root, "scripts", "loopx")
+runpy.run_module("loopx.cli", run_name="__main__")
+' "$@"

@@ -135,6 +135,20 @@ class LoopXControlRuntime:
         )
         return {
             "schema": LOOPX_CONTROL_STATE_SCHEMA,
+            "runtime": {
+                "version": str(self.runtime.install_receipt["version"]),
+                "source_commit": str(
+                    self.runtime.install_receipt["source_commit"]
+                ),
+                "source_tree_commit": str(
+                    self.runtime.install_receipt["source_tree_commit"]
+                ),
+                "source_digest": str(
+                    self.runtime.install_receipt["source_digest"]
+                ),
+                "source_kind": "embedded_source",
+                "archive_fallback": False,
+            },
             "workspace_id": self.workspace_id,
             "run_id": run_id,
             "task_id": task_id,

@@ -1,0 +1,807 @@
+{
+  "schema_version": "loopx_showcase_catalog_v0",
+  "updated_at": "2026-06-27",
+  "redaction_policy": {
+    "public_repo_may_include": [
+      "sanitized domain labels",
+      "reusable control-plane patterns",
+      "synthetic demos",
+      "explicit evidence boundaries"
+    ],
+    "public_repo_must_not_include": [
+      "private document links",
+      "internal screenshots",
+      "raw chats",
+      "raw benchmark task text",
+      "private repositories",
+      "local filesystem paths",
+      "credentials",
+      "unpublished domain artifacts"
+    ]
+  },
+  "cases": [
+    {
+      "id": "2026-06-27-overnight-pr-batch",
+      "date": "2026-06-27",
+      "title": "Overnight PR batch with reviewable control",
+      "status": "public_evidence_case",
+      "case_page": "docs/showcases/cases/0627-overnight-pr-batch.md",
+      "demo_command": null,
+      "domain": "agent-platform-self-improvement",
+      "audience": [
+        "operator",
+        "agent-platform-developer",
+        "technical-lead"
+      ],
+      "pattern_tags": [
+        "high_throughput_reviewable_work",
+        "pr_sized_slices",
+        "self_merge_policy",
+        "validation_writeback",
+        "public_boundary"
+      ],
+      "headline": "An overnight LoopX run can produce many PR-sized slices while keeping review, validation, and public evidence boundaries visible.",
+      "problem": "High-throughput autonomous work is only useful if the resulting changes remain reviewable, validated, and safe to publish.",
+      "loopx_behavior": [
+        "keep work broken into PR-sized slices instead of a giant unreviewable diff",
+        "tie runtime, docs, and focused smoke updates together when a control-plane contract changes",
+        "limit self-merge to narrow validated changes while preserving broader review gates",
+        "record public evidence from Git history instead of raw agent logs or private screenshots",
+        "keep public/private boundary checks in the showcase path"
+      ],
+      "user_value": "The operator can wake up to a compact batch of merged public slices, see what changed, and still trust that gates, validation, and evidence boundaries were not bypassed.",
+      "workload_signal": {
+        "scope": "public_repository_window",
+        "window": {
+          "from": "2026-06-27T01:29:00+08:00",
+          "to": "2026-06-27T11:29:00+08:00",
+          "hours": 10
+        },
+        "public_git": {
+          "merged_commits": 22,
+          "files_touched": 60,
+          "insertions": 6695,
+          "deletions": 223,
+          "commit_messages_with_pr_numbers": 10
+        },
+        "claim_boundary": "public Git history only; contemporaneous private queue notes are not used as public evidence"
+      },
+      "evidence_boundary": "Public Git evidence only; no private documents, internal screenshots, raw chats, local active-state bodies, raw logs, credentials, or machine-specific paths.",
+      "interactive_page": "docs/showcases/cases/0627-overnight-pr-batch.html",
+      "interactive_page_zh": "docs/showcases/cases/0627-overnight-pr-batch.html",
+      "interactive_page_en": "docs/showcases/cases/0627-overnight-pr-batch.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0627-overnight-pr-batch.html",
+        "en": "docs/showcases/cases/0627-overnight-pr-batch.en.html"
+      },
+      "showcase_rank": 1,
+      "showcase_table": {
+        "proof_point": "High-throughput multi-lane work can remain PR-sized, reviewable, and merge-safe.",
+        "loopx_intervention": "todo claim, review packet, self-merge boundary, focused smoke, public-boundary scan"
+      },
+      "frontend_card": {
+        "visual_metaphor": "parallel PR lanes converge into a reviewable merge rail",
+        "primary_metric_hint": "22 reviewable merged commits, including 10 PR-numbered commits, landed inside a 10h public evidence window.",
+        "badges": [
+          "PR batch",
+          "review packet",
+          "public boundary"
+        ],
+        "story_beats": [
+          "keep work broken into PR-sized slices instead of a giant unreviewable diff",
+          "tie runtime, docs, and focused smoke updates together when a control-plane contract changes",
+          "limit self-merge to narrow validated changes while preserving broader review gates",
+          "record public evidence from Git history instead of raw agent logs or private screenshots"
+        ]
+      },
+      "evidence_metrics": [
+        {
+          "value": "22",
+          "labels": {
+            "zh": "可审阅 merged commits",
+            "en": "reviewable merged commits"
+          }
+        },
+        {
+          "value": "10",
+          "labels": {
+            "zh": "带 PR 编号的 commits",
+            "en": "PR-numbered commits"
+          }
+        },
+        {
+          "value": "10h",
+          "labels": {
+            "zh": "公开证据窗口",
+            "en": "public evidence window"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "raw agent logs 依赖",
+            "en": "raw-agent-log dependency"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-24-pr-issue-auto-fix",
+      "date": "2026-06-24",
+      "title": "PR issue automatic fix loop",
+      "status": "public_safe_pattern_case",
+      "case_page": "docs/showcases/cases/0624-pr-issue-auto-fix.md",
+      "demo_command": null,
+      "domain": "issue-fix-workflow",
+      "audience": [
+        "operator",
+        "agent-platform-developer",
+        "open-source-maintainer"
+      ],
+      "pattern_tags": [
+        "issue_fix_workflow",
+        "review_feedback",
+        "repro_smoke",
+        "command_pack",
+        "successor_todo"
+      ],
+      "headline": "Review feedback should become an ordered repair workflow with repro, fix, validation, and reviewer handoff.",
+      "problem": "PR comments and issues are often concrete enough to fix, but unsafe to feed into an agent as unstructured prompt text without routing, repro, and validation.",
+      "loopx_behavior": [
+        "classify the issue or review feedback",
+        "create ordered repair todos",
+        "keep gated source reads explicit",
+        "separate repro, implementation, validation, and reviewer handoff"
+      ],
+      "user_value": "The operator can turn a PR issue into a controlled fix loop without manually rewriting the review comment as an agent plan.",
+      "evidence_boundary": "Public-safe pattern case only; no private screenshots, raw gated issue bodies, internal review notes, local paths, raw logs, credentials, or unpublished repository artifacts.",
+      "interactive_page": "docs/showcases/cases/0624-pr-issue-auto-fix.html",
+      "interactive_page_zh": "docs/showcases/cases/0624-pr-issue-auto-fix.html",
+      "interactive_page_en": "docs/showcases/cases/0624-pr-issue-auto-fix.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0624-pr-issue-auto-fix.html",
+        "en": "docs/showcases/cases/0624-pr-issue-auto-fix.en.html"
+      },
+      "showcase_rank": 2,
+      "showcase_table": {
+        "proof_point": "Issue and review feedback can enter an executable repair loop.",
+        "loopx_intervention": "issue-fix workflow, command pack, repro smoke, PR review feedback"
+      },
+      "frontend_card": {
+        "visual_metaphor": "issue feedback closes through repro, fix, validation, and review handoff",
+        "primary_metric_hint": "Feedback becomes a five-stage repair loop with branch-ready fix evidence and reviewer handoff.",
+        "badges": [
+          "issue fix",
+          "repro smoke",
+          "PR review"
+        ],
+        "story_beats": [
+          "classify the issue or review feedback",
+          "create ordered repair todos",
+          "keep gated source reads explicit",
+          "separate repro, implementation, validation, and reviewer handoff"
+        ]
+      },
+      "evidence_metrics": [
+        {
+          "value": "5",
+          "labels": {
+            "zh": "修复闭环阶段",
+            "en": "repair-loop stages"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "branch-ready 修复包",
+            "en": "branch-ready fix packet"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "review handoff 保留",
+            "en": "review handoff preserved"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "公开 artifact 中 raw issue body",
+            "en": "raw issue bodies in public artifact"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-23-agent-to-agent-pr-comments",
+      "date": "2026-06-23",
+      "title": "Agent-to-agent PR comment and fix loop",
+      "status": "public_safe_pattern_case",
+      "case_page": "docs/showcases/cases/0623-agent-to-agent-pr-comments.md",
+      "demo_command": null,
+      "domain": "pull-request-review",
+      "audience": [
+        "operator",
+        "agent-platform-developer",
+        "open-source-maintainer"
+      ],
+      "pattern_tags": [
+        "agent_to_agent_handoff",
+        "pr_comment_loop",
+        "review_packet",
+        "claimed_todo",
+        "successor_todo"
+      ],
+      "headline": "PR review feedback can become an owned agent todo with fix evidence instead of a loose chat reminder.",
+      "problem": "Multiple agent lanes can see or act on the same PR feedback, but without ownership and handoff state the comment-to-fix loop becomes hard to audit.",
+      "loopx_behavior": [
+        "turn review feedback into a claimed todo",
+        "route implementation through the owning agent lane",
+        "record fix and validation evidence in the review packet",
+        "keep successor work explicit after the comment is handled"
+      ],
+      "user_value": "The operator can let agents coordinate around PR comments without losing final review visibility or fix evidence.",
+      "evidence_boundary": "Public-safe pattern case only; no private screenshots, raw chats, internal review notes, local state, credentials, or unpublished artifacts.",
+      "interactive_page": "docs/showcases/cases/0623-agent-to-agent-pr-comments.html",
+      "interactive_page_zh": "docs/showcases/cases/0623-agent-to-agent-pr-comments.html",
+      "interactive_page_en": "docs/showcases/cases/0623-agent-to-agent-pr-comments.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0623-agent-to-agent-pr-comments.html",
+        "en": "docs/showcases/cases/0623-agent-to-agent-pr-comments.en.html"
+      },
+      "showcase_rank": 3,
+      "showcase_table": {
+        "proof_point": "Multiple agents can coordinate around PR review comments without losing owner review.",
+        "loopx_intervention": "claimed_by, handoff gate, review packet, comment/fix loop"
+      },
+      "frontend_card": {
+        "visual_metaphor": "agent comments pass through explicit ownership instead of loose threads",
+        "primary_metric_hint": "Every PR feedback item gets an owner, fix evidence, and a visible reviewer handoff instead of becoming a loose reminder.",
+        "badges": [
+          "handoff",
+          "PR comment",
+          "claimed_by"
+        ],
+        "story_beats": [
+          "turn review feedback into a claimed todo",
+          "route implementation through the owning agent lane",
+          "record fix and validation evidence in the review packet",
+          "keep successor work explicit after the comment is handled"
+        ]
+      },
+      "evidence_metrics": [
+        {
+          "value": "1",
+          "labels": {
+            "zh": "每条反馈一个 owner",
+            "en": "owner per feedback item"
+          }
+        },
+        {
+          "value": "3",
+          "labels": {
+            "zh": "owner/fix/review 可回答问题",
+            "en": "owner/fix/review questions answered"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "review packet handoff",
+            "en": "review-packet handoff"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "无主 PR comment reminder",
+            "en": "unowned PR comment reminders"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-23-overnight-project-refactor",
+      "date": "2026-06-23",
+      "title": "Overnight project refactor as PR-sized slices",
+      "status": "public_safe_pattern_case",
+      "case_page": "docs/showcases/cases/0623-overnight-project-refactor.md",
+      "demo_command": null,
+      "domain": "repository-refactor",
+      "audience": [
+        "operator",
+        "agent-platform-developer",
+        "technical-lead"
+      ],
+      "pattern_tags": [
+        "long_unattended_goal",
+        "pr_sized_slices",
+        "todo_follow_up",
+        "supersede",
+        "validation_writeback"
+      ],
+      "headline": "A broad refactor can run overnight while staying split into human-sized review units.",
+      "problem": "Autonomous refactors become risky when discoveries, stale tasks, cleanup, and behavior changes collapse into one broad diff.",
+      "loopx_behavior": [
+        "keep the current refactor slice explicit",
+        "convert discoveries into follow-up todos",
+        "supersede stale tasks when the route changes",
+        "validate each slice before merge or handoff"
+      ],
+      "user_value": "The operator can wake up to reviewable PR-sized refactor slices instead of a single giant autonomous diff.",
+      "evidence_boundary": "Public-safe pattern case only; no private screenshots, raw chats, internal planning notes, local paths, credentials, raw logs, or unpublished project artifacts.",
+      "interactive_page": "docs/showcases/cases/0623-overnight-project-refactor.html",
+      "interactive_page_zh": "docs/showcases/cases/0623-overnight-project-refactor.html",
+      "interactive_page_en": "docs/showcases/cases/0623-overnight-project-refactor.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0623-overnight-project-refactor.html",
+        "en": "docs/showcases/cases/0623-overnight-project-refactor.en.html"
+      },
+      "showcase_rank": 4,
+      "showcase_table": {
+        "proof_point": "Long unattended refactors can split into moderate PR slices instead of one unreviewable diff.",
+        "loopx_intervention": "loop, todo follow-up, supersede, PR-sized slices"
+      },
+      "frontend_card": {
+        "visual_metaphor": "a large refactor moves as small reviewable packets",
+        "primary_metric_hint": "Unattended refactors stay reviewable by landing one PR-sized slice at a time with follow-up and review gates.",
+        "badges": [
+          "refactor",
+          "PR slices",
+          "todo evidence"
+        ],
+        "story_beats": [
+          "keep the current refactor slice explicit",
+          "convert discoveries into follow-up todos",
+          "supersede stale tasks when the route changes",
+          "validate each slice before merge or handoff"
+        ]
+      },
+      "evidence_metrics": [
+        {
+          "value": "1",
+          "labels": {
+            "zh": "一次一个 PR-sized slice",
+            "en": "PR-sized slice at a time"
+          }
+        },
+        {
+          "value": "3",
+          "labels": {
+            "zh": "successor/supersede/handoff 路线",
+            "en": "successor/supersede/handoff routes"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "宽风险 review gate",
+            "en": "review gate for broad risk"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "巨型 diff 目标",
+            "en": "giant-diff target"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-19-dynamic-workflow-hardware-agent",
+      "date": "2026-06-19",
+      "title": "Dynamic workflow for hardware-agent development",
+      "status": "public_safe_interactive_case",
+      "case_page": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.md",
+      "interactive_page": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.html",
+      "demo_command": null,
+      "domain": "hardware-agent-development",
+      "audience": [
+        "agent-platform-developer",
+        "technical-lead",
+        "open-source-user"
+      ],
+      "pattern_tags": [
+        "dynamic_workflow",
+        "multi_agent_coordination",
+        "shared_control_plane",
+        "long_unattended_goal",
+        "convergence"
+      ],
+      "headline": "A fuzzy long-running engineering goal needs a shared control plane when multiple worker agents participate.",
+      "problem": "Specialized engineering work can require multiple agents to split work and converge without losing ownership or state.",
+      "loopx_behavior": [
+        "keep durable goal state outside any one chat thread",
+        "make ownership, quota, and evidence writeback explicit",
+        "let script-generated worker loops continue only after bounded validation",
+        "project convergence state and human gates for the operator"
+      ],
+      "user_value": "A contributor-approved public artifact shows how one control plane can coordinate Claude Code, generated scripts, and hardware-agent workers across five long-running engineering cases.",
+      "evidence_boundary": "Public-safe interactive artifact; no raw chats, screenshots, proprietary design details, private repositories, local paths, task ids, credentials, or unpublished hardware artifacts.",
+      "frontend_card": {
+        "visual_metaphor": "multiple worker lanes converging through one shared control plane",
+        "primary_metric_hint": "5 public-safe hardware workflows demonstrate multi-worker convergence while proprietary details stay out of the artifact.",
+        "badges": [
+          "interactive-html",
+          "multi-agent",
+          "hardware"
+        ],
+        "story_beats": [
+          "LoopX owns goal state, quota, todos, claims, evidence, and history",
+          "Claude Code writes task-specific orchestration scripts under that contract",
+          "hardware-agent workers perform bounded RTL, simulation, and validation work",
+          "five public cases show closed tasks, DSE, flagship Fmax optimization, and convergence floors"
+        ]
+      },
+      "interactive_page_zh": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.html",
+      "interactive_page_en": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.html",
+        "en": "docs/showcases/cases/0619-dynamic-workflow-hardware-agent.en.html"
+      },
+      "showcase_rank": 5,
+      "showcase_table": {
+        "proof_point": "Fuzzy goals, multiple workers, and long unattended runs can still converge.",
+        "loopx_intervention": "goal state, worker handoff, dynamic workflow"
+      },
+      "evidence_metrics": [
+        {
+          "value": "5",
+          "labels": {
+            "zh": "公开安全硬件 workflow",
+            "en": "public-safe hardware workflows"
+          }
+        },
+        {
+          "value": "3",
+          "labels": {
+            "zh": "LoopX/编排/worker 角色分离",
+            "en": "LoopX/orchestrator/worker role split"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "canonical artifact 保留",
+            "en": "canonical artifact preserved"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "专有设计细节暴露",
+            "en": "proprietary design details exposed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-19-loopx-self-iteration",
+      "date": "2026-06-19",
+      "title": "LoopX self-iteration loop",
+      "status": "public_evidence_case",
+      "case_page": "docs/showcases/cases/0619-loopx-self-iteration.md",
+      "demo_command": null,
+      "domain": "agent-platform-self-improvement",
+      "audience": [
+        "open-source-user",
+        "agent-platform-developer",
+        "technical-lead"
+      ],
+      "pattern_tags": [
+        "self_iteration",
+        "peer_claim_scope",
+        "todo_claim_ownership",
+        "identity_aware_prompt",
+        "self_merge_policy",
+        "evidence_writeback",
+        "efficiency_evidence_model"
+      ],
+      "headline": "A high-churn LoopX repo stayed legible while benchmark, product, docs, planning, and peer lanes moved in parallel.",
+      "problem": "A long-running agent engineering repo needed to keep many public commits, benchmark routes, planning lanes, user gates, docs, smokes, and peer changes reviewable without relying on private chat memory.",
+      "loopx_behavior": [
+        "preserve durable goal, todo, gate, quota, evidence, and run-history state across high repository churn",
+        "separate benchmark, productization, documentation, planning, and peer lanes into reviewable obligations",
+        "register peer identities and project advisory scope through automation prompts",
+        "claim and complete scoped todos with public-safe evidence",
+        "allow small validated peer self-merges while requiring explicit review handoff for risky work",
+        "keep public showcases and smokes free of private chat, internal docs, raw trajectories, and raw benchmark evidence"
+      ],
+      "user_value": "The operator can let a fast-moving multi-lane agent project continue across benchmark, product, docs, and peer work while keeping ownership, gates, validation, follow-up, and conservative efficiency evidence visible in one shared control plane.",
+      "workload_signal": {
+        "anchor_commit": "86d6d9d",
+        "scope": "whole_public_repository",
+        "whole_repository": {
+          "commit_count": 801,
+          "files_touched": 570,
+          "insertions": 265703,
+          "deletions": 49895
+        },
+        "recent_window": {
+          "since": "2026-06-18T00:00:00+08:00",
+          "commit_count": 244,
+          "files_touched": 216,
+          "insertions": 52898,
+          "deletions": 20935
+        },
+        "public_window": {
+          "from": "2026-05-31T22:57:55+08:00",
+          "to": "2026-06-20T12:18:42+08:00",
+          "calendar_days": 19.6,
+          "active_commit_days": 16
+        },
+        "efficiency_model": {
+          "baseline": "AI-coding-assisted product process",
+          "estimated_developer_days": {
+            "low": 59,
+            "high": 92
+          },
+          "single_engineer_calendar_compression": {
+            "low": 3.0,
+            "high": 4.7
+          },
+          "two_person_team_calendar_compression": {
+            "low": 1.8,
+            "high": 3.2
+          },
+          "claim_boundary": "directional, maturity-adjusted, public Git evidence only"
+        },
+        "main_surfaces": [
+          "CLI",
+          "todo lifecycle",
+          "status and quota projection",
+          "heartbeat prompt",
+          "dashboard/status server",
+          "benchmark adapters",
+          "frontstage projection",
+          "docs",
+          "smokes",
+          "showcases",
+          "product positioning"
+        ]
+      },
+      "feature_points": [
+        "benchmark and adapter maturation",
+        "control-plane correctness for quota, gates, todo projection, and outcome-floor blockers",
+        "planning and dreaming lane separation",
+        "user/operator surfaces including diagnostics, dashboard framing, onboarding, quickstart, README, and showcases",
+        "registered todo claim ownership and identity-aware scoped heartbeat prompts",
+        "peer self-merge completion flag with evidence",
+        "public-boundary smokes and showcase catalog checks",
+        "conservative efficiency evidence model that converts commits into maturity-adjusted product requirement clusters"
+      ],
+      "evidence_boundary": "Public Git evidence only; no private thread text, local active-state bodies, internal document links, screenshots, raw benchmark material, credentials, or machine-specific paths.",
+      "frontend_card": {
+        "visual_metaphor": "many repo lanes flowing through one control plane, with independently claimed peer lanes branching safely",
+        "primary_metric_hint": "801 public commits, 244 recent commits, and a conservative 59-92 AI-assisted developer-day baseline show self-iteration throughput.",
+        "badges": [
+          "self-iteration",
+          "commit-backed",
+          "peer-agent",
+          "efficiency-model"
+        ],
+        "story_beats": [
+          "whole repo moves quickly across benchmark, runtime, docs, dashboard, planning, and smoke surfaces",
+          "LoopX keeps durable goals, todos, gates, quota, evidence, and run history visible",
+          "one peer lane progresses beside a separately claimed benchmark lane",
+          "validated peer changes can self-merge while risky work uses explicit review handoff",
+          "public Git history is converted into conservative product requirement clusters",
+          "public docs and smokes turn the experience into a reusable case"
+        ]
+      },
+      "interactive_page": "docs/showcases/cases/0619-loopx-self-iteration.html",
+      "interactive_page_zh": "docs/showcases/cases/0619-loopx-self-iteration.html",
+      "interactive_page_en": "docs/showcases/cases/0619-loopx-self-iteration.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0619-loopx-self-iteration.html",
+        "en": "docs/showcases/cases/0619-loopx-self-iteration.en.html"
+      },
+      "showcase_rank": 6,
+      "showcase_table": {
+        "proof_point": "A high-churn multi-lane project can keep state, boundaries, and evidence coherent.",
+        "loopx_intervention": "todo, quota, gate, evidence, review packet, frontstage"
+      },
+      "evidence_metrics": [
+        {
+          "value": "801",
+          "labels": {
+            "zh": "public commits",
+            "en": "public commits"
+          }
+        },
+        {
+          "value": "244",
+          "labels": {
+            "zh": "06-18 后 commits",
+            "en": "commits since Jun 18"
+          }
+        },
+        {
+          "value": "59-92d",
+          "labels": {
+            "zh": "AI-assisted baseline",
+            "en": "AI-assisted baseline"
+          }
+        },
+        {
+          "value": "3.0-4.7x",
+          "labels": {
+            "zh": "calendar compression",
+            "en": "calendar compression"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-17-blocked-p0-safe-rotation",
+      "date": "2026-06-17",
+      "title": "Blocked P0 with safe P1/P2 rotation",
+      "status": "reproducible_synthetic_demo",
+      "case_page": "docs/showcases/cases/0617-blocked-p0-safe-rotation.md",
+      "demo_command": "python3 examples/showcase-0617-blocked-p0-safe-rotation-smoke.py",
+      "domain": "benchmark-rotation",
+      "audience": [
+        "operator",
+        "agent-platform-developer",
+        "benchmark-developer"
+      ],
+      "pattern_tags": [
+        "blocked_priority_fallback",
+        "concrete_user_gate",
+        "safe_fallback_work",
+        "quota_discipline",
+        "attention_reduction"
+      ],
+      "headline": "A gated P0 lane should not stall a whole long-running goal when safe fallback work exists.",
+      "problem": "A benchmark lane needed a large local dependency before it could continue, while other no-upload benchmark work remained safe.",
+      "loopx_behavior": [
+        "surface the P0 dependency as a concrete user gate",
+        "avoid spending on the gated lane",
+        "select a non-dependent fallback lane",
+        "record both the blocker and the fallback reason"
+      ],
+      "user_value": "The operator sees exactly what decision is needed while the agent can keep making bounded progress elsewhere.",
+      "evidence_boundary": "Synthetic public fixture only; no private screenshots, raw tasks, internal links, local image names, or raw run logs.",
+      "frontend_card": {
+        "visual_metaphor": "priority lanes with one gated lane and one active fallback lane",
+        "primary_metric_hint": "One concrete P0 user decision is isolated while one safe fallback lane can continue with zero gated-lane spend.",
+        "badges": [
+          "reproducible",
+          "user-gate",
+          "fallback"
+        ],
+        "story_beats": [
+          "P0 lane is blocked by a user decision",
+          "LoopX projects the decision as a user todo",
+          "agent continues safe fallback work",
+          "state records blocker, fallback, validation, and spend policy"
+        ]
+      },
+      "interactive_page": "docs/showcases/cases/0617-blocked-p0-safe-rotation.html",
+      "interactive_page_zh": "docs/showcases/cases/0617-blocked-p0-safe-rotation.html",
+      "interactive_page_en": "docs/showcases/cases/0617-blocked-p0-safe-rotation.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0617-blocked-p0-safe-rotation.html",
+        "en": "docs/showcases/cases/0617-blocked-p0-safe-rotation.en.html"
+      },
+      "showcase_rank": 7,
+      "showcase_table": {
+        "proof_point": "A user decision should not block all safe work.",
+        "loopx_intervention": "concrete user todo, safe fallback, quota control"
+      },
+      "evidence_metrics": [
+        {
+          "value": "1",
+          "labels": {
+            "zh": "具体 P0 用户决策",
+            "en": "concrete P0 user decision"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "safe fallback lane",
+            "en": "safe fallback lane"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "gated lane 自动推进",
+            "en": "gated-lane auto-progress"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "private upload 依赖",
+            "en": "private upload dependency"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2026-06-20-creator-operator-case-spec",
+      "date": "2026-06-20",
+      "title": "Creator-operator long-running agent case",
+      "status": "public_safe_case_spec",
+      "case_page": "docs/showcases/cases/0620-creator-operator-case-spec.md",
+      "demo_command": null,
+      "storyboard_path": "docs/showcases/creator-ops-fake-data-storyboard.md",
+      "feedback_contract_path": "docs/showcases/creator-ops-feedback-boundary-contract.md",
+      "domain": "creator-operations",
+      "audience": [
+        "non-technical-operator",
+        "creator-operator",
+        "product-builder",
+        "open-source-user"
+      ],
+      "pattern_tags": [
+        "creator_operator_workflow",
+        "gate_aware_continuation",
+        "feedback_capture",
+        "safe_side_path",
+        "material_library",
+        "synthetic_case"
+      ],
+      "headline": "A creator-operator needs a long-running agent loop that keeps research moving while publishing decisions stay gated.",
+      "problem": "Content research, preference mapping, insight extraction, draft queues, and material libraries can all blur together when the user only sees chat logs or raw agent traces.",
+      "loopx_behavior": [
+        "represent the creative objective as durable goal state",
+        "separate publishing decisions from safe research and organization work",
+        "turn feedback into preference hints, gate decisions, todo updates, or boundary corrections",
+        "keep synthetic/public material separate from private notes and unpublished drafts",
+        "show the next agent move before another automatic run spends compute"
+      ],
+      "user_value": "A non-technical operator can see what changed, what is blocked, what can safely continue, and how feedback changes the plan without reading prompts, logs, or raw traces.",
+      "evidence_boundary": "Synthetic case spec only; no real platform data, creator notes, screenshots, private drafts, raw browsing traces, local paths, credentials, or performance claims.",
+      "appendix_surface": {
+        "reason": "Synthetic product-direction spec; keep as appendix until real public evidence or an approved public-safe user story exists.",
+        "public_surface": "appendix_only",
+        "links": [
+          "docs/showcases/creator-ops-fake-data-storyboard.md",
+          "docs/showcases/creator-ops-feedback-boundary-contract.md"
+        ]
+      },
+      "interactive_page": "docs/showcases/cases/0620-creator-operator-case-spec.html",
+      "interactive_page_zh": "docs/showcases/cases/0620-creator-operator-case-spec.html",
+      "interactive_page_en": "docs/showcases/cases/0620-creator-operator-case-spec.en.html",
+      "localized_pages": {
+        "zh": "docs/showcases/cases/0620-creator-operator-case-spec.html",
+        "en": "docs/showcases/cases/0620-creator-operator-case-spec.en.html"
+      },
+      "evidence_metrics": [
+        {
+          "value": "1",
+          "labels": {
+            "zh": "publish hard gate",
+            "en": "publish hard gate"
+          }
+        },
+        {
+          "value": "1",
+          "labels": {
+            "zh": "safe research side path",
+            "en": "safe research side path"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "autopublish 动作",
+            "en": "autopublish actions"
+          }
+        },
+        {
+          "value": "0",
+          "labels": {
+            "zh": "真实运营数据暴露",
+            "en": "real operations data exposed"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -117,12 +117,15 @@ def test_real_loopx_apply_is_idempotent_and_emits_causal_event_artifact(
         assert len(event_ids) == len(set(event_ids))
         assert sum(item["event_type"] == "quota_spent" for item in events) == 1
         state = runtime.read_private_state("goal-bridge")
+        assert state["runtime"]["version"] == "0.2.13"
+        assert state["runtime"]["source_kind"] == "embedded_source"
         assert state["quota"]["spent_slots"] == 1
         assert state["continuation_allowed"] is True
         assert state["interaction_contract"]["cli_channel"]["spend_allowed_now"] is False
         assert Path(first[0].apply_receipt["module_origin"]).is_relative_to(
             Path(installed["install_root"])
         )
+        assert not (workspace / ".zyra" / "loopx" / "install").exists()
 
         page = event_spine.query(
             RuntimeEventQuery(task_id="task-loopx-bridge", limit=50)

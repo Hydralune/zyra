@@ -1,10 +1,10 @@
 {
   "schema": "zyra.phase2.source-role-registry/v1",
-  "slice_id": "P2-S00-02",
+  "slice_id": "P2-S01-04",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "registry_mode": "phase2_constraint_overlay",
   "frozen": true,
-  "superseding_adr": null,
+  "superseding_adr": "docs/phase2/slice-01-04-loopx-v0213-embedded-source-cutover.md",
   "allowed_roles": [
     "primary_implementation",
     "supplementary_implementation",
@@ -36,19 +36,22 @@
         {
           "source_id": "loopx",
           "source_name": "LoopX",
-          "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
-          "source_version": "0.2.4",
+          "source_commit": "a2c072d412d90839132e1cf39c23dd431c394175",
+          "source_tree_commit": "7232dca45ec2ca996edc43b2d3558edc802c844e",
+          "source_object_type": "annotated_tag",
+          "source_version": "0.2.13",
           "role": "supplementary_implementation",
           "source_languages": ["python"],
           "target_languages": ["python"],
-          "migration_mode": "pinned_package_integration",
+          "migration_mode": "pinned_embedded_source_integration",
           "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/LoopX.md",
           "target_paths": [
+            "packages/integrations/loopx_runtime",
             "packages/integrations/zyra_integrations/loopx"
           ],
           "proposal_only": true,
           "canonical_owner_id": "loopx_private_control",
-          "release_profiles": ["linux_wsl_upstream_semantics", "windows_release_offline_wheel"],
+          "release_profiles": ["pinned_embedded_source"],
           "runtime_source_repository_dependency_allowed": false
         }
       ]

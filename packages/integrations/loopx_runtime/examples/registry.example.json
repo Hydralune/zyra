@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1",
+  "updated_at": "2026-05-31",
+  "common_runtime_root": "./runtime",
+  "goals": [
+    {
+      "id": "example-project-goal",
+      "domain": "knowledge-work-control-plane",
+      "status": "active",
+      "repo": "/path/to/project",
+      "state_file": ".codex/goals/example-project-goal/ACTIVE_GOAL_STATE.md",
+      "authority_sources": [
+        {
+          "kind": "goal_doc",
+          "path": "docs/GOAL.md",
+          "role": "canonical_goal_document"
+        }
+      ],
+      "authority_registry": {
+        "path": "docs/meta/DOC_REGISTRY.yaml",
+        "read_status": "read",
+        "default_entry_docs": [
+          "README.md",
+          "docs/GOAL.md"
+        ],
+        "topic_authority": {
+          "goal": "docs/GOAL.md",
+          "validation": "docs/VALIDATION.md"
+        },
+        "project_materials": {
+          "migration_design": {
+            "role": "current_authority",
+            "source_kind": "external_doc",
+            "freshness": "owner_review_required"
+          },
+          "source_repo": {
+            "role": "source_surface",
+            "source_kind": "repository",
+            "freshness": "read_only_status_ok"
+          },
+          "target_repo": {
+            "role": "implementation_surface",
+            "source_kind": "repository",
+            "freshness": "read_only_status_ok"
+          }
+        },
+        "deprecated_source_count": 0,
+        "conflict_risk": "low"
+      },
+      "adapter": {
+        "kind": "example_adapter_v0",
+        "status": "connected"
+      },
+      "spawn_policy": {
+        "mode": "multi_subagent",
+        "allowed": true,
+        "max_children": 3,
+        "allowed_domains": [
+          "docs-map",
+          "validation-map"
+        ]
+      },
+      "coordination": {
+        "registered_agents": [
+          "codex-main-control",
+          "codex-side-bypass"
+        ],
+        "agent_model": "peer_v1",
+        "write_scope": [
+          "docs/**",
+          "examples/**"
+        ],
+        "requires_parent_approval": [
+          "write",
+          "publish",
+          "production-action"
+        ]
+      },
+      "execution_profile": {
+        "cadence": "bounded_progress_segment",
+        "minimum_scale": "multi_surface_or_implementation",
+        "must_include": [
+          "coherent_artifact",
+          "targeted_validation",
+          "state_writeback"
+        ],
+        "spend_rule": "spend_only_after_artifact_validation_writeback",
+        "outcome_floor": {
+          "required_when": "after_surface_progress_streak",
+          "surface_streak_threshold": 3,
+          "outcome_markers": [
+            "eval_metric",
+            "experiment",
+            "macro_evidence",
+            "evidence_segment",
+            "adapter_proof"
+          ],
+          "surface_only_hints": [
+            "forecast",
+            "runbook",
+            "queue",
+            "fields"
+          ],
+          "must_advance": [
+            "primary_goal_outcome"
+          ],
+          "avoid": [
+            "surface_only_progress_loop"
+          ],
+          "if_unavailable": "report_blocker_without_spend"
+        },
+        "degradation_policy": {
+          "small_scale_streak_threshold": 2,
+          "on_degradation": "require_blocker_or_expand_next_batch"
+        }
+      },
+      "next_probe": "python3 scripts/project-pre-tick.py --format json --save-run",
+      "guards": [
+        "read-only by default",
+        "do not mutate production systems without explicit user approval",
+        "keep private evidence out of public notes"
+      ],
+      "quota": {
+        "compute": 0.5,
+        "window_hours": 24
+      },
+      "control_plane": {
+        "self_repair": {
+          "enabled": false,
+          "allow_health_blocker_repair": false,
+          "allow_waiting_projection_repair": false
+        }
+      }
+    }
+  ]
+}

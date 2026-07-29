@@ -357,6 +357,9 @@ def test_deterministic_wheel_is_installable_and_record_bound(
         encoding="utf-8",
     )
     (package / "data.json").write_text('{"ready":true}\n', encoding="utf-8")
+    shared = source / "resources" / "skill.md"
+    shared.parent.mkdir(parents=True)
+    shared.write_text("# packaged skill\n", encoding="utf-8")
     (source / "pyproject.toml").write_text(
         "[project]\n"
         'name = "zyra-demo"\n'
@@ -367,7 +370,9 @@ def test_deterministic_wheel_is_installable_and_record_bound(
         'zyra-demo = "zyra_demo:VALUE"\n'
         "[tool.setuptools.packages.find]\n"
         'where = ["packages/product"]\n'
-        'include = ["zyra_*"]\n',
+        'include = ["zyra_*"]\n'
+        "[tool.setuptools.data-files]\n"
+        '"share/zyra-demo" = ["resources/skill.md"]\n',
         encoding="utf-8",
     )
     builder = DeterministicWheelBuilder(source)
@@ -381,8 +386,14 @@ def test_deterministic_wheel_is_installable_and_record_bound(
     verification = builder.verify(first_wheel)
     assert verification["ready"] is True
     assert verification["entry_count"] >= 6
+    assert first_receipt["data_file_entry_count"] == 1
     import zipfile
 
+    with zipfile.ZipFile(first_wheel) as archive:
+        assert (
+            "zyra_demo-1.2.3.data/data/share/zyra-demo/skill.md"
+            in archive.namelist()
+        )
     with zipfile.ZipFile(first_wheel, "a") as archive:
         archive.writestr("zyra_demo/extra.py", "MUTATED = True\n")
     with pytest.raises(IntegrityViolation) as captured:

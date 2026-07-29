@@ -110,6 +110,10 @@ export function LoopXWorkbench({
 
       <dl className="fact-grid">
         <div>
+          <dt>Runtime</dt>
+          <dd>v{view.runtimeVersion} · {view.runtimeSource}</dd>
+        </div>
+        <div>
           <dt>Private goal</dt>
           <dd>{view.goalId}</dd>
         </div>

@@ -88,13 +88,20 @@ class DeterministicWheelBuilder:
         distribution = _NORMALIZE_DISTRIBUTION.sub("_", name)
         dist_info = f"{distribution}-{version}.dist-info"
         package_entries = self._package_entries(pyproject)
+        data_file_entries = self._data_file_entries(
+            pyproject,
+            distribution=distribution,
+            version=version,
+        )
         metadata_entries = self._metadata_entries(
             project,
             distribution=distribution,
             version=version,
             dist_info=dist_info,
         )
-        entries = self._unique_entries((*package_entries, *metadata_entries))
+        entries = self._unique_entries(
+            (*package_entries, *data_file_entries, *metadata_entries)
+        )
         record_path = f"{dist_info}/RECORD"
         record = self._record(entries, record_path=record_path)
         entries = (*entries, WheelEntry(record_path, record))
@@ -114,7 +121,10 @@ class DeterministicWheelBuilder:
             "size": output.stat().st_size,
             "entry_count": len(entries),
             "package_entry_count": len(package_entries),
-            "metadata_entry_count": len(entries) - len(package_entries),
+            "data_file_entry_count": len(data_file_entries),
+            "metadata_entry_count": (
+                len(entries) - len(package_entries) - len(data_file_entries)
+            ),
             "source_digest": stable_digest(
                 [
                     {
@@ -127,6 +137,72 @@ class DeterministicWheelBuilder:
             ),
         }
         return receipt
+
+    def _data_file_entries(
+        self,
+        pyproject: Mapping[str, Any],
+        *,
+        distribution: str,
+        version: str,
+    ) -> tuple[WheelEntry, ...]:
+        tool = pyproject.get("tool")
+        setuptools = tool.get("setuptools") if isinstance(tool, Mapping) else None
+        configured = (
+            setuptools.get("data-files")
+            if isinstance(setuptools, Mapping)
+            else None
+        )
+        if configured is None:
+            return ()
+        if not isinstance(configured, Mapping):
+            raise InventoryViolation(
+                "Python data-file configuration is invalid.",
+                code="wheel_data_files_invalid",
+            )
+        data_root = f"{distribution}-{version}.data/data"
+        entries: list[WheelEntry] = []
+        for raw_destination in sorted(
+            configured,
+            key=lambda item: str(item).encode("utf-8"),
+        ):
+            destination = normalize_relative_path(str(raw_destination))
+            sources = configured[raw_destination]
+            if not isinstance(sources, Sequence) or isinstance(
+                sources,
+                (str, bytes),
+            ):
+                raise InventoryViolation(
+                    "Python data-file source list is invalid.",
+                    code="wheel_data_files_invalid",
+                    details={"destination": destination},
+                )
+            for raw_source in sources:
+                relative_source = normalize_relative_path(str(raw_source))
+                source = self.project_root.joinpath(
+                    *PurePosixPath(relative_source).parts
+                ).resolve()
+                if (
+                    not source.is_relative_to(self.project_root)
+                    or not source.is_file()
+                ):
+                    raise InventoryViolation(
+                        "Configured Python data file is missing or escapes the project.",
+                        code="wheel_data_file_missing",
+                        details={
+                            "destination": destination,
+                            "source": relative_source,
+                        },
+                    )
+                entries.append(
+                    WheelEntry(
+                        normalize_relative_path(
+                            f"{data_root}/{destination}/{source.name}"
+                        ),
+                        source.read_bytes(),
+                        executable=self._is_executable(source),
+                    )
+                )
+        return self._unique_entries(entries)
 
     def verify(self, wheel: Path) -> dict[str, Any]:
         wheel = wheel.resolve()

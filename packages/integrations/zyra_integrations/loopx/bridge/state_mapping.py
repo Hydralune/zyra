@@ -238,9 +238,10 @@ class LoopXStateMapper:
                 )
             )
         for release in command.update.release_claims:
-            # LoopX 0.2.4 has no destructive claim-clear event. Replaying a
-            # todo_added event for the stable id is its event-sourced replace
-            # operation and removes claimed_by without rewriting history.
+            # The pinned LoopX event contract has no destructive claim-clear
+            # event. Replaying todo_added for the stable id is its
+            # event-sourced replace operation and removes claimed_by without
+            # rewriting history.
             current = todo_projection[release.todo_id]
             events.append(
                 _event(

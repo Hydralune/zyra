@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import shutil
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-from zyra_integrations.loopx.install import LoopXDoctor, LoopXPackageLock
 from zyra_productization.release import ReleaseRuntime
 from zyra_productization.release.bundle import ReleaseBundleBuilder
 
@@ -14,91 +12,47 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK_COMMIT = "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b"
 
 
-def _copy_packaged_loopx(destination: Path) -> Path:
-    lock = LoopXPackageLock.load(PROJECT_ROOT)
-    lock_target = destination / "config" / "loopx" / "package-lock.json"
-    lock_target.parent.mkdir(parents=True)
-    shutil.copyfile(lock.path, lock_target)
-    for artifact in lock.artifacts.values():
-        source = lock.resolve_artifact(artifact)
-        target = destination / artifact.path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
-    return destination
-
-
-def test_release_deep_doctor_verifies_loopx_identity_cli_and_write_boundary() -> None:
+def test_release_deep_doctor_verifies_embedded_identity_cli_and_resources() -> None:
     report = ReleaseRuntime(PROJECT_ROOT).doctor(
         deep=True,
         require_tools=False,
     )
     assert report["ready"] is True
-    assert report["mode"] == "deep"
     loopx = next(
         item for item in report["checks"] if item["check"] == "loopx-pinned-runtime"
     )
     assert loopx["ready"] is True
     details = loopx["details"]
-    assert details["version"] == "0.2.4"
+    assert details["version"] == "0.2.13"
     assert (
         details["source_commit"]
-        == "8e79843704a40d8069a9cab4ede6edc6d29f671b"
+        == "a2c072d412d90839132e1cf39c23dd431c394175"
     )
+    assert details["archive_fallback"] is False
     assert {item["check"] for item in details["checks"]} >= {
         "package-identity",
-        "offline-artifacts",
-        "profile-boundary",
-        "release-independence",
+        "embedded-source-integrity",
+        "embedded-runtime-layout",
+        "archive-entry-retired",
         "import-and-cli-entry",
+        "extension-skill-resource-discovery",
     }
 
 
-def test_loopx_doctor_fails_closed_for_wheel_and_manifest_tampering(
-    tmp_path: Path,
-) -> None:
-    wheel_root = _copy_packaged_loopx(tmp_path / "wheel-tamper")
-    wheel_lock = LoopXPackageLock.load(wheel_root)
-    wheel = wheel_lock.resolve_artifact(wheel_lock.artifacts["wheel"])
-    data = bytearray(wheel.read_bytes())
-    data[len(data) // 2] ^= 0x01
-    wheel.write_bytes(data)
-    wheel_report = LoopXDoctor(wheel_root).run(deep=True)
-    assert wheel_report["ready"] is False
-    assert any(
-        blocker["code"] == "loopx_artifact_tampered"
-        for blocker in wheel_report["blockers"]
-    )
-
-    manifest_root = _copy_packaged_loopx(tmp_path / "manifest-tamper")
-    manifest_path = manifest_root / "config" / "loopx" / "package-lock.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["package"]["version"] = "0.2.5"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    manifest_report = LoopXDoctor(manifest_root).run(deep=False)
-    assert manifest_report["ready"] is False
-    assert manifest_report["blockers"][0]["code"] == "loopx_package_lock_invalid"
-
-
-def test_release_bundle_contains_loopx_lock_assets_doctor_metadata_and_sbom(
+def test_release_bundle_contains_embedded_source_manifest_and_no_loopx_archives(
     tmp_path: Path,
 ) -> None:
     receipt = ReleaseBundleBuilder(
         PROJECT_ROOT,
         tmp_path / "output",
     ).build(
-        release_id="loopx-release-test",
+        release_id="loopx-embedded-release-test",
         archive_format="zip",
         benchmark_expected_commit=BENCHMARK_COMMIT,
     )
     assert receipt["ready"] is True
-    assert receipt["loopx"]["version"] == "0.2.4"
-    assert receipt["loopx"]["profiles"] == [
-        "linux_wsl_upstream_semantics",
-        "windows_release_offline_wheel",
-    ]
+    assert receipt["loopx"]["version"] == "0.2.13"
+    assert receipt["loopx"]["profiles"] == ["pinned_embedded_source"]
     archive = Path(receipt["archive"])
     verification = ReleaseBundleBuilder(
         PROJECT_ROOT,
@@ -108,19 +62,38 @@ def test_release_bundle_contains_loopx_lock_assets_doctor_metadata_and_sbom(
     assert verification["loopx"]["ready"] is True
     assert {
         "loopx_package_lock",
-        "loopx_wheel",
-        "loopx_source_bundle",
+        "loopx_source_manifest",
         "loopx_doctor_metadata",
     }.issubset(verification["verified_artifacts"])
+    assert "loopx_wheel" not in verification["verified_artifacts"]
+    assert "loopx_source_bundle" not in verification["verified_artifacts"]
 
     with zipfile.ZipFile(archive) as bundle:
+        names = bundle.namelist()
+        assert any(
+            name.endswith(
+                "/packages/integrations/loopx_runtime/loopx/__init__.py"
+            )
+            for name in names
+        )
+        assert any(
+            name.endswith(
+                "/packages/integrations/loopx_runtime/SOURCE-MANIFEST.json"
+            )
+            for name in names
+        )
+        assert not any(
+            name.casefold().endswith((".whl", ".tar.gz"))
+            and PurePosixPath(name).name.casefold().startswith("loopx-")
+            for name in names
+        )
         manifest_name = next(
-            name for name in bundle.namelist() if name.endswith("/release/manifest.json")
+            name for name in names if name.endswith("/release/manifest.json")
         )
         payload_prefix = manifest_name.removesuffix("release/manifest.json")
         manifest = json.loads(bundle.read(manifest_name))
         sbom = json.loads(bundle.read(payload_prefix + "release/sbom.cdx.json"))
-    assert manifest["locks"]["loopx"]["version"] == "0.2.4"
+    assert manifest["locks"]["loopx"]["version"] == "0.2.13"
     assert manifest["locks"]["loopx"]["source_digest"] == receipt["loopx"][
         "source_digest"
     ]
@@ -131,4 +104,8 @@ def test_release_bundle_contains_loopx_lock_assets_doctor_metadata_and_sbom(
         item["name"]: item["value"] for item in loopx_component["properties"]
     }
     assert properties["zyra:source-role"] == "supplementary_implementation"
+    assert (
+        properties["zyra:migration-mode"]
+        == "pinned_embedded_source_integration"
+    )
     assert properties["zyra:line-bucket"] == "runtime-assets/vendor-like"

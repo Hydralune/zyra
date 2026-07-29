@@ -529,9 +529,7 @@ from zyra_integrations.e02_ports import (
     materialize_bundled_skills,
 )
 from zyra_integrations.loopx import (
-    InstallProfile as LoopXInstallProfile,
     LoopXControlRuntime,
-    LoopXInstaller,
     task_goal_id,
 )
 from zyra_integrations.loopx.bridge import (
@@ -540,6 +538,12 @@ from zyra_integrations.loopx.bridge import (
     LoopXOutbox,
     LoopXRuntimeStateAdapter,
     LoopXSingleWriter,
+)
+from zyra_integrations.loopx.runtime import (
+    LOOPX_SOURCE_COMMIT,
+    LOOPX_SOURCE_TREE_COMMIT,
+    LOOPX_VERSION,
+    LoopXRuntimeResolver,
 )
 
 from .mcp_api import McpApiFacade
@@ -3349,15 +3353,13 @@ def get_loopx_control_runtime() -> LoopXControlRuntime:
     key = (str(workspace), str(database), str(artifacts))
     with _CONTROL_RUNTIME_LOCK:
         if _LOOPX_CONTROL_RUNTIME is None or _LOOPX_CONTROL_KEY != key:
-            installed = LoopXInstaller(PROJECT_ROOT).install(
-                workspace,
-                profile=LoopXInstallProfile.current(),
-                python_executable=Path(sys.executable),
+            runtime_receipt = LoopXRuntimeResolver(PROJECT_ROOT).receipt(
+                workspace
             )
             outbox = LoopXOutbox(workspace_root=workspace)
             runtime = LoopXRuntimeStateAdapter(
                 workspace_root=workspace,
-                install_receipt=installed,
+                install_receipt=runtime_receipt,
             )
             _LOOPX_CONTROL_RUNTIME = LoopXControlRuntime(
                 workspace_root=workspace,
@@ -6914,9 +6916,20 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {
                         "schema": "zyra.loopx-control-state/v1",
+                        "runtime": {
+                            "version": LOOPX_VERSION,
+                            "source_commit": LOOPX_SOURCE_COMMIT,
+                            "source_tree_commit": LOOPX_SOURCE_TREE_COMMIT,
+                            "source_digest": "",
+                            "source_kind": "embedded_source",
+                            "archive_fallback": False,
+                        },
+                        "workspace_id": "",
+                        "run_id": state.run_id,
                         "task_id": state.task_id,
                         "goal_id": goal_id,
                         "lifecycle": "degraded",
+                        "connected": False,
                         "degraded": True,
                         "error": {
                             "code": getattr(
@@ -6925,8 +6938,37 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                 "loopx_runtime_unavailable",
                             ),
                             "message": str(error),
-                            "recovery": "repair_pinned_runtime_and_retry",
+                            "recovery": "restore_embedded_runtime_and_retry",
                         },
+                        "private_state": {
+                            "owner": "LoopX",
+                            "goal": {"goal_id": goal_id},
+                            "todos": [],
+                            "claims": [],
+                            "quota": {},
+                            "history": [],
+                        },
+                        "canonical_state": {
+                            "task_owner": "Zyra orchestration/runtime",
+                            "worker_lease_owner": "WorkerLeaseManager",
+                            "execution_budget_owner": "ResourceScheduler",
+                            "loopx_claim_is_worker_lease": False,
+                            "loopx_quota_is_execution_budget": False,
+                        },
+                        "sync": {
+                            "pending": 0,
+                            "acked": 0,
+                            "dead_letter": 0,
+                            "cursor": 0,
+                            "workspace_cursor": 0,
+                            "records": [],
+                        },
+                        "continuation": {
+                            "allowed": False,
+                            "interaction_contract": {},
+                        },
+                        "last_validated_receipt": {},
+                        "last_sync_receipt": {},
                     },
                 )
                 return

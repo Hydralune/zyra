@@ -22,6 +22,14 @@ export interface LoopXTodo {
 
 export interface LoopXControlState {
   readonly schema: "zyra.loopx-control-state/v1"
+  readonly runtime: {
+    readonly version: "0.2.13"
+    readonly source_commit: string
+    readonly source_tree_commit: string
+    readonly source_digest: string
+    readonly source_kind: "embedded_source"
+    readonly archive_fallback: false
+  }
   readonly workspace_id: string
   readonly run_id: string
   readonly task_id: string
@@ -78,6 +86,7 @@ function stateProjection(value: unknown): LoopXControlState {
   const state = value as Record<string, unknown>
   if (
     state.schema !== "zyra.loopx-control-state/v1"
+    || !state.runtime
     || !["enabled", "degraded", "disabled"].includes(String(state.lifecycle))
     || !state.private_state
     || !state.canonical_state

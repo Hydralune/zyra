@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +9,7 @@ from zyra_integrations.loopx.bridge import (
     LoopXRuntimeStateAdapter,
     LoopXSingleWriter,
 )
-from zyra_integrations.loopx.install import InstallProfile, LoopXInstaller
+from zyra_integrations.loopx.runtime import LoopXRuntimeResolver
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 
 
@@ -18,11 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def install_loopx(workspace: Path) -> dict[str, Any]:
-    return LoopXInstaller(PROJECT_ROOT).install(
-        workspace,
-        profile=InstallProfile.WINDOWS_RELEASE,
-        python_executable=Path(sys.executable),
-    )
+    return LoopXRuntimeResolver(PROJECT_ROOT).receipt(workspace)
 
 
 def committed_graph_mutation(

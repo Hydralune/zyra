@@ -1,0 +1,37 @@
+.DS_Store
+.venv/
+.idea
+node_modules/
+apps/dashboard/public/*.local.json
+apps/presentation/dashboard/public/*.local.json
+__pycache__/
+*.pyc
+*.tsbuildinfo
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.playwright-cli/
+output/playwright/
+
+# Local/private operator skills. Generic, reusable contracts belong in docs or
+# product code; account-specific creator/operator skills stay outside git.
+skills/loopx-social-media/
+
+# Project-local private state. Keep real project paths, task ids, tokens,
+# internal logs, and active goal state outside the public repository.
+.local/
+.loopx/
+.goal-harness/
+.goal-wrapper.local/
+.codex/goals/
+.opencode/goals/
+goals/**/ACTIVE_GOAL_STATE.md
+goals/**/ACTIVE_GOAL_STATE.md.lock
+/runtime/
+logs/

@@ -1,0 +1,193 @@
+{
+  "fixture": "local_agent_launch_plan_public_v1",
+  "ok": true,
+  "attention_queue": {
+    "available": true,
+    "item_count": 1,
+    "items": [
+      {
+        "goal_id": "loopx-meta",
+        "status": "active",
+        "waiting_on": "codex",
+        "severity": "action",
+        "recommended_action": "Preview peer task assignment before any runtime launcher exists.",
+        "local_agent_launch_plan": {
+          "schema_version": "local_agent_launch_plan_v1",
+          "mode": "dry_run",
+          "goal_id": "loopx-meta",
+          "agent_model": "peer_v1",
+          "generated_at": "2026-06-27T04:00:00Z",
+          "configured_agents": [
+            {
+              "agent_id": "codex-main-control",
+              "agent_model": "peer_v1",
+              "profile_role": "release-validation",
+              "source": "registry.coordination.registered_agents",
+              "scope_summary": "Validates release and review tasks explicitly assigned to this peer.",
+              "can_receive_work": true,
+              "blocked_by": []
+            },
+            {
+              "agent_id": "codex-side-bypass",
+              "agent_model": "peer_v1",
+              "profile_role": "public-validation",
+              "source": "registry.coordination.registered_agents",
+              "scope_summary": "Performs public validation slices with task-scoped workspace policy.",
+              "can_receive_work": true,
+              "blocked_by": []
+            },
+            {
+              "agent_id": "codex-product-capability",
+              "agent_model": "peer_v1",
+              "profile_role": "product-validation",
+              "source": "registry.coordination.registered_agents",
+              "scope_summary": "Product capability agent owns product-surface validation and separate capability gates.",
+              "can_receive_work": false,
+              "blocked_by": [
+                "current_todo_claimed_by_another_agent"
+              ]
+            }
+          ],
+          "task_assignments": [
+            {
+              "agent_id": "codex-main-control",
+              "todo_id": "todo_review_local_agent_launch_plan",
+              "assignment_kind": "claimed",
+              "action_kind": "review",
+              "responsibility": "Review this protocol slice when repository policy requires independent review.",
+              "claim_policy": "explicit_claim_or_unclaimed_independent_handoff",
+              "excluded_agents": [
+                "codex-side-bypass"
+              ],
+              "unblocks_todo_id": "todo_a7ebeabb3c0c"
+            },
+            {
+              "agent_id": "codex-side-bypass",
+              "todo_id": "todo_a7ebeabb3c0c",
+              "assignment_kind": "claimed",
+              "responsibility": "Deliver one verifiable public dry-run protocol slice.",
+              "claim_policy": "claim_current_agent_todo_before_delivery"
+            },
+            {
+              "agent_id": "codex-product-capability",
+              "todo_id": "todo_product_validation_wait",
+              "assignment_kind": "blocked",
+              "responsibility": "Wait for its own capability gate before product-surface validation.",
+              "claim_policy": "do_not_steal_other_agent_todos"
+            }
+          ],
+          "launch_preview": [
+            {
+              "preview_id": "preview_peer_public_slice",
+              "agent_id": "codex-side-bypass",
+              "todo_id": "todo_a7ebeabb3c0c",
+              "next_step_label": "Build the public local-agent launch dry-run fixture and smoke.",
+              "workspace_policy": "selected_task_requires_isolation",
+              "host_execution": {
+                "will_start_process": false,
+                "tool_call_allowed": false,
+                "shell_command": null,
+                "daemon_required": false,
+                "external_service_call": false
+              }
+            },
+            {
+              "preview_id": "preview_peer_independent_review",
+              "agent_id": "codex-main-control",
+              "todo_id": "todo_review_local_agent_launch_plan",
+              "next_step_label": "Review the protocol slice if it is not eligible for small self-merge.",
+              "workspace_policy": "task_policy_selected",
+              "host_execution": {
+                "will_start_process": false,
+                "tool_call_allowed": false,
+                "shell_command": null,
+                "daemon_required": false,
+                "external_service_call": false
+              }
+            }
+          ],
+          "status_projection": {
+            "waiting_on": "agent",
+            "next_action": "Create and validate the public local-agent launch dry-run contract.",
+            "user_action_required": false,
+            "agent_can_continue": true,
+            "first_agent_todo": "todo_a7ebeabb3c0c",
+            "gate_state": "clear",
+            "quota_state": "eligible",
+            "launch_state": "preview_only"
+          },
+          "evidence_projection": {
+            "source_refs": [
+              {
+                "kind": "registry",
+                "id": "registry_goal_loopx_meta"
+              },
+              {
+                "kind": "quota",
+                "id": "quota_should_run_current_agent"
+              },
+              {
+                "kind": "todo",
+                "id": "todo_a7ebeabb3c0c"
+              }
+            ],
+            "validation_refs": [
+              {
+                "kind": "smoke",
+                "id": "local_agent_launch_plan_smoke"
+              }
+            ],
+            "raw_logs_copied": false,
+            "raw_transcripts_copied": false,
+            "credentials_copied": false,
+            "private_paths_copied": false,
+            "public_safe_summary": "The plan previews peer identities, task assignments, and explicit review state without launching a runtime."
+          },
+          "future_gates": [
+            {
+              "capability": "server_daemon_launch",
+              "state": "future_gated",
+              "required_contract": "local_runtime_daemon_launch_v0"
+            },
+            {
+              "capability": "external_agent_execution",
+              "state": "future_gated",
+              "required_contract": "external_agent_execution_gate_v0"
+            },
+            {
+              "capability": "credentialed_host_actions",
+              "state": "blocked_without_authority",
+              "required_contract": "explicit_host_auth_boundary_v0"
+            },
+            {
+              "capability": "state_write_from_preview",
+              "state": "future_gated",
+              "required_contract": "controlled_writeback_preview_v0"
+            }
+          ],
+          "truth_contract": {
+            "source_of_truth": [
+              "registry",
+              "quota_should_run",
+              "todo_projection",
+              "run_history"
+            ],
+            "plan_is_authoritative": false,
+            "plan_is_executable": false,
+            "write_api": false,
+            "launch_command_allowed": false,
+            "recompute_rule": "Recompute from registry, quota, todos, gates, and run history before each preview."
+          },
+          "boundary": {
+            "public_fixture": true,
+            "raw_transcripts_allowed": false,
+            "raw_logs_allowed": false,
+            "credentials_allowed": false,
+            "private_paths_allowed": false,
+            "runtime_launcher_enabled": false
+          }
+        }
+      }
+    ]
+  }
+}

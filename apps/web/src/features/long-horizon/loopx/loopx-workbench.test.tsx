@@ -11,6 +11,14 @@ function state(
 ): LoopXControlState {
   return {
     schema: "zyra.loopx-control-state/v1",
+    runtime: {
+      version: "0.2.13",
+      source_commit: "a2c072d412d90839132e1cf39c23dd431c394175",
+      source_tree_commit: "7232dca45ec2ca996edc43b2d3558edc802c844e",
+      source_digest: "f8aeac4f805d6b11345680bbf15bef0f1fbbcff595e019421a881b74b14491a6",
+      source_kind: "embedded_source",
+      archive_fallback: false,
+    },
     workspace_id: "workspace-loopx",
     run_id: "run-loopx",
     task_id: "task-loopx",
@@ -63,6 +71,8 @@ describe("LoopX long-horizon workbench", () => {
   test("keeps private control distinct from canonical lease and budget", () => {
     const view = loopxWorkbenchView(state())
     expect(view.lifecycle).toBe("enabled")
+    expect(view.runtimeVersion).toBe("0.2.13")
+    expect(view.runtimeSource).toBe("embedded_source")
     expect(view.todos[0]?.claimed_by).toBe("private-controller")
     expect(view.workerLeaseStatus).toBe("active")
     expect(view.quota.spent_slots).toBe(1)

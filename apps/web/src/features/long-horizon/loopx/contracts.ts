@@ -5,6 +5,8 @@ import type {
 
 export interface LoopXWorkbenchView {
   readonly lifecycle: LoopXControlState["lifecycle"]
+  readonly runtimeVersion: string
+  readonly runtimeSource: string
   readonly goalId: string
   readonly objectiveRef: string
   readonly todos: readonly LoopXTodo[]
@@ -32,6 +34,8 @@ export function loopxWorkbenchView(
   const lease = record(canonical.worker_lease)
   return Object.freeze({
     lifecycle: state.lifecycle,
+    runtimeVersion: state.runtime.version,
+    runtimeSource: state.runtime.source_kind,
     goalId: state.goal_id,
     objectiveRef: String(state.private_state.goal.objective_ref ?? ""),
     todos: state.private_state.todos,

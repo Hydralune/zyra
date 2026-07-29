@@ -356,14 +356,17 @@ def validate_source_role_registry(registry: Mapping[str, Any]) -> dict[str, Any]
     loopx = _entry_by_source(selected, "loopx")
     if (
         loopx.get("role") != "supplementary_implementation"
-        or loopx.get("source_version") != "0.2.4"
-        or loopx.get("migration_mode") != "pinned_package_integration"
+        or loopx.get("source_version") != "0.2.13"
+        or loopx.get("migration_mode")
+        != "pinned_embedded_source_integration"
         or loopx.get("source_commit")
-        != "8e79843704a40d8069a9cab4ede6edc6d29f671b"
+        != "a2c072d412d90839132e1cf39c23dd431c394175"
+        or loopx.get("source_tree_commit")
+        != "7232dca45ec2ca996edc43b2d3558edc802c844e"
     ):
         raise ContractViolation(
             "loopx-source-contract-invalid",
-            "LoopX must remain the pinned 0.2.4 supplementary package integration.",
+            "LoopX must remain the pinned v0.2.13 embedded supplementary source integration.",
             path="source_roles.loopx",
         )
     maas = _entry_by_source(selected, "maas")
