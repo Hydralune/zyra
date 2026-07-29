@@ -5,7 +5,17 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from .canonical import digest, invalid, mapping, require_commit, require_digest, utc_now
+from .canonical import (
+    BenchmarkValidationError,
+    digest,
+    invalid,
+    mapping,
+    require_commit,
+    require_digest,
+    sequence,
+    utc_now,
+)
+from .current_evidence import CurrentCampaignEvidenceVerifier
 from .integrity import EvidenceIntegrityVerifier
 
 
@@ -23,6 +33,7 @@ class LiveBenchmarkFreezeGate:
         index = load_json(root / "100-point-evidence-index.json")
         manifest = load_json(root / "evidence-manifest.json")
         metadata = load_json(root / "implementation-metadata.json")
+        source_runs = load_json(root / "source-runs.json")
         findings: list[dict[str, Any]] = []
         if summary.get("verdict") != "PASS":
             findings.append({"code": "summary-verdict-not-pass"})
@@ -85,6 +96,53 @@ class LiveBenchmarkFreezeGate:
         if index.get("report_digest") != report_digest:
             findings.append({"code": "index-report-digest-mismatch"})
         campaign_id = str(report.get("campaign_id") or "")
+        current_evidence_path = root / "current-campaign-evidence.json"
+        current_verification: dict[str, Any] | None = None
+        if not current_evidence_path.is_file():
+            findings.append({"code": "current-campaign-evidence-member-missing"})
+        else:
+            try:
+                current_verification = CurrentCampaignEvidenceVerifier().verify(
+                    load_json(current_evidence_path),
+                    campaign_id=campaign_id,
+                    implementation_commit=commit,
+                    sources=tuple(
+                        mapping(item, "source run")
+                        for item in sequence(
+                            source_runs.get("sources"),
+                            "source runs",
+                        )
+                    ),
+                )
+            except BenchmarkValidationError as error:
+                findings.append(
+                    {
+                        "code": "current-campaign-evidence-invalid",
+                        "failure": error.to_dict(),
+                    }
+                )
+        if current_verification is not None:
+            if (
+                summary.get("current_campaign_evidence_digest")
+                != current_verification["current_evidence_digest"]
+            ):
+                findings.append({"code": "current-evidence-digest-mismatch"})
+            if isinstance(provider_boundary, Mapping):
+                if (
+                    provider_boundary.get("current_provider_count")
+                    != len(current_verification["provider_ids"])
+                ):
+                    findings.append({"code": "current-provider-summary-mismatch"})
+                if (
+                    provider_boundary.get("current_model_count")
+                    != len(current_verification["model_ids"])
+                ):
+                    findings.append({"code": "current-model-summary-mismatch"})
+                if (
+                    sorted(provider_boundary.get("current_tier_ids") or [])
+                    != sorted(current_verification["tier_ids"])
+                ):
+                    findings.append({"code": "current-tier-summary-mismatch"})
         integrity = EvidenceIntegrityVerifier().verify(
             manifest,
             evidence_root=root,
@@ -122,6 +180,11 @@ class LiveBenchmarkFreezeGate:
             "score": 100,
             "human_intervention_count": 0,
             "operator_intervention_count": 0,
+            "current_campaign_evidence_digest": (
+                current_verification["current_evidence_digest"]
+                if current_verification is not None
+                else ""
+            ),
             "verified_at": utc_now(),
         }
         receipt["receipt_digest"] = digest(receipt)

@@ -44,11 +44,15 @@ from apps.api.zyra_api.live_benchmark_port import (
 from zyra_evaluation.live_benchmark import (
     BenchmarkReportBuilder,
     COMPETITION_REQUIREMENTS,
+    CurrentCampaignEvidenceVerifier,
+    CurrentTierDispatchRunner,
     EvidenceIntegrityBuilder,
     LiveBenchmarkFreezeGate,
     LiveBenchmarkRuntime,
     ProtectedDeploymentEvidenceLoader,
+    assemble_current_campaign_evidence,
     create_campaign,
+    source_case_projection,
 )
 from zyra_evaluation.live_benchmark.canonical import (
     atomic_json,
@@ -95,13 +99,14 @@ PREDECESSORS = {
     ),
 }
 FORMAL_PARENT = ROOT / "docs" / "reviews" / "evidence" / "M3-S02A-02"
+MAXIMUM_CURRENT_PROVIDER_REQUESTS = 12
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run and freeze the exact-commit M3-S02A-02 42-cell product "
-            "benchmark without issuing any new provider/model request."
+            "benchmark with bounded current provider and tier evidence."
         )
     )
     parser.add_argument("--implementation-commit", required=True)
@@ -156,11 +161,15 @@ def load_validation(path: Path, commit: str) -> dict[str, Any]:
         block = value.get(key)
         if not isinstance(block, Mapping) or block.get("status") != "passed":
             raise RuntimeError(f"validation block did not pass: {key}")
+    if value.get("validation_issued_provider_request") is not False:
+        raise RuntimeError("validation must not issue a provider request")
+    if value.get("formal_campaign_provider_requests_authorized") is not True:
+        raise RuntimeError("formal campaign provider requests are not authorized")
     if (
-        value.get("no_new_provider_call") is not True
-        or value.get("external_model_request_made") is not False
+        int(value.get("maximum_provider_requests") or 0)
+        != MAXIMUM_CURRENT_PROVIDER_REQUESTS
     ):
-        raise RuntimeError("validation receipt does not preserve provider boundary")
+        raise RuntimeError("validation provider request cap is invalid")
     return value
 
 
@@ -174,7 +183,8 @@ def platform_projection() -> tuple[dict[str, Any], dict[str, Any]]:
         "source_entry": "scripts/run_m3_live_source.py",
         "live_product_owner": "ScenarioRunnerService",
         "variant_owner": "EvidenceBackedWorkloadRuntime",
-        "new_provider_calls_allowed": False,
+        "new_provider_calls_allowed": True,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
         "public_research_proxy_cidrs": os.environ.get(
             "ZYRA_LIVE_PUBLIC_PROXY_CIDRS",
             "",
@@ -199,22 +209,24 @@ def campaign_request(
     environment, hardware = platform_projection()
     deployment = {
         "current": {
-            "tier": "device",
-            "provider_id": "none",
-            "model_id": "none",
-            "no_new_provider_call": True,
+            "tier_ids": ["device", "edge", "cloud"],
+            "provider_ids": ["zhipu", "deepseek", "kimi-platform"],
+            "model_ids": ["glm-5.2", "deepseek-v4-pro", "kimi-k2.7-code"],
+            "current_dispatch_required": True,
         },
         "protected_m1_bundle_digest": protected.bundle_digest,
         "protected_tiers": protected.tiers,
         "protected_providers": protected.providers,
     }
     provider_policy = {
-        "policy_id": "m3-s02a02-no-new-provider-call",
+        "policy_id": "m3-s02a02-bounded-current-provider-campaign",
         "authenticated_provider_cli_allowed": False,
-        "external_model_request_allowed": False,
-        "current_provider_id": "none",
-        "current_model_id": "none",
-        "protected_evidence_only": True,
+        "authenticated_provider_runtime_allowed": True,
+        "external_model_request_allowed": True,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
+        "minimum_providers_per_formal_case": 2,
+        "same_run_as_formal_cases_required": True,
+        "protected_evidence_only": False,
         "protected_m1_content_digest": protected.content_digest,
     }
     verifier = {
@@ -244,8 +256,8 @@ def campaign_request(
     budget = {
         "maximum_source_wall_seconds": 1200,
         "maximum_campaign_wall_seconds": 10800,
-        "maximum_cost_usd": 0.0,
-        "maximum_provider_requests": 0,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
+        "provider_request_policy": "six-formal-cases-times-two-providers",
         "maximum_workers": 1,
     }
     suffix = commit[:12]
@@ -296,7 +308,8 @@ def campaign_request(
             "fresh_source_run_count": 6,
             "formal_cell_count": 42,
             "paired_source_sharing": "within-domain-repetition-only",
-            "no_new_provider_call": True,
+            "no_new_provider_call": False,
+            "external_model_request_required": True,
             "protected_m1_evidence": protected.to_dict(),
             "environment": environment,
             "hardware": hardware,
@@ -314,6 +327,103 @@ def predecessor_receipts(protected: Any) -> dict[str, str]:
     for key, path in PREDECESSORS.items():
         output[key] = file_digest(path.resolve(strict=True))[0]
     return output
+
+
+def run_current_provider_evidence(
+    *,
+    campaign_id: str,
+    commit: str,
+    sources: Sequence[Mapping[str, Any]],
+    work_root: Path,
+) -> dict[str, Any]:
+    cases = source_case_projection(sources)
+    if len(cases) * 2 != MAXIMUM_CURRENT_PROVIDER_REQUESTS:
+        raise RuntimeError(
+            "formal provider request plan does not match the configured cap"
+        )
+    request_path = work_root / "current-provider-input.json"
+    output_path = work_root / "current-provider-dispatch.json"
+    atomic_json(
+        request_path,
+        {
+            "schema": "zyra.m3-current-provider-input/v1",
+            "campaign_id": campaign_id,
+            "implementation_commit": commit,
+            "cases": cases,
+        },
+    )
+    command = [
+        "node",
+        "--env-file=.env.deepseek.local",
+        "--env-file=.env.kimi.local",
+        "--env-file=.env.glm.local",
+        "--experimental-strip-types",
+        "scripts/run_m3_current_provider_evidence.ts",
+        "--input",
+        str(request_path),
+        "--output",
+        str(output_path),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30 * 60,
+    )
+    combined = completed.stdout + (
+        ("\n" + completed.stderr) if completed.stderr else ""
+    )
+    print(combined[-8000:], flush=True)
+    if completed.returncode:
+        raise RuntimeError(
+            "current provider evidence failed: "
+            + combined[-4000:]
+        )
+    value = json.loads(output_path.resolve(strict=True).read_text(encoding="utf-8"))
+    if int(value.get("provider_request_count") or 0) != (
+        MAXIMUM_CURRENT_PROVIDER_REQUESTS
+    ):
+        raise RuntimeError("current provider evidence request count is invalid")
+    return value
+
+
+def run_current_campaign_evidence(
+    *,
+    campaign_id: str,
+    commit: str,
+    sources: Sequence[Mapping[str, Any]],
+    work_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    cases = source_case_projection(sources)
+    provider_receipt = run_current_provider_evidence(
+        campaign_id=campaign_id,
+        commit=commit,
+        sources=sources,
+        work_root=work_root,
+    )
+    tier_receipt = CurrentTierDispatchRunner(
+        project_root=ROOT,
+        state_root=work_root / "current-tier-dispatch",
+        environment=os.environ,
+    ).run(cases)
+    current = assemble_current_campaign_evidence(
+        campaign_id=campaign_id,
+        implementation_commit=commit,
+        sources=sources,
+        tier_receipt=tier_receipt,
+        provider_receipt=provider_receipt,
+    )
+    verification = CurrentCampaignEvidenceVerifier().verify(
+        current,
+        campaign_id=campaign_id,
+        implementation_commit=commit,
+        sources=sources,
+    )
+    return current, verification
 
 
 def run_projection(result: Any) -> dict[str, Any]:
@@ -349,6 +459,7 @@ def requirement_matrix(
     *,
     evaluation: Mapping[str, Any],
     protected: Any,
+    current_verification: Mapping[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
     results = tuple(evaluation["results"])
     all_runs = sorted(item.run_id for item in results)
@@ -385,6 +496,10 @@ def requirement_matrix(
             "metric completeness digest",
         ),
         "protected_deployment": protected.bundle_digest,
+        "current_deployment": require_digest(
+            current_verification["current_evidence_digest"],
+            "current deployment evidence digest",
+        ),
         "software_verifier": digest(
             [
                 item.verifier_receipt["receipt_digest"]
@@ -406,8 +521,8 @@ def requirement_matrix(
         "REQ-COMP-003": ("dynamic-topology-ablation", ("statistics", "metrics")),
         "REQ-COMP-004": ("low-entropy-ablation", ("statistics", "metrics")),
         "REQ-COMP-005": (
-            "protected-device-edge-cloud-provider-model",
-            ("protected_deployment",),
+            "current-device-edge-cloud-provider-model",
+            ("current_deployment", "protected_deployment"),
         ),
         "REQ-COMP-006": ("fault-change-recovery", ("faults", "result")),
         "REQ-COMP-007": ("causal-semantic-trace", ("result", "uniqueness")),
@@ -539,7 +654,7 @@ def main() -> int:
     )
     print(
         f"campaign-start id={campaign.campaign_id} cells={len(campaign.cells)} "
-        "new-provider-calls=0",
+        f"provider-request-cap={MAXIMUM_CURRENT_PROVIDER_REQUESTS}",
         flush=True,
     )
     port = ProductLiveBenchmarkPort(
@@ -565,9 +680,23 @@ def main() -> int:
     samples = tuple(evaluation["samples"])
     statistics = dict(evaluation["statistical_evaluation"])
     source_receipts = port.source_receipts()
+    current_evidence, current_verification = run_current_campaign_evidence(
+        campaign_id=campaign.campaign_id,
+        commit=commit,
+        sources=source_receipts,
+        work_root=work_root,
+    )
+    print(
+        "current-evidence-verified "
+        f"providers={len(current_verification['provider_ids'])} "
+        f"models={len(current_verification['model_ids'])} "
+        f"requests={current_verification['provider_request_count']}",
+        flush=True,
+    )
     requirements = requirement_matrix(
         evaluation=evaluation,
         protected=protected,
+        current_verification=current_verification,
     )
     reporters = BenchmarkReportBuilder()
     report = reporters.build(
@@ -600,7 +729,11 @@ def main() -> int:
             {
                 "schema": "zyra.m3-live-source-runs/v1",
                 "source_run_count": len(source_receipts),
-                "no_new_provider_call": True,
+                "no_new_provider_call": False,
+                "current_provider_evidence_attached": True,
+                "current_campaign_evidence_digest": current_verification[
+                    "current_evidence_digest"
+                ],
                 "sources": list(source_receipts),
                 "source_receipt_digest": digest(source_receipts),
             },
@@ -613,7 +746,8 @@ def main() -> int:
             {
                 "schema": "zyra.m3-live-run-receipts/v1",
                 "run_count": len(results),
-                "no_new_provider_call": True,
+                "cell_execution_issued_provider_request": False,
+                "source_case_provider_evidence_attached": True,
                 "runs": [run_projection(item) for item in results],
                 "run_receipt_digest": digest(
                     [run_projection(item) for item in results]
@@ -661,6 +795,13 @@ def main() -> int:
     )
     members.append(
         integrity.write_json_member(
+            "current-campaign-evidence.json",
+            current_evidence,
+            kind="current-formal-case-provider-tier-evidence",
+        )
+    )
+    members.append(
+        integrity.write_json_member(
             "protected-deployment-evidence.json",
             protected.to_dict(),
             kind="protected-m1-deployment-provider-evidence",
@@ -704,9 +845,17 @@ def main() -> int:
         "evidence_index_digest": index["index_digest"],
         "protected_m1_bundle_digest": protected.bundle_digest,
         "protected_m1_content_digest": protected.content_digest,
-        "no_new_provider_call": True,
-        "external_model_request_made": False,
+        "no_new_provider_call": False,
+        "external_model_request_made": True,
+        "authenticated_provider_runtime_invoked": True,
         "authenticated_provider_cli_invoked": False,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
+        "current_provider_request_count": current_verification[
+            "provider_request_count"
+        ],
+        "current_campaign_evidence_digest": current_verification[
+            "current_evidence_digest"
+        ],
         "source_run_count": len(source_receipts),
         "formal_cell_count": len(results),
         "raw_sample_count": len(samples),
@@ -750,6 +899,12 @@ def main() -> int:
                 "statistics receipt digest",
             ),
             "protected_deployment": protected.bundle_digest,
+            "current_deployment": current_verification[
+                "current_evidence_digest"
+            ],
+            "current_deployment_verification": current_verification[
+                "receipt_digest"
+            ],
             "validation": validation["receipt_digest"],
             "journal": journal["receipt_digest"],
         },
@@ -779,13 +934,12 @@ def main() -> int:
         "formal_live_run_count": len(results),
         "fresh_source_run_count": len(source_receipts),
         "raw_sample_count": len(samples),
-        "provider_count": len(
-            {str(item["provider_id"]) for item in protected.providers}
-        ),
-        "model_count": len(
-            {str(item["model_id"]) for item in protected.providers}
-        ),
-        "tier_ids": ["device", "edge", "cloud"],
+        "provider_count": len(current_verification["provider_ids"]),
+        "model_count": len(current_verification["model_ids"]),
+        "tier_ids": current_verification["tier_ids"],
+        "current_campaign_evidence_digest": current_verification[
+            "current_evidence_digest"
+        ],
         "report_digest": report["report_digest"],
         "report_verification_digest": report_verification["receipt_digest"],
         "evidence_index_digest": index["index_digest"],
@@ -812,12 +966,23 @@ def main() -> int:
             ]["receipt_digest"],
         },
         "provider_boundary": {
-            "no_new_provider_call": True,
-            "external_model_request_made": False,
+            "no_new_provider_call": False,
+            "external_model_request_made": True,
+            "authenticated_provider_runtime_invoked": True,
             "authenticated_provider_cli_invoked": False,
-            "current_provider_id": "none",
-            "current_model_id": "none",
-            "protected_prior_receipts_only": True,
+            "current_provider_ids": current_verification["provider_ids"],
+            "current_model_ids": current_verification["model_ids"],
+            "current_provider_count": len(current_verification["provider_ids"]),
+            "current_model_count": len(current_verification["model_ids"]),
+            "current_tier_ids": current_verification["tier_ids"],
+            "current_provider_request_count": current_verification[
+                "provider_request_count"
+            ],
+            "protected_prior_receipts_only": False,
+            "same_run_as_formal_cases": True,
+            "current_campaign_evidence_digest": current_verification[
+                "current_evidence_digest"
+            ],
             "protected_m1_bundle_digest": protected.bundle_digest,
         },
         "execution_state_update_authorized": True,
@@ -837,7 +1002,11 @@ def main() -> int:
         "evidence_index_digest": index["index_digest"],
         "manifest_digest": manifest["manifest_digest"],
         "freeze_admission_digest": freeze["receipt_digest"],
-        "no_new_provider_call": True,
+        "no_new_provider_call": False,
+        "external_model_request_made": True,
+        "current_campaign_evidence_digest": current_verification[
+            "current_evidence_digest"
+        ],
         "created_at": utc_now(),
     }
     pointer["pointer_digest"] = digest(pointer)

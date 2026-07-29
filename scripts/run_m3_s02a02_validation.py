@@ -37,6 +37,7 @@ DEPENDENCY_FILES = {
     "requirements.txt",
     "uv.lock",
 }
+MAXIMUM_CURRENT_PROVIDER_REQUESTS = 12
 
 
 def parse_args() -> argparse.Namespace:
@@ -176,8 +177,12 @@ def source_boundary(commit: str) -> dict[str, Any]:
         "production_file_count": len(production),
         "new_external_dependencies": 0,
         "forbidden_root_runtime_paths": 0,
-        "new_provider_model_call_sites": 0,
-        "no_new_paid_model_api": True,
+        "new_provider_model_call_sites": 1,
+        "bounded_provider_runtime_call_site": (
+            "scripts/run_m3_current_provider_evidence.ts"
+        ),
+        "no_new_paid_model_api": False,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
         "scan_digest": sha256_text(
             json.dumps(
                 {"changed": changed, "production": production},
@@ -282,8 +287,9 @@ def main() -> int:
         "adjacent_regression": adjacent,
         "source_boundary": boundary,
         "parent_closeout": parent_closeout,
-        "no_new_provider_call": True,
-        "external_model_request_made": False,
+        "validation_issued_provider_request": False,
+        "formal_campaign_provider_requests_authorized": True,
+        "maximum_provider_requests": MAXIMUM_CURRENT_PROVIDER_REQUESTS,
     }
     receipt["receipt_digest"] = sha256_text(
         json.dumps(receipt, ensure_ascii=False, sort_keys=True)

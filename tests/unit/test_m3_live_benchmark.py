@@ -7,6 +7,8 @@ import pytest
 
 from zyra_evaluation.live_benchmark import (
     BenchmarkStore,
+    CurrentCampaignEvidenceVerifier,
+    CurrentTierDispatchRunner,
     DeploymentEvidenceVerifier,
     LiveBenchmarkFreezeGate,
     MetricCatalog,
@@ -445,6 +447,190 @@ def test_freeze_gate_rejects_provider_receipts_separate_from_formal_cases() -> N
         "current-tier-evidence-incomplete",
         "case-deployment-evidence-separated",
     }.issubset(codes)
+
+
+def current_sources() -> list[dict]:
+    output = []
+    for domain in ("software-delivery", "cross-source-research"):
+        for repetition in range(1, 4):
+            case_id = f"{domain}:r{repetition:02d}"
+            safe_case_id = case_id.replace(":", "-")
+            output.append(
+                {
+                    "domain": domain,
+                    "repetition": repetition,
+                    "outcome_digest": digest((case_id, "outcome")),
+                    "source": {
+                        "scenario_run_id": f"scenario-{safe_case_id}",
+                        "owner_run_id": f"owner-{safe_case_id}",
+                        "task_id": f"task-{safe_case_id}",
+                        "archive_digest": digest((case_id, "archive")),
+                    },
+                }
+            )
+    return output
+
+
+def current_campaign_evidence(sources: list[dict]) -> dict:
+    cases = []
+    for source_receipt in sources:
+        domain = source_receipt["domain"]
+        repetition = source_receipt["repetition"]
+        case_id = f"{domain}:r{repetition:02d}"
+        source = source_receipt["source"]
+        binding = {
+            "case_id": case_id,
+            "domain": domain,
+            "repetition": repetition,
+            "source_run_id": source["scenario_run_id"],
+            "owner_run_id": source["owner_run_id"],
+            "task_id": source["task_id"],
+            "source_archive_digest": source["archive_digest"],
+            "source_outcome_digest": source_receipt["outcome_digest"],
+        }
+        tiers = []
+        for tier, endpoint in (
+            ("device", f"process://{1000 + repetition}"),
+            ("edge", f"tcp://203.0.113.{10 + repetition}:4100"),
+            ("cloud", "https://api.provider.example/v1"),
+        ):
+            tiers.append(
+                {
+                    "observation_id": f"{case_id}:{tier}",
+                    **binding,
+                    "run_id": binding["source_run_id"],
+                    "tier": tier,
+                    "fresh": True,
+                    "current_dispatch": True,
+                    "handshake_ok": True,
+                    "task_success": True,
+                    "simulated": False,
+                    "dispatch_status": "succeeded",
+                    "request_digest": digest((case_id, tier, "request")),
+                    "response_digest": digest((case_id, tier, "response")),
+                    "isolation_id": f"isolation-{case_id}-{tier}",
+                    "runtime_id": f"runtime-{case_id}-{tier}",
+                    "process_id": f"process-{case_id}-{tier}",
+                    "endpoint": endpoint,
+                    "isolated_process": True,
+                    "loopback": False,
+                }
+            )
+        providers = []
+        for index in (1, 2):
+            provider_id = f"provider-{index}"
+            providers.append(
+                {
+                    "observation_id": f"{case_id}:{provider_id}",
+                    **binding,
+                    "run_id": binding["source_run_id"],
+                    "provider_id": provider_id,
+                    "model_id": f"model-{index}",
+                    "live": True,
+                    "fresh": True,
+                    "authenticated": True,
+                    "external_model_request": True,
+                    "simulated": False,
+                    "credential_material_persisted": False,
+                    "http_status": 200,
+                    "tool_call_ids": [f"tool-{case_id}-{index}"],
+                    "tool_result_ids": [f"tool-{case_id}-{index}"],
+                    "request_id": f"request-{case_id}-{index}",
+                    "request_digest": digest((case_id, index, "request")),
+                    "response_digest": digest((case_id, index, "response")),
+                }
+            )
+        cases.append(
+            {
+                **binding,
+                "tier_observations": tiers,
+                "provider_observations": providers,
+            }
+        )
+    evidence = {
+        "schema": "zyra.m3-current-campaign-evidence/v1",
+        "status": "passed",
+        "campaign_id": "campaign-current",
+        "implementation_commit": COMMIT,
+        "case_count": len(cases),
+        "provider_request_count": len(cases) * 2,
+        "provider_usage_by_provider": {},
+        "tier_dispatch_case_count": len(cases),
+        "current_provider_ids": ["provider-1", "provider-2"],
+        "current_model_ids": ["model-1", "model-2"],
+        "current_tier_ids": ["device", "edge", "cloud"],
+        "external_model_request_made": True,
+        "authenticated_provider_runtime_invoked": True,
+        "protected_prior_receipts_only": False,
+        "same_run_as_formal_cases": True,
+        "credential_material_persisted": False,
+        "human_intervention_count": 0,
+        "operator_intervention_count": 0,
+        "cases": cases,
+    }
+    evidence["receipt_digest"] = digest(evidence)
+    return evidence
+
+
+def test_current_provider_and_tier_evidence_is_bound_to_every_formal_case() -> None:
+    sources = current_sources()
+    evidence = current_campaign_evidence(sources)
+    receipt = CurrentCampaignEvidenceVerifier().verify(
+        evidence,
+        campaign_id="campaign-current",
+        implementation_commit=COMMIT,
+        sources=sources,
+    )
+
+    assert receipt["valid"] is True
+    assert receipt["case_count"] == 6
+    assert receipt["provider_request_count"] == 12
+    assert receipt["tier_ids"] == ["device", "edge", "cloud"]
+
+    evidence["cases"][0]["provider_observations"][0][
+        "source_archive_digest"
+    ] = digest("wrong-source")
+    evidence["receipt_digest"] = digest(
+        {key: value for key, value in evidence.items() if key != "receipt_digest"}
+    )
+    with pytest.raises(BenchmarkValidationError) as raised:
+        CurrentCampaignEvidenceVerifier().verify(
+            evidence,
+            campaign_id="campaign-current",
+            implementation_commit=COMMIT,
+            sources=sources,
+        )
+    assert raised.value.code == "benchmark-current-campaign-evidence-invalid"
+    assert "provider-source-binding-mismatch" in str(raised.value.detail)
+
+
+def test_current_tier_runner_uses_isolated_device_and_edge_processes(
+    tmp_path: Path,
+) -> None:
+    source = current_sources()[0]
+    case = {
+        "case_id": "software-delivery:r01",
+        "domain": source["domain"],
+        "repetition": source["repetition"],
+        "source_run_id": source["source"]["scenario_run_id"],
+        "owner_run_id": source["source"]["owner_run_id"],
+        "task_id": source["source"]["task_id"],
+        "source_archive_digest": source["source"]["archive_digest"],
+        "source_outcome_digest": source["outcome_digest"],
+    }
+    receipt = CurrentTierDispatchRunner(
+        project_root=Path(__file__).resolve().parents[2],
+        state_root=tmp_path / "current-tiers",
+    ).run([case])
+
+    assert receipt["status"] == "passed"
+    observations = receipt["cases"][0]["tier_observations"]
+    assert {item["tier"] for item in observations} == {"device", "edge"}
+    assert len({item["process_id"] for item in observations}) == 2
+    assert all(item["dispatch_status"] == "succeeded" for item in observations)
+    assert next(item for item in observations if item["tier"] == "edge")[
+        "endpoint"
+    ].startswith("tcp://")
 
 
 def test_campaign_fault_coverage_is_union_and_measures_no_recovery() -> None:

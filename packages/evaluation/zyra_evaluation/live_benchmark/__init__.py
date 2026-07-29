@@ -1,5 +1,11 @@
 from .admission import LiveRunAdmission, verify_campaign_run_uniqueness
 from .canonical import BenchmarkValidationError
+from .current_evidence import (
+    CurrentCampaignEvidenceVerifier,
+    CurrentTierDispatchRunner,
+    assemble_current_campaign_evidence,
+    source_case_projection,
+)
 from .deployment import DeploymentEvidenceVerifier
 from .faults import FaultCoverageVerifier, verify_campaign_fault_coverage
 from .freeze_gate import LiveBenchmarkFreezeGate
@@ -55,6 +61,8 @@ __all__ = [
     "CampaignPhase",
     "CellPhase",
     "CellResult",
+    "CurrentCampaignEvidenceVerifier",
+    "CurrentTierDispatchRunner",
     "DeploymentEvidenceVerifier",
     "DeterministicDomainVerifier",
     "Distribution",
@@ -80,6 +88,7 @@ __all__ = [
     "StatisticalEvaluator",
     "UnboundLiveRunPort",
     "Variant",
+    "assemble_current_campaign_evidence",
     "create_campaign",
     "default_variants",
     "validate_variants",
@@ -88,4 +97,5 @@ __all__ = [
     "verify_campaign_metric_completeness",
     "verify_campaign_run_uniqueness",
     "protected_fact_receipt",
+    "source_case_projection",
 ]
