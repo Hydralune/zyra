@@ -250,10 +250,7 @@ class BenchmarkEvidenceLinker:
         report_path: Path | None = None,
         deployment_path: Path | None = None,
     ) -> dict[str, Any]:
-        report_path = report_path or (
-            self.project_root
-            / "docs/reviews/evidence/M3-S02A-02/formal-current/benchmark-report.json"
-        )
+        report_path = report_path or self._current_report_path()
         if not report_path.is_file():
             candidates = sorted(
                 (
@@ -281,6 +278,9 @@ class BenchmarkEvidenceLinker:
         deployment = self._load_mapping(deployment_path)
         verification_path = report_path.with_name("verification-summary.json")
         statistical_path = report_path.with_name("statistical-evaluation.json")
+        current_evidence_path = report_path.with_name(
+            "current-campaign-evidence.json"
+        )
         verification = (
             self._load_mapping(verification_path)
             if verification_path.is_file()
@@ -289,6 +289,11 @@ class BenchmarkEvidenceLinker:
         statistical = (
             self._load_mapping(statistical_path)
             if statistical_path.is_file()
+            else {}
+        )
+        current_evidence = (
+            self._load_mapping(current_evidence_path)
+            if current_evidence_path.is_file()
             else {}
         )
         revision = self._extract_revision(report)
@@ -367,13 +372,76 @@ class BenchmarkEvidenceLinker:
                 if statistical_path.is_file()
                 else ""
             ),
+            "current_campaign_evidence": (
+                self._relative(current_evidence_path)
+                if current_evidence_path.is_file()
+                else ""
+            ),
+            "current_campaign_evidence_sha256": (
+                sha256_file(current_evidence_path)
+                if current_evidence_path.is_file()
+                else ""
+            ),
             "summary": summary,
             "latency_comparisons": latency_comparisons,
             "profiles": profiles,
-            "providers": self._extract_providers(report, deployment),
+            "providers": self._extract_providers(
+                report,
+                deployment,
+                current_evidence,
+            ),
         }
         link["digest"] = stable_digest(link)
         return link
+
+    def _current_report_path(self) -> Path:
+        evidence_root = (
+            self.project_root
+            / "docs/reviews/evidence/M3-S02A-02"
+        )
+        pointer_path = evidence_root / "formal-current.json"
+        legacy_path = evidence_root / "formal-current" / "benchmark-report.json"
+        if not pointer_path.is_file():
+            return legacy_path
+        pointer = self._load_mapping(pointer_path)
+        relative_root = str(pointer.get("relative_evidence_root") or "")
+        if not relative_root:
+            raise InventoryViolation(
+                "Formal benchmark pointer has no evidence root.",
+                code="release_benchmark_pointer_root_missing",
+                details={"pointer": str(pointer_path)},
+            )
+        normalized = normalize_relative_path(relative_root)
+        resolved_root = (self.project_root / normalized).resolve()
+        if not resolved_root.is_relative_to(self.project_root):
+            raise InventoryViolation(
+                "Formal benchmark pointer escapes the project root.",
+                code="release_benchmark_pointer_escape",
+                details={"pointer": str(pointer_path), "root": relative_root},
+            )
+        report_path = resolved_root / "benchmark-report.json"
+        if not report_path.is_file():
+            raise InventoryViolation(
+                "Formal benchmark pointer targets a missing report.",
+                code="release_benchmark_pointer_target_missing",
+                details={
+                    "pointer": str(pointer_path),
+                    "report": str(report_path),
+                },
+            )
+        report = self._load_mapping(report_path)
+        pointer_commit = str(pointer.get("implementation_commit") or "")
+        report_commit = self._extract_revision(report)
+        if pointer_commit != report_commit:
+            raise InventoryViolation(
+                "Formal benchmark pointer and report target different commits.",
+                code="release_benchmark_pointer_revision_mismatch",
+                details={
+                    "pointer_commit": pointer_commit,
+                    "report_commit": report_commit,
+                },
+            )
+        return report_path
 
     @staticmethod
     def _load_mapping(path: Path) -> Mapping[str, Any]:
@@ -520,7 +588,25 @@ class BenchmarkEvidenceLinker:
     def _extract_providers(
         report: Mapping[str, Any],
         deployment: Mapping[str, Any],
+        current_evidence: Mapping[str, Any] | None = None,
     ) -> list[str]:
+        current_ids = (
+            current_evidence.get("current_provider_ids")
+            if isinstance(current_evidence, Mapping)
+            else None
+        )
+        if isinstance(current_ids, Sequence) and not isinstance(
+            current_ids, (str, bytes)
+        ):
+            normalized = sorted(
+                {
+                    str(provider).strip()
+                    for provider in current_ids
+                    if str(provider).strip()
+                }
+            )
+            if normalized:
+                return normalized
         encoded = json.dumps(
             {"report": report, "deployment": deployment},
             ensure_ascii=False,

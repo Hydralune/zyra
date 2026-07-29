@@ -4,6 +4,7 @@ from .bundle import (
     ReleaseBundleBuilder,
     ReleaseManifest,
 )
+from .baseline import Phase2BaselineVerifier
 from .ci import (
     GateExecutor,
     GateRegistry,
@@ -95,6 +96,7 @@ __all__ = [
     "NoticeBuilder",
     "OfflineArtifactResolver",
     "PlatformPlanner",
+    "Phase2BaselineVerifier",
     "PortAvailabilityProbe",
     "PythonLock",
     "PythonTestPolicy",
