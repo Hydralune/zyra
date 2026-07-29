@@ -133,6 +133,8 @@ def run_first_task_probe(root: Path) -> dict[str, Any]:
     result = {
         "schema": "zyra.loopx-detached-first-task/v1",
         "ready": ready,
+        "probe_origin": str(Path(__file__).resolve()),
+        "api_origin": str(Path(module.__file__).resolve()),
         "task_id": task_id,
         "receipt_status": receipt["status"],
         "event_id": receipt["event_id"],

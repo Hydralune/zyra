@@ -862,6 +862,14 @@ class CleanInstallRunner:
                     "external_source_required": False,
                     "archive_install_required": False,
                 }
+                release_python_paths = [
+                    payload / "apps" / "api",
+                    *sorted(
+                        path
+                        for path in (payload / "packages").iterdir()
+                        if path.is_dir()
+                    ),
+                ]
                 first_task = runner.run(
                     [
                         str(python),
@@ -872,6 +880,11 @@ class CleanInstallRunner:
                     ],
                     cwd=workspace,
                     timeout=command_timeout,
+                    extra_environment={
+                        "PYTHONPATH": os.pathsep.join(
+                            str(path) for path in release_python_paths
+                        ),
+                    },
                 )
                 commands.append(first_task.to_dict())
                 try:
@@ -888,6 +901,31 @@ class CleanInstallRunner:
                         code="cleanroom_loopx_first_task_failed",
                         details={"receipt": first_task_receipt},
                     )
+                release_origins = (
+                    first_task_receipt.get("probe_origin"),
+                    first_task_receipt.get("api_origin"),
+                    (
+                        first_task_receipt.get("runtime", {})
+                        if isinstance(first_task_receipt.get("runtime"), Mapping)
+                        else {}
+                    ).get("install_root"),
+                )
+                try:
+                    for origin in release_origins:
+                        Path(str(origin)).resolve().relative_to(payload)
+                except ValueError as error:
+                    raise CleanroomFailure(
+                        "Cleanroom LoopX first task escaped the release payload.",
+                        code="cleanroom_loopx_first_task_origin_invalid",
+                        details={
+                            "payload": str(payload),
+                            "origins": list(release_origins),
+                        },
+                    ) from error
+                first_task_receipt["release_pythonpath"] = [
+                    str(path.relative_to(payload))
+                    for path in release_python_paths
+                ]
                 receipts["loopx"]["first_task"] = first_task_receipt
             if run_product_lifecycle:
                 bun = environment["ZYRA_BUN_EXECUTABLE"]
