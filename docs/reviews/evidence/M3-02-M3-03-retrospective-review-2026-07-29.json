@@ -1,0 +1,157 @@
+{
+  "schema": "zyra.m3-02-m3-03-retrospective-review/v1",
+  "review_date": "2026-07-29",
+  "verdict": "BLOCKED_AFTER_FIXES",
+  "scope": {
+    "baseline_commit": "42f760229588aba917c7283b841587afc7142b0b",
+    "historical_evidence_commit": "084d0e17a091a61ce19e876061400d8f99761c13",
+    "review_target_commit": "78a347aa1c43a4730be5227c44bb1fc5c6c3b5f1",
+    "formal_benchmark_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "historical_m3_s03_02_target": "8825722359e2ca30998d42e9fccf4a35ee307f31",
+    "historical_facts_rewritten": false
+  },
+  "fixed_findings": [
+    {
+      "id": "F1",
+      "severity": "blocker",
+      "title": "archive exact duplicates and manifest collisions were not uniformly fail-closed",
+      "fix_commit": "3c32dddf4cb81f9a00cf84bcae8e7fc6150297ed",
+      "status": "fixed"
+    },
+    {
+      "id": "F2",
+      "severity": "high",
+      "title": "historical M3-S03 evidence test was bound to moving HEAD",
+      "fix_commit": "a22c883667c43305ace397caa12b70ce70d6a994",
+      "status": "fixed"
+    },
+    {
+      "id": "F3",
+      "severity": "blocker",
+      "title": "protected provider receipts could satisfy current formal-case freeze counts",
+      "fix_commit": "78a347aa1c43a4730be5227c44bb1fc5c6c3b5f1",
+      "status": "fixed_fail_closed"
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "B1",
+      "severity": "blocker",
+      "category": "competition-evidence",
+      "title": "formal cases lack same-run real device-edge-cloud and two-provider/model evidence",
+      "observed": {
+        "current_provider_id": "none",
+        "current_model_id": "none",
+        "authenticated_provider_cli_invoked": false,
+        "external_model_request_made": false,
+        "protected_prior_receipts_only": true,
+        "same_run_as_formal_cases": false
+      },
+      "status": "open_external_evidence_required"
+    }
+  ],
+  "effective_code": {
+    "m3_02a": {
+      "effective": 17174,
+      "minimum": 12000,
+      "passed": true
+    },
+    "m3_02b": {
+      "effective": 18952,
+      "minimum": 12000,
+      "passed": true
+    },
+    "m3_02": {
+      "effective": 36126,
+      "minimum": 24000,
+      "passed": true
+    },
+    "m3_03": {
+      "effective": 12458,
+      "minimum": 9000,
+      "passed": true,
+      "scope": "historical_target_audit"
+    }
+  },
+  "validation": {
+    "m3_python": {
+      "command_scope": [
+        "tests/unit/test_m3_regression_hardening.py",
+        "tests/unit/test_m3_live_benchmark.py",
+        "tests/unit/test_deployment_profiles_runtime.py",
+        "tests/unit/test_release_productization.py",
+        "tests/unit/test_first_stage_freeze_reporting.py",
+        "tests/unit/test_final_first_stage_freeze.py",
+        "tests/integration/test_deployment_node_processes.py"
+      ],
+      "passed": 109,
+      "failed": 0,
+      "seconds": 185.24
+    },
+    "bun": {
+      "passed": 1268,
+      "failed": 0,
+      "files": 55
+    },
+    "typescript_typecheck": "PASS",
+    "web_build": {
+      "status": "PASS",
+      "modules": 370
+    },
+    "effective_code_audits": {
+      "m3_s02a01": "PASS",
+      "m3_s02a02": "PASS",
+      "m3_s02b01": "PASS",
+      "m3_s02b02": "PASS",
+      "m3_s03_01": "PASS"
+    },
+    "release_pipeline": {
+      "status": "PASS",
+      "ci_skipped": true,
+      "source_commit": "78a347aa1c43a4730be5227c44bb1fc5c6c3b5f1",
+      "first_archive_sha256": "cbdd297b0d8e2943032a8c142425667d11dd61270a3173e1fa9325638abdbd2f",
+      "second_archive_sha256": "cbdd297b0d8e2943032a8c142425667d11dd61270a3173e1fa9325638abdbd2f",
+      "reproducible": true,
+      "independent_verification": true,
+      "wheel_sha256": "d6a8b28c23ab4b6768a89947a048b2feb5353184957e735ff5fc48735c4bd8ff"
+    },
+    "full_python": {
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp <workspace-temp> tests",
+      "status": "TIMEOUT",
+      "timeout_seconds": 1801,
+      "claimed_pass": false
+    }
+  },
+  "historical_formal_benchmark": {
+    "domains": 2,
+    "cells": 42,
+    "variants": 7,
+    "repetitions": 3,
+    "fresh_source_runs": 6,
+    "minimum_effective_transitions": 2310,
+    "maximum_effective_transitions": 4003,
+    "human_intervention_count": 0,
+    "operator_intervention_count": 0,
+    "historical_score": 100,
+    "currently_freeze_admissible": false
+  },
+  "source_language_custody": {
+    "primary_or_supplementary_upstream_migration_in_scope": false,
+    "migration_modes": [
+      "test_eval_hardening_only",
+      "packaging_and_release_integration_only",
+      "report_and_freeze_only"
+    ],
+    "canonical_owner_transfer": false,
+    "source_language_gate": "not_applicable_no_new_upstream_implementation_role",
+    "zyra_owned_languages_verified": [
+      "python",
+      "typescript"
+    ]
+  },
+  "progression": {
+    "first_stage_freeze_ready": false,
+    "score_100_claim_allowed": false,
+    "next_action": "rerun both formal cross-domain cases with same-run real device-edge-cloud and at least two provider/model calls, then regenerate M3-02A and M3-03 evidence"
+  }
+}
