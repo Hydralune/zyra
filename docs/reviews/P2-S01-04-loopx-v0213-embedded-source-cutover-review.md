@@ -170,3 +170,45 @@ profile before the remaining mechanism readiness gates pass.
 Root workspace documents under `G:\agent-zoo\docs/**` and
 `G:\agent-zoo\AGENTS.md` are outside the Zyra Git repository and therefore do
 not travel with this evidence commit.
+
+## 10. Post-completion audit
+
+The user explicitly requested a fresh read-only review followed by direct
+remediation. The review reproduced one cumulative-suite failure and found four
+high-severity verification/runtime-boundary gaps:
+
+1. the detached first-task probe leaked its process-wide environment into later
+   tests;
+2. an explicitly selected Python executable was not the interpreter whose
+   version was checked;
+3. the first-task offline claim was an environment label without a socket
+   enforcement boundary;
+4. installed-wheel mode could resolve an unrelated same-version `loopx`
+   package before the Zyra-owned package.
+
+Fix commit `0ad958f6d508a80b3c7ad73ba69b41b7759b4c4e` closes all four.
+The probe now restores environment and socket state on every exit, enforces and
+records loopback-only traffic, and the interpreter gate executes the selected
+Python. Installed distribution resolution additionally requires the LoopX
+initializer, lock, and source manifest to belong to the same Zyra distribution
+RECORD. Regression tests prove missing-interpreter rejection, non-loopback
+blocking, environment restoration, and same-version user-package shadow
+rejection.
+
+The repaired target passes all 31 cumulative LoopX integration cases and all 45
+release-productization unit cases. The P2-S01-03 state survives two independent
+restarts at the repaired target with cursor `3`, three canonical mutations, and
+no duplicate claim, spend, interaction, commit, install, or extraction. Two
+release builds are byte-identical at SHA-256
+`77deb5a8becdbd06413d07ac980997fc478c94fe4d52a224e91226379d07b566`.
+The detached cleanroom installs the release, passes deep doctor, executes a real
+`/loopx-connect`, records exactly two loopback client connections and zero
+non-loopback attempts, leaves the synthetic user home empty, and uninstalls
+cleanly.
+
+The updated verdict remains `PASS`, now bound to the post-completion fix and
+the machine-readable addendum at
+`docs/reviews/evidence/P2-S01-04/post-completion-review.json`. The full unrelated
+Web suite and product lifecycle were not rerun because this review changed no
+Web or lifecycle code; release build, wheel, isolated install/uninstall, deep
+doctor, and first-task behavior were rerun against the repaired commit.

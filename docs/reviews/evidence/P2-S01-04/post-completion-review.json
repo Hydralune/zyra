@@ -1,0 +1,196 @@
+{
+  "schema": "zyra.phase2.post-completion-review/v1",
+  "slice_id": "P2-S01-04",
+  "reviewed_evidence_commit": "b35eacdbeebe077265a3995db743fde139fdb774",
+  "review_fix_commit": "0ad958f6d508a80b3c7ad73ba69b41b7759b4c4e",
+  "verdict": "pass_after_fixes",
+  "findings": [
+    {
+      "id": "loopx-first-task-process-environment-leak",
+      "severity": "high",
+      "status": "fixed",
+      "evidence": "The original cumulative LoopX run passed 28 cases and then failed release Git provenance because the first-task probe had replaced HOME, USERPROFILE and Zyra paths without restoring them.",
+      "resolution": "The probe now scopes and restores every environment override, including exceptional exits, and serializes the process-global boundary."
+    },
+    {
+      "id": "loopx-selected-python-not-probed",
+      "severity": "high",
+      "status": "fixed",
+      "evidence": "Installer and deep doctor accepted an explicit Python path while checking sys.version_info from the host process.",
+      "resolution": "A fail-closed isolated version probe now executes the selected interpreter; missing, failed, malformed and incompatible interpreters have distinct evidence."
+    },
+    {
+      "id": "loopx-offline-claim-was-label-only",
+      "severity": "high",
+      "status": "fixed",
+      "evidence": "The detached first-task receipt reported ZYRA_NETWORK_MODE=offline but did not prevent a Python socket from reaching a non-loopback destination.",
+      "resolution": "The probe now installs a scoped loopback-only socket guard, records allowed loopback connections, blocks DNS/non-loopback TCP and UDP attempts, and restores the socket API afterward."
+    },
+    {
+      "id": "loopx-installed-distribution-user-shadow-fallback",
+      "severity": "high",
+      "status": "fixed",
+      "evidence": "Installed-wheel resolution could accept an unrelated same-version loopx package found earlier on sys.path.",
+      "resolution": "Installed mode now requires loopx/__init__.py, the package lock and the source manifest to be owned by the same installed Zyra distribution RECORD."
+    },
+    {
+      "id": "loopx-source-identity-documentation",
+      "severity": "medium",
+      "status": "fixed",
+      "evidence": "The slice document called the annotated tag object a source commit.",
+      "resolution": "Forward documentation now distinguishes tag object a2c072d4 from peeled source commit 7232dca4 and describes the embedded-source product form consistently."
+    }
+  ],
+  "verification": {
+    "loopx_cumulative_integration": {
+      "passed": 31,
+      "failed": 0,
+      "command_scope": [
+        "test_loopx_api_restart.py",
+        "test_loopx_bridge_outbox.py",
+        "test_loopx_bridge_restart.py",
+        "test_loopx_bridge_single_writer.py",
+        "test_loopx_clean_install.py",
+        "test_loopx_control_commands.py",
+        "test_loopx_embedded_source.py",
+        "test_loopx_release_doctor.py",
+        "test_loopx_source_integrity.py"
+      ]
+    },
+    "release_productization_unit": {
+      "passed": 45,
+      "failed": 0
+    },
+    "python_compileall": {
+      "ready": true
+    },
+    "deep_runtime_verifier": {
+      "ready": true,
+      "version": "0.2.13",
+      "source_file_count": 1925,
+      "source_tree_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+      "selected_python_version": "3.13.9",
+      "selected_python_was_probed": true,
+      "receipt_sha256": "e28e11fce769da96ba09dada41f0265007de0bd65497fee6dab159c3944d80d7"
+    },
+    "cross_version_upgrade": {
+      "ready": true,
+      "base_commit": "3c4d1092187b1777468cad0ce2a772244d012197",
+      "target_commit": "0ad958f6d508a80b3c7ad73ba69b41b7759b4c4e",
+      "target_restart_count": 2,
+      "cursor": 3,
+      "canonical_mutation_count": 3,
+      "semantic_state_preserved": true,
+      "duplicate_claim": false,
+      "duplicate_spend": false,
+      "duplicate_interaction": false,
+      "duplicate_canonical_commit": false,
+      "new_install_or_extraction": false,
+      "receipt_sha256": "e03542337d76ad0108a3f2eef84aaf244c4094404d56b8a321948a6e20588aa7"
+    },
+    "release_reproducibility": {
+      "ready": true,
+      "release_id": "p2-s01-04-post-review-0ad958f",
+      "source_commit": "0ad958f6d508a80b3c7ad73ba69b41b7759b4c4e",
+      "file_count": 4293,
+      "archive_size": 32705525,
+      "archive_sha256": "77deb5a8becdbd06413d07ac980997fc478c94fe4d52a224e91226379d07b566",
+      "second_build_sha256": "77deb5a8becdbd06413d07ac980997fc478c94fe4d52a224e91226379d07b566",
+      "byte_identical": true,
+      "python_wheel_sha256": "a3d60b47ba9dd2078dafe2c4a740c1311463f0be93ab75095ef44cead6ca4140",
+      "manifest_digest": "44627871c02a69d5e54252672d5549bda1d1b1a9e9dc9edc1782342130b32fd9",
+      "payload_digest": "b37983899538455af462da08f6e351fe9c8affc1bb8acbe1891b93824a9beebd"
+    },
+    "detached_cleanroom": {
+      "ready": true,
+      "source_commit": "0ad958f6d508a80b3c7ad73ba69b41b7759b4c4e",
+      "workspace_isolated": true,
+      "parent_source_repositories_present": false,
+      "loopx_external_source_required": false,
+      "loopx_archive_install_required": false,
+      "first_task_ready": true,
+      "first_task_receipt_status": "applied",
+      "first_task_sync_cursor": 1,
+      "first_task_network_guard_enforced": true,
+      "first_task_loopback_connection_count": 2,
+      "first_task_blocked_non_loopback_attempts": [],
+      "first_task_user_home_entries": [],
+      "first_task_environment_restored": true,
+      "product_lifecycle_exercised": false,
+      "receipt_digest": "eb222038d80c6fa979ed8e6a2c0bf26212b6e0ac75cb9eee780b0e7f0b8a96f5",
+      "receipt_sha256": "edeabc6c9c7bc8c6e375242471624ff9fac9372fd83092b647a78c4050edabef"
+    },
+    "runtime_path_audit": {
+      "ready": true,
+      "tracked_loopx_runtime_files": 1926,
+      "tracked_loopx_archives": 0,
+      "nested_git_directories": 0,
+      "gitlinks": 0,
+      "production_external_source_references": 0
+    },
+    "git_diff_check": {
+      "ready": true
+    },
+    "ruff": {
+      "status": "not_available",
+      "reason": "The project virtual environment does not contain the ruff module; compileall, diff checking and behavior tests were used instead."
+    }
+  },
+  "validation_scope": {
+    "full_product_lifecycle_rerun": false,
+    "reason": "The fix changes LoopX resolver, interpreter validation and detached first-task verification. The release build, wheel, deep doctor, isolated install/uninstall and real first LoopX task were rerun; unrelated Web and long-running product lifecycle behavior did not change.",
+    "initial_cleanroom_attempt": "Dependency bootstrap was blocked by the filesystem/network sandbox before product execution.",
+    "final_cleanroom_attempt": "Passed after allowing the existing hash-locked dependency bootstrap; the LoopX first-task phase itself remained under the loopback-only guard."
+  },
+  "effective_line_buckets": {
+    "production": {
+      "files": 6,
+      "added": 433,
+      "deleted": 115
+    },
+    "test": {
+      "files": 2,
+      "added": 116,
+      "deleted": 1
+    },
+    "docs": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    "generated": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    "data": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    "vendor_like": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    "adapter_only": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    "mock_fixture": {
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    }
+  },
+  "canonical_owner_boundaries_preserved": {
+    "loopx_private_control": true,
+    "graph_state_custody": true,
+    "worker_lease": true,
+    "resource_scheduler_budget": true,
+    "permission_runtime": true
+  },
+  "phase2_strongest_v1_activated": false,
+  "openclaw_accessed_or_restored": false
+}
