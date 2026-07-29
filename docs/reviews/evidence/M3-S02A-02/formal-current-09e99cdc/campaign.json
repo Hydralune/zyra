@@ -1,0 +1,851 @@
+{
+  "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+  "cells": [
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-8c3043656bb5e8c06d824812",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-a6553c0a9cdbfe55e1ae1db1",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-7396c178d6c02c3aa030af84",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-bfed09e92e8609a544d81079",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-b5ca7c497d33cf521643d21c",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-69d1379473245248b3fa6a2a",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-358320d7ecb9a97254567a7c",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-63c0577f8ccf7be08f13dfff",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-65a1da22280674ae2980bf53",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-6270fd6d9a694fe07d2b7cc3",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-72bc0ab0f5ea37f07d9e21e7",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-74a50772e9711e6fd7dff949",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-1261146ddcedb6a9d16808d6",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-b6b03f7c8313378fce17fbc5",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-1fa503bd36985582ef5788a8",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-9f1395e188d0a5396e9e4759",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-6d69f1db23fbcc4f27b992d4",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-0c604d950ba09183bd7da99e",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-c5ea9f4be0d431ea12263e1a",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-3b5d3f7dcda2f847f772a32b",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-94d7d4f6f063d7ce9e6c8d36",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "software-delivery",
+      "input_revision": "software-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-0fff0b1fb87aeb023b9e17c1",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-7b0b56557f7f6e2b7737f241",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-66c59f6dca49970d0ddb23ed",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "single-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-59d7f5e50adabfdec3ce8b43",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-215ab358fa69e1339d13b4df",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-423a513aeaea16414573e14c",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-d12f28bd35d2160c6d39d835",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-e3589734d42bab738f6abffd",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-90e9beb80319c2740173a6c5",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-ec1faac1f0fba499e8d346eb",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-a329b5d2f14c710d74f2aee9",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-9d6b67469c948ce006c7dc5d",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-ad2a7ead53065856133944d4",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-eab1609b75361972ce540181",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-469162a46d4dad5d648b2a8b",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-f8ca58b36104b4c43b827802",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-65f01dda1f9cb405c9f060cc",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-eb3a017672e4f045b66daae4",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-recovery"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-a1aad4bd10ae49faae5b609b",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r1",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 1,
+      "seed": 27072001,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-1778589fe7ff24c740370092",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r2",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 2,
+      "seed": 27072002,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    },
+    {
+      "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+      "cell_id": "cell-13f896a7374afb9bbb9af2eb",
+      "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+      "domain": "cross-source-research",
+      "input_revision": "research-09e99cdc5ed9-r3",
+      "planned_at": "2026-07-29T03:46:52.112873Z",
+      "repetition": 3,
+      "seed": 27072003,
+      "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48",
+      "variant_id": "no-low-entropy-communication"
+    }
+  ],
+  "conditions": {
+    "budget_digest": "a17ef66853f2c3d9475ade359ff9aea30f44e00957c8a86eb3dc44a8c96f651c",
+    "commit_sha": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+    "deployment_digest": "f4cfc8a68077f4c5c37527e61995921e7305efebded2c650e71ab23f8a109a03",
+    "environment_digest": "9ba3883d373b5c6551946e6b60ee1bd9bb18b2c33ca0045e81db5dc8b6e3607d",
+    "failure_schedule_digest": "5b67bc0ea06c7dbe2943c076032039ef6cf605dbf60d27eacd59f7610df5535c",
+    "hardware_digest": "637e349a2a97dd0fc91ae8fe18c5257483aeb67319b2c3e6aaa53a05a956946d",
+    "provider_policy_digest": "7ce0bb5d25545ce1d7c513f7395cc29632b4fbe6a61ee63f99724a9185ba4f23",
+    "sealed_policy_digest": "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd",
+    "source_evidence_digest": "eabcf159512278dba49f143f1ac0dd79224212a1b9f60191772738d4c8d2b7e0",
+    "verifier_digest": "163e8c59deafd72f5893515cd9b95ef4bc25a7dc4b7edf685b4d4068ef565705"
+  },
+  "created_at": "2026-07-29T03:46:52.112873Z",
+  "domains": [
+    "software-delivery",
+    "cross-source-research"
+  ],
+  "metadata": {
+    "budget": {
+      "maximum_campaign_wall_seconds": 10800,
+      "maximum_provider_requests": 12,
+      "maximum_source_wall_seconds": 1200,
+      "maximum_workers": 1,
+      "provider_request_policy": "six-formal-cases-times-two-providers"
+    },
+    "deployment": {
+      "current": {
+        "current_dispatch_required": true,
+        "model_ids": [
+          "glm-5.2",
+          "deepseek-v4-pro",
+          "kimi-k2.7-code"
+        ],
+        "provider_ids": [
+          "zhipu",
+          "deepseek",
+          "kimi-platform"
+        ],
+        "tier_ids": [
+          "device",
+          "edge",
+          "cloud"
+        ]
+      },
+      "protected_m1_bundle_digest": "eabcf159512278dba49f143f1ac0dd79224212a1b9f60191772738d4c8d2b7e0",
+      "protected_providers": [
+        {
+          "model_id": "claude-sonnet-5",
+          "provider_id": "anthropic",
+          "request_path": "/v1/messages",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "anthropic-compatible"
+        },
+        {
+          "model_id": "gpt-5.5",
+          "provider_id": "openai",
+          "request_path": "/v1/responses",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "openai-compatible"
+        }
+      ],
+      "protected_tiers": [
+        {
+          "protocol": "zyra-local-worker/v1",
+          "simulated": false,
+          "tier": "local",
+          "transport": "in-process-terminal"
+        },
+        {
+          "isolated_process": true,
+          "loopback": false,
+          "protocol": "zyra-authenticated-edge-tcp/v1",
+          "simulated": false,
+          "tier": "edge",
+          "transport": "tcp+hmac"
+        },
+        {
+          "protocol": "openai-compatible",
+          "simulated": false,
+          "tier": "cloud",
+          "transport": "provider-owned-managed-cli"
+        }
+      ]
+    },
+    "environment": {
+      "benchmark_entry": "scripts/run_m3_s02a02_live_benchmark.py",
+      "live_product_owner": "ScenarioRunnerService",
+      "machine": "AMD64",
+      "maximum_provider_requests": 12,
+      "new_provider_calls_allowed": true,
+      "os": "Windows",
+      "os_release": "11",
+      "public_research_proxy_cidrs": "198.18.0.145/32,198.18.0.146/32,198.18.0.147/32",
+      "python": "3.13.9",
+      "source_entry": "scripts/run_m3_live_source.py",
+      "variant_owner": "EvidenceBackedWorkloadRuntime"
+    },
+    "external_model_request_required": true,
+    "failure_schedule": {
+      "deterministic": true,
+      "recovery_ablation_expected_to_fail_delivery": true,
+      "research": [
+        "acceptance-criteria-change",
+        "tool-failure",
+        "node-loss",
+        "provider-failure",
+        "network-failure"
+      ],
+      "software": [
+        "scope-change",
+        "exception",
+        "worker-loss",
+        "provider-failure",
+        "edge-disconnect"
+      ]
+    },
+    "formal_cell_count": 42,
+    "fresh_source_run_count": 6,
+    "hardware": {
+      "architecture": "AMD64",
+      "logical_cpu_count": 32,
+      "memory_total_bytes": 34158272512,
+      "physical_cpu_count": 24,
+      "resource_observation": "current-process-psutil"
+    },
+    "no_new_provider_call": false,
+    "paired_source_sharing": "within-domain-repetition-only",
+    "protected_m1_evidence": {
+      "content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+      "file_sha256": "ce9b659581625d0f7362a0c25221f622e6a237d7bc8703b48d5e952185b7a2da",
+      "no_new_provider_call": true,
+      "providers": [
+        {
+          "model_id": "claude-sonnet-5",
+          "provider_id": "anthropic",
+          "request_path": "/v1/messages",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "anthropic-compatible"
+        },
+        {
+          "model_id": "gpt-5.5",
+          "provider_id": "openai",
+          "request_path": "/v1/responses",
+          "simulated": false,
+          "tool_call_and_result": true,
+          "wire_dialect": "openai-compatible"
+        }
+      ],
+      "schema": "zyra.protected-deployment-evidence/v1",
+      "source_path": "G:\\agent-zoo\\zyra\\docs\\reviews\\evidence\\M1-08-and-M1-exit-review-2026-07-23.json",
+      "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+      "tiers": [
+        {
+          "protocol": "zyra-local-worker/v1",
+          "simulated": false,
+          "tier": "local",
+          "transport": "in-process-terminal"
+        },
+        {
+          "isolated_process": true,
+          "loopback": false,
+          "protocol": "zyra-authenticated-edge-tcp/v1",
+          "simulated": false,
+          "tier": "edge",
+          "transport": "tcp+hmac"
+        },
+        {
+          "protocol": "openai-compatible",
+          "simulated": false,
+          "tier": "cloud",
+          "transport": "provider-owned-managed-cli"
+        }
+      ],
+      "verified_at": "2026-07-29T03:46:51.941119Z"
+    },
+    "provider_policy": {
+      "authenticated_provider_cli_allowed": false,
+      "authenticated_provider_runtime_allowed": true,
+      "external_model_request_allowed": true,
+      "maximum_provider_requests": 12,
+      "minimum_providers_per_formal_case": 2,
+      "policy_id": "m3-s02a02-bounded-current-provider-campaign",
+      "protected_evidence_only": false,
+      "protected_m1_content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+      "same_run_as_formal_cases_required": true
+    },
+    "slice": "M3-S02A-02",
+    "verifier": {
+      "deterministic_failure_overrides_model_judge": true,
+      "model_judge_enabled": false,
+      "research": "M3ProductDomainVerifier/research",
+      "software": "M3ProductDomainVerifier/software"
+    }
+  },
+  "minimum_effective_steps": 2000,
+  "phase": "planned",
+  "required_long_run_steps": 2000,
+  "schema_version": "zyra.live-benchmark-campaign/v1",
+  "seeds": [
+    27072001,
+    27072002,
+    27072003
+  ],
+  "updated_at": "2026-07-29T03:46:52.112873Z",
+  "variants": [
+    {
+      "capabilities": {
+        "communication_mode": "self",
+        "dynamic_topology": false,
+        "heterogeneous_roles": false,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": false,
+        "worker_limit": 1
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "topology": "single-node"
+      },
+      "title": "Single agent",
+      "variant_id": "single-agent"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "broadcast",
+        "dynamic_topology": false,
+        "heterogeneous_roles": true,
+        "low_entropy": false,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "topology": "static-complete-graph"
+      },
+      "title": "Static full-connect multi-agent",
+      "variant_id": "static-full-connect-multi-agent"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "",
+      "kind": "baseline",
+      "metadata": {
+        "production": true,
+        "topology": "runtime-evolvable-sparse"
+      },
+      "title": "Dynamic heterogeneous swarm",
+      "variant_id": "dynamic-heterogeneous-swarm"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": false,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "scheduler",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No scheduler",
+      "variant_id": "no-scheduler"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": false,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "memory_compact",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No memory/compact",
+      "variant_id": "no-memory-compact"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "targeted",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": true,
+        "memory_compact": true,
+        "recovery": false,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "recovery",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No recovery",
+      "variant_id": "no-recovery"
+    },
+    {
+      "capabilities": {
+        "communication_mode": "broadcast",
+        "dynamic_topology": true,
+        "heterogeneous_roles": true,
+        "low_entropy": false,
+        "memory_compact": true,
+        "recovery": true,
+        "scheduler": true,
+        "worker_limit": 8
+      },
+      "comparison_anchor": "dynamic-heterogeneous-swarm",
+      "expected_disabled_capability": "low_entropy",
+      "kind": "ablation",
+      "metadata": {},
+      "title": "No low-entropy communication",
+      "variant_id": "no-low-entropy-communication"
+    }
+  ]
+}

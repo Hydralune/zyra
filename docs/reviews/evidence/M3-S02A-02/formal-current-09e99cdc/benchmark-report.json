@@ -1,0 +1,329 @@
+{
+  "campaign_digest": "cafda92cd7231719baf835e5fe171df242610c80fcefacc7aa37c998d15e7842",
+  "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+  "commit_sha": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+  "condition_digest": "44a48ffba822cb5f407e053ef687efe6bbb061873ea1bfdfe09aabc892663dbc",
+  "environment": {
+    "budget_digest": "a17ef66853f2c3d9475ade359ff9aea30f44e00957c8a86eb3dc44a8c96f651c",
+    "deployment_digest": "f4cfc8a68077f4c5c37527e61995921e7305efebded2c650e71ab23f8a109a03",
+    "environment_digest": "9ba3883d373b5c6551946e6b60ee1bd9bb18b2c33ca0045e81db5dc8b6e3607d",
+    "failure_schedule_digest": "5b67bc0ea06c7dbe2943c076032039ef6cf605dbf60d27eacd59f7610df5535c",
+    "hardware_digest": "637e349a2a97dd0fc91ae8fe18c5257483aeb67319b2c3e6aaa53a05a956946d",
+    "provider_policy_digest": "7ce0bb5d25545ce1d7c513f7395cc29632b4fbe6a61ee63f99724a9185ba4f23",
+    "verifier_digest": "163e8c59deafd72f5893515cd9b95ef4bc25a7dc4b7edf685b4d4068ef565705"
+  },
+  "generated_at": "2026-07-29T04:15:25.030302Z",
+  "predecessor_receipt": {
+    "predecessor_digest": "9a5ad03cf73c96023404670b9c9be6d79659ddeef273f75170edd400f614012b",
+    "receipts": {
+      "m1_exit": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+      "m2_experiment_matrix": "c24524c0306a4ac441683e16b08399ac26dd6fdedbe2eaac2124df200d2cdb99",
+      "m2_live_scenarios": "e9c60c74c29dc28a5c628041ad8d0c6c6c260c4f2fc2a731c862fd502ac92ca2",
+      "m3_regression_hardening": "f022b048a59c70ca3b69063e9085936fe2d0fa9ef2ba59f99c1a42df749ae66f"
+    },
+    "schema": "zyra.live-benchmark-predecessors/v1",
+    "valid": true
+  },
+  "report_digest": "1c349f66ef8174fe98f8dabcb97f43d3734984f710eb3e70a91ad5e306d7229e",
+  "requirement_receipt": {
+    "evidence_digest": "9f960412bffc7c1f4e51a0948c19d0a7fd015b90e2b0671a1ab49f16bbfc3319",
+    "maximum_score": 100,
+    "requirements": {
+      "REQ-APP-001": {
+        "dimension": "application-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "f71dd89e5c2fb496d6b78dfa971562d6c18790b9ff356ff3b67d3c8731b69e91",
+        "evidence_kinds": [
+          "software-delivery"
+        ],
+        "findings": [],
+        "points": 7,
+        "status": "verified"
+      },
+      "REQ-APP-002": {
+        "dimension": "application-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "c18f24da034d756fdcf55496a668b5a29bb3510e8bc5a2034cb16a265881041b",
+        "evidence_kinds": [
+          "cross-source-research"
+        ],
+        "findings": [],
+        "points": 5,
+        "status": "verified"
+      },
+      "REQ-APP-003": {
+        "dimension": "application-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "24bf28566f46747e45c4a846bcf8de17df7a16c884b3524c1952e1da6f352449",
+        "evidence_kinds": [
+          "artifact-and-verifier"
+        ],
+        "findings": [],
+        "points": 5,
+        "status": "verified"
+      },
+      "REQ-APP-004": {
+        "dimension": "application-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "5e4a742a83117dbfc21ce61979eb8bd3527267042b3a54ae34f84efadd17abce",
+        "evidence_kinds": [
+          "autonomous-requirement-change"
+        ],
+        "findings": [],
+        "points": 4,
+        "status": "verified"
+      },
+      "REQ-APP-005": {
+        "dimension": "application-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "081969a6fdcd32608794b8d4f3d2b9bcf88c99615d2d78935c2372dc9a0c9781",
+        "evidence_kinds": [
+          "reproducible-evidence-handoff"
+        ],
+        "findings": [],
+        "points": 4,
+        "status": "verified"
+      },
+      "REQ-COMP-001": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "e6013406cb00a8ccd0da4334f496f11d70291e9998e9375b0e95cac597d2dbb9",
+        "evidence_kinds": [
+          "cross-domain-live-delivery"
+        ],
+        "findings": [],
+        "points": 6,
+        "status": "verified"
+      },
+      "REQ-COMP-002": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "d93df078acb8b83aacfbbdfc50a51fe32833f75ddc3b974b662d8dd453aaf06f",
+        "evidence_kinds": [
+          "sealed-long-run-autonomy"
+        ],
+        "findings": [],
+        "points": 8,
+        "status": "verified"
+      },
+      "REQ-COMP-003": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "1da3b5793f9e366c20b002b5d352d040cd8e2dc42c371ab8a26660b6a9faa1e7",
+        "evidence_kinds": [
+          "dynamic-topology-ablation"
+        ],
+        "findings": [],
+        "points": 6,
+        "status": "verified"
+      },
+      "REQ-COMP-004": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "5aaedf7af5c425edd378fa0524f6f790e1151fbfae45234eb1a95118740cf4db",
+        "evidence_kinds": [
+          "low-entropy-ablation"
+        ],
+        "findings": [],
+        "points": 6,
+        "status": "verified"
+      },
+      "REQ-COMP-005": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "acf7a905ee2cb758b1614425287d999a73ecb566b7ca1d0cf4d1d2c4d8efd943",
+        "evidence_kinds": [
+          "current-device-edge-cloud-provider-model"
+        ],
+        "findings": [],
+        "points": 6,
+        "status": "verified"
+      },
+      "REQ-COMP-006": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "40ea4905bec547998ca22980cfd0f562e8374740a9545676cf4aa64993adf6fe",
+        "evidence_kinds": [
+          "fault-change-recovery"
+        ],
+        "findings": [],
+        "points": 5,
+        "status": "verified"
+      },
+      "REQ-COMP-007": {
+        "dimension": "works-completeness",
+        "evidence_count": 1,
+        "evidence_digest": "34c1a440e422d3b18a01bf085fa87f06e146e8f8aaa85b76d0064076f7708cd3",
+        "evidence_kinds": [
+          "causal-semantic-trace"
+        ],
+        "findings": [],
+        "points": 3,
+        "status": "verified"
+      },
+      "REQ-PERF-001": {
+        "dimension": "performance-efficiency",
+        "evidence_count": 1,
+        "evidence_digest": "9ee96528b99762ae4edeff2085893df2095ac0ed66f30c39f76ae233ecb935e3",
+        "evidence_kinds": [
+          "quality-efficiency-distributions"
+        ],
+        "findings": [],
+        "points": 6,
+        "status": "verified"
+      },
+      "REQ-PERF-002": {
+        "dimension": "performance-efficiency",
+        "evidence_count": 1,
+        "evidence_digest": "d6aca5f863054ff174f6ee6fdfe5402ab0e56d591a28fe3f718f64bc94b633e0",
+        "evidence_kinds": [
+          "resource-latency-cost"
+        ],
+        "findings": [],
+        "points": 5,
+        "status": "verified"
+      },
+      "REQ-PERF-003": {
+        "dimension": "performance-efficiency",
+        "evidence_count": 1,
+        "evidence_digest": "bbe437c2a80c8db5ce97187a967ad936298fd82ad93c8b22a1fa833dbf5fe303",
+        "evidence_kinds": [
+          "cross-domain-stability"
+        ],
+        "findings": [],
+        "points": 4,
+        "status": "verified"
+      },
+      "REQ-TECH-001": {
+        "dimension": "technical-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "97ed662a2ee5b4b64d83f36aaada843cfe52b29473938be029603c4d0a009b6d",
+        "evidence_kinds": [
+          "paired-ablation-method"
+        ],
+        "findings": [],
+        "points": 8,
+        "status": "verified"
+      },
+      "REQ-TECH-002": {
+        "dimension": "technical-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "8296a1e436ecb3901fa9b6d8bc2386ecb9b477b08fc3f1010f4c4f1eda0b40d1",
+        "evidence_kinds": [
+          "memory-compact-effect"
+        ],
+        "findings": [],
+        "points": 5,
+        "status": "verified"
+      },
+      "REQ-TECH-003": {
+        "dimension": "technical-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "92560de7809015547861f1e0459931543ee1625663e6db35d8517bdde5411d1e",
+        "evidence_kinds": [
+          "scheduler-placement-effect"
+        ],
+        "findings": [],
+        "points": 4,
+        "status": "verified"
+      },
+      "REQ-TECH-004": {
+        "dimension": "technical-innovation",
+        "evidence_count": 1,
+        "evidence_digest": "c0c28e37bb852cc29146db3c2112498a35935009578e068d39e76f35edd48687",
+        "evidence_kinds": [
+          "fault-recovery-effect"
+        ],
+        "findings": [],
+        "points": 3,
+        "status": "verified"
+      }
+    },
+    "schema": "zyra.live-benchmark-requirement-evidence/v1",
+    "valid": true,
+    "verified_score": 100
+  },
+  "result_receipt": {
+    "cell_count": 42,
+    "domain_counts": {
+      "cross-source-research": 21,
+      "software-delivery": 21
+    },
+    "human_intervention_count": 0,
+    "long_run_ids": [
+      "m3run-0c604d950ba09183bd7da99e-observation_8cf3f4808ac643cf85f1de447294802e",
+      "m3run-0fff0b1fb87aeb023b9e17c1-observation_6f1dfd61374548ada85e2632b54048a7",
+      "m3run-1261146ddcedb6a9d16808d6-observation_0c1fe49aaea54996b450d6e785149bbe",
+      "m3run-13f896a7374afb9bbb9af2eb-observation_f32953640f2a43f6b1b4ce7824323de9",
+      "m3run-1778589fe7ff24c740370092-observation_9e6cb2605a05420280ee5a7ffbb9238f",
+      "m3run-1fa503bd36985582ef5788a8-observation_36ba8ee973dc4658a12b88260bb7c536",
+      "m3run-215ab358fa69e1339d13b4df-observation_252d33a4830f452f8890f8d0054e9f3e",
+      "m3run-358320d7ecb9a97254567a7c-observation_6c823d6123e44d0bac0c5f018d444470",
+      "m3run-3b5d3f7dcda2f847f772a32b-observation_0d349e1457a640c8b63624d02d0b0ae3",
+      "m3run-423a513aeaea16414573e14c-observation_22644b84a5da402783d72f88d226ebaa",
+      "m3run-469162a46d4dad5d648b2a8b-observation_a0e0f944fc98482f9b29e343d811dd68",
+      "m3run-59d7f5e50adabfdec3ce8b43-observation_5d94976b5da34873b927e8382b23abca",
+      "m3run-6270fd6d9a694fe07d2b7cc3-observation_d5ca422fe49c4f759ecc2ef4c22b13dc",
+      "m3run-63c0577f8ccf7be08f13dfff-observation_16fe1627a36f45e6aa29ad8f3d8f78df",
+      "m3run-65a1da22280674ae2980bf53-observation_f63358924693421a906a0e100ef58fcf",
+      "m3run-65f01dda1f9cb405c9f060cc-observation_a5eac875f77f42958e717a4ab7bd1ca4",
+      "m3run-66c59f6dca49970d0ddb23ed-observation_58aaf574586543508a6d5ed673f94d36",
+      "m3run-69d1379473245248b3fa6a2a-observation_453e8dca3eb0497283662f3a11023903",
+      "m3run-6d69f1db23fbcc4f27b992d4-observation_95d077fee769431fa21c09fbf1f75732",
+      "m3run-72bc0ab0f5ea37f07d9e21e7-observation_7426c6ed10444159a43d829cc9a422f8",
+      "m3run-7396c178d6c02c3aa030af84-observation_ae06100b4b414d80ad231be9da7f008a",
+      "m3run-74a50772e9711e6fd7dff949-observation_ed758b4ea27c495c8206929b5ddb8181",
+      "m3run-7b0b56557f7f6e2b7737f241-observation_9610871d66034de9bec90db55fa07597",
+      "m3run-8c3043656bb5e8c06d824812-observation_95775194cad0481c97fba2b9a73ab8d8",
+      "m3run-90e9beb80319c2740173a6c5-observation_0e1ac3e8e2a94b02a2fdce62b2bce698",
+      "m3run-94d7d4f6f063d7ce9e6c8d36-observation_6c2b643ed8854450a08d4c7e373ba7d3",
+      "m3run-9d6b67469c948ce006c7dc5d-observation_15914a0319cc4959abdb2272566b8749",
+      "m3run-9f1395e188d0a5396e9e4759-observation_1b25c74757ae49a1b5de24a3dcaf280c",
+      "m3run-a1aad4bd10ae49faae5b609b-observation_1f9fa7e596544dd8befdaec8071f98f6",
+      "m3run-a329b5d2f14c710d74f2aee9-observation_9765822c6422408b944aba8ee3749097",
+      "m3run-a6553c0a9cdbfe55e1ae1db1-observation_ecb9f6e6eb0d4e9789252014f7044d0a",
+      "m3run-ad2a7ead53065856133944d4-observation_08d8cda2a71648c9832ede875451ed2e",
+      "m3run-b5ca7c497d33cf521643d21c-observation_9cac9f4831e7458ca4d17c0442e12e39",
+      "m3run-b6b03f7c8313378fce17fbc5-observation_8ef2dcd2d4954dbab09433a13e12ec75",
+      "m3run-bfed09e92e8609a544d81079-observation_03ca504b25ad4d4c80de514edd153974",
+      "m3run-c5ea9f4be0d431ea12263e1a-observation_aae2da556be24fae91d6e46faf398958",
+      "m3run-d12f28bd35d2160c6d39d835-observation_aafe84c2c1794fc6a9b09bc8baf67095",
+      "m3run-e3589734d42bab738f6abffd-observation_0af95b15d4854da6a28c442268a241fb",
+      "m3run-eab1609b75361972ce540181-observation_8e1ec2a612454f7f8bcdff93739351df",
+      "m3run-eb3a017672e4f045b66daae4-observation_e33f6220c79142b9b250ea8db80ba747",
+      "m3run-ec1faac1f0fba499e8d346eb-observation_b3014cd8dbd54903afabdbe425a1eda9",
+      "m3run-f8ca58b36104b4c43b827802-observation_e7f524e0cd6642f1be9cb30e34ba9e74"
+    ],
+    "operator_intervention_count": 0,
+    "result_digest": "06227b75e08df7ab031fa5b26ef4edfa01d5e9b4c96db32bc7cacc2fef493a4b",
+    "run_count": 42,
+    "schema": "zyra.live-benchmark-result-summary/v1",
+    "valid": true,
+    "variant_counts": {
+      "dynamic-heterogeneous-swarm": 6,
+      "no-low-entropy-communication": 6,
+      "no-memory-compact": 6,
+      "no-recovery": 6,
+      "no-scheduler": 6,
+      "single-agent": 6,
+      "static-full-connect-multi-agent": 6
+    }
+  },
+  "schema": "zyra.live-benchmark-report/v1",
+  "score": {
+    "complete": true,
+    "maximum": 100,
+    "verified": 100
+  },
+  "sealed_policy_digest": "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd",
+  "statistical_receipt": {
+    "bootstrap_iterations": 2000,
+    "comparison_count": 444,
+    "confidence_level": 0.95,
+    "distribution_count": 518,
+    "sample_count": 1554,
+    "schema": "zyra.live-benchmark-statistics-summary/v1",
+    "statistical_evaluation_digest": "5bee8a208d69b5dad6c90cec3f4eeb37e0d639f893498cc91139865f0228a192",
+    "valid": true
+  }
+}

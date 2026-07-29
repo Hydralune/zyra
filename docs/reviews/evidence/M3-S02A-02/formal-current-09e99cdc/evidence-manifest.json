@@ -1,0 +1,162 @@
+{
+  "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+  "commit_sha": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+  "created_at": "2026-07-29T04:15:55.619322Z",
+  "manifest_digest": "de654b7b34dbfc318fb36edebfd1224f812603dbb8f7cff36172281e22ac0186",
+  "member_count": 20,
+  "members": [
+    {
+      "bytes": 691470,
+      "kind": "m3-03-evidence-index",
+      "path": "100-point-evidence-index.json",
+      "required": true,
+      "sha256": "14bde8a5d57d406e73dcf2caa36111f2d3a90edac2fc0d200b92d67679c0689e"
+    },
+    {
+      "bytes": 13519,
+      "kind": "formal-benchmark-report",
+      "path": "benchmark-report.json",
+      "required": true,
+      "sha256": "8019d5f7f656c730039f98cc91af83a9c3b6213e994136d97e6741432c1fe3ff"
+    },
+    {
+      "bytes": 12556,
+      "kind": "frozen-campaign-custody",
+      "path": "campaign-store-receipt.json",
+      "required": true,
+      "sha256": "53aa35cb5512ee43df06f92b1a04cd6598b19067c0c06908841389756b043978"
+    },
+    {
+      "bytes": 33806,
+      "kind": "formal-campaign",
+      "path": "campaign.json",
+      "required": true,
+      "sha256": "dd5c0523942ae08551ff50c8f00200f7625965dbc3f43c32fce255288879afcf"
+    },
+    {
+      "bytes": 63121,
+      "kind": "current-formal-case-provider-tier-evidence",
+      "path": "current-campaign-evidence.json",
+      "required": true,
+      "sha256": "0ceeae1cdc79f08d679102d6dd1d6a7f0e20f22bd3aacf5608124e219eb48b3e"
+    },
+    {
+      "bytes": 5262,
+      "kind": "campaign-evaluation",
+      "path": "evaluation-summary.json",
+      "required": true,
+      "sha256": "574d08338e3dea050400c1d2115b2c54fc1bbfd6c8c6a081c33435967a839de8"
+    },
+    {
+      "bytes": 1160,
+      "kind": "implementation-provenance",
+      "path": "implementation-metadata.json",
+      "required": true,
+      "sha256": "5eafa9433fbc4c0cbdd04378f63c08f93809bf7d32dcd580eb23631e31ee2eb6"
+    },
+    {
+      "bytes": 1456,
+      "kind": "protected-m1-deployment-provider-evidence",
+      "path": "protected-deployment-evidence.json",
+      "required": true,
+      "sha256": "9c1b492846ccf6a8b3ce8a787449c8340d590f3c657b951cf8072385ecba0e78"
+    },
+    {
+      "bytes": 1363920,
+      "kind": "raw-metric-samples",
+      "path": "raw-samples.json",
+      "required": true,
+      "sha256": "7006dfff106c7bdfd80fc3ee75ba0281bf7ceef45f1293c74e2089c43d11a306"
+    },
+    {
+      "bytes": 109371,
+      "kind": "100-point-requirement-evidence",
+      "path": "requirement-evidence.json",
+      "required": true,
+      "sha256": "31e87d12326dce7c214ff2993ff8bfba0943071e7030f4e422f2925592f14032"
+    },
+    {
+      "bytes": 128525,
+      "kind": "formal-cell-receipts",
+      "path": "run-receipts.json",
+      "required": true,
+      "sha256": "4b769561128fb7478cae18a2986c7b928777e1a8ad131b584dac5dbb75e85885"
+    },
+    {
+      "bytes": 471124,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-01.zip",
+      "required": true,
+      "sha256": "c8fcf8d1598f420c065d39a1df765efc75cff522ea3fe3dc6397af1f4835faa3"
+    },
+    {
+      "bytes": 470977,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-02.zip",
+      "required": true,
+      "sha256": "a66ce8a1b40c73ad8e9527b8171c8ceef0a3603221cf694ea63c701c9a532664"
+    },
+    {
+      "bytes": 470982,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/cross-source-research-repetition-03.zip",
+      "required": true,
+      "sha256": "40829981e9e4931a4e99a2a327b1ef83422abe067305bd2dbbd207188026bf8a"
+    },
+    {
+      "bytes": 300609,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-01.zip",
+      "required": true,
+      "sha256": "ec6f5682166f7a1314828e8d58e3fa469d943c409c5039c119201399680fe03f"
+    },
+    {
+      "bytes": 300466,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-02.zip",
+      "required": true,
+      "sha256": "bf44be793d27b3fbae5fac4ba3dbf8fab1922ae538aefe0609a63ea7f38d9ea4"
+    },
+    {
+      "bytes": 300482,
+      "kind": "fresh-product-causal-archive",
+      "path": "source-archives/software-delivery-repetition-03.zip",
+      "required": true,
+      "sha256": "eb11ba1101ac98f8f198b0001ea04396a487403fe3cd865fa52439e78c42aafd"
+    },
+    {
+      "bytes": 1144173,
+      "kind": "fresh-product-source-runs",
+      "path": "source-runs.json",
+      "required": true,
+      "sha256": "0f5ca95d3eb3c6857d6b23279ec6008710c18cbeef00e4c71a69dbb69a847cc1"
+    },
+    {
+      "bytes": 518740,
+      "kind": "paired-statistical-evaluation",
+      "path": "statistical-evaluation.json",
+      "required": true,
+      "sha256": "7298d3e273ebdb2d89eb57f33279014f4158ba8d271a492ee16fd905f48eb1b4"
+    },
+    {
+      "bytes": 7962,
+      "kind": "exact-commit-validation",
+      "path": "validation-receipt.json",
+      "required": true,
+      "sha256": "0c9f79ffd357d62f10790bf2f753e28c6a2e65dab92ddf53fbc05044b085e894"
+    }
+  ],
+  "merkle_root": "9e245a17463fc5450bd8e761e94ba840f0e780c54e6098090ecd42ead4ce5155",
+  "roots": {
+    "campaign": "cafda92cd7231719baf835e5fe171df242610c80fcefacc7aa37c998d15e7842",
+    "current_deployment": "139dce95534bc2322c261ab91b0065d7f31178fd35e8b2a2c1172944587567ae",
+    "current_deployment_verification": "fdfb10413fbd1469a290454ad1c81384d516952bbdbea661b6231692057c2463",
+    "evidence_index": "ab1e20a37f5b87ecd98a4b20d6a7b80d86a00a1a95b0d8ffbddb85d5b2a7edcf",
+    "journal": "8202ccd8fa7caa5a1c49423be0fa6c54daa42f1b48f5e9b026bbd3b709249af6",
+    "protected_deployment": "858481fc96708c60209d11470104b57cfc877433dea5dab6736b1be049fc1c9e",
+    "report": "1c349f66ef8174fe98f8dabcb97f43d3734984f710eb3e70a91ad5e306d7229e",
+    "statistics": "5bee8a208d69b5dad6c90cec3f4eeb37e0d639f893498cc91139865f0228a192",
+    "validation": "1b4ce0fa770af22cbe14ba800a7cf7a344afa9a669cdc184cee0dd0c1c3f7807"
+  },
+  "schema": "zyra.live-benchmark-evidence-manifest/v1"
+}

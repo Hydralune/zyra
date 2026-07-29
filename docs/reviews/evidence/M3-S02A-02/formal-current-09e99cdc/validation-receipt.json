@@ -1,0 +1,55 @@
+{
+  "adjacent_regression": {
+    "command": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m3-s02a02-adjacent tests/scenarios/test_m2_s05_03_experiment_matrix.py tests/integration/test_experiment_evidence_api_main_path.py tests/unit/test_m3_regression_hardening.py tests/unit/test_m3_live_benchmark.py",
+    "exit_code": 0,
+    "output_sha256": "4917e2a20c9877377e617565d15aca489ce99a51b46f799d6ef0fb8c1e1eb52a",
+    "output_tail": "......................                                                   [100%]\n============================== warnings summary ===============================\ntests/scenarios/test_m2_s05_03_experiment_matrix.py::test_formal_matrix_statistics_requirements_and_bundle\n  D:\\miniconda3\\Lib\\zipfile\\__init__.py:1642: UserWarning: Duplicate name: 'report/final-report.json'\n    return self._open_to_write(zinfo, force_zip64=force_zip64)\n\ntests/scenarios/test_m2_s05_03_experiment_matrix.py::test_frozen_exit_portfolio_verifies_and_tamper_fails\n  D:\\miniconda3\\Lib\\zipfile\\__init__.py:1642: UserWarning: Duplicate name: 'portfolio/final-exit-report.json'\n    return self._open_to_write(zinfo, force_zip64=force_zip64)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n22 passed, 2 warnings in 110.20s (0:01:50)\n",
+    "status": "passed",
+    "tests": 22
+  },
+  "focused_validation": {
+    "command": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m3-s02a02-focused tests/unit/test_m3_live_benchmark.py",
+    "exit_code": 0,
+    "output_sha256": "ef007bedefe3e05a304ad10da4ce65571fdf2059e2f5ee5f98b51ac4a0bf8d16",
+    "output_tail": "...........                                                              [100%]\n11 passed in 5.39s\n",
+    "status": "passed",
+    "tests": 11
+  },
+  "formal_campaign_provider_requests_authorized": true,
+  "implementation_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+  "line_gate": {
+    "command": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe scripts/audit_m3_s02a02_effective_code_gate.py --target 09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b --summary-only --fail-on-gate",
+    "exit_code": 0,
+    "output_sha256": "8081ec7327cbf7250d3f30f03c45ce4b43c63e0f1417f7ab25de5b3c8692349a",
+    "output_tail": "nfiguration\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 58,\n        \"language\": \"typescript\",\n        \"production\": 407,\n        \"raw_additions\": 465,\n        \"source_role\": \"slice_supporting_configuration\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 0,\n        \"language\": \"unknown\",\n        \"production\": 15,\n        \"raw_additions\": 15,\n        \"source_role\": \"slice_supporting_configuration\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 79,\n        \"language\": \"yml\",\n        \"production\": 0,\n        \"raw_additions\": 79,\n        \"source_role\": \"slice_supporting_configuration\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 99,\n        \"language\": \"python\",\n        \"production\": 886,\n        \"raw_additions\": 985,\n        \"source_role\": \"zyra_owned_benchmark_orchestration\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 41,\n        \"language\": \"python\",\n        \"production\": 1907,\n        \"raw_additions\": 1948,\n        \"source_role\": \"zyra_owned_deployment_fault_and_domain_verification\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 4,\n        \"language\": \"python\",\n        \"production\": 31,\n        \"raw_additions\": 35,\n        \"source_role\": \"zyra_owned_deterministic_research_delivery\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 31,\n        \"language\": \"python\",\n        \"production\": 956,\n        \"raw_additions\": 987,\n        \"source_role\": \"zyra_owned_live_benchmark_runtime\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 52,\n        \"language\": \"python\",\n        \"production\": 821,\n        \"raw_additions\": 873,\n        \"source_role\": \"zyra_owned_metrics_and_paired_statistics\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 99,\n        \"language\": \"python\",\n        \"production\": 1771,\n        \"raw_additions\": 1870,\n        \"source_role\": \"zyra_owned_plan_admission_and_semantic_steps\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 66,\n        \"language\": \"python\",\n        \"production\": 1501,\n        \"raw_additions\": 1567,\n        \"source_role\": \"zyra_owned_product_live_owner_binding\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 43,\n        \"language\": \"python\",\n        \"production\": 148,\n        \"raw_additions\": 191,\n        \"source_role\": \"zyra_owned_protected_evidence_admission\",\n        \"test\": 0\n      },\n      {\n        \"adapter\": 0,\n        \"generated_data_docs\": 71,\n        \"language\": \"python\",\n        \"production\": 1611,\n        \"raw_additions\": 1682,\n        \"source_role\": \"zyra_owned_store_integrity_report_and_freeze\",\n        \"test\": 0\n      }\n    ],\n    \"target\": \"09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b\",\n    \"totals\": {\n      \"adapter_only\": 0,\n      \"docs_comments_blank\": 2568,\n      \"effective_production\": 46938,\n      \"generated\": 0,\n      \"nonproduction_tooling\": 3836,\n      \"production_runtime\": 46938,\n      \"raw_additions\": 217927,\n      \"schema_dto_data\": 159271,\n      \"test_mock_fixture\": 4821,\n      \"type_declaration\": 493,\n      \"ui_behavior\": 0,\n      \"ui_presentation\": 0,\n      \"unrelated_scope\": 0\n    }\n  },\n  \"slice_id\": \"M3-S02A-02\",\n  \"source_role_totals\": {\n    \"zyra_owned_benchmark_orchestration\": 886,\n    \"zyra_owned_deployment_fault_and_domain_verification\": 1907,\n    \"zyra_owned_deterministic_research_delivery\": 31,\n    \"zyra_owned_live_benchmark_runtime\": 956,\n    \"zyra_owned_metrics_and_paired_statistics\": 821,\n    \"zyra_owned_plan_admission_and_semantic_steps\": 1771,\n    \"zyra_owned_product_live_owner_binding\": 1501,\n    \"zyra_owned_protected_evidence_admission\": 148,\n    \"zyra_owned_store_integrity_report_and_freeze\": 1611\n  }\n}\n",
+    "parent_effective": 18193,
+    "parent_minimum": 12000,
+    "slice_effective": 9632,
+    "slice_minimum": 6000,
+    "status": "passed"
+  },
+  "maximum_provider_requests": 12,
+  "parent_closeout": {
+    "cross_slice_runtime_probe_sha256": "08d0a164f444fa15f39abafbbee11db1ed346adbe64158424b585b04132b4a2b",
+    "effective": 18193,
+    "line_gate_output_sha256": "8081ec7327cbf7250d3f30f03c45ce4b43c63e0f1417f7ab25de5b3c8692349a",
+    "minimum": 12000,
+    "status": "passed"
+  },
+  "receipt_digest": "1b4ce0fa770af22cbe14ba800a7cf7a344afa9a669cdc184cee0dd0c1c3f7807",
+  "schema": "zyra.m3-s02a02-validation-receipt/v1",
+  "source_boundary": {
+    "baseline": "271acd1b35d1cf4e887780f52437b28df3064512",
+    "bounded_provider_runtime_call_site": "scripts/run_m3_current_provider_evidence.ts",
+    "changed_file_count": 16,
+    "forbidden_root_runtime_paths": 0,
+    "maximum_provider_requests": 12,
+    "new_external_dependencies": 0,
+    "new_provider_model_call_sites": 1,
+    "no_new_paid_model_api": false,
+    "production_file_count": 3,
+    "scan_digest": "3d445b304a19efab2df83af51428c29bc6a14a342de55e1ae045ad225b6e67cd",
+    "status": "passed"
+  },
+  "validation_issued_provider_request": false
+}
