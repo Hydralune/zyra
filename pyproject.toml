@@ -50,7 +50,11 @@ include = ["zyra_*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-zyra_integrations = ["data/*.json"]
+zyra_integrations = [
+    "data/*.json",
+    "loopx/install/assets/*.whl",
+    "loopx/install/assets/*.tar.gz",
+]
 zyra_evaluation = ["data/*.json"]
 
 [tool.zyra]

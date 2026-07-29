@@ -215,7 +215,7 @@ class DeterministicWheelBuilder:
                 "Python package discovery configuration is missing.",
                 code="wheel_package_discovery_missing",
             )
-        roots = find.get("where")
+        roots = find.get("where", (".",))
         includes = find.get("include")
         if not isinstance(roots, Sequence) or isinstance(roots, (str, bytes)):
             raise InventoryViolation(

@@ -43,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--require-clean-git", action="store_true")
     doctor.add_argument("--allow-unhashed-lock", action="store_true")
     doctor.add_argument("--no-tools", action="store_true")
+    doctor.add_argument(
+        "--deep",
+        action="store_true",
+        help="verify the pinned LoopX package, import, CLI and workspace boundary",
+    )
 
     build = commands.add_parser("build", help="build a deterministic release bundle")
     build.add_argument("--release-id", required=True)
@@ -205,6 +210,7 @@ def _dispatch(
             require_clean_git=arguments.require_clean_git,
             require_hashes=not arguments.allow_unhashed_lock,
             require_tools=not arguments.no_tools,
+            deep=arguments.deep,
         )
     if command == "build":
         return runtime.build(

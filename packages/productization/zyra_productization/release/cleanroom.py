@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zyra_integrations.loopx.install import LoopXDoctor, LoopXInstaller
+
 from .bundle import ReleaseBundleBuilder, source_revision
 from .errors import CleanroomFailure, IntegrityViolation, LockViolation, ReleaseError
 from .integrity import (
@@ -837,6 +839,29 @@ class CleanInstallRunner:
                 timeout=60,
             )
             commands.append(import_probe.to_dict())
+            if bundle_verification.get("loopx") is not None:
+                loopx_workspace = workspace / "loopx-workspace"
+                loopx_install = LoopXInstaller(payload).install(
+                    loopx_workspace,
+                    python_executable=python,
+                )
+                loopx_doctor = LoopXDoctor(payload).run(
+                    deep=True,
+                    install_root=Path(str(loopx_install["install_root"])),
+                    python_executable=python,
+                )
+                if loopx_doctor["ready"] is not True:
+                    raise CleanroomFailure(
+                        "Cleanroom LoopX deep doctor did not pass.",
+                        code="cleanroom_loopx_doctor_failed",
+                        details={"doctor": loopx_doctor},
+                    )
+                receipts["loopx"] = {
+                    "install": loopx_install,
+                    "doctor": loopx_doctor,
+                    "offline": True,
+                    "external_source_required": False,
+                }
             if run_product_lifecycle:
                 bun = environment["ZYRA_BUN_EXECUTABLE"]
                 javascript_commands = (

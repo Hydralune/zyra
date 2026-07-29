@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from zyra_integrations.loopx.install import LoopXDoctor, LoopXPackageLock
+
 from .errors import IntegrityViolation, InventoryViolation, ReleaseError
 from .integrity import (
     ArchiveInspector,
@@ -33,6 +35,7 @@ from .integrity import (
     stable_json,
 )
 from .inventory import (
+    Component,
     ConfigurationProvisioner,
     JavaScriptComponentInventory,
     NoticeBuilder,
@@ -204,6 +207,45 @@ class ReleaseManifest:
                     code="release_manifest_artifact_digest",
                     details={"artifact": name},
                 )
+        loopx_lock = locks.get("loopx")
+        if loopx_lock is not None:
+            if not isinstance(loopx_lock, Mapping):
+                raise IntegrityViolation(
+                    "Release LoopX lock description is invalid.",
+                    code="release_manifest_loopx_lock",
+                )
+            for field in (
+                "digest",
+                "version",
+                "source_commit",
+                "source_digest",
+            ):
+                if not loopx_lock.get(field):
+                    raise IntegrityViolation(
+                        "Release manifest LoopX lock is incomplete.",
+                        code="release_manifest_loopx_lock",
+                        details={"field": field},
+                    )
+            for name in (
+                "loopx_package_lock",
+                "loopx_wheel",
+                "loopx_source_bundle",
+                "loopx_doctor_metadata",
+            ):
+                item = artifacts.get(name)
+                if not isinstance(item, Mapping):
+                    raise IntegrityViolation(
+                        "Release manifest is missing a LoopX artifact.",
+                        code="release_manifest_artifact_missing",
+                        details={"artifact": name},
+                    )
+                digest = str(item.get("sha256") or "")
+                if len(digest) != 64:
+                    raise IntegrityViolation(
+                        "Release LoopX artifact digest is invalid.",
+                        code="release_manifest_artifact_digest",
+                        details={"artifact": name},
+                    )
         platforms = self.value.get("platforms")
         if not isinstance(platforms, Sequence) or isinstance(platforms, (str, bytes)):
             raise IntegrityViolation(
@@ -891,9 +933,28 @@ class ReleaseBundleBuilder:
             self.project_root,
             policy=self.policy,
         ).enforce()
+        loopx_lock = LoopXPackageLock.discover(self.project_root)
+        loopx_verification: Mapping[str, Any] | None = None
+        loopx_component: tuple[Component, ...] = ()
+        if loopx_lock is not None:
+            loopx_verification = loopx_lock.verify_artifacts(deep=True)
+            component = loopx_lock.component()
+            loopx_component = (
+                Component(
+                    component_type="library",
+                    name=str(component["name"]),
+                    version=str(component["version"]),
+                    purl=str(component["purl"]),
+                    licenses=tuple(component["licenses"]),
+                    hashes=tuple(component["hashes"]),
+                    properties=tuple(component["properties"]),
+                    dependencies=(),
+                ),
+            )
         components = (
             *PythonComponentInventory(python_lock).build(),
             *JavaScriptComponentInventory(self.project_root, bun_lock).build(),
+            *loopx_component,
         )
         version = str(
             (pyproject.get("project") or {}).get("version") or "0.0.0"
@@ -925,6 +986,21 @@ class ReleaseBundleBuilder:
             self._write_json(runtime_path, runtime_inventory)
             benchmark_path = artifacts_root / "benchmark-link.json"
             self._write_json(benchmark_path, benchmark)
+            loopx_doctor_metadata_path: Path | None = None
+            payload_loopx_lock: LoopXPackageLock | None = None
+            if loopx_lock is not None:
+                payload_loopx_lock = LoopXPackageLock.load(payload_root)
+                loopx_doctor_metadata_path = (
+                    artifacts_root / "loopx-doctor-metadata.json"
+                )
+                self._write_json(
+                    loopx_doctor_metadata_path,
+                    {
+                        **dict(payload_loopx_lock.value["doctor"]),
+                        "package_lock_digest": payload_loopx_lock.lock_digest,
+                        "artifact_verification": dict(loopx_verification or {}),
+                    },
+                )
             sbom = SbomBuilder(
                 project_name="zyra",
                 project_version=version,
@@ -984,6 +1060,60 @@ class ReleaseBundleBuilder:
                     wheel_path,
                 ),
             }
+            if (
+                payload_loopx_lock is not None
+                and loopx_doctor_metadata_path is not None
+            ):
+                artifacts.update(
+                    {
+                        "loopx_package_lock": self._artifact_reference(
+                            payload_root,
+                            payload_loopx_lock.path,
+                        ),
+                        "loopx_wheel": self._artifact_reference(
+                            payload_root,
+                            payload_loopx_lock.resolve_artifact(
+                                payload_loopx_lock.artifacts["wheel"]
+                            ),
+                        ),
+                        "loopx_source_bundle": self._artifact_reference(
+                            payload_root,
+                            payload_loopx_lock.resolve_artifact(
+                                payload_loopx_lock.artifacts["source_bundle"]
+                            ),
+                        ),
+                        "loopx_doctor_metadata": self._artifact_reference(
+                            payload_root,
+                            loopx_doctor_metadata_path,
+                        ),
+                    }
+                )
+            locks: dict[str, Any] = {
+                "python": {
+                    "path": "requirements.txt",
+                    "digest": python_receipt["digest"],
+                    "requirement_count": python_receipt["requirement_count"],
+                    "hashes_required": require_python_hashes,
+                },
+                "javascript": {
+                    "path": "bun.lock",
+                    "digest": bun_receipt["lock_digest"],
+                    "workspace_count": bun_receipt["workspace_count"],
+                },
+            }
+            if payload_loopx_lock is not None:
+                locks["loopx"] = {
+                    "path": payload_loopx_lock.path.relative_to(
+                        payload_root
+                    ).as_posix(),
+                    "digest": payload_loopx_lock.lock_digest,
+                    "version": str(payload_loopx_lock.package["version"]),
+                    "source_commit": str(
+                        payload_loopx_lock.package["source_commit"]
+                    ),
+                    "source_digest": payload_loopx_lock.source_digest,
+                    "profiles": sorted(payload_loopx_lock.profiles),
+                }
             manifest_value = {
                 "schema": RELEASE_MANIFEST_SCHEMA,
                 "release_id": release_id,
@@ -996,30 +1126,28 @@ class ReleaseBundleBuilder:
                     "root_digest": payload_checksum.root_digest,
                     "file_count": len(payload_checksum.files),
                 },
-                "locks": {
-                    "python": {
-                        "path": "requirements.txt",
-                        "digest": python_receipt["digest"],
-                        "requirement_count": python_receipt["requirement_count"],
-                        "hashes_required": require_python_hashes,
-                    },
-                    "javascript": {
-                        "path": "bun.lock",
-                        "digest": bun_receipt["lock_digest"],
-                        "workspace_count": bun_receipt["workspace_count"],
-                    },
-                },
+                "locks": locks,
                 "artifacts": artifacts,
                 "platforms": [
                     {
                         "platform": "windows",
                         "architectures": ["amd64", "arm64"],
                         "launcher": "zyra-release.exe-or-python",
+                        "loopx_profile": (
+                            "windows_release_offline_wheel"
+                            if payload_loopx_lock is not None
+                            else ""
+                        ),
                     },
                     {
                         "platform": "linux",
                         "architectures": ["x86_64", "aarch64"],
                         "launcher": "zyra-release",
+                        "loopx_profile": (
+                            "linux_wsl_upstream_semantics"
+                            if payload_loopx_lock is not None
+                            else ""
+                        ),
                     },
                 ],
                 "migration": {
@@ -1080,6 +1208,22 @@ class ReleaseBundleBuilder:
                 "boundary": boundary,
                 "benchmark": benchmark,
                 "python_wheel": wheel_receipt,
+                "loopx": (
+                    {
+                        "version": str(loopx_lock.package["version"]),
+                        "source_commit": str(
+                            loopx_lock.package["source_commit"]
+                        ),
+                        "source_digest": loopx_lock.source_digest,
+                        "package_lock_digest": loopx_lock.lock_digest,
+                        "profiles": sorted(loopx_lock.profiles),
+                        "artifact_verification": dict(
+                            loopx_verification or {}
+                        ),
+                    }
+                    if loopx_lock is not None
+                    else None
+                ),
             }
             return result
         finally:
@@ -1162,6 +1306,15 @@ class ReleaseBundleBuilder:
                 payload_root
                 / normalize_relative_path(str(wheel_reference["path"]))
             )
+            loopx_verification: Mapping[str, Any] | None = None
+            if "loopx" in manifest.value["locks"]:
+                loopx_verification = LoopXDoctor(payload_root).run(deep=True)
+                if loopx_verification.get("ready") is not True:
+                    raise IntegrityViolation(
+                        "Release LoopX deep doctor failed.",
+                        code="release_loopx_doctor_failed",
+                        details={"doctor": dict(loopx_verification)},
+                    )
             return {
                 "schema": "zyra.release-bundle-verification/v1",
                 "ready": True,
@@ -1173,6 +1326,11 @@ class ReleaseBundleBuilder:
                 "payload_digest": manifest.payload_digest,
                 "verified_artifacts": verified_artifacts,
                 "python_wheel": wheel_verification,
+                "loopx": (
+                    dict(loopx_verification)
+                    if loopx_verification is not None
+                    else None
+                ),
             }
 
     def _copy_release_inputs(self, destination: Path) -> None:

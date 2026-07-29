@@ -12,6 +12,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from zyra_integrations.loopx.install import LoopXDoctor
+
 from .bundle import (
     BenchmarkEvidenceLinker,
     ReleaseBundleBuilder,
@@ -68,6 +70,7 @@ class ReleaseDoctor:
         require_clean_git: bool = False,
         require_hashes: bool = True,
         require_tools: bool = True,
+        deep: bool = False,
     ) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
         checks.append(self._check_project_root())
@@ -77,6 +80,8 @@ class ReleaseDoctor:
         checks.append(self._check_runtime_inventory())
         checks.append(self._check_configuration())
         checks.append(self._check_platform_plans())
+        if deep:
+            checks.append(self._check_loopx())
         if require_tools:
             checks.append(self._check_tools())
         if require_clean_git:
@@ -99,6 +104,7 @@ class ReleaseDoctor:
             "architecture": platform.machine().lower(),
             "python": platform.python_version(),
             "checks": checks,
+            "mode": "deep" if deep else "standard",
             "blockers": blockers,
             "blocker_count": len(blockers),
         }
@@ -111,11 +117,13 @@ class ReleaseDoctor:
         require_clean_git: bool = False,
         require_hashes: bool = True,
         require_tools: bool = True,
+        deep: bool = False,
     ) -> dict[str, Any]:
         report = self.run(
             require_clean_git=require_clean_git,
             require_hashes=require_hashes,
             require_tools=require_tools,
+            deep=deep,
         )
         if not report["ready"]:
             raise ReleaseError(
@@ -269,6 +277,15 @@ class ReleaseDoctor:
             },
         }
 
+    def _check_loopx(self) -> dict[str, Any]:
+        report = LoopXDoctor(self.project_root).run(deep=True)
+        return {
+            "check": "loopx-pinned-runtime",
+            "ready": report["ready"],
+            "code": "" if report["ready"] else "release_loopx_doctor_failed",
+            "details": report,
+        }
+
     def _resolve_bun(self) -> str | None:
         global_bun = shutil.which("bun")
         if global_bun:
@@ -350,6 +367,7 @@ class ReleaseRuntime:
         require_clean_git: bool = False,
         require_hashes: bool = True,
         require_tools: bool = True,
+        deep: bool = False,
     ) -> dict[str, Any]:
         return ReleaseDoctor(
             self.project_root,
@@ -358,6 +376,7 @@ class ReleaseRuntime:
             require_clean_git=require_clean_git,
             require_hashes=require_hashes,
             require_tools=require_tools,
+            deep=deep,
         )
 
     def build(
