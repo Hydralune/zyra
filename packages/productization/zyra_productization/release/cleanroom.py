@@ -877,6 +877,8 @@ class CleanInstallRunner:
                         "zyra_integrations.loopx.runtime.first_task",
                         "--workspace",
                         str(workspace / "loopx-first-task"),
+                        "--package-root",
+                        str(payload),
                     ],
                     cwd=workspace,
                     timeout=command_timeout,

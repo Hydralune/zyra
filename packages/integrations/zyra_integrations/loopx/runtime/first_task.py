@@ -63,8 +63,15 @@ def _configure(root: Path) -> tuple[Path, Path]:
     return tool_workspace, user_home
 
 
-def run_first_task_probe(root: Path) -> dict[str, Any]:
+def run_first_task_probe(
+    root: Path,
+    *,
+    package_root: Path | None = None,
+) -> dict[str, Any]:
     probe_root = root.resolve()
+    selected_package_root = (
+        package_root.resolve() if package_root is not None else Path.cwd().resolve()
+    )
     probe_root.mkdir(parents=True, exist_ok=True)
     tool_workspace, user_home = _configure(probe_root)
     retired_install = tool_workspace / ".zyra" / "loopx" / "install"
@@ -114,7 +121,7 @@ def run_first_task_probe(root: Path) -> dict[str, Any]:
     data = command["command_result"]["data"]
     state = data["state"]
     receipt = data["receipt"]
-    runtime = LoopXRuntimeResolver(Path.cwd()).receipt(tool_workspace)
+    runtime = LoopXRuntimeResolver(selected_package_root).receipt(tool_workspace)
     home_entries = sorted(path.name for path in user_home.iterdir())
     ready = all(
         (
@@ -135,6 +142,7 @@ def run_first_task_probe(root: Path) -> dict[str, Any]:
         "ready": ready,
         "probe_origin": str(Path(__file__).resolve()),
         "api_origin": str(Path(module.__file__).resolve()),
+        "package_root": str(selected_package_root),
         "task_id": task_id,
         "receipt_status": receipt["status"],
         "event_id": receipt["event_id"],
@@ -160,10 +168,14 @@ def run_first_task_probe(root: Path) -> dict[str, Any]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
+    parser.add_argument("--package-root", default=str(Path.cwd()))
     arguments = parser.parse_args(argv)
     print(
         json.dumps(
-            run_first_task_probe(Path(arguments.workspace)),
+            run_first_task_probe(
+                Path(arguments.workspace),
+                package_root=Path(arguments.package_root),
+            ),
             ensure_ascii=False,
             sort_keys=True,
         )

@@ -144,7 +144,10 @@ def test_package_lock_binds_embedded_source_without_archive_fallback() -> None:
 def test_first_task_uses_embedded_runtime_without_install_or_home_write(
     tmp_path: Path,
 ) -> None:
-    receipt = run_first_task_probe(tmp_path / "detached-first-task")
+    receipt = run_first_task_probe(
+        tmp_path / "detached-first-task",
+        package_root=PROJECT_ROOT,
+    )
 
     assert receipt["ready"] is True
     assert receipt["receipt_status"] == "applied"
@@ -152,6 +155,7 @@ def test_first_task_uses_embedded_runtime_without_install_or_home_write(
     assert receipt["sync_cursor"] == 1
     assert receipt["runtime"]["version"] == "0.2.13"
     assert receipt["runtime"]["archive_extraction"] is False
+    assert Path(receipt["package_root"]) == PROJECT_ROOT
     assert receipt["retired_install_created"] is False
     assert receipt["user_home_entries"] == []
     assert receipt["claim_is_worker_lease"] is False
