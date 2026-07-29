@@ -12,211 +12,90 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_PATHS = [
-    PROJECT_ROOT / "packages" / "core",
-    PROJECT_ROOT / "packages" / "runtime",
-    PROJECT_ROOT / "packages" / "workers",
+for package_path in (
     PROJECT_ROOT / "packages" / "integrations",
-]
-for package_path in PACKAGE_PATHS:
+    PROJECT_ROOT / "packages" / "workers",
+):
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from zyra_core import create_task_state, to_jsonable  # noqa: E402
-from zyra_runtime import (  # noqa: E402
-    WorkerRequest,
-    assemble_claude_runtime_context,
-    assert_claude_productization_integration_ready,
-    build_claude_productization_integration_report,
-    build_claude_source_graph_audit,
-    build_productized_claude_runtime_contracts,
-    default_tool_registry,
+from zyra_integrations import (  # noqa: E402
+    browser_use_source_identity,
+    claude_code_source_identity,
 )
-from zyra_workers import CodeWorkerRuntime  # noqa: E402
+from zyra_workers import CodeWorkerSidecarClient, code_worker_entrypoint  # noqa: E402
 
 
-class ExplodingSidecarClient:
-    def health(self) -> dict[str, Any]:
-        raise AssertionError("sidecar must not be called by productized integration verification")
-
-    def runtime_inventory(self) -> dict[str, Any]:
-        raise AssertionError("sidecar must not be called by productized integration verification")
-
-    def query_contract(self) -> dict[str, Any]:
-        raise AssertionError("sidecar must not be called by productized integration verification")
-
-    def session_contract(self) -> dict[str, Any]:
-        raise AssertionError("sidecar must not be called by productized integration verification")
-
-    def tool_loop_contract(self) -> dict[str, Any]:
-        raise AssertionError("sidecar must not be called by productized integration verification")
-
-
-def build_payload(*, run_clean_source: bool) -> dict[str, Any]:
-    contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
-    integration = build_claude_productization_integration_report(
-        project_root=PROJECT_ROOT,
-        runtime_contracts=contracts,
-    )
-    assert_claude_productization_integration_ready(integration)
-    tool_specs = default_tool_registry().list()
-    runtime_context = assemble_claude_runtime_context(
-        request=WorkerRequest(
-            run_id="verify",
-            task_id="claude-productization-integration",
-            worker_name="CodeWorkerRuntime",
-            constraints={"permission_mode": "workspace"},
-            metadata={"source": "verify_claude_productization_integration"},
-        ),
-        integration_report=integration,
-        runtime_contracts=contracts,
-        project_root=PROJECT_ROOT,
-        workspace_root=PROJECT_ROOT / "tmp" / "verify-workspace",
-        artifact_root=PROJECT_ROOT / "tmp" / "verify-artifacts",
-        tool_names=tuple(tool.name for tool in tool_specs),
-        read_only_tool_names=tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") == "true"),
-        mutating_tool_names=tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") != "true"),
-        permission_mode="workspace",
-    )
-    source_graph_audit = build_claude_source_graph_audit(
-        project_root=PROJECT_ROOT,
-        integration_report=integration,
-        runtime_contracts=contracts,
-        runtime_context_report=runtime_context,
-    )
-    if not source_graph_audit.ok:
-        raise AssertionError(f"Source graph audit failed: {source_graph_audit.first_blocker_code}")
-    success = _run_code_worker_success()
-    blocked_source_graph = _run_code_worker_blocked(
-        constraints={"disable_source_graph_crosswalk": True},
-        expected_error="source_graph_crosswalk_disabled",
-    )
-    blocked_runtime_port = _run_code_worker_blocked(
-        constraints={"disabled_runtime_context_ports": ["source_graph"]},
-        expected_error="runtime_context_source_graph_port_disabled",
-    )
-    payload: dict[str, Any] = {
-        "ok": True,
-        "project_root": str(PROJECT_ROOT),
-        "integration": integration.to_dict(),
-        "runtime_context": runtime_context.to_dict(),
-        "source_graph_audit": source_graph_audit.to_dict(),
-        "runtime_contracts": contracts.to_dict(),
-        "success_run": success,
-        "blocked_source_graph": blocked_source_graph,
-        "blocked_runtime_port": blocked_runtime_port,
-        "clean_source": None,
+def _runtime_probe(project_root: Path) -> dict[str, Any]:
+    client = CodeWorkerSidecarClient(project_root)
+    health = client.health()
+    inventory = client.runtime_inventory()
+    query = client.query_contract()
+    session = client.session_contract()
+    tools = client.tool_loop_contract()
+    entrypoint = code_worker_entrypoint(project_root)
+    entrypoint_text = entrypoint.read_text(encoding="utf-8")
+    sources = [
+        claude_code_source_identity().to_dict(),
+        browser_use_source_identity().to_dict(),
+    ]
+    legacy_roots = {
+        root: (project_root / root).exists()
+        for root in ("vendor", "vendor-runtimes")
     }
-    if run_clean_source:
-        payload["clean_source"] = _run_clean_source_probe()
-        payload["ok"] = payload["ok"] and bool(payload["clean_source"]["ok"])
-    return payload
-
-
-def _run_code_worker_success() -> dict[str, Any]:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        temp_root = Path(tmpdir)
-        state = create_task_state("Verify Claude productization integration.")
-        workspace = temp_root / "workspace"
-        runtime = CodeWorkerRuntime(
-            project_root=PROJECT_ROOT,
-            workspace_root=workspace,
-            artifact_root=temp_root / "artifacts",
-            sidecar_client=ExplodingSidecarClient(),
-        )
-        request = WorkerRequest(
-            run_id=state.run_id,
-            task_id=state.task_id,
-            node_id=state.root_node_id,
-            worker_name="CodeWorkerRuntime",
-            constraints={
-                "tool_plan": [
-                    {
-                        "tool_name": "file_write",
-                        "arguments": {"path": "verify/source-graph.txt", "content": "source graph ready"},
-                    },
-                    {"tool_name": "file_read", "arguments": {"path": "verify/source-graph.txt"}},
-                ]
-            },
-        )
-        run = runtime.run(request)
-        if not run.worker_result.ok:
-            raise AssertionError(f"CodeWorker integration success probe failed: {run.worker_result.error}")
-        integration_events = [
-            event.payload["claude_productization_integration"]
-            for event in run.event_records
-            if "claude_productization_integration" in event.payload
-        ]
-        if not integration_events:
-            raise AssertionError("CodeWorker integration probe emitted no source graph events")
-        audit_events = [
-            event.payload["claude_source_graph_audit"]
-            for event in run.event_records
-            if "claude_source_graph_audit" in event.payload
-        ]
-        if not audit_events:
-            raise AssertionError("CodeWorker integration probe emitted no source graph audit event")
-        if run.worker_result.metadata.get("source_graph_audit_ok") != "true":
-            raise AssertionError("CodeWorker integration probe did not pass source graph audit")
-        if not (workspace / "verify" / "source-graph.txt").exists():
-            raise AssertionError("CodeWorker integration probe did not execute tool after gate passed")
-        return {
-            "ok": run.worker_result.ok,
-            "metadata": dict(run.worker_result.metadata),
-            "integration_event_phases": [event["phase"] for event in integration_events],
-            "audit_event_phases": [event["phase"] for event in audit_events],
-            "artifact_count": len(run.worker_result.artifacts),
-            "tool_file_written": True,
-        }
-
-
-def _run_code_worker_blocked(*, constraints: dict[str, Any], expected_error: str) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        temp_root = Path(tmpdir)
-        state = create_task_state("Verify Claude productization blocked path.")
-        workspace = temp_root / "workspace"
-        runtime = CodeWorkerRuntime(
-            project_root=PROJECT_ROOT,
-            workspace_root=workspace,
-            artifact_root=temp_root / "artifacts",
-            sidecar_client=ExplodingSidecarClient(),
-        )
-        request = WorkerRequest(
-            run_id=state.run_id,
-            task_id=state.task_id,
-            node_id=state.root_node_id,
-            worker_name="CodeWorkerRuntime",
-            constraints={
-                **constraints,
-                "tool_plan": [
-                    {
-                        "tool_name": "file_write",
-                        "arguments": {"path": "blocked/should-not-exist.txt", "content": "blocked"},
-                    }
-                ],
-            },
-        )
-        run = runtime.run(request)
-        if run.worker_result.ok:
-            raise AssertionError("CodeWorker blocked probe unexpectedly succeeded")
-        if run.worker_result.error != expected_error:
-            raise AssertionError(f"Expected {expected_error}, got {run.worker_result.error}")
-        blocked_file = workspace / "blocked" / "should-not-exist.txt"
-        if blocked_file.exists():
-            raise AssertionError(f"Blocked probe wrote {blocked_file}")
-        integration_events = [
-            event.payload["claude_productization_integration"]
-            for event in run.event_records
-            if "claude_productization_integration" in event.payload
-        ]
-        return {
-            "ok": False,
-            "expected_error": expected_error,
-            "actual_error": run.worker_result.error,
-            "metadata": dict(run.worker_result.metadata),
-            "integration_event_phases": [event["phase"] for event in integration_events],
-            "tool_file_written": False,
-        }
+    checks = {
+        "legacy_roots_absent": not any(legacy_roots.values()),
+        "source_identities_metadata_only": all(
+            source["status"] == "retired"
+            and source["availability"] == "not_applicable"
+            and source["filesystem_required"] is False
+            and source["fallback_available"] is False
+            for source in sources
+        ),
+        "formal_runtime_complete": (
+            health.get("ok") is True
+            and health.get("canonicalOwner") == "typescript"
+            and health.get("requiresRootSourceRepo") is False
+            and health.get("requiresVendorRuntime") is False
+            and health.get("productizedRuntime", {}).get("complete") is True
+        ),
+        "formal_modules_reachable": (
+            inventory.get("productizedRuntime", {})
+            .get("moduleChecks", {})
+            .get("queryEngine")
+            is True
+            and inventory.get("productizedRuntime", {})
+            .get("moduleChecks", {})
+            .get("toolOrchestration")
+            is True
+        ),
+        "formal_contracts_reachable": (
+            query.get("canonicalOwner") == "typescript"
+            and query.get("requiresVendorRuntime") is False
+            and session.get("canonicalOwner") == "typescript"
+            and tools.get("resultBudgetOwner") == "typescript"
+        ),
+        "formal_entrypoint_reachable": (
+            entrypoint.exists()
+            and entrypoint.relative_to(project_root).as_posix()
+            == "apps/code-worker/src/main.ts"
+            and "runStdioRuntime" in entrypoint_text
+            and "vendor/claude-code-best" not in entrypoint_text
+            and "vendor-runtimes" not in entrypoint_text
+        ),
+    }
+    return {
+        "ok": all(checks.values()),
+        "checks": checks,
+        "legacy_roots": legacy_roots,
+        "source_identities": sources,
+        "entrypoint": entrypoint.relative_to(project_root).as_posix(),
+        "health": health,
+        "inventory": inventory,
+        "query_contract": query,
+        "session_contract": session,
+        "tool_loop_contract": tools,
+    }
 
 
 def _run_clean_source_probe() -> dict[str, Any]:
@@ -224,45 +103,128 @@ def _run_clean_source_probe() -> dict[str, Any]:
         clean_root = Path(tmpdir) / "zyra-clean"
         _copy_clean_project(clean_root)
         env = os.environ.copy()
-        clean_package_paths = [
-            clean_root / "packages" / "core",
-            clean_root / "packages" / "runtime",
-            clean_root / "packages" / "workers",
-            clean_root / "packages" / "integrations",
-        ]
-        env["PYTHONPATH"] = os.pathsep.join(str(path) for path in clean_package_paths)
-        command = [
-            sys.executable,
-            "scripts/verify_claude_productization_integration.py",
-            "--json",
-            "--no-clean-source",
-        ]
-        completed = subprocess.run(
-            command,
+        env["PYTHONPATH"] = os.pathsep.join(
+            str(clean_root / "packages" / name)
+            for name in ("integrations", "workers")
+        )
+        # The clean source tree intentionally omits dependencies. Reuse only the
+        # pinned host toolchain executable; no runtime source is resolved from
+        # the checkout that launched this probe.
+        host_tool_bin = PROJECT_ROOT / "node_modules" / ".bin"
+        env["PATH"] = os.pathsep.join(
+            (str(host_tool_bin), env.get("PATH", ""))
+        )
+        bootstrap = subprocess.run(
+            [
+                str(host_tool_bin / "bun.exe"),
+                "install",
+                "--offline",
+                "--frozen-lockfile",
+            ],
             cwd=clean_root,
             env=env,
             text=True,
             capture_output=True,
             check=False,
-            timeout=60,
+            timeout=120,
         )
-        if completed.returncode != 0:
+        if bootstrap.returncode != 0:
             return {
                 "ok": False,
-                "clean_root": str(clean_root),
-                "returncode": completed.returncode,
-                "stdout": completed.stdout,
-                "stderr": completed.stderr,
+                "phase": "dependency_bootstrap",
+                "returncode": bootstrap.returncode,
+                "stdout": bootstrap.stdout,
+                "stderr": bootstrap.stderr,
+                "legacy_roots": {
+                    root: (clean_root / root).exists()
+                    for root in ("vendor", "vendor-runtimes")
+                },
+                "nested_checks": {},
             }
-        nested = json.loads(completed.stdout)
+        build = subprocess.run(
+            [str(host_tool_bin / "bun.exe"), "run", "build:bun"],
+            cwd=clean_root,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+        if build.returncode != 0:
+            return {
+                "ok": False,
+                "phase": "runtime_build",
+                "returncode": build.returncode,
+                "stdout": build.stdout,
+                "stderr": build.stderr,
+                "legacy_roots": {
+                    root: (clean_root / root).exists()
+                    for root in ("vendor", "vendor-runtimes")
+                },
+                "nested_checks": {},
+            }
+        built_entrypoint = clean_root / "dist" / "code-worker" / "main.js"
+        payloads: dict[str, Any] = {}
+        for name, flag in (
+            ("health", "--health"),
+            ("inventory", "--inventory"),
+            ("query", "--query-contract"),
+            ("session", "--session-contract"),
+            ("tools", "--tool-loop-contract"),
+        ):
+            completed = subprocess.run(
+                [str(host_tool_bin / "bun.exe"), str(built_entrypoint), flag],
+                cwd=clean_root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=60,
+            )
+            if completed.returncode != 0:
+                return {
+                    "ok": False,
+                    "phase": f"built_{name}",
+                    "returncode": completed.returncode,
+                    "stdout": completed.stdout,
+                    "stderr": completed.stderr,
+                    "legacy_roots": {
+                        root: (clean_root / root).exists()
+                        for root in ("vendor", "vendor-runtimes")
+                    },
+                    "nested_checks": {},
+                }
+            payloads[name] = json.loads(completed.stdout.splitlines()[0])
+        nested_checks = {
+            "legacy_roots_absent": not any(
+                (clean_root / root).exists()
+                for root in ("vendor", "vendor-runtimes")
+            ),
+            "built_runtime_complete": (
+                payloads["health"].get("ok") is True
+                and payloads["health"].get("canonicalOwner") == "typescript"
+                and payloads["health"].get("requiresVendorRuntime") is False
+                and payloads["health"].get("requiresRootSourceRepo") is False
+            ),
+            "built_contracts_reachable": (
+                payloads["inventory"].get("ok") is True
+                and payloads["query"].get("ok") is True
+                and payloads["session"].get("ok") is True
+                and payloads["tools"].get("ok") is True
+            ),
+        }
         return {
-            "ok": bool(nested.get("ok")),
-            "clean_root": str(clean_root),
-            "source_repo_present": (clean_root.parent / "claude-code-best").exists(),
-            "vendor_present": (clean_root / "vendor").exists(),
-            "vendor_runtimes_present": (clean_root / "vendor-runtimes").exists(),
-            "nested_metadata": nested["integration"]["metadata"],
-            "nested_success": nested["success_run"],
+            "ok": all(nested_checks.values()),
+            "phase": "complete",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "legacy_roots": {
+                root: (clean_root / root).exists()
+                for root in ("vendor", "vendor-runtimes")
+            },
+            "nested_checks": nested_checks,
+            "built_entrypoint": "dist/code-worker/main.js",
         }
 
 
@@ -272,7 +234,41 @@ def _copy_clean_project(clean_root: Path) -> None:
         source = PROJECT_ROOT / name
         if source.exists():
             shutil.copytree(source, clean_root / name, ignore=_copy_ignore)
-    for optional_name in ("pyproject.toml", "README.md"):
+    runtime_evidence = (
+        PROJECT_ROOT
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M1-R01-v14"
+        / "execution-01-independent-review"
+    )
+    if runtime_evidence.is_dir():
+        shutil.copytree(
+            runtime_evidence,
+            clean_root
+            / "docs"
+            / "reviews"
+            / "evidence"
+            / "M1-R01-v14"
+            / "execution-01-independent-review",
+        )
+    for relative in (
+        Path(
+            "docs/reviews/evidence/M1-R01-v3/execution-02/"
+            "e01-verified-prerequisite.json"
+        ),
+        Path("docs/reviews/M1-R01-v14-execution-01-independent-review.md"),
+    ):
+        source = PROJECT_ROOT / relative
+        destination = clean_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    for optional_name in (
+        "pyproject.toml",
+        "README.md",
+        "package.json",
+        "bun.lock",
+    ):
         source_file = PROJECT_ROOT / optional_name
         if source_file.exists():
             shutil.copy2(source_file, clean_root / optional_name)
@@ -294,25 +290,54 @@ def _copy_ignore(directory: str, names: list[str]) -> set[str]:
     return {name for name in names if name in ignored or name.endswith(".pyc")}
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verify M1-02A-02 Claude source graph productization integration.")
-    parser.add_argument("--json", action="store_true", help="Write JSON payload.")
-    parser.add_argument("--clean-source", dest="clean_source", action="store_true", default=True)
-    parser.add_argument("--no-clean-source", dest="clean_source", action="store_false")
-    args = parser.parse_args(argv)
+def build_payload(*, run_clean_source: bool) -> dict[str, Any]:
+    runtime = _runtime_probe(PROJECT_ROOT)
+    clean_source = _run_clean_source_probe() if run_clean_source else None
+    return {
+        "schema": "zyra.phase2.claude-productization-retirement-verification/v1",
+        "ok": bool(runtime["ok"]) and (
+            clean_source is None or bool(clean_source["ok"])
+        ),
+        "project_root": str(PROJECT_ROOT),
+        "runtime": runtime,
+        "clean_source": clean_source,
+    }
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Verify the formal Claude TypeScript runtime after retiring legacy "
+            "vendor source pools."
+        )
+    )
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--clean-source",
+        dest="clean_source",
+        action="store_true",
+        default=True,
+    )
+    parser.add_argument(
+        "--no-clean-source",
+        dest="clean_source",
+        action="store_false",
+    )
+    args = parser.parse_args(argv)
     payload = build_payload(run_clean_source=args.clean_source)
     if args.json:
-        print(json.dumps(to_jsonable(payload), ensure_ascii=False, indent=2, sort_keys=True))
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:
         print(f"ok={str(payload['ok']).lower()}")
-        print(f"source_graph_batch_count={payload['integration']['validation']['batch_count']}")
-        print(f"runtime_context_ports={payload['integration']['validation']['runtime_context_port_count']}")
-        print(f"downstream_contracts={payload['integration']['validation']['downstream_contract_count']}")
-        print(f"source_graph_audit_ok={str(payload['source_graph_audit']['ok']).lower()}")
-        print(f"success_error={payload['success_run']['metadata'].get('claude_productization_integration_error', '')}")
-        if payload.get("clean_source"):
-            print(f"clean_source_ok={str(payload['clean_source']['ok']).lower()}")
+        print(
+            "legacy_roots_absent="
+            f"{str(payload['runtime']['checks']['legacy_roots_absent']).lower()}"
+        )
+        if payload["clean_source"] is not None:
+            print(
+                "clean_source_ok="
+                f"{str(payload['clean_source']['ok']).lower()}"
+            )
     return 0 if payload["ok"] else 1
 
 
