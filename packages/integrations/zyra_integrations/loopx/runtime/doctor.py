@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .errors import LoopXRuntimeError
+from .interpreter import probe_python_interpreter
 from .manifest import (
     LOOPX_SOURCE_COMMIT,
     LOOPX_SOURCE_TREE_COMMIT,
@@ -229,12 +230,11 @@ class LoopXDoctor:
         lock: LoopXPackageLock,
         python: Path,
     ) -> Mapping[str, Any]:
-        if sys.version_info < (3, 12):
-            raise LoopXRuntimeError(
-                "The active Python is below Zyra's supported version.",
-                code="loopx_python_incompatible",
-                details={"python": sys.version},
-            )
+        interpreter = probe_python_interpreter(
+            python,
+            minimum=(3, 12),
+            requirement="Zyra",
+        )
         resolution = LoopXRuntimeResolver(self.package_root).resolve(verify=False)
         root = resolution.runtime_root
         probe = (
@@ -305,6 +305,9 @@ class LoopXDoctor:
             "cli": cli["stdout"].strip(),
             "entry_points": dict(lock.source_manifest.get("entry_points") or {}),
             "python": str(python),
+            "python_version": interpreter["version"],
+            "python_implementation": interpreter["implementation"],
+            "probed_selected_executable": True,
             "cwd_import": True,
             "pythonpath_override": False,
         }

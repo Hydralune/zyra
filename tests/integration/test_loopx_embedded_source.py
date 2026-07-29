@@ -185,3 +185,45 @@ def test_built_zyra_wheel_imports_loopx_without_installer_or_checkout_cwd(
     assert cli.returncode == 0
     assert cli.stdout.strip() == "loopx 0.2.13"
     assert not (clean_cwd / ".zyra" / "loopx" / "install").exists()
+
+    shadow_root = tmp_path / "shadow-cwd"
+    shadow_package = shadow_root / "loopx"
+    shadow_package.mkdir(parents=True)
+    (shadow_package / "__init__.py").write_text(
+        '__version__ = "0.2.13"\n',
+        encoding="utf-8",
+    )
+    shadow_probe = shadow_root / "probe_shadow.py"
+    shadow_probe.write_text(
+        textwrap.dedent(
+            """
+            import json
+            from pathlib import Path
+
+            from zyra_integrations.loopx.runtime import (
+                LoopXRuntimeError,
+                LoopXRuntimeResolver,
+            )
+
+            try:
+                LoopXRuntimeResolver(Path.cwd()).receipt(Path.cwd())
+            except LoopXRuntimeError as error:
+                print(json.dumps(error.to_dict(), sort_keys=True))
+            else:
+                raise SystemExit("shadow LoopX package was accepted")
+            """
+        ),
+        encoding="utf-8",
+    )
+    shadow = subprocess.run(
+        [str(python), str(shadow_probe)],
+        cwd=shadow_root,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert shadow.returncode == 0, shadow.stderr
+    shadow_result = json.loads(shadow.stdout)
+    assert shadow_result["code"] == "loopx_runtime_origin_mismatch"

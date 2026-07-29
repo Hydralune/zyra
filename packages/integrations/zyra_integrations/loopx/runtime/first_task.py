@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import importlib
+import ipaddress
 import json
 import os
+import socket
 import threading
 import urllib.request
+from collections.abc import Iterator
+from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Sequence
 from urllib.error import HTTPError
 
 from .resolver import LoopXRuntimeResolver
+
+
+_PROBE_ENVIRONMENT_LOCK = threading.RLock()
 
 
 def _request(
@@ -38,7 +46,8 @@ def _request(
         return error.code, json.loads(error.read().decode("utf-8"))
 
 
-def _configure(root: Path) -> tuple[Path, Path]:
+@contextmanager
+def _configured_environment(root: Path) -> Iterator[tuple[Path, Path]]:
     tool_workspace = root / "workspace"
     user_home = root / "user-home"
     user_home.mkdir(parents=True, exist_ok=True)
@@ -58,9 +67,147 @@ def _configure(root: Path) -> tuple[Path, Path]:
         "XDG_CACHE_HOME": root / "cache" / "xdg",
         "PYTHONDONTWRITEBYTECODE": "1",
     }
-    for name, value in values.items():
-        os.environ[name] = str(value)
-    return tool_workspace, user_home
+    with _PROBE_ENVIRONMENT_LOCK:
+        previous = {
+            name: os.environ[name]
+            for name in values
+            if name in os.environ
+        }
+        absent = set(values) - set(previous)
+        try:
+            for name, value in values.items():
+                os.environ[name] = str(value)
+            yield tool_workspace, user_home
+        finally:
+            for name, value in previous.items():
+                os.environ[name] = value
+            for name in absent:
+                os.environ.pop(name, None)
+
+
+def _internet_destination(address: object) -> tuple[str, int] | None:
+    if not isinstance(address, tuple) or len(address) < 2:
+        return None
+    host = str(address[0])
+    try:
+        parsed = ipaddress.ip_address(host.split("%", maxsplit=1)[0])
+    except ValueError:
+        return host, int(address[1])
+    if parsed.is_loopback:
+        return None
+    return host, int(address[1])
+
+
+@contextmanager
+def _loopback_only_network() -> Iterator[dict[str, Any]]:
+    """Fail closed on non-loopback Python socket traffic during the probe."""
+
+    original_connect = socket.socket.connect
+    original_connect_ex = socket.socket.connect_ex
+    original_getaddrinfo = socket.getaddrinfo
+    original_sendto = socket.socket.sendto
+    receipt: dict[str, Any] = {
+        "schema": "zyra.loopback-network-guard/v1",
+        "enforced": True,
+        "loopback_connection_count": 0,
+        "blocked_non_loopback_attempts": [],
+    }
+    receipt_lock = threading.Lock()
+
+    def record_blocked(operation: str, destination: tuple[str, int]) -> None:
+        with receipt_lock:
+            receipt["blocked_non_loopback_attempts"].append(
+                {
+                    "operation": operation,
+                    "host": destination[0],
+                    "port": destination[1],
+                }
+            )
+
+    def record_loopback() -> None:
+        with receipt_lock:
+            receipt["loopback_connection_count"] += 1
+
+    def guarded_connect(
+        selected_socket: socket.socket,
+        address: object,
+    ) -> None:
+        destination = _internet_destination(address)
+        if destination is not None:
+            record_blocked("connect", destination)
+            raise OSError(
+                errno.ENETUNREACH,
+                "non-loopback network is blocked by the LoopX first-task probe",
+            )
+        if selected_socket.family in {socket.AF_INET, socket.AF_INET6}:
+            record_loopback()
+        return original_connect(selected_socket, address)
+
+    def guarded_connect_ex(
+        selected_socket: socket.socket,
+        address: object,
+    ) -> int:
+        destination = _internet_destination(address)
+        if destination is not None:
+            record_blocked("connect_ex", destination)
+            return errno.ENETUNREACH
+        if selected_socket.family in {socket.AF_INET, socket.AF_INET6}:
+            record_loopback()
+        return original_connect_ex(selected_socket, address)
+
+    def guarded_getaddrinfo(
+        host: str | bytes | None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> list[tuple[Any, ...]]:
+        if host is not None:
+            host_text = host.decode() if isinstance(host, bytes) else str(host)
+            try:
+                parsed = ipaddress.ip_address(
+                    host_text.split("%", maxsplit=1)[0]
+                )
+            except ValueError:
+                destination = (host_text, int(args[0]) if args else 0)
+                record_blocked("getaddrinfo", destination)
+                raise socket.gaierror(
+                    socket.EAI_FAIL,
+                    "non-numeric host lookup is blocked by the LoopX probe",
+                )
+            if not parsed.is_loopback:
+                destination = (host_text, int(args[0]) if args else 0)
+                record_blocked("getaddrinfo", destination)
+                raise socket.gaierror(
+                    socket.EAI_FAIL,
+                    "non-loopback lookup is blocked by the LoopX probe",
+                )
+        return original_getaddrinfo(host, *args, **kwargs)
+
+    def guarded_sendto(
+        selected_socket: socket.socket,
+        data: bytes,
+        *args: Any,
+    ) -> int:
+        address = args[-1] if args else None
+        destination = _internet_destination(address)
+        if destination is not None:
+            record_blocked("sendto", destination)
+            raise OSError(
+                errno.ENETUNREACH,
+                "non-loopback datagram is blocked by the LoopX first-task probe",
+            )
+        return original_sendto(selected_socket, data, *args)
+
+    socket.socket.connect = guarded_connect
+    socket.socket.connect_ex = guarded_connect_ex
+    socket.getaddrinfo = guarded_getaddrinfo
+    socket.socket.sendto = guarded_sendto
+    try:
+        yield receipt
+    finally:
+        socket.socket.connect = original_connect
+        socket.socket.connect_ex = original_connect_ex
+        socket.getaddrinfo = original_getaddrinfo
+        socket.socket.sendto = original_sendto
 
 
 def run_first_task_probe(
@@ -73,95 +220,104 @@ def run_first_task_probe(
         package_root.resolve() if package_root is not None else Path.cwd().resolve()
     )
     probe_root.mkdir(parents=True, exist_ok=True)
-    tool_workspace, user_home = _configure(probe_root)
-    retired_install = tool_workspace / ".zyra" / "loopx" / "install"
-    if retired_install.exists():
-        raise RuntimeError("retired LoopX install path exists before first task")
+    with _configured_environment(probe_root) as (tool_workspace, user_home):
+        retired_install = tool_workspace / ".zyra" / "loopx" / "install"
+        if retired_install.exists():
+            raise RuntimeError("retired LoopX install path exists before first task")
 
-    module = importlib.import_module("zyra_api.main")
-    server = ThreadingHTTPServer(("127.0.0.1", 0), module.ZyraRequestHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    base_url = f"http://127.0.0.1:{server.server_address[1]}"
-    try:
-        create_status, created = _request(
-            base_url,
-            "/tasks",
-            method="POST",
-            payload={
-                "goal": "Verify the first embedded LoopX release task.",
-                "auto_run": False,
-            },
-        )
-        if create_status != 201:
-            raise RuntimeError(f"first task creation failed: {created}")
-        task_id = str(created["task"]["task_id"])
-        command_status, command = _request(
-            base_url,
-            f"/tasks/{task_id}/commands",
-            method="POST",
-            payload={
-                "text": "/loopx-connect",
-                "request_id": "detached_first_task_request",
-                "idempotency_key": "detached_first_task_connect",
-                "arguments": {
-                    "todo_id": "todo_detached_first_task",
-                    "todo_title": "Verify embedded runtime delivery",
-                    "limit_slots": 2,
-                },
-            },
-        )
-        if command_status != 201:
-            raise RuntimeError(f"first LoopX command failed: {command}")
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=10)
+        module = importlib.import_module("zyra_api.main")
+        with _loopback_only_network() as network_guard:
+            server = ThreadingHTTPServer(
+                ("127.0.0.1", 0),
+                module.ZyraRequestHandler,
+            )
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                create_status, created = _request(
+                    base_url,
+                    "/tasks",
+                    method="POST",
+                    payload={
+                        "goal": "Verify the first embedded LoopX release task.",
+                        "auto_run": False,
+                    },
+                )
+                if create_status != 201:
+                    raise RuntimeError(f"first task creation failed: {created}")
+                task_id = str(created["task"]["task_id"])
+                command_status, command = _request(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    method="POST",
+                    payload={
+                        "text": "/loopx-connect",
+                        "request_id": "detached_first_task_request",
+                        "idempotency_key": "detached_first_task_connect",
+                        "arguments": {
+                            "todo_id": "todo_detached_first_task",
+                            "todo_title": "Verify embedded runtime delivery",
+                            "limit_slots": 2,
+                        },
+                    },
+                )
+                if command_status != 201:
+                    raise RuntimeError(f"first LoopX command failed: {command}")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
 
-    data = command["command_result"]["data"]
-    state = data["state"]
-    receipt = data["receipt"]
-    runtime = LoopXRuntimeResolver(selected_package_root).receipt(tool_workspace)
-    home_entries = sorted(path.name for path in user_home.iterdir())
-    ready = all(
-        (
-            receipt["status"] == "applied",
-            state["lifecycle"] == "enabled",
-            state["canonical_state"]["loopx_claim_is_worker_lease"] is False,
-            state["canonical_state"]["loopx_quota_is_execution_budget"] is False,
-            runtime["version"] == "0.2.13",
-            runtime["source_kind"] == "embedded_source",
-            runtime["archive_extraction"] is False,
-            runtime["archive_fallback"] is False,
-            retired_install.exists() is False,
-            not home_entries,
+        data = command["command_result"]["data"]
+        state = data["state"]
+        receipt = data["receipt"]
+        runtime = LoopXRuntimeResolver(selected_package_root).receipt(tool_workspace)
+        home_entries = sorted(path.name for path in user_home.iterdir())
+        ready = all(
+            (
+                receipt["status"] == "applied",
+                state["lifecycle"] == "enabled",
+                state["canonical_state"]["loopx_claim_is_worker_lease"] is False,
+                state["canonical_state"]["loopx_quota_is_execution_budget"] is False,
+                runtime["version"] == "0.2.13",
+                runtime["source_kind"] == "embedded_source",
+                runtime["archive_extraction"] is False,
+                runtime["archive_fallback"] is False,
+                retired_install.exists() is False,
+                not home_entries,
+                network_guard["enforced"] is True,
+                network_guard["loopback_connection_count"] >= 2,
+                not network_guard["blocked_non_loopback_attempts"],
+            )
         )
-    )
-    result = {
-        "schema": "zyra.loopx-detached-first-task/v1",
-        "ready": ready,
-        "probe_origin": str(Path(__file__).resolve()),
-        "api_origin": str(Path(module.__file__).resolve()),
-        "package_root": str(selected_package_root),
-        "task_id": task_id,
-        "receipt_status": receipt["status"],
-        "event_id": receipt["event_id"],
-        "artifact_id": receipt["artifact_id"],
-        "lifecycle": state["lifecycle"],
-        "sync_cursor": state["sync"]["cursor"],
-        "claim_is_worker_lease": state["canonical_state"][
-            "loopx_claim_is_worker_lease"
-        ],
-        "quota_is_execution_budget": state["canonical_state"][
-            "loopx_quota_is_execution_budget"
-        ],
-        "runtime": runtime,
-        "retired_install_created": retired_install.exists(),
-        "user_home_entries": home_entries,
-        "network_mode": os.environ["ZYRA_NETWORK_MODE"],
-    }
-    if not ready:
-        raise RuntimeError(f"detached first task probe failed: {result}")
+        result = {
+            "schema": "zyra.loopx-detached-first-task/v1",
+            "ready": ready,
+            "probe_origin": str(Path(__file__).resolve()),
+            "api_origin": str(Path(module.__file__).resolve()),
+            "package_root": str(selected_package_root),
+            "task_id": task_id,
+            "receipt_status": receipt["status"],
+            "event_id": receipt["event_id"],
+            "artifact_id": receipt["artifact_id"],
+            "lifecycle": state["lifecycle"],
+            "sync_cursor": state["sync"]["cursor"],
+            "claim_is_worker_lease": state["canonical_state"][
+                "loopx_claim_is_worker_lease"
+            ],
+            "quota_is_execution_budget": state["canonical_state"][
+                "loopx_quota_is_execution_budget"
+            ],
+            "runtime": runtime,
+            "retired_install_created": retired_install.exists(),
+            "user_home_entries": home_entries,
+            "network_mode": os.environ["ZYRA_NETWORK_MODE"],
+            "network_guard": network_guard,
+            "environment_restored_after_probe": True,
+        }
+        if not ready:
+            raise RuntimeError(f"detached first task probe failed: {result}")
     return result
 
 

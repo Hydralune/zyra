@@ -41,6 +41,9 @@ RECOVERY_BY_CODE: dict[str, str] = {
     "loopx_python_incompatible": (
         "Use CPython 3.12 or newer for Zyra (LoopX itself requires 3.11 or newer)."
     ),
+    "loopx_python_probe_failed": (
+        "Select an executable Python interpreter and rerun the LoopX doctor."
+    ),
     "loopx_retired_install_path": (
         "The historical .zyra/loopx/install directory is ignored. Preserve it "
         "for recovery evidence or remove it manually after independent backup."

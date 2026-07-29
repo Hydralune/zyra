@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import socket
 import sys
 from pathlib import Path
 
@@ -10,9 +12,13 @@ from zyra_integrations.loopx.install import (
     LoopXDoctor,
     LoopXInstaller,
     LoopXPackageLock,
+    LoopXRuntimeError,
 )
 from zyra_integrations.loopx.runtime import LoopXRuntimeResolver
-from zyra_integrations.loopx.runtime.first_task import run_first_task_probe
+from zyra_integrations.loopx.runtime.first_task import (
+    _loopback_only_network,
+    run_first_task_probe,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +97,34 @@ def test_historical_install_profiles_converge_on_one_embedded_runtime(
     assert not (tmp_path / "workspace").exists()
 
 
+def test_selected_interpreter_is_probed_and_missing_executable_fails_closed(
+    tmp_path: Path,
+) -> None:
+    installer = LoopXInstaller(PROJECT_ROOT)
+    current = installer.check_interpreter(Path(sys.executable))
+    assert current["compatible"] is True
+    assert current["probed_selected_executable"] is True
+    assert Path(current["python"]) == Path(sys.executable).resolve()
+
+    selected = tmp_path / "missing-python.exe"
+    with pytest.raises(LoopXRuntimeError) as captured:
+        installer.check_interpreter(selected)
+    assert captured.value.code == "loopx_python_probe_failed"
+    assert captured.value.details["python"] == str(selected.resolve())
+
+    doctor = LoopXDoctor(PROJECT_ROOT).run(
+        deep=True,
+        python_executable=selected,
+    )
+    assert doctor["ready"] is False
+    import_check = next(
+        item
+        for item in doctor["checks"]
+        if item["check"] == "import-and-cli-entry"
+    )
+    assert import_check["code"] == "loopx_python_probe_failed"
+
+
 def test_historical_install_directory_is_preserved_but_ignored(
     tmp_path: Path,
 ) -> None:
@@ -143,7 +177,21 @@ def test_package_lock_binds_embedded_source_without_archive_fallback() -> None:
 
 def test_first_task_uses_embedded_runtime_without_install_or_home_write(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("HOME", "original-loopx-test-home")
+    monkeypatch.setenv("USERPROFILE", "original-loopx-test-profile")
+    monkeypatch.delenv("ZYRA_NETWORK_MODE", raising=False)
+    environment_before = {
+        name: os.environ.get(name)
+        for name in (
+            "HOME",
+            "USERPROFILE",
+            "ZYRA_NETWORK_MODE",
+            "ZYRA_SQLITE_PATH",
+            "ZYRA_TOOL_WORKSPACE",
+        )
+    }
     receipt = run_first_task_probe(
         tmp_path / "detached-first-task",
         package_root=PROJECT_ROOT,
@@ -160,3 +208,28 @@ def test_first_task_uses_embedded_runtime_without_install_or_home_write(
     assert receipt["user_home_entries"] == []
     assert receipt["claim_is_worker_lease"] is False
     assert receipt["quota_is_execution_budget"] is False
+    assert receipt["network_mode"] == "offline"
+    assert receipt["network_guard"]["enforced"] is True
+    assert receipt["network_guard"]["loopback_connection_count"] >= 2
+    assert receipt["network_guard"]["blocked_non_loopback_attempts"] == []
+    assert {
+        name: os.environ.get(name)
+        for name in environment_before
+    } == environment_before
+
+
+def test_first_task_network_guard_blocks_non_loopback_socket() -> None:
+    with _loopback_only_network() as receipt:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as candidate:
+            with pytest.raises(OSError, match="non-loopback network is blocked"):
+                candidate.connect(("203.0.113.1", 443))
+
+    assert receipt["enforced"] is True
+    assert receipt["loopback_connection_count"] == 0
+    assert receipt["blocked_non_loopback_attempts"] == [
+        {
+            "operation": "connect",
+            "host": "203.0.113.1",
+            "port": 443,
+        }
+    ]

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..runtime.errors import LoopXRuntimeError
+from ..runtime.interpreter import probe_python_interpreter
 from ..runtime.manifest import LOOPX_VERSION, LoopXPackageLock
 from ..runtime.resolver import LoopXRuntimeResolver
 from .profiles import InstallProfile, ProfilePlan, ProfileResolver
@@ -61,23 +62,11 @@ class LoopXInstaller:
         }
 
     def check_interpreter(self, python_executable: Path) -> dict[str, Any]:
-        python = python_executable.resolve()
-        if python == Path(sys.executable).resolve():
-            version = sys.version_info
-        else:
-            # The compatibility facade never executes a second interpreter.
-            version = sys.version_info
-        if version < (3, 11):
-            raise LoopXRuntimeError(
-                "LoopX v0.2.13 requires CPython 3.11 or newer.",
-                code="loopx_python_incompatible",
-                details={"python": str(python)},
-            )
-        return {
-            "python": str(python),
-            "version": f"{version.major}.{version.minor}.{version.micro}",
-            "compatible": True,
-        }
+        return probe_python_interpreter(
+            python_executable,
+            minimum=(3, 11),
+            requirement="LoopX v0.2.13",
+        )
 
     def validate_installed(
         self,

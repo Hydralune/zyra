@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from importlib import metadata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,9 @@ class LoopXRuntimeResolution:
     manifest_path: Path
     source_digest: str
     mode: str
+    custody: str
+    distribution_name: str
+    distribution_version: str
 
     def receipt(self, workspace_root: Path) -> dict[str, Any]:
         workspace = workspace_root.resolve()
@@ -53,6 +57,9 @@ class LoopXRuntimeResolution:
             "user_home_write": False,
             "system_path_write": False,
             "mode": self.mode,
+            "custody": self.custody,
+            "distribution_name": self.distribution_name,
+            "distribution_version": self.distribution_version,
         }
 
 
@@ -66,6 +73,9 @@ class LoopXRuntimeResolver:
     def resolve(self, *, verify: bool = True) -> LoopXRuntimeResolution:
         embedded = self.package_lock.embedded_root
         mode = "embedded_source"
+        custody = "zyra_source_tree"
+        distribution_name = ""
+        distribution_version = ""
         if embedded is not None:
             module_root = embedded
             package_init = embedded / "loopx" / "__init__.py"
@@ -83,6 +93,10 @@ class LoopXRuntimeResolver:
             module_root = origin.parent.parent
             embedded = module_root
             mode = "installed_distribution"
+            distribution_name, distribution_version = (
+                self._verify_installed_distribution_custody(package_init)
+            )
+            custody = "zyra_distribution_record"
         if not package_init.is_file():
             raise LoopXRuntimeError(
                 "The embedded LoopX package initializer is missing.",
@@ -99,10 +113,63 @@ class LoopXRuntimeResolver:
             manifest_path=self.package_lock.manifest_path.resolve(),
             source_digest=self.package_lock.source_digest,
             mode=mode,
+            custody=custody,
+            distribution_name=distribution_name,
+            distribution_version=distribution_version,
         )
 
     def receipt(self, workspace_root: Path, *, verify: bool = True) -> dict[str, Any]:
         return self.resolve(verify=verify).receipt(workspace_root)
+
+    def _verify_installed_distribution_custody(
+        self,
+        package_init: Path,
+    ) -> tuple[str, str]:
+        required = {
+            package_init.resolve(),
+            self.package_lock.path.resolve(),
+            self.package_lock.manifest_path.resolve(),
+        }
+        inspected: list[dict[str, Any]] = []
+        for distribution in metadata.distributions():
+            name = str(distribution.metadata.get("Name") or "")
+            if name.casefold().replace("-", "_") != "zyra":
+                continue
+            files = distribution.files
+            if files is None:
+                inspected.append(
+                    {
+                        "name": name,
+                        "version": distribution.version,
+                        "record_available": False,
+                    }
+                )
+                continue
+            owned = {
+                Path(distribution.locate_file(record)).resolve()
+                for record in files
+            }
+            missing = sorted(str(path) for path in required - owned)
+            inspected.append(
+                {
+                    "name": name,
+                    "version": distribution.version,
+                    "record_available": True,
+                    "missing": missing,
+                }
+            )
+            if not missing:
+                return name, distribution.version
+        raise LoopXRuntimeError(
+            "The resolved LoopX package is not owned by the installed Zyra distribution.",
+            code="loopx_runtime_origin_mismatch",
+            details={
+                "package_init": str(package_init),
+                "package_lock": str(self.package_lock.path),
+                "source_manifest": str(self.package_lock.manifest_path),
+                "inspected_distributions": inspected,
+            },
+        )
 
 
 __all__ = ["LoopXRuntimeResolution", "LoopXRuntimeResolver"]
