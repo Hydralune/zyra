@@ -4,7 +4,7 @@
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "frozen": true,
   "gate_revision": 1,
-  "frozen_gate_digest": "3456451831318118b655a1a44d70ca7faffa6e42d3035ccf52640128c2e46f8a",
+  "frozen_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
   "supersession": {
     "supersedes_gate_digest": null,
     "superseding_adr": null
@@ -33,7 +33,8 @@
         "mechanism_id": "arg_designer",
         "status": "unavailable",
         "stage": "input_precheck",
-        "report_ref": "pending:P2-S00-03/input_precheck",
+        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -41,7 +42,8 @@
         "mechanism_id": "card",
         "status": "unavailable",
         "stage": "input_precheck",
-        "report_ref": "pending:P2-S00-03/input_precheck",
+        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -49,7 +51,8 @@
         "mechanism_id": "agentprune",
         "status": "unavailable",
         "stage": "input_precheck",
-        "report_ref": "pending:P2-S00-03/input_precheck",
+        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -57,7 +60,8 @@
         "mechanism_id": "maas",
         "status": "unavailable",
         "stage": "input_precheck",
-        "report_ref": "pending:P2-S00-03/input_precheck",
+        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       }

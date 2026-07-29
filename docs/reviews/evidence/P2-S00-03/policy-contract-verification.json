@@ -1,0 +1,59 @@
+{
+  "activation_gates": {
+    "frozen_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
+    "hard_gate_count": 23,
+    "mechanism_statuses": {
+      "agentprune": "unavailable",
+      "arg_designer": "unavailable",
+      "card": "unavailable",
+      "loopx": "unavailable",
+      "maas": "unavailable"
+    },
+    "metric_count": 33,
+    "profile_count": 5,
+    "strongest_activation_blockers": [
+      "loopx",
+      "arg_designer",
+      "card",
+      "agentprune",
+      "maas"
+    ],
+    "strongest_activation_eligible": false
+  },
+  "digests": {
+    "P2-ADR-001": "c72d89c3321e0c707fabbecf4fc5cac61d2bbf25248ad3b3352e080818cd458d",
+    "P2-ADR-002": "b5a64c52ef089772f54005935f7b89f5701af3d28109c3707200e1e494d2e6e2",
+    "P2-ADR-003": "87f302f474e6c80831bb07f6e83bed4a07fe87854cc159dc3d2f2bd791061438",
+    "P2-ADR-004": "37f19b884edcedb0c64e6fcb78387713dd389abfa55cea7a9d814bd43d77657b",
+    "P2-ADR-005": "8b33ceda620121e239684a3ac851c0742175db724d14c6bacda82160d76e320e",
+    "P2-ADR-006": "9e7634b62142fb66efd3872b717b3c5fcfb67259091bf318a981551e782da790",
+    "P2-ADR-007": "e7928dbfbf77816c8810946ab1606405a86b98d9396a7488bb359eebb0cd7b0f",
+    "activation_gates": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01",
+    "source_roles": "c9ab5ee7f060f8185d33259f9ead40e37a8c23171ee18a44593b18a92301a0c8",
+    "state_owners": "e12753325e9c7b910776e3ee67af3d6204720da13e8dfa763067c56d35b3357c"
+  },
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "schema": "zyra.phase2-policy-contract-validation/v1",
+  "source_roles": {
+    "domain_count": 5,
+    "source_count": 9,
+    "topology_primary": [
+      "arg_designer"
+    ],
+    "topology_supplementary": [
+      "card",
+      "agentprune"
+    ]
+  },
+  "state_owners": {
+    "canonical_owner_count": 13,
+    "domain_count": 13,
+    "loopx_private_domains": [
+      "loopx_private_control"
+    ],
+    "proposal_owner_count": 0
+  },
+  "strongest_profile_requested": false,
+  "target_commit": "b2e0823427a3d35b4520100362ba5e21f9e13a0c",
+  "valid": true
+}

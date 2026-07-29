@@ -1,0 +1,178 @@
+{
+  "schema": "zyra.phase2-slice-verification-summary/v1",
+  "slice_id": "P2-S00-03",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "implementation_commits": [
+    "23ed29ee6aa0712fc57c2f92a228b257c9a3bb24",
+    "054d16bfd6a697587e80e9f6322fcf1238a270dc",
+    "b2e0823427a3d35b4520100362ba5e21f9e13a0c"
+  ],
+  "implementation_commit": "b2e0823427a3d35b4520100362ba5e21f9e13a0c",
+  "verdict": "PASS",
+  "readiness_report": {
+    "path": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+    "sha256": "222955f643597a664201e845b9a1eecac1eb9039b6f6d0e47c4b57ae095f36d0",
+    "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+    "evidence_index_digest": "6fd591b5b0974b18877d082050357f17fc73f53d98a23cc9b39c62f76180a5b1",
+    "stage": "input_precheck",
+    "valid": true,
+    "training_sample_count": 0,
+    "byte_reproducible": true
+  },
+  "evidence_inventory": {
+    "baseline_manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+    "baseline_reference_count": 24,
+    "independent_source_run_count": 6,
+    "derived_formal_cell_count": 42,
+    "run_receipt_count": 42,
+    "raw_event_count": 19191,
+    "raw_sample_count": 1554,
+    "semantic_label": "evidence_volume_only",
+    "training_sample_count": 0
+  },
+  "mechanisms": {
+    "arg_designer": {
+      "status": "unavailable",
+      "stage": "input_precheck",
+      "required_input_coverage_ratio": 0.3333333333333333,
+      "causal_link_completeness_ratio": 0.0,
+      "deterministic_input_replay_match": true,
+      "missing_required_inputs": [
+        "unresolved_obligations",
+        "capability_registry",
+        "immutable_graph_snapshot",
+        "memory_continuity_verdict"
+      ]
+    },
+    "card": {
+      "status": "unavailable",
+      "stage": "input_precheck",
+      "required_input_coverage_ratio": 0.1111111111111111,
+      "causal_link_completeness_ratio": 0.0,
+      "deterministic_input_replay_match": true,
+      "missing_required_inputs": [
+        "worker_provider_health",
+        "load_capacity",
+        "latency",
+        "cost",
+        "privacy_constraint",
+        "physical_location",
+        "observation_freshness",
+        "observation_confidence"
+      ]
+    },
+    "agentprune": {
+      "status": "unavailable",
+      "stage": "input_precheck",
+      "required_input_coverage_ratio": 0.125,
+      "causal_link_completeness_ratio": 0.0,
+      "deterministic_input_replay_match": true,
+      "missing_required_inputs": [
+        "temporal_edges",
+        "delivery_outcome",
+        "byte_token_cost",
+        "redundancy_ratio",
+        "evidence_utilization",
+        "critical_paths",
+        "verifier_outcome"
+      ]
+    },
+    "maas": {
+      "status": "unavailable",
+      "stage": "input_precheck",
+      "required_input_coverage_ratio": 0.4444444444444444,
+      "causal_link_completeness_ratio": 0.0,
+      "deterministic_input_replay_match": true,
+      "missing_required_inputs": [
+        "operator_catalog",
+        "capability_registry",
+        "health",
+        "cost_latency",
+        "unresolved_obligations"
+      ]
+    }
+  },
+  "resolver_enforcement": {
+    "default_path": "phase1_deterministic_baseline",
+    "all_formal_mechanisms_resolve_to_baseline": true,
+    "unknown_or_corrupt_report_fails_closed": true,
+    "registry_report_digest_binding_enforced": true,
+    "strongest_activation_eligible": false,
+    "strongest_activation_blockers": [
+      "loopx",
+      "arg_designer",
+      "card",
+      "agentprune",
+      "maas"
+    ]
+  },
+  "policy_contract_verification": {
+    "path": "docs/reviews/evidence/P2-S00-03/policy-contract-verification.json",
+    "sha256": "67c9caa65ab9d064ef7cd1869bb8db265cdc73a9fcc528b012b26af2db11d7c7",
+    "valid": true,
+    "frozen_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
+    "activation_config_digest": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01",
+    "owner_domain_count": 13,
+    "proposal_owner_count": 0
+  },
+  "verification": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\evaluation\\test_mechanism_evidence_readiness.py -q",
+      "result": "9 passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_mechanism_readiness_enforcement.py -q",
+      "result": "9 passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\evaluation\\test_mechanism_evidence_readiness.py tests\\integration\\test_mechanism_readiness_enforcement.py tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\unit\\orchestration\\test_phase2_owner_registry.py -q -p no:cacheprovider --basetemp G:\\agent-zoo\\zyra\\.tmp\\pytest-P2-S00-03-final",
+      "result": "46 passed in 2.49s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\audit_phase2_mechanism_readiness.py --baseline-manifest docs\\release\\phase2-baseline-manifest.json --output docs\\reviews\\phase2\\MechanismEvidenceReadinessReport.json --implementation-commit b2e0823427a3d35b4520100362ba5e21f9e13a0c",
+      "result": "valid=true; report_digest=82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde; repeated output byte-identical"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\release\\verify_phase2_baseline.py --manifest docs\\release\\phase2-baseline-manifest.json",
+      "result": "valid=true; reference_count=24; finding_count=0"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py --target-commit b2e0823427a3d35b4520100362ba5e21f9e13a0c",
+      "result": "valid=true; strongest_activation_eligible=false"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py --target-commit b2e0823427a3d35b4520100362ba5e21f9e13a0c --require-strongest-active",
+      "result": "expected exit 1; strongest-profile-readiness-failed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py --base 4c4a809b3723b10f8f0e44ae298c8efe8ee20111 --json",
+      "result": "ok=true; errors=0; blockers=0; missing_source_repos=0"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages\\evaluation\\zyra_evaluation\\policy_benchmark scripts\\audit_phase2_mechanism_readiness.py",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "line_buckets": {
+    "production_and_scripts_raw_additions": 3186,
+    "test_raw_additions": 530,
+    "data_contract_raw_additions": 632,
+    "runtime_assets_raw_additions": 0,
+    "generated_raw_additions": 0,
+    "adapter_only_raw_additions": 0,
+    "mock_fixture_raw_additions": 0,
+    "formal_report_and_receipts_treatment": "generated data/evidence; no production credit"
+  },
+  "risk_assessment": {
+    "canonical_owner_transfer": false,
+    "default_runtime_policy_changed": false,
+    "external_dependency_added": false,
+    "training_lifecycle_added": false,
+    "frozen_gate_lowered": false,
+    "high_risk_escalation_triggered": false
+  }
+}

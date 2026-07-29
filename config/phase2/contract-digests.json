@@ -1,6 +1,7 @@
 {
   "schema": "zyra.phase2.policy-contract-digests/v1",
   "slice_id": "P2-S00-02",
+  "updated_by_slice": "P2-S00-03",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "documents": [
     {
@@ -53,7 +54,7 @@
     {
       "config_id": "activation_gates",
       "path": "config/phase2/activation-gates.yaml",
-      "sha256": "fb47de2682444f332b9b0570624fb80646c5143b31981265b6c3ebc1c9e5acb9"
+      "sha256": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01"
     }
   ]
 }

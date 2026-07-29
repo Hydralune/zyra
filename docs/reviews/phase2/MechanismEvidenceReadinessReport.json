@@ -1,0 +1,2443 @@
+{
+  "activation_allowed": false,
+  "activation_reason": "input_precheck never activates phase2_strongest_v1; implementation_validated and activation_ready remain required",
+  "baseline_manifest": {
+    "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+    "path": "docs/release/phase2-baseline-manifest.json",
+    "sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e"
+  },
+  "contract": {
+    "path": "config/phase2/mechanism-readiness.json",
+    "sha256": "18ebbfa669911371e05678cb53ad1d641bda6d0e484d48c7adc31f7978af7af2"
+  },
+  "evidence_index": {
+    "baseline_manifest": {
+      "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+      "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+      "path": "docs/release/phase2-baseline-manifest.json"
+    },
+    "classification": "read_only_evidence_index",
+    "event_type_counts": {
+      "artifact_committed": 9411,
+      "artifact_written": 57,
+      "checkpoint_restored": 30,
+      "compact_committed": 30,
+      "delivery_committed": 6,
+      "fault_observed": 30,
+      "memory_curator_committed": 6,
+      "memory_retrieved": 6,
+      "permission_decision": 6,
+      "recovery_applied": 6,
+      "recovery_planned": 24,
+      "requirement_change": 6,
+      "resource_decision": 24,
+      "task_created": 6,
+      "task_updated": 60,
+      "tool_call": 9411,
+      "topology_mutation": 6,
+      "topology_route": 24,
+      "verification": 42
+    },
+    "index_digest": "6fd591b5b0974b18877d082050357f17fc73f53d98a23cc9b39c62f76180a5b1",
+    "prohibited_uses": [
+      "training_dataset",
+      "fine_tuning",
+      "online_learning",
+      "policy_gradient",
+      "textual_gradient",
+      "success_label_synthesis"
+    ],
+    "references": [
+      {
+        "kind": "mechanism_profile",
+        "path": "docs/reviews/evidence/P2-S00-01/mechanism-baseline.json",
+        "read_only": true,
+        "reference_id": "mechanism-baseline",
+        "sha256": "1512d91bfcf14f14b2d23e4057b5b56a17177e2b944fd2f755d14e74ba646449",
+        "size_bytes": 2179
+      },
+      {
+        "kind": "benchmark_pointer",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current.json",
+        "read_only": true,
+        "reference_id": "formal-pointer",
+        "sha256": "1773c1253c0949a5892350a34f4a4a36ee4e2e8fbb9621214107f47f4293e244",
+        "size_bytes": 952,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "benchmark_configuration",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/campaign.json",
+        "read_only": true,
+        "reference_id": "benchmark-campaign",
+        "sha256": "dd5c0523942ae08551ff50c8f00200f7625965dbc3f43c32fce255288879afcf",
+        "size_bytes": 33806,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "evidence_manifest",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/evidence-manifest.json",
+        "read_only": true,
+        "reference_id": "benchmark-manifest",
+        "sha256": "99667d18a42d61ba0af41acae48f729240739480353985af642d611e526fbc7a",
+        "size_bytes": 5996,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "event_artifact_evidence_index",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/100-point-evidence-index.json",
+        "read_only": true,
+        "reference_id": "benchmark-index",
+        "sha256": "14bde8a5d57d406e73dcf2caa36111f2d3a90edac2fc0d200b92d67679c0689e",
+        "size_bytes": 691470,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "event_transition_index",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-runs.json",
+        "read_only": true,
+        "reference_id": "benchmark-source-runs",
+        "sha256": "0f5ca95d3eb3c6857d6b23279ec6008710c18cbeef00e4c71a69dbb69a847cc1",
+        "size_bytes": 1144173,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "decision_receipt_index",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/run-receipts.json",
+        "read_only": true,
+        "reference_id": "benchmark-run-receipts",
+        "sha256": "4b769561128fb7478cae18a2986c7b928777e1a8ad131b584dac5dbb75e85885",
+        "size_bytes": 128525,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "raw_metric_evidence",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/raw-samples.json",
+        "read_only": true,
+        "reference_id": "benchmark-raw-samples",
+        "sha256": "7006dfff106c7bdfd80fc3ee75ba0281bf7ceef45f1293c74e2089c43d11a306",
+        "size_bytes": 1363920,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "provider_dispatch_cost_index",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/current-campaign-evidence.json",
+        "read_only": true,
+        "reference_id": "benchmark-current-campaign",
+        "sha256": "0ceeae1cdc79f08d679102d6dd1d6a7f0e20f22bd3aacf5608124e219eb48b3e",
+        "size_bytes": 63121,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "statistical_evaluation",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/statistical-evaluation.json",
+        "read_only": true,
+        "reference_id": "benchmark-statistics",
+        "sha256": "7298d3e273ebdb2d89eb57f33279014f4158ba8d271a492ee16fd905f48eb1b4",
+        "size_bytes": 518740,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "verifier_index",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/verification-summary.json",
+        "read_only": true,
+        "reference_id": "benchmark-verification",
+        "sha256": "2d96414f25798ecd584b05105e8420824c9ddf870066f969161ac0ed031fd89f",
+        "size_bytes": 10080,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "freeze_admission",
+        "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/freeze-admission.json",
+        "read_only": true,
+        "reference_id": "benchmark-freeze-admission",
+        "sha256": "f413b6005167c536570bc7ad5973de8272f7b68290af29afd303af3f01bc3c54",
+        "size_bytes": 788,
+        "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+      },
+      {
+        "kind": "final_requirement_evidence_index",
+        "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/100-point-evidence-index.json",
+        "read_only": true,
+        "reference_id": "first-stage-index",
+        "sha256": "12fe41d86ddc5c4497a679ebf438b186049fb0a288cbb5ab1cf8ec7137327c1d",
+        "size_bytes": 319075,
+        "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+      },
+      {
+        "kind": "final_report_input_set",
+        "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/input-set.json",
+        "read_only": true,
+        "reference_id": "first-stage-input-set",
+        "sha256": "6009a92e724015ee68ae6e8200175559ac202661457fcf773b793759bfa4246c",
+        "size_bytes": 9348,
+        "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+      },
+      {
+        "kind": "final_freeze_verification",
+        "path": "docs/reviews/evidence/M3-S03-02/current-faf78d1/final-freeze/final-freeze-verification.json",
+        "read_only": true,
+        "reference_id": "final-freeze-verification",
+        "sha256": "833a637257a7d48b4e91617df4738cd4b0f51c470d15ec220bbab4201aec2582",
+        "size_bytes": 641,
+        "source_commit": "725e869c7ee52eb3780851fd2328d09919d812e1"
+      },
+      {
+        "kind": "first_stage_exit",
+        "path": "docs/reviews/evidence/M3-S03-02/current-faf78d1/retrospective-freeze-summary.json",
+        "read_only": true,
+        "reference_id": "retrospective-freeze-summary",
+        "sha256": "b8535d1d2e25db317670f3158479d5e3e1fe8e395053da2515623bb9b660639c",
+        "size_bytes": 7086,
+        "source_commit": "725e869c7ee52eb3780851fd2328d09919d812e1"
+      },
+      {
+        "kind": "p2_release",
+        "path": "docs/reviews/evidence/P2-S00-01/release-pipeline-summary.json",
+        "read_only": true,
+        "reference_id": "release-pipeline-summary",
+        "sha256": "0c7052c28747b50ee6887c0612b0bd2ea0fa4789170b2b79dde3832ab086a829",
+        "size_bytes": 2871
+      },
+      {
+        "kind": "clean_install",
+        "path": "docs/reviews/evidence/P2-S00-01/clean-install-summary.json",
+        "read_only": true,
+        "reference_id": "clean-install-summary",
+        "sha256": "759c0b6f1ccf2fcc9d8e222755f0e2c92a948aa06f138f9c5cf2923bf2abe6b6",
+        "size_bytes": 2271
+      },
+      {
+        "kind": "release_boundary_audit",
+        "path": "docs/reviews/evidence/P2-S00-01/path-cache-credential-audit.json",
+        "read_only": true,
+        "reference_id": "path-cache-credential-audit",
+        "sha256": "29863b7e0bb668429c9eea86bc24fbbcfc99a03e3d208734362a4c5515ad1db2",
+        "size_bytes": 1215
+      },
+      {
+        "kind": "external_planning_digest_snapshot",
+        "path": "docs/reviews/evidence/P2-S00-01/root-planning-snapshot.json",
+        "read_only": true,
+        "reference_id": "root-planning-snapshot",
+        "sha256": "2a177aaebe2689d7396ffe8618e0f3487cf10c27f8e947257038370bfe808b53",
+        "size_bytes": 1352
+      },
+      {
+        "kind": "build_input",
+        "path": "package.json",
+        "read_only": true,
+        "reference_id": "package-manifest",
+        "sha256": "2b15563f4637043f43f7ba5f1867d7e17c7d7854e5105bcab194e51b690e544c",
+        "size_bytes": 5790,
+        "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+      },
+      {
+        "kind": "build_input",
+        "path": "bun.lock",
+        "read_only": true,
+        "reference_id": "bun-lockfile",
+        "sha256": "35df508268c1ffc604c02b6c98bcb4edb9757aa5f4c305e5c0e9e0ea41580ed9",
+        "size_bytes": 8334,
+        "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+      },
+      {
+        "kind": "build_input",
+        "path": "pyproject.toml",
+        "read_only": true,
+        "reference_id": "python-project-manifest",
+        "sha256": "c7c415136844c45436947cdc30c79dd7cf71af4b10dc3475bff754785b6237f4",
+        "size_bytes": 1500,
+        "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+      },
+      {
+        "kind": "build_input",
+        "path": "requirements.txt",
+        "read_only": true,
+        "reference_id": "python-lockfile",
+        "sha256": "d2b0dbfcd942e4e6618c4db0d11558c5325b0ed17458e242767dae89747a58da",
+        "size_bytes": 279206,
+        "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+      }
+    ],
+    "schema": "zyra.phase2-read-only-evidence-index/v1",
+    "source_runs": [
+      {
+        "archive_container_sha256": "c8fcf8d1598f420c065d39a1df765efc75cff522ea3fe3dc6397af1f4835faa3",
+        "archive_digest": "2be525ad714d2930a4e30f1b108f444a3c89f4b0881e9d4db60b8e8999b7c6bf",
+        "archive_member_digests": {
+          "artifact-manifest.json": "b6b95aeeb9c612f62e88af1adec137f07212d62afdfa45cc15e8aed221d17890",
+          "canonical-events.jsonl": "84c85ba45e362f515215fc00a26ffd83d4963ab765739450aadb8a6858ac813e",
+          "domain-verification.json": "663f89a116c795cf7e6ed65a94c31ae8e83638b90f74c8c0c6aaa20a3c06b4a1",
+          "environment.json": "50660da3bb0445a9ac5160aff2bde08f7e1d204d7f9ff817fc86cd04825f5ce1",
+          "manifest.json": "dd805b1abc55d0f80655600d64fe135862acac5d65d32bbd0c9f9c940cc28573",
+          "owner-receipts.json": "2d1fd7dc3e7114b801aedcf2440a99754959c45771dd469318f4f141979302f2",
+          "raw-samples.jsonl": "0841a6bf135d46710e5865fa89e07a67fac3af6f43e8f3fa48d4ba7a58d57e0f"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip",
+        "artifact_count": 13,
+        "domain": "cross-source-research",
+        "event_count": 4003,
+        "event_stream_digest": "84c85ba45e362f515215fc00a26ffd83d4963ab765739450aadb8a6858ac813e",
+        "event_type_counts": {
+          "artifact_committed": 1969,
+          "artifact_written": 13,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1969,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_7cd82bba94ec",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 1,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_eea2565e3b07487fbae2512f46ace74e",
+        "task_id": "task_b7e89874e3ef",
+        "tier_observation_count": 3
+      },
+      {
+        "archive_container_sha256": "a66ce8a1b40c73ad8e9527b8171c8ceef0a3603221cf694ea63c701c9a532664",
+        "archive_digest": "5253e675af1d588e3ad0c6e01e5ce8af38010859b4d18a858ef1e5b8399874a8",
+        "archive_member_digests": {
+          "artifact-manifest.json": "49b1d7e42bd7989ee7a9f56e519c53092422f09b7574d96eff5e61f1124dd595",
+          "canonical-events.jsonl": "fd67a3a05589286e327dc41dada7eba0363eff2acaaac13800a6c45df1a01fd4",
+          "domain-verification.json": "481820ad1eb38f074a1b8f75e23216a09d7fdff306a9806ea7d08aea45db5aba",
+          "environment.json": "df1b2a697399770f113e247d83b2e1614bf9058121fc58d18c3e48c7b9ed89b2",
+          "manifest.json": "1351c89cf8d1d1fab2b45d9c892fab2983bfa5767eee7c86ceac08d51a784152",
+          "owner-receipts.json": "f3f7b49a8c849641bb89502fe6d1e89ca276a97e33f87c2db723a66c7a7de224",
+          "raw-samples.jsonl": "5ce66cba5be3fc39edcce618f3e4b74d803293cdb3fa396c769a7d70f26f7b93"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip",
+        "artifact_count": 13,
+        "domain": "cross-source-research",
+        "event_count": 4003,
+        "event_stream_digest": "fd67a3a05589286e327dc41dada7eba0363eff2acaaac13800a6c45df1a01fd4",
+        "event_type_counts": {
+          "artifact_committed": 1969,
+          "artifact_written": 13,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1969,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_64c0893ffef7",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 2,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_4604a351d3904cc39947d9df52551cfe",
+        "task_id": "task_4aeba9279409",
+        "tier_observation_count": 3
+      },
+      {
+        "archive_container_sha256": "40829981e9e4931a4e99a2a327b1ef83422abe067305bd2dbbd207188026bf8a",
+        "archive_digest": "1d052fd0cea0ba930efc8cff58accd48274a38df29e8366f5a0e7d55c71c3e1d",
+        "archive_member_digests": {
+          "artifact-manifest.json": "55351bca7ba3521e7ca07cc963fa17c780356e4de95189e1e215e848496f83a9",
+          "canonical-events.jsonl": "7c573961dd53312d221c4860a5fc4a9294754d94a85e5e7385b13aa8660d14c0",
+          "domain-verification.json": "c094196f2f036cf8c43d372cadea8acd27dc526712e537d4a0728295523e8807",
+          "environment.json": "3589fbf96ecf3b50b5727a7bb86caf0bbd87d9c77dde23b0d0dafe31f9b2deb6",
+          "manifest.json": "e035419ad5e771f8f7a2011e6bb875ed4062f00e0fa1404e2b7e9d8da504d0aa",
+          "owner-receipts.json": "afa952bfc84c3785ebb1f007c8bac8e4bfdb7a2542e501e4e615c8cfce22499f",
+          "raw-samples.jsonl": "4db0f1eaf815a2280ddc9eefcce04175c3011ea5274b50652684a3bb86ea3abf"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip",
+        "artifact_count": 13,
+        "domain": "cross-source-research",
+        "event_count": 4003,
+        "event_stream_digest": "7c573961dd53312d221c4860a5fc4a9294754d94a85e5e7385b13aa8660d14c0",
+        "event_type_counts": {
+          "artifact_committed": 1969,
+          "artifact_written": 13,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1969,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_e2f8036ee091",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 3,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_b7b4201ff228444db386c23553b67fb0",
+        "task_id": "task_92ba04e9cb74",
+        "tier_observation_count": 3
+      },
+      {
+        "archive_container_sha256": "ec6f5682166f7a1314828e8d58e3fa469d943c409c5039c119201399680fe03f",
+        "archive_digest": "43dc1ef933a65ddedbb64b24ef7c61a75b46d45e7cb6f7d8307b82d0e9e73557",
+        "archive_member_digests": {
+          "artifact-manifest.json": "b8b4a380872f54dc7148cfe97eabcdff7a1db60f4cd697abdfbde6fb44a4127d",
+          "canonical-events.jsonl": "d98a36ad19dbd3bd1deec0dd5c5678039e884cd1f957dd3024b0799e79a3b2d8",
+          "domain-verification.json": "1e1d697c08b416593f32e00d9783e5311a1fdcd09e51088a0d947ace9a173fbd",
+          "environment.json": "a80a5c08fdaa31e677d73dc6e03f4ecdb0a3f3338b67da033a73e714aa46bec9",
+          "manifest.json": "489f5b8a8f778f13e7fb0d77ac067086da06521685d813eba016b152e12718d0",
+          "owner-receipts.json": "0ac831e6f29a6ce210e2d5808127807c7fe5e47478b2080796fb9097ed1c8c38",
+          "raw-samples.jsonl": "1d263300c03b0a0dc74539f07dcede0968e07af0e9ee683f639749caf9d5e16b"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip",
+        "artifact_count": 6,
+        "domain": "software-delivery",
+        "event_count": 2394,
+        "event_stream_digest": "d98a36ad19dbd3bd1deec0dd5c5678039e884cd1f957dd3024b0799e79a3b2d8",
+        "event_type_counts": {
+          "artifact_committed": 1168,
+          "artifact_written": 6,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1168,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_4a2619e4841f",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 1,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_94c96b0544d1452395ad38d4750c89e5",
+        "task_id": "task_79f1daa30544",
+        "tier_observation_count": 3
+      },
+      {
+        "archive_container_sha256": "bf44be793d27b3fbae5fac4ba3dbf8fab1922ae538aefe0609a63ea7f38d9ea4",
+        "archive_digest": "40e8c9d2a136ba35bd30f76c36fb63eec91ed41bd305fc1b2189446e570bbbb8",
+        "archive_member_digests": {
+          "artifact-manifest.json": "687f6e78e45eea0d2f33c273686334e8a9fb1bfa65d49cb6e994d2c904fbfa48",
+          "canonical-events.jsonl": "fa0f658412c67d44b592a36af286bfcd103a7a26e55e86ef197423dc37aff82d",
+          "domain-verification.json": "323888d3a1a9a5e5bb98472071904b562b4f55c4a665ec286112a14700b5514d",
+          "environment.json": "39869329ff05ab1d38f00533c5dafc012e35f9371e68b9b1c0faf7b5f8f6f123",
+          "manifest.json": "c88a07220cede8e1f9097cca86e98a305ca4d98c73c06da483cacd9b87211993",
+          "owner-receipts.json": "f8e45fc3fac2703ed9222a8cdc83953a116301dc01237310c5550ace7c0e44b7",
+          "raw-samples.jsonl": "e78de8662ca5adc2cea0917d632715fa98bc5733b643c86e675d82509dc93416"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip",
+        "artifact_count": 6,
+        "domain": "software-delivery",
+        "event_count": 2394,
+        "event_stream_digest": "fa0f658412c67d44b592a36af286bfcd103a7a26e55e86ef197423dc37aff82d",
+        "event_type_counts": {
+          "artifact_committed": 1168,
+          "artifact_written": 6,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1168,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_f052201615b7",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 2,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_6c1d1d1eccd64e8ea23a880b39e62147",
+        "task_id": "task_1b9751580a66",
+        "tier_observation_count": 3
+      },
+      {
+        "archive_container_sha256": "eb11ba1101ac98f8f198b0001ea04396a487403fe3cd865fa52439e78c42aafd",
+        "archive_digest": "2d82d9e5a7fc839ed5079ba8d1fe326039e5b2a592a0f5cfe396d836e287be07",
+        "archive_member_digests": {
+          "artifact-manifest.json": "56281d0246327c39b4c0ae130ae898e9f5c3e02b04ec4a6416716c2f8493035a",
+          "canonical-events.jsonl": "db1cd8a703461559a5994281bf035e44a5ea501c80e420bfc98f64a2423016be",
+          "domain-verification.json": "940fe6b1b21113194077a62f6dc446e7acd3db92ddafebcd7b3c31252a943a0e",
+          "environment.json": "627db86305f6a86a64b839346fa1458bf5992f64c82eb333d8ce8885a13452b9",
+          "manifest.json": "32d053ab46be4b0c1fc82307e4c6e155383b655725ccd47ddfa99ea26213cde4",
+          "owner-receipts.json": "435657bd17bc3ece029451d35b57674fde2f1c4b26698cd1d0bb3109537954e5",
+          "raw-samples.jsonl": "0d14cef97d04b289cbda088dc27a3721083c8868d64e3f11950ba1bf73aa30e5"
+        },
+        "archive_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip",
+        "artifact_count": 6,
+        "domain": "software-delivery",
+        "event_count": 2394,
+        "event_stream_digest": "db1cd8a703461559a5994281bf035e44a5ea501c80e420bfc98f64a2423016be",
+        "event_type_counts": {
+          "artifact_committed": 1168,
+          "artifact_written": 6,
+          "checkpoint_restored": 5,
+          "compact_committed": 5,
+          "delivery_committed": 1,
+          "fault_observed": 5,
+          "memory_curator_committed": 1,
+          "memory_retrieved": 1,
+          "permission_decision": 1,
+          "recovery_applied": 1,
+          "recovery_planned": 4,
+          "requirement_change": 1,
+          "resource_decision": 4,
+          "task_created": 1,
+          "task_updated": 10,
+          "tool_call": 1168,
+          "topology_mutation": 1,
+          "topology_route": 4,
+          "verification": 7
+        },
+        "owner_run_id": "run_9eb48ca74fd3",
+        "provider_observation_count": 2,
+        "raw_sample_count": 259,
+        "read_only": true,
+        "repetition": 3,
+        "run_receipt_count": 7,
+        "source_run_id": "scenario_94979955475c4429a37091e50d6f8472",
+        "task_id": "task_916a16ecc10c",
+        "tier_observation_count": 3
+      }
+    ],
+    "volume": {
+      "derived_formal_cell_count": 42,
+      "independent_source_run_count": 6,
+      "raw_event_count": 19191,
+      "raw_sample_count": 1554,
+      "run_receipt_count": 42,
+      "semantic_label": "evidence_volume_only",
+      "training_sample_count": 0
+    }
+  },
+  "generated_at": "2026-07-29T04:15:04.407602Z",
+  "generation_clock": "frozen current-campaign completion; rerunning the same implementation and evidence is byte-deterministic",
+  "implementation_commit": "b2e0823427a3d35b4520100362ba5e21f9e13a0c",
+  "mechanism_statuses": {
+    "agentprune": "unavailable",
+    "arg_designer": "unavailable",
+    "card": "unavailable",
+    "maas": "unavailable"
+  },
+  "mechanisms": {
+    "agentprune": {
+      "allowed_follow_up_scope": [
+        "spatial and temporal edge outcome instrumentation",
+        "deterministic pruning implementation in P2-S03-03",
+        "protected-path and counterfactual receipts",
+        "no policy gradient or random online edge sampling"
+      ],
+      "causal_links": {
+        "baseline_chain_complete_count": 6,
+        "baseline_chain_completeness_ratio": 1.0,
+        "complete_chain_count": 0,
+        "completeness_ratio": 0.0,
+        "formal_mechanism_effect_evidence_allowed": false,
+        "required": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ]
+      },
+      "contract": {
+        "allowed_follow_up_scope": [
+          "spatial and temporal edge outcome instrumentation",
+          "deterministic pruning implementation in P2-S03-03",
+          "protected-path and counterfactual receipts",
+          "no policy gradient or random online edge sampling"
+        ],
+        "causal_receipt_contract": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ],
+        "decision_event_type": "permission_decision",
+        "deterministic_decision_contract": "A fixed corrected topology, communication outcome window, protected-path set, budget, and config digest must produce one stably ordered keep/drop set and savings receipt.",
+        "display_name": "AgentPrune spatial and temporal communication pruning",
+        "fallback": {
+          "degraded_event": "phase2.mechanism_degraded",
+          "on_corrupt": "phase1_deterministic_baseline",
+          "on_exception": "phase1_targeted_communication_baseline",
+          "on_missing": "phase1_targeted_communication_baseline",
+          "on_stale": "phase1_targeted_communication_baseline",
+          "silent_fallback_allowed": false
+        },
+        "instrumentation_requirements": [
+          "separate spatial and temporal edge identities",
+          "per-edge delivery byte token latency and real-cost receipts",
+          "downstream evidence-use and redundancy attribution",
+          "critical obligation provenance recovery and verifier path markers",
+          "AgentPrune mask-to-projector causation ID"
+        ],
+        "mechanism_id": "agentprune",
+        "optional_inputs": [
+          {
+            "canonical_owner": "RuntimeEventSqliteStore",
+            "decision_timing": "from an earlier completed outcome window or excluded",
+            "evidence_key": "raw_metric.efficiency.wall_time_ms",
+            "field_id": "wall_time",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "exclude_optional",
+            "owner_domain": "event_trace",
+            "required": false
+          }
+        ],
+        "required_failure_paths": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ],
+        "required_inputs": [
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "after CARD residual and strictly before pruning",
+            "evidence_key": "event.topology_mutation.edges",
+            "field_id": "spatial_edges",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "after CARD residual and strictly before pruning",
+            "evidence_key": "event.temporal_edges",
+            "field_id": "temporal_edges",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "RuntimeEventSqliteStore",
+            "decision_timing": "from an earlier completed outcome window",
+            "evidence_key": "raw_metric.communication.useful_ratio",
+            "field_id": "delivery_outcome",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "event_trace",
+            "required": true
+          },
+          {
+            "canonical_owner": "ProviderControlPlane",
+            "decision_timing": "from an earlier completed outcome window",
+            "evidence_key": "raw_metric.efficiency.token_units",
+            "field_id": "byte_token_cost",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "provider_model_cost",
+            "required": true
+          },
+          {
+            "canonical_owner": "RuntimeEventSqliteStore",
+            "decision_timing": "from an earlier completed outcome window",
+            "evidence_key": "raw_metric.communication.duplicate_ratio",
+            "field_id": "redundancy_ratio",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "event_trace",
+            "required": true
+          },
+          {
+            "canonical_owner": "RuntimeEventSqliteStore",
+            "decision_timing": "from an earlier completed outcome window",
+            "evidence_key": "raw_metric.communication.useful_ratio",
+            "field_id": "evidence_utilization",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "event_trace",
+            "required": true
+          },
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "strictly before pruning",
+            "evidence_key": "event.critical_paths",
+            "field_id": "critical_paths",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "LocalArtifactStore",
+            "decision_timing": "from an earlier completed outcome window",
+            "evidence_key": "domain_verification.continuity",
+            "field_id": "verifier_outcome",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "artifact",
+            "required": true
+          }
+        ],
+        "required_scenarios": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "recovery"
+        ],
+        "semantic_effect": "Produce deterministic spatial and temporal keep/drop masks that preserve critical obligations, provenance, recovery, and verifier paths while reducing communication."
+      },
+      "deterministic_input_snapshot_replay": {
+        "input_snapshot_count": 6,
+        "input_snapshot_digests": {
+          "scenario_4604a351d3904cc39947d9df52551cfe": "344a54187bd5ad6221d82d4ddeb16f0b3a2b61287a0ca3eb38964b7182fc4b45",
+          "scenario_6c1d1d1eccd64e8ea23a880b39e62147": "c18847ccdcf95265409849c334f03a27f66ca32ff8f76fda16b2a37896a3f5ea",
+          "scenario_94979955475c4429a37091e50d6f8472": "b607281f878483ddda92157edf055127eaeb17695a867b24f56f770e454809e4",
+          "scenario_94c96b0544d1452395ad38d4750c89e5": "fa8e36d46fbc46c6feb4f51accada19bf7d5e90285680b44e5ef0ca617225816",
+          "scenario_b7b4201ff228444db386c23553b67fb0": "85872b6151fff0484f451696a06d7a3f38a54c28928b642b400e965d931f546e",
+          "scenario_eea2565e3b07487fbae2512f46ace74e": "e96e28bb305064ff1e7d5fb1d42f990e0137f36067aa0a29583e6ea7b5ca8b5c"
+        },
+        "match": true,
+        "mechanism_output_determinism_deferred_to": "P2-03/P2-04",
+        "replay_digest": "3428e1391b314535acbc10a1834d31dc0ae4433dd28a9ef1686e805c0f428b4b"
+      },
+      "diagnostic_boundary": {
+        "evidence_only_is_read_only": true,
+        "may_change_graph_route_lease_or_side_effect": false
+      },
+      "display_name": "AgentPrune spatial and temporal communication pruning",
+      "domains": [
+        "cross-source-research",
+        "software-delivery"
+      ],
+      "failure_path_coverage": {
+        "observed": [
+          "exception",
+          "invalid",
+          "recovery",
+          "reroute",
+          "unavailable"
+        ],
+        "passed": false,
+        "required": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ]
+      },
+      "fallback": {
+        "degraded_event": "phase2.mechanism_degraded",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_targeted_communication_baseline",
+        "on_missing": "phase1_targeted_communication_baseline",
+        "on_stale": "phase1_targeted_communication_baseline",
+        "silent_fallback_allowed": false
+      },
+      "field_coverage": [
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip#event:live-event-000002-5db995330cedd962"
+          ],
+          "field_id": "spatial_edges",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "temporal_edges",
+          "freshness_ratio": 0.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "delivery_outcome",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "byte_token_cost",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "redundancy_ratio",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "evidence_utilization",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "critical_paths",
+          "freshness_ratio": 0.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "verifier_outcome",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "wall_time",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": false,
+          "sample_count": 6,
+          "stale_count": 0
+        }
+      ],
+      "gaps": [
+        "failure_path:reject",
+        "mechanism_causal_receipt",
+        "negative_evidence",
+        "required_input:byte_token_cost",
+        "required_input:critical_paths",
+        "required_input:delivery_outcome",
+        "required_input:evidence_utilization",
+        "required_input:redundancy_ratio",
+        "required_input:temporal_edges",
+        "required_input:verifier_outcome"
+      ],
+      "mechanism_id": "agentprune",
+      "negative_evidence": {
+        "missing": [
+          "mechanism_exception",
+          "projector_reject",
+          "stale_or_corrupt_fail_closed"
+        ],
+        "observed": [
+          "baseline_fallback",
+          "mechanism_disable"
+        ],
+        "passed": false
+      },
+      "readiness_stage": "input_precheck",
+      "required_input_coverage_ratio": 0.125,
+      "required_input_gate_passed": false,
+      "required_instrumentation": [
+        "separate spatial and temporal edge identities",
+        "per-edge delivery byte token latency and real-cost receipts",
+        "downstream evidence-use and redundancy attribution",
+        "critical obligation provenance recovery and verifier path markers",
+        "AgentPrune mask-to-projector causation ID"
+      ],
+      "scenario_coverage": {
+        "observed": [
+          "fault_degraded",
+          "normal",
+          "placement",
+          "recovery",
+          "requirement_change"
+        ],
+        "passed": true,
+        "required": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "recovery"
+        ]
+      },
+      "status": "unavailable",
+      "status_reasons": [
+        "required decision-time canonical inputs are incomplete: temporal_edges, delivery_outcome, byte_token_cost, redundancy_ratio, evidence_utilization, critical_paths, verifier_outcome",
+        "mechanism proposal-to-outcome causal chains are not complete",
+        "required failure-path coverage is incomplete: reject",
+        "mechanism disconnect and fail-closed evidence is incomplete"
+      ],
+      "volume": {
+        "derived_formal_run_count": 42,
+        "discarded_duplicate_source_run_count": 0,
+        "independent_source_run_count": 6,
+        "raw_event_count": 19191,
+        "semantic_label": "evidence_volume_only",
+        "training_sample_count": 0
+      }
+    },
+    "arg_designer": {
+      "allowed_follow_up_scope": [
+        "typed PolicyInputSnapshot instrumentation",
+        "deterministic joint hypothesis implementation in P2-S03-01",
+        "proposal and symbolic verdict receipts",
+        "no training or learned scorer"
+      ],
+      "causal_links": {
+        "baseline_chain_complete_count": 6,
+        "baseline_chain_completeness_ratio": 1.0,
+        "complete_chain_count": 0,
+        "completeness_ratio": 0.0,
+        "formal_mechanism_effect_evidence_allowed": false,
+        "required": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ]
+      },
+      "contract": {
+        "allowed_follow_up_scope": [
+          "typed PolicyInputSnapshot instrumentation",
+          "deterministic joint hypothesis implementation in P2-S03-01",
+          "proposal and symbolic verdict receipts",
+          "no training or learned scorer"
+        ],
+        "causal_receipt_contract": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ],
+        "decision_event_type": "topology_mutation",
+        "deterministic_decision_contract": "A fixed immutable snapshot and config digest must produce one stably ordered joint hypothesis and explicit END result. ARG never writes the graph.",
+        "display_name": "ARG joint role-node-edge topology",
+        "fallback": {
+          "degraded_event": "phase2.mechanism_degraded",
+          "on_corrupt": "phase1_deterministic_baseline",
+          "on_exception": "phase1_deterministic_baseline",
+          "on_missing": "phase1_deterministic_baseline",
+          "on_stale": "phase1_deterministic_baseline",
+          "silent_fallback_allowed": false
+        },
+        "instrumentation_requirements": [
+          "pre-proposal unresolved-obligation digest",
+          "pre-proposal immutable graph identity and revision",
+          "pre-proposal capability registry version",
+          "MemoryContinuityVerifier decision receipt",
+          "ARG proposal-to-projector causation ID"
+        ],
+        "mechanism_id": "arg_designer",
+        "optional_inputs": [
+          {
+            "canonical_owner": "RecoveryApplication",
+            "decision_timing": "before ARG proposal or excluded",
+            "evidence_key": "raw_metric.recovery.fault_success_rate",
+            "field_id": "recent_recovery_outcome",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "exclude_optional",
+            "owner_domain": "scheduler_recovery",
+            "required": false
+          }
+        ],
+        "required_failure_paths": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ],
+        "required_inputs": [
+          {
+            "canonical_owner": "ClaudeRuntimeCore",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "event.task_created.phase",
+            "field_id": "task_phase",
+            "max_age_seconds": 86400,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "task_session_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "ClaudeRuntimeCore",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "campaign.input_revision",
+            "field_id": "requirement_revision",
+            "max_age_seconds": 86400,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "task_session_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "ClaudeRuntimeCore",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "event.task_updated.unresolved",
+            "field_id": "unresolved_obligations",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "task_session_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "environment.worker_classes",
+            "field_id": "capability_registry",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "event.topology_mutation.snapshot",
+            "field_id": "immutable_graph_snapshot",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "RetrievalIntegrationRuntime",
+            "decision_timing": "strictly before ARG proposal",
+            "evidence_key": "domain_verification.continuity",
+            "field_id": "memory_continuity_verdict",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "memory_retrieval_compact",
+            "required": true
+          }
+        ],
+        "required_scenarios": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "recovery"
+        ],
+        "semantic_effect": "Produce one joint role, node, and incident-edge base topology proposal conditioned on the current task phase, requirements, obligations, capabilities, graph, and continuity verdict."
+      },
+      "deterministic_input_snapshot_replay": {
+        "input_snapshot_count": 6,
+        "input_snapshot_digests": {
+          "scenario_4604a351d3904cc39947d9df52551cfe": "7fb79303e561b46d7fab629fc400e908c65cadec2dadee7ff448f384c6309d1d",
+          "scenario_6c1d1d1eccd64e8ea23a880b39e62147": "614854eddbaa38723e38a379fb4c13d4165227cb3e8e4aba0604b0f6f0007e76",
+          "scenario_94979955475c4429a37091e50d6f8472": "123d7a01925be660940370357e4ba7a4b5c3a924ce6fc01ab3bfb1c82ccf604b",
+          "scenario_94c96b0544d1452395ad38d4750c89e5": "8a572e309a5e679f0d5739246bb471ec1daabaf04f4ee58b9ab85ecf842dc233",
+          "scenario_b7b4201ff228444db386c23553b67fb0": "a93fba14b6631748a6f3f45648e9da566868876a5c293409212d4abb3102440c",
+          "scenario_eea2565e3b07487fbae2512f46ace74e": "ca67ffd72c94bf23b67119bdd521c402b16fe675138bcecf1d7b4cf3564bf5bd"
+        },
+        "match": true,
+        "mechanism_output_determinism_deferred_to": "P2-03/P2-04",
+        "replay_digest": "02129d73a9a2beb02ec62a958c891ed40324ab9bbe7dc0fae7d8c9c7f66adf2f"
+      },
+      "diagnostic_boundary": {
+        "evidence_only_is_read_only": true,
+        "may_change_graph_route_lease_or_side_effect": false
+      },
+      "display_name": "ARG joint role-node-edge topology",
+      "domains": [
+        "cross-source-research",
+        "software-delivery"
+      ],
+      "failure_path_coverage": {
+        "observed": [
+          "exception",
+          "invalid",
+          "recovery",
+          "reroute",
+          "unavailable"
+        ],
+        "passed": false,
+        "required": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ]
+      },
+      "fallback": {
+        "degraded_event": "phase2.mechanism_degraded",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_deterministic_baseline",
+        "on_missing": "phase1_deterministic_baseline",
+        "on_stale": "phase1_deterministic_baseline",
+        "silent_fallback_allowed": false
+      },
+      "field_coverage": [
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip#event:live-event-000001-ccc9747d248ec2e6",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip#event:live-event-000001-92ab9628cac2dcf7",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip#event:live-event-000001-c73f6d7683b59c69",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip#event:live-event-000001-efceb7610c8ef198",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip#event:live-event-000001-b9ada76b079b9bd0",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip#event:live-event-000001-196d6dacfc8a4e5d"
+          ],
+          "field_id": "task_phase",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/run-receipts.json"
+          ],
+          "field_id": "requirement_revision",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "unresolved_obligations",
+          "freshness_ratio": 0.0,
+          "future_information_count": 60,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "capability_registry",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "immutable_graph_snapshot",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "memory_continuity_verdict",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "recent_recovery_outcome",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": false,
+          "sample_count": 6,
+          "stale_count": 0
+        }
+      ],
+      "gaps": [
+        "failure_path:reject",
+        "mechanism_causal_receipt",
+        "negative_evidence",
+        "required_input:capability_registry",
+        "required_input:immutable_graph_snapshot",
+        "required_input:memory_continuity_verdict",
+        "required_input:unresolved_obligations"
+      ],
+      "mechanism_id": "arg_designer",
+      "negative_evidence": {
+        "missing": [
+          "mechanism_exception",
+          "projector_reject",
+          "stale_or_corrupt_fail_closed"
+        ],
+        "observed": [
+          "baseline_fallback",
+          "mechanism_disable"
+        ],
+        "passed": false
+      },
+      "readiness_stage": "input_precheck",
+      "required_input_coverage_ratio": 0.3333333333333333,
+      "required_input_gate_passed": false,
+      "required_instrumentation": [
+        "pre-proposal unresolved-obligation digest",
+        "pre-proposal immutable graph identity and revision",
+        "pre-proposal capability registry version",
+        "MemoryContinuityVerifier decision receipt",
+        "ARG proposal-to-projector causation ID"
+      ],
+      "scenario_coverage": {
+        "observed": [
+          "fault_degraded",
+          "normal",
+          "placement",
+          "recovery",
+          "requirement_change"
+        ],
+        "passed": true,
+        "required": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "recovery"
+        ]
+      },
+      "status": "unavailable",
+      "status_reasons": [
+        "required decision-time canonical inputs are incomplete: unresolved_obligations, capability_registry, immutable_graph_snapshot, memory_continuity_verdict",
+        "mechanism proposal-to-outcome causal chains are not complete",
+        "required failure-path coverage is incomplete: reject",
+        "mechanism disconnect and fail-closed evidence is incomplete"
+      ],
+      "volume": {
+        "derived_formal_run_count": 42,
+        "discarded_duplicate_source_run_count": 0,
+        "independent_source_run_count": 6,
+        "raw_event_count": 19191,
+        "semantic_label": "evidence_volume_only",
+        "training_sample_count": 0
+      }
+    },
+    "card": {
+      "allowed_follow_up_scope": [
+        "versioned EnvironmentSnapshot instrumentation",
+        "deterministic directional residual implementation in P2-S03-02",
+        "freshness confidence hysteresis and switch-cost receipts",
+        "no GCN training or learned calibration"
+      ],
+      "causal_links": {
+        "baseline_chain_complete_count": 6,
+        "baseline_chain_completeness_ratio": 1.0,
+        "complete_chain_count": 0,
+        "completeness_ratio": 0.0,
+        "formal_mechanism_effect_evidence_allowed": false,
+        "required": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ]
+      },
+      "contract": {
+        "allowed_follow_up_scope": [
+          "versioned EnvironmentSnapshot instrumentation",
+          "deterministic directional residual implementation in P2-S03-02",
+          "freshness confidence hysteresis and switch-cost receipts",
+          "no GCN training or learned calibration"
+        ],
+        "causal_receipt_contract": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ],
+        "decision_event_type": "resource_decision",
+        "deterministic_decision_contract": "A fixed ARG base topology, EnvironmentSnapshot, and config digest must produce a stable directional residual diff with hysteresis and switch-cost reasons. CARD never creates a second graph owner.",
+        "display_name": "CARD condition residual correction",
+        "fallback": {
+          "degraded_event": "phase2.mechanism_degraded",
+          "on_corrupt": "phase1_deterministic_baseline",
+          "on_exception": "phase1_deterministic_baseline",
+          "on_missing": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+          "on_stale": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+          "silent_fallback_allowed": false
+        },
+        "instrumentation_requirements": [
+          "decision-time worker and provider health",
+          "decision-time load and capacity",
+          "decision-time latency and real cost",
+          "privacy and allowed-placement classification before residual scoring",
+          "freshness and confidence per observation",
+          "CARD residual-to-projector causation ID"
+        ],
+        "mechanism_id": "card",
+        "optional_inputs": [
+          {
+            "canonical_owner": "RecoveryApplication",
+            "decision_timing": "before CARD residual or excluded",
+            "evidence_key": "raw_metric.recovery.delivery_after_fault",
+            "field_id": "network_degradation",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "exclude_optional",
+            "owner_domain": "scheduler_recovery",
+            "required": false
+          }
+        ],
+        "required_failure_paths": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ],
+        "required_inputs": [
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "after ARG proposal and strictly before CARD residual",
+            "evidence_key": "event.topology_mutation.snapshot",
+            "field_id": "arg_base_topology",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "current_tier.health",
+            "field_id": "worker_provider_health",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "ResourceScheduler",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "raw_metric.resource.cpu_utilization",
+            "field_id": "load_capacity",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "resource_placement",
+            "required": true
+          },
+          {
+            "canonical_owner": "ProviderControlPlane",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "current_provider.latency",
+            "field_id": "latency",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "provider_model_cost",
+            "required": true
+          },
+          {
+            "canonical_owner": "ProviderControlPlane",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "current_provider.cost_tokens",
+            "field_id": "cost",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "provider_model_cost",
+            "required": true
+          },
+          {
+            "canonical_owner": "PermissionApprovalRuntime",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "owner_route.privacy",
+            "field_id": "privacy_constraint",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "permission",
+            "required": true
+          },
+          {
+            "canonical_owner": "ResourceScheduler",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "owner_route.location",
+            "field_id": "physical_location",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "resource_placement",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "current_tier.freshness",
+            "field_id": "observation_freshness",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before CARD residual",
+            "evidence_key": "current_tier.freshness",
+            "field_id": "observation_confidence",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          }
+        ],
+        "required_scenarios": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "privacy",
+          "placement",
+          "recovery"
+        ],
+        "semantic_effect": "Add, drop, or reweight directional residual edges on the ARG base topology from current health, load, latency, cost, privacy, location, freshness, and confidence."
+      },
+      "deterministic_input_snapshot_replay": {
+        "input_snapshot_count": 6,
+        "input_snapshot_digests": {
+          "scenario_4604a351d3904cc39947d9df52551cfe": "296b42146c69a042f97a6ea5f86fc2851cad9694475e1403c18ac7d9fc87da72",
+          "scenario_6c1d1d1eccd64e8ea23a880b39e62147": "df09ec321042488a4b4f00104e0a49e27dd7487f81f16c33546966e04663fed9",
+          "scenario_94979955475c4429a37091e50d6f8472": "77603a92555ba2a878c3b934119e59287e3748a769a9e5d8305d9309c000eff0",
+          "scenario_94c96b0544d1452395ad38d4750c89e5": "f790091b94753172c39e150473832500689c17e18ee1409ecff98548da2c1735",
+          "scenario_b7b4201ff228444db386c23553b67fb0": "af1694550c674cbc1a6cfe95c0fa7776c6c98a99ff0d7d4886b1e221a653ccc7",
+          "scenario_eea2565e3b07487fbae2512f46ace74e": "6ba5355f66fd4007fcc9bb247a72887b343f6e07f2248e42fd7b1769dfeef87d"
+        },
+        "match": true,
+        "mechanism_output_determinism_deferred_to": "P2-03/P2-04",
+        "replay_digest": "55077eb463d208cefafbd000580a5a4537d76ce3045f6a94894c1d949eeff7bc"
+      },
+      "diagnostic_boundary": {
+        "evidence_only_is_read_only": true,
+        "may_change_graph_route_lease_or_side_effect": false
+      },
+      "display_name": "CARD condition residual correction",
+      "domains": [
+        "cross-source-research",
+        "software-delivery"
+      ],
+      "failure_path_coverage": {
+        "observed": [
+          "exception",
+          "invalid",
+          "recovery",
+          "reroute",
+          "unavailable"
+        ],
+        "passed": false,
+        "required": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ]
+      },
+      "fallback": {
+        "degraded_event": "phase2.mechanism_degraded",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_deterministic_baseline",
+        "on_missing": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+        "on_stale": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+        "silent_fallback_allowed": false
+      },
+      "field_coverage": [
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip#event:live-event-000002-5db995330cedd962"
+          ],
+          "field_id": "arg_base_topology",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "worker_provider_health",
+          "freshness_ratio": 0.0,
+          "future_information_count": 18,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "load_capacity",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "latency",
+          "freshness_ratio": 0.0,
+          "future_information_count": 12,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "cost",
+          "freshness_ratio": 0.0,
+          "future_information_count": 12,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "privacy_constraint",
+          "freshness_ratio": 0.0,
+          "future_information_count": 24,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "physical_location",
+          "freshness_ratio": 0.0,
+          "future_information_count": 24,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "observation_freshness",
+          "freshness_ratio": 0.0,
+          "future_information_count": 18,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "observation_confidence",
+          "freshness_ratio": 0.0,
+          "future_information_count": 18,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "network_degradation",
+          "freshness_ratio": 0.0,
+          "future_information_count": 6,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": false,
+          "sample_count": 6,
+          "stale_count": 0
+        }
+      ],
+      "gaps": [
+        "failure_path:reject",
+        "mechanism_causal_receipt",
+        "negative_evidence",
+        "required_input:cost",
+        "required_input:latency",
+        "required_input:load_capacity",
+        "required_input:observation_confidence",
+        "required_input:observation_freshness",
+        "required_input:physical_location",
+        "required_input:privacy_constraint",
+        "required_input:worker_provider_health",
+        "scenario:privacy"
+      ],
+      "mechanism_id": "card",
+      "negative_evidence": {
+        "missing": [
+          "mechanism_disable",
+          "mechanism_exception",
+          "projector_reject",
+          "stale_or_corrupt_fail_closed"
+        ],
+        "observed": [
+          "baseline_fallback"
+        ],
+        "passed": false
+      },
+      "readiness_stage": "input_precheck",
+      "required_input_coverage_ratio": 0.1111111111111111,
+      "required_input_gate_passed": false,
+      "required_instrumentation": [
+        "decision-time worker and provider health",
+        "decision-time load and capacity",
+        "decision-time latency and real cost",
+        "privacy and allowed-placement classification before residual scoring",
+        "freshness and confidence per observation",
+        "CARD residual-to-projector causation ID"
+      ],
+      "scenario_coverage": {
+        "observed": [
+          "fault_degraded",
+          "normal",
+          "placement",
+          "recovery",
+          "requirement_change"
+        ],
+        "passed": false,
+        "required": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "privacy",
+          "placement",
+          "recovery"
+        ]
+      },
+      "status": "unavailable",
+      "status_reasons": [
+        "required decision-time canonical inputs are incomplete: worker_provider_health, load_capacity, latency, cost, privacy_constraint, physical_location, observation_freshness, observation_confidence",
+        "mechanism proposal-to-outcome causal chains are not complete",
+        "required scenario coverage is incomplete: privacy",
+        "required failure-path coverage is incomplete: reject",
+        "mechanism disconnect and fail-closed evidence is incomplete"
+      ],
+      "volume": {
+        "derived_formal_run_count": 42,
+        "discarded_duplicate_source_run_count": 0,
+        "independent_source_run_count": 6,
+        "raw_event_count": 19191,
+        "semantic_label": "evidence_volume_only",
+        "training_sample_count": 0
+      }
+    },
+    "maas": {
+      "allowed_follow_up_scope": [
+        "versioned OperatorCatalog instrumentation",
+        "deterministic constrained selector implementation in P2-S04-01",
+        "verifier-gated early-exit receipts in P2-S04-02",
+        "scheduler input only; no placement lease or execution ownership",
+        "no controller training textual gradient or generated code execution"
+      ],
+      "causal_links": {
+        "baseline_chain_complete_count": 6,
+        "baseline_chain_completeness_ratio": 1.0,
+        "complete_chain_count": 0,
+        "completeness_ratio": 0.0,
+        "formal_mechanism_effect_evidence_allowed": false,
+        "required": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ]
+      },
+      "contract": {
+        "allowed_follow_up_scope": [
+          "versioned OperatorCatalog instrumentation",
+          "deterministic constrained selector implementation in P2-S04-01",
+          "verifier-gated early-exit receipts in P2-S04-02",
+          "scheduler input only; no placement lease or execution ownership",
+          "no controller training textual gradient or generated code execution"
+        ],
+        "causal_receipt_contract": [
+          "proposal",
+          "symbolic_verdict",
+          "commit_or_route",
+          "execution",
+          "artifact",
+          "verification_outcome"
+        ],
+        "decision_event_type": "resource_decision",
+        "deterministic_decision_contract": "A fixed committed topology, catalog, obligations, permission, capability, health, cost, latency, budget, verifier contract, and config digest must produce a stable constrained candidate ordering and early-exit proposal.",
+        "display_name": "MaAS deterministic operator selection",
+        "fallback": {
+          "degraded_event": "phase2.mechanism_degraded",
+          "on_corrupt": "phase1_deterministic_baseline",
+          "on_exception": "phase1_resource_scheduler_baseline",
+          "on_missing": "phase1_resource_scheduler_baseline",
+          "on_stale": "phase1_resource_scheduler_baseline",
+          "silent_fallback_allowed": false
+        },
+        "instrumentation_requirements": [
+          "decision-time versioned operator catalog",
+          "permission and capability verdict before candidate inclusion",
+          "decision-time health latency real cost and budget",
+          "active unresolved-obligation digest",
+          "operator selection to scheduler and verifier causation IDs"
+        ],
+        "mechanism_id": "maas",
+        "optional_inputs": [
+          {
+            "canonical_owner": "PermissionApprovalRuntime",
+            "decision_timing": "before MaAS selection or excluded",
+            "evidence_key": "owner_route.privacy",
+            "field_id": "privacy_constraint",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "exclude_optional",
+            "owner_domain": "permission",
+            "required": false
+          }
+        ],
+        "required_failure_paths": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ],
+        "required_inputs": [
+          {
+            "canonical_owner": "GraphStateCustody",
+            "decision_timing": "after canonical graph commit and strictly before MaAS selection",
+            "evidence_key": "event.topology_mutation.snapshot",
+            "field_id": "committed_topology",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "graph_state",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "operator.catalog",
+            "field_id": "operator_catalog",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "PermissionApprovalRuntime",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "event.permission.allowed_tiers",
+            "field_id": "permission_constraints",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "permission",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "owner_route.capability",
+            "field_id": "capability_registry",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "WorkerPoolFoundationRuntime",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "current_tier.health",
+            "field_id": "health",
+            "max_age_seconds": 60,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "worker_lease_physical_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "ProviderControlPlane",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "current_provider.latency",
+            "field_id": "cost_latency",
+            "max_age_seconds": 300,
+            "minimum_confidence": 1.0,
+            "missingness": "explicit_baseline",
+            "owner_domain": "provider_model_cost",
+            "required": true
+          },
+          {
+            "canonical_owner": "ResourceScheduler",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "campaign.budget",
+            "field_id": "execution_budget",
+            "max_age_seconds": 86400,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "execution_budget",
+            "required": true
+          },
+          {
+            "canonical_owner": "ClaudeRuntimeCore",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "event.task_updated.unresolved",
+            "field_id": "unresolved_obligations",
+            "max_age_seconds": 3600,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "task_session_attempt",
+            "required": true
+          },
+          {
+            "canonical_owner": "LocalArtifactStore",
+            "decision_timing": "strictly before MaAS selection",
+            "evidence_key": "campaign.verifier_contract",
+            "field_id": "verifier_contract",
+            "max_age_seconds": 86400,
+            "minimum_confidence": 1.0,
+            "missingness": "fail_closed",
+            "owner_domain": "artifact",
+            "required": true
+          }
+        ],
+        "required_scenarios": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "privacy",
+          "placement",
+          "recovery"
+        ],
+        "semantic_effect": "Select concrete operator, skill, worker, tool, model, breadth, and depth candidates after graph commit without taking placement, lease, or execution ownership."
+      },
+      "deterministic_input_snapshot_replay": {
+        "input_snapshot_count": 6,
+        "input_snapshot_digests": {
+          "scenario_4604a351d3904cc39947d9df52551cfe": "f73e6c64bde8e485449465a7911e9aae4b2be45615d75fc70b297c6771a58c9e",
+          "scenario_6c1d1d1eccd64e8ea23a880b39e62147": "c6829dd2ed6005863c5d6b2c60ae4c5568a36ad0e71fd1d92d4e5ca0753f803d",
+          "scenario_94979955475c4429a37091e50d6f8472": "2b391797cea8f40ce255d2da342af1701281b10e46a798721a0d827ef3d3c2f4",
+          "scenario_94c96b0544d1452395ad38d4750c89e5": "7b21b7b9697d80648186985967f34b8ffea37c7062b6c15b1a578a3c6a447258",
+          "scenario_b7b4201ff228444db386c23553b67fb0": "4e4ef64e9c7adc67f6353b989b53f1a696dc67c91344e3c07f00164b3a33bec2",
+          "scenario_eea2565e3b07487fbae2512f46ace74e": "7299fea0e1acb54d0638ca18159ce8efd1015ccc4749d61b2c406cd264b78bce"
+        },
+        "match": true,
+        "mechanism_output_determinism_deferred_to": "P2-03/P2-04",
+        "replay_digest": "29eb1b0caa643cd7154c9ee1ebc0ef9c801c37ae47d5e238b48b9239c3ad1786"
+      },
+      "diagnostic_boundary": {
+        "evidence_only_is_read_only": true,
+        "may_change_graph_route_lease_or_side_effect": false
+      },
+      "display_name": "MaAS deterministic operator selection",
+      "domains": [
+        "cross-source-research",
+        "software-delivery"
+      ],
+      "failure_path_coverage": {
+        "observed": [
+          "exception",
+          "invalid",
+          "recovery",
+          "reroute",
+          "unavailable"
+        ],
+        "passed": false,
+        "required": [
+          "reject",
+          "invalid",
+          "unavailable",
+          "reroute",
+          "recovery"
+        ]
+      },
+      "fallback": {
+        "degraded_event": "phase2.mechanism_degraded",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_resource_scheduler_baseline",
+        "on_missing": "phase1_resource_scheduler_baseline",
+        "on_stale": "phase1_resource_scheduler_baseline",
+        "silent_fallback_allowed": false
+      },
+      "field_coverage": [
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip#event:live-event-000002-5db995330cedd962",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip#event:live-event-000002-5db995330cedd962"
+          ],
+          "field_id": "committed_topology",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "operator_catalog",
+          "freshness_ratio": 0.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-01.zip#event:placement-event-000003-6b2e3befdc1a",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-02.zip#event:placement-event-000003-e58fec930e7c",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/cross-source-research-repetition-03.zip#event:placement-event-000003-d62074971651",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-01.zip#event:placement-event-000003-8e17a78b62ec",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-02.zip#event:placement-event-000003-e290b77617ce",
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-archives/software-delivery-repetition-03.zip#event:placement-event-000003-dbee483d5ec8"
+          ],
+          "field_id": "permission_constraints",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "capability_registry",
+          "freshness_ratio": 0.0,
+          "future_information_count": 24,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "health",
+          "freshness_ratio": 0.0,
+          "future_information_count": 18,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "cost_latency",
+          "freshness_ratio": 0.0,
+          "future_information_count": 12,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/campaign.json"
+          ],
+          "field_id": "execution_budget",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "unresolved_obligations",
+          "freshness_ratio": 0.0,
+          "future_information_count": 60,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 6,
+          "confidence_ratio": 1.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 1.0,
+          "evidence_refs": [
+            "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/campaign.json"
+          ],
+          "field_id": "verifier_contract",
+          "freshness_ratio": 1.0,
+          "future_information_count": 0,
+          "low_confidence_count": 0,
+          "missing_count": 0,
+          "owner_mismatch_count": 0,
+          "required": true,
+          "sample_count": 6,
+          "stale_count": 0
+        },
+        {
+          "available_count": 0,
+          "confidence_ratio": 0.0,
+          "conflicting_value_count": 0,
+          "corrupt_count": 0,
+          "coverage_ratio": 0.0,
+          "evidence_refs": [],
+          "field_id": "privacy_constraint",
+          "freshness_ratio": 0.0,
+          "future_information_count": 24,
+          "low_confidence_count": 0,
+          "missing_count": 6,
+          "owner_mismatch_count": 0,
+          "required": false,
+          "sample_count": 6,
+          "stale_count": 0
+        }
+      ],
+      "gaps": [
+        "failure_path:reject",
+        "mechanism_causal_receipt",
+        "negative_evidence",
+        "required_input:capability_registry",
+        "required_input:cost_latency",
+        "required_input:health",
+        "required_input:operator_catalog",
+        "required_input:unresolved_obligations",
+        "scenario:privacy"
+      ],
+      "mechanism_id": "maas",
+      "negative_evidence": {
+        "missing": [
+          "mechanism_exception",
+          "projector_reject",
+          "stale_or_corrupt_fail_closed"
+        ],
+        "observed": [
+          "baseline_fallback",
+          "mechanism_disable"
+        ],
+        "passed": false
+      },
+      "readiness_stage": "input_precheck",
+      "required_input_coverage_ratio": 0.4444444444444444,
+      "required_input_gate_passed": false,
+      "required_instrumentation": [
+        "decision-time versioned operator catalog",
+        "permission and capability verdict before candidate inclusion",
+        "decision-time health latency real cost and budget",
+        "active unresolved-obligation digest",
+        "operator selection to scheduler and verifier causation IDs"
+      ],
+      "scenario_coverage": {
+        "observed": [
+          "fault_degraded",
+          "normal",
+          "placement",
+          "recovery",
+          "requirement_change"
+        ],
+        "passed": false,
+        "required": [
+          "normal",
+          "requirement_change",
+          "fault_degraded",
+          "privacy",
+          "placement",
+          "recovery"
+        ]
+      },
+      "status": "unavailable",
+      "status_reasons": [
+        "required decision-time canonical inputs are incomplete: operator_catalog, capability_registry, health, cost_latency, unresolved_obligations",
+        "mechanism proposal-to-outcome causal chains are not complete",
+        "required scenario coverage is incomplete: privacy",
+        "required failure-path coverage is incomplete: reject",
+        "mechanism disconnect and fail-closed evidence is incomplete"
+      ],
+      "volume": {
+        "derived_formal_run_count": 42,
+        "discarded_duplicate_source_run_count": 0,
+        "independent_source_run_count": 6,
+        "raw_event_count": 19191,
+        "semantic_label": "evidence_volume_only",
+        "training_sample_count": 0
+      }
+    }
+  },
+  "no_policy_training_audit": {
+    "checked_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "packages/orchestration/zyra_orchestration/topology_policy/condition",
+      "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+      "packages/scheduler/zyra_scheduler/operator_policy",
+      "scripts/phase2-validation"
+    ],
+    "declared_dependencies": [
+      "browser-use[core]==0.13.3",
+      "psutil>=7,<8"
+    ],
+    "findings": [],
+    "mutable_learned_parameter_count": 0,
+    "passed": true,
+    "runtime_entry_point_count": 0,
+    "scanned_file_count": 0,
+    "training_checkpoint_count": 0,
+    "training_dataset_count": 0,
+    "training_sample_count": 0
+  },
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "raw_transition_count_semantics": "evidence_volume_only",
+  "readiness_stage": "input_precheck",
+  "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "resolver_policy": {
+    "corrupt_report": "unavailable",
+    "deterministic_ready_at_input_precheck": "validation",
+    "digest_mismatch": "unavailable",
+    "evidence_only": "diagnostic",
+    "fallback_profile": "phase1_deterministic_baseline",
+    "missing_report": "unavailable",
+    "unavailable": "baseline",
+    "unknown_status": "unavailable"
+  },
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S00-03",
+  "training_sample_count": 0,
+  "valid": true
+}
