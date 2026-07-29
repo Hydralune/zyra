@@ -1,0 +1,76 @@
+{
+  "schema": "zyra.phase2-slice-verification-summary/v1",
+  "slice_id": "P2-S00-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "implementation_commit": "7cac95958c74aa96b4ec3d0082f6cf5108b57c95",
+  "verdict": "PASS",
+  "policy_contract_verification": {
+    "path": "docs/reviews/evidence/P2-S00-02/policy-contract-verification.json",
+    "sha256": "222eeea98acb0baf686517bb799863db40a840587f8496d763e77c47a77d6904",
+    "valid": true,
+    "source_domain_count": 5,
+    "source_count": 9,
+    "owner_domain_count": 13,
+    "proposal_owner_count": 0,
+    "metric_count": 33,
+    "hard_gate_count": 23,
+    "strongest_activation_eligible": false
+  },
+  "verification": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\evaluation\\test_phase2_policy_contracts.py -q",
+      "result": "16 passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_phase2_owner_registry.py -q",
+      "result": "12 passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\unit\\orchestration\\test_phase2_owner_registry.py -q -p no:cacheprovider --basetemp G:\\agent-zoo\\zyra\\.tmp\\pytest-P2-S00-02-7cac959",
+      "result": "28 passed in 0.40s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py --target-commit 7cac95958c74aa96b4ec3d0082f6cf5108b57c95",
+      "result": "valid=true"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py --target-commit 7cac95958c74aa96b4ec3d0082f6cf5108b57c95 --require-strongest-active",
+      "result": "expected exit 1; strongest-profile-readiness-failed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0; missing_repos=0"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages\\evaluation\\zyra_evaluation\\policy_benchmark scripts\\verify_phase2_policy_contracts.py tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\unit\\orchestration\\test_phase2_owner_registry.py",
+      "result": "PASS"
+    }
+  ],
+  "environment_diagnostic": {
+    "first_exact_commit_combined_run": "26 passed and 2 tmp_path setup errors",
+    "cause": "Windows user temporary directory ACL denied pytest directory enumeration",
+    "repository_failure": false,
+    "resolution": "The identical tests passed with an explicit new workspace-local basetemp and cacheprovider disabled."
+  },
+  "line_buckets": {
+    "production_and_scripts_raw_additions": 1280,
+    "test_raw_additions": 348,
+    "data_raw_additions": 1132,
+    "docs_raw_additions": 491,
+    "runtime_assets_raw_additions": 0,
+    "generated_raw_additions": 0,
+    "adapter_only_raw_additions": 0,
+    "mock_fixture_raw_additions": 0
+  },
+  "risk_assessment": {
+    "canonical_owner_transfer": false,
+    "default_runtime_policy_changed": false,
+    "external_dependency_added": false,
+    "training_lifecycle_added": false,
+    "high_risk_escalation_triggered": false
+  }
+}
