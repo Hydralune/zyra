@@ -1,0 +1,216 @@
+{
+  "schema": "zyra.phase2.state-owner-registry/v1",
+  "slice_id": "P2-S00-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "registry_mode": "phase2_constraint_overlay",
+  "frozen": true,
+  "frozen_owner_evidence_catalog": {
+    "path": "packages/evaluation/zyra_evaluation/data/state_owner_evidence_catalog.json",
+    "schema": "zyra.state-owner-evidence-catalog/v1",
+    "sha256": "d18f85bd8be8ff8391d24b3418184e93b9134b9fe5c11e437bbfa0de6758951f",
+    "first_stage_fact_is_read_only": true,
+    "required_bindings": [
+      {"domain": "session_event_projection", "symbol": "ClaudeRuntimeCore"},
+      {"domain": "permission", "symbol": "PermissionApprovalRuntime"},
+      {"domain": "memory_compact", "symbol": "RetrievalIntegrationRuntime"},
+      {"domain": "scheduler_recovery", "symbol": "RecoveryApplication"},
+      {"domain": "artifact", "symbol": "LocalArtifactStore"},
+      {"domain": "worker_route", "symbol": "WorkerPoolFoundationRuntime"},
+      {"domain": "graph_checkpoint", "symbol": "GraphStateCustody"},
+      {"domain": "provider_credential_failover", "symbol": "ProviderControlPlane"}
+    ]
+  },
+  "state_domains": [
+    {
+      "domain_id": "task_session_attempt",
+      "canonical_owner": {
+        "owner_id": "claude_runtime_core",
+        "source_id": "zyra",
+        "symbol": "ClaudeRuntimeCore",
+        "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "permission",
+      "canonical_owner": {
+        "owner_id": "permission_approval_runtime",
+        "source_id": "zyra",
+        "symbol": "PermissionApprovalRuntime",
+        "path": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "memory_facts",
+      "canonical_owner": {
+        "owner_id": "memory_fabric",
+        "source_id": "zyra",
+        "symbol": "MemoryFabric",
+        "path": "packages/memory/zyra_memory/fabric.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "memory_retrieval_compact",
+      "canonical_owner": {
+        "owner_id": "retrieval_integration_runtime",
+        "source_id": "zyra",
+        "symbol": "RetrievalIntegrationRuntime",
+        "path": "packages/memory/zyra_memory/integration_runtime.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "graph_state",
+      "canonical_owner": {
+        "owner_id": "graph_state_custody",
+        "source_id": "zyra",
+        "symbol": "GraphStateCustody",
+        "path": "packages/orchestration/zyra_orchestration/graph_custody/runtime.py",
+        "implementation_state": "existing"
+      },
+      "authorized_writers": ["GraphDeltaBuilder", "DynamicTopologyRuntime"],
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "resource_placement",
+      "canonical_owner": {
+        "owner_id": "resource_scheduler",
+        "source_id": "zyra",
+        "symbol": "ResourceScheduler",
+        "path": "packages/scheduler/zyra_scheduler/scheduler.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "scheduler_recovery",
+      "canonical_owner": {
+        "owner_id": "recovery_application",
+        "source_id": "zyra",
+        "symbol": "RecoveryApplication",
+        "path": "packages/scheduler/zyra_scheduler/recovery_runtime/application.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "worker_lease_physical_attempt",
+      "canonical_owner": {
+        "owner_id": "worker_pool_foundation_runtime",
+        "source_id": "zyra",
+        "symbol": "WorkerPoolFoundationRuntime",
+        "path": "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "artifact",
+      "canonical_owner": {
+        "owner_id": "local_artifact_store",
+        "source_id": "zyra",
+        "symbol": "LocalArtifactStore",
+        "path": "packages/runtime/zyra_runtime/artifacts.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "event_trace",
+      "canonical_owner": {
+        "owner_id": "runtime_event_sqlite_store",
+        "source_id": "zyra",
+        "symbol": "RuntimeEventSqliteStore",
+        "path": "packages/runtime/runtime-event-spine/src/sqlite-store.ts",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "provider_model_cost",
+      "canonical_owner": {
+        "owner_id": "provider_control_plane",
+        "source_id": "zyra",
+        "symbol": "ProviderControlPlane",
+        "path": "packages/runtime/provider-control-plane/src/control-plane.ts",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "execution_budget",
+      "canonical_owner": {
+        "owner_id": "resource_scheduler",
+        "source_id": "zyra",
+        "symbol": "ResourceScheduler",
+        "path": "packages/scheduler/zyra_scheduler/scheduler.py",
+        "implementation_state": "existing"
+      },
+      "proposal_writes_allowed": false
+    },
+    {
+      "domain_id": "loopx_private_control",
+      "canonical_owner": {
+        "owner_id": "loopx_private_control",
+        "source_id": "loopx",
+        "symbol": "LoopXPrivateState",
+        "path": "packages/integrations/zyra_integrations/loopx",
+        "implementation_state": "planned"
+      },
+      "private_fields": ["goal", "todo", "claim", "history", "plugin_state"],
+      "proposal_writes_allowed": false
+    }
+  ],
+  "mechanism_constraints": [
+    {
+      "mechanism_id": "arg_designer",
+      "mode": "proposal_only",
+      "allowed_outputs": ["joint_role_node_incident_edge_hypothesis"],
+      "forbidden_domains": ["graph_state", "task_session_attempt", "worker_lease_physical_attempt"]
+    },
+    {
+      "mechanism_id": "card",
+      "mode": "proposal_only",
+      "allowed_outputs": ["directional_condition_residual"],
+      "forbidden_domains": ["graph_state", "task_session_attempt", "worker_lease_physical_attempt"]
+    },
+    {
+      "mechanism_id": "agentprune",
+      "mode": "proposal_only",
+      "allowed_outputs": ["spatial_temporal_keep_drop_proposal"],
+      "forbidden_domains": ["graph_state", "task_session_attempt", "worker_lease_physical_attempt"]
+    },
+    {
+      "mechanism_id": "maas",
+      "mode": "proposal_only",
+      "allowed_outputs": ["operator_skill_worker_tool_model_breadth_depth_candidates"],
+      "forbidden_domains": [
+        "resource_placement",
+        "worker_lease_physical_attempt",
+        "execution_budget",
+        "permission",
+        "task_session_attempt"
+      ]
+    },
+    {
+      "mechanism_id": "loopx",
+      "mode": "private_state_and_proposal_only",
+      "allowed_domains": ["loopx_private_control"],
+      "forbidden_domains": [
+        "task_session_attempt",
+        "graph_state",
+        "permission",
+        "worker_lease_physical_attempt",
+        "execution_budget",
+        "resource_placement",
+        "memory_facts"
+      ]
+    }
+  ]
+}

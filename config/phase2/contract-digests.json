@@ -1,0 +1,59 @@
+{
+  "schema": "zyra.phase2.policy-contract-digests/v1",
+  "slice_id": "P2-S00-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "documents": [
+    {
+      "adr_id": "P2-ADR-001",
+      "path": "docs/architecture/phase2/adr/P2-ADR-001.md",
+      "sha256": "c72d89c3321e0c707fabbecf4fc5cac61d2bbf25248ad3b3352e080818cd458d"
+    },
+    {
+      "adr_id": "P2-ADR-002",
+      "path": "docs/architecture/phase2/adr/P2-ADR-002.md",
+      "sha256": "b5a64c52ef089772f54005935f7b89f5701af3d28109c3707200e1e494d2e6e2"
+    },
+    {
+      "adr_id": "P2-ADR-003",
+      "path": "docs/architecture/phase2/adr/P2-ADR-003.md",
+      "sha256": "87f302f474e6c80831bb07f6e83bed4a07fe87854cc159dc3d2f2bd791061438"
+    },
+    {
+      "adr_id": "P2-ADR-004",
+      "path": "docs/architecture/phase2/adr/P2-ADR-004.md",
+      "sha256": "37f19b884edcedb0c64e6fcb78387713dd389abfa55cea7a9d814bd43d77657b"
+    },
+    {
+      "adr_id": "P2-ADR-005",
+      "path": "docs/architecture/phase2/adr/P2-ADR-005.md",
+      "sha256": "8b33ceda620121e239684a3ac851c0742175db724d14c6bacda82160d76e320e"
+    },
+    {
+      "adr_id": "P2-ADR-006",
+      "path": "docs/architecture/phase2/adr/P2-ADR-006.md",
+      "sha256": "9e7634b62142fb66efd3872b717b3c5fcfb67259091bf318a981551e782da790"
+    },
+    {
+      "adr_id": "P2-ADR-007",
+      "path": "docs/architecture/phase2/adr/P2-ADR-007.md",
+      "sha256": "e7928dbfbf77816c8810946ab1606405a86b98d9396a7488bb359eebb0cd7b0f"
+    }
+  ],
+  "configs": [
+    {
+      "config_id": "source_roles",
+      "path": "config/phase2/source-roles.yaml",
+      "sha256": "c9ab5ee7f060f8185d33259f9ead40e37a8c23171ee18a44593b18a92301a0c8"
+    },
+    {
+      "config_id": "state_owners",
+      "path": "config/phase2/state-owners.yaml",
+      "sha256": "e12753325e9c7b910776e3ee67af3d6204720da13e8dfa763067c56d35b3357c"
+    },
+    {
+      "config_id": "activation_gates",
+      "path": "config/phase2/activation-gates.yaml",
+      "sha256": "fb47de2682444f332b9b0570624fb80646c5143b31981265b6c3ebc1c9e5acb9"
+    }
+  ]
+}

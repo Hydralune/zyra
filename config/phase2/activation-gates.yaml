@@ -1,0 +1,639 @@
+{
+  "schema": "zyra.phase2.activation-gates/v1",
+  "slice_id": "P2-S00-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "frozen": true,
+  "gate_revision": 1,
+  "frozen_gate_digest": "3456451831318118b655a1a44d70ca7faffa6e42d3035ccf52640128c2e46f8a",
+  "supersession": {
+    "supersedes_gate_digest": null,
+    "superseding_adr": null
+  },
+  "readiness": {
+    "allowed_stages": [
+      "input_precheck",
+      "implementation_validated",
+      "activation_ready"
+    ],
+    "allowed_statuses": [
+      "deterministic_ready",
+      "evidence_only",
+      "unavailable"
+    ],
+    "mechanisms": [
+      {
+        "mechanism_id": "loopx",
+        "status": "unavailable",
+        "stage": "input_precheck",
+        "report_ref": "pending:P2-S00-03/input_precheck",
+        "required_for_strongest": true,
+        "fallback_profile": "phase1_deterministic_baseline"
+      },
+      {
+        "mechanism_id": "arg_designer",
+        "status": "unavailable",
+        "stage": "input_precheck",
+        "report_ref": "pending:P2-S00-03/input_precheck",
+        "required_for_strongest": true,
+        "fallback_profile": "phase1_deterministic_baseline"
+      },
+      {
+        "mechanism_id": "card",
+        "status": "unavailable",
+        "stage": "input_precheck",
+        "report_ref": "pending:P2-S00-03/input_precheck",
+        "required_for_strongest": true,
+        "fallback_profile": "phase1_deterministic_baseline"
+      },
+      {
+        "mechanism_id": "agentprune",
+        "status": "unavailable",
+        "stage": "input_precheck",
+        "report_ref": "pending:P2-S00-03/input_precheck",
+        "required_for_strongest": true,
+        "fallback_profile": "phase1_deterministic_baseline"
+      },
+      {
+        "mechanism_id": "maas",
+        "status": "unavailable",
+        "stage": "input_precheck",
+        "report_ref": "pending:P2-S00-03/input_precheck",
+        "required_for_strongest": true,
+        "fallback_profile": "phase1_deterministic_baseline"
+      }
+    ]
+  },
+  "profiles": [
+    {
+      "profile_id": "phase1_baseline_snapshot",
+      "lifecycle": "baseline",
+      "activation_state": "read_only",
+      "configuration_ref": "docs/release/phase2-baseline-manifest.json",
+      "fallback_profile": "phase1_deterministic_baseline",
+      "required_mechanisms": []
+    },
+    {
+      "profile_id": "phase1_deterministic_baseline",
+      "lifecycle": "default",
+      "activation_state": "active",
+      "configuration_ref": "docs/reviews/evidence/P2-S00-01/mechanism-baseline.json",
+      "fallback_profile": "phase1_deterministic_baseline",
+      "required_mechanisms": []
+    },
+    {
+      "profile_id": "phase2_strongest_v1",
+      "lifecycle": "validation",
+      "activation_state": "blocked_pending_readiness",
+      "required_mechanisms": [
+        "loopx",
+        "arg_designer",
+        "card",
+        "agentprune",
+        "maas"
+      ],
+      "fallback_profile": "phase1_deterministic_baseline",
+      "rollback_profile": "phase1_deterministic_baseline",
+      "degraded_event": "phase2.mechanism_degraded",
+      "silent_fallback_allowed": false
+    },
+    {
+      "profile_id": "phase2_diagnostic_v1",
+      "lifecycle": "diagnostic",
+      "activation_state": "read_only",
+      "required_mechanisms": [],
+      "fallback_profile": "phase1_deterministic_baseline",
+      "canonical_mutation_allowed": false
+    },
+    {
+      "profile_id": "phase2_retired",
+      "lifecycle": "retired",
+      "activation_state": "disabled",
+      "required_mechanisms": [],
+      "fallback_profile": "phase1_deterministic_baseline",
+      "canonical_mutation_allowed": false
+    }
+  ],
+  "activation_rules": {
+    "strongest_requires_all_mechanisms_deterministic_ready": true,
+    "strongest_requires_activation_ready_report": true,
+    "evidence_only_is_diagnostic_only": true,
+    "unavailable_uses_explicit_baseline": true,
+    "missing_registry_fails_closed": true,
+    "digest_mismatch_fails_closed": true,
+    "rollback_preserves_historical_receipts": true,
+    "gate_changes_require_superseding_adr": true
+  },
+  "no_policy_training": {
+    "training_allowed": false,
+    "fine_tuning_allowed": false,
+    "online_learning_allowed": false,
+    "policy_gradient_allowed": false,
+    "textual_gradient_allowed": false,
+    "variable_learned_parameters_allowed": false,
+    "runtime_entry_points": [],
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": [],
+    "forbidden_entry_tokens": [
+      "train",
+      "training",
+      "fine-tune",
+      "finetune",
+      "rl",
+      "policy-gradient",
+      "policy_gradient",
+      "textual-gradient",
+      "textual_gradient",
+      "online-learning",
+      "online_learning"
+    ],
+    "allowed_read_only_proposal_signals": [
+      "deterministic_only",
+      "pretrained_model_assisted",
+      "mixed"
+    ]
+  },
+  "evidence_contracts": [
+    {
+      "contract_id": "EC-RUN-001",
+      "evidence_unit": "independent_sealed_run",
+      "required_fields": ["run_id", "task_id", "domain_id", "verifier_result", "human_intervention_count", "effective_transition_count"]
+    },
+    {
+      "contract_id": "EC-GRAPH-001",
+      "evidence_unit": "graph_decision_commit_receipt",
+      "required_fields": ["input_snapshot_digest", "proposal_id", "symbolic_verdict", "graph_delta_id", "commit_id", "base_revision"]
+    },
+    {
+      "contract_id": "EC-PERM-001",
+      "evidence_unit": "permission_privacy_decision",
+      "required_fields": ["decision_id", "action", "disposition", "privacy_class", "allowed_placement"]
+    },
+    {
+      "contract_id": "EC-READY-001",
+      "evidence_unit": "mechanism_readiness_report",
+      "required_fields": ["mechanism_id", "stage", "status", "input_coverage", "causal_link_completeness", "deterministic_replay_match"]
+    },
+    {
+      "contract_id": "EC-MEM-001",
+      "evidence_unit": "memory_continuity_receipt",
+      "required_fields": ["before_digest", "after_digest", "requirement_revision", "critical_fact_results", "obligation_results", "provenance_refs"]
+    },
+    {
+      "contract_id": "EC-SYMBOLIC-001",
+      "evidence_unit": "mechanism_symbolic_evidence_bundle",
+      "required_fields": ["proposal_signal_mode", "raw_proposal", "constraint_results", "projected_delta", "commit_or_no_commit", "verification_result"]
+    },
+    {
+      "contract_id": "EC-DISPATCH-001",
+      "evidence_unit": "physical_dispatch_receipt",
+      "required_fields": ["placement_decision_id", "lease_id", "physical_attempt_id", "physical_identity", "call_receipt", "artifact_ref", "verifier_ref"]
+    },
+    {
+      "contract_id": "EC-LOOPX-001",
+      "evidence_unit": "loopx_control_receipt",
+      "required_fields": ["goal_id", "todo_or_claim_id", "validation_result", "spend_delta", "continuation_effect", "zyra_causation_ref"]
+    },
+    {
+      "contract_id": "EC-RELEASE-001",
+      "evidence_unit": "cleanroom_release_audit",
+      "required_fields": ["target_commit", "root_source_dependency_count", "state_owner_duplicate_count", "no_policy_training_violation_count"]
+    },
+    {
+      "contract_id": "EC-METRIC-001",
+      "evidence_unit": "metric_aggregation_receipt",
+      "required_fields": ["metric_id", "sample_ids", "sample_count", "aggregation", "value", "failed_sample_count"]
+    }
+  ],
+  "metrics": [
+    {
+      "metric_id": "sealed_task_completion_ratio",
+      "description": "Both selected cross-domain sealed tasks pass their deterministic verifier.",
+      "unit": "ratio",
+      "direction": "minimum",
+      "threshold": 1.0,
+      "evidence_unit": "sealed_run_verifier_result",
+      "sample_unit": "independent_task_run",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-LOOP", "SCORE-TASKS"],
+      "evidence_contract_ids": ["EC-RUN-001"]
+    },
+    {
+      "metric_id": "human_intervention_count",
+      "description": "Human or operator intervention during a sealed run.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "sealed_run_control_event",
+      "sample_unit": "independent_task_run",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-LOOP"],
+      "evidence_contract_ids": ["EC-RUN-001"]
+    },
+    {
+      "metric_id": "effective_transition_count",
+      "description": "Semantic canonical transitions in each final long run.",
+      "unit": "transition",
+      "direction": "minimum",
+      "threshold": 2000,
+      "evidence_unit": "canonical_transition_receipt",
+      "sample_unit": "independent_task_run",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-LOOP"],
+      "evidence_contract_ids": ["EC-RUN-001"]
+    },
+    {
+      "metric_id": "canonical_mutation_custody_ratio",
+      "description": "Graph mutations committed by GraphStateCustody.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "graph_commit_receipt",
+      "sample_unit": "canonical_graph_mutation",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TOPO-01", "REQ-TRACE-01", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-GRAPH-001"]
+    },
+    {
+      "metric_id": "invalid_proposal_rejection_ratio",
+      "description": "Invalid capability, privacy, permission, or placement proposals rejected by the symbolic plane.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "symbolic_verdict",
+      "sample_unit": "invalid_proposal",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TOPO-01", "SCORE-ALGO", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-SYMBOLIC-001"]
+    },
+    {
+      "metric_id": "duplicate_side_effect_count",
+      "description": "Duplicate commit, claim, spend, lease, or side effect after replay.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "idempotency_replay_receipt",
+      "sample_unit": "replayed_operation",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-GRAPH-001", "EC-LOOPX-001", "EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "early_exit_false_positive_count",
+      "description": "Early exits with failed verifier, incomplete artifact, unresolved obligation, or pending side effect.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "early_exit_verifier_receipt",
+      "sample_unit": "early_exit_decision",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-EFF", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-RUN-001", "EC-METRIC-001"]
+    },
+    {
+      "metric_id": "privacy_permission_violation_count",
+      "description": "Committed privacy or permission violations.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "permission_privacy_decision",
+      "sample_unit": "guarded_action",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-PERM-001", "EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "state_owner_duplicate_count",
+      "description": "Canonical domains with more than one owner.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "owner_registry_validation",
+      "sample_unit": "canonical_state_domain",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TRACE-01", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-RELEASE-001"]
+    },
+    {
+      "metric_id": "root_source_runtime_dependency_count",
+      "description": "Runtime dependencies on parent source repositories.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "cleanroom_path_audit",
+      "sample_unit": "release_runtime_reference",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-DOC-01", "SCORE-COMPAT"],
+      "evidence_contract_ids": ["EC-RELEASE-001"]
+    },
+    {
+      "metric_id": "loopx_validation_failure_spend_count",
+      "description": "LoopX quota spends after failed validation.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "loopx_validation_spend_receipt",
+      "sample_unit": "loopx_completion_attempt",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-CLOSE-01", "SCORE-LOOP"],
+      "evidence_contract_ids": ["EC-LOOPX-001"]
+    },
+    {
+      "metric_id": "no_policy_training_violation_count",
+      "description": "Forbidden policy training entry, dataset, checkpoint, or mutable learned parameter.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "release_contract_scan",
+      "sample_unit": "release_entry_or_artifact",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-DOC-01", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-RELEASE-001"]
+    },
+    {
+      "metric_id": "required_mechanism_ready_ratio",
+      "description": "Strongest-profile required mechanisms with activation-ready deterministic status.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "mechanism_readiness_report",
+      "sample_unit": "required_mechanism",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TOPO-01", "REQ-COMM-01", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-READY-001"]
+    },
+    {
+      "metric_id": "memory_critical_fact_recall_ratio",
+      "description": "Critical facts retained across compact, restore, handoff, and restart.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "memory_continuity_receipt",
+      "sample_unit": "critical_fact",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-MEM-01", "SCORE-LOOP", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-MEM-001"]
+    },
+    {
+      "metric_id": "unresolved_obligation_retention_ratio",
+      "description": "Unresolved obligations retained across continuity boundaries.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "memory_continuity_receipt",
+      "sample_unit": "unresolved_obligation",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-MEM-01", "SCORE-LOOP"],
+      "evidence_contract_ids": ["EC-MEM-001"]
+    },
+    {
+      "metric_id": "stale_memory_execution_count",
+      "description": "Superseded requirement executions, unprovenanced critical retrievals, or restore-induced duplicate work.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "memory_continuity_receipt",
+      "sample_unit": "continuity_boundary",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-MEM-01", "REQ-FAULT-01", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-MEM-001"]
+    },
+    {
+      "metric_id": "unsafe_symbolic_commit_count",
+      "description": "Unsafe adversarial proposal commits.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "mechanism_symbolic_evidence_bundle",
+      "sample_unit": "adversarial_proposal",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TOPO-01", "REQ-EDGE-01", "SCORE-ALGO", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-SYMBOLIC-001"]
+    },
+    {
+      "metric_id": "production_projector_bypass_count",
+      "description": "Production call paths that bypass symbolic projection.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "production_call_graph_audit",
+      "sample_unit": "proposal_commit_path",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-TOPO-01", "SCORE-ALGO"],
+      "evidence_contract_ids": ["EC-SYMBOLIC-001", "EC-RELEASE-001"]
+    },
+    {
+      "metric_id": "real_local_dispatch_receipt_ratio",
+      "description": "Local dispatches with host, process or terminal, lease, attempt, artifact, and verifier evidence.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "physical_dispatch_receipt",
+      "sample_unit": "required_local_dispatch_lane",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "SCORE-COMPAT", "SCORE-EFF"],
+      "evidence_contract_ids": ["EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "real_edge_dispatch_receipt_ratio",
+      "description": "Edge dispatches with independent identity, isolation boundary, lease, attempt, artifact, and verifier evidence.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "physical_dispatch_receipt",
+      "sample_unit": "required_edge_dispatch_lane",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "SCORE-COMPAT", "SCORE-EFF"],
+      "evidence_contract_ids": ["EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "real_cloud_dispatch_receipt_ratio",
+      "description": "Cloud dispatches with provider, model, request, usage, cost, artifact, and verifier evidence.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "physical_dispatch_receipt",
+      "sample_unit": "required_cloud_dispatch_lane",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "SCORE-COMPAT", "SCORE-EFF"],
+      "evidence_contract_ids": ["EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "physical_placement_causality_ratio",
+      "description": "Decision to lease, physical attempt, call, artifact, and verification causal chains.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "physical_dispatch_receipt",
+      "sample_unit": "physical_dispatch",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "REQ-TRACE-01", "SCORE-COMPAT"],
+      "evidence_contract_ids": ["EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "required_condition_switch_lane_pass_ratio",
+      "description": "Provider, model, fault, privacy, load, latency, cost, and availability condition-switch lanes pass.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "condition_switch_dispatch_receipt",
+      "sample_unit": "required_condition_lane",
+      "hard_gate": true,
+      "empty_sample_semantics": "fail_closed",
+      "requirement_ids": ["REQ-EDGE-01", "REQ-FAULT-01", "SCORE-ROBUST", "SCORE-COMPAT"],
+      "evidence_contract_ids": ["EC-DISPATCH-001", "EC-RUN-001"]
+    },
+    {
+      "metric_id": "communication_delivery_reduction",
+      "description": "Targeted communication delivery reduction versus the frozen comparable baseline.",
+      "unit": "ratio",
+      "direction": "minimum",
+      "threshold": 0.2,
+      "evidence_unit": "paired_metric_aggregation",
+      "sample_unit": "comparable_task_run_pair",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-COMM-01", "SCORE-NOISE", "SCORE-EFF"],
+      "evidence_contract_ids": ["EC-METRIC-001"]
+    },
+    {
+      "metric_id": "envelope_bytes_reduction",
+      "description": "Total envelope byte reduction versus the frozen comparable baseline.",
+      "unit": "ratio",
+      "direction": "minimum",
+      "threshold": 0.15,
+      "evidence_unit": "paired_metric_aggregation",
+      "sample_unit": "comparable_task_run_pair",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-COMM-01", "SCORE-NOISE", "SCORE-EFF"],
+      "evidence_contract_ids": ["EC-METRIC-001"]
+    },
+    {
+      "metric_id": "evidence_utilization_ratio",
+      "description": "Useful message or evidence utilization.",
+      "unit": "ratio",
+      "direction": "minimum",
+      "threshold": 0.9,
+      "evidence_unit": "message_downstream_use_receipt",
+      "sample_unit": "delivered_message",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-COMM-01", "SCORE-NOISE"],
+      "evidence_contract_ids": ["EC-METRIC-001"]
+    },
+    {
+      "metric_id": "median_token_or_cost_reduction",
+      "description": "Median token or real cost reduction, subject to the frozen Pareto exception policy.",
+      "unit": "ratio",
+      "direction": "minimum",
+      "threshold": 0.1,
+      "evidence_unit": "paired_metric_aggregation",
+      "sample_unit": "comparable_task_run_pair",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["SCORE-EFF"],
+      "evidence_contract_ids": ["EC-METRIC-001", "EC-DISPATCH-001"]
+    },
+    {
+      "metric_id": "wall_time_p95_regression",
+      "description": "P95 wall-time regression versus the frozen comparable baseline.",
+      "unit": "ratio",
+      "direction": "maximum",
+      "threshold": 0.1,
+      "evidence_unit": "paired_metric_aggregation",
+      "sample_unit": "comparable_task_run_pair",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["SCORE-EFF", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-METRIC-001"]
+    },
+    {
+      "metric_id": "steady_state_topology_churn_ratio",
+      "description": "Steady-state topology churn relative to the frozen baseline.",
+      "unit": "ratio",
+      "direction": "maximum",
+      "threshold": 1.25,
+      "evidence_unit": "graph_delta_aggregation",
+      "sample_unit": "stable_window",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-TOPO-01", "SCORE-ORG"],
+      "evidence_contract_ids": ["EC-GRAPH-001", "EC-METRIC-001"]
+    },
+    {
+      "metric_id": "stable_window_oscillation_count",
+      "description": "Topology oscillations in a stable no-fault window.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "graph_delta_aggregation",
+      "sample_unit": "stable_window",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-TOPO-01", "SCORE-ORG", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-GRAPH-001", "EC-METRIC-001"]
+    },
+    {
+      "metric_id": "topology_adaptation_latency",
+      "description": "Effective transitions from requirement or fault change to committed adaptation.",
+      "unit": "effective_transition",
+      "direction": "maximum",
+      "threshold": 10,
+      "evidence_unit": "change_to_commit_causal_chain",
+      "sample_unit": "requirement_or_fault_change",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-TOPO-01", "REQ-FAULT-01", "SCORE-ROBUST"],
+      "evidence_contract_ids": ["EC-GRAPH-001", "EC-RUN-001"]
+    },
+    {
+      "metric_id": "loopx_restart_state_loss_count",
+      "description": "Lost goals, duplicate claims, or duplicate spends after LoopX restart.",
+      "unit": "count",
+      "direction": "equal",
+      "threshold": 0,
+      "evidence_unit": "loopx_restart_receipt",
+      "sample_unit": "loopx_restart",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-CLOSE-01", "REQ-FAULT-01", "SCORE-LOOP"],
+      "evidence_contract_ids": ["EC-LOOPX-001"]
+    },
+    {
+      "metric_id": "role_operator_cold_start_pass_ratio",
+      "description": "Valid new role or operator cold-start lanes that complete; illegal entries fail closed.",
+      "unit": "ratio",
+      "direction": "equal",
+      "threshold": 1.0,
+      "evidence_unit": "cold_start_behavior_receipt",
+      "sample_unit": "role_or_operator_registration_lane",
+      "hard_gate": false,
+      "empty_sample_semantics": "not_applicable",
+      "requirement_ids": ["REQ-TOPO-01", "SCORE-COMPAT"],
+      "evidence_contract_ids": ["EC-RUN-001", "EC-READY-001"]
+    }
+  ]
+}

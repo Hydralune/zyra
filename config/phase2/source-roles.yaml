@@ -1,0 +1,218 @@
+{
+  "schema": "zyra.phase2.source-role-registry/v1",
+  "slice_id": "P2-S00-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "registry_mode": "phase2_constraint_overlay",
+  "frozen": true,
+  "superseding_adr": null,
+  "allowed_roles": [
+    "primary_implementation",
+    "supplementary_implementation",
+    "zyra_owned_only"
+  ],
+  "capability_domains": [
+    {
+      "domain_id": "long_horizon_goal_control",
+      "maximum_primary_implementation": 1,
+      "maximum_supplementary_implementation": 1,
+      "entries": [
+        {
+          "source_id": "zyra_long_horizon_baseline",
+          "source_name": "Zyra",
+          "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "source_version": "p2-baseline",
+          "role": "primary_implementation",
+          "source_languages": ["python", "typescript"],
+          "target_languages": ["python", "typescript"],
+          "migration_mode": "zyra_owned_runtime",
+          "source_analysis_ref": "docs/release/phase2-baseline-manifest.json",
+          "target_paths": [
+            "packages/orchestration",
+            "packages/runtime"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "zyra_runtime"
+        },
+        {
+          "source_id": "loopx",
+          "source_name": "LoopX",
+          "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
+          "source_version": "0.2.4",
+          "role": "supplementary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "pinned_package_integration",
+          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/LoopX.md",
+          "target_paths": [
+            "packages/integrations/zyra_integrations/loopx"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "loopx_private_control",
+          "release_profiles": ["linux_wsl_upstream_semantics", "windows_release_offline_wheel"],
+          "runtime_source_repository_dependency_allowed": false
+        }
+      ]
+    },
+    {
+      "domain_id": "topology_proposal",
+      "maximum_primary_implementation": 1,
+      "maximum_supplementary_implementation": 2,
+      "entries": [
+        {
+          "source_id": "arg_designer",
+          "source_name": "ARG-Designer",
+          "source_commit": "c4de09317ab31f7f5438a93d954e089ecf302dd6",
+          "source_version": "source-snapshot",
+          "role": "primary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "cropped_same_language_migration",
+          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/ARG-Designer.md",
+          "target_paths": [
+            "packages/orchestration/zyra_orchestration/topology_policy/arg"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "graph_state_custody",
+          "retained_control": "joint_role_node_incident_edge_hypothesis"
+        },
+        {
+          "source_id": "card",
+          "source_name": "CARD",
+          "source_commit": "d5d1f682a459074c0225b78eca94ab1ea92476e7",
+          "source_version": "source-snapshot",
+          "role": "supplementary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "cropped_same_language_migration",
+          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/CARD.md",
+          "target_paths": [
+            "packages/orchestration/zyra_orchestration/topology_policy/condition"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "graph_state_custody",
+          "retained_control": "directional_environment_condition_residual_only"
+        },
+        {
+          "source_id": "agentprune",
+          "source_name": "AgentPrune",
+          "source_commit": "c544dd6a1858c02c6d5d371d23c6e6ff55e0be21",
+          "source_version": "source-snapshot",
+          "role": "supplementary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "cropped_same_language_migration",
+          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/AgentPrune.md",
+          "target_paths": [
+            "packages/orchestration/zyra_orchestration/topology_policy/pruning"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "graph_state_custody",
+          "retained_control": "deterministic_spatial_temporal_edge_pruning"
+        }
+      ]
+    },
+    {
+      "domain_id": "operator_selection",
+      "maximum_primary_implementation": 1,
+      "maximum_supplementary_implementation": 1,
+      "entries": [
+        {
+          "source_id": "zyra_resource_scheduler",
+          "source_name": "Zyra",
+          "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "source_version": "p2-baseline",
+          "role": "primary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "zyra_owned_runtime",
+          "source_analysis_ref": "packages/scheduler/README.md",
+          "target_paths": [
+            "packages/scheduler/zyra_scheduler"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "resource_scheduler"
+        },
+        {
+          "source_id": "maas",
+          "source_name": "MaAS",
+          "source_commit": "987f3c1bc9a96e844fe090db3791446e3ef0f5c7",
+          "source_version": "source-snapshot",
+          "role": "supplementary_implementation",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "cropped_same_language_migration",
+          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/MaAS.md",
+          "target_paths": [
+            "packages/scheduler/zyra_scheduler/operator_policy"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "resource_scheduler",
+          "retained_control": "deterministic_operator_breadth_depth_candidate_selection"
+        }
+      ]
+    },
+    {
+      "domain_id": "mechanism_evidence_readiness",
+      "maximum_primary_implementation": 0,
+      "maximum_supplementary_implementation": 0,
+      "entries": [
+        {
+          "source_id": "zyra_mechanism_readiness",
+          "source_name": "Zyra",
+          "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "source_version": "p2-contract-v1",
+          "role": "zyra_owned_only",
+          "source_languages": ["python"],
+          "target_languages": ["python"],
+          "migration_mode": "zyra_owned_runtime",
+          "source_analysis_ref": "docs/release/phase2-baseline-manifest.json",
+          "target_paths": [
+            "packages/evaluation/zyra_evaluation/policy_benchmark"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "evaluation_artifact_store"
+        }
+      ]
+    },
+    {
+      "domain_id": "continuity_symbolic_dispatch_evidence",
+      "maximum_primary_implementation": 0,
+      "maximum_supplementary_implementation": 0,
+      "entries": [
+        {
+          "source_id": "zyra_continuity_symbolic_dispatch",
+          "source_name": "Zyra",
+          "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "source_version": "p2-contract-v1",
+          "role": "zyra_owned_only",
+          "source_languages": ["python", "typescript"],
+          "target_languages": ["python", "typescript"],
+          "migration_mode": "zyra_owned_runtime",
+          "source_analysis_ref": "docs/release/phase2-baseline-manifest.json",
+          "target_paths": [
+            "packages/memory",
+            "packages/orchestration",
+            "packages/scheduler",
+            "packages/evaluation"
+          ],
+          "proposal_only": true,
+          "canonical_owner_id": "existing_zyra_owners"
+        }
+      ]
+    }
+  ],
+  "excluded_sources": [
+    {
+      "source_name": "OpenClaw",
+      "status": "excluded_forward_only",
+      "allowed_actions": [],
+      "forbidden_actions": [
+        "source_read",
+        "source_restore",
+        "runtime_role",
+        "migration_quota",
+        "runtime_dependency"
+      ]
+    }
+  ]
+}
