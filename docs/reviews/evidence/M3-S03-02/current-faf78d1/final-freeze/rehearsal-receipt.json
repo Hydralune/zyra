@@ -1,0 +1,413 @@
+{
+  "completed_at": "2026-07-29T04:34:36.761822Z",
+  "digest": "9829ddc2f82a228c74f9a18c1f16e83bc06e6384f1ce69ec13dfed2bf7b2646b",
+  "drill_count": 7,
+  "drills": [
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-c",
+            "import json,pathlib; d=json.loads(pathlib.Path('docs/reviews/evidence/M3-S02B-02/verification-summary.json').read_text(encoding='utf-8')); assert d['release_pipeline']['ready']; assert d['release_pipeline']['passed_gate_count']==13; assert d['clean_install']['ready']; assert not d['clean_install']['parent_source_repositories_present']; print('clean-install:ok')"
+          ],
+          "command_id": "clean-install-receipt",
+          "cwd": ".",
+          "digest": "5f3754c839a0c7b7d8a4eab2c75e4a38c66327f52398f7b077b6e06aeda6d876",
+          "duration_ms": 82,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": "clean-install:ok\n",
+          "timed_out": false,
+          "timeout_seconds": 120,
+          "valid": true
+        }
+      ],
+      "digest": "46c28e1cc111607a4df26b2a64d0e9c2645417fb3561edab94b1a5f3e90448e5",
+      "drill_id": "clean-install-drill",
+      "duration_ms": 83,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "clean-install",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "tests/unit/test_release_productization.py::test_platform_plans_cover_windows_linux_and_offline",
+            "tests/unit/test_release_productization.py::test_offline_resolver_detects_missing_and_hash_mismatch",
+            "-q",
+            "--basetemp",
+            ".tmp/pytest-rehearsal-offline-current"
+          ],
+          "command_id": "offline-policy",
+          "cwd": ".",
+          "digest": "265e2ee926f86442daefb17b4fc6eebf4b3d91c7c9faeeb6e958007a893be54e",
+          "duration_ms": 664,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": "..                                                                       [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469\n  G:\\agent-zoo\\zyra\\.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469: PytestCacheWarning: could not create cache path G:\\agent-zoo\\zyra\\.pytest_cache\\v\\cache\\nodeids: [WinError 5] 拒绝访问。: 'G:\\\\agent-zoo\\\\zyra\\\\.pytest_cache\\\\v\\\\cache'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2 passed, 1 warning in 0.16s\n",
+          "timed_out": false,
+          "timeout_seconds": 180,
+          "valid": true
+        }
+      ],
+      "digest": "93bbe2fbbdde5109962ee74dbae3575a7f2565e196dcdd5da4063fb3bf96e044",
+      "drill_id": "offline-startup-drill",
+      "duration_ms": 664,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "offline-startup",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "tests/integration/test_deployment_node_processes.py::test_three_real_profiles_dispatch_recover_and_restart",
+            "-q",
+            "--basetemp",
+            ".tmp/pytest-rehearsal-restart-current"
+          ],
+          "command_id": "restart-recovery",
+          "cwd": ".",
+          "digest": "b8745886a3c8e2aa0989691438f4bcfff5ea30f2797ba330625280dbb6260f44",
+          "duration_ms": 7213,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": ".                                                                        [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469\n  G:\\agent-zoo\\zyra\\.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469: PytestCacheWarning: could not create cache path G:\\agent-zoo\\zyra\\.pytest_cache\\v\\cache\\nodeids: [WinError 5] 拒绝访问。: 'G:\\\\agent-zoo\\\\zyra\\\\.pytest_cache\\\\v\\\\cache'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n1 passed, 1 warning in 6.67s\n",
+          "timed_out": false,
+          "timeout_seconds": 240,
+          "valid": true
+        }
+      ],
+      "digest": "fa2639e50e098a0525af098b22127c7aeef059320120e9a7232ebc60e8aafded",
+      "drill_id": "process-restart-drill",
+      "duration_ms": 7213,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "process-restart",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "tests/integration/test_watchdog_fault_injection_foundation.py::test_provider_attempt_backoff_circuit_and_terminal_classification",
+            "-q",
+            "--basetemp",
+            ".tmp/pytest-rehearsal-provider-current"
+          ],
+          "command_id": "provider-failure-recovery",
+          "cwd": ".",
+          "digest": "49981dfc3c7e3dd1a232391b6572efd6ec7dd4902e7daa4bc6ed3cf4beec5830",
+          "duration_ms": 2601,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": ".                                                                        [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469\n  G:\\agent-zoo\\zyra\\.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469: PytestCacheWarning: could not create cache path G:\\agent-zoo\\zyra\\.pytest_cache\\v\\cache\\nodeids: [WinError 5] 拒绝访问。: 'G:\\\\agent-zoo\\\\zyra\\\\.pytest_cache\\\\v\\\\cache'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n1 passed, 1 warning in 1.88s\n",
+          "timed_out": false,
+          "timeout_seconds": 240,
+          "valid": true
+        }
+      ],
+      "digest": "7971cea485fb87272a25b489009658fda513c08ba30fd37e0560149f5b32931f",
+      "drill_id": "provider-failure-drill",
+      "duration_ms": 2602,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "provider-failure",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-c",
+            "import json,pathlib; release=json.loads(pathlib.Path('docs/reviews/evidence/M3-S02B-02/verification-summary.json').read_text(encoding='utf-8')); campaign=json.loads(pathlib.Path('docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/current-campaign-evidence.json').read_text(encoding='utf-8')); assert release['semantic_health']['ready']; assert release['semantic_health']['human_intervention_count']==0; assert release['benchmark_binding']['score']==100; assert campaign['status']=='passed'; assert campaign['provider_request_count']==12; assert campaign['same_run_as_formal_cases']; assert not campaign['credential_material_persisted']; assert len(campaign['current_provider_ids'])==3; print('semantic-health:ok')"
+          ],
+          "command_id": "semantic-health-receipt",
+          "cwd": ".",
+          "digest": "a80105540fb4fe5cbaabe406d7f63cc326bfd4b8742bdf32e024885567846081",
+          "duration_ms": 91,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": "semantic-health:ok\n",
+          "timed_out": false,
+          "timeout_seconds": 120,
+          "valid": true
+        }
+      ],
+      "digest": "8a104f7808866552ad99eaed41ff85675cf8a4cf994b24da6b352873cb428e28",
+      "drill_id": "semantic-health-drill",
+      "duration_ms": 91,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "semantic-health",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "cmd.exe",
+            "/c",
+            "npm",
+            "run",
+            "build:web"
+          ],
+          "command_id": "web-package-build",
+          "cwd": ".",
+          "digest": "755a6111959e9bfc11a40c03a2371ebcb529c451576fa1eb02f2ceb24a410a13",
+          "duration_ms": 9632,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "$ bun run typecheck && bun build index.html --outdir dist --target browser --sourcemap=linked\n$ tsc -p tsconfig.json\n",
+          "stdout": "Active code page: 65001\n\n> build:web\n> bun run --cwd apps/web build\n\nBundled 370 modules in 116ms\n\n  index-717hvr8c.js      5.35 MB    (entry point)\n  index-717hvr8c.js.map  10.0 MB    (source map)\n  index.html             0.57 KB    (entry point)\n  index-2vsjn6ca.css     117.30 KB  (asset)\n\n",
+          "timed_out": false,
+          "timeout_seconds": 600,
+          "valid": true
+        }
+      ],
+      "digest": "4deef8bd78fbd8cd8d024113ff858851b814d7fa3061fa8e4f6cc69af2c0c54d",
+      "drill_id": "package-build-drill",
+      "duration_ms": 9633,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "package-build",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    },
+    {
+      "commands": [
+        {
+          "argv": [
+            "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "tests/unit/test_final_first_stage_freeze.py::test_submission_round_trip_and_tamper_detection",
+            "tests/unit/test_final_first_stage_freeze.py::test_written_final_freeze_is_independently_verified_and_tamper_evident",
+            "-q",
+            "--basetemp",
+            ".tmp/pytest-rehearsal-submission-current"
+          ],
+          "command_id": "submission-verifiers",
+          "cwd": ".",
+          "digest": "d7bddbbeb059066c0a327a8d4a44a2f21043933852394f9733268d42ab1bc669",
+          "duration_ms": 1155,
+          "environment": {
+            "credential_values_recorded": false,
+            "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+            "presence": {
+              "ANTHROPIC_API_KEY": false,
+              "AZURE_OPENAI_API_KEY": false,
+              "CI": false,
+              "OPENAI_API_KEY": false,
+              "ZYRA_RELEASE_MODE": false,
+              "ZYRA_SEALED_POLICY": false
+            }
+          },
+          "expected_exit_codes": [
+            0
+          ],
+          "forbidden_output_patterns": [],
+          "launch_error": null,
+          "missing_output_patterns": [],
+          "output_truncated": false,
+          "return_code": 0,
+          "stderr": "",
+          "stdout": "..                                                                       [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469\n  G:\\agent-zoo\\zyra\\.venv\\Lib\\site-packages\\_pytest\\cacheprovider.py:469: PytestCacheWarning: could not create cache path G:\\agent-zoo\\zyra\\.pytest_cache\\v\\cache\\nodeids: [WinError 5] 拒绝访问。: 'G:\\\\agent-zoo\\\\zyra\\\\.pytest_cache\\\\v\\\\cache'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2 passed, 1 warning in 0.61s\n",
+          "timed_out": false,
+          "timeout_seconds": 240,
+          "valid": true
+        }
+      ],
+      "digest": "4e848c2e48699f7d5a512e8cead165eb09b85c613812552dd11f02cb40b5bdb1",
+      "drill_id": "submission-verification-drill",
+      "duration_ms": 1156,
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/rehearsal-receipt.json"
+      ],
+      "kind": "submission-verification",
+      "owner": "release-owner",
+      "required": true,
+      "valid": true
+    }
+  ],
+  "environment": {
+    "credential_values_recorded": false,
+    "digest": "2f9ba104e17f03e36ec23f9270c8931f7b4e45c64239575b084f8ec9dfb84650",
+    "presence": {
+      "ANTHROPIC_API_KEY": false,
+      "AZURE_OPENAI_API_KEY": false,
+      "CI": false,
+      "OPENAI_API_KEY": false,
+      "ZYRA_RELEASE_MODE": false,
+      "ZYRA_SEALED_POLICY": false
+    }
+  },
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "policy_digest": "6d8f97ab86cb8c73da801e489d712be686c53d94af3216d2b072140c1e171819",
+  "repository": {
+    "changed_paths": [],
+    "dirty": false,
+    "expected_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+    "head_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+  },
+  "required_count": 7,
+  "required_passed": 7,
+  "schema": "zyra.final-freeze.rehearsal-receipt.v1",
+  "started_from_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+  "target_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+  "valid": true
+}

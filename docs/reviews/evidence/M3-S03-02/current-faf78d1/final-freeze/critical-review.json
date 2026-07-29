@@ -1,0 +1,139 @@
+{
+  "blocking": false,
+  "checks": {
+    "algorithm_and_material_links": true,
+    "archive_and_replay": true,
+    "langgraph_boundary": true,
+    "live_cases": true,
+    "m3_03_increment_boundary": true,
+    "protected_history_reopened": false,
+    "release_binding": true,
+    "score_and_requirements": true,
+    "source_and_owner_custody": true
+  },
+  "classification": {
+    "first_stage_deferred": false,
+    "first_stage_must_fix": [],
+    "pure_optimization": [],
+    "second_stage_ci_hardening": [
+      {
+        "category": "evidence",
+        "code": "inherited-residual",
+        "detail": {},
+        "evidence": [],
+        "message": "This slice binds the exact reviewed M3-S02B-02 release evidence and runs focused plus adjacent current-provider tests; it does not repeat the completed 13-gate hour-long release pipeline.",
+        "severity": "warning"
+      },
+      {
+        "category": "release",
+        "code": "offline-wheelhouse-not-proven",
+        "detail": {},
+        "evidence": [],
+        "message": "The inherited M3-S02B-02 clean install used the network and is not an offline wheelhouse proof.",
+        "severity": "warning"
+      }
+    ],
+    "valid_for_freeze": true
+  },
+  "evidence_output": "docs/reviews/evidence/M3-S03-01/generated-88b88e05",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 2,
+      "warning": 2
+    },
+    "digest": "831dad6bb9ed23969ce83ca1faadf16cc0cd92a03783afb8a393e4c08572cb7f",
+    "findings": [
+      {
+        "category": "evidence",
+        "code": "inherited-residual",
+        "detail": {},
+        "evidence": [],
+        "message": "This slice binds the exact reviewed M3-S02B-02 release evidence and runs focused plus adjacent current-provider tests; it does not repeat the completed 13-gate hour-long release pipeline.",
+        "severity": "warning"
+      },
+      {
+        "category": "release",
+        "code": "offline-wheelhouse-not-proven",
+        "detail": {},
+        "evidence": [],
+        "message": "The inherited M3-S02B-02 clean install used the network and is not an offline wheelhouse proof.",
+        "severity": "warning"
+      }
+    ],
+    "valid": true
+  },
+  "generated_at": "2026-07-29T04:25:38.114310Z",
+  "identities": {
+    "ablation_path": "generated/ablation-material.json",
+    "ablation_sha256": "6be247bc9bd3c3390074e2439361503259414053d7c56f040c3deff1777bb604",
+    "algorithms_path": "generated/algorithm-material.json",
+    "algorithms_sha256": "1412a2ec618a006f44de424ea7453abfe97a50a0b84dac265789c80fc544df7b",
+    "application_value_path": "generated/application-value.json",
+    "application_value_sha256": "4095ee982ecc6e2c124f2b668699843c90d542f932eac37aab4a26e844dfd24a",
+    "archive_verification_path": "archive-verification.json",
+    "archive_verification_sha256": "04170b5fd5238f1fe2844ab7e7460764fd21fc664d27ffe0fb2b6524c2c661a1",
+    "cases_path": "generated/case-studies.json",
+    "cases_sha256": "af31b913e39613105fa88b8752b88f8daca93d8b9e7654e0e47e7f90c3ef214f",
+    "compatibility_path": "generated/compatibility-material.json",
+    "compatibility_sha256": "9e1b73a4d292600b2f9267e82e2a22566d3b35803066e1844e879f8df65d52d9",
+    "evidence_index_path": "generated/100-point-evidence-index.json",
+    "evidence_index_sha256": "12fe41d86ddc5c4497a679ebf438b186049fb0a288cbb5ab1cf8ec7137327c1d",
+    "first_stage_archive_sha256": "4dc68ae420c5b455b57a75b2f46bb5bea7bb47f3b1ffc21489bf2b72564f6a3e",
+    "freeze_report_path": "generated/freeze-report.json",
+    "freeze_report_sha256": "155b8e4f2734af72d06d41b572888b8e2fc4fd19d3510cf6385060f1a5683d52",
+    "generation_path": "generation-receipt.json",
+    "generation_sha256": "722482fd50266e96f48142489f83cbaaeb2abc2e08ad60a637009461b6cd7a64",
+    "input_set_path": "generated/input-set.json",
+    "input_set_sha256": "6009a92e724015ee68ae6e8200175559ac202661457fcf773b793759bfa4246c",
+    "langgraph_active": [
+      "checkpoint-identity-lineage",
+      "exact-resume",
+      "pending-committed-writes",
+      "side-effect-fence"
+    ],
+    "langgraph_inactive": [
+      "generic-channel-reducer",
+      "sdk-server-deploy",
+      "stategraph-pregel",
+      "toolnode-stream-store"
+    ],
+    "langgraph_path": "generated/langgraph-correction-matrix.json",
+    "langgraph_sha256": "54685f58a6ccfb2a27cf8996f60f5ab3f181175b37f2d4bd8b505a38929ea73c",
+    "ledger_path": "generated/internalization-ledger.json",
+    "ledger_row_count": 60,
+    "ledger_sha256": "3fd0e53663e6f26ed42c5a9d4b6f25f591dc4ec1925e38e88baf2287175a9480",
+    "ledger_source_count": 13,
+    "live_case_count": 2,
+    "live_case_domains": [
+      "cross-source-research",
+      "software-delivery"
+    ],
+    "live_effective_transition_total": 19191,
+    "m3_03_changed_file_count": 23,
+    "m3_03_changed_paths_digest": "1e86a447adce57b71457a620d22ca38b116337a37397551c24c8a7ff5cab5d15",
+    "release_evidence_commit": "8fb1624a3703f5b3a8d3f37b29e7ad925f447d3e",
+    "release_implementation_commit": "e87eeb37a915b38f1aef85f420010c594c9bad6d",
+    "replay_projection_count": 3,
+    "replay_verification_path": "replay-verification.json",
+    "replay_verification_sha256": "f20a6a9aed919d9336afd5129f2937d7362dd951ac6f3f9f0b0d7b84bd03a89f",
+    "requirement_statuses": {
+      "verified": 19
+    },
+    "s03_output_verification_digest": "c46561f207bff08fead323163fe797c6c7e8e7be186c6ccc470e4a7ab8b86dc7",
+    "s03_summary_path": "docs/reviews/evidence/M3-S03-01/verification-summary.json",
+    "s03_summary_sha256": "4595b8894a924b6baebb11358cacdd2223ec413c6ebb91c21f5e28183bd1d360",
+    "s03_target_commit": "88b88e05aad14e1091f4536bcead02037622408f"
+  },
+  "review_digest": "f8922f1636dee489cb0c8b65b901bb0386847520ee4f819c1908c388b7b5cea3",
+  "review_scope": {
+    "inherited_evidence_reverified": true,
+    "kind": "M3-03-increment-only",
+    "protected_history_reopened": false,
+    "review_target_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+    "stage_baseline_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+  },
+  "schema": "zyra.final-critical-review/v1",
+  "verdict": "PASS"
+}

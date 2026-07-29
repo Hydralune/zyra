@@ -1,0 +1,18 @@
+{
+  "attachment": "zyra-first-stage-2026-faf78d1ec6aa.zip",
+  "attachment_sha256": "9f2dddd6808c8ff81873554f94a8c156c089e9d22976bdb427f779b9dc4ab8a2",
+  "digest": "4bc1fe99b5cb2682292c6356ebd537774442b121450dc845f23318daa2d58d8e",
+  "instructions": [
+    "Attach only the archive named in this checklist.",
+    "Compare the attachment SHA-256 before sending.",
+    "Retain the platform or email acceptance confirmation.",
+    "Do not claim human dual-review until the scheduled 2026-09-12 sign-off is recorded."
+  ],
+  "manifest_digest": "29f029459f2b7ca1cf6078f372326959533ece448fb1b6e44d85dd213bbe027c",
+  "recipients": [
+    "competition-submission-owner@zyra.local"
+  ],
+  "required_confirmation": "record the platform or email acceptance receipt and compare its attachment digest with this checklist",
+  "schema": "zyra.final-freeze.submission-email.v1",
+  "subject": "Zyra first-stage 2026 submission candidate"
+}

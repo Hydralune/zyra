@@ -1,0 +1,65 @@
+{
+  "classification_counts": {
+    "ci-hardening": 2,
+    "first-stage-blocker": 0,
+    "future-optimization": 0
+  },
+  "decisions": [
+    {
+      "acceptance": [
+        "add a deterministic CI gate",
+        "record failure and success fixtures",
+        "assign a regression owner and threshold"
+      ],
+      "classification": "ci-hardening",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json"
+      ],
+      "item_id": "offline-wheelhouse-proof",
+      "owner": "ci-owner",
+      "rank": 1,
+      "rationale": [
+        "impact is limited to continuous verification hardening"
+      ],
+      "risk_if_deferred": "Deferral reduces automated detection depth but does not change frozen product behavior.",
+      "state": "accepted",
+      "target_stage": "ci"
+    },
+    {
+      "acceptance": [
+        "add a deterministic CI gate",
+        "record failure and success fixtures",
+        "assign a regression owner and threshold"
+      ],
+      "classification": "ci-hardening",
+      "evidence_paths": [
+        "docs/reviews/evidence/M3-S02B-02/verification-summary.json",
+        "docs/reviews/evidence/M3-S03-02/current-faf78d1/first-stage-freeze-runbook.md"
+      ],
+      "item_id": "repeat-hour-release-pipeline",
+      "owner": "ci-owner",
+      "rank": 2,
+      "rationale": [
+        "impact is limited to continuous verification hardening"
+      ],
+      "risk_if_deferred": "Deferral reduces automated detection depth but does not change frozen product behavior.",
+      "state": "accepted",
+      "target_stage": "ci"
+    }
+  ],
+  "digest": "bdce99d9de2c06fe7a3f13a9210636426fc51407b6613b5b9f547f2babb1d0d3",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "residual_count": 2,
+  "schema": "zyra.final-freeze.handoff-ledger.v1",
+  "valid": true
+}

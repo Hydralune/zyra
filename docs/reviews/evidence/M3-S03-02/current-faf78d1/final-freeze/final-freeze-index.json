@@ -1,0 +1,54 @@
+{
+  "components": [
+    {
+      "component": "critical_review",
+      "path": "critical-review.json",
+      "sha256": "a86d13f9bf20efee8452fac4f941acc5bb08c0afb382d95734cd450d3fd45e54"
+    },
+    {
+      "component": "dual_review",
+      "path": "dual-review-receipt.json",
+      "sha256": "d98aea9fae02248623553cc544358b73bf9b97ee945c06d7df8416974ecf9067"
+    },
+    {
+      "component": "handoff",
+      "path": "second-stage-handoff.json",
+      "sha256": "736bbd87d3748e2f10a98f410f610190bd813a906685848fc725eef19af7ae0e"
+    },
+    {
+      "component": "navigation",
+      "path": "evidence-navigation.json",
+      "sha256": "fce7db8f6036e98f7166bc255de88240af8919458547b6e2b8209a6288fbfc09"
+    },
+    {
+      "component": "rehearsal",
+      "path": "rehearsal-receipt.json",
+      "sha256": "0fd295322ac045e1196affbf1a782d9ef6cafa870f945d2389eeaf6b79c245da"
+    },
+    {
+      "component": "schedule",
+      "path": "release-schedule.json",
+      "sha256": "5690d001c761a44df8f00dd7098230dfce73d136d0208e22c98458c39d9964e4"
+    },
+    {
+      "component": "submission",
+      "path": "submission-verification.json",
+      "sha256": "174d180dec42934b2ef7ef7a9e70432aa6d96d11e3ce7e7f98f6c3e7d48c706a"
+    }
+  ],
+  "digest": "723b9c0144b12bc62219b3d15b9c31eb43f3f85e27bbdd492709ee4108d57499",
+  "freeze_digest": "6e70ac8627294d39a24c9df754ca0b072a095e6650866a37d4f3baab05aa783d",
+  "identity": {
+    "evidence_commit": null,
+    "freeze_output_path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05",
+    "implementation_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+    "s03_evidence_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+    "slice_baseline_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3",
+    "stage_baseline_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+  },
+  "schema": "zyra.final-freeze.output-index.v1",
+  "valid": true,
+  "verdict": "PASS",
+  "verdict_path": "final-freeze-verdict.json",
+  "verdict_sha256": "145e75674b501341e8468ad4673978cd2f4df532552b693b35bab70d96d7fea2"
+}

@@ -1,0 +1,16 @@
+{
+  "archive_path": "zyra-first-stage-2026-faf78d1ec6aa.zip",
+  "archive_sha256": "9f2dddd6808c8ff81873554f94a8c156c089e9d22976bdb427f779b9dc4ab8a2",
+  "archive_size_bytes": 16707951,
+  "built_at": "2026-07-29T04:36:48.740579Z",
+  "checksum_path": "SHA256SUMS",
+  "checksum_sha256": "ade33f8b3f8293063a341d9eda288cb415d0d7fd78fe3e21adc4c6ecd06fcc37",
+  "digest": "ed0e6938f4afc223e73ce1c7c87071b34dfc8a552c4f2b9a8764c6c59112a2f9",
+  "email_checklist_digest": "4bc1fe99b5cb2682292c6356ebd537774442b121450dc845f23318daa2d58d8e",
+  "email_checklist_path": "submission-email-checklist.json",
+  "manifest_digest": "29f029459f2b7ca1cf6078f372326959533ece448fb1b6e44d85dd213bbe027c",
+  "manifest_path": "submission-manifest.json",
+  "member_count": 7,
+  "schema": "zyra.final-freeze.submission-candidate.v1",
+  "valid": true
+}

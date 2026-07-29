@@ -1,0 +1,20 @@
+{
+  "component_count": 7,
+  "digest": "81db4ba0c4244fa7d2df0f30fc88b31e3a0ac2cab8a2210de2ee789bd98bac73",
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "freeze_digest": "6e70ac8627294d39a24c9df754ca0b072a095e6650866a37d4f3baab05aa783d",
+  "index_digest": "723b9c0144b12bc62219b3d15b9c31eb43f3f85e27bbdd492709ee4108d57499",
+  "output_directory": "final-freeze",
+  "schema": "zyra.final-freeze.independent-verification.v1",
+  "valid": true
+}

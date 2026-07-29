@@ -1,0 +1,214 @@
+{
+  "covered_kinds": [
+    "ablation",
+    "causal-trace",
+    "default-entry",
+    "fault-recovery",
+    "final-artifact",
+    "live-case",
+    "semantic-health",
+    "submission"
+  ],
+  "covered_requirement_ids": [
+    "REQ-APP-001",
+    "REQ-APP-002",
+    "REQ-APP-003",
+    "REQ-APP-004",
+    "REQ-APP-005",
+    "REQ-COMP-001",
+    "REQ-COMP-002",
+    "REQ-COMP-003",
+    "REQ-COMP-004",
+    "REQ-COMP-005",
+    "REQ-COMP-006",
+    "REQ-COMP-007",
+    "REQ-PERF-001",
+    "REQ-PERF-002",
+    "REQ-PERF-003",
+    "REQ-TECH-001",
+    "REQ-TECH-002",
+    "REQ-TECH-003",
+    "REQ-TECH-004"
+  ],
+  "digest": "87e96d97abe894473da83034d30d76e7a9292a8a811c3295ad77e561504f99c1",
+  "entries": [
+    {
+      "acceptance": [
+        "dynamic and fixed treatments share sealed inputs",
+        "reported deltas are backed by benchmark rows"
+      ],
+      "command": [],
+      "entry_id": "ablation",
+      "expected_result": "paired ablation table and topology evidence",
+      "kind": "ablation",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/ablation-material.json",
+      "purpose": "Show dynamic sparse topology and low-entropy behavior against the fixed comparison.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-TECH-001",
+        "REQ-PERF-003"
+      ],
+      "title": "Compare dynamic and fixed-topology outcomes"
+    },
+    {
+      "acceptance": [
+        "all declared projections replay",
+        "projection digests match evidence index references"
+      ],
+      "command": [],
+      "entry_id": "causal-trace",
+      "expected_result": "all replay projections verify",
+      "kind": "causal-trace",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/replay-verification.json",
+      "purpose": "Verify trace projections from immutable event and checkpoint receipts.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-COMP-005"
+      ],
+      "title": "Inspect replayable causal projections"
+    },
+    {
+      "acceptance": [
+        "fault event precedes recovery event",
+        "recovered run produces a final artifact"
+      ],
+      "command": [],
+      "entry_id": "fault-recovery",
+      "expected_result": "fault-to-recovery causal chain is present",
+      "kind": "fault-recovery",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/case-studies.json",
+      "purpose": "Trace abnormal input, requirement change, node loss, and provider failure through recovery and completion.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-COMP-007",
+        "REQ-TECH-002"
+      ],
+      "title": "Inspect injected failures and recovery"
+    },
+    {
+      "acceptance": [
+        "all 19 required rows are present",
+        "score is exactly 100"
+      ],
+      "command": [],
+      "entry_id": "final-artifact",
+      "expected_result": "requirement_count=19 and score=100",
+      "kind": "final-artifact",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/100-point-evidence-index.json",
+      "purpose": "Navigate every requirement and scoring item from one immutable index.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-APP-001",
+        "REQ-APP-002",
+        "REQ-APP-003",
+        "REQ-APP-004",
+        "REQ-APP-005",
+        "REQ-COMP-001",
+        "REQ-COMP-002",
+        "REQ-COMP-003",
+        "REQ-COMP-004",
+        "REQ-COMP-005",
+        "REQ-COMP-006",
+        "REQ-COMP-007",
+        "REQ-PERF-001",
+        "REQ-PERF-002",
+        "REQ-PERF-003",
+        "REQ-TECH-001",
+        "REQ-TECH-002",
+        "REQ-TECH-003",
+        "REQ-TECH-004"
+      ],
+      "title": "Inspect final artifact and evidence index"
+    },
+    {
+      "acceptance": [
+        "at least two distinct domains exist",
+        "each domain has at least three independent repetitions",
+        "every run has at least 2,000 canonical transitions",
+        "human intervention count is zero"
+      ],
+      "command": [],
+      "entry_id": "live-cases",
+      "expected_result": "six admitted live runs across two domains",
+      "kind": "live-case",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/case-studies.json",
+      "purpose": "Validate independent seeded repetitions and useful final artifacts for both required domains.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-APP-001",
+        "REQ-APP-002",
+        "REQ-COMP-001"
+      ],
+      "title": "Inspect two cross-domain live cases"
+    },
+    {
+      "acceptance": [
+        "default release configuration is used",
+        "no root source repository is required"
+      ],
+      "command": [
+        "python",
+        "scripts/verify_first_stage.py"
+      ],
+      "entry_id": "product-entry",
+      "expected_result": "final verifier returns valid=true",
+      "kind": "default-entry",
+      "path": "README.md",
+      "purpose": "Launch the default API and web product path.",
+      "required": true,
+      "requirement_ids": [],
+      "title": "Start the governed product stack"
+    },
+    {
+      "acceptance": [
+        "all 13 release gates pass",
+        "provider absence is fail-closed rather than simulated"
+      ],
+      "command": [],
+      "entry_id": "semantic-health",
+      "expected_result": "gate_count=13 and failed_gate_count=0",
+      "kind": "semantic-health",
+      "path": "docs/reviews/evidence/M3-S02B-02/verification-summary.json",
+      "purpose": "Inspect process, API, persistence, provider, and artifact health rather than a port-only check.",
+      "required": true,
+      "requirement_ids": [
+        "REQ-COMP-001",
+        "REQ-COMP-006"
+      ],
+      "title": "Verify semantic release health"
+    },
+    {
+      "acceptance": [
+        "independent submission verifier passes",
+        "two distinct reviewers approve the same manifest"
+      ],
+      "command": [
+        "python",
+        "scripts/verify_first_stage.py",
+        "--submission"
+      ],
+      "entry_id": "submission",
+      "expected_result": "submission verification valid=true",
+      "kind": "submission",
+      "path": "docs/reviews/evidence/M3-S03-02/current-faf78d1/submission-verification.json",
+      "purpose": "Recompute manifest, archive, checksum, reviewer, and email checklist bindings.",
+      "required": true,
+      "requirement_ids": [],
+      "title": "Verify the final submission candidate"
+    }
+  ],
+  "entry_count": 8,
+  "findings": {
+    "counts": {
+      "blocker": 0,
+      "observation": 0,
+      "total": 0,
+      "warning": 0
+    },
+    "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "findings": [],
+    "valid": true
+  },
+  "schema": "zyra.final-freeze.evidence-navigation.v1",
+  "valid": true
+}

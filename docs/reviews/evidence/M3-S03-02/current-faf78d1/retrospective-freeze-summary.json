@@ -1,0 +1,152 @@
+{
+  "digest": "c2aa8f7a1f6dac84ddd66e203e322e10c9af8d9557bb8021b4e804e46897ca46",
+  "final_freeze_digest": "6e70ac8627294d39a24c9df754ca0b072a095e6650866a37d4f3baab05aa783d",
+  "generation_receipt_digest": "d10f4b99488046759be61f5802fc8bcd53ca36a2a666fcc3c8bc21fb6474289c",
+  "release_pipeline": {
+    "archive": "G:\\agent-zoo\\zyra\\dist\\release-pipeline-M3-S03-02-current-faf78d1\\M3-S03-02-current-faf78d1.tar.gz",
+    "archive_sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+    "archive_size": 13219866,
+    "benchmark_commit": "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6",
+    "ci": null,
+    "ci_executed": false,
+    "digest": "dc51db5bdfbb25b6e21923bd9822a82b906d33e268265558e01e191e16d0ad27",
+    "duration_ms": 53214.171,
+    "first_build": {
+      "archive_sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+      "archive_size": 13219866,
+      "archive_type": "tar.gz",
+      "file_count": 2288,
+      "manifest_digest": "3180e10cc5d5e00eb89a87ff783f6ecff552b9d14eb2972bc54d6c408e912b4d",
+      "payload_digest": "bcf878444eefd27339cda03b3ed67010f65b839db4de957283da139b9e24bc77",
+      "python_wheel": {
+        "distribution": "zyra",
+        "entry_count": 880,
+        "metadata_entry_count": 5,
+        "normalized_distribution": "zyra",
+        "package_entry_count": 875,
+        "path": "zyra-0.1.0-py3-none-any.whl",
+        "ready": true,
+        "schema": "zyra.python-wheel-receipt/v1",
+        "sha256": "fa1435505bff4dde490c1eaf0c8b0bc47fd488fae284aae0123d0a9d904761e0",
+        "size": 4453621,
+        "source_digest": "441095d7b9fb641cab08bfe05b9f515151f8c71026f45199a42a8bcc9e4804f5",
+        "tag": "py3-none-any",
+        "version": "0.1.0"
+      },
+      "ready": true,
+      "release_id": "M3-S03-02-current-faf78d1",
+      "schema": "zyra.release-bundle-receipt/v1",
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+    },
+    "git": {
+      "dirty_entry_count": 0,
+      "ready": true,
+      "revision": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+      "schema": "zyra.release-git-receipt/v1"
+    },
+    "ready": true,
+    "release_id": "M3-S03-02-current-faf78d1",
+    "reproducibility": {
+      "byte_identical": true,
+      "digest": "ec291255060bf1f1e624e330e291567b02f401cf61525d41fdd95ca90028aba0",
+      "first": {
+        "path": "G:\\agent-zoo\\zyra\\dist\\release-pipeline-M3-S03-02-current-faf78d1\\reproducibility-a\\M3-S03-02-current-faf78d1.tar.gz",
+        "sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+        "size": 13219866
+      },
+      "ready": true,
+      "schema": "zyra.release-reproducibility/v1",
+      "second": {
+        "path": "G:\\agent-zoo\\zyra\\dist\\release-pipeline-M3-S03-02-current-faf78d1\\reproducibility-b\\M3-S03-02-current-faf78d1.tar.gz",
+        "sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+        "size": 13219866
+      },
+      "size_delta": 0,
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+    },
+    "schema": "zyra.release-pipeline/v1",
+    "second_build": {
+      "archive_sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+      "archive_size": 13219866,
+      "archive_type": "tar.gz",
+      "file_count": 2288,
+      "manifest_digest": "3180e10cc5d5e00eb89a87ff783f6ecff552b9d14eb2972bc54d6c408e912b4d",
+      "payload_digest": "bcf878444eefd27339cda03b3ed67010f65b839db4de957283da139b9e24bc77",
+      "python_wheel": {
+        "distribution": "zyra",
+        "entry_count": 880,
+        "metadata_entry_count": 5,
+        "normalized_distribution": "zyra",
+        "package_entry_count": 875,
+        "path": "zyra-0.1.0-py3-none-any.whl",
+        "ready": true,
+        "schema": "zyra.python-wheel-receipt/v1",
+        "sha256": "fa1435505bff4dde490c1eaf0c8b0bc47fd488fae284aae0123d0a9d904761e0",
+        "size": 4453621,
+        "source_digest": "441095d7b9fb641cab08bfe05b9f515151f8c71026f45199a42a8bcc9e4804f5",
+        "tag": "py3-none-any",
+        "version": "0.1.0"
+      },
+      "ready": true,
+      "release_id": "M3-S03-02-current-faf78d1",
+      "schema": "zyra.release-bundle-receipt/v1",
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+    },
+    "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+    "verification": {
+      "archive": "G:\\agent-zoo\\zyra\\dist\\release-pipeline-M3-S03-02-current-faf78d1\\M3-S03-02-current-faf78d1.tar.gz",
+      "archive_sha256": "8e1974420b1a3674b97b734159548365acb0f1766f25c26dec18033ed2e6e3f7",
+      "manifest_digest": "3180e10cc5d5e00eb89a87ff783f6ecff552b9d14eb2972bc54d6c408e912b4d",
+      "payload_digest": "bcf878444eefd27339cda03b3ed67010f65b839db4de957283da139b9e24bc77",
+      "python_wheel": {
+        "entry_count": 880,
+        "path": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-release-verify-la75q2m_\\zyra-release\\M3-S03-02-current-faf78d1\\release\\wheels\\zyra-0.1.0-py3-none-any.whl",
+        "ready": true,
+        "record_entry_count": 880,
+        "schema": "zyra.python-wheel-verification/v1",
+        "sha256": "fa1435505bff4dde490c1eaf0c8b0bc47fd488fae284aae0123d0a9d904761e0",
+        "size": 4453621
+      },
+      "ready": true,
+      "release_id": "M3-S03-02-current-faf78d1",
+      "schema": "zyra.release-bundle-verification/v1",
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+      "verified_artifacts": {
+        "benchmark": {
+          "path": "release/benchmark-link.json",
+          "sha256": "90fff93ea8ea313a4be8380db56f769d6e595bbb6ef6228b1bd2fe817bcc7577"
+        },
+        "checksums": {
+          "path": "release/checksums.json",
+          "sha256": "36928624b5f176fe5467d6b56dcd03185603d680537dd6cfd103440fde45b0c7"
+        },
+        "configuration": {
+          "path": "release/configuration.example.json",
+          "sha256": "9c2261d9b5c2d4b0cb8f67c4a7fab2533b6078ab406564e60a1be7a756241fcc"
+        },
+        "notice": {
+          "path": "release/NOTICE",
+          "sha256": "3a223e7bd6aa2215fb0b22c7b1c7709289c6e6b8c21e63c011495239e86a1637"
+        },
+        "python_wheel": {
+          "path": "release/wheels/zyra-0.1.0-py3-none-any.whl",
+          "sha256": "fa1435505bff4dde490c1eaf0c8b0bc47fd488fae284aae0123d0a9d904761e0"
+        },
+        "runtime_inventory": {
+          "path": "release/runtime-inventory.json",
+          "sha256": "39503012b61e65ae1ca0b75c2608008c30094ed0bfcc11389b8b153db054ffac"
+        },
+        "sbom": {
+          "path": "release/sbom.cdx.json",
+          "sha256": "5a33a18f5e0c79dcde73f04a5cca114d0ecf7da1818f480bf91d4b8eeefd2c97"
+        }
+      }
+    }
+  },
+  "s03_report_commit": "88b88e05aad14e1091f4536bcead02037622408f",
+  "submission_manifest_digest": "29f029459f2b7ca1cf6078f372326959533ece448fb1b6e44d85dd213bbe027c",
+  "submission_verification_digest": "08e5a2fb218318dc69ea38af2eb03d4447655a18264f96f146027900a7a7fe3c",
+  "target_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+  "valid": true,
+  "verification_digest": "81db4ba0c4244fa7d2df0f30fc88b31e3a0ac2cab8a2210de2ee789bd98bac73"
+}
