@@ -1,0 +1,41 @@
+{
+  "capture_stage": "slice_in_progress_before_completion",
+  "documents": [
+    {
+      "path": "docs/phase2/README.md",
+      "sha256": "b9774e4b786a304f470b79c6830745c2cb6190fffaa3a1c0a5aee5471c6d3f62",
+      "size_bytes": 9915
+    },
+    {
+      "path": "docs/phase2/unit-00-entry-baseline.md",
+      "sha256": "f06ed3fb99a5d3fd0a669def9b29196ceac13adc72f758d7210b564eb4b6f664",
+      "size_bytes": 2663
+    },
+    {
+      "path": "docs/phase2/slice-00-01-freeze-reconciliation.md",
+      "sha256": "3fb38c06119b86874f4d1ba2d1373dca0535ca495fee6a7a019fdee1d08dc759",
+      "size_bytes": 6193
+    },
+    {
+      "path": "docs/第二阶段总工程计划.md",
+      "sha256": "45bf63f2a55f73c65828c4149e2523607cfc69b1cf1eac3b1a6bf966521cb8ac",
+      "size_bytes": 112002
+    },
+    {
+      "path": "docs/比赛要求追踪矩阵.md",
+      "sha256": "109b35715d2e6ebc649a52fed0f3d238d26b8f6f1053d2e72a8f15162dccead5",
+      "size_bytes": 8620
+    },
+    {
+      "path": "docs/milestones/execution-state.yaml",
+      "sha256": "1f6a8ed18de69fccc1eedd1d960265da0e4e75a559aae6d7a85c0d4981510842",
+      "size_bytes": 514508
+    }
+  ],
+  "repository_boundary": {
+    "root_documents_in_zyra_git": false,
+    "root_documents_mutable_after_evidence_commit": true,
+    "zyra_repository": "zyra"
+  },
+  "schema": "zyra.p2-s00-01-root-planning-snapshot/v1"
+}

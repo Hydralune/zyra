@@ -1,0 +1,55 @@
+{
+  "archive_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+  "cache_isolation": {
+    "bun_cache": "ephemeral-cleanroom/cache/bun",
+    "cache_roots_deleted_after_run": true,
+    "host_uv_cache_inherited": false,
+    "pip_cache": "ephemeral-cleanroom/cache/pip",
+    "python_user_site_enabled": false,
+    "uv_cache": "ephemeral-cleanroom/cache/uv"
+  },
+  "command": ".venv/Scripts/python.exe -m zyra_productization.release.cli --project-root . --state-root .tmp/p2-s00-01-release-state clean-install dist/release-pipeline-P2-S00-01-e207b46/P2-S00-01-baseline-e207b46.tar.gz --expected-commit e207b46ca690171139a718b8b85d808cb5a79c1e --output .tmp/p2-s00-01-clean-install-raw.json",
+  "command_count": 8,
+  "dependency_install": {
+    "bun_packages": 26,
+    "frozen_bun_lock": true,
+    "hash_locked_python": true,
+    "network_used": true,
+    "python_packages": 113
+  },
+  "duration_ms": 262372.369,
+  "environment": {
+    "architecture": "amd64",
+    "platform": "windows",
+    "product_lifecycle_exercised": true,
+    "workspace_isolated": true
+  },
+  "initial_sandbox_attempt": {
+    "failure": "network socket access denied while resolving the hash-locked dependency set",
+    "fallback_success_claimed": false,
+    "returncode": 1
+  },
+  "lifecycle": {
+    "all_commands_ready": true,
+    "code_worker_bun_build_modules": 272,
+    "code_worker_node_build_modules": 272,
+    "install_state": "committed",
+    "semantic_short_task_completed": true,
+    "stop_remaining_active": 0,
+    "typecheck": "passed",
+    "uninstall_state": "uninstalled",
+    "web_build_modules": 370,
+    "wheel_import": "ReleaseRuntime"
+  },
+  "parent_source_repositories_present": false,
+  "ready": true,
+  "receipt_digest": "f51abc4c15e7fedb530674eda3e106184d6e1fa5d01f472297244d8900714cb7",
+  "release_reverification_after_cache_deletion": {
+    "archive_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+    "manifest_digest": "e3b341979cc0fb0b7e8a22af872f912ef6519f3cdd2645e837cfe551a4b16d37",
+    "payload_digest": "b595692ccb7511520bbabe8ebd07d3bd15de7d186dbe8ef047f6247843c0f35e",
+    "ready": true
+  },
+  "schema": "zyra.p2-s00-01-clean-install-summary/v1",
+  "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+}

@@ -1,0 +1,68 @@
+{
+  "activation_state": "baseline_frozen_not_activated",
+  "canonical_state_owners": {
+    "graph": "GraphStateCustody/GraphDeltaBuilder/DynamicTopologyRuntime",
+    "memory": "MemoryFabric with MemoryContinuityVerifier",
+    "physical_placement": "ResourceScheduler",
+    "permission": "Zyra permission runtime",
+    "plugin_private_state": "LoopX private goal/todo/claim/history state"
+  },
+  "components": [
+    {
+      "component_id": "loopx",
+      "role": "long_horizon_goal_control",
+      "source_role": "supplementary_implementation"
+    },
+    {
+      "component_id": "memory_continuity_verifier",
+      "role": "cross_checkpoint_restart_requirement_continuity",
+      "source_role": "zyra_owned"
+    },
+    {
+      "component_id": "arg",
+      "role": "role_node_edge_base_topology_proposal",
+      "source_role": "deterministic_mechanism_adaptation"
+    },
+    {
+      "component_id": "card",
+      "role": "conditional_residual_topology_proposal",
+      "source_role": "deterministic_mechanism_adaptation"
+    },
+    {
+      "component_id": "agentprune",
+      "role": "spatial_temporal_communication_pruning",
+      "source_role": "deterministic_mechanism_adaptation"
+    },
+    {
+      "component_id": "symbolic_projector",
+      "role": "constraint_projection_and_delta_creation",
+      "source_role": "zyra_owned"
+    },
+    {
+      "component_id": "graph_state_custody",
+      "role": "canonical_graph_commit",
+      "source_role": "zyra_owned"
+    },
+    {
+      "component_id": "maas",
+      "role": "operator_skill_worker_tool_model_candidate_selection",
+      "source_role": "deterministic_mechanism_adaptation"
+    },
+    {
+      "component_id": "resource_scheduler",
+      "role": "permission_lease_physical_dispatch",
+      "source_role": "zyra_owned"
+    },
+    {
+      "component_id": "verifier_receipts",
+      "role": "behavior_verification_and_causal_evidence",
+      "source_role": "zyra_owned"
+    }
+  ],
+  "profile_id": "phase2_strongest_v1",
+  "profile_version": "1",
+  "proposal_only_external_mechanisms": true,
+  "readiness_gate_required_before_activation": true,
+  "schema": "zyra.phase2-mechanism-baseline/v1",
+  "training_allowed": false
+}

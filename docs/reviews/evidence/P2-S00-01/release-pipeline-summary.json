@@ -1,0 +1,56 @@
+{
+  "archive": {
+    "archive_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+    "archive_size": 13233512,
+    "archive_type": "tar.gz",
+    "file_count": 2293,
+    "generated_path": "dist/release-pipeline-P2-S00-01-e207b46/P2-S00-01-baseline-e207b46.tar.gz",
+    "manifest_digest": "e3b341979cc0fb0b7e8a22af872f912ef6519f3cdd2645e837cfe551a4b16d37",
+    "payload_digest": "b595692ccb7511520bbabe8ebd07d3bd15de7d186dbe8ef047f6247843c0f35e"
+  },
+  "benchmark_binding": {
+    "benchmark_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+    "benchmark_link_sha256": "129d860cd7f571b8a6777d2bef8ebb6f06ac907df499a37b6a3c5582ee4fa9f1",
+    "current_campaign_evidence_sha256": "0ceeae1cdc79f08d679102d6dd1d6a7f0e20f22bd3aacf5608124e219eb48b3e",
+    "providers": [
+      "deepseek",
+      "kimi-platform",
+      "zhipu"
+    ],
+    "report_sha256": "8019d5f7f656c730039f98cc91af83a9c3b6213e994136d97e6741432c1fe3ff",
+    "score": 100,
+    "tiers": [
+      "device",
+      "edge",
+      "cloud"
+    ]
+  },
+  "build": {
+    "ci_executed": false,
+    "command": ".venv/Scripts/python.exe scripts/run_release_pipeline.py --release-id P2-S00-01-baseline-e207b46 --expected-commit e207b46ca690171139a718b8b85d808cb5a79c1e --benchmark-commit 09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b --output-root dist/release-pipeline-P2-S00-01-e207b46 --skip-ci",
+    "duration_ms": 102363.768,
+    "pipeline_digest": "e5fef518ee0fce896c3592d6dec8a6a2d3bbaf0ed4ae79f2bd87873654bea469",
+    "ready": true,
+    "reason_ci_not_repeated": "P2-S00-01 ran the directly relevant deterministic dual-build, independent bundle verification, and a full clean install. The protected M3-S02B-02 13-gate CI remains inherited evidence and is not restated as current execution."
+  },
+  "release_id": "P2-S00-01-baseline-e207b46",
+  "reproducibility": {
+    "byte_identical": true,
+    "first_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+    "second_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+    "size_delta": 0
+  },
+  "schema": "zyra.p2-s00-01-release-pipeline-summary/v1",
+  "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "verified_artifacts": {
+    "checksums_sha256": "53e9d9e01a87b5c39a8afd5705be8cecdcc944660ed06a3fd05963c220a413f9",
+    "configuration_sha256": "9c2261d9b5c2d4b0cb8f67c4a7fab2533b6078ab406564e60a1be7a756241fcc",
+    "notice_sha256": "f174bb28a0aa8d99190c101f05484288bd2b9cc59732d2835772521e860ecd1f",
+    "runtime_inventory_sha256": "ca2b34e26ec89e29894dbb460c477e40fa2ac3e4ca1ddec028321100298bd5ff",
+    "sbom_component_count": 300,
+    "sbom_dependency_count": 81,
+    "sbom_sha256": "b4d6854ce71686d9d6c3a8c83af3af700d8c57fe581fde8b58b48c79ae63ec08",
+    "wheel_entry_count": 881,
+    "wheel_sha256": "b38c78397a1064f0f35d0179b80b826c3a2a4ecfd733a47b94cd858a312a1024"
+  }
+}

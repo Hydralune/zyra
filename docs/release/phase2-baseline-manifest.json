@@ -1,0 +1,602 @@
+{
+  "benchmark": {
+    "budget": {
+      "maximum_campaign_wall_seconds": 10800,
+      "maximum_provider_requests": 12,
+      "maximum_source_wall_seconds": 1200,
+      "maximum_workers": 1,
+      "provider_request_policy": "six-formal-cases-times-two-providers"
+    },
+    "campaign_id": "campaign-m3-s02a02-09e99cdc5ed9",
+    "condition_digests": {
+      "budget": "a17ef66853f2c3d9475ade359ff9aea30f44e00957c8a86eb3dc44a8c96f651c",
+      "deployment": "f4cfc8a68077f4c5c37527e61995921e7305efebded2c650e71ab23f8a109a03",
+      "environment": "9ba3883d373b5c6551946e6b60ee1bd9bb18b2c33ca0045e81db5dc8b6e3607d",
+      "failure_schedule": "5b67bc0ea06c7dbe2943c076032039ef6cf605dbf60d27eacd59f7610df5535c",
+      "hardware": "637e349a2a97dd0fc91ae8fe18c5257483aeb67319b2c3e6aaa53a05a956946d",
+      "provider_policy": "7ce0bb5d25545ce1d7c513f7395cc29632b4fbe6a61ee63f99724a9185ba4f23",
+      "sealed_policy": "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd",
+      "verifier": "163e8c59deafd72f5893515cd9b95ef4bc25a7dc4b7edf685b4d4068ef565705"
+    },
+    "domains": [
+      {
+        "domain_id": "software-delivery",
+        "task_family_digest": "fa9f11475a9404f005d753aa27fba7fcfe398cf4ff364b6a72b90b258e77cdc7"
+      },
+      {
+        "domain_id": "cross-source-research",
+        "task_family_digest": "2a5c3f28103b5e2c54653102a1e9b2b5339acaea1fd7111f558070d169bede48"
+      }
+    ],
+    "failure_schedule": {
+      "deterministic": true,
+      "research": [
+        "acceptance-criteria-change",
+        "tool-failure",
+        "node-loss",
+        "provider-failure",
+        "network-failure"
+      ],
+      "software": [
+        "scope-change",
+        "exception",
+        "worker-loss",
+        "provider-failure",
+        "edge-disconnect"
+      ]
+    },
+    "hardware_profile": {
+      "architecture": "AMD64",
+      "logical_cpu_count": 32,
+      "memory_total_bytes": 34158272512,
+      "physical_cpu_count": 24
+    },
+    "implementation_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+    "index_digest": "ab1e20a37f5b87ecd98a4b20d6a7b80d86a00a1a95b0d8ffbddb85d5b2a7edcf",
+    "manifest_digest": "de654b7b34dbfc318fb36edebfd1224f812603dbb8f7cff36172281e22ac0186",
+    "provider_profile": {
+      "model_ids": [
+        "deepseek-v4-pro",
+        "glm-5.2",
+        "kimi-k2.7-code"
+      ],
+      "provider_ids": [
+        "deepseek",
+        "kimi-platform",
+        "zhipu"
+      ],
+      "request_count": 12,
+      "same_campaign_as_formal_cases": true,
+      "tier_ids": [
+        "device",
+        "edge",
+        "cloud"
+      ],
+      "token_count": 3630
+    },
+    "seeds": [
+      27072001,
+      27072002,
+      27072003
+    ],
+    "verifier": {
+      "deterministic_failure_overrides_model_judge": true,
+      "model_judge_enabled": false,
+      "research": "M3ProductDomainVerifier/research",
+      "software": "M3ProductDomainVerifier/software",
+      "version": "zyra.live-benchmark-freeze-admission/v1"
+    },
+    "version": "zyra.live-benchmark-campaign/v1"
+  },
+  "build_inputs": {
+    "bun": {
+      "binary_sha256": "4652114f79c2132723793808ed7bc1a91895a5c7772f16218c675c50c2d5d0dc",
+      "lockfile": "bun.lock",
+      "package_manifest": "package.json",
+      "version": "1.2.15"
+    },
+    "python": {
+      "cache_tag": "cpython-313",
+      "implementation": "CPython",
+      "lockfile": "requirements.txt",
+      "platform": "win-amd64",
+      "project_manifest": "pyproject.toml",
+      "version": "3.13.9"
+    },
+    "typescript_version": "5.8.3"
+  },
+  "evidence_inventory": {
+    "classification": "read_only_evidence_inventory",
+    "evidence_volume": {
+      "formal_cell_count": 42,
+      "raw_sample_count": 1554,
+      "semantic_label": "evidence_volume_only",
+      "source_case_count": 6,
+      "source_effective_transition_count": 19191,
+      "training_sample_count": 0
+    },
+    "prohibited_uses": [
+      "training_dataset",
+      "fine_tuning",
+      "online_learning",
+      "policy_gradient",
+      "text_gradient",
+      "success_label_synthesis"
+    ],
+    "reference_ids": [
+      "mechanism-baseline",
+      "formal-pointer",
+      "benchmark-campaign",
+      "benchmark-manifest",
+      "benchmark-index",
+      "benchmark-source-runs",
+      "benchmark-run-receipts",
+      "benchmark-raw-samples",
+      "benchmark-current-campaign",
+      "benchmark-statistics",
+      "benchmark-verification",
+      "benchmark-freeze-admission",
+      "first-stage-index",
+      "first-stage-input-set",
+      "final-freeze-verification",
+      "retrospective-freeze-summary",
+      "release-pipeline-summary",
+      "clean-install-summary",
+      "path-cache-credential-audit",
+      "root-planning-snapshot",
+      "package-manifest",
+      "bun-lockfile",
+      "python-project-manifest",
+      "python-lockfile"
+    ],
+    "training_eligible": false
+  },
+  "formal_results": {
+    "benchmark_run_count": 42,
+    "domain_count": 2,
+    "evidence_refs": {
+      "artifact_index": "benchmark-index",
+      "cost_and_provider_index": "benchmark-current-campaign",
+      "decision_and_run_index": "benchmark-run-receipts",
+      "dispatch_index": "benchmark-current-campaign",
+      "event_and_transition_index": "benchmark-source-runs",
+      "final_report_index": "first-stage-index",
+      "raw_metric_index": "benchmark-raw-samples",
+      "verifier_index": "benchmark-verification"
+    },
+    "human_intervention_count": 0,
+    "maximum_effective_transitions": 4003,
+    "minimum_effective_transitions": 2394,
+    "operator_intervention_count": 0,
+    "requirement_count": 19,
+    "score_maximum": 100,
+    "score_verified": 100,
+    "source_run_count": 6
+  },
+  "identity": {
+    "captured_worktree_clean": true,
+    "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+    "p2_base_tree": "f5f0b018cd98fa65516b56d92cecf5593be3f702",
+    "repository": "zyra",
+    "slice_id": "P2-S00-01"
+  },
+  "lineage": [
+    {
+      "commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+      "role": "benchmark_implementation"
+    },
+    {
+      "commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3",
+      "role": "benchmark_evidence"
+    },
+    {
+      "commit": "88b88e05aad14e1091f4536bcead02037622408f",
+      "role": "first_stage_report_implementation"
+    },
+    {
+      "commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+      "role": "first_stage_report_evidence"
+    },
+    {
+      "commit": "725e869c7ee52eb3780851fd2328d09919d812e1",
+      "role": "first_stage_final_freeze_evidence"
+    },
+    {
+      "commit": "be8c4733fede34c887b79cb721f8d81e9a2273f2",
+      "role": "first_stage_report"
+    },
+    {
+      "commit": "57c0def91a69c851c941e7d4df80519cf881a8c7",
+      "role": "phase2_instruction_alignment"
+    }
+  ],
+  "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+  "mechanism_profile": {
+    "activation_state": "baseline_frozen_not_activated",
+    "profile_digest": "1512d91bfcf14f14b2d23e4057b5b56a17177e2b944fd2f755d14e74ba646449",
+    "profile_id": "phase2_strongest_v1",
+    "profile_version": "1",
+    "readiness_gate_required_before_activation": true
+  },
+  "planning_authority": {
+    "capture": "root-planning-snapshot",
+    "root_documents_in_zyra_git": false,
+    "status_owner": "docs/milestones/execution-state.yaml"
+  },
+  "references": [
+    {
+      "id": "mechanism-baseline",
+      "kind": "mechanism_profile",
+      "path": "docs/reviews/evidence/P2-S00-01/mechanism-baseline.json",
+      "scope": "project",
+      "sha256": "1512d91bfcf14f14b2d23e4057b5b56a17177e2b944fd2f755d14e74ba646449",
+      "size_bytes": 2179
+    },
+    {
+      "id": "formal-pointer",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/implementation_commit"
+        }
+      ],
+      "kind": "benchmark_pointer",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current.json",
+      "scope": "project",
+      "sha256": "1773c1253c0949a5892350a34f4a4a36ee4e2e8fbb9621214107f47f4293e244",
+      "size_bytes": 952,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-campaign",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/conditions/commit_sha"
+        }
+      ],
+      "kind": "benchmark_configuration",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/campaign.json",
+      "scope": "project",
+      "sha256": "dd5c0523942ae08551ff50c8f00200f7625965dbc3f43c32fce255288879afcf",
+      "size_bytes": 33806,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-manifest",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/commit_sha"
+        }
+      ],
+      "kind": "evidence_manifest",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/evidence-manifest.json",
+      "scope": "project",
+      "sha256": "99667d18a42d61ba0af41acae48f729240739480353985af642d611e526fbc7a",
+      "size_bytes": 5996,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-index",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/commit_sha"
+        }
+      ],
+      "kind": "event_artifact_evidence_index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/100-point-evidence-index.json",
+      "scope": "project",
+      "sha256": "14bde8a5d57d406e73dcf2caa36111f2d3a90edac2fc0d200b92d67679c0689e",
+      "size_bytes": 691470,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-source-runs",
+      "json_bindings": [
+        {
+          "expected": 6,
+          "pointer": "/source_run_count"
+        }
+      ],
+      "kind": "event_transition_index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/source-runs.json",
+      "scope": "project",
+      "sha256": "0f5ca95d3eb3c6857d6b23279ec6008710c18cbeef00e4c71a69dbb69a847cc1",
+      "size_bytes": 1144173,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-run-receipts",
+      "json_bindings": [
+        {
+          "expected": 42,
+          "pointer": "/run_count"
+        }
+      ],
+      "kind": "decision_receipt_index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/run-receipts.json",
+      "scope": "project",
+      "sha256": "4b769561128fb7478cae18a2986c7b928777e1a8ad131b584dac5dbb75e85885",
+      "size_bytes": 128525,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-raw-samples",
+      "json_bindings": [
+        {
+          "expected": 1554,
+          "pointer": "/sample_count"
+        }
+      ],
+      "kind": "raw_metric_evidence",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/raw-samples.json",
+      "scope": "project",
+      "sha256": "7006dfff106c7bdfd80fc3ee75ba0281bf7ceef45f1293c74e2089c43d11a306",
+      "size_bytes": 1363920,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-current-campaign",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/implementation_commit"
+        },
+        {
+          "expected": 12,
+          "pointer": "/provider_request_count"
+        }
+      ],
+      "kind": "provider_dispatch_cost_index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/current-campaign-evidence.json",
+      "scope": "project",
+      "sha256": "0ceeae1cdc79f08d679102d6dd1d6a7f0e20f22bd3aacf5608124e219eb48b3e",
+      "size_bytes": 63121,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-statistics",
+      "json_bindings": [
+        {
+          "expected": 1554,
+          "pointer": "/sample_count"
+        }
+      ],
+      "kind": "statistical_evaluation",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/statistical-evaluation.json",
+      "scope": "project",
+      "sha256": "7298d3e273ebdb2d89eb57f33279014f4158ba8d271a492ee16fd905f48eb1b4",
+      "size_bytes": 518740,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-verification",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/target_commit"
+        },
+        {
+          "expected": "PASS",
+          "pointer": "/verdict"
+        }
+      ],
+      "kind": "verifier_index",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/verification-summary.json",
+      "scope": "project",
+      "sha256": "2d96414f25798ecd584b05105e8420824c9ddf870066f969161ac0ed031fd89f",
+      "size_bytes": 10080,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "benchmark-freeze-admission",
+      "json_bindings": [
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/target_commit"
+        },
+        {
+          "expected": true,
+          "pointer": "/valid"
+        }
+      ],
+      "kind": "freeze_admission",
+      "path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/freeze-admission.json",
+      "scope": "project",
+      "sha256": "f413b6005167c536570bc7ad5973de8272f7b68290af29afd303af3f01bc3c54",
+      "size_bytes": 788,
+      "source_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3"
+    },
+    {
+      "id": "first-stage-index",
+      "json_bindings": [
+        {
+          "expected": "88b88e05aad14e1091f4536bcead02037622408f",
+          "pointer": "/target_commit"
+        },
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/formal_benchmark_commit"
+        }
+      ],
+      "kind": "final_requirement_evidence_index",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/100-point-evidence-index.json",
+      "scope": "project",
+      "sha256": "12fe41d86ddc5c4497a679ebf438b186049fb0a288cbb5ab1cf8ec7137327c1d",
+      "size_bytes": 319075,
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+    },
+    {
+      "id": "first-stage-input-set",
+      "json_bindings": [
+        {
+          "expected": "88b88e05aad14e1091f4536bcead02037622408f",
+          "pointer": "/expected_commit"
+        }
+      ],
+      "kind": "final_report_input_set",
+      "path": "docs/reviews/evidence/M3-S03-01/generated-88b88e05/generated/input-set.json",
+      "scope": "project",
+      "sha256": "6009a92e724015ee68ae6e8200175559ac202661457fcf773b793759bfa4246c",
+      "size_bytes": 9348,
+      "source_commit": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7"
+    },
+    {
+      "id": "final-freeze-verification",
+      "json_bindings": [
+        {
+          "expected": true,
+          "pointer": "/valid"
+        },
+        {
+          "expected": "6e70ac8627294d39a24c9df754ca0b072a095e6650866a37d4f3baab05aa783d",
+          "pointer": "/freeze_digest"
+        }
+      ],
+      "kind": "final_freeze_verification",
+      "path": "docs/reviews/evidence/M3-S03-02/current-faf78d1/final-freeze/final-freeze-verification.json",
+      "scope": "project",
+      "sha256": "833a637257a7d48b4e91617df4738cd4b0f51c470d15ec220bbab4201aec2582",
+      "size_bytes": 641,
+      "source_commit": "725e869c7ee52eb3780851fd2328d09919d812e1"
+    },
+    {
+      "id": "retrospective-freeze-summary",
+      "json_bindings": [
+        {
+          "expected": "faf78d1ec6aa1bfe197dbb6120baedabbb723eb7",
+          "pointer": "/target_commit"
+        },
+        {
+          "expected": true,
+          "pointer": "/valid"
+        }
+      ],
+      "kind": "first_stage_exit",
+      "path": "docs/reviews/evidence/M3-S03-02/current-faf78d1/retrospective-freeze-summary.json",
+      "scope": "project",
+      "sha256": "b8535d1d2e25db317670f3158479d5e3e1fe8e395053da2515623bb9b660639c",
+      "size_bytes": 7086,
+      "source_commit": "725e869c7ee52eb3780851fd2328d09919d812e1"
+    },
+    {
+      "id": "release-pipeline-summary",
+      "json_bindings": [
+        {
+          "expected": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "pointer": "/source_commit"
+        },
+        {
+          "expected": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+          "pointer": "/benchmark_binding/benchmark_commit"
+        }
+      ],
+      "kind": "p2_release",
+      "path": "docs/reviews/evidence/P2-S00-01/release-pipeline-summary.json",
+      "scope": "project",
+      "sha256": "0c7052c28747b50ee6887c0612b0bd2ea0fa4789170b2b79dde3832ab086a829",
+      "size_bytes": 2871
+    },
+    {
+      "id": "clean-install-summary",
+      "json_bindings": [
+        {
+          "expected": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "pointer": "/source_commit"
+        },
+        {
+          "expected": true,
+          "pointer": "/ready"
+        }
+      ],
+      "kind": "clean_install",
+      "path": "docs/reviews/evidence/P2-S00-01/clean-install-summary.json",
+      "scope": "project",
+      "sha256": "759c0b6f1ccf2fcc9d8e222755f0e2c92a948aa06f138f9c5cf2923bf2abe6b6",
+      "size_bytes": 2271
+    },
+    {
+      "id": "path-cache-credential-audit",
+      "json_bindings": [
+        {
+          "expected": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+          "pointer": "/source_commit"
+        },
+        {
+          "expected": "PASS",
+          "pointer": "/verdict"
+        }
+      ],
+      "kind": "release_boundary_audit",
+      "path": "docs/reviews/evidence/P2-S00-01/path-cache-credential-audit.json",
+      "scope": "project",
+      "sha256": "29863b7e0bb668429c9eea86bc24fbbcfc99a03e3d208734362a4c5515ad1db2",
+      "size_bytes": 1215
+    },
+    {
+      "id": "root-planning-snapshot",
+      "kind": "external_planning_digest_snapshot",
+      "path": "docs/reviews/evidence/P2-S00-01/root-planning-snapshot.json",
+      "scope": "project",
+      "sha256": "2a177aaebe2689d7396ffe8618e0f3487cf10c27f8e947257038370bfe808b53",
+      "size_bytes": 1352
+    },
+    {
+      "id": "package-manifest",
+      "kind": "build_input",
+      "path": "package.json",
+      "scope": "project",
+      "sha256": "2b15563f4637043f43f7ba5f1867d7e17c7d7854e5105bcab194e51b690e544c",
+      "size_bytes": 5790,
+      "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+    },
+    {
+      "id": "bun-lockfile",
+      "kind": "build_input",
+      "path": "bun.lock",
+      "scope": "project",
+      "sha256": "35df508268c1ffc604c02b6c98bcb4edb9757aa5f4c305e5c0e9e0ea41580ed9",
+      "size_bytes": 8334,
+      "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+    },
+    {
+      "id": "python-project-manifest",
+      "kind": "build_input",
+      "path": "pyproject.toml",
+      "scope": "project",
+      "sha256": "c7c415136844c45436947cdc30c79dd7cf71af4b10dc3475bff754785b6237f4",
+      "size_bytes": 1500,
+      "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+    },
+    {
+      "id": "python-lockfile",
+      "kind": "build_input",
+      "path": "requirements.txt",
+      "scope": "project",
+      "sha256": "d2b0dbfcd942e4e6618c4db0d11558c5325b0ed17458e242767dae89747a58da",
+      "size_bytes": 279206,
+      "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+    }
+  ],
+  "release": {
+    "archive_sha256": "dde7e0994059617e160fcba795e722ba6bd126055ce30808a1f8eec937eab0a3",
+    "archive_size": 13233512,
+    "benchmark_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+    "byte_identical_rebuilds": true,
+    "clean_install_ready": true,
+    "manifest_digest": "e3b341979cc0fb0b7e8a22af872f912ef6519f3cdd2645e837cfe551a4b16d37",
+    "release_id": "P2-S00-01-baseline-e207b46",
+    "sbom_sha256": "b4d6854ce71686d9d6c3a8c83af3af700d8c57fe581fde8b58b48c79ae63ec08",
+    "source_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e"
+  },
+  "schema": "zyra.phase2-baseline-manifest/v1",
+  "slice_id": "P2-S00-01",
+  "training_policy": {
+    "evidence_reuse": "read_only",
+    "online_learning_allowed": false,
+    "policy_gradient_allowed": false,
+    "training_allowed": false
+  }
+}

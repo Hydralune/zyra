@@ -1,0 +1,11 @@
+{
+  "finding_count": 0,
+  "findings": [],
+  "manifest": "phase2-baseline-manifest.json",
+  "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "reference_count": 24,
+  "schema": "zyra.phase2-baseline-verification/v1",
+  "valid": true,
+  "verification_digest": "bf6e279208b7bd1a3f1d48d4da42d9ce99af8d081af97a95d01fd8470de31ec8"
+}
