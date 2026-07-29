@@ -96,6 +96,7 @@ class ReleasePolicy:
             "typescript-typecheck",
             "web-build",
             "source-custody",
+            "legacy-source-retirement",
             "submission-boundary",
             "clean-install",
             "semantic-health",

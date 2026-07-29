@@ -766,6 +766,13 @@ def standard_gate_registry(
             ),
         ),
         GateSpec(
+            gate_id="legacy-source-retirement",
+            callable=callable_gates["legacy-source-retirement"],
+            dependencies=("bundle-boundary",),
+            timeout_seconds=900,
+            artifacts=("legacy-source-retirement.json",),
+        ),
+        GateSpec(
             gate_id="submission-boundary",
             command=(python, "scripts/verify_submission_boundary.py"),
             dependencies=("bundle-boundary",),
@@ -779,6 +786,7 @@ def standard_gate_registry(
                 "sbom-notice",
                 "web-build",
                 "submission-boundary",
+                "legacy-source-retirement",
             ),
             timeout_seconds=1800,
             allow_parallel=False,

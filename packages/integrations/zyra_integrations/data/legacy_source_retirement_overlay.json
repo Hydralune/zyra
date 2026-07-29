@@ -1,0 +1,11 @@
+{
+  "current_legacy_target_count": 0,
+  "frozen_source_commit": "eff77b612c5d73dacc8b34960c601740fa8669a9",
+  "historical_legacy_target_count": 273,
+  "historical_target_semantics": "The protected seed records first-stage targets at the frozen commit; these are not current runtime paths.",
+  "manifest_digest": "a860a1c20c0c23cecf52776371e7a4c3a839cae94ca9bcecb01fdb629c52ab53",
+  "manifest_path": "docs/reviews/evidence/P2-S02A-01/legacy-source-pool-retirement-manifest.json",
+  "runtime_fallback_available": false,
+  "schema": "zyra.phase2.legacy-source-retirement-overlay/v1",
+  "slice_id": "P2-S02A-01"
+}

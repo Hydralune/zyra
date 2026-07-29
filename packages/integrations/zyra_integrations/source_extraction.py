@@ -1,271 +1,25 @@
 from __future__ import annotations
 
-import fnmatch
-import hashlib
-import json
-import shutil
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any
 
 from zyra_core import EventRecord, EventType
 
-from .ledger_models import (
-    InternalizationLedgerEntry,
-    LedgerLifecycle,
-    LicenseNotice,
-    LineCountPolicy,
-    MainPathBinding,
-    MainPathStatus,
-    MigrationStrategy,
-    NoticeStatus,
-    RuntimeEntry,
-    SourceEvidence,
-    TargetBinding,
-    TestEntry,
-    stable_ledger_id,
-    to_jsonable,
+from .ledger_models import LedgerLifecycle, MainPathStatus, MigrationStrategy
+
+
+SOURCE_SUFFIXES = frozenset(
+    {".cjs", ".css", ".html", ".js", ".json", ".jsx", ".mjs", ".py", ".ts", ".tsx"}
 )
-from .ledger_store import InternalizationLedger, load_project_ledger, load_seed_ledger, package_seed_path, save_project_ledger
-from .ledger_policy import CountVerdict, classify_path
-
-
-SOURCE_SUFFIXES = {
-    ".py",
-    ".pyi",
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".css",
-    ".html",
-    ".toml",
-    ".ps1",
-    ".sh",
-    ".bat",
-    ".cmd",
-}
-
-UPSTREAM_TYPE_STUB_MARKER = "Auto-generated type stub"
-
-DEFAULT_EXCLUDE_PATTERNS = [
-    ".git/**",
-    ".github/**",
-    ".githooks/**",
-    ".husky/**",
-    ".vscode/**",
-    ".idea/**",
-    "**/.DS_Store",
-    "**/Thumbs.db",
+DEFAULT_EXCLUDE_PATTERNS = (
+    "**/.git/**",
     "**/__pycache__/**",
-    "**/.pytest_cache/**",
-    "**/.mypy_cache/**",
-    "**/.ruff_cache/**",
-    "**/.cache/**",
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/coverage/**",
-    "**/.next/**",
-    "**/.nuxt/**",
-    "**/*.map",
-    "**/*.log",
-    "**/*.tmp",
-    "**/*.pyc",
-    "**/*.pyo",
-    "**/*.sqlite",
-    "**/*.sqlite3",
-    "**/bun.lock",
-    "**/package-lock.json",
-    "**/pnpm-lock.yaml",
-    "**/yarn.lock",
-    "**/poetry.lock",
-    "**/uv.lock",
-    "**/README.md",
-    "**/CHANGELOG.md",
-    "**/SECURITY.md",
-    "**/CONTRIBUTING.md",
-    "**/LICENSE",
-    "**/CLAUDE.md",
-    "**/TODO.md",
-    "**/RECORD.md",
-    "**/docs/**",
-    "**/examples/**",
-    "**/example/**",
-    "**/demo/**",
-    "**/playground/**",
-    "**/fixtures/**",
-    "**/__fixtures__/**",
-    "**/testdata/**",
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "**/*.test.tsx",
-    "**/*.spec.tsx",
-]
-
-
-CLAUDE_CODE_PILOT_SOURCES = [
-    "src/Tool.ts",
-    "src/tools.ts",
-    "src/context.ts",
-    "src/cost-tracker.ts",
-    "src/services/tools/toolOrchestration.ts",
-    "src/services/tools/StreamingToolExecutor.ts",
-    "src/utils/sessionState.ts",
-    "src/utils/abortController.ts",
-    "src/utils/generators.ts",
-    "src/utils/systemPromptType.ts",
-    "src/types/ids.ts",
-    "src/types/message.ts",
-    "src/types/permissions.ts",
-    "src/types/tools.ts",
-    "src/query/config.ts",
-    "src/query/deps.ts",
-    "src/query/stopHooks.ts",
-    "src/query/tokenBudget.ts",
-    "src/tools/BashTool/bashCommandHelpers.ts",
-    "src/tools/BashTool/bashPermissions.ts",
-    "src/tools/BashTool/bashSecurity.ts",
-    "src/tools/BashTool/pathValidation.ts",
-    "src/tools/BashTool/readOnlyValidation.ts",
-    "src/tools/BashTool/commandSemantics.ts",
-    "src/tools/BashTool/destructiveCommandWarning.ts",
-    "src/tools/BashTool/modeValidation.ts",
-    "src/tools/BashTool/shouldUseSandbox.ts",
-    "src/tools/AgentTool/forkSubagent.ts",
-    "src/tools/AgentTool/prompt.ts",
-    "src/tools/AgentTool/agentMemory.ts",
-    "src/tools/AgentTool/agentMemorySnapshot.ts",
-    "src/tools/AgentTool/agentToolUtils.ts",
-    "src/tools/SkillTool/prompt.ts",
-]
-
-M1_01B_EFFECTIVE_TARGETS = [
-    "apps/code-worker/src/main.mjs",
-    "packages/integrations/zyra_integrations/source_extraction.py",
-    "packages/integrations/zyra_integrations/extraction_rules.py",
-    "packages/integrations/zyra_integrations/extraction_acceptance.py",
-    "packages/integrations/zyra_integrations/extraction_lineage.py",
-    "packages/runtime/zyra_runtime/extraction_runtime.py",
-    "packages/runtime/zyra_runtime/executor.py",
-    "packages/runtime/zyra_runtime/query_session.py",
-    "packages/runtime/zyra_runtime/scaffold.py",
-    "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
-    "packages/runtime/zyra_runtime/tool_loop.py",
-    "packages/runtime/zyra_runtime/tools.py",
-    "packages/workers/zyra_workers/code_query_loop.py",
-    "packages/workers/zyra_workers/code_worker_bridge.py",
-    "packages/workers/zyra_workers/code_worker_runtime.py",
-    "packages/workers/zyra_workers/runtime_scaffold.py",
-    "packages/workers/zyra_workers/scaffold_bridge_runtime.py",
-    "packages/workers/zyra_workers/scaffold_supervisor.py",
-    "scripts/verify_code_worker_sidecar.py",
-    "scripts/zyra_source_extract.py",
-    "scripts/verify_extraction_runtime_scaffold.py",
-    "tests/unit/test_source_extraction_runtime_scaffold.py",
-    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py",
-    "tests/unit/test_query_session_lifecycle.py",
-    "tests/unit/test_tool_loop_budget_runtime.py",
-    "tests/integration/test_claude_code_productized_runtime.py",
-    "tests/integration/test_m1_01b_extraction_runtime_scaffold_cli.py",
-]
-
-
-CLAUDE_CODE_PRODUCTIZED_RUNTIME_SOURCES = [
-    "src/QueryEngine.ts",
-    "src/query.ts",
-    "src/Tool.ts",
-    "src/tools.ts",
-    "src/commands.ts",
-    "src/context.ts",
-    "src/cost-tracker.ts",
-    "src/services/tools",
-    "src/services/compact",
-    "src/hooks/toolPermission",
-    "src/tools/AgentTool",
-    "src/tools/SkillTool",
-    "src/tools/BashTool",
-    "src/tools/FileReadTool",
-    "src/tools/FileEditTool",
-    "src/tools/FileWriteTool",
-    "src/tools/GlobTool",
-    "src/tools/GrepTool",
-    "src/tools/TodoWriteTool",
-    "src/tools/ToolSearchTool",
-    "src/tools/WebFetchTool",
-    "src/tools/WebSearchTool",
-    "src/tools/ListMcpResourcesTool",
-    "src/tools/ReadMcpResourceTool",
-    "src/tools/MCPTool",
-    "src/tools/McpAuthTool",
-    "src/services/mcp",
-    "src/utils/toolResultStorage.ts",
-    "src/utils/queryContext.ts",
-    "src/utils/sessionStorage.ts",
-    "src/utils/sessionState.ts",
-    "src/utils/messagePredicates.ts",
-    "src/utils/messageQueueManager.ts",
-    "src/utils/messages.ts",
-]
-
-
-CLAUDE_CODE_QUERY_SESSION_RUNTIME_SOURCES = [
-    "src/assistant/sessionHistory.ts",
-    "src/bridge/inboundMessages.ts",
-    "src/services/api/claude.ts",
-    "src/services/api/bootstrap.ts",
-    "src/services/api/client.ts",
-    "src/services/api/dumpPrompts.ts",
-    "src/services/api/errorUtils.ts",
-    "src/services/api/errors.ts",
-    "src/services/api/filesApi.ts",
-    "src/services/api/logging.ts",
-    "src/services/api/promptCacheBreakDetection.ts",
-    "src/services/api/sessionIngress.ts",
-    "src/services/api/withRetry.ts",
-    "src/bridge/codeSessionApi.ts",
-    "src/bridge/createSession.ts",
-    "src/bridge/sessionIdCompat.ts",
-    "src/bridge/sessionRunner.ts",
-    "src/commands/clear/conversation.ts",
-    "src/commands/rename/generateSessionName.ts",
-    "src/commands/resume",
-    "src/commands/session",
-    "src/utils/agenticSessionSearch.ts",
-    "src/utils/concurrentSessions.ts",
-    "src/utils/conversationRecovery.ts",
-    "src/utils/crossProjectResume.ts",
-    "src/utils/fileHistory.ts",
-    "src/utils/listSessionsImpl.ts",
-    "src/utils/queryProfiler.ts",
-    "src/utils/sessionActivity.ts",
-    "src/utils/sessionEnvironment.ts",
-    "src/utils/sessionFileAccessHooks.ts",
-    "src/utils/sessionRestore.ts",
-    "src/utils/sessionStart.ts",
-    "src/utils/sessionStoragePortable.ts",
-    "src/utils/sessionTitle.ts",
-    "src/utils/sessionUrl.ts",
-    "src/utils/transcriptSearch.ts",
-]
-
-
-CLAUDE_CODE_TOOL_LOOP_BUDGET_RUNTIME_SOURCES = [
-    "src/utils/Shell.ts",
-    "src/utils/ShellCommand.ts",
-    "src/utils/bash",
-    "src/utils/shell",
-    "src/utils/sandbox",
-    "src/utils/groupToolUses.ts",
-    "src/utils/toolErrors.ts",
-    "src/utils/truncate.ts",
-    "src/utils/fileStateCache.ts",
-    "src/utils/readEditContext.ts",
-    "src/utils/permissions/denialTracking.ts",
-]
+)
 
 
 class OverwritePolicy(StrEnum):
@@ -275,6 +29,7 @@ class OverwritePolicy(StrEnum):
 
 
 class ExtractionDisposition(StrEnum):
+    RETIRED = "retired"
     COPIED = "copied"
     SKIPPED_IDENTICAL = "skipped_identical"
     SKIPPED_EXISTING = "skipped_existing"
@@ -302,8 +57,9 @@ class ExtractionTarget:
 
     @property
     def project_relative_path(self) -> str:
-        target = self.target_root / normalize_repo_path(self.relative_path)
-        return target.relative_to(self.project_root).as_posix()
+        return (
+            self.target_root / normalize_repo_path(self.relative_path)
+        ).relative_to(self.project_root).as_posix()
 
     @property
     def absolute_path(self) -> Path:
@@ -318,18 +74,13 @@ class ExtractionItem:
     byte_count: int
     sha256: str
     source_like: bool
-    disposition: ExtractionDisposition
-    reason: str = ""
+    disposition: ExtractionDisposition = ExtractionDisposition.RETIRED
+    reason: str = "legacy_source_pool_retired"
     previous_sha256: str = ""
     is_upstream_type_stub: bool = False
 
     @property
     def effective_line_count(self) -> int:
-        if self.disposition in {ExtractionDisposition.COPIED, ExtractionDisposition.SKIPPED_IDENTICAL, ExtractionDisposition.DRY_RUN}:
-            classification = classify_path(self.target.project_relative_path)
-            if classification.verdict != CountVerdict.EFFECTIVE:
-                return 0
-            return self.line_count if self.source_like and not self.is_upstream_type_stub else 0
         return 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -338,7 +89,7 @@ class ExtractionItem:
             "source_path": normalize_repo_path(self.source.source_path),
             "target_path": self.target.project_relative_path,
             "line_count": self.line_count,
-            "effective_line_count": self.effective_line_count,
+            "effective_line_count": 0,
             "byte_count": self.byte_count,
             "sha256": self.sha256,
             "previous_sha256": self.previous_sha256,
@@ -362,7 +113,10 @@ class LedgerUpsertPlan:
     main_path_status: str
 
     def to_dict(self) -> dict[str, Any]:
-        return to_jsonable(self)
+        return {
+            key: getattr(self, key)
+            for key in self.__dataclass_fields__
+        }
 
 
 @dataclass(slots=True)
@@ -372,40 +126,42 @@ class ExtractionPlan:
     project_root: Path
     target_root: Path
     include_paths: list[str]
-    exclude_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_PATTERNS))
-    owner_unit: str = "M1-01B"
+    exclude_patterns: list[str] = field(
+        default_factory=lambda: list(DEFAULT_EXCLUDE_PATTERNS)
+    )
+    owner_unit: str = "retired"
     milestone: str = "M1"
-    downstream_units: list[str] = field(default_factory=lambda: ["M1-02A", "M1-02B", "M1-02C", "M1-03A"])
-    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED
-    dry_run: bool = False
+    downstream_units: list[str] = field(default_factory=list)
+    overwrite_policy: OverwritePolicy = OverwritePolicy.NEVER
+    dry_run: bool = True
     report_path: Path | None = None
     manifest_module_path: Path | None = None
-    runtime_command: str = "python scripts/verify_extraction_runtime_scaffold.py"
-    runtime_module: str = "zyra_runtime.scaffold"
-    runtime_health_check: str = "python scripts/verify_extraction_runtime_scaffold.py"
-    test_path: str = "tests/unit/test_source_extraction_runtime_scaffold.py"
-    test_command: str = "python -m unittest tests.unit.test_source_extraction_runtime_scaffold"
-    capability_prefix: str = "claude_code_runtime_pilot"
-    capability_summary: str = "Pilot extraction for Claude Code runtime contracts used by M1-02A."
-    target_mount: str = "pilot/claude-code-best"
-    manifest_export_name: str = "zyraClaudeCodePilotManifest"
-    manifest_health_export_name: str = "zyraClaudeCodePilotHealth"
-    manifest_kind: str = "pilot"
-    runtime_function: str = "default_m1_01b_runtime_scaffold"
-    lifecycle: LedgerLifecycle = LedgerLifecycle.ACTIVE
-    main_path_status: MainPathStatus = MainPathStatus.WORKER_RUNTIME_CONNECTED
-    migration_strategy: MigrationStrategy = MigrationStrategy.VENDORED_RUNTIME
-    main_path_worker_runtime: str = "CodeWorkerRuntime:claude-code-runtime-pilot"
-    main_path_surfaces: list[str] = field(
-        default_factory=lambda: ["apps/code-worker", "packages/runtime", "packages/workers", "packages/integrations", "scripts"]
+    runtime_command: str = ""
+    runtime_module: str = ""
+    runtime_health_check: str = ""
+    test_path: str = ""
+    test_command: str = ""
+    capability_prefix: str = "legacy_source_pool_retired"
+    capability_summary: str = "Historical extraction is retired."
+    target_mount: str = ""
+    manifest_export_name: str = ""
+    manifest_health_export_name: str = ""
+    manifest_kind: str = "retired"
+    runtime_function: str = ""
+    lifecycle: LedgerLifecycle = LedgerLifecycle.REJECTED
+    main_path_status: MainPathStatus = MainPathStatus.REJECTED
+    migration_strategy: MigrationStrategy = MigrationStrategy.REIMPLEMENTED_PATTERN
+    main_path_worker_runtime: str = ""
+    main_path_surfaces: list[str] = field(default_factory=list)
+    main_path_event_types: list[str] = field(default_factory=list)
+    main_path_control_commands: list[str] = field(default_factory=list)
+    main_path_artifact_kinds: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=lambda: ["historical", "retired"])
+    source_evidence_tags: list[str] = field(
+        default_factory=lambda: ["frozen-git-object-provenance"]
     )
-    main_path_event_types: list[str] = field(default_factory=lambda: ["runtime_scaffold_health", "source_extraction_completed"])
-    main_path_control_commands: list[str] = field(default_factory=lambda: ["ledger:accounting", "ledger:gate"])
-    main_path_artifact_kinds: list[str] = field(default_factory=lambda: ["source_inventory", "runtime_manifest"])
-    tags: list[str] = field(default_factory=lambda: ["m1-01b", "source-extraction", "claude-code-runtime-pilot"])
-    source_evidence_tags: list[str] = field(default_factory=lambda: ["m1-01b", "pilot-extraction"])
     replacement_plan: str = (
-        "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary."
+        "Use the Zyra-owned formal runtime boundaries already present in packages/runtime."
     )
 
     def normalized_target_root(self) -> Path:
@@ -422,856 +178,100 @@ class ExtractionReport:
     excluded: list[ExtractionItem] = field(default_factory=list)
     missing: list[ExtractionItem] = field(default_factory=list)
     ledger_upserts: list[LedgerUpsertPlan] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = field(
+        default_factory=lambda: ["legacy_source_pool_retired"]
+    )
 
     @property
     def ok(self) -> bool:
-        return not self.errors
-
-    @property
-    def copied_count(self) -> int:
-        return len(self.copied)
-
-    @property
-    def skipped_count(self) -> int:
-        return len(self.skipped)
-
-    @property
-    def excluded_count(self) -> int:
-        return len(self.excluded)
-
-    @property
-    def missing_count(self) -> int:
-        return len(self.missing)
-
-    @property
-    def effective_line_count(self) -> int:
-        return sum(item.effective_line_count for item in [*self.copied, *self.skipped])
-
-    @property
-    def upstream_type_stub_count(self) -> int:
-        return sum(1 for item in [*self.copied, *self.skipped] if item.is_upstream_type_stub)
-
-    @property
-    def upstream_type_stub_line_count(self) -> int:
-        return sum(item.line_count for item in [*self.copied, *self.skipped] if item.is_upstream_type_stub)
-
-    @property
-    def raw_line_count(self) -> int:
-        return sum(item.line_count for item in [*self.copied, *self.skipped, *self.excluded, *self.missing])
+        return False
 
     @property
     def target_paths(self) -> list[str]:
-        return sorted({item.target.project_relative_path for item in [*self.copied, *self.skipped]})
+        return []
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "ok": self.ok,
-            "summary": {
-                "source_repo": self.plan.source_repo,
-                "owner_unit": self.plan.owner_unit,
-                "target_root": self.plan.normalized_target_root().relative_to(self.plan.project_root).as_posix(),
-                "dry_run": self.plan.dry_run,
-                "overwrite_policy": str(self.plan.overwrite_policy),
-                "copied_count": self.copied_count,
-                "skipped_count": self.skipped_count,
-                "excluded_count": self.excluded_count,
-                "missing_count": self.missing_count,
-                "effective_line_count": self.effective_line_count,
-                "upstream_type_stub_count": self.upstream_type_stub_count,
-                "upstream_type_stub_line_count": self.upstream_type_stub_line_count,
-                "raw_line_count": self.raw_line_count,
-                "ledger_upsert_count": len(self.ledger_upserts),
-            },
-            "copied": [item.to_dict() for item in self.copied],
-            "skipped": [item.to_dict() for item in self.skipped],
-            "excluded": [item.to_dict() for item in self.excluded],
-            "missing": [item.to_dict() for item in self.missing],
-            "ledger_upserts": [item.to_dict() for item in self.ledger_upserts],
+            "ok": False,
+            "status": "retired",
+            "reason": "legacy_source_pool_retired",
+            "source_repo": self.plan.source_repo,
+            "target_paths": [],
             "errors": list(self.errors),
         }
 
-    def completion_event(self, *, run_id: str = "m1-01b", task_id: str = "source-extraction") -> EventRecord:
-        return source_extraction_completed_event(self, run_id=run_id, task_id=task_id)
-
-
-def source_extraction_completed_event(
-    report: ExtractionReport,
-    *,
-    run_id: str = "m1-01b",
-    task_id: str = "source-extraction",
-) -> EventRecord:
-    return EventRecord(
-        run_id=run_id,
-        task_id=task_id,
-        node_id="source-extraction",
-        event_type=EventType.AGENT_MESSAGE,
-        payload={
-            "source_extraction_completed": {
-                "ok": report.ok,
-                "source_repo": report.plan.source_repo,
-                "owner_unit": report.plan.owner_unit,
-                "copied": len(report.copied),
-                "skipped": len(report.skipped),
-                "excluded": len(report.excluded),
-                "missing": len(report.missing),
-                "target_paths": report.target_paths,
-            }
-        },
-    )
+    def completion_event(
+        self,
+        *,
+        run_id: str = "legacy-retired",
+        task_id: str = "source-extraction",
+    ) -> EventRecord:
+        return source_extraction_completed_event(
+            self,
+            run_id=run_id,
+            task_id=task_id,
+        )
 
 
 class SourceExtractionError(RuntimeError):
     pass
 
 
+class LegacySourcePoolRetiredError(SourceExtractionError):
+    pass
+
+
 class SourceExtractor:
     def __init__(self, plan: ExtractionPlan) -> None:
-        self.plan = plan
-        self.project_root = plan.project_root.resolve()
-        self.source_root = plan.source_root.resolve()
-        self.target_root = plan.normalized_target_root()
-        self._assert_inside_project(self.target_root)
-
-    def run(self) -> ExtractionReport:
-        report = ExtractionReport(plan=self.plan)
-        candidates = self._collect_source_files()
-        for source_path in candidates:
-            source = ExtractionSource(
-                source_repo=self.plan.source_repo,
-                repo_root=self.source_root,
-                source_path=source_path,
-            )
-            target = ExtractionTarget(
-                project_root=self.project_root,
-                target_root=self.target_root,
-                relative_path=f"{self.plan.target_mount}/{normalize_repo_path(source_path)}",
-            )
-            item = self._build_item(source, target)
-            if item.disposition == ExtractionDisposition.EXCLUDED:
-                report.excluded.append(item)
-                continue
-            if item.disposition == ExtractionDisposition.MISSING_SOURCE:
-                report.missing.append(item)
-                report.errors.append(f"missing source: {source.source_path}")
-                continue
-            if not self.plan.dry_run and item.disposition == ExtractionDisposition.COPIED:
-                self._copy_item(source.absolute_path, target.absolute_path)
-            if item.disposition in {ExtractionDisposition.COPIED, ExtractionDisposition.DRY_RUN}:
-                report.copied.append(item)
-            else:
-                report.skipped.append(item)
-        if not report.copied and not report.skipped:
-            report.errors.append("extraction produced no copied or reusable files")
-        if report.missing:
-            report.errors.append(f"{len(report.missing)} source files were missing")
-        report.ledger_upserts = [
-            self._ledger_upsert_plan_for_item(item)
-            for item in [*report.copied, *report.skipped]
-            if item.source_like
-        ]
-        if not self.plan.dry_run:
-            self._write_runtime_manifest(report)
-            self._write_report(report)
-        return report
-
-    def build_ledger_entries(self, report: ExtractionReport) -> list[InternalizationLedgerEntry]:
-        return [
-            self._entry_for_item(item)
-            for item in [*report.copied, *report.skipped]
-            if item.source_like
-        ]
-
-    def upsert_ledger_entries(
-        self,
-        report: ExtractionReport,
-        *,
-        project_ledger: bool = True,
-        seed_ledger: bool = False,
-    ) -> dict[str, Any]:
-        entries = self.build_ledger_entries(report)
-        payload: dict[str, Any] = {"entry_count": len(entries), "project_ledger": None, "seed_ledger": None}
-        if project_ledger:
-            ledger = load_project_ledger(self.project_root, bootstrap=True)
-            actions = []
-            for entry in entries:
-                mutation = ledger.upsert(entry)
-                actions.append(to_jsonable(mutation))
-            save_project_ledger(self.project_root, ledger)
-            payload["project_ledger"] = {"path": str(self.project_root / "tmp" / "internalization_ledger.json"), "actions": actions}
-        if seed_ledger:
-            seed = load_seed_ledger()
-            actions = []
-            for entry in entries:
-                mutation = seed.upsert(entry)
-                actions.append(to_jsonable(mutation))
-            seed.save(package_seed_path())
-            payload["seed_ledger"] = {"path": str(package_seed_path()), "actions": actions}
-        return payload
-
-    def _collect_source_files(self) -> list[str]:
-        files: set[str] = set()
-        for include in self.plan.include_paths:
-            normalized = normalize_repo_path(include)
-            source_abs = self._safe_source_path(normalized)
-            if source_abs.is_file():
-                files.add(normalized)
-                continue
-            if source_abs.is_dir():
-                for child in source_abs.rglob("*"):
-                    if child.is_file():
-                        files.add(child.relative_to(self.source_root).as_posix())
-                continue
-            files.add(normalized)
-        return sorted(files)
-
-    def _build_item(self, source: ExtractionSource, target: ExtractionTarget) -> ExtractionItem:
-        source_path = normalize_repo_path(source.source_path)
-        if self._is_excluded(source_path):
-            return self._empty_item(source, target, ExtractionDisposition.EXCLUDED, reason="matched exclude pattern")
-        source_abs = self._safe_source_path(source_path)
-        if not source_abs.exists() or not source_abs.is_file():
-            return self._empty_item(source, target, ExtractionDisposition.MISSING_SOURCE, reason="source file not found")
-        target_abs = target.absolute_path.resolve()
-        self._assert_inside_project(target_abs)
-        text = source_abs.read_text(encoding="utf-8", errors="replace")
-        raw = source_abs.read_bytes()
-        sha = hashlib.sha256(raw).hexdigest()
-        previous_sha = _sha256_file(target_abs) if target_abs.exists() and target_abs.is_file() else ""
-        source_like = PurePosixPath(source_path).suffix.lower() in SOURCE_SUFFIXES
-        line_count = len(text.splitlines())
-        disposition = ExtractionDisposition.COPIED
-        reason = "copy scheduled"
-        if self.plan.dry_run:
-            disposition = ExtractionDisposition.DRY_RUN
-            reason = "dry run"
-        elif target_abs.exists():
-            if self.plan.overwrite_policy == OverwritePolicy.ALWAYS:
-                disposition = ExtractionDisposition.COPIED
-                reason = "overwrite policy is always"
-            elif previous_sha == sha:
-                disposition = ExtractionDisposition.SKIPPED_IDENTICAL
-                reason = "target already matches source"
-            elif self.plan.overwrite_policy == OverwritePolicy.NEVER:
-                disposition = ExtractionDisposition.SKIPPED_EXISTING
-                reason = "target exists and overwrite policy is never"
-            elif self.plan.overwrite_policy == OverwritePolicy.IF_CHANGED:
-                disposition = ExtractionDisposition.COPIED
-                reason = "target changed and overwrite allowed"
-        return ExtractionItem(
-            source=source,
-            target=target,
-            line_count=line_count,
-            byte_count=len(raw),
-            sha256=sha,
-            source_like=source_like,
-            disposition=disposition,
-            reason=reason,
-            previous_sha256=previous_sha,
-            is_upstream_type_stub=UPSTREAM_TYPE_STUB_MARKER in text,
+        del plan
+        raise LegacySourcePoolRetiredError(
+            "Legacy source extraction is retired. Use packages/runtime formal owners; "
+            "no source-pool writer or fallback is available."
         )
 
-    def _empty_item(
-        self,
-        source: ExtractionSource,
-        target: ExtractionTarget,
-        disposition: ExtractionDisposition,
-        *,
-        reason: str,
-    ) -> ExtractionItem:
-        return ExtractionItem(
-            source=source,
-            target=target,
-            line_count=0,
-            byte_count=0,
-            sha256="",
-            source_like=False,
-            disposition=disposition,
-            reason=reason,
-        )
 
-    def _copy_item(self, source: Path, target: Path) -> None:
-        self._assert_inside_project(target)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+def _retired(*_: Any, **__: Any) -> ExtractionPlan:
+    raise LegacySourcePoolRetiredError(
+        "The first-stage Claude source extraction plans are immutable historical "
+        "evidence and cannot be executed or recreated."
+    )
 
-    def _write_report(self, report: ExtractionReport) -> None:
-        report_path = self.plan.report_path or self.target_root / "metadata" / "source_inventory.json"
-        if not report_path.is_absolute():
-            report_path = self.project_root / report_path
-        self._assert_inside_project(report_path)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    def _write_runtime_manifest(self, report: ExtractionReport) -> None:
-        manifest = self.plan.manifest_module_path or self.target_root / "src" / "zyra-pilot-manifest.mjs"
-        if not manifest.is_absolute():
-            manifest = self.project_root / manifest
-        self._assert_inside_project(manifest)
-        manifest.parent.mkdir(parents=True, exist_ok=True)
-        files = [
-            {
-                "sourcePath": item.source.source_path,
-                "targetPath": item.target.project_relative_path,
-                "sha256": item.sha256,
-                "lineCount": item.line_count,
-                "effectiveLineCount": item.effective_line_count,
-                "upstreamTypeStub": item.is_upstream_type_stub,
+claude_code_m1_01b_plan = _retired
+claude_code_m1_02a_plan = _retired
+claude_code_m1_02b_plan = _retired
+claude_code_m1_02c_plan = _retired
+
+
+def write_runtime_scaffold_files(*_: Any, **__: Any) -> list[Path]:
+    _retired()
+
+
+def write_productized_runtime_files(*_: Any, **__: Any) -> list[Path]:
+    _retired()
+
+
+def source_extraction_completed_event(
+    report: ExtractionReport,
+    *,
+    run_id: str = "legacy-retired",
+    task_id: str = "source-extraction",
+) -> EventRecord:
+    return EventRecord(
+        run_id=run_id,
+        task_id=task_id,
+        node_id="source-extraction-retired",
+        event_type=EventType.AGENT_MESSAGE,
+        payload={
+            "source_extraction_retired": {
+                "status": "retired",
+                "reason": "legacy_source_pool_retired",
+                "source_repo": report.plan.source_repo,
+                "current_runtime_owner": "packages/runtime",
+                "fallback_available": False,
             }
-            for item in [*report.copied, *report.skipped]
-            if item.source_like
-        ]
-        text = [
-            f"export const {self.plan.manifest_export_name} = Object.freeze({{",
-            f"  sourceRepo: {json.dumps(self.plan.source_repo, ensure_ascii=False)},",
-            f"  ownerUnit: {json.dumps(self.plan.owner_unit, ensure_ascii=False)},",
-            f"  manifestKind: {json.dumps(self.plan.manifest_kind, ensure_ascii=False)},",
-            '  targetRuntime: "vendor-runtimes/claude-code-runtime",',
-            f"  targetMount: {json.dumps(self.plan.target_mount, ensure_ascii=False)},",
-            f"  purpose: {json.dumps(self.plan.capability_summary, ensure_ascii=False)},",
-            f"  copiedFileCount: {len(files)},",
-            f"  effectiveLineCount: {sum(item['effectiveLineCount'] for item in files)},",
-            f"  upstreamTypeStubCount: {sum(1 for item in files if item['upstreamTypeStub'])},",
-            f"  upstreamTypeStubLineCount: {sum(item['lineCount'] for item in files if item['upstreamTypeStub'])},",
-            "  files: Object.freeze([",
-        ]
-        for item in files:
-            text.append(
-                "    Object.freeze("
-                + json.dumps(item, ensure_ascii=False, sort_keys=True)
-                + "),"
-            )
-        text.extend(
-            [
-                "  ]),",
-                "});",
-                "",
-                f"export function {self.plan.manifest_health_export_name}() {{",
-                "  return {",
-                f"    ok: {self.plan.manifest_export_name}.copiedFileCount > 0,",
-                f"    sourceRepo: {self.plan.manifest_export_name}.sourceRepo,",
-                f"    ownerUnit: {self.plan.manifest_export_name}.ownerUnit,",
-                f"    manifestKind: {self.plan.manifest_export_name}.manifestKind,",
-                f"    effectiveLineCount: {self.plan.manifest_export_name}.effectiveLineCount,",
-                f"    copiedFileCount: {self.plan.manifest_export_name}.copiedFileCount,",
-                f"    upstreamTypeStubCount: {self.plan.manifest_export_name}.upstreamTypeStubCount,",
-                f"    upstreamTypeStubLineCount: {self.plan.manifest_export_name}.upstreamTypeStubLineCount,",
-                "  };",
-                "}",
-                "",
-            ]
-        )
-        manifest.write_text("\n".join(text), encoding="utf-8")
-
-    def _entry_for_item(self, item: ExtractionItem) -> InternalizationLedgerEntry:
-        capability = self._capability_name(item)
-        target_bindings = self._target_bindings_for_item(item)
-        primary_targets = [binding.target_path for binding in target_bindings if binding.role == "primary"]
-        line_count_policy = self._line_count_policy_for_item()
-        entry = InternalizationLedgerEntry.new(
-            source_repo=item.source.source_repo,
-            source_path=item.source.source_path,
-            capability_name=capability,
-            capability_summary=f"{self.plan.capability_summary} Source file line_count={item.line_count}.",
-            target_paths=primary_targets or [item.target.project_relative_path],
-            migration_strategy=self._migration_strategy_for_item(),
-            main_path_status=self._main_path_status_for_item(),
-            lifecycle=self._lifecycle_for_item(),
-            owner_unit=self.plan.owner_unit,
-            milestone=self.plan.milestone,
-            runtime_entry=RuntimeEntry(
-                command=self.plan.runtime_command,
-                module=self.plan.runtime_module,
-                function=self.plan.runtime_function,
-                protocol="zyra-runtime-scaffold-v1",
-                health_check=self.plan.runtime_health_check,
-                config_refs=self._runtime_config_refs(),
-            ),
-            test_entries=[
-                TestEntry(
-                    path=self.plan.test_path,
-                    command=self.plan.test_command,
-                    kind="unit",
-                    expected_signal="source extraction and runtime scaffold smoke passes",
-                )
-            ],
-            main_path=MainPathBinding(
-                surfaces=list(self.plan.main_path_surfaces),
-                event_types=list(self.plan.main_path_event_types),
-                control_commands=list(self.plan.main_path_control_commands),
-                artifact_kinds=list(self.plan.main_path_artifact_kinds),
-                worker_runtime=self.plan.main_path_worker_runtime,
-            ),
-            line_count_policy=line_count_policy,
-            license_notice=LicenseNotice(
-                source_repo=item.source.source_repo,
-                status=NoticeStatus.RECORDED,
-                license_hint="Upstream license/NOTICE is tracked for productized runtime cleanup.",
-                notice_path="third_party/NOTICE.md",
-                notes="M1-01B pilot extraction; final NOTICE consolidation is handled by M3.",
-            ),
-            extracted_sha256=item.sha256,
-            extracted_lines=item.line_count,
-            effective_line_count=0 if self.plan.owner_unit in {"M1-01B", "M1-02A"} else item.effective_line_count,
-            source_pool_target=item.target.project_relative_path,
-            effective_target_count=len(primary_targets),
-            upstream_type_stub=item.is_upstream_type_stub,
-        )
-        entry.target_bindings = target_bindings
-        entry.source_evidence = [
-            SourceEvidence(
-                source_repo=item.source.source_repo,
-                source_path=item.source.source_path,
-                exists_in_workspace=True,
-                source_kind="file",
-                reason=f"{self.plan.manifest_kind} extraction source file",
-                symbols=[PurePosixPath(item.source.source_path).stem],
-                tags=list(self.plan.source_evidence_tags),
-            )
-        ]
-        entry.downstream_units = list(self.plan.downstream_units)
-        entry.tags = list(self.plan.tags)
-        if item.is_upstream_type_stub:
-            entry.tags.append("upstream-type-stub")
-            entry.risk_notes.append(
-                "Upstream source is an auto-generated type stub; retained for import-boundary evidence and excluded from effective line counts."
-            )
-        if self.plan.owner_unit == "M1-01B":
-            entry.risk_notes.append(
-                "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
-            )
-        if self.plan.owner_unit == "M1-02A":
-            entry.risk_notes.append(
-                "M1-02A productized copy target is source-pool evidence only; connected foundation claims are carried by Zyra-owned runtime, worker, ledger migration, CLI, and behavior-test targets."
-            )
-        entry.replacement_plan = self.plan.replacement_plan
-        return entry
-
-    def _target_bindings_for_item(self, item: ExtractionItem) -> list[TargetBinding]:
-        if self.plan.owner_unit == "M1-02A":
-            return [
-                TargetBinding(
-                    item.target.project_relative_path,
-                    role="source_pool",
-                    required_for_main_path=False,
-                    must_exist_for_statuses=[],
-                )
-            ]
-        if self.plan.owner_unit != "M1-01B":
-            return [TargetBinding(item.target.project_relative_path)]
-        bindings = [
-            TargetBinding(
-                target,
-                role="primary",
-                required_for_main_path=True,
-            )
-            for target in M1_01B_EFFECTIVE_TARGETS
-        ]
-        bindings.append(
-            TargetBinding(
-                item.target.project_relative_path,
-                role="source_pool",
-                required_for_main_path=False,
-                must_exist_for_statuses=[],
-            )
-        )
-        return bindings
-
-    def _migration_strategy_for_item(self) -> MigrationStrategy:
-        if self.plan.owner_unit == "M1-01B":
-            return MigrationStrategy.ADAPTER
-        if self.plan.owner_unit == "M1-02A":
-            return MigrationStrategy.CANDIDATE_REVIEW
-        return self.plan.migration_strategy
-
-    def _main_path_status_for_item(self) -> MainPathStatus:
-        if self.plan.owner_unit == "M1-02A":
-            return MainPathStatus.INVENTORIED
-        return self.plan.main_path_status
-
-    def _lifecycle_for_item(self) -> LedgerLifecycle:
-        if self.plan.owner_unit == "M1-02A":
-            return LedgerLifecycle.CANDIDATE
-        return self.plan.lifecycle
-
-    def _line_count_policy_for_item(self) -> LineCountPolicy:
-        if self.plan.owner_unit == "M1-01B":
-            return LineCountPolicy.COUNTS_WHEN_PRODUCTIZED
-        if self.plan.owner_unit == "M1-02A":
-            return LineCountPolicy.EXCLUDED_INVENTORY_ONLY
-        return LineCountPolicy.COUNTS_AS_RUNTIME
-
-    def _runtime_config_refs(self) -> list[str]:
-        if self.plan.owner_unit == "M1-01B":
-            return [
-                "packages/runtime/zyra_runtime/scaffold.py",
-                "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
-                "packages/workers/zyra_workers/scaffold_supervisor.py",
-            ]
-        if self.plan.owner_unit == "M1-02A":
-            return [
-                self._project_relative_manifest_path(),
-                "packages/runtime/zyra_runtime/claude_productization_foundation.py",
-                "packages/workers/zyra_workers/claude_foundation_worker.py",
-            ]
-        return [self._project_relative_manifest_path()]
-
-    def _ledger_upsert_plan_for_item(self, item: ExtractionItem) -> LedgerUpsertPlan:
-        capability = self._capability_name(item)
-        return LedgerUpsertPlan(
-            ledger_id=stable_ledger_id(item.source.source_repo, item.source.source_path, capability),
-            source_repo=item.source.source_repo,
-            source_path=item.source.source_path,
-            target_path=item.target.project_relative_path,
-            owner_unit=self.plan.owner_unit,
-            capability_name=capability,
-            action="upsert",
-            lifecycle=str(self.plan.lifecycle),
-            main_path_status=str(self.plan.main_path_status),
-        )
-
-    def _capability_name(self, item: ExtractionItem) -> str:
-        stem = normalize_repo_path(item.source.source_path).replace("/", "_").replace(".", "_").replace("-", "_")
-        return f"{self.plan.capability_prefix}_{stem}"
-
-    def _is_excluded(self, relative_path: str) -> bool:
-        normalized = normalize_repo_path(relative_path)
-        return any(_match_pattern(normalized, pattern) for pattern in self.plan.exclude_patterns)
-
-    def _safe_source_path(self, relative_path: str) -> Path:
-        normalized = normalize_repo_path(relative_path)
-        if _has_parent_segment(normalized):
-            raise SourceExtractionError(f"source path may not contain parent segments: {relative_path}")
-        target = (self.source_root / normalized).resolve()
-        try:
-            target.relative_to(self.source_root)
-        except ValueError as error:
-            raise SourceExtractionError(f"source path escapes source root: {relative_path}") from error
-        return target
-
-    def _assert_inside_project(self, path: Path) -> None:
-        resolved = path.resolve()
-        try:
-            resolved.relative_to(self.project_root)
-        except ValueError as error:
-            raise SourceExtractionError(f"path escapes project root: {path}") from error
-
-    def _project_relative_manifest_path(self) -> str:
-        manifest = self.plan.manifest_module_path or self.target_root / "src" / "zyra-pilot-manifest.mjs"
-        if not manifest.is_absolute():
-            manifest = self.project_root / manifest
-        return manifest.resolve().relative_to(self.project_root).as_posix()
-
-
-def claude_code_m1_01b_plan(
-    *,
-    project_root: Path,
-    source_workspace_root: Path,
-    dry_run: bool = False,
-    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
-) -> ExtractionPlan:
-    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    return ExtractionPlan(
-        source_repo="claude-code-best",
-        source_root=source_workspace_root / "claude-code-best",
-        project_root=project_root,
-        target_root=target_root,
-        include_paths=list(CLAUDE_CODE_PILOT_SOURCES),
-        dry_run=dry_run,
-        overwrite_policy=overwrite_policy,
-        report_path=target_root / "metadata" / "source_inventory.json",
-        manifest_module_path=target_root / "src" / "zyra-pilot-manifest.mjs",
-    )
-
-
-def claude_code_m1_02a_plan(
-    *,
-    project_root: Path,
-    source_workspace_root: Path,
-    dry_run: bool = False,
-    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
-) -> ExtractionPlan:
-    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    return ExtractionPlan(
-        source_repo="claude-code-best",
-        source_root=source_workspace_root / "claude-code-best",
-        project_root=project_root,
-        target_root=target_root,
-        include_paths=list(CLAUDE_CODE_PRODUCTIZED_RUNTIME_SOURCES),
-        owner_unit="M1-02A",
-        milestone="M1",
-        downstream_units=["M1-02B", "M1-02C", "M1-02D", "M1-03A", "M1-03B", "M1-03C", "M1-03D", "M1-08"],
-        dry_run=dry_run,
-        overwrite_policy=overwrite_policy,
-        report_path=target_root / "metadata" / "productized_source_inventory.json",
-        manifest_module_path=target_root / "src" / "zyra-productized-manifest.mjs",
-        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs",
-        runtime_module="@zyra/claude-code-runtime/productized",
-        runtime_function="zyraClaudeCodeProductizedHealth",
-        runtime_health_check="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs",
-        test_path="tests/integration/test_claude_code_productized_runtime.py",
-        test_command="python -m unittest tests.integration.test_claude_code_productized_runtime",
-        capability_prefix="claude_code_runtime_productized",
-        capability_summary=(
-            "Productized Claude Code runtime source boundary for Zyra CodeWorkerRuntime, QueryEngine, "
-            "tool orchestration, compact, permission, MCP, SkillTool, and AgentTool handoff."
-        ),
-        target_mount="productized/claude-code-best",
-        manifest_export_name="zyraClaudeCodeProductizedManifest",
-        manifest_health_export_name="zyraClaudeCodeProductizedHealth",
-        manifest_kind="productized",
-        lifecycle=LedgerLifecycle.PRODUCTIZED,
-        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
-        main_path_worker_runtime="CodeWorkerRuntime:claude-code-runtime-productized",
-        main_path_event_types=[
-            "query_session",
-            "tool_result",
-            "runtime_scaffold_health",
-            "source_extraction_completed",
-            "reference_crosswalk_verified",
-        ],
-        main_path_control_commands=[
-            "code-worker:health",
-            "code-worker:inventory",
-            "code-worker:query-contract",
-            "ledger:accounting",
-            "ledger:gate",
-        ],
-        main_path_artifact_kinds=[
-            "trace",
-            "source_inventory",
-            "runtime_manifest",
-            "reference_crosswalk",
-            "structured_data",
-        ],
-        tags=["m1-02a", "source-extraction", "claude-code-runtime-productized", "reference-only-assisted"],
-        source_evidence_tags=["m1-02a", "productized-extraction", "reference-only-assisted"],
-        replacement_plan=(
-            "M1-02B/M1-02C/M1-02D will bind these productized Claude Code runtime sources to Zyra's "
-            "query loop, tool loop, session lifecycle, compact/restore, and CodeWorker API without relying on parent paths."
-        ),
-    )
-
-
-def claude_code_m1_02b_plan(
-    *,
-    project_root: Path,
-    source_workspace_root: Path,
-    dry_run: bool = False,
-    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
-) -> ExtractionPlan:
-    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    return ExtractionPlan(
-        source_repo="claude-code-best",
-        source_root=source_workspace_root / "claude-code-best",
-        project_root=project_root,
-        target_root=target_root,
-        include_paths=list(CLAUDE_CODE_QUERY_SESSION_RUNTIME_SOURCES),
-        owner_unit="M1-02B",
-        milestone="M1",
-        downstream_units=["M1-02C", "M1-02D", "M1-03A", "M1-03B", "M1-03C", "M1-03D", "M1-08", "M2-01B", "M2-04B"],
-        dry_run=dry_run,
-        overwrite_policy=overwrite_policy,
-        report_path=target_root / "metadata" / "query_session_source_inventory.json",
-        manifest_module_path=target_root / "src" / "zyra-query-session-manifest.mjs",
-        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --session-contract",
-        runtime_module="@zyra/claude-code-runtime/query-session",
-        runtime_function="zyraClaudeCodeQuerySessionHealth",
-        runtime_health_check="python scripts/verify_code_worker_sidecar.py",
-        test_path="tests/integration/test_code_worker_query_session_lifecycle.py",
-        test_command="python -m unittest tests.integration.test_code_worker_query_session_lifecycle",
-        capability_prefix="claude_code_query_session",
-        capability_summary=(
-            "Claude Code query/session lifecycle source boundary for append-only transcripts, parent-UUID "
-            "resume, stream request lifecycle, retry/continue handling, and CodeWorkerRuntime session snapshots."
-        ),
-        target_mount="productized/claude-code-best",
-        manifest_export_name="zyraClaudeCodeQuerySessionManifest",
-        manifest_health_export_name="zyraClaudeCodeQuerySessionHealth",
-        manifest_kind="query-session",
-        lifecycle=LedgerLifecycle.PRODUCTIZED,
-        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
-        main_path_worker_runtime="CodeWorkerRuntime:query-session-lifecycle",
-        main_path_event_types=[
-            "query_session",
-            "query_session_snapshot",
-            "stream_request_start",
-            "turn_start",
-            "message_delta",
-            "turn_end",
-            "error",
-            "continue",
-        ],
-        main_path_control_commands=[
-            "code-worker:query-contract",
-            "code-worker:session-contract",
-            "session:resume",
-            "session:replay",
-            "ledger:accounting",
-            "ledger:gate",
-        ],
-        main_path_artifact_kinds=[
-            "trace",
-            "session_snapshot",
-            "session_transcript",
-            "source_inventory",
-            "runtime_manifest",
-            "structured_data",
-        ],
-        tags=["m1-02b", "query-session-lifecycle", "claude-code-runtime-productized", "reference-only-assisted"],
-        source_evidence_tags=["m1-02b", "query-session", "session-persistence", "stream-lifecycle"],
-        replacement_plan=(
-            "M1-02B binds these productized Claude Code query/session sources to Zyra QuerySession, "
-            "TurnState, MessageLifecycle, event log metadata, checkpoint snapshots, and replay/resume support. "
-            "M1-02C adds tool-loop depth inside the same lifecycle and M1-02D adds compact/restore."
-        ),
-    )
-
-
-def claude_code_m1_02c_plan(
-    *,
-    project_root: Path,
-    source_workspace_root: Path,
-    dry_run: bool = False,
-    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
-) -> ExtractionPlan:
-    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    return ExtractionPlan(
-        source_repo="claude-code-best",
-        source_root=source_workspace_root / "claude-code-best",
-        project_root=project_root,
-        target_root=target_root,
-        include_paths=list(CLAUDE_CODE_TOOL_LOOP_BUDGET_RUNTIME_SOURCES),
-        owner_unit="M1-02C",
-        milestone="M1",
-        downstream_units=["M1-02D", "M1-03A", "M1-04D", "M1-07B", "M1-07C", "M2-02B", "M2-04A"],
-        dry_run=dry_run,
-        overwrite_policy=overwrite_policy,
-        report_path=target_root / "metadata" / "tool_loop_budget_source_inventory.json",
-        manifest_module_path=target_root / "src" / "zyra-tool-loop-budget-manifest.mjs",
-        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --tool-loop-contract",
-        runtime_module="@zyra/claude-code-runtime/tool-loop-budget",
-        runtime_function="zyraClaudeCodeToolLoopBudgetHealth",
-        runtime_health_check="python scripts/verify_code_worker_sidecar.py",
-        test_path="tests/integration/test_code_worker_tool_loop_budget.py",
-        test_command="python -m unittest tests.integration.test_code_worker_tool_loop_budget",
-        capability_prefix="claude_code_tool_loop_budget",
-        capability_summary=(
-            "Claude Code tool loop, Bash/shell execution, sandbox, read/write scheduling, "
-            "tool result budget, truncation, and failure signal source boundary for Zyra CodeWorkerRuntime."
-        ),
-        target_mount="productized/claude-code-best",
-        manifest_export_name="zyraClaudeCodeToolLoopBudgetManifest",
-        manifest_health_export_name="zyraClaudeCodeToolLoopBudgetHealth",
-        manifest_kind="tool-loop-budget",
-        lifecycle=LedgerLifecycle.PRODUCTIZED,
-        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
-        main_path_worker_runtime="CodeWorkerRuntime:claude-code-tool-loop-budget",
-        main_path_event_types=[
-            "tool_batch_started",
-            "tool_call_started",
-            "tool_call_completed",
-            "tool_result_budget_exceeded",
-            "tool_failure_signal",
-            "watchdog_signal",
-        ],
-        main_path_control_commands=[
-            "code-worker:tool-loop-contract",
-            "code-worker:query-contract",
-            "code-worker:health",
-            "ledger:accounting",
-            "ledger:gate",
-        ],
-        main_path_artifact_kinds=[
-            "trace",
-            "structured_data",
-            "source_inventory",
-            "runtime_manifest",
-            "tool_result_externalization",
-        ],
-        tags=["m1-02c", "tool-loop", "tool-budget", "bash-engine", "sandbox", "watchdog-signal"],
-        source_evidence_tags=["m1-02c", "tool-loop-budget", "claude-code-tool-runtime"],
-        replacement_plan=(
-            "M1-02C uses this source boundary to keep Zyra's Python ToolLoopRuntime aligned with Claude Code "
-            "tool orchestration, shell lifecycle, sandbox/read-only validation, and tool result externalization. "
-            "M1-03A will deepen the permission runtime beyond the placeholder denial signal used here."
-        ),
-    )
-
-
-def write_runtime_scaffold_files(project_root: Path) -> list[Path]:
-    runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    files: dict[Path, str] = {
-        runtime_root / "package.json": json.dumps(
-                {
-                    "name": "@zyra/claude-code-runtime",
-                    "private": True,
-                    "type": "module",
-                    "version": "0.1.0-m1-02a",
-                    "description": "Productized Claude Code runtime boundary for Zyra.",
-                    "scripts": {
-                        "health": "node src/zyra-productized-smoke.mjs",
-                        "pilot:health": "node src/zyra-pilot-smoke.mjs",
-                        "productized:health": "node src/zyra-productized-smoke.mjs",
-                        "inventory": "node src/zyra-productized-smoke.mjs --inventory",
-                        "pilot:inventory": "node src/zyra-pilot-smoke.mjs --inventory",
-                        "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
-                    },
-                },
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        runtime_root / "src" / "zyra-pilot-smoke.mjs": _pilot_smoke_module(),
-    }
-    written: list[Path] = []
-    for path, text in files.items():
-        resolved = path.resolve()
-        try:
-            resolved.relative_to(project_root.resolve())
-        except ValueError as error:
-            raise SourceExtractionError(f"scaffold path escapes project root: {path}") from error
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        written.append(path)
-    return written
-
-
-def write_productized_runtime_files(project_root: Path) -> list[Path]:
-    runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
-    package_path = runtime_root / "package.json"
-    package_payload = {
-        "name": "@zyra/claude-code-runtime",
-        "private": True,
-        "type": "module",
-        "version": "0.1.0-m1-02a",
-        "description": "Productized Claude Code runtime boundary for Zyra.",
-        "scripts": {
-            "health": "node src/zyra-productized-smoke.mjs",
-            "pilot:health": "node src/zyra-pilot-smoke.mjs",
-            "productized:health": "node src/zyra-productized-smoke.mjs",
-            "inventory": "node src/zyra-productized-smoke.mjs --inventory",
-            "pilot:inventory": "node src/zyra-pilot-smoke.mjs --inventory",
-            "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
         },
-    }
-    files: dict[Path, str] = {
-        package_path: json.dumps(package_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        runtime_root / "README.md": _productized_readme(),
-        runtime_root / "src" / "zyra-productized-smoke.mjs": _productized_smoke_module(),
-    }
-    written: list[Path] = []
-    for path, text in files.items():
-        resolved = path.resolve()
-        try:
-            resolved.relative_to(project_root.resolve())
-        except ValueError as error:
-            raise SourceExtractionError(f"productized scaffold path escapes project root: {path}") from error
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        written.append(path)
-    return written
+    )
 
 
 def normalize_repo_path(path: str) -> str:
@@ -1281,159 +281,26 @@ def normalize_repo_path(path: str) -> str:
     return str(PurePosixPath(normalized))
 
 
-def _sha256_file(path: Path) -> str:
-    if not path.exists() or not path.is_file():
-        return ""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _has_parent_segment(path: str) -> bool:
-    return ".." in PurePosixPath(path).parts
-
-
-def _match_pattern(path: str, pattern: str) -> bool:
-    normalized = normalize_repo_path(pattern)
-    if fnmatch.fnmatch(path, normalized):
-        return True
-    if normalized.startswith("**/") and fnmatch.fnmatch(path, normalized[3:]):
-        return True
-    return False
-
-
-def _pilot_smoke_module() -> str:
-    return """import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { zyraClaudeCodePilotHealth, zyraClaudeCodePilotManifest } from "./zyra-pilot-manifest.mjs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const runtimeRoot = path.resolve(__dirname, "..");
-
-function fileExists(projectRelativePath) {
-  const projectRoot = path.resolve(runtimeRoot, "..", "..");
-  return fs.existsSync(path.resolve(projectRoot, projectRelativePath));
-}
-
-const missing = zyraClaudeCodePilotManifest.files.filter((item) => !fileExists(item.targetPath));
-const health = {
-  ...zyraClaudeCodePilotHealth(),
-  runtimeRoot,
-  missingTargetCount: missing.length,
-  missingTargets: missing.map((item) => item.targetPath),
-};
-
-if (process.argv.includes("--inventory")) {
-  process.stdout.write(`${JSON.stringify({ ok: health.ok && missing.length === 0, manifest: zyraClaudeCodePilotManifest, health })}\\n`);
-} else {
-  process.stdout.write(`${JSON.stringify({ ok: health.ok && missing.length === 0, health })}\\n`);
-}
-
-if (!health.ok || missing.length > 0) {
-  process.exitCode = 1;
-}
-"""
-
-
-def _productized_smoke_module() -> str:
-    return """import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { zyraClaudeCodeProductizedHealth, zyraClaudeCodeProductizedManifest } from "./zyra-productized-manifest.mjs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const runtimeRoot = path.resolve(__dirname, "..");
-const projectRoot = path.resolve(runtimeRoot, "..", "..");
-const crosswalkPath = path.resolve(runtimeRoot, "metadata", "reference_crosswalk.json");
-
-function fileExists(projectRelativePath) {
-  return fs.existsSync(path.resolve(projectRoot, projectRelativePath));
-}
-
-function readCrosswalk() {
-  if (!fs.existsSync(crosswalkPath)) {
-    return { ok: false, entryCount: 0, missingTargetCount: 0, referenceOnlyRepos: [] };
-  }
-  const payload = JSON.parse(fs.readFileSync(crosswalkPath, "utf8"));
-  return {
-    ok: payload.ok === true,
-    entryCount: payload.summary?.entry_count ?? 0,
-    missingTargetCount: payload.summary?.missing_target_count ?? 0,
-    referenceOnlyRepos: payload.summary?.reference_only_repos ?? [],
-  };
-}
-
-const missing = zyraClaudeCodeProductizedManifest.files.filter((item) => !fileExists(item.targetPath));
-const crosswalk = readCrosswalk();
-const health = {
-  ...zyraClaudeCodeProductizedHealth(),
-  runtimeRoot,
-  productizedRoot: path.resolve(runtimeRoot, "productized", "claude-code-best"),
-  missingTargetCount: missing.length,
-  missingTargets: missing.map((item) => item.targetPath),
-  referenceCrosswalk: crosswalk,
-};
-
-const ok = health.ok && missing.length === 0 && crosswalk.ok;
-if (process.argv.includes("--inventory")) {
-  process.stdout.write(`${JSON.stringify({ ok, manifest: zyraClaudeCodeProductizedManifest, health })}\\n`);
-} else {
-  process.stdout.write(`${JSON.stringify({ ok, health })}\\n`);
-}
-
-if (!ok) {
-  process.exitCode = 1;
-}
-  """.strip() + "\n"
-
-
-def _productized_readme() -> str:
-    return """# Zyra Claude Code Productized Runtime
-
-## Source
-
-- Primary source repository: `claude-code-best`
-- Productized source mount: `vendor-runtimes/claude-code-runtime/productized/claude-code-best`
-- Inventory: `metadata/productized_source_inventory.json`
-- Manifest: `src/zyra-productized-manifest.mjs`
-
-The copied runtime source is selected from `claude-code-best` only. The two auxiliary repositories under
-`claudecode-related` are reference-only inputs used to check boundaries and omissions.
-
-## Purpose
-
-This runtime boundary gives Zyra a local, submission-contained source base for the M1 Claude Code
-productization path: QueryEngine, query/session flow, tool orchestration, context/compact, permission,
-MCP, SkillTool, AgentTool, and core tool implementations. `apps/code-worker` reads this productized
-runtime before falling back to the broader vendor snapshot.
-
-## Entry Points
-
-- Health: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs`
-- Inventory: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --inventory`
-- Extraction: `python scripts/zyra_source_extract.py productize-claude-code --write-scaffold --write-crosswalk --write-ledger --update-seed`
-- Sidecar verification: `python scripts/verify_code_worker_sidecar.py`
-
-## Auxiliary Reference Repositories
-
-`claudecode-related/claude-reviews-claude` supplies the section-level checklist for QueryEngine,
-tool system, context/compact, startup/bootstrap, services, subagent, and command coverage.
-`claudecode-related/Dive-into-Claude-Code` is used to sanity-check harness and runtime boundaries.
-Neither repository is copied into this runtime, required at runtime, or counted as effective code.
-The reference mapping is recorded in `metadata/reference_crosswalk.json`.
-
-## Effective Code Accounting
-
-Generated inventories, crosswalks, and ledger seeds are data artifacts and are excluded from effective
-line counts. Upstream files that contain `Auto-generated type stub` are retained only when they are
-part of the selected Claude Code import boundary; their lines are reported separately and excluded
-from effective line counts.
-
-## Replacement Plan
-
-M1-02B, M1-02C, and M1-02D bind this productized source to Zyra's query loop, tool loop, session
-lifecycle, compact/restore, and CodeWorker API. M1-03A through M1-03D continue permission, MCP,
-SkillTool, and subagent integration. The runtime must remain inside `zyra`; it must not depend on
-the parent-level Claude Code checkout or the auxiliary repositories at submission time.
-""".strip() + "\n"
+__all__ = [
+    "DEFAULT_EXCLUDE_PATTERNS",
+    "SOURCE_SUFFIXES",
+    "ExtractionDisposition",
+    "ExtractionItem",
+    "ExtractionPlan",
+    "ExtractionReport",
+    "ExtractionSource",
+    "ExtractionTarget",
+    "LedgerUpsertPlan",
+    "LegacySourcePoolRetiredError",
+    "OverwritePolicy",
+    "SourceExtractionError",
+    "SourceExtractor",
+    "claude_code_m1_01b_plan",
+    "claude_code_m1_02a_plan",
+    "claude_code_m1_02b_plan",
+    "claude_code_m1_02c_plan",
+    "normalize_repo_path",
+    "source_extraction_completed_event",
+    "write_productized_runtime_files",
+    "write_runtime_scaffold_files",
+]

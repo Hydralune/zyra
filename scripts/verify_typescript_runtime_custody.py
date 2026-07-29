@@ -13,6 +13,7 @@ REQUIRED_FILES = (
     "packages/integrations/claude-mcp/src/transport.ts",
     "packages/runtime/claude-runtime/src/capabilities.ts",
     "packages/runtime/claude-runtime/src/capability-host.ts",
+    "packages/runtime/claude-runtime/src/e02/coordinator.ts",
     "packages/runtime/claude-runtime/src/protocol.ts",
     "packages/runtime/claude-runtime/src/query-engine.ts",
     "packages/runtime/claude-runtime/src/session.ts",
@@ -67,14 +68,6 @@ def audit(project_root: Path) -> dict[str, Any]:
         / "subagents"
         / "typescript_port.py"
     ).read_text(encoding="utf-8")
-    permission_text = (
-        project_root
-        / "packages"
-        / "runtime"
-        / "zyra_runtime"
-        / "permission"
-        / "runtime.py"
-    ).read_text(encoding="utf-8")
     typescript_text = "\n".join(
         (project_root / path).read_text(encoding="utf-8")
         for path in REQUIRED_FILES
@@ -119,29 +112,21 @@ def audit(project_root: Path) -> dict[str, Any]:
             "packages/runtime/claude-runtime/src/protocol.ts",
             '"tool.settle.result"',
         ),
-        "python_durable_permission_commit": (
-            "packages/runtime/zyra_runtime/permission/runtime.py",
-            "commit_typescript_decision",
-        ),
-        "python_policy_snapshot_export": (
-            "packages/runtime/zyra_runtime/permission/runtime.py",
-            "typescript_policy_snapshot",
-        ),
         "python_settlement_consumer": (
             "packages/workers/zyra_workers/typescript_claude_runtime.py",
             "_settle_typescript_capability",
         ),
         "typescript_skill_projection": (
-            "packages/workers/zyra_workers/code_worker_runtime.py",
-            '"skill_tool_projection": "typescript_runtime_owner"',
+            "packages/runtime/claude-runtime/src/e02/coordinator.ts",
+            'canonical_skill_owner: "typescript"',
         ),
         "python_skill_fallback_disabled": (
-            "packages/workers/zyra_workers/code_worker_runtime.py",
-            '"python_skill_projection_used": "false"',
+            "packages/runtime/claude-runtime/src/e02/coordinator.ts",
+            "python_skill_fallback: false",
         ),
         "legacy_python_capabilities_guarded": (
-            "packages/workers/zyra_workers/code_worker_runtime.py",
-            "not typescript_capability_owner",
+            "packages/runtime/claude-runtime/src/capability-host.ts",
+            "python_capability_fallback",
         ),
         "typescript_agent_tool_owner": (
             "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
@@ -164,8 +149,8 @@ def audit(project_root: Path) -> dict[str, Any]:
             '"agent.mutate"',
         ),
         "typescript_agent_durable_hydration": (
-            "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
-            'action: "load"',
+            "packages/runtime/claude-runtime/src/agents/lifecycle.ts",
+            "hydrate(task: AgentTask)",
         ),
         "typescript_agent_api_control_route": (
             "apps/api/zyra_api/main.py",
@@ -183,7 +168,6 @@ def audit(project_root: Path) -> dict[str, Any]:
     marker_sources = {
         "packages/workers/zyra_workers/code_worker_runtime.py": worker_text,
         "packages/workers/zyra_workers/typescript_claude_runtime.py": host_text,
-        "packages/runtime/zyra_runtime/permission/runtime.py": permission_text,
         "packages/workers/zyra_workers/subagents/typescript_port.py": agent_port_text,
         "apps/api/zyra_api/main.py": api_text,
         **{
@@ -265,7 +249,7 @@ def audit(project_root: Path) -> dict[str, Any]:
             "skill_command_discovery_and_execution": "typescript",
             "agent_definition_scope_fork_run_resume_fanout": "typescript",
             "codeworker_local_control_state": "typescript",
-            "permission_durable_commit_and_continuation": "python",
+            "permission_durable_commit_and_continuation": "zyra_permission_runtime",
             "agent_durable_record_and_workspace_validation": "python",
             "builtin_tool_side_effects": "python",
             "event_artifact_checkpoint_projection": "python",

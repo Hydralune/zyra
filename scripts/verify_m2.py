@@ -22,9 +22,8 @@ for package_path in [
 from zyra_commands import default_command_registry, parse_slash_command
 from zyra_core import EventType, PlanNodeStatus, create_task_state
 from zyra_integrations import (
-    browser_use_snapshot,
-    claude_code_best_snapshot,
-    validate_vendor_snapshot,
+    browser_use_source_identity,
+    claude_code_source_identity,
 )
 from zyra_runtime import (
     ContextSessionRuntime,
@@ -55,8 +54,14 @@ from zyra_evaluation import evaluate_task_trace, run_m2_scenarios
 
 
 def main() -> None:
-    validate_vendor_snapshot(claude_code_best_snapshot(ROOT))
-    validate_vendor_snapshot(browser_use_snapshot(ROOT))
+    for source in (
+        claude_code_source_identity(),
+        browser_use_source_identity(),
+    ):
+        assert str(source.status) == "retired"
+        assert source.availability == "not_applicable"
+        assert source.filesystem_required is False
+        assert source.fallback_available is False
 
     state = create_task_state("Verify M2 runtime protocol.")
     parsed = parse_slash_command(
@@ -343,7 +348,6 @@ def main() -> None:
             )
         )
         assert run.worker_result.ok
-        assert run.worker_result.metadata["vendor_complete"] == "false"
         assert run.worker_result.metadata["inventory_source"] == "zyra-claude-productized"
         assert run.worker_result.metadata["loop"] == "zyra_claude_query_engine_runtime"
         assert run.worker_result.metadata["query_contract_source"] == "zyra-claude-productized"
@@ -396,7 +400,9 @@ def main() -> None:
             )
         )
         assert browser_run.worker_result.ok
-        assert browser_run.worker_result.metadata["vendor"] == "browser-use"
+        assert browser_run.worker_result.metadata["source_identity"] == "browser-use"
+        assert browser_run.worker_result.metadata["source_status"] == "retired"
+        assert browser_run.worker_result.metadata["source_filesystem_required"] == "false"
         assert browser_run.worker_result.metadata["action_registry_source"] == "browser-use"
         assert any(
             event.payload.get("browser_result", {}).get("output", {}).get("match_count") == 1

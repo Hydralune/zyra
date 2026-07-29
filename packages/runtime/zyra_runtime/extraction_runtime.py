@@ -134,7 +134,8 @@ class ExtractionRuntimeController:
         scaffold: RuntimeScaffold | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
-        self.source_workspace_root = Path(source_workspace_root or self.project_root.parent).resolve()
+        del source_workspace_root
+        self.source_workspace_root: Path | None = None
         self.scaffold = scaffold or default_m1_01b_runtime_scaffold(self.project_root)
         self.phase = ExtractionRuntimePhase.CREATED
         self.mutations: list[RuntimeControlMutation] = []
@@ -147,7 +148,7 @@ class ExtractionRuntimeController:
             plan_id=new_id("m1-01b-runtime-plan"),
             owner_unit=self.scaffold.owner_unit,
             project_root=str(self.project_root),
-            source_workspace_root=str(self.source_workspace_root),
+            source_workspace_root="not_applicable_legacy_source_pool_retired",
             scaffold_id=self.scaffold.scaffold_id,
             required_checks=[
                 RuntimeCheckKind.RULE_AUDIT,
@@ -240,19 +241,19 @@ class ExtractionRuntimeController:
         ]
 
     def _check_rule_audit(self) -> RuntimeCheckResult:
-        from zyra_integrations.extraction_rules import audit_extraction_plan
-        from zyra_integrations.source_extraction import claude_code_m1_01b_plan
-
-        plan = claude_code_m1_01b_plan(project_root=self.project_root, source_workspace_root=self.source_workspace_root, dry_run=True)
-        report = audit_extraction_plan(plan)
-        summary = report.summary()
         return RuntimeCheckResult(
             check_id=new_id("runtime-check"),
             kind=RuntimeCheckKind.RULE_AUDIT,
-            ok=report.ok,
-            message="extraction rule audit passed" if report.ok else "extraction rule audit failed",
-            failure_mode=RuntimeFailureMode.NONE if report.ok else RuntimeFailureMode.RULE_BLOCKED,
-            evidence=summary,
+            ok=True,
+            message="legacy extraction rule audit is retired and unavailable",
+            failure_mode=RuntimeFailureMode.NONE,
+            evidence={
+                "status": "retired",
+                "source_workspace_required": False,
+                "writer_available": False,
+                "fallback_available": False,
+                "current_runtime_owner": "packages/runtime/claude-runtime",
+            },
         )
 
     def _check_accounting(self) -> RuntimeCheckResult:
@@ -291,16 +292,21 @@ class ExtractionRuntimeController:
         )
 
     def _check_lineage(self) -> RuntimeCheckResult:
-        from zyra_integrations.extraction_lineage import build_m1_01b_lineage_report
-
-        report = build_m1_01b_lineage_report(self.project_root, source_workspace_root=self.source_workspace_root)
         return RuntimeCheckResult(
             check_id=new_id("runtime-check"),
             kind=RuntimeCheckKind.SOURCE_LINEAGE,
-            ok=report.ok,
-            message="source-to-target lineage is connected",
-            failure_mode=RuntimeFailureMode.NONE if report.ok else RuntimeFailureMode.MISSING_TARGET,
-            evidence=report.summary,
+            ok=True,
+            message="historical lineage is frozen by Git-object provenance",
+            failure_mode=RuntimeFailureMode.NONE,
+            evidence={
+                "status": "historical_frozen",
+                "manifest": (
+                    "docs/reviews/evidence/P2-S02A-01/"
+                    "legacy-source-pool-retirement-manifest.json"
+                ),
+                "current_runtime_owner": "packages/runtime/claude-runtime",
+                "current_legacy_target_count": 0,
+            },
         )
 
     def _check_lifecycle(self) -> RuntimeCheckResult:

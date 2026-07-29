@@ -22,6 +22,14 @@ from .ledger_models import (
 OWNER_UNIT = "M1-02A"
 PRIMARY_SOURCE_REPO = "claude-code-best"
 SOURCE_POOL_PREFIX = "vendor-runtimes/claude-code-runtime/productized/claude-code-best/"
+RETIREMENT_MANIFEST_PATH = (
+    "docs/reviews/evidence/P2-S02A-01/"
+    "legacy-source-pool-retirement-manifest.json"
+)
+RETIREMENT_OVERLAY_PATH = (
+    "packages/integrations/zyra_integrations/data/"
+    "legacy_source_retirement_overlay.json"
+)
 FOUNDATION_TEST_COMMAND = "python scripts/verify_claude_productization_foundation.py"
 RETIRED_TARGET_PATHS = {
     "apps/code-worker/src/main.mjs": "apps/code-worker/src/main.ts",
@@ -57,7 +65,12 @@ def normalize_ledger_for_current_policy(entries: Iterable[InternalizationLedgerE
     for entry in _foundation_entries():
         _normalize_entry(entry)
         by_id[entry.ledger_id] = entry
-    return list(by_id.values())
+    current = list(by_id.values())
+    if current_legacy_target_paths(current):
+        raise ValueError(
+            "current ledger normalization retained a retired legacy target"
+        )
+    return current
 
 
 def _normalize_entry(entry: InternalizationLedgerEntry) -> InternalizationLedgerEntry:
@@ -66,7 +79,72 @@ def _normalize_entry(entry: InternalizationLedgerEntry) -> InternalizationLedger
     elif _is_legacy_m1_02a_connected_vendor(entry):
         _downgrade_legacy_connected_vendor(entry)
     _remap_retired_targets(entry)
+    _strip_current_legacy_targets(entry)
     return entry
+
+
+def _strip_current_legacy_targets(entry: InternalizationLedgerEntry) -> None:
+    historical = [
+        binding.target_path
+        for binding in entry.target_bindings
+        if _is_legacy_target(binding.target_path)
+    ]
+    if historical:
+        entry.metadata["historical_legacy_target_count"] = len(historical)
+        entry.metadata["historical_target_provenance"] = RETIREMENT_MANIFEST_PATH
+        entry.metadata.pop("source_pool_target", None)
+    entry.target_bindings = [
+        binding
+        for binding in entry.target_bindings
+        if not _is_legacy_target(binding.target_path)
+    ]
+    if historical and not entry.target_bindings:
+        entry.target_bindings = [
+            TargetBinding(
+                RETIREMENT_OVERLAY_PATH,
+                role="historical_evidence",
+                required_for_main_path=False,
+                must_exist_for_statuses=[],
+            )
+        ]
+    entry.main_path.surfaces = [
+        path for path in entry.main_path.surfaces if not _is_legacy_target(path)
+    ]
+    entry.runtime_entry.config_refs = [
+        path for path in entry.runtime_entry.config_refs if not _is_legacy_target(path)
+    ]
+    if _is_legacy_target(entry.runtime_entry.command):
+        entry.runtime_entry.command = "python scripts/zyra_source_extract.py status"
+    if _is_legacy_target(entry.runtime_entry.health_check):
+        entry.runtime_entry.health_check = "python scripts/zyra_source_extract.py status"
+
+
+def _is_legacy_target(path: str) -> bool:
+    normalized = path.replace("\\", "/").lstrip("./")
+    return normalized.startswith(("vendor/", "vendor-runtimes/"))
+
+
+def current_legacy_target_paths(
+    entries: Iterable[InternalizationLedgerEntry],
+) -> list[str]:
+    paths: list[str] = []
+    for entry in entries:
+        paths.extend(
+            binding.target_path
+            for binding in entry.target_bindings
+            if _is_legacy_target(binding.target_path)
+        )
+        paths.extend(
+            path
+            for path in entry.main_path.surfaces
+            if _is_legacy_target(path)
+        )
+        paths.extend(
+            path
+            for path in entry.runtime_entry.config_refs
+            if _is_legacy_target(path)
+        )
+    return sorted(set(paths))
 
 
 def _remap_retired_targets(entry: InternalizationLedgerEntry) -> None:
@@ -131,34 +209,30 @@ def _downgrade_legacy_source_pool(entry: InternalizationLedgerEntry) -> None:
     entry.metadata["effective_target_count"] = 0
     entry.main_path = MainPathBinding()
     entry.runtime_entry = RuntimeEntry(
-        command="python scripts/zyra_source_extract.py productized-smoke --json",
+        command="python scripts/zyra_source_extract.py status",
         module="zyra_integrations.source_extraction",
-        function="claude_code_m1_02a_plan",
-        protocol="source-pool-evidence-v1",
-        health_check="python scripts/zyra_source_extract.py productized-smoke --json",
+        function="LegacySourcePoolRetiredError",
+        protocol="historical-source-retirement-v1",
+        health_check="python scripts/zyra_source_extract.py status",
         config_refs=[
             "packages/integrations/zyra_integrations/source_extraction.py",
             "packages/runtime/zyra_runtime/claude_productization_foundation.py",
         ],
     )
+    historical_targets = _source_pool_targets(entry)
+    entry.metadata["historical_legacy_target_count"] = len(
+        historical_targets or [entry.source_path]
+    )
+    entry.metadata["historical_target_provenance"] = RETIREMENT_MANIFEST_PATH
+    entry.metadata.pop("source_pool_target", None)
     entry.target_bindings = [
         TargetBinding(
-            path,
-            role="source_pool",
+            RETIREMENT_OVERLAY_PATH,
+            role="historical_evidence",
             required_for_main_path=False,
             must_exist_for_statuses=[],
         )
-        for path in _source_pool_targets(entry)
     ]
-    if not entry.target_bindings:
-        entry.target_bindings = [
-            TargetBinding(
-                SOURCE_POOL_PREFIX + entry.source_path,
-                role="source_pool",
-                required_for_main_path=False,
-                must_exist_for_statuses=[],
-            )
-        ]
     entry.test_entries = [
         TestEntry(
             path="tests/integration/test_claude_code_productized_runtime.py",
@@ -177,9 +251,9 @@ def _downgrade_legacy_source_pool(entry: InternalizationLedgerEntry) -> None:
         entry.license_notice = LicenseNotice(
             source_repo=entry.source_repo,
             status=NoticeStatus.RECORDED,
-            license_hint="Upstream source-pool evidence only; runtime ownership is carried by Zyra modules.",
-            notice_path="third_party/NOTICE.md",
-            notes="Legacy M1-02A productized copies are downgraded by ledger migration.",
+            license_hint="Historical source evidence only; runtime ownership is carried by Zyra modules.",
+            notice_path=RETIREMENT_MANIFEST_PATH,
+            notes="Legacy M1-02A productized copies are frozen at the retirement base commit.",
         )
     if "source-pool-evidence" not in entry.tags:
         entry.tags.append("source-pool-evidence")
@@ -428,8 +502,8 @@ def _foundation_entry(
             source_repo=PRIMARY_SOURCE_REPO,
             status=NoticeStatus.RECORDED,
             license_hint="Primary source repository is claude-code-best; this entry records Zyra-owned semantic port code.",
-            notice_path="third_party/NOTICE.md",
-            notes="No auxiliary documentation repository is counted as runtime source.",
+            notice_path=RETIREMENT_MANIFEST_PATH,
+            notes="No historical source repository is loaded or counted as current runtime source.",
         ),
         source_owner_unit=OWNER_UNIT,
     )
@@ -438,16 +512,16 @@ def _foundation_entry(
         SourceEvidence(
             source_repo=PRIMARY_SOURCE_REPO,
             source_path=source_path,
-            exists_in_workspace=True,
-            source_kind="file_or_directory",
-            reason="Primary source for Claude Code productization foundation.",
+            exists_in_workspace=False,
+            source_kind="frozen_git_object",
+            reason="Historical primary source frozen by the P2-S02A-01 retirement manifest.",
             symbols=list(source_symbols),
             tags=["m1-02a", "claude-code-best", "primary-source"],
         ),
         SourceEvidence(
             source_repo="claudecode-related/claude-reviews-claude",
             source_path=_reference_doc_for_source(source_path),
-            exists_in_workspace=True,
+            exists_in_workspace=False,
             source_kind="reference_doc",
             reason="Reference-only checklist used to avoid missing Claude Code module boundaries.",
             symbols=[],

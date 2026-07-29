@@ -309,6 +309,10 @@ def build_claude_code_reference_crosswalk(
     source_workspace_root: Path,
     target_mount: str = "productized/claude-code-best",
 ) -> ReferenceCrosswalkReport:
+    raise ReferenceCrosswalkError(
+        "Legacy source/reference crosswalk generation is retired. The first-stage "
+        "crosswalk is frozen by the P2-S02A-01 Git-object retirement manifest."
+    )
     workspace_root = source_workspace_root.resolve()
     project = project_root.resolve()
     reference_repositories = [
@@ -339,6 +343,10 @@ def write_claude_code_reference_crosswalk(
     output_path: Path | None = None,
     target_mount: str = "productized/claude-code-best",
 ) -> Path:
+    raise ReferenceCrosswalkError(
+        "Legacy source/reference crosswalk writing is retired; no current runtime "
+        "or evidence path may be regenerated from an external source workspace."
+    )
     project = project_root.resolve()
     report = build_claude_code_reference_crosswalk(
         project_root=project,
@@ -346,7 +354,7 @@ def write_claude_code_reference_crosswalk(
         target_mount=target_mount,
     )
     assert_reference_crosswalk(report)
-    target = output_path or project / "vendor-runtimes" / "claude-code-runtime" / "metadata" / "reference_crosswalk.json"
+    target = output_path or project / "docs" / "reviews" / "evidence" / "retired-crosswalk.json"
     target = target if target.is_absolute() else project / target
     try:
         target.resolve().relative_to(project)
@@ -483,10 +491,12 @@ def _reference_doc_exists(source_workspace_root: Path, repo: str, doc_path: str)
 
 
 def _target_path(target_mount: str, source_path: str) -> str:
-    return normalize_repo_path(f"vendor-runtimes/claude-code-runtime/{target_mount}/{source_path}")
+    del target_mount, source_path
+    raise ReferenceCrosswalkError(
+        "Legacy crosswalk target projection is retired."
+    )
 
 
 def _source_path_matches(requested_path: str, crosswalk_path: str) -> bool:
     normalized_crosswalk = normalize_repo_path(crosswalk_path)
     return requested_path == normalized_crosswalk or requested_path.startswith(normalized_crosswalk.rstrip("/") + "/")
-

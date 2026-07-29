@@ -332,8 +332,11 @@ class BrowserWorkerTests(unittest.TestCase):
 
             self.assertTrue(run.worker_result.ok, run.worker_result)
             self.assertEqual(len(browser_events), 3)
-            self.assertEqual(run.worker_result.metadata["vendor"], "browser-use")
-            self.assertEqual(run.worker_result.metadata["vendor_complete"], "true")
+            self.assertEqual(run.worker_result.metadata["source_identity"], "browser-use")
+            self.assertEqual(run.worker_result.metadata["source_status"], "retired")
+            self.assertEqual(run.worker_result.metadata["source_availability"], "not_applicable")
+            self.assertEqual(run.worker_result.metadata["source_filesystem_required"], "false")
+            self.assertEqual(run.worker_result.metadata["source_fallback_available"], "false")
             self.assertEqual(run.worker_result.metadata["action_registry_source"], "zyra-browser-action-foundation")
             self.assertEqual(
                 run.worker_result.metadata["browser_use_python_importable"],

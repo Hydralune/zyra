@@ -497,6 +497,7 @@ from zyra_integrations import (
     build_test_quality_report,
     build_unit_readiness_report,
     build_unit_review_report,
+    browser_use_source_identity,
     boundary_payload,
     cleanroom_payload,
     evidence_graph_payload,
@@ -522,6 +523,7 @@ from zyra_integrations import (
     test_quality_payload,
     unit_review_payload,
     validate_entry_for_persistence,
+    claude_code_source_identity,
 )
 from zyra_integrations.e02_ports import (
     TypeScriptE02ApiPort,
@@ -13581,11 +13583,21 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             "python_dispatch": False,
         }
     elif name == "/doctor":
+        claude_source = claude_code_source_identity()
+        browser_source = browser_use_source_identity()
         result["summary"] = "Development runtime health checks."
         result["data"] = {
             "project_root_exists": PROJECT_ROOT.exists(),
-            "vendor_claude_code_best_exists": (PROJECT_ROOT / "vendor" / "claude-code-best").exists(),
-            "vendor_browser_use_exists": (PROJECT_ROOT / "vendor" / "browser-use").exists(),
+            "legacy_source_pools": {
+                "status": "retired",
+                "availability": "not_applicable",
+                "filesystem_required": False,
+                "fallback_available": False,
+                "sources": [
+                    claude_source.to_dict(),
+                    browser_source.to_dict(),
+                ],
+            },
             "browser_use_runtime": browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT)),
             "tool_workspace": str(tool_workspace_path()),
             "artifact_root": str(artifact_root_path()),

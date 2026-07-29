@@ -55,7 +55,7 @@ class CodeWorkerSidecarClient:
     def health(self) -> dict[str, Any]:
         return self._run_one_shot("--health")
 
-    def vendor_snapshot(self) -> dict[str, Any]:
+    def runtime_snapshot(self) -> dict[str, Any]:
         return self._run_one_shot("--snapshot")
 
     def runtime_inventory(self) -> dict[str, Any]:

@@ -156,14 +156,16 @@ class WorkerBridgeRuntime:
         ]
 
     def _probe_code(self) -> list[BridgeProbeStep]:
-        runtime_root = self.project_root / "vendor-runtimes" / "claude-code-runtime"
-        productized_manifest = runtime_root / "src" / "zyra-productized-manifest.mjs"
-        pilot_manifest = runtime_root / "src" / "zyra-pilot-manifest.mjs"
+        runtime_root = self.project_root / "packages" / "runtime" / "claude-runtime"
+        package_manifest = runtime_root / "package.json"
+        source_identity = runtime_root / "zyra-source.json"
+        entrypoint = self.project_root / "apps" / "code-worker" / "src" / "main.ts"
         query_contract = any(surface.surface == RuntimeSurface.TOOL_LOOP for surface in self.lifecycle.scaffold.components)
         return [
-            _step("runtime_root", runtime_root.exists(), "claude runtime root exists", {"path": str(runtime_root)}),
-            _step("pilot_manifest", pilot_manifest.exists(), "pilot manifest exists", {"path": str(pilot_manifest)}),
-            _step("productized_manifest", productized_manifest.exists(), "productized manifest exists", {"path": str(productized_manifest)}, warning_only=True),
+            _step("formal_runtime_root", runtime_root.is_dir(), "formal claude runtime root exists", {"path": str(runtime_root)}),
+            _step("formal_runtime_package", package_manifest.is_file(), "formal runtime package exists", {"path": str(package_manifest)}),
+            _step("formal_source_identity", source_identity.is_file(), "formal source identity exists", {"path": str(source_identity)}),
+            _step("canonical_typescript_entrypoint", entrypoint.is_file(), "canonical TypeScript entrypoint exists", {"path": str(entrypoint)}),
             _step("tool_loop_surface", query_contract, "tool loop surface is declared"),
             _step("permission_surface", str(RuntimeSurface.PERMISSION) in self.lifecycle.surfaces, "permission surface is tracked"),
         ]

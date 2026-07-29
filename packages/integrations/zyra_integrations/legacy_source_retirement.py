@@ -287,10 +287,34 @@ def _reference_category(path: str) -> tuple[str, str]:
     return "runtime_review_required", "Unclassified production reference must be removed or explicitly denied."
 
 
+def _target_reference_category(path: str) -> tuple[str, str]:
+    normalized = path.replace("\\", "/")
+    if normalized.endswith("legacy_source_retirement.py"):
+        return "retirement_gate", "Git-object provenance and fail-closed retirement verifier."
+    if any(
+        marker in normalized
+        for marker in (
+            "ledger_",
+            "cleanroom",
+            "clean_runtime",
+            "critical_review",
+            "runtime_context_ports",
+            "runtime_contracts",
+            "lineage_runtime",
+            "state_custody_runtime",
+            "execution_gate_runtime",
+        )
+    ):
+        return "deny_policy", "Reference is a fail-closed exclusion or historical audit label."
+    return _reference_category(normalized)
+
+
 def _reference_inventory(
     project_root: Path,
     revision: str,
     files: Sequence[GitFile],
+    *,
+    target_policy: bool = False,
 ) -> tuple[dict[str, Any], ...]:
     candidates = [item for item in files if not _under_legacy_root(item.path)]
     blobs = read_git_blobs(project_root, (item.blob_id for item in candidates))
@@ -304,7 +328,11 @@ def _reference_inventory(
         if not matches:
             continue
         line_numbers = sorted({text.count("\n", 0, match.start()) + 1 for match in matches})
-        category, disposition = _reference_category(item.path)
+        category, disposition = (
+            _target_reference_category(item.path)
+            if target_policy
+            else _reference_category(item.path)
+        )
         inventory.append(
             {
                 "path": item.path,
@@ -512,6 +540,38 @@ def _forbidden_pool_path(path: str) -> bool:
     return bool(parts & FORBIDDEN_POOL_SEGMENTS)
 
 
+def audit_candidate_files(
+    target_files: Sequence[GitFile],
+    *,
+    legacy_blob_ids: Iterable[str],
+    base_nonlegacy_pairs: Iterable[tuple[str, str]],
+) -> tuple[RetirementFinding, ...]:
+    findings: list[RetirementFinding] = []
+    frozen_legacy_blobs = set(legacy_blob_ids)
+    allowed_existing_pairs = set(base_nonlegacy_pairs)
+    for item in target_files:
+        if _forbidden_pool_path(item.path):
+            findings.append(
+                RetirementFinding(
+                    "forbidden_source_pool_path",
+                    "target revision contains a forbidden source-pool path",
+                    item.path,
+                )
+            )
+        if (
+            item.blob_id in frozen_legacy_blobs
+            and (item.path, item.blob_id) not in allowed_existing_pairs
+        ):
+            findings.append(
+                RetirementFinding(
+                    "renamed_source_pool_blob",
+                    "legacy blob was copied to a new target path after the freeze",
+                    item.path,
+                )
+            )
+    return tuple(findings)
+
+
 def verify_retirement_manifest(
     project_root: str | Path,
     manifest: Mapping[str, Any],
@@ -688,36 +748,26 @@ def verify_retirement_manifest(
         findings.append(RetirementFinding("target_revision_unavailable", str(error)))
         target_commit = target_revision
         target_files = ()
-    target_by_path = {item.path: item for item in target_files}
-    for path in target_by_path:
-        if _forbidden_pool_path(path):
-            findings.append(
-                RetirementFinding(
-                    "forbidden_source_pool_path",
-                    "target revision contains a forbidden source-pool path",
-                    path,
-                )
-            )
     legacy_blob_ids = {item.blob_id for item in actual_legacy_files}
     base_nonlegacy_blobs = {
         (item.path, item.blob_id)
         for item in base_files
         if not _under_legacy_root(item.path)
     }
-    for item in target_files:
-        if (
-            item.blob_id in legacy_blob_ids
-            and (item.path, item.blob_id) not in base_nonlegacy_blobs
-        ):
-            findings.append(
-                RetirementFinding(
-                    "renamed_source_pool_blob",
-                    "legacy blob was copied to a new target path after the freeze",
-                    item.path,
-                )
-            )
+    findings.extend(
+        audit_candidate_files(
+            target_files,
+            legacy_blob_ids=legacy_blob_ids,
+            base_nonlegacy_pairs=base_nonlegacy_blobs,
+        )
+    )
 
-    target_references = _reference_inventory(root, target_commit, target_files)
+    target_references = _reference_inventory(
+        root,
+        target_commit,
+        target_files,
+        target_policy=True,
+    )
     for reference in target_references:
         if reference["category"] in {
             "migration_required",
@@ -803,6 +853,7 @@ __all__ = [
     "RetirementFinding",
     "RetirementManifestError",
     "RetirementVerification",
+    "audit_candidate_files",
     "freeze_retirement_manifest",
     "list_git_files",
     "load_retirement_manifest",

@@ -21,7 +21,7 @@ from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
 from zyra_core import ArtifactKind, ControlCommand, EventRecord, EventType, to_jsonable
-from zyra_integrations import browser_use_snapshot
+from zyra_integrations import browser_use_source_identity
 from zyra_integrations.e02_ports import TypeScriptE02ApiPort
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
 from zyra_runtime.permission import (
@@ -509,7 +509,7 @@ class BrowserWorkerRuntime:
         if action_control is not None:
             return self._run_browser_action_control(request, action_control)
 
-        snapshot = browser_use_snapshot(self.project_root)
+        snapshot = browser_use_source_identity()
         plan = _browser_plan_from_request(request)
         if not plan:
             worker_result = WorkerResult(
@@ -1231,9 +1231,9 @@ class BrowserWorkerRuntime:
                 event_records=[_worker_result_event(redacted_request, worker_result)],
             )
 
-        # Provenance is optional metadata only.  Missing source files are
-        # reported by the snapshot but never validated as a runtime gate.
-        snapshot = browser_use_snapshot(self.project_root)
+        # Provenance is immutable metadata only. The retired source identity
+        # never probes a filesystem path and cannot become a runtime gate.
+        snapshot = browser_use_source_identity()
         backend = _browser_backend_from_request(request)
         if backend == "browser-use-agent":
             return self._run_browser_use_agent(request, snapshot)
@@ -3935,16 +3935,22 @@ def _browser_action_events(events: list[EventRecord]) -> list[EventRecord]:
 def _snapshot_metadata(snapshot: Any) -> dict[str, str]:
     if snapshot is None:
         return {
-            "vendor": "browser-use",
-            "vendor_root": "",
-            "vendor_complete": "not-required",
+            "source_identity": "browser-use",
+            "source_status": "retired",
+            "source_availability": "not_applicable",
+            "source_filesystem_required": "false",
             "browser_runtime_backend": "zyra-browser-productized",
-            "browser_runtime_vendor_required": "false",
+            "browser_runtime_source_pool_required": "false",
         }
     return {
-        "vendor": snapshot.name,
-        "vendor_root": str(snapshot.root),
-        "vendor_complete": str(not snapshot.missing_paths()).lower(),
+        "source_identity": snapshot.name,
+        "source_status": str(snapshot.status),
+        "source_availability": snapshot.availability,
+        "source_filesystem_required": str(snapshot.filesystem_required).lower(),
+        "source_fallback_available": str(snapshot.fallback_available).lower(),
+        "source_provenance_manifest": snapshot.provenance_manifest,
+        "browser_runtime_backend": "zyra-browser-productized",
+        "browser_runtime_source_pool_required": "false",
     }
 
 
@@ -3980,8 +3986,10 @@ def _trace_markdown(
         f"- request_id: `{request.request_id}`",
         f"- worker_name: `{request.worker_name}`",
         f"- ok: `{str(ok).lower()}`",
-        f"- vendor: `{snapshot.name}`",
-        f"- vendored_runtime_complete: `{str(not snapshot.missing_paths()).lower()}`",
+        f"- historical_source_identity: `{snapshot.name}`",
+        f"- source_status: `{snapshot.status}`",
+        f"- source_filesystem_required: `{str(snapshot.filesystem_required).lower()}`",
+        f"- current_runtime_owner: `{snapshot.current_runtime_owner}`",
         f"- browser_use_python_importable: `{browser_use_runtime_metadata(browser_use_health).get('browser_use_python_importable')}`",
         "",
         "## Browser Steps",
@@ -3995,9 +4003,15 @@ def _trace_markdown(
             f"{action.get('step_index')}. {action.get('action')}"
             f" -> {action.get('source_action', action.get('normalized_action'))}: {result.get('summary')}"
         )
-    lines.extend(["", "## Vendored Runtime Modules", ""])
-    for module in snapshot.modules:
-        lines.append(f"- {module.name}: {module.target_boundary}")
+    lines.extend(
+        [
+            "",
+            "## Source Retirement",
+            "",
+            f"- provenance_manifest: `{snapshot.provenance_manifest}`",
+            "- fallback_available: `false`",
+        ]
+    )
     lines.append("")
     return "\n".join(lines)
 
@@ -4016,8 +4030,10 @@ def _agent_trace_markdown(
         f"- request_id: `{request.request_id}`",
         f"- worker_name: `{request.worker_name}`",
         f"- ok: `{str(ok).lower()}`",
-        f"- vendor: `{snapshot.name}`",
-        f"- vendored_runtime_complete: `{str(not snapshot.missing_paths()).lower()}`",
+        f"- historical_source_identity: `{snapshot.name}`",
+        f"- source_status: `{snapshot.status}`",
+        f"- source_filesystem_required: `{str(snapshot.filesystem_required).lower()}`",
+        f"- current_runtime_owner: `{snapshot.current_runtime_owner}`",
         f"- browser_use_agent_class: `{metadata.get('browser_use_agent_class', '')}`",
         f"- browser_use_agent_history_class: `{metadata.get('browser_use_agent_history_class', '')}`",
         "",
@@ -4032,8 +4048,14 @@ def _agent_trace_markdown(
             f"{agent.get('step_index')}. browser-use-agent"
             f" -> ok={str(result.get('ok')).lower()}: {result.get('summary')}"
         )
-    lines.extend(["", "## Vendored Runtime Modules", ""])
-    for module in snapshot.modules:
-        lines.append(f"- {module.name}: {module.target_boundary}")
+    lines.extend(
+        [
+            "",
+            "## Source Retirement",
+            "",
+            f"- provenance_manifest: `{snapshot.provenance_manifest}`",
+            "- fallback_available: `false`",
+        ]
+    )
     lines.append("")
     return "\n".join(lines)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import importlib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,12 +46,12 @@ class BrowserUseRuntimeHealth:
             "browser_use_runtime_error_type": self.error_type or "",
             "browser_use_runtime_error": self.error or "",
             "browser_runtime_backend": "zyra-browser-productized",
-            "browser_runtime_vendor_import_required": "false",
+            "browser_runtime_source_pool_import_required": "false",
         }
 
 
 def configure_browser_use_environment(project_root: str | Path) -> BrowserUseRuntimePaths:
-    """Keep vendored browser-use config/cache/profile writes inside the Zyra project."""
+    """Keep browser runtime config/cache/profile writes inside the Zyra project."""
 
     project = Path(project_root).resolve()
     runtime_root = project / "tmp" / "browser-use-runtime"
@@ -81,6 +82,17 @@ def configure_browser_use_environment(project_root: str | Path) -> BrowserUseRun
 
 def inspect_browser_use_runtime(project_root: str | Path) -> BrowserUseRuntimeHealth:
     paths = configure_browser_use_environment(project_root)
+    try:
+        importlib.import_module("browser_use")
+    except Exception as error:
+        return BrowserUseRuntimeHealth(
+            importable=False,
+            environment_configured=True,
+            paths=paths,
+            modules={"browser_use": False},
+            error_type=type(error).__name__,
+            error=str(error),
+        )
     return BrowserUseRuntimeHealth(
         importable=True,
         environment_configured=True,

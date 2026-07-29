@@ -10,12 +10,11 @@ from .browser_use import (
     WebSocketClient,
     WebSocketConfig,
 )
-from .vendor_manifest import (
-    VendorModule,
-    VendorSnapshot,
-    browser_use_snapshot,
-    claude_code_best_snapshot,
-    validate_vendor_snapshot,
+from .legacy_source_identity import (
+    LegacySourceIdentity,
+    LegacySourceStatus,
+    browser_use_source_identity,
+    claude_code_source_identity,
 )
 from .ledger_audit import (
     AuditFindingCode,
@@ -479,8 +478,8 @@ __all__ = [
     "UnitHandoffPackage",
     "UnitMatrixReport",
     "UnitReadinessReport",
-    "VendorModule",
-    "VendorSnapshot",
+    "LegacySourceIdentity",
+    "LegacySourceStatus",
     "accounting_summary",
     "acceptance_payload",
     "accounting_markdown",
@@ -496,8 +495,8 @@ __all__ = [
     "assert_test_quality",
     "audit_event_payload",
     "boundary_payload",
-    "browser_use_snapshot",
-    "claude_code_best_snapshot",
+    "browser_use_source_identity",
+    "claude_code_source_identity",
     "claude_code_m1_01b_plan",
     "claude_code_m1_02a_plan",
     "claude_code_m1_02b_plan",
@@ -578,7 +577,6 @@ __all__ = [
     "upstream_closure",
     "validate_entry_policy",
     "validate_entry_for_persistence",
-    "validate_vendor_snapshot",
     "verify_source_evidence",
     "verify_target_paths",
     "default_semantic_probes",

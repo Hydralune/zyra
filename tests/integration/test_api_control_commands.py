@@ -468,6 +468,51 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_doctor_reports_legacy_source_pools_as_retired_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+
+            ZyraRequestHandler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Inspect source retirement.", "auto_run": False},
+                )
+                task_id = created["task"]["task_id"]
+                doctor = _post(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    {"text": "/doctor"},
+                )
+
+                source_pools = doctor["command_result"]["data"]["legacy_source_pools"]
+                self.assertEqual(source_pools["status"], "retired")
+                self.assertEqual(source_pools["availability"], "not_applicable")
+                self.assertFalse(source_pools["filesystem_required"])
+                self.assertFalse(source_pools["fallback_available"])
+                self.assertEqual(
+                    {source["name"] for source in source_pools["sources"]},
+                    {"claude-code-best", "browser-use"},
+                )
+                self.assertNotIn(
+                    "vendor_claude_code_best_exists",
+                    doctor["command_result"]["data"],
+                )
+                self.assertNotIn(
+                    "vendor_browser_use_exists",
+                    doctor["command_result"]["data"],
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
     def test_clear_uses_canonical_session_owner_and_rewind_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
@@ -933,7 +978,14 @@ class ApiControlCommandTests(unittest.TestCase):
                 ]
                 self.assertEqual(len(browser_events), 2)
                 self.assertEqual(executed["task"]["budget"]["tool_calls"], 2)
-                self.assertEqual(executed["worker_result"]["metadata"]["vendor"], "browser-use")
+                self.assertEqual(
+                    executed["worker_result"]["metadata"]["source_identity"],
+                    "browser-use",
+                )
+                self.assertEqual(
+                    executed["worker_result"]["metadata"]["source_status"],
+                    "retired",
+                )
                 self.assertIn(
                     "Visible browser text.",
                     browser_events[1]["payload"]["browser_result"]["output"]["text_preview"],

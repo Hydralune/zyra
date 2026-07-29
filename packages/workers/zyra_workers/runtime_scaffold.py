@@ -140,15 +140,16 @@ class BaseWorkerScaffold:
 
 class CodeWorkerScaffold(BaseWorkerScaffold):
     def _checks(self) -> dict[str, bool]:
-        runtime_root = self.project_root / "vendor-runtimes" / "claude-code-runtime"
+        runtime_root = self.project_root / "packages" / "runtime" / "claude-runtime"
+        entrypoint = self.project_root / "apps" / "code-worker" / "src" / "main.ts"
         return {
             **super()._checks(),
             "has_tool_loop_contract": any(component.surface == "tool_loop" for component in self.runtime_scaffold.components),
             "has_permission_contract": any(component.surface == "permission" for component in self.runtime_scaffold.components),
-            "has_runtime_root": runtime_root.exists(),
-            "has_pilot_manifest": (runtime_root / "src" / "zyra-pilot-manifest.mjs").exists(),
-            "has_productized_manifest": (runtime_root / "src" / "zyra-productized-manifest.mjs").exists(),
-            "has_reference_crosswalk": (runtime_root / "metadata" / "reference_crosswalk.json").exists(),
+            "has_formal_runtime_root": runtime_root.is_dir(),
+            "has_formal_runtime_package": (runtime_root / "package.json").is_file(),
+            "has_formal_source_identity": (runtime_root / "zyra-source.json").is_file(),
+            "has_canonical_typescript_entrypoint": entrypoint.is_file(),
         }
 
 

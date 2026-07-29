@@ -849,6 +849,50 @@ class ReleaseRuntime:
                 "stderr": completed.stderr[-16_384:],
             }
 
+        def legacy_source_retirement(context: GateContext) -> Mapping[str, Any]:
+            receipt_path = evidence_root / "legacy-source-retirement.json"
+            command = [
+                sys.executable,
+                "scripts/audit/verify_legacy_source_retirement.py",
+                "--target",
+                expected_commit,
+                "--no-worktree-check",
+                "--output",
+                str(receipt_path),
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.project_root,
+                env=dict(context.environment),
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=900,
+            )
+            try:
+                summary = json.loads(completed.stdout)
+            except json.JSONDecodeError:
+                summary = {
+                    "valid": False,
+                    "stdout_digest": stable_digest(completed.stdout),
+                }
+            ready = (
+                completed.returncode == 0
+                and isinstance(summary, Mapping)
+                and summary.get("valid") is True
+                and summary.get("current_legacy_target_count") == 0
+                and receipt_path.is_file()
+            )
+            return {
+                "ready": ready,
+                "command": command,
+                "returncode": completed.returncode,
+                "summary": summary,
+                "stderr": completed.stderr[-16_384:],
+            }
+
         def clean_install(_: GateContext) -> Mapping[str, Any]:
             return CleanInstallRunner(
                 self.project_root,
@@ -961,6 +1005,7 @@ class ReleaseRuntime:
             "checksums": checksums,
             "sbom-notice": sbom_notice,
             "source-custody": source_custody,
+            "legacy-source-retirement": legacy_source_retirement,
             "clean-install": clean_install,
             "semantic-health": semantic_health,
             "benchmark-link": benchmark_link,

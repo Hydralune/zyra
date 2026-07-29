@@ -907,6 +907,7 @@ def test_standard_gate_registry_isolates_pytest_state_outside_project(
             "checksums",
             "sbom-notice",
             "source-custody",
+            "legacy-source-retirement",
             "clean-install",
             "semantic-health",
             "benchmark-link",
