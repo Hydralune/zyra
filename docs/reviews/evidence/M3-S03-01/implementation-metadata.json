@@ -10,10 +10,12 @@
     "aaea1676a17c082e09f18bdf231a1af142fa76ad",
     "bf7b4f839582c8120e4240300e05a4615b89796e",
     "f3cbc7f2398e13822a28cdc369e3483ee66a780e",
-    "110e0a0aa40fdc9e31f256c088caddfd258ca173"
+    "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+    "88b88e05aad14e1091f4536bcead02037622408f"
   ],
   "prerequisite_merge_commit": "013f7a2c4f5ca5295a588210eb4a7d80af4222c3",
-  "implementation_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "implementation_commit": "88b88e05aad14e1091f4536bcead02037622408f",
+  "retrospective_remediation_baseline_commit": "6b928d96f9181acf94eb9e84cb662df39feb9be3",
   "source_languages": [
     "python"
   ],
@@ -38,7 +40,7 @@
     "bound_fail_closed": true
   },
   "formal_output": {
-    "directory": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a",
+    "directory": "docs/reviews/evidence/M3-S03-01/generated-88b88e05",
     "release_required": true,
     "final_freeze_claimed": false,
     "next_freeze_owner": "M3-S03-02"

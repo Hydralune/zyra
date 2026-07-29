@@ -1,0 +1,210 @@
+{
+  "adoption_calculator_contract": {
+    "forbidden_inference": "M3 benchmark wall time or cost may not substitute for adopter human baselines, acceptance rate, or production provider pricing.",
+    "formula": "projected_net_value = tasks * human_hours * hourly_cost * acceptance_rate - tasks * runtime_cost - integration_amortization",
+    "required_inputs": {
+      "automation_acceptance_rate": "number in [0,1], measured in pilot",
+      "human_hours_per_task": "number >= 0, supplied by adopter",
+      "integration_amortization_usd": "number >= 0",
+      "loaded_hourly_cost_usd": "number >= 0, supplied by adopter",
+      "monthly_task_count": "integer >= 0",
+      "production_runtime_cost_usd": "number >= 0, measured in pilot"
+    },
+    "result_is_projection": true
+  },
+  "applications": [
+    {
+      "application_id": "cross-source-research",
+      "assumption_boundary": "No human-time baseline was measured in M3; labor savings are therefore an adoption input, not a benchmark result.",
+      "beneficiaries": "research analysts, technical due-diligence teams, and evidence-heavy public-sector review",
+      "labor_savings_claimed": false,
+      "measured_value": "zero-human sealed delivery, deterministic verification, fault recovery, and checksum-linked artifact production",
+      "observed": {
+        "autonomy.human_interventions": {
+          "maximum": 0.0,
+          "median": 0.0,
+          "minimum": 0.0,
+          "sample_count": 3,
+          "unit": "count"
+        },
+        "efficiency.cost_usd": {
+          "maximum": 0.004082962034765625,
+          "median": 0.004082962034765625,
+          "minimum": 0.004082962034765625,
+          "sample_count": 3,
+          "unit": "usd"
+        },
+        "efficiency.throughput": {
+          "maximum": 9870.08862630524,
+          "median": 9528.171062106363,
+          "minimum": 9009.069835514172,
+          "sample_count": 3,
+          "unit": "steps_per_second"
+        },
+        "efficiency.wall_time_ms": {
+          "maximum": 444.3299999984447,
+          "median": 420.12260001502,
+          "minimum": 405.56879999348894,
+          "sample_count": 3,
+          "unit": "milliseconds"
+        },
+        "recovery.fault_success_rate": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0,
+          "sample_count": 3,
+          "unit": "ratio"
+        },
+        "steps.effective": {
+          "maximum": 4003.0,
+          "median": 4003.0,
+          "minimum": 4003.0,
+          "sample_count": 3,
+          "unit": "transitions"
+        },
+        "task.success": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0,
+          "sample_count": 3,
+          "unit": "ratio"
+        }
+      },
+      "title": "Auditable cross-source research",
+      "unmeasured_value": [
+        "organization-specific human time displaced",
+        "downstream revenue impact",
+        "quality cost avoided",
+        "production-scale provider discounts"
+      ],
+      "workflow_boundary": "source acquisition through citation-bound report delivery"
+    },
+    {
+      "application_id": "software-delivery",
+      "assumption_boundary": "No engineer-hour control group was measured in M3; reported runtime and provider cost cannot be called labor savings.",
+      "beneficiaries": "engineering teams operating multi-module repositories with fault, requirement-change, and approval constraints",
+      "labor_savings_claimed": false,
+      "measured_value": "zero-human sealed delivery, deterministic verification, fault recovery, and checksum-linked artifact production",
+      "observed": {
+        "autonomy.human_interventions": {
+          "maximum": 0.0,
+          "median": 0.0,
+          "minimum": 0.0,
+          "sample_count": 3,
+          "unit": "count"
+        },
+        "efficiency.cost_usd": {
+          "maximum": 0.002415440465625,
+          "median": 0.002415440465625,
+          "minimum": 0.002415440465625,
+          "sample_count": 3,
+          "unit": "usd"
+        },
+        "efficiency.throughput": {
+          "maximum": 11811.62966940572,
+          "median": 11316.837411200331,
+          "minimum": 10437.721594459514,
+          "sample_count": 3,
+          "unit": "steps_per_second"
+        },
+        "efficiency.wall_time_ms": {
+          "maximum": 229.3604000005871,
+          "median": 211.54320001369342,
+          "minimum": 202.68159999977797,
+          "sample_count": 3,
+          "unit": "milliseconds"
+        },
+        "recovery.fault_success_rate": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0,
+          "sample_count": 3,
+          "unit": "ratio"
+        },
+        "steps.effective": {
+          "maximum": 2394.0,
+          "median": 2394.0,
+          "minimum": 2394.0,
+          "sample_count": 3,
+          "unit": "transitions"
+        },
+        "task.success": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0,
+          "sample_count": 3,
+          "unit": "ratio"
+        }
+      },
+      "title": "Long-horizon software delivery",
+      "unmeasured_value": [
+        "organization-specific human time displaced",
+        "downstream revenue impact",
+        "quality cost avoided",
+        "production-scale provider discounts"
+      ],
+      "workflow_boundary": "requirement intake through tested artifact and recovery delivery"
+    }
+  ],
+  "generated_at": "2026-07-29T04:21:03.838973Z",
+  "material_digest": "b4d2317b95432f6ad671059e7f3e1d7d71f4fcf2834bde14701e6fe0b441f8b0",
+  "measurement_boundary": {
+    "currency": "USD as recorded by the benchmark cost metric",
+    "externalized_costs": [
+      "operator onboarding",
+      "organization-specific integration",
+      "long-term storage",
+      "security review",
+      "production support"
+    ],
+    "sha256": "7006dfff106c7bdfd80fc3ee75ba0281bf7ceef45f1293c74e2089c43d11a306",
+    "source": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/raw-samples.json",
+    "statistics": "median over three formal repetitions per domain",
+    "variant": "dynamic-heterogeneous-swarm"
+  },
+  "risk_register": [
+    {
+      "category": "quality",
+      "description": "Two formal domains do not prove every domain.",
+      "mitigation": "Run sealed pilot cells with domain verifiers.",
+      "risk_id": "domain-transfer"
+    },
+    {
+      "category": "economic",
+      "description": "Provider price and quota terms can change.",
+      "mitigation": "Recalculate from current protected provider receipts.",
+      "risk_id": "provider-pricing"
+    },
+    {
+      "category": "economic",
+      "description": "Organization-specific integration was not measured.",
+      "mitigation": "Track and amortize integration cost explicitly.",
+      "risk_id": "integration-cost"
+    },
+    {
+      "category": "security",
+      "description": "Missing or invalid credentials block cloud work.",
+      "mitigation": "Fail closed and replan to an admitted placement.",
+      "risk_id": "credential-boundary"
+    },
+    {
+      "category": "adoption",
+      "description": "Auditable evidence does not guarantee user trust.",
+      "mitigation": "Expose causal trace, artifacts, and approval history.",
+      "risk_id": "operator-trust"
+    }
+  ],
+  "schema": "zyra.first-stage-application-value/v1",
+  "verification": {
+    "application_count": 2,
+    "domains": [
+      "cross-source-research",
+      "software-delivery"
+    ],
+    "receipt_digest": "771c22563cb7b4286801356ebc189f05adc1f337f3cd55fce95825c13d8092ea",
+    "risk_count": 5,
+    "schema": "zyra.first-stage-application-value-verification/v1",
+    "unsupported_savings_claims": 0,
+    "valid": true
+  }
+}

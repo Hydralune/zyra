@@ -1,0 +1,66 @@
+{
+  "archive_digest": "4dc68ae420c5b455b57a75b2f46bb5bea7bb47f3b1ffc21489bf2b72564f6a3e",
+  "manifest_digest": "581b74ddfe38873b14b4c37d39fb166b2fcc1b901d3ad359e2d73663eab6925e",
+  "projection_count": 3,
+  "projections": [
+    {
+      "kind_counts": {
+        "artifact": 19,
+        "checksum": 19,
+        "commit": 19,
+        "config": 19,
+        "default-entry": 19,
+        "live-mutation": 19,
+        "metric": 19,
+        "test": 19
+      },
+      "projection": "score-index",
+      "projection_digest": "7189425ec6cabb38dc3b7069e2602efdc6a47735acbb5df40cd5fef11168cdc6",
+      "reference_count": 152,
+      "requirement_count": 19,
+      "target_count": 8,
+      "valid": true
+    },
+    {
+      "domain_counts": {
+        "cross-source-research": 21,
+        "software-delivery": 21
+      },
+      "original_outcome_counts": {
+        "not-succeeded": 6,
+        "succeeded": 36
+      },
+      "projection": "benchmark-runs",
+      "projection_digest": "f36a19bbcfdaf9eeeb94dd0239e10f3664716eed022799c7385ce55583daccbf",
+      "run_count": 42,
+      "task_success_recomputed": false,
+      "valid": true,
+      "variant_counts": {
+        "dynamic-heterogeneous-swarm": 6,
+        "no-low-entropy-communication": 6,
+        "no-memory-compact": 6,
+        "no-recovery": 6,
+        "no-scheduler": 6,
+        "single-agent": 6,
+        "static-full-connect-multi-agent": 6
+      }
+    },
+    {
+      "domain_counts": {
+        "cross-source-research": 3,
+        "software-delivery": 3
+      },
+      "effective_transition_total": 19191,
+      "projection": "source-live-runs",
+      "projection_digest": "c21d15a4a98df2adfecad8239803cff45ae14f9acd7edf7074455edd5e5a0cb9",
+      "source_run_count": 6,
+      "task_success_recomputed": false,
+      "valid": true
+    }
+  ],
+  "receipt_digest": "56564c66de6ba36d85bb5c38a18022ff7de0f2915c86434ae2219358df6c795d",
+  "schema": "zyra.first-stage-projection-replay/v1",
+  "task_success_recomputed": false,
+  "task_success_source": "original-live-verifier-only",
+  "valid": true
+}

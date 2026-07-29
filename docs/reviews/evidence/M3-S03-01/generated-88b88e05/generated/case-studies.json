@@ -1,0 +1,280 @@
+{
+  "cases": [
+    {
+      "archive_digests": [
+        "1d052fd0cea0ba930efc8cff58accd48274a38df29e8366f5a0e7d55c71c3e1d",
+        "2be525ad714d2930a4e30f1b108f444a3c89f4b0881e9d4db60b8e8999b7c6bf",
+        "5253e675af1d588e3ad0c6e01e5ce8af38010859b4d18a858ef1e5b8399874a8"
+      ],
+      "artifact_counts": [
+        13,
+        13,
+        13
+      ],
+      "case_id": "case-cross-source-research",
+      "configuration_digests": [
+        "1bb8e5f623b28ae8ff3faa37516eb1a8f7dd94537c556c0e0d2bec8afecaf6a3",
+        "bf5a77bec42d1ec39e55a137e13d20d950b6c69e2b42e1f2c2e5c5ff208ada84",
+        "bfc6447478ba133d18d3ef90fe00a3a6d0925e12cf88919395a33dfa88c9ba82"
+      ],
+      "domain": "cross-source-research",
+      "fault_counts": [
+        5,
+        5,
+        5
+      ],
+      "final_outcome_digests": [
+        "2d2e3330797fdbd4a14e877e37f5cabd0d0e45b216c978a14988e5c10419e4c2",
+        "cc7c8e1c242bc4647582958c97f9e877c4c04e1c0536078cfb3fbffe3e4a7456",
+        "efee3486f1f1137e789c54756993faccf27e56daf2b6906d77e5ad841d0e6f15"
+      ],
+      "human_intervention_count": 0,
+      "live_source": true,
+      "maximum_effective_transitions": 4003,
+      "minimum_effective_transitions": 4003,
+      "new_input_digests": [
+        "13df9c6a8da3cc99cc3c21c84357328a7f2383e1cf7d4704a6809317c515a94c",
+        "c51a7255e89576e2c4e7c01d53f5ef9195293258982d985394d0e9c3128c64ae",
+        "e65d5e77855a00ea67866a2e08b81015c2b990f602820396332b9df0dbe8f493"
+      ],
+      "operator_intervention_count": 0,
+      "repetition_count": 3,
+      "repetitions": [
+        1,
+        2,
+        3
+      ],
+      "replay_only": false,
+      "runs": [
+        {
+          "archive_digest": "2be525ad714d2930a4e30f1b108f444a3c89f4b0881e9d4db60b8e8999b7c6bf",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "cc7c8e1c242bc4647582958c97f9e877c4c04e1c0536078cfb3fbffe3e4a7456",
+          "repetition": 1,
+          "scenario_run_id": "scenario_eea2565e3b07487fbae2512f46ace74e",
+          "task_id": "task_b7e89874e3ef"
+        },
+        {
+          "archive_digest": "5253e675af1d588e3ad0c6e01e5ce8af38010859b4d18a858ef1e5b8399874a8",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "2d2e3330797fdbd4a14e877e37f5cabd0d0e45b216c978a14988e5c10419e4c2",
+          "repetition": 2,
+          "scenario_run_id": "scenario_4604a351d3904cc39947d9df52551cfe",
+          "task_id": "task_4aeba9279409"
+        },
+        {
+          "archive_digest": "1d052fd0cea0ba930efc8cff58accd48274a38df29e8366f5a0e7d55c71c3e1d",
+          "artifact_count": 13,
+          "effective_transitions": 4003,
+          "event_count": 4003,
+          "fault_count": 5,
+          "outcome_digest": "efee3486f1f1137e789c54756993faccf27e56daf2b6906d77e5ad841d0e6f15",
+          "repetition": 3,
+          "scenario_run_id": "scenario_b7b4201ff228444db386c23553b67fb0",
+          "task_id": "task_92ba04e9cb74"
+        }
+      ],
+      "sealed_policy_hashes": [
+        "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd"
+      ],
+      "total_effective_transitions": 12009,
+      "total_events": 12009,
+      "verifier_receipts": [
+        "35217d4f2158f3604a19bf681dc45472dfd840a9fa9838ef721b58d62dd7d99d",
+        "c97f2c23f7fc2fa8e94024794949545fe11d67e0a68cc906ae7cf0261dd91a30",
+        "dae5e5a30810645c329ba3501c976499aa9e428a61cc2be1af6776211aeeed9a"
+      ],
+      "worker_roles": {
+        "MemoryCuratorRuntime": 3,
+        "artifact": 3,
+        "checkpoint": 3,
+        "delivery": 3,
+        "fault": 3,
+        "live-scenario-worker-1": 3,
+        "memory": 3,
+        "network-degradation": 3,
+        "placement-policy": 3,
+        "placement-verification": 3,
+        "recovery": 3,
+        "restore": 3,
+        "scheduler": 3,
+        "task": 3,
+        "topology": 3,
+        "verification": 3
+      }
+    },
+    {
+      "archive_digests": [
+        "2d82d9e5a7fc839ed5079ba8d1fe326039e5b2a592a0f5cfe396d836e287be07",
+        "40e8c9d2a136ba35bd30f76c36fb63eec91ed41bd305fc1b2189446e570bbbb8",
+        "43dc1ef933a65ddedbb64b24ef7c61a75b46d45e7cb6f7d8307b82d0e9e73557"
+      ],
+      "artifact_counts": [
+        6,
+        6,
+        6
+      ],
+      "case_id": "case-software-delivery",
+      "configuration_digests": [
+        "2503b7354a4626e23facb8a920874cfdc98b8d19772e0b909c4a1d74910daf4b",
+        "48c426febc4a7fbb15fdef8e187cca50a9f21e601364cae14114141ecfdeaefe",
+        "68f38343b6884beea085928a9ef58c1a934b9972e1641ce922b5bb79ce7b11e8"
+      ],
+      "domain": "software-delivery",
+      "fault_counts": [
+        5,
+        5,
+        5
+      ],
+      "final_outcome_digests": [
+        "38d250a6617d55ba37066bf263ff52dd335e050b3609b8682f1a68e2988336f5",
+        "47be1d568b9a63ec23911eaacde6db9dee13c0ba41b9a82f41c8f04a5f0ee393",
+        "6a0194c941e0ebd165547dd5694630120f37f5991fe3bc8f7608b81405c17d35"
+      ],
+      "human_intervention_count": 0,
+      "live_source": true,
+      "maximum_effective_transitions": 2394,
+      "minimum_effective_transitions": 2394,
+      "new_input_digests": [
+        "aebc893c5060fd410719749a8b5786eae3bec7d4880cb0806ed6ab2489be4adc",
+        "cabb0db11a13465c0ff119efc23917abc8536f90af7bcd8f2b5c0c34e336e6ca",
+        "f252608d4588da74dde04c0a7d35bae12bb7be46be7a3c1c4362f3b5383967a1"
+      ],
+      "operator_intervention_count": 0,
+      "repetition_count": 3,
+      "repetitions": [
+        1,
+        2,
+        3
+      ],
+      "replay_only": false,
+      "runs": [
+        {
+          "archive_digest": "43dc1ef933a65ddedbb64b24ef7c61a75b46d45e7cb6f7d8307b82d0e9e73557",
+          "artifact_count": 6,
+          "effective_transitions": 2394,
+          "event_count": 2394,
+          "fault_count": 5,
+          "outcome_digest": "47be1d568b9a63ec23911eaacde6db9dee13c0ba41b9a82f41c8f04a5f0ee393",
+          "repetition": 1,
+          "scenario_run_id": "scenario_94c96b0544d1452395ad38d4750c89e5",
+          "task_id": "task_79f1daa30544"
+        },
+        {
+          "archive_digest": "40e8c9d2a136ba35bd30f76c36fb63eec91ed41bd305fc1b2189446e570bbbb8",
+          "artifact_count": 6,
+          "effective_transitions": 2394,
+          "event_count": 2394,
+          "fault_count": 5,
+          "outcome_digest": "38d250a6617d55ba37066bf263ff52dd335e050b3609b8682f1a68e2988336f5",
+          "repetition": 2,
+          "scenario_run_id": "scenario_6c1d1d1eccd64e8ea23a880b39e62147",
+          "task_id": "task_1b9751580a66"
+        },
+        {
+          "archive_digest": "2d82d9e5a7fc839ed5079ba8d1fe326039e5b2a592a0f5cfe396d836e287be07",
+          "artifact_count": 6,
+          "effective_transitions": 2394,
+          "event_count": 2394,
+          "fault_count": 5,
+          "outcome_digest": "6a0194c941e0ebd165547dd5694630120f37f5991fe3bc8f7608b81405c17d35",
+          "repetition": 3,
+          "scenario_run_id": "scenario_94979955475c4429a37091e50d6f8472",
+          "task_id": "task_916a16ecc10c"
+        }
+      ],
+      "sealed_policy_hashes": [
+        "10201191f0b3e591426aa756c8dc3e7c322cb086a71b7fc7ef99b5edf74ffecd"
+      ],
+      "total_effective_transitions": 7182,
+      "total_events": 7182,
+      "verifier_receipts": [
+        "0d456008930a5094bef29d0dc915ec986513337a4eeb6ca0ddac4143267f8531",
+        "73c68f94873fa4800e3ab2711d2b51e2a86f9ab6a9ea9f6133922aad76d1d74b",
+        "7b37687f89d5b5cb983cb11ad821d7877ab9e41f813ffa254fe9d93801c0641f"
+      ],
+      "worker_roles": {
+        "MemoryCuratorRuntime": 3,
+        "artifact": 3,
+        "checkpoint": 3,
+        "delivery": 3,
+        "fault": 3,
+        "live-scenario-worker-1": 3,
+        "memory": 3,
+        "network-degradation": 3,
+        "placement-policy": 3,
+        "placement-verification": 3,
+        "recovery": 3,
+        "restore": 3,
+        "scheduler": 3,
+        "task": 3,
+        "topology": 3,
+        "verification": 3
+      }
+    }
+  ],
+  "deployment_compatibility": {
+    "case_runs_no_new_provider_call": true,
+    "cell_execution_issued_provider_request": false,
+    "current_provider_evidence_attached": true,
+    "current_provider_request_count": 12,
+    "evidence_role": "current provider/tier evidence is bound to each formal case; the 42 benchmark cell executions remain deterministic and issue no hidden provider request",
+    "protected_prior_receipts_only": false,
+    "protected_supplementary_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/protected-deployment-evidence.json",
+    "protected_supplementary_sha256": "9c1b492846ccf6a8b3ce8a787449c8340d590f3c657b951cf8072385ecba0e78",
+    "providers": [
+      {
+        "authenticated": true,
+        "model_id": "deepseek-v4-pro",
+        "provider_id": "deepseek",
+        "receipt_digest": "fece7b4d9ed6e3fa6ba109896b0250f90b94962c3a7f73961792182f14d116a3",
+        "request_count": 4,
+        "simulated": false
+      },
+      {
+        "authenticated": true,
+        "model_id": "kimi-k2.7-code",
+        "provider_id": "kimi-platform",
+        "receipt_digest": "223d3cb476c97d1a48a5c173b50c4ddd2bf5df5acbfab91036e2cd9f3af3e651",
+        "request_count": 2,
+        "simulated": false
+      },
+      {
+        "authenticated": true,
+        "model_id": "glm-5.2",
+        "provider_id": "zhipu",
+        "receipt_digest": "f28e8f1f1b1739c15094f1cb36d1395825a6d59f16ce104bb1e4df769918175a",
+        "request_count": 6,
+        "simulated": false
+      }
+    ],
+    "same_run_as_case": true,
+    "source_path": "docs/reviews/evidence/M3-S02A-02/formal-current-09e99cdc/current-campaign-evidence.json",
+    "source_sha256": "0ceeae1cdc79f08d679102d6dd1d6a7f0e20f22bd3aacf5608124e219eb48b3e",
+    "tiers": [
+      "cloud",
+      "edge",
+      "local"
+    ]
+  },
+  "generated_at": "2026-07-29T04:21:03.825037Z",
+  "material_digest": "3159aac871c3f5d0f2bc522cfc8b4578efcb3e31fa80b2569e1d7c6ec5c960ba",
+  "schema": "zyra.first-stage-case-studies/v1",
+  "verification": {
+    "case_count": 2,
+    "domain_count": 2,
+    "domains": [
+      "cross-source-research",
+      "software-delivery"
+    ],
+    "receipt_digest": "471a0ecf2192bcd8948da600580def252c8382c5916d0f6275a6ba8eeaeb5a80",
+    "schema": "zyra.first-stage-case-study-verification/v1",
+    "valid": true
+  }
+}

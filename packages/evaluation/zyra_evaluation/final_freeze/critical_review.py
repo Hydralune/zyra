@@ -1105,10 +1105,15 @@ class CriticalReviewEngine:
         )
 
     def _head_commit_of_record(self) -> str:
+        path = "docs/reviews/evidence/M3-S03-01/verification-summary.json"
         return require_commit(
             self._git(
-                "rev-parse",
-                "98a001a44f2e506c0ef0144e912c3ba55699f11b",
+                "log",
+                "-n",
+                "1",
+                "--format=%H",
+                "--",
+                path,
                 label="s03-evidence-commit",
             ),
             "s03_evidence_commit",

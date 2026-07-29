@@ -1,0 +1,2638 @@
+{
+  "algorithms": [
+    {
+      "algorithm_id": "dynamic-sparse-topology-routing",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/integration/test_topology_interaction_control.py",
+          "sha256": "ff07e6995200a5e9315e8d33d8dd5a1c73846245eaac9911094b027382913cd2"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "sha256": "254cf4e800f5592a1dfd7a952d6af924a8488dd1f46b8408a7080825b1d49868"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_dynamic_graph_custody.py",
+          "sha256": "36ebee063bda2649e442c608e7c3547a13eb686814a6fdfe5ac3af7e6ac74bbf"
+        }
+      ],
+      "complexity": {
+        "communication": "O(K * M_ref), K << W",
+        "space": "O(W + K + E_delta)",
+        "symbols": [
+          "E_delta",
+          "K",
+          "M_ref",
+          "W"
+        ],
+        "time": "O(W log K + E_delta)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/symbolic/zyra_symbolic/topology.py",
+          "sha256": "b7207db9e31bd1bdcef14b1b63cb7c09016efb2630ced7d3270c6e363f4b70b2",
+          "symbols": [
+            "RouteCandidate",
+            "TopologyRouter",
+            "route",
+            "rank_candidates"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "profile task requirements and current topology revision",
+          "step": 1
+        },
+        {
+          "operation": "filter workers by capability, privacy, lease, and policy",
+          "step": 2
+        },
+        {
+          "operation": "score capability, latency, cost, load, diversity, and failure risk",
+          "step": 3
+        },
+        {
+          "operation": "select adaptive top-k workers above the admission threshold",
+          "step": 4
+        },
+        {
+          "operation": "emit add/remove/replace node and edge mutations",
+          "step": 5
+        },
+        {
+          "operation": "commit mutations with a graph-revision compare-and-swap",
+          "step": 6
+        }
+      ],
+      "title": "Dynamic sparse heterogeneous topology routing"
+    },
+    {
+      "algorithm_id": "low-entropy-structured-communication",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/integration/test_runtime_event_message_bus_integration.py",
+          "sha256": "1560165225a9e81fbeb29745327aa1dec014a23f9e008eca21808d781a01ab01"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_code_index_patch_event_integration.py",
+          "sha256": "fa1861763ea73b9e46b38ca89f8ac72307a0fdc0c279e658a3f8c81b4dea436e"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "sha256": "494af3a882f5edf4e1327e78cc0e9b27b69fdd2747b6c200d5366d7ac9c21f4c"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_runtime_event_spine_api.py",
+          "sha256": "6bb7fd5fd16a64186128e937b798a47719726d26dc07623fb601125f285477af"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_runtime_event_spine_foundation.py",
+          "sha256": "6bf7fdac9c6b7ce59764b645b6561af1d7bd29a63aea2b51daafe569b81f75d1"
+        }
+      ],
+      "complexity": {
+        "communication": "O(K * S), instead of O(W * H)",
+        "space": "O(U + K)",
+        "symbols": [
+          "B",
+          "H",
+          "K",
+          "R",
+          "S",
+          "U",
+          "W"
+        ],
+        "time": "O(B + R log K)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/api_retry_playbook_runtime.py",
+          "sha256": "029c58241eeae312868e1d6ae38fe7f87eec73ef4b52acfed465980ea2c5f57d",
+          "symbols": [
+            "ApiRetryPlaybookStatus",
+            "ApiRetryPlaybookSeverity",
+            "ApiRetryPlaybookSurface",
+            "ApiRetryPlaybookRule",
+            "ApiRetryPlaybookDecision",
+            "ApiRetryPlaybookFinding",
+            "ApiRetryPlaybookReport",
+            "ApiRetryPlaybookRuntime",
+            "default_api_retry_playbook_rules",
+            "api_retry_playbook_metadata",
+            "render_api_retry_playbook_markdown",
+            "default_api_retry_playbook_source_decisions",
+            "to_dict",
+            "ok",
+            "to_dict",
+            "blocking"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/artifacts.py",
+          "sha256": "978c4f3db45fcdf962ac035df109399480bc4b70f674bc9e19b5cd45629addd1",
+          "symbols": [
+            "ArtifactObservedContent",
+            "ArtifactByteRange",
+            "normalize_security_label",
+            "normalize_trust_disposition",
+            "normalize_retention_policy",
+            "normalize_download_policy",
+            "normalize_producer_metadata",
+            "LocalArtifactStore",
+            "ArtifactIntegrityError",
+            "ArtifactRevisionError",
+            "ArtifactRangeError",
+            "observe_artifact_path",
+            "expected_artifact_integrity",
+            "compare_artifact_integrity",
+            "detect_text_encoding",
+            "detect_line_endings"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_api_inventory_contract_runtime.py",
+          "sha256": "78611ac24798275f048a003852985e06aed9547f7fd12438cc805eb0500e483e",
+          "symbols": [
+            "ApiInventoryContractStatus",
+            "ApiInventoryContractSeverity",
+            "ApiInventoryContractRisk",
+            "ApiInventoryPayloadKind",
+            "ApiInventoryFieldContract",
+            "ApiInventoryFieldObservation",
+            "ApiInventoryRouteContract",
+            "ApiInventoryContractFinding",
+            "ApiInventoryContractReport",
+            "build_api_inventory_contract_report",
+            "default_api_inventory_field_contracts",
+            "api_inventory_contract_event",
+            "api_inventory_contract_markdown",
+            "assert_api_inventory_contract_ready",
+            "to_dict",
+            "blocking"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_clean_runtime.py",
+          "sha256": "2969463d87ea411273d3f84127b42ca67a4725056de58947fee3420df215911e",
+          "symbols": [
+            "CleanRuntimeCheckStatus",
+            "CleanRuntimeDependencyKind",
+            "CleanRuntimeCheck",
+            "CleanRuntimeDefaultPath",
+            "CleanRuntimeDisconnectEvidence",
+            "CleanRuntimeAuditReport",
+            "ClaudeCleanRuntimeAuditor",
+            "disconnect_evidence_from_worker_result",
+            "clean_runtime_metadata",
+            "clean_runtime_markdown",
+            "assert_clean_runtime_report",
+            "ok",
+            "to_dict",
+            "ok",
+            "to_dict",
+            "ok"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
+          "sha256": "09c85b13d526476b9cf7fd959f2a182d97e65e6c9f3c9663ed5086d8e34044c5",
+          "symbols": [
+            "ContextAssemblyBlockKind",
+            "ContextAssemblyBlockRole",
+            "ContextAssemblyStatus",
+            "ContextAssemblyFindingSeverity",
+            "ContextAssemblyRequirement",
+            "ContextAssemblyFinding",
+            "ContextAssemblySource",
+            "ContextAssemblyBlock",
+            "ContextAssemblyBudget",
+            "ContextAssemblySelection",
+            "ContextAssemblySnapshot",
+            "ContextAssemblyRuntime",
+            "default_context_assembly_source",
+            "context_snapshot_to_messages",
+            "context_snapshot_metadata",
+            "render_context_snapshot_markdown"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_disconnect_semantics_runtime.py",
+          "sha256": "cb537ff0144566f20ca15e8c16b1699ae08176373d3d3cca7611faceefa1e045",
+          "symbols": [
+            "DisconnectSemanticsStatus",
+            "DisconnectSemanticsSeverity",
+            "DisconnectEffectKind",
+            "DisconnectProofSurface",
+            "DisconnectConstraint",
+            "DisconnectExpectedEffect",
+            "DisconnectScenarioPlan",
+            "DisconnectCoverageRow",
+            "DisconnectSemanticsFinding",
+            "DisconnectSemanticsReport",
+            "build_disconnect_semantics_report",
+            "disconnect_semantics_event",
+            "disconnect_semantics_markdown",
+            "assert_disconnect_semantics_ready",
+            "default_disconnect_scenario_plans",
+            "scenario_payloads_by_error"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_downstream_handoff_runtime.py",
+          "sha256": "c4c4e75eb2c077c1e40861814c6554ec3b66bdbef46e45ce77c3c6b2a14e3881",
+          "symbols": [
+            "HandoffReadinessStatus",
+            "HandoffFindingSeverity",
+            "HandoffRiskKind",
+            "HandoffDependencyKind",
+            "HandoffDependency",
+            "HandoffAcceptanceGate",
+            "HandoffOwnerPackage",
+            "HandoffDependencyEdge",
+            "HandoffFinding",
+            "DownstreamHandoffReport",
+            "build_downstream_handoff_report",
+            "downstream_handoff_markdown",
+            "assert_downstream_handoff_ready",
+            "missing",
+            "to_dict",
+            "blocking"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_event_contract_runtime.py",
+          "sha256": "3ff090ea8752b4ad5f8dfb496279237a9247cf9652c677ed7d7f1c7b6361905a",
+          "symbols": [
+            "EventContractStatus",
+            "EventContractSeverity",
+            "EventContractRisk",
+            "EventPayloadField",
+            "EventContractSchema",
+            "EventObservation",
+            "EventOwnerCoverage",
+            "EventContractFinding",
+            "EventContractRuntimeReport",
+            "build_event_contract_runtime_report",
+            "event_contract_runtime_event",
+            "event_contract_runtime_markdown",
+            "assert_event_contract_runtime_ready",
+            "to_dict",
+            "schema_id",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+          "sha256": "fadd8b16aae78e3380223c8d5ee8eb35c0a108265406d6dfc5bf982321bb2a39",
+          "symbols": [
+            "FoundationDecision",
+            "BoundaryKind",
+            "SurfaceKind",
+            "ProbeSeverity",
+            "SourceSignal",
+            "SourcePathSpec",
+            "TargetSurfaceSpec",
+            "BoundarySpec",
+            "SourceFileInspection",
+            "TargetSurfaceInspection",
+            "FoundationFinding",
+            "BoundaryInspection",
+            "FoundationProbeResult",
+            "FoundationExecutionRequest",
+            "ClaudeProductizationFoundation",
+            "default_foundation_boundaries"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+          "sha256": "3172a40dd2865e1268a975e50362519c76a3aaf80dc155821345a9ffbef842fe",
+          "symbols": [
+            "ProductizationReviewStatus",
+            "ProductizationReviewSeverity",
+            "ProductizationReviewRuleKind",
+            "CleanBoundaryRule",
+            "StateCustodyRule",
+            "MainPathReachabilityRule",
+            "LineBucketExpectation",
+            "SourceToTargetReviewRow",
+            "ProductizationReviewFinding",
+            "ProductizationReviewReport",
+            "build_productization_review_report",
+            "productization_review_markdown",
+            "assert_productization_review_ready",
+            "default_line_bucket_expectations",
+            "blocking",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_query_plan.py",
+          "sha256": "be0edb1f781f6b1f8f6748b3c879150bb830b01c0afab3581bca88deb4494345",
+          "symbols": [
+            "ClaudeQueryPlanSeverity",
+            "ClaudeQueryTurnKind",
+            "ClaudeQueryStepState",
+            "ClaudeQueryPlanDiagnostic",
+            "ClaudeQueryToolStep",
+            "ClaudeQueryTurn",
+            "ClaudeQueryPlan",
+            "ClaudeQueryPlanAudit",
+            "ClaudeQueryPlanner",
+            "plan_from_constraints",
+            "query_turns_from_constraints",
+            "audit_query_plan",
+            "query_plan_metadata_from_constraints",
+            "query_plan_summary_lines",
+            "merge_query_plans",
+            "query_plan_tool_matrix"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/claude_query_session_disconnect_audit.py",
+          "sha256": "4630f00d03ebfdd4d4a5a2b10a93c9a4a2c9034cedcdb8c90afb6ea863957067",
+          "symbols": [
+            "QuerySessionDisconnectStatus",
+            "QuerySessionDisconnectSeverity",
+            "QuerySessionDisconnectSurface",
+            "QuerySessionDisconnectEffect",
+            "QuerySessionDisconnectScenario",
+            "QuerySessionDisconnectObservation",
+            "QuerySessionDisconnectFinding",
+            "QuerySessionDisconnectAuditReport",
+            "QuerySessionDisconnectAuditRuntime",
+            "default_query_disconnect_scenarios",
+            "observe_disconnect_scenario",
+            "validate_disconnect_observations",
+            "validate_normal_path_observation",
+            "disconnect_effect_matrix",
+            "disconnect_failure_summary",
+            "query_disconnect_phases"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/clean_state.py",
+          "sha256": "24fdf26613a1213cd31393d70655c7781368beb112c6711daeb43be68cd382d5",
+          "symbols": [
+            "PathFingerprint",
+            "CleanStateManager",
+            "to_dict",
+            "create_run_root",
+            "reset_run_root",
+            "remove_run_root",
+            "fingerprint",
+            "audit_residue"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/cli.py",
+          "sha256": "c073d56305be2a538916a98ebd43d648cf3260f5e75b6c1e91cabb771ba8bb29",
+          "symbols": [
+            "build_parser",
+            "run",
+            "main"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/dispatch.py",
+          "sha256": "0adcd970eee221deaacc3ed20058b6443bb9f421961f4155b9ed355a27455a51",
+          "symbols": [
+            "DeploymentDispatchRuntime",
+            "dispatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/doctor.py",
+          "sha256": "fc30e04e25f2c4799e654f3021b0e62ae73cec441de3c0a379c3342824985c1c",
+          "symbols": [
+            "DoctorCheck",
+            "DeploymentDoctor",
+            "checks",
+            "run",
+            "check_runtime",
+            "check_dependencies",
+            "check_configuration",
+            "check_store",
+            "check_ports",
+            "check_credentials",
+            "check_web_bundle",
+            "check_source_boundary",
+            "check_process_boundary",
+            "check_native_artifacts",
+            "check_clean_state",
+            "check_partial_startup"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/errors.py",
+          "sha256": "ef47fb7530b1d2e62684afac7012a54ae95e77c61ce404b73fec8ffaf920fd1c",
+          "symbols": [
+            "redact",
+            "DeploymentError",
+            "ConfigurationRejected",
+            "StateConflict",
+            "StateCorrupt",
+            "PortConflict",
+            "ProcessUnavailable",
+            "NodeProtocolError",
+            "NodeAuthenticationError",
+            "NodeReplayRejected",
+            "PlacementRejected",
+            "PlacementDisabled",
+            "DispatchRejected",
+            "DispatchTimeout",
+            "HandoffRejected",
+            "SemanticProbeFailed"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/evidence_gate.py",
+          "sha256": "8d05a7fb45f017b16bca99055ae396a611b75288fe805c69488c9a0a0b647257",
+          "symbols": [
+            "DeploymentEvidenceGate",
+            "current_commit",
+            "verify",
+            "require"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/handoff.py",
+          "sha256": "b46b87aa801a23f6ca8effacd882ab8bae51f07e55f726d10ec0cafb2a0c6a58",
+          "symbols": [
+            "CanonicalCheckpointVerifier",
+            "HandoffReceipt",
+            "CheckpointHandoffRuntime",
+            "to_dict",
+            "handoff"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/http_client.py",
+          "sha256": "6633fdc5ecbf5f19ec0b5e5f08f5b668f03cf0b6c12a25b1c39f288a8af7bb86",
+          "symbols": [
+            "ProductHttpClient",
+            "request",
+            "get",
+            "post",
+            "wait_ready"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/models.py",
+          "sha256": "22be8922f71beb7c457115f89673b080550544bbf72f391a20c71ae0c2821b67",
+          "symbols": [
+            "now_iso",
+            "new_id",
+            "canonical_json",
+            "digest",
+            "DeploymentProfile",
+            "NetworkMode",
+            "Sensitivity",
+            "LifecycleStatus",
+            "ProbeStatus",
+            "DispatchStatus",
+            "ResourceEnvelope",
+            "ProfilePolicy",
+            "Workload",
+            "PlacementCandidate",
+            "PlacementDecision",
+            "ProcessRecord"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_client.py",
+          "sha256": "6d05fb9152d1054460ee03da7d0346f29a9c6595bd4e07245eae23c8a9ec9e3e",
+          "symbols": [
+            "DeploymentNodeClient",
+            "request",
+            "health",
+            "semantic_readiness",
+            "execute",
+            "inject_fault",
+            "export_checkpoint",
+            "import_checkpoint",
+            "shutdown",
+            "wait_ready",
+            "observation"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_runtime.py",
+          "sha256": "77958d96982bc410153cb87520a002b9e9ef60bb5334513ed5d402049a60f63e",
+          "symbols": [
+            "NodeJournal",
+            "DeploymentNodeRuntime",
+            "dispatch",
+            "begin_dispatch",
+            "complete_dispatch",
+            "save_checkpoint",
+            "checkpoint",
+            "counts",
+            "health",
+            "semantic_probe",
+            "execute",
+            "export_checkpoint",
+            "import_checkpoint",
+            "inject_fault"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_server.py",
+          "sha256": "0bfddc081b1e7acc182d8d0167da86cf6208f95267c1ae3549a7bfcba2c75b05",
+          "symbols": [
+            "DeploymentNodeHttpServer",
+            "DeploymentNodeHandler",
+            "policy_from_json",
+            "build_parser",
+            "run",
+            "node_server",
+            "do_GET",
+            "do_POST",
+            "log_message",
+            "stop"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "classify payload into conclusion, evidence, state delta, and request",
+          "step": 1
+        },
+        {
+          "operation": "store oversized tool or artifact content once in the artifact store",
+          "step": 2
+        },
+        {
+          "operation": "replace shared payload content with checksum-bound references",
+          "step": 3
+        },
+        {
+          "operation": "route only to the adaptive top-k recipients",
+          "step": 4
+        },
+        {
+          "operation": "enforce per-message and per-recipient budgets before publication",
+          "step": 5
+        },
+        {
+          "operation": "record token, duplicate-fact, broadcast, and offload metrics",
+          "step": 6
+        }
+      ],
+      "title": "Low-entropy structured evidence communication"
+    },
+    {
+      "algorithm_id": "distributed-memory-compact-restore",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/integration/test_skill_memory_compact_restore_integration.py",
+          "sha256": "f432d955ae2818b44a3c925e530f6f51197f39bb1da4d08167093e756d189bc0"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_codeworker_context_compact_api_foundation.py",
+          "sha256": "3881d12f9c811d94cf583ed4d5a9cb75121819f3bc7bdcfc6fe724760f019802"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_codeworker_context_compact_api_integration.py",
+          "sha256": "073f488198968f12c6e91f31d96e34817e3483011a41c081699eed2eef5eb86b"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_memory_curator_api_main_path.py",
+          "sha256": "b6081b2356ed80429c0f83aeb01bbbc6d884a3b94d1de14c94d91523e0134989"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_memory_curator_worker_integration.py",
+          "sha256": "8b271a24009c2a3818b299b1be205e6935876fbde3ee885efa1108999cddefcb"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_recovery_planner_routing_memory_api.py",
+          "sha256": "ab32bfdb98d5aced801c5594100bd675058a1dc02259dd8a509d7ac7d8d86bd8"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_memory_curator_worker_foundation.py",
+          "sha256": "9cbcce0e38e90ef27eaa5cadaf3da9255d5d608d51d9b4e2fbcfe25a8aa10711"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_memory_fabric.py",
+          "sha256": "6cda6c66617932e8fdd834ed41e7bfebbd5dc9093b53fc1e5c1395952b20de37"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_recovery_planner_routing_memory_foundation.py",
+          "sha256": "2bf13e1adc2efd494362861229d1e2b882f71d70306f69b31472be6e61dec8a0"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_recovery_planner_routing_memory_integration.py",
+          "sha256": "dac1e5e4006f75b0f172b82e270a7e1202f22502dd654156c2811e511585bf1b"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_skill_memory_reachability_contract.py",
+          "sha256": "74a00604b4daa340776837846dbd42c1c8c5a6532bab2f705137b39e0e181bae"
+        }
+      ],
+      "complexity": {
+        "communication": "O(C + K * R_ref)",
+        "space": "O(I + K + C)",
+        "symbols": [
+          "C",
+          "I",
+          "K",
+          "N",
+          "Q",
+          "R_ref"
+        ],
+        "time": "O(N + Q log I + K log K)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/conformance.py",
+          "sha256": "e689dc0699e6559942ce1c1b5c19a02e0e788a6fd43d5b9f167c3c4c1133b087",
+          "symbols": [
+            "ConformanceStatus",
+            "ConformanceCheck",
+            "RetrievalConformanceReport",
+            "RetrievalConformanceSuite",
+            "passed",
+            "to_dict",
+            "passed",
+            "to_dict",
+            "run",
+            "assert_passed",
+            "observe",
+            "observe",
+            "observe",
+            "observe",
+            "observe",
+            "observe"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_commit.py",
+          "sha256": "6eabb1e6b052266fa66055c6ea4a90550bac08c4cb27c91997e2d0dfe59bb855",
+          "symbols": [
+            "MemoryEventSink",
+            "MemoryIndexSink",
+            "CommitConflictError",
+            "CommitInvariantError",
+            "MemoryCommitRuntime",
+            "CuratorOutboxDispatcher",
+            "append_event",
+            "synchronize_task",
+            "commit",
+            "commit_many",
+            "drain"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_context.py",
+          "sha256": "11e04f642e51e71fa21ad8e07b2ed062a5e9ba83a1c59bb39b650df685c6f4e5",
+          "symbols": [
+            "CuratorRecallRequest",
+            "CuratorRecallResult",
+            "CuratorRecallComparison",
+            "CuratorRecallVerifier",
+            "validated",
+            "to_dict",
+            "verified",
+            "to_dict",
+            "to_dict",
+            "verify",
+            "verify_all",
+            "capture_baseline",
+            "compare"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_decision.py",
+          "sha256": "a8d5c74ec2235723ddeb902332300ca8ef598071d3646a66f3b9607cfd191629",
+          "symbols": [
+            "CandidateModel",
+            "CandidateSignal",
+            "CandidateGenerationResult",
+            "EvidenceSignalAnalyzer",
+            "SkillCandidateProjector",
+            "FailurePatternMiner",
+            "ModelCandidateAdapter",
+            "CandidateConsolidator",
+            "MemoryDecisionRuntime",
+            "propose",
+            "to_dict",
+            "to_dict",
+            "analyze",
+            "project",
+            "mine",
+            "propose"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_delivery.py",
+          "sha256": "7041184eadaecbcdcc26668a3c7bba03c660b62fefaeb34c93c61d3f15ff7bea",
+          "symbols": [
+            "CuratorConsumerError",
+            "CuratorConsumerPort",
+            "CuratorDeliveryDispatchResult",
+            "CuratorDeliveryDrainReport",
+            "CuratorDeliveryContract",
+            "RetrievalContextConsumer",
+            "SkillMemoryContractConsumer",
+            "FaultObserverContractConsumer",
+            "RecoveryPlannerContractConsumer",
+            "CompactRuntimeContractConsumer",
+            "AuditContractConsumer",
+            "CuratorDownstreamDispatcher",
+            "CuratorDeliveryController",
+            "consume",
+            "to_dict",
+            "ok"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_evidence.py",
+          "sha256": "02ef4831c49001e729efefc4a64c7f0e52e734e533f5a19ef215f63ca598d13b",
+          "symbols": [
+            "ArtifactReader",
+            "SecretMatch",
+            "RedactionResult",
+            "SecretRedactor",
+            "ExtractionDiagnostics",
+            "ExtractionResult",
+            "EventArtifactTraceExtractor",
+            "EvidenceResolver",
+            "read_preview",
+            "to_dict",
+            "redacted",
+            "to_dict",
+            "redact_text",
+            "redact_value",
+            "to_dict",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_integration_models.py",
+          "sha256": "ffa37a8f6cf4c72e248f94c8c85e4f7808b7a35a59a13d9e021801c2e5f2347b",
+          "symbols": [
+            "CuratorIntegrationContractError",
+            "CuratorProjectionConflictError",
+            "CuratorDeliveryConflictError",
+            "CuratorContextVerificationError",
+            "RuntimeTraceKind",
+            "CuratorInputSource",
+            "CuratorOutcomeKind",
+            "CuratorOutcomeState",
+            "CuratorConsumer",
+            "CuratorDeliveryState",
+            "CuratorIntegrationRunState",
+            "ContextEffect",
+            "FailureSeverity",
+            "FailureDisposition",
+            "RuntimeTraceRef",
+            "CuratorInputBatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_integration_store.py",
+          "sha256": "6e6f20c168af619047877c89087baf1642b8a70688b3cba2ff7658ec9dacb179",
+          "symbols": [
+            "CuratorIntegrationStore",
+            "initialize",
+            "connect",
+            "connection",
+            "transaction",
+            "record_input_batch",
+            "input_cursor",
+            "input_batch",
+            "input_batches",
+            "save_integration_run",
+            "integration_run",
+            "integration_run_for_job",
+            "integration_runs",
+            "publish_projection",
+            "outcome",
+            "outcomes"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_models.py",
+          "sha256": "0b46022bd96b783518d35c909254b9b3cb055afa01748e330a55aba5e636552f",
+          "symbols": [
+            "EvidenceKind",
+            "TrustTier",
+            "CandidateKind",
+            "CandidateState",
+            "MemoryScope",
+            "CandidateRelationKind",
+            "DecisionStatus",
+            "DecisionCode",
+            "CuratorTrigger",
+            "CuratorJobState",
+            "OutboxKind",
+            "OutboxState",
+            "CommitDisposition",
+            "canonical_json",
+            "stable_digest",
+            "stable_id"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_outcomes.py",
+          "sha256": "90d72324053c16d6f2a49d8cca0529496e462227fe31cdbfe29b5caad68ee3ac",
+          "symbols": [
+            "CuratorOutcomeProjectionError",
+            "CuratorProjectionDraft",
+            "CuratorOutcomeProjector",
+            "CuratorProjectionAudit",
+            "CuratorProjectionAuditor",
+            "validated",
+            "canonical_outcomes",
+            "published_index_outcomes",
+            "rejected_outcomes",
+            "to_dict",
+            "project",
+            "to_dict",
+            "audit"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_runtime.py",
+          "sha256": "52c6d5ad36d6781a5f274b0a7ac55fb426007fc2ae00fd1f7575142b585b84f6",
+          "symbols": [
+            "CuratorRuntimeError",
+            "CuratorTaskMismatchError",
+            "CuratorNoWorkError",
+            "SchedulerReceipt",
+            "CuratorWorkerHealth",
+            "CuratorRunScheduler",
+            "LeaseHeartbeat",
+            "MemoryCuratorWorker",
+            "to_dict",
+            "to_dict",
+            "schedule_manual",
+            "schedule_task_end",
+            "schedule_recovery",
+            "current_lease",
+            "assert_healthy",
+            "process_one"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/memory/zyra_memory/curator_store.py",
+          "sha256": "b0d027869c47a90d4d244d393bd72a57d146ef578e7d385b427b305d51e79547",
+          "symbols": [
+            "CuratorStoreError",
+            "CuratorLeaseLostError",
+            "CandidateConflictError",
+            "CuratorCandidateStore",
+            "initialize",
+            "connect",
+            "connection",
+            "transaction",
+            "save_evidence_documents",
+            "evidence_document",
+            "evidence_documents",
+            "task_evidence",
+            "save_bundle",
+            "bundle",
+            "save_candidate",
+            "candidate"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+          "sha256": "cd5886dd671ff2c2e90c29703f165eb1f2f4f9b76bd44d6d62d7c7ab3bd4a591",
+          "symbols": [
+            "AGENT_TOOLS",
+            "TypeScriptAgentRuntime",
+            "invocationSchema",
+            "controlSchema",
+            "requests",
+            "coordinator",
+            "tasks",
+            "resumeInput",
+            "settled",
+            "snapshot",
+            "coordinator",
+            "prompt",
+            "agent",
+            "idempotencyKey",
+            "taskId",
+            "background"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/context-fork.ts",
+          "sha256": "47acf10027c603c83711fc4340de3303937f1ec3085c42635e9a934fb61cb7cf",
+          "symbols": [
+            "ContextForkRequest",
+            "AgentContextFork",
+            "isolated",
+            "resumed",
+            "payload",
+            "snapshot",
+            "payload",
+            "next",
+            "rootContext",
+            "clock",
+            "payload",
+            "ContextLedgerEntry",
+            "AgentContextLedger",
+            "branch",
+            "prior",
+            "payload"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/contracts.ts",
+          "sha256": "186b95993e465a698a0eb92baed13d7f3df3e8585abdd3d6058349a4e93f80b1",
+          "symbols": [
+            "AgentBudget",
+            "AgentDefinition",
+            "AgentScope",
+            "AgentContextSnapshot",
+            "AgentTask",
+            "AgentToolResult",
+            "AgentExecutionContext",
+            "AgentCapabilityResult",
+            "AgentToolSurface",
+            "DEFAULT_AGENT_BUDGET"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/definition-loader.ts",
+          "sha256": "d84a3969cb1eea27c6dfa002f824dd543aeb75707a91d82a51d571a329396b27",
+          "symbols": [
+            "AgentDefinitionDirectory",
+            "LoadedDefinitionFile",
+            "DefinitionLoadReport",
+            "AgentDefinitionLoader",
+            "root",
+            "maximumDepth",
+            "maximumFiles",
+            "rootReal",
+            "report",
+            "queue",
+            "visited",
+            "current",
+            "entry",
+            "path",
+            "target",
+            "stats"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/definition-registry.ts",
+          "sha256": "20c9321cea36eed646a5010605c3655cdb9bf4ed9e920aa002329d4a0e6472c8",
+          "symbols": [
+            "SOURCE_PRIORITY",
+            "ISOLATION_MODES",
+            "DefinitionInput",
+            "AgentDefinitionRegistry",
+            "definition",
+            "definition",
+            "candidates",
+            "duplicate",
+            "next",
+            "normalized",
+            "candidates",
+            "selected",
+            "values",
+            "candidates",
+            "removed",
+            "next"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/definitions.ts",
+          "sha256": "cdac768ebfae3826e9278de39d8f0d97b6cbb607e043bda04f19a51c7bb465fe",
+          "symbols": [
+            "DEFAULT_DEFINITIONS",
+            "AgentDefinitionRegistry",
+            "value",
+            "definition",
+            "constraints",
+            "configured",
+            "values",
+            "record",
+            "selected",
+            "normalizeDefinition",
+            "name",
+            "description",
+            "tools",
+            "deniedTools",
+            "overlap",
+            "isolation"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/execution-runtime.ts",
+          "sha256": "37a6db019f1a1b71ac462db4183053fd1106a6243c9a56b9ca4b0025e8bbf16a",
+          "symbols": [
+            "AgentCreateRequest",
+            "AgentExecutionRuntime",
+            "existingByIdempotency",
+            "identity",
+            "unsignedContext",
+            "context",
+            "startedAt",
+            "definitionWithoutDigest",
+            "definition",
+            "task",
+            "prepared",
+            "receipt",
+            "task",
+            "task",
+            "identity",
+            "isolation"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/fork.ts",
+          "sha256": "b58c8a1fd5d9718161c0884f2534af2abf63f5d3811d10b53bd213aeceff3372",
+          "symbols": [
+            "forkAgentContext",
+            "parentContext",
+            "modeValue",
+            "mode",
+            "strings"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/lifecycle.ts",
+          "sha256": "dd1bd834d438c6b395bef6f093796dd17ec11f60e7ee085121603d3a2771308b",
+          "symbols": [
+            "TRANSITIONS",
+            "AgentLifecycle",
+            "replayId",
+            "replay",
+            "task",
+            "existing",
+            "replayId",
+            "task",
+            "task",
+            "task"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/memory-runtime.ts",
+          "sha256": "ef80d727f2c5bdf6064873a855dd96013c8977b99dc7db08bf3d5188885516c2",
+          "symbols": [
+            "AgentMemoryRecord",
+            "AgentMemorySnapshot",
+            "AgentMemoryRuntime",
+            "content",
+            "importance",
+            "payload",
+            "record",
+            "records",
+            "now",
+            "candidates",
+            "retained",
+            "removed",
+            "record",
+            "expired",
+            "references",
+            "next"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/memory.ts",
+          "sha256": "ae536525eed04cdfaa4f97f8357a9bda243e031df8c76b389e7056a969e212eb",
+          "symbols": [
+            "canonicalDigest",
+            "canonicalJson",
+            "record",
+            "createContextSnapshot",
+            "payload"
+          ]
+        },
+        {
+          "language": "typescript",
+          "path": "packages/runtime/claude-runtime/src/agents/resume.ts",
+          "sha256": "5f5a2882a5e75cb412c0417002736489db61982aafd011e48806f36bcbd05cf6",
+          "symbols": [
+            "resumeArguments",
+            "restored",
+            "correlation"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "atomically group tool calls with their corresponding results",
+          "step": 1
+        },
+        {
+          "operation": "pin goal, constraints, unresolved work, and recent observations",
+          "step": 2
+        },
+        {
+          "operation": "flush durable episodic, semantic, and skill candidates",
+          "step": 3
+        },
+        {
+          "operation": "compact middle history into fact, decision, evidence, and debt records",
+          "step": 4
+        },
+        {
+          "operation": "retrieve by lexical, semantic, temporal, and diversity signals",
+          "step": 5
+        },
+        {
+          "operation": "restore the compact boundary and verify goal and evidence fidelity",
+          "step": 6
+        }
+      ],
+      "title": "Distributed memory compact, wakeup, and exact restore"
+    },
+    {
+      "algorithm_id": "neuro-symbolic-action-admission",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/integration/test_browser_worker_permission_gate.py",
+          "sha256": "9aaadae23a4ae4a90369ee440372bdf226aff12f407b41224e84628154a39368"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_permission_console_api.py",
+          "sha256": "50d0dbdbf079f81d9f1150f8d2a67b2f956bbe2657e2742b501912316ca1995a"
+        },
+        {
+          "language": "python",
+          "path": "tests/scenarios/test_m3_symbolic_collaboration.py",
+          "sha256": "93e2879d96bb56a48be2ee76d45584dc198137ce38f977d6d26b7269d5acb3eb"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_browser_action_permission_integration.py",
+          "sha256": "01b3eb76e5cc93d82897955299b74aaf6350f1cd39c5894c6c668653943176ac"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "sha256": "26367fbe94df35704a5e91a869d0a4af3ddf1c67684a3c64c14eabc6755617a3"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_permission_continuation.py",
+          "sha256": "3b703f286c01d9f8cf18d6f953ab5ea6c1c1420551f1041a37f3cb22309b346b"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_symbolic_control.py",
+          "sha256": "d540f68a7501d90e5b6e05d1cded7ad7f6784d59930f536537e10a1935271fa0"
+        }
+      ],
+      "complexity": {
+        "communication": "O(P_ref + A_ref)",
+        "space": "O(C + D + A)",
+        "symbols": [
+          "A",
+          "A_ref",
+          "C",
+          "D",
+          "P",
+          "P_ref"
+        ],
+        "time": "O(C + D + P + A)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/symbolic/zyra_symbolic/constraints.py",
+          "sha256": "32e188539ccc7541bfa06e99e61e33af1f61489c99f2446cd16a980a4d5f3432",
+          "symbols": [
+            "ConstraintCheckResult",
+            "ConstraintKeeper",
+            "blocking",
+            "check_task_state",
+            "check_node",
+            "event_for_results",
+            "has_blocking_failure"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/symbolic/zyra_symbolic/control.py",
+          "sha256": "9635073ee6d36d67fc313dab7f507d7b745851f12fba2e54ed0865d25b0a6ccb",
+          "symbols": [
+            "apply_requirement_change",
+            "apply_failure_injection"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/symbolic/zyra_symbolic/topology.py",
+          "sha256": "b7207db9e31bd1bdcef14b1b63cb7c09016efb2630ced7d3270c6e363f4b70b2",
+          "symbols": [
+            "RouteCandidate",
+            "TopologyRouter",
+            "route",
+            "rank_candidates"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/api.py",
+          "sha256": "a9135857640eeafb4a45d0b17ac803618b136386f17e2c30dde5e1fe02125e91",
+          "symbols": [
+            "PermissionApiOperation",
+            "PermissionApiError",
+            "PermissionApiAuthenticationError",
+            "PermissionApiAuthorizationError",
+            "PermissionApiNotFound",
+            "PermissionCustodyEnvelope",
+            "PermissionApiResponse",
+            "PermissionApiFacade",
+            "permission_api_error_response",
+            "extract_bearer_token",
+            "from_receipt",
+            "includes_bearer_token",
+            "public_dict",
+            "private_dict",
+            "ok",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/canonical.py",
+          "sha256": "a3c9afeff14bc2f21be2d1af875606da49e4c4b03a5ec9c502af879d8b1c4fd6",
+          "symbols": [
+            "canonicalize_arguments",
+            "canonical_arguments_json",
+            "arguments_digest",
+            "build_tool_identity",
+            "build_request_fingerprint"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/continuation.py",
+          "sha256": "d6c51b329adab502029c92932fd6debbe34cdfa173f243fc574c70e4af03cd8b",
+          "symbols": [
+            "PermissionContinuationPhase",
+            "PermissionContinuationError",
+            "PermissionContinuationDisabledError",
+            "PermissionContinuationCorruptError",
+            "PermissionContinuationConflict",
+            "PermissionContinuationIdentityError",
+            "PermissionContinuationStateError",
+            "PermissionContinuationPayloadMissing",
+            "PermissionContinuationOutcomeUnknown",
+            "PermissionContinuationAlreadyClaimed",
+            "PermissionContinuationRecord",
+            "PermissionContinuationReplay",
+            "PermissionContinuationClaim",
+            "PermissionContinuationStore",
+            "PermissionContinuationRuntime",
+            "terminal"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/control_plane.py",
+          "sha256": "039fd08d83e722959194660932d5c2de1726fe65819f61a3548be62d6a8c4d31",
+          "symbols": [
+            "PermissionControlCapability",
+            "PermissionControlCode",
+            "PermissionControlError",
+            "PermissionControlForbidden",
+            "PermissionControlNotFound",
+            "PermissionControlIdentityError",
+            "PermissionControlDisabled",
+            "PermissionControlAuthority",
+            "PermissionQuery",
+            "PermissionQueryPage",
+            "PermissionRetryDescriptor",
+            "PermissionControlResult",
+            "PermissionControlPlane",
+            "project_permission_request",
+            "project_permission_rule",
+            "project_permission_decision"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/custody.py",
+          "sha256": "6da1698f0887c093d0a3558596aa649fa3ecce358c0b119fe56150c4d0f28295",
+          "symbols": [
+            "PermissionSessionCustodyError",
+            "PermissionSessionCustodyRequired",
+            "PermissionSessionCustodyInvalid",
+            "PermissionSessionCustodyScopeMismatch",
+            "PermissionSessionCustodyRevoked",
+            "PermissionSessionCustodyBinding",
+            "PermissionSessionCustodyReceipt",
+            "PermissionSessionCustodyStore",
+            "fingerprint",
+            "to_dict",
+            "session_id",
+            "to_dict",
+            "metadata",
+            "claim",
+            "verify",
+            "revoke"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/decision_log.py",
+          "sha256": "ede65369388498964fa66755149104199cffefc201fa3d4c53f3280c3f25e5ea",
+          "symbols": [
+            "PermissionDecisionEffect",
+            "PermissionDecisionStage",
+            "PermissionDecisionLogDisabledError",
+            "PermissionDecisionLogCorruptError",
+            "PermissionDecisionEvidence",
+            "PermissionDecisionEntry",
+            "PermissionDecisionChainVerification",
+            "PermissionDecisionLog",
+            "to_dict",
+            "from_mapping",
+            "exact_tool_key",
+            "hash_payload",
+            "calculate_hash",
+            "to_dict",
+            "from_mapping",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/events.py",
+          "sha256": "f616fea633832f969d680aea8dda068b2612607734443b4751eb8eceebf322eb",
+          "symbols": [
+            "PermissionRuntimeEventKind",
+            "PermissionEventEnvelope",
+            "PermissionEventProjector",
+            "to_dict",
+            "event",
+            "decision_events",
+            "request_event",
+            "grant_event",
+            "restore_event"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/grants.py",
+          "sha256": "cb5b0813d7214d4d687422c83a471a05c6f7ee0577986d7ce0dce90af9e4981b",
+          "symbols": [
+            "GrantState",
+            "GrantValidationCode",
+            "GrantRestorePolicy",
+            "GrantError",
+            "GrantBindingError",
+            "GrantIssueError",
+            "GrantRestoreError",
+            "CanonicalArgumentsError",
+            "ExecutionGrantBinding",
+            "ExecutionGrant",
+            "GrantValidation",
+            "GrantAuditEvent",
+            "ExecutionGrantStore",
+            "canonical_arguments_digest",
+            "expires_at",
+            "namespace"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/models.py",
+          "sha256": "b46d5a4cdea39f683fca5cc4c21a41e7c78322302a042047d19d76d8dd73f610",
+          "symbols": [
+            "PermissionEffect",
+            "PermissionMode",
+            "PermissionRuleSource",
+            "PermissionScopeKind",
+            "PermissionRequestStatus",
+            "PermissionRequestPhase",
+            "ToolIdentity",
+            "PermissionScope",
+            "PermissionEvaluationRequest",
+            "PermissionRuleRecord",
+            "PermissionRecoveryInput",
+            "PermissionDecisionRecord",
+            "PermissionRequestRecord",
+            "PermissionResolutionResponse",
+            "PermissionExecutionGrant",
+            "DenialTrackingState"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/request_queue.py",
+          "sha256": "3f6f5d34c5085a6bd5478b2a786c502d89a70b07c15235819fc828d83d50701e",
+          "symbols": [
+            "PermissionResolutionCode",
+            "PermissionQueueDisabledError",
+            "PermissionResolutionOutcome",
+            "PermissionRequestQueue",
+            "to_dict",
+            "path",
+            "generation",
+            "create",
+            "mark_delivered",
+            "resolve",
+            "expire_due",
+            "cancel",
+            "abort",
+            "get",
+            "list",
+            "pending"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/source_audit.py",
+          "sha256": "f9e47f16adc3bc14eda483f804d45d64711cb19f9a40a4c5580b086e47c6bbf8",
+          "symbols": [
+            "SourceDisposition",
+            "SourceAuthority",
+            "PermissionSourceDecision",
+            "SourceAuditIssue",
+            "SourceAuditReport",
+            "SourceAuditError",
+            "audit_permission_sources",
+            "source_decision",
+            "assert_permission_source_coverage",
+            "key",
+            "claims_runtime_ownership",
+            "blocking_issues",
+            "complete",
+            "require_complete"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/runtime/zyra_runtime/permission/store.py",
+          "sha256": "e3735c3b9d561edccce828675e115e02c675b0b32ec42fed412915e8abcdc833",
+          "symbols": [
+            "PermissionStoreError",
+            "PermissionStateConflict",
+            "PermissionIdentityMismatch",
+            "PermissionRequestTerminal",
+            "PermissionRequestExpired",
+            "PermissionStateDisabled",
+            "PermissionStateCorrupt",
+            "PermissionStateStore",
+            "PermissionRuleStore",
+            "read_state",
+            "mutate",
+            "snapshot",
+            "restore_snapshot",
+            "add_global_rule",
+            "add_session_rule",
+            "remove_rule"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "accept an LLM proposal as an untrusted candidate",
+          "step": 1
+        },
+        {
+          "operation": "validate schema, dependency, budget, permission, and data policy",
+          "step": 2
+        },
+        {
+          "operation": "bind a worker lease, route receipt, and idempotency key",
+          "step": 3
+        },
+        {
+          "operation": "execute only after deterministic admission succeeds",
+          "step": 4
+        },
+        {
+          "operation": "append causal state and evidence mutations",
+          "step": 5
+        },
+        {
+          "operation": "verify completion predicates or issue a bounded recovery/replan",
+          "step": 6
+        }
+      ],
+      "title": "Neuro-symbolic action and completion admission"
+    },
+    {
+      "algorithm_id": "device-edge-cloud-placement",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/integration/test_deployment_node_processes.py",
+          "sha256": "965c3aa00878e21524dfc16249a36aff93c89cc1a40666c36bfa7c4b0d4dda2a"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_edge_worker_resource_pool.py",
+          "sha256": "f4847f46b014add4c8d087f5a064ccff73afd880ab9fa1d4ab090b9ea129d2ab"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_internalization_ledger_api.py",
+          "sha256": "3301fa374103539e173d4b63fc5171cfee9d5deee52d6abb7757d3f3bebfdc0c"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_internalization_ledger_cli.py",
+          "sha256": "7586518159ed57b5659018ce54bd2f01fcff0c6a164466421012e76607e8f9f1"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_internalization_ledger_gate_cli.py",
+          "sha256": "d0bea07fdd42d8b30e9daef5834589bbb059248ec9a16586f9a542ffabdd1a15"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_provider_backend_api.py",
+          "sha256": "285fb52070507123109429a4139600d104d3cf445efd7604a0894f28d0822bde"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "sha256": "254cf4e800f5592a1dfd7a952d6af924a8488dd1f46b8408a7080825b1d49868"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_deployment_profiles_runtime.py",
+          "sha256": "8598697b5e3d854d3753954778382c8740d418136741323fda19b2b7290a2221"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_internalization_ledger.py",
+          "sha256": "bcc6d1ad8241e62185bad5fce59e01066bfc4b144ba59754191ef36bfa578d0d"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_internalization_ledger_accounting.py",
+          "sha256": "a2578ab6f2afed6b9855d1031a9959df4d97393b35a62017e01b49658bcba6e4"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_internalization_ledger_contracts.py",
+          "sha256": "3babc1941421859e4618ec4409d980a3b2b6420c286aed13e30c2f315208d62d"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_internalization_ledger_control_plane.py",
+          "sha256": "7a3e926972e4167b76b4b15f45421b249c8091086ab74c54ece0334222689853"
+        }
+      ],
+      "complexity": {
+        "communication": "O(T + K * R_dispatch)",
+        "space": "O(W + T)",
+        "symbols": [
+          "C",
+          "K",
+          "M",
+          "R_dispatch",
+          "T",
+          "W"
+        ],
+        "time": "O(W * (C + M) + W log K)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/control.py",
+          "sha256": "353ee2e820fac14a03b984463411cf58056a215dd16e274055e70ea8fe7eeccc",
+          "symbols": [
+            "BackendControlReceipt",
+            "ActiveDispatchHandle",
+            "ActiveDispatchRegistry",
+            "BackendControlRuntime",
+            "cancel_pending_dispatches",
+            "to_dict",
+            "register",
+            "update_backend",
+            "unregister",
+            "require",
+            "find",
+            "cancel",
+            "accepts_result",
+            "snapshot",
+            "submit",
+            "cancel_task"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/defaults.py",
+          "sha256": "bfe313c06c4e6ea946df7f48700b10a7556f8567066c5877ac73aed5665f202b",
+          "symbols": [
+            "default_backend_definitions",
+            "ensure_default_backends",
+            "backend_registry_path"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/health_supervisor.py",
+          "sha256": "e5ecc861892f0b5f55cccd791659c876362beb168b10757952587f24ecdb32fc",
+          "symbols": [
+            "CircuitPhase",
+            "BackendProbeSample",
+            "BackendCircuitPolicy",
+            "BackendCircuitSnapshot",
+            "BackendProbeBatch",
+            "BackendHealthSupervisor",
+            "count_tail",
+            "from_probe",
+            "to_dict",
+            "to_dict",
+            "ok",
+            "to_dict",
+            "probe",
+            "probe_all",
+            "snapshot",
+            "snapshots"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/integration.py",
+          "sha256": "2a2ec03d653f1b2e5c6a4bcb358aa2fbb1ff0eb58c58b3aa05190dcca6c64d08",
+          "symbols": [
+            "dispatch_worker_callable",
+            "event_record_from_backend"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/journal.py",
+          "sha256": "cc0662fd41b617d2f6ffaa6324e5d5598519dcd5cc184fce06d653d8c9028a79",
+          "symbols": [
+            "DispatchJournalKind",
+            "SideEffectFenceStatus",
+            "DispatchJournalRecord",
+            "DispatchMaterialization",
+            "SideEffectFence",
+            "DispatchReplayPlan",
+            "DispatchOutboxRecord",
+            "BackendDispatchJournal",
+            "create",
+            "from_dict",
+            "to_dict",
+            "from_response",
+            "from_dict",
+            "to_dict",
+            "from_dict",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/models.py",
+          "sha256": "c44824829a27ecc142e210a5f1009ee64c974c43ba7223bfd273dca19bbf1e0e",
+          "symbols": [
+            "BackendKind",
+            "BackendLocation",
+            "BackendHealthStatus",
+            "BackendFailureKind",
+            "BackendRecoveryIntent",
+            "BackendDispatchPhase",
+            "BackendControlAction",
+            "RecoveryInputKind",
+            "BackendResourceLimits",
+            "WorkspacePolicy",
+            "BackendDefinition",
+            "BackendHealthRecord",
+            "BackendSelectionRequest",
+            "BackendLease",
+            "BackendDispatchEnvelope",
+            "BackendDispatchAttempt"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/policy.py",
+          "sha256": "fa42dced40da337c0dd62370b2b9c399eba9b957e3b612612696f964ea303cdf",
+          "symbols": [
+            "BackendFailoverDecisionKind",
+            "BackendFailoverDecision",
+            "BackendFailoverPolicy",
+            "BackendFailoverRuntime",
+            "TurnTimeoutRuntime",
+            "transition_session",
+            "decide",
+            "acquire_next",
+            "recovery_input",
+            "quarantine_workspace",
+            "create",
+            "complete",
+            "cancel"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/registry.py",
+          "sha256": "514158f6f78d55c5389f65b50e4df5c80a30058b6555d236363e83165ed7a36b",
+          "symbols": [
+            "BackendRegistry",
+            "validate_definition",
+            "validate_selection_request",
+            "validate_workspace",
+            "register",
+            "definition",
+            "definitions",
+            "health",
+            "select",
+            "acquire",
+            "require_lease",
+            "release",
+            "record_success",
+            "record_failure",
+            "health_snapshot",
+            "summary"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/remote_control.py",
+          "sha256": "b58e9a96a7168ca6138b155fd8cfecdae493446f3c33883f4ab457317637fe58",
+          "symbols": [
+            "RemoteBackendControlError",
+            "RemoteDispatchStatus",
+            "RemoteBackendHealth",
+            "RemoteControlReceipt",
+            "RemoteBackendControlClient",
+            "RemoteBackendControlFanout",
+            "safe_dict",
+            "from_wire",
+            "terminal",
+            "requires_reconcile",
+            "to_dict",
+            "from_wire",
+            "to_dict",
+            "to_dict",
+            "health",
+            "dispatches"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/router.py",
+          "sha256": "81e3852f1e66df0bd6b841fb32eb3d7ea9e781c2699ebcd62e5dc053c044d7be",
+          "symbols": [
+            "WorkerDispatchResult",
+            "WorkerDispatchRouter",
+            "dispatch_callable",
+            "dispatch_payload",
+            "dispatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/runtime.py",
+          "sha256": "104ef8c38fb2be89485fdf2fedbb8ecdd41a183668fc3ad335ae512bf17889c1",
+          "symbols": [
+            "BackendDispatchOutcome",
+            "BackendDispatchRuntime",
+            "build_backend_envelope",
+            "classify_dispatch_error",
+            "dispatch_callable"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/store.py",
+          "sha256": "90a9a8f216fc36829103eba9e0a064e9db168ae0ecc5f62178c54d86c7a43727",
+          "symbols": [
+            "BackendRegistryStore",
+            "append_journal_record",
+            "journal_records",
+            "put_dispatch_materialization",
+            "get_dispatch_materialization",
+            "acquire_side_effect_fence",
+            "complete_side_effect_fence",
+            "enqueue_dispatch_outbox",
+            "ready_dispatch_outbox",
+            "complete_dispatch_outbox",
+            "revision",
+            "put_definition",
+            "get_definition",
+            "definitions",
+            "put_health",
+            "get_health"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/clean_state.py",
+          "sha256": "24fdf26613a1213cd31393d70655c7781368beb112c6711daeb43be68cd382d5",
+          "symbols": [
+            "PathFingerprint",
+            "CleanStateManager",
+            "to_dict",
+            "create_run_root",
+            "reset_run_root",
+            "remove_run_root",
+            "fingerprint",
+            "audit_residue"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/cli.py",
+          "sha256": "c073d56305be2a538916a98ebd43d648cf3260f5e75b6c1e91cabb771ba8bb29",
+          "symbols": [
+            "build_parser",
+            "run",
+            "main"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/dispatch.py",
+          "sha256": "0adcd970eee221deaacc3ed20058b6443bb9f421961f4155b9ed355a27455a51",
+          "symbols": [
+            "DeploymentDispatchRuntime",
+            "dispatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/doctor.py",
+          "sha256": "fc30e04e25f2c4799e654f3021b0e62ae73cec441de3c0a379c3342824985c1c",
+          "symbols": [
+            "DoctorCheck",
+            "DeploymentDoctor",
+            "checks",
+            "run",
+            "check_runtime",
+            "check_dependencies",
+            "check_configuration",
+            "check_store",
+            "check_ports",
+            "check_credentials",
+            "check_web_bundle",
+            "check_source_boundary",
+            "check_process_boundary",
+            "check_native_artifacts",
+            "check_clean_state",
+            "check_partial_startup"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/errors.py",
+          "sha256": "ef47fb7530b1d2e62684afac7012a54ae95e77c61ce404b73fec8ffaf920fd1c",
+          "symbols": [
+            "redact",
+            "DeploymentError",
+            "ConfigurationRejected",
+            "StateConflict",
+            "StateCorrupt",
+            "PortConflict",
+            "ProcessUnavailable",
+            "NodeProtocolError",
+            "NodeAuthenticationError",
+            "NodeReplayRejected",
+            "PlacementRejected",
+            "PlacementDisabled",
+            "DispatchRejected",
+            "DispatchTimeout",
+            "HandoffRejected",
+            "SemanticProbeFailed"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/evidence_gate.py",
+          "sha256": "8d05a7fb45f017b16bca99055ae396a611b75288fe805c69488c9a0a0b647257",
+          "symbols": [
+            "DeploymentEvidenceGate",
+            "current_commit",
+            "verify",
+            "require"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/handoff.py",
+          "sha256": "b46b87aa801a23f6ca8effacd882ab8bae51f07e55f726d10ec0cafb2a0c6a58",
+          "symbols": [
+            "CanonicalCheckpointVerifier",
+            "HandoffReceipt",
+            "CheckpointHandoffRuntime",
+            "to_dict",
+            "handoff"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/http_client.py",
+          "sha256": "6633fdc5ecbf5f19ec0b5e5f08f5b668f03cf0b6c12a25b1c39f288a8af7bb86",
+          "symbols": [
+            "ProductHttpClient",
+            "request",
+            "get",
+            "post",
+            "wait_ready"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/models.py",
+          "sha256": "22be8922f71beb7c457115f89673b080550544bbf72f391a20c71ae0c2821b67",
+          "symbols": [
+            "now_iso",
+            "new_id",
+            "canonical_json",
+            "digest",
+            "DeploymentProfile",
+            "NetworkMode",
+            "Sensitivity",
+            "LifecycleStatus",
+            "ProbeStatus",
+            "DispatchStatus",
+            "ResourceEnvelope",
+            "ProfilePolicy",
+            "Workload",
+            "PlacementCandidate",
+            "PlacementDecision",
+            "ProcessRecord"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_client.py",
+          "sha256": "6d05fb9152d1054460ee03da7d0346f29a9c6595bd4e07245eae23c8a9ec9e3e",
+          "symbols": [
+            "DeploymentNodeClient",
+            "request",
+            "health",
+            "semantic_readiness",
+            "execute",
+            "inject_fault",
+            "export_checkpoint",
+            "import_checkpoint",
+            "shutdown",
+            "wait_ready",
+            "observation"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_runtime.py",
+          "sha256": "77958d96982bc410153cb87520a002b9e9ef60bb5334513ed5d402049a60f63e",
+          "symbols": [
+            "NodeJournal",
+            "DeploymentNodeRuntime",
+            "dispatch",
+            "begin_dispatch",
+            "complete_dispatch",
+            "save_checkpoint",
+            "checkpoint",
+            "counts",
+            "health",
+            "semantic_probe",
+            "execute",
+            "export_checkpoint",
+            "import_checkpoint",
+            "inject_fault"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_server.py",
+          "sha256": "0bfddc081b1e7acc182d8d0167da86cf6208f95267c1ae3549a7bfcba2c75b05",
+          "symbols": [
+            "DeploymentNodeHttpServer",
+            "DeploymentNodeHandler",
+            "policy_from_json",
+            "build_parser",
+            "run",
+            "node_server",
+            "do_GET",
+            "do_POST",
+            "log_message",
+            "stop"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "filter nodes by privacy, capability, model, and credential constraints",
+          "step": 1
+        },
+        {
+          "operation": "reject stale generations, unhealthy nodes, and exhausted leases",
+          "step": 2
+        },
+        {
+          "operation": "score latency, cost, load, locality, trust, and failure history",
+          "step": 3
+        },
+        {
+          "operation": "split classification, extraction, planning, execution, and verification",
+          "step": 4
+        },
+        {
+          "operation": "commit placement before dispatch and bind the dispatch receipt",
+          "step": 5
+        },
+        {
+          "operation": "reroute on node, provider, network, or budget failure",
+          "step": 6
+        }
+      ],
+      "title": "Device-edge-cloud placement and model split"
+    },
+    {
+      "algorithm_id": "fault-classification-exact-recovery",
+      "behavior_tests": [
+        {
+          "language": "python",
+          "path": "tests/scenarios/test_m5_scheduler_fault_recovery.py",
+          "sha256": "3d9aa727f5cc256ac1d07df4f505f1daa05b150bf2c28a57ab42e22efff16779"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_canonical_projection_recovery.py",
+          "sha256": "1774749c7b4a0238d4ee70d448fe6004af8a06c24689b88b16a3b557698aa0d9"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_index_worker_process_recovery.py",
+          "sha256": "ca33e2af6eb5ec6696c15df663e3479eb5397848ffe4a8d2fc0fd7faace9163b"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "sha256": "d7b47ec5a961a995e155c03028fabf130b22962bc70fec0ef3fa1db015293638"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_recovery_planner_routing_memory_api.py",
+          "sha256": "ab32bfdb98d5aced801c5594100bd675058a1dc02259dd8a509d7ac7d8d86bd8"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_watchdog_fault_injection_foundation.py",
+          "sha256": "b3277a0a850e837db49b36b8a225647c4c7c0594dc8980b42576318f7904b0ce"
+        },
+        {
+          "language": "python",
+          "path": "tests/integration/test_watchdog_fault_injection_integration.py",
+          "sha256": "551e68cc79de10a1ea975552d5257d6f6b9a67f750c3bab1215dface10998c72"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_recovery_planner_routing_memory_foundation.py",
+          "sha256": "2bf13e1adc2efd494362861229d1e2b882f71d70306f69b31472be6e61dec8a0"
+        },
+        {
+          "language": "python",
+          "path": "tests/unit/test_recovery_planner_routing_memory_integration.py",
+          "sha256": "dac1e5e4006f75b0f172b82e270a7e1202f22502dd654156c2811e511585bf1b"
+        }
+      ],
+      "complexity": {
+        "communication": "O(R_receipt + D_delta)",
+        "space": "O(L + P + R)",
+        "symbols": [
+          "D_delta",
+          "L",
+          "P",
+          "R",
+          "R_receipt",
+          "W"
+        ],
+        "time": "O(L + P + W log W)"
+      },
+      "implementation_anchors": [
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/clean_state.py",
+          "sha256": "24fdf26613a1213cd31393d70655c7781368beb112c6711daeb43be68cd382d5",
+          "symbols": [
+            "PathFingerprint",
+            "CleanStateManager",
+            "to_dict",
+            "create_run_root",
+            "reset_run_root",
+            "remove_run_root",
+            "fingerprint",
+            "audit_residue"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/cli.py",
+          "sha256": "c073d56305be2a538916a98ebd43d648cf3260f5e75b6c1e91cabb771ba8bb29",
+          "symbols": [
+            "build_parser",
+            "run",
+            "main"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/dispatch.py",
+          "sha256": "0adcd970eee221deaacc3ed20058b6443bb9f421961f4155b9ed355a27455a51",
+          "symbols": [
+            "DeploymentDispatchRuntime",
+            "dispatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/doctor.py",
+          "sha256": "fc30e04e25f2c4799e654f3021b0e62ae73cec441de3c0a379c3342824985c1c",
+          "symbols": [
+            "DoctorCheck",
+            "DeploymentDoctor",
+            "checks",
+            "run",
+            "check_runtime",
+            "check_dependencies",
+            "check_configuration",
+            "check_store",
+            "check_ports",
+            "check_credentials",
+            "check_web_bundle",
+            "check_source_boundary",
+            "check_process_boundary",
+            "check_native_artifacts",
+            "check_clean_state",
+            "check_partial_startup"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/errors.py",
+          "sha256": "ef47fb7530b1d2e62684afac7012a54ae95e77c61ce404b73fec8ffaf920fd1c",
+          "symbols": [
+            "redact",
+            "DeploymentError",
+            "ConfigurationRejected",
+            "StateConflict",
+            "StateCorrupt",
+            "PortConflict",
+            "ProcessUnavailable",
+            "NodeProtocolError",
+            "NodeAuthenticationError",
+            "NodeReplayRejected",
+            "PlacementRejected",
+            "PlacementDisabled",
+            "DispatchRejected",
+            "DispatchTimeout",
+            "HandoffRejected",
+            "SemanticProbeFailed"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/evidence_gate.py",
+          "sha256": "8d05a7fb45f017b16bca99055ae396a611b75288fe805c69488c9a0a0b647257",
+          "symbols": [
+            "DeploymentEvidenceGate",
+            "current_commit",
+            "verify",
+            "require"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/handoff.py",
+          "sha256": "b46b87aa801a23f6ca8effacd882ab8bae51f07e55f726d10ec0cafb2a0c6a58",
+          "symbols": [
+            "CanonicalCheckpointVerifier",
+            "HandoffReceipt",
+            "CheckpointHandoffRuntime",
+            "to_dict",
+            "handoff"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/http_client.py",
+          "sha256": "6633fdc5ecbf5f19ec0b5e5f08f5b668f03cf0b6c12a25b1c39f288a8af7bb86",
+          "symbols": [
+            "ProductHttpClient",
+            "request",
+            "get",
+            "post",
+            "wait_ready"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/models.py",
+          "sha256": "22be8922f71beb7c457115f89673b080550544bbf72f391a20c71ae0c2821b67",
+          "symbols": [
+            "now_iso",
+            "new_id",
+            "canonical_json",
+            "digest",
+            "DeploymentProfile",
+            "NetworkMode",
+            "Sensitivity",
+            "LifecycleStatus",
+            "ProbeStatus",
+            "DispatchStatus",
+            "ResourceEnvelope",
+            "ProfilePolicy",
+            "Workload",
+            "PlacementCandidate",
+            "PlacementDecision",
+            "ProcessRecord"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_client.py",
+          "sha256": "6d05fb9152d1054460ee03da7d0346f29a9c6595bd4e07245eae23c8a9ec9e3e",
+          "symbols": [
+            "DeploymentNodeClient",
+            "request",
+            "health",
+            "semantic_readiness",
+            "execute",
+            "inject_fault",
+            "export_checkpoint",
+            "import_checkpoint",
+            "shutdown",
+            "wait_ready",
+            "observation"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_runtime.py",
+          "sha256": "77958d96982bc410153cb87520a002b9e9ef60bb5334513ed5d402049a60f63e",
+          "symbols": [
+            "NodeJournal",
+            "DeploymentNodeRuntime",
+            "dispatch",
+            "begin_dispatch",
+            "complete_dispatch",
+            "save_checkpoint",
+            "checkpoint",
+            "counts",
+            "health",
+            "semantic_probe",
+            "execute",
+            "export_checkpoint",
+            "import_checkpoint",
+            "inject_fault"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/orchestration/zyra_orchestration/deployment/node_server.py",
+          "sha256": "0bfddc081b1e7acc182d8d0167da86cf6208f95267c1ae3549a7bfcba2c75b05",
+          "symbols": [
+            "DeploymentNodeHttpServer",
+            "DeploymentNodeHandler",
+            "policy_from_json",
+            "build_parser",
+            "run",
+            "node_server",
+            "do_GET",
+            "do_POST",
+            "log_message",
+            "stop"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/control.py",
+          "sha256": "353ee2e820fac14a03b984463411cf58056a215dd16e274055e70ea8fe7eeccc",
+          "symbols": [
+            "BackendControlReceipt",
+            "ActiveDispatchHandle",
+            "ActiveDispatchRegistry",
+            "BackendControlRuntime",
+            "cancel_pending_dispatches",
+            "to_dict",
+            "register",
+            "update_backend",
+            "unregister",
+            "require",
+            "find",
+            "cancel",
+            "accepts_result",
+            "snapshot",
+            "submit",
+            "cancel_task"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/defaults.py",
+          "sha256": "bfe313c06c4e6ea946df7f48700b10a7556f8567066c5877ac73aed5665f202b",
+          "symbols": [
+            "default_backend_definitions",
+            "ensure_default_backends",
+            "backend_registry_path"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/health_supervisor.py",
+          "sha256": "e5ecc861892f0b5f55cccd791659c876362beb168b10757952587f24ecdb32fc",
+          "symbols": [
+            "CircuitPhase",
+            "BackendProbeSample",
+            "BackendCircuitPolicy",
+            "BackendCircuitSnapshot",
+            "BackendProbeBatch",
+            "BackendHealthSupervisor",
+            "count_tail",
+            "from_probe",
+            "to_dict",
+            "to_dict",
+            "ok",
+            "to_dict",
+            "probe",
+            "probe_all",
+            "snapshot",
+            "snapshots"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/integration.py",
+          "sha256": "2a2ec03d653f1b2e5c6a4bcb358aa2fbb1ff0eb58c58b3aa05190dcca6c64d08",
+          "symbols": [
+            "dispatch_worker_callable",
+            "event_record_from_backend"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/journal.py",
+          "sha256": "cc0662fd41b617d2f6ffaa6324e5d5598519dcd5cc184fce06d653d8c9028a79",
+          "symbols": [
+            "DispatchJournalKind",
+            "SideEffectFenceStatus",
+            "DispatchJournalRecord",
+            "DispatchMaterialization",
+            "SideEffectFence",
+            "DispatchReplayPlan",
+            "DispatchOutboxRecord",
+            "BackendDispatchJournal",
+            "create",
+            "from_dict",
+            "to_dict",
+            "from_response",
+            "from_dict",
+            "to_dict",
+            "from_dict",
+            "to_dict"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/models.py",
+          "sha256": "c44824829a27ecc142e210a5f1009ee64c974c43ba7223bfd273dca19bbf1e0e",
+          "symbols": [
+            "BackendKind",
+            "BackendLocation",
+            "BackendHealthStatus",
+            "BackendFailureKind",
+            "BackendRecoveryIntent",
+            "BackendDispatchPhase",
+            "BackendControlAction",
+            "RecoveryInputKind",
+            "BackendResourceLimits",
+            "WorkspacePolicy",
+            "BackendDefinition",
+            "BackendHealthRecord",
+            "BackendSelectionRequest",
+            "BackendLease",
+            "BackendDispatchEnvelope",
+            "BackendDispatchAttempt"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/policy.py",
+          "sha256": "fa42dced40da337c0dd62370b2b9c399eba9b957e3b612612696f964ea303cdf",
+          "symbols": [
+            "BackendFailoverDecisionKind",
+            "BackendFailoverDecision",
+            "BackendFailoverPolicy",
+            "BackendFailoverRuntime",
+            "TurnTimeoutRuntime",
+            "transition_session",
+            "decide",
+            "acquire_next",
+            "recovery_input",
+            "quarantine_workspace",
+            "create",
+            "complete",
+            "cancel"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/registry.py",
+          "sha256": "514158f6f78d55c5389f65b50e4df5c80a30058b6555d236363e83165ed7a36b",
+          "symbols": [
+            "BackendRegistry",
+            "validate_definition",
+            "validate_selection_request",
+            "validate_workspace",
+            "register",
+            "definition",
+            "definitions",
+            "health",
+            "select",
+            "acquire",
+            "require_lease",
+            "release",
+            "record_success",
+            "record_failure",
+            "health_snapshot",
+            "summary"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/remote_control.py",
+          "sha256": "b58e9a96a7168ca6138b155fd8cfecdae493446f3c33883f4ab457317637fe58",
+          "symbols": [
+            "RemoteBackendControlError",
+            "RemoteDispatchStatus",
+            "RemoteBackendHealth",
+            "RemoteControlReceipt",
+            "RemoteBackendControlClient",
+            "RemoteBackendControlFanout",
+            "safe_dict",
+            "from_wire",
+            "terminal",
+            "requires_reconcile",
+            "to_dict",
+            "from_wire",
+            "to_dict",
+            "to_dict",
+            "health",
+            "dispatches"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/router.py",
+          "sha256": "81e3852f1e66df0bd6b841fb32eb3d7ea9e781c2699ebcd62e5dc053c044d7be",
+          "symbols": [
+            "WorkerDispatchResult",
+            "WorkerDispatchRouter",
+            "dispatch_callable",
+            "dispatch_payload",
+            "dispatch"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/runtime.py",
+          "sha256": "104ef8c38fb2be89485fdf2fedbb8ecdd41a183668fc3ad335ae512bf17889c1",
+          "symbols": [
+            "BackendDispatchOutcome",
+            "BackendDispatchRuntime",
+            "build_backend_envelope",
+            "classify_dispatch_error",
+            "dispatch_callable"
+          ]
+        },
+        {
+          "language": "python",
+          "path": "packages/scheduler/zyra_scheduler/backend_registry/store.py",
+          "sha256": "90a9a8f216fc36829103eba9e0a064e9db168ae0ecc5f62178c54d86c7a43727",
+          "symbols": [
+            "BackendRegistryStore",
+            "append_journal_record",
+            "journal_records",
+            "put_dispatch_materialization",
+            "get_dispatch_materialization",
+            "acquire_side_effect_fence",
+            "complete_side_effect_fence",
+            "enqueue_dispatch_outbox",
+            "ready_dispatch_outbox",
+            "complete_dispatch_outbox",
+            "revision",
+            "put_definition",
+            "get_definition",
+            "definitions",
+            "put_health",
+            "get_health"
+          ]
+        }
+      ],
+      "pseudocode": [
+        {
+          "operation": "classify observed process, tool, network, provider, and state faults",
+          "step": 1
+        },
+        {
+          "operation": "load checkpoint identity, lineage, pending writes, and topology revision",
+          "step": 2
+        },
+        {
+          "operation": "discard uncommitted projection state while preserving committed facts",
+          "step": 3
+        },
+        {
+          "operation": "consult the side-effect idempotency fence before retry",
+          "step": 4
+        },
+        {
+          "operation": "select resume, retry, reroute, rebase, or replan deterministically",
+          "step": 5
+        },
+        {
+          "operation": "commit the recovery plan and verify no duplicated external effect",
+          "step": 6
+        }
+      ],
+      "title": "Fault classification, side-effect fencing, and exact recovery"
+    }
+  ],
+  "generated_at": "2026-07-29T04:21:03.822680Z",
+  "material_digest": "d7687bbe3a42fd71ee71e856b43a1a25f8bdd276d0551953a4e489aeaa9d27a4",
+  "schema": "zyra.first-stage-algorithm-material/v1",
+  "verification": {
+    "algorithm_count": 6,
+    "algorithm_ids": [
+      "device-edge-cloud-placement",
+      "distributed-memory-compact-restore",
+      "dynamic-sparse-topology-routing",
+      "fault-classification-exact-recovery",
+      "low-entropy-structured-communication",
+      "neuro-symbolic-action-admission"
+    ],
+    "receipt_digest": "f11e46604847c614aa4356dd5e95896bcb648493a75490fa85ec35b80ab0eef7",
+    "schema": "zyra.first-stage-algorithm-material-verification/v1",
+    "valid": true
+  }
+}

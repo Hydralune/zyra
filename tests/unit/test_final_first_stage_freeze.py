@@ -54,6 +54,7 @@ STAGE_BASELINE = "944846fd484b465b3c4e2b4ec87565752b4baf67"
 SLICE_BASELINE = "98a001a44f2e506c0ef0144e912c3ba55699f11b"
 FINAL_S03_REVIEW_TARGET = "8825722359e2ca30998d42e9fccf4a35ee307f31"
 RETROSPECTIVE_RUNTIME_FIX = "3c32dddf4cb81f9a00cf84bcae8e7fc6150297ed"
+RETROSPECTIVE_S03_BASELINE = "6b928d96f9181acf94eb9e84cb662df39feb9be3"
 S03_OUTPUT = (
     REPOSITORY_ROOT
     / "docs"
@@ -61,6 +62,14 @@ S03_OUTPUT = (
     / "evidence"
     / "M3-S03-01"
     / "generated-110e0a0a"
+)
+CURRENT_S03_OUTPUT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "reviews"
+    / "evidence"
+    / "M3-S03-01"
+    / "generated-88b88e05"
 )
 
 
@@ -83,7 +92,26 @@ def write_json(path: Path, value: object) -> None:
     )
 
 
-def test_real_s03_evidence_is_blocked_when_provider_cases_are_separate() -> None:
+def evidence_commit() -> str:
+    return subprocess.run(
+        [
+            "git",
+            "log",
+            "-n",
+            "1",
+            "--format=%H",
+            "--",
+            "docs/reviews/evidence/M3-S03-01/verification-summary.json",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        check=True,
+        text=True,
+        timeout=30,
+    ).stdout.strip()
+
+
+def test_historical_s03_evidence_is_blocked_by_current_summary_identity() -> None:
     receipt = CriticalReviewEngine(
         REPOSITORY_ROOT,
         S03_OUTPUT,
@@ -106,8 +134,26 @@ def test_real_s03_evidence_is_blocked_when_provider_cases_are_separate() -> None
         for finding in receipt["findings"]["findings"]
         if finding["severity"] == "blocker"
     }
-    assert "case-provider-evidence-separated" in codes
+    assert "evidence-target-identity-mismatch" in codes
     assert receipt["identities"]["replay_projection_count"] == 3
+
+
+def test_current_s03_evidence_passes_incremental_critical_review() -> None:
+    target = evidence_commit()
+    receipt = CriticalReviewEngine(
+        REPOSITORY_ROOT,
+        CURRENT_S03_OUTPUT,
+        expected_evidence_commit=target,
+        stage_baseline_commit=RETROSPECTIVE_S03_BASELINE,
+        review_target_commit=target,
+    ).review()
+
+    assert receipt["verdict"] == "PASS"
+    assert receipt["blocking"] is False
+    assert receipt["classification"]["valid_for_freeze"] is True
+    assert receipt["identities"]["s03_target_commit"] == (
+        "88b88e05aad14e1091f4536bcead02037622408f"
+    )
 
 
 def test_historical_s03_evidence_does_not_admit_later_runtime_changes() -> None:

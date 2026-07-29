@@ -1,7 +1,7 @@
 {
   "schema": "zyra.m3-s03-01.verification-summary/v1",
   "slice_id": "M3-S03-01",
-  "target_commit": "110e0a0aa40fdc9e31f256c088caddfd258ca173",
+  "target_commit": "88b88e05aad14e1091f4536bcead02037622408f",
   "verdict": "PASS",
   "release_binding": {
     "required": true,
@@ -19,28 +19,28 @@
     "forged_pass_rejected_by_test": true
   },
   "formal_output": {
-    "directory": "docs/reviews/evidence/M3-S03-01/generated-110e0a0a",
-    "generation_receipt_digest": "57ea9c086c1751bdb70217f530c39e5ca7c09f6965f5986e46fa15d83fb0f6ce",
-    "input_set_digest": "a6b4d0e944fbe2ca9ce683bb00da8136f34f104826522ad89d7ff7babb4ac9fa",
+    "directory": "docs/reviews/evidence/M3-S03-01/generated-88b88e05",
+    "generation_receipt_digest": "0d69de172c424ab180bbdf13a8b57871cfd7a62867c39bb10b18149692bd7fa9",
+    "input_set_digest": "41b69dbc5279238307ae803edd9ee1cfa09d73f303709c2f153a8b304135740a",
     "score": 100,
     "score_complete": true,
     "requirement_count": 19,
-    "input_member_count": 30,
+    "input_member_count": 31,
     "ledger_source_count": 13,
     "ledger_row_count": 60,
     "source_live_run_count": 6,
-    "source_live_effective_transition_total": 18939,
+    "source_live_effective_transition_total": 19191,
     "benchmark_run_count": 42,
-    "archive_bytes": 3444628,
-    "archive_member_count": 41,
-    "archive_sha256": "3477241cd5a86ba6b53ccda1324dacbfdef8d86aca23eb595f8a59488ee80a13",
-    "archive_manifest_digest": "c24ca309322e89eceddd5f10d588dbee4d237a61ee884a6494323a679f87a12f",
-    "archive_chain_root": "e7465f69e7fdf23bbf1e0388e036fad2e56e017fdca757a43a4ce6fe16a03dcd",
-    "archive_verification_digest": "d029cc821b4035762c95a89f90ae48461f7241911679d84aee66f81e0ab7c27b",
+    "archive_bytes": 3493055,
+    "archive_member_count": 42,
+    "archive_sha256": "4dc68ae420c5b455b57a75b2f46bb5bea7bb47f3b1ffc21489bf2b72564f6a3e",
+    "archive_manifest_digest": "581b74ddfe38873b14b4c37d39fb166b2fcc1b901d3ad359e2d73663eab6925e",
+    "archive_chain_root": "52ae91bd1e894a97ca04625c7c8b945fa7164654c130da7ddf36a0f265ac71a7",
+    "archive_verification_digest": "5e62b781e7d3c074fd749332564ab6206371108dfcd75628c56917d91a1b290b",
     "replay_projection_count": 3,
-    "replay_verification_digest": "ed8c1c3f432c46b38d64f6c1ca06e532ffed7abd0cf875623e040cda9ac77db2",
-    "output_verification_digest": "62ecc124affa8751ccbb96c386041f673d28ec80d72229640042af8a737023b0",
-    "output_digest": "dda293ac0947c8c97c349b01e863814f481e558110adcd7b3d03bc5dc2bfcf7d",
+    "replay_verification_digest": "56564c66de6ba36d85bb5c38a18022ff7de0f2915c86434ae2219358df6c795d",
+    "output_verification_digest": "5ae7cd01e80bb373a246b3f04ffba466aa1dd23daa3b78db4191ee35b5b1c894",
+    "output_digest": "6d05243443e0b41a4fc599cd0367c809bd58df32ce27539c258406bd27376f2f",
     "task_success_recomputed": false,
     "final_freeze_claimed": false,
     "next_freeze_owner": "M3-S03-02"
@@ -53,11 +53,11 @@
       "scope": "build, score, link, release binding, archive, replay and tamper/failure paths"
     },
     {
-      "command": "python -m pytest tests/unit/test_m3_live_benchmark.py tests/unit/test_m3_regression_hardening.py tests/unit/test_release_productization.py tests/unit/test_source_custody_audit.py tests/unit/test_source_custody_risk_precision.py tests/integration/test_source_custody_repository_audit.py -q",
-      "passed": 83,
+      "command": "python -m pytest tests/unit/test_m3_live_benchmark.py -q",
+      "passed": 11,
       "failed": 0,
-      "duration_seconds": 63.33,
-      "scope": "adjacent M3-01/M3-02 benchmark, release and source-custody regression"
+      "duration_seconds": 4.84,
+      "scope": "adjacent M3-02 current-provider and device/edge dispatch regression"
     }
   ],
   "effective_code": {
@@ -73,14 +73,12 @@
     "langgraph": "narrow conformance only",
     "parent_source_runtime_dependencies_added": 0,
     "vendor_or_source_pool_code_counted": false,
-    "case_and_provider_evidence_same_run_claimed": false
+    "case_and_provider_evidence_same_run_claimed": true
   },
   "residual_non_blockers": [
     "M3-S03-01 generates and verifies the report/index/ledger/archive; it does not claim the final first-stage freeze or submission handoff, which remains M3-S03-02.",
     "The inherited M3-S02B-02 clean install used the network and is not an offline wheelhouse proof.",
-    "Cloud provider credentials were absent in inherited semantic health; provider-required dispatch remained fail-closed and no paid-provider success was fabricated.",
-    "This slice binds the exact reviewed M3-S02B-02 release evidence and runs 20 focused plus 83 adjacent tests; it does not repeat the completed 13-gate hour-long release pipeline.",
-    "Case-study live runs and protected provider compatibility evidence are represented separately; the report does not claim they came from the same run."
+    "This slice binds the exact reviewed M3-S02B-02 release evidence and runs focused plus adjacent current-provider tests; it does not repeat the completed 13-gate hour-long release pipeline."
   ],
   "execution_state_update_authorized": true
 }
