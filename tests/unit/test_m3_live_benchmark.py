@@ -8,6 +8,7 @@ import pytest
 from zyra_evaluation.live_benchmark import (
     BenchmarkStore,
     DeploymentEvidenceVerifier,
+    LiveBenchmarkFreezeGate,
     MetricCatalog,
     MetricDefinition,
     ProtectedDeploymentEvidenceLoader,
@@ -411,6 +412,39 @@ def test_protected_m1_evidence_is_exact_and_tamper_fails_closed(
     with pytest.raises(BenchmarkValidationError) as raised:
         ProtectedDeploymentEvidenceLoader().load(tampered)
     assert raised.value.code == "benchmark-protected-evidence-changed"
+
+
+def test_freeze_gate_rejects_provider_receipts_separate_from_formal_cases() -> None:
+    evidence = (
+        Path(__file__).resolve().parents[2]
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "M3-S02A-02"
+        / "formal-live-95fcf7ae"
+    )
+
+    with pytest.raises(BenchmarkValidationError) as raised:
+        LiveBenchmarkFreezeGate().verify(
+            evidence,
+            expected_commit=(
+                "95fcf7aeaed5b5ec80fb2f7178b97fbdf8adbeb6"
+            ),
+        )
+
+    assert raised.value.code == "benchmark-freeze-admission-failed"
+    codes = {
+        finding["code"]
+        for finding in raised.value.detail["findings"]
+    }
+    assert {
+        "current-provider-evidence-missing",
+        "current-model-request-missing",
+        "current-provider-count-insufficient",
+        "current-model-count-insufficient",
+        "current-tier-evidence-incomplete",
+        "case-deployment-evidence-separated",
+    }.issubset(codes)
 
 
 def test_campaign_fault_coverage_is_union_and_measures_no_recovery() -> None:

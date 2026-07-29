@@ -52,6 +52,25 @@ class LiveBenchmarkFreezeGate:
             findings.append({"code": "model-count-insufficient"})
         if sorted(summary.get("tier_ids") or []) != ["cloud", "device", "edge"]:
             findings.append({"code": "tier-evidence-incomplete"})
+        provider_boundary = summary.get("provider_boundary")
+        if not isinstance(provider_boundary, Mapping):
+            findings.append({"code": "provider-boundary-missing"})
+        else:
+            if provider_boundary.get("protected_prior_receipts_only") is not False:
+                findings.append({"code": "current-provider-evidence-missing"})
+            if provider_boundary.get("external_model_request_made") is not True:
+                findings.append({"code": "current-model-request-missing"})
+            if int(provider_boundary.get("current_provider_count") or 0) < 2:
+                findings.append({"code": "current-provider-count-insufficient"})
+            if int(provider_boundary.get("current_model_count") or 0) < 2:
+                findings.append({"code": "current-model-count-insufficient"})
+            if (
+                sorted(provider_boundary.get("current_tier_ids") or [])
+                != ["cloud", "device", "edge"]
+            ):
+                findings.append({"code": "current-tier-evidence-incomplete"})
+            if provider_boundary.get("same_run_as_formal_cases") is not True:
+                findings.append({"code": "case-deployment-evidence-separated"})
         score = mapping(report.get("score"), "benchmark score")
         if score.get("verified") != 100 or score.get("complete") is not True:
             findings.append({"code": "report-score-incomplete"})

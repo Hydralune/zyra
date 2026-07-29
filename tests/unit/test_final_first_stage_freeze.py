@@ -83,7 +83,7 @@ def write_json(path: Path, value: object) -> None:
     )
 
 
-def test_real_s03_evidence_passes_increment_only_critical_review() -> None:
+def test_real_s03_evidence_is_blocked_when_provider_cases_are_separate() -> None:
     receipt = CriticalReviewEngine(
         REPOSITORY_ROOT,
         S03_OUTPUT,
@@ -92,8 +92,8 @@ def test_real_s03_evidence_passes_increment_only_critical_review() -> None:
         review_target_commit=FINAL_S03_REVIEW_TARGET,
     ).review()
 
-    assert receipt["verdict"] == "PASS"
-    assert receipt["blocking"] is False
+    assert receipt["verdict"] == "BLOCKED"
+    assert receipt["blocking"] is True
     assert receipt["review_scope"] == {
         "kind": "M3-03-increment-only",
         "stage_baseline_commit": STAGE_BASELINE,
@@ -101,7 +101,12 @@ def test_real_s03_evidence_passes_increment_only_critical_review() -> None:
         "protected_history_reopened": False,
         "inherited_evidence_reverified": True,
     }
-    assert receipt["findings"]["counts"]["blocker"] == 0
+    codes = {
+        finding["code"]
+        for finding in receipt["findings"]["findings"]
+        if finding["severity"] == "blocker"
+    }
+    assert "case-provider-evidence-separated" in codes
     assert receipt["identities"]["replay_projection_count"] == 3
 
 

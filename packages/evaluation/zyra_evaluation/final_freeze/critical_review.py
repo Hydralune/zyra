@@ -1043,7 +1043,7 @@ class CriticalReviewEngine:
                     category="runtime",
                 )
             elif "separately" in lower and "same run" in lower:
-                self.ledger.observation(
+                self.ledger.blocker(
                     "case-provider-evidence-separated",
                     text,
                     category="evidence",
