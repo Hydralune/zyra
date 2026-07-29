@@ -39,6 +39,17 @@ from .contracts import (
     policy_contract_json_schemas,
     policy_contract_schema_catalog,
 )
+from .continuity import (
+    CanonicalMemoryFabricPort,
+    ContinuityFinalResult,
+    ContinuityGateResult,
+    ContinuitySnapshot,
+    ContinuityTransition,
+    ContinuityTransitionKind,
+    DownstreamMemoryUsage,
+    MemoryContinuityError,
+    MemoryContinuityVerifier,
+)
 from .delta_builder import PolicyDeltaBuilder
 from .evidence import PolicyEvidencePublisher, PublishedPolicyEvidence
 from .projector import PolicyProjectionResult, TopologyConstraintProjector
@@ -73,6 +84,7 @@ from .snapshot import EnvironmentSnapshotBuilder, PolicyInputSnapshotBuilder
 
 __all__ = [
     "ContractHeader",
+    "CanonicalMemoryFabricPort",
     "ActivationDecision",
     "ActivationEvidence",
     "BaselineDecisionReference",
@@ -128,8 +140,16 @@ __all__ = [
     "UnsupportedPolicySchema",
     "ValidationManifest",
     "CompatibilityReport",
+    "ContinuityFinalResult",
+    "ContinuityGateResult",
+    "ContinuitySnapshot",
+    "ContinuityTransition",
+    "ContinuityTransitionKind",
     "DiagnosticMutationError",
     "DiagnosticReceipt",
+    "DownstreamMemoryUsage",
+    "MemoryContinuityError",
+    "MemoryContinuityVerifier",
     "StrongestProfileActivationGate",
     "canonical_digest",
     "canonical_json",

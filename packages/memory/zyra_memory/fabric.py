@@ -126,6 +126,17 @@ class MemoryFabric:
             },
         }
 
+    def canonical_task_records(self, task_id: str) -> tuple[MemoryRecord, ...]:
+        """Return MemoryFabric-owned facts through a read-only continuity port.
+
+        Continuity verification must inspect the canonical records instead of
+        copying the memory index or accepting caller-supplied fact bodies.
+        """
+
+        if self.store is None or not hasattr(self.store, "task_memory_records"):
+            raise RuntimeError("MemoryFabric canonical store is unavailable")
+        return tuple(self.store.task_memory_records(str(task_id)))
+
     def compact_context(
         self,
         state: TaskState,

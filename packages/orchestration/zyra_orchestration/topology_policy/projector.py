@@ -29,7 +29,7 @@ from .contracts import (
     TopologyProposalArtifact,
     canonical_digest,
 )
-from .delta_builder import PolicyDeltaBuilder
+from .delta_builder import PolicyDeltaBuilder, _PROJECTOR_AUTHORIZATION
 
 
 def _time(value: str) -> datetime:
@@ -52,10 +52,14 @@ class TopologyConstraintProjector:
         *,
         delta_builder: PolicyDeltaBuilder | None = None,
         enabled: bool = True,
+        test_mode: bool = False,
     ) -> None:
+        if not enabled and not test_mode:
+            raise ValueError("projector disable switch is test-only")
         self.custody = custody
         self.delta_builder = delta_builder or PolicyDeltaBuilder()
         self.enabled = enabled
+        self.test_mode = test_mode
 
     def execute(
         self,
@@ -192,6 +196,7 @@ class TopologyConstraintProjector:
                 policy_input=policy_input,
                 proposal=proposal,
                 decision_id=decision_id,
+                _authorization=_PROJECTOR_AUTHORIZATION,
             )
             preview = self.custody.apply(current, delta)
         except (GraphMutationRejected, TypeError, ValueError) as error:
@@ -480,6 +485,20 @@ class TopologyConstraintProjector:
             tokens=tokens,
             cost_usd=cost,
             time_ms=time_ms,
+        )
+
+        pending_side_effects = tuple(
+            str(item)
+            for item in (expected.get("pending_side_effects") or ())
+            if str(item)
+        )
+        yield result(
+            "pending_side_effect",
+            not pending_side_effects,
+            "no_pending_side_effect",
+            "pending_side_effect_unsettled",
+            "topology mutation cannot commit while proposal side effects are pending",
+            pending_side_effects=pending_side_effects,
         )
 
         churn = len(proposal.operations)

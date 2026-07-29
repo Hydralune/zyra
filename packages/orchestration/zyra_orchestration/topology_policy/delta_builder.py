@@ -19,6 +19,9 @@ from .contracts import (
 )
 
 
+_PROJECTOR_AUTHORIZATION = object()
+
+
 class PolicyDeltaBuilder:
     """The only policy adapter permitted to invoke the canonical GraphDeltaBuilder."""
 
@@ -29,7 +32,12 @@ class PolicyDeltaBuilder:
         policy_input: PolicyInputSnapshot,
         proposal: TopologyProposalArtifact,
         decision_id: str,
+        _authorization: object | None = None,
     ) -> BranchGraphDelta:
+        if _authorization is not _PROJECTOR_AUTHORIZATION:
+            raise PermissionError(
+                "PolicyDeltaBuilder is internal to TopologyConstraintProjector"
+            )
         builder = GraphDeltaBuilder(
             current_snapshot,
             branch_id=f"policy:{proposal.header.mechanism_id}",
@@ -47,7 +55,8 @@ class PolicyDeltaBuilder:
                 "policy_path": "TopologyProposalArtifact->constraint_projector->GraphDeltaBuilder",
             },
         )
-        for operation in proposal.operations:
+        ordered_operations = self._ordered_operations(proposal.operations)
+        for operation in ordered_operations:
             self._append(
                 builder,
                 operation,
@@ -60,7 +69,11 @@ class PolicyDeltaBuilder:
                 mutation_id=(
                     "mutation_policy_"
                     + canonical_digest(
-                        (proposal.digest, index, proposal.operations[index].to_dict())
+                        (
+                            proposal.digest,
+                            index,
+                            ordered_operations[index].to_dict(),
+                        )
                     )[:24]
                 ),
             )
@@ -82,6 +95,32 @@ class PolicyDeltaBuilder:
             ),
             created_at=proposal.header.created_at,
             content_digest="",
+        )
+
+    @staticmethod
+    def _ordered_operations(
+        operations: tuple[TopologyOperation, ...],
+    ) -> tuple[TopologyOperation, ...]:
+        """Apply endpoint mutations in graph-safe deterministic phases."""
+
+        ranks = {
+            TopologyOperationKind.REMOVE_EDGE: 0,
+            TopologyOperationKind.REMOVE_NODE: 1,
+            TopologyOperationKind.ADD_NODE: 2,
+            TopologyOperationKind.REPLACE_NODE: 2,
+            TopologyOperationKind.SET_NODE_ROLE: 3,
+            TopologyOperationKind.SET_NODE_CAPABILITIES: 3,
+            TopologyOperationKind.SET_NODE_DEPENDENCIES: 3,
+            TopologyOperationKind.ADD_EDGE: 4,
+            TopologyOperationKind.REPLACE_EDGE: 4,
+            TopologyOperationKind.SET_GRAPH_METADATA: 5,
+            TopologyOperationKind.REMOVE_GRAPH_METADATA: 5,
+        }
+        return tuple(
+            sorted(
+                operations,
+                key=lambda item: (ranks[item.kind], item.entity_id),
+            )
         )
 
     @staticmethod

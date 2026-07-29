@@ -210,20 +210,6 @@ def test_policy_proposal_is_projected_committed_and_idempotently_replayed(tmp_pa
     policy_input = _input(custody)
     proposal = _proposal(policy_input, (_add_node("node-a"),))
     projector = TopologyConstraintProjector(custody)
-    first_delta = PolicyDeltaBuilder().build(
-        current_snapshot=custody.current("graph-policy"),
-        policy_input=policy_input,
-        proposal=proposal,
-        decision_id="decision-accepted",
-    )
-    repeated_delta = PolicyDeltaBuilder().build(
-        current_snapshot=custody.current("graph-policy"),
-        policy_input=policy_input,
-        proposal=proposal,
-        decision_id="a-different-retry-receipt-id",
-    )
-    assert repeated_delta.delta_id == first_delta.delta_id
-    assert repeated_delta.content_digest == first_delta.content_digest
 
     accepted = projector.execute(
         policy_input,
@@ -249,6 +235,9 @@ def test_policy_proposal_is_projected_committed_and_idempotently_replayed(tmp_pa
     assert replay.receipt.disposition is PolicyDecisionDisposition.REPLAY
     assert "idempotent_replay" in _reason_codes(replay)
     assert replay.commit is None
+    assert replay.delta is not None
+    assert replay.delta.delta_id == accepted.delta.delta_id
+    assert replay.delta.content_digest == accepted.delta.content_digest
     assert custody.current("graph-policy").revision == 1
 
 
@@ -347,7 +336,11 @@ def test_stale_unknown_expired_unready_and_disabled_paths_fail_closed(tmp_path: 
     )
     assert "stale_or_mismatched_snapshot" in _reason_codes(forged)
 
-    disabled = TopologyConstraintProjector(custody, enabled=False).execute(
+    disabled = TopologyConstraintProjector(
+        custody,
+        enabled=False,
+        test_mode=True,
+    ).execute(
         current_input,
         _proposal(
             current_input,

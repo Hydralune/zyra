@@ -1,0 +1,161 @@
+{
+  "schema": "zyra.phase2.adversarial-proposal-corpus/v1",
+  "corpus_id": "p2-s02-03-symbolic-hard-constraints-v1",
+  "training_dataset": false,
+  "policy_training_input": false,
+  "cases": [
+    {
+      "case_id": "expired-proposal",
+      "attack_class": "expired_proposal",
+      "mutation": "expires_before_evaluation",
+      "expected_constraint": "proposal_expiry",
+      "expected_reason_code": "proposal_expired",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "mechanism-not-ready",
+      "attack_class": "readiness",
+      "mutation": "downgrade_readiness_stage",
+      "expected_constraint": "mechanism_readiness",
+      "expected_reason_code": "mechanism_not_activation_ready",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "missing-capability",
+      "attack_class": "missing_capability",
+      "mutation": "unknown_capability",
+      "expected_constraint": "registry",
+      "expected_reason_code": "unknown_role_or_capability",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "permission-denied",
+      "attack_class": "permission",
+      "mutation": "request_disallowed_permission",
+      "expected_constraint": "permission_privacy_placement",
+      "expected_reason_code": "permission_or_placement_denied",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "privacy-placement",
+      "attack_class": "privacy",
+      "mutation": "request_forbidden_placement",
+      "expected_constraint": "permission_privacy_placement",
+      "expected_reason_code": "permission_or_placement_denied",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "capacity-exhausted",
+      "attack_class": "capacity",
+      "mutation": "request_excess_capacity",
+      "expected_constraint": "capacity_lease_telemetry",
+      "expected_reason_code": "capacity_lease_or_telemetry_invalid",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "lease-unavailable",
+      "attack_class": "lease",
+      "mutation": "mark_lease_unavailable",
+      "expected_constraint": "capacity_lease_telemetry",
+      "expected_reason_code": "capacity_lease_or_telemetry_invalid",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "stale-telemetry",
+      "attack_class": "stale_environment",
+      "mutation": "expire_telemetry_observation",
+      "expected_constraint": "capacity_lease_telemetry",
+      "expected_reason_code": "capacity_lease_or_telemetry_invalid",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "budget-overflow",
+      "attack_class": "budget",
+      "mutation": "exceed_token_budget",
+      "expected_constraint": "budget",
+      "expected_reason_code": "budget_exceeded",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "pending-side-effect",
+      "attack_class": "pending_side_effect",
+      "mutation": "declare_pending_side_effect",
+      "expected_constraint": "pending_side_effect",
+      "expected_reason_code": "pending_side_effect_unsettled",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "churn-overflow",
+      "attack_class": "churn",
+      "mutation": "exceed_topology_churn",
+      "expected_constraint": "churn_and_dwell",
+      "expected_reason_code": "churn_or_dwell_limit",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "minimum-dwell",
+      "attack_class": "minimum_dwell",
+      "mutation": "violate_minimum_dwell",
+      "expected_constraint": "churn_and_dwell",
+      "expected_reason_code": "churn_or_dwell_limit",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "cycle",
+      "attack_class": "cycle",
+      "mutation": "create_dependency_cycle",
+      "expected_constraint": "canonical_graph_validation",
+      "expected_reason_code": "graph_constraint_rejected",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "missing-endpoint",
+      "attack_class": "missing_endpoint",
+      "mutation": "add_edge_with_missing_target",
+      "expected_constraint": "canonical_graph_validation",
+      "expected_reason_code": "graph_constraint_rejected",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "fanout-overflow",
+      "attack_class": "fanout",
+      "mutation": "exceed_fanout_budget",
+      "expected_constraint": "fanout",
+      "expected_reason_code": "fanout_exceeded",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "stale-revision",
+      "attack_class": "stale_revision",
+      "mutation": "advance_canonical_graph_head",
+      "expected_constraint": "snapshot_identity",
+      "expected_reason_code": "stale_or_mismatched_snapshot",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    },
+    {
+      "case_id": "idempotency-mismatch",
+      "attack_class": "idempotency",
+      "mutation": "reuse_key_with_different_content",
+      "expected_constraint": "idempotency",
+      "expected_reason_code": "idempotency_mismatch",
+      "expected_disposition": "reject",
+      "unsafe_commit_allowed": false
+    }
+  ]
+}

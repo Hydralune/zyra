@@ -8,6 +8,8 @@ from typing import Any, Protocol
 from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType
 
 from .contracts import (
+    MemoryContinuityReceipt,
+    NeuroSymbolicEvidenceBundle,
     PolicyContract,
     PolicyDecisionReceipt,
     PolicyOutcome,
@@ -164,6 +166,10 @@ class PolicyEvidencePublisher:
     def _event_type(contract: PolicyContract) -> EventType:
         if isinstance(contract, PolicyDecisionReceipt):
             return EventType.CONSTRAINT_CHECK
+        if isinstance(contract, MemoryContinuityReceipt):
+            return EventType.CONSTRAINT_CHECK
+        if isinstance(contract, NeuroSymbolicEvidenceBundle):
+            return EventType.EVALUATION
         if isinstance(contract, PolicyOutcome):
             return EventType.EVALUATION
         return EventType.ARTIFACT_WRITTEN

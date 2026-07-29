@@ -381,34 +381,31 @@ def test_environment_builder_copies_real_worker_pool_projection_shape() -> None:
     assert observation.physical_runtime_id == "pid-4242"
 
 
-def test_policy_input_builder_reads_existing_owners_into_detached_snapshot() -> None:
+def test_policy_input_builder_requires_continuity_before_reading_owners() -> None:
     task = create_task_state("preserve a long-horizon obligation")
     task.plan_nodes[task.root_node_id].completion_criteria.append("deliver-proof")
     graph = GraphStateSnapshot.empty("graph-builder", task.run_id)
     environment = _environment()
-    snapshot = PolicyInputSnapshotBuilder.build(
-        task=task,
-        graph=graph,
-        environment=environment,
-        header=_header("input-builder", mechanism="PolicyInputSnapshotBuilder"),
-        budget=PolicyBudget(
-            remaining_tokens=100,
-            remaining_cost_usd=1,
-            remaining_time_ms=1000,
-            max_communication_bytes=100,
-            max_fan_out=2,
-            max_topology_churn=2,
-            minimum_dwell_seconds=0,
-        ),
-        readiness_refs=(_readiness(),),
-        registry_versions={"role_registry": "r1"},
-        registered_roles=("worker",),
-        registered_capabilities=("execute",),
-    )
-    assert snapshot.graph.signature == graph.signature
-    assert "deliver-proof" in snapshot.unresolved_obligations
-    assert any(
-        "traceable result" in item for item in snapshot.unresolved_obligations
-    )
-    task.plan_nodes[task.root_node_id].completion_criteria.append("late-mutation")
-    assert "late-mutation" not in snapshot.unresolved_obligations
+    with pytest.raises(PolicyContractError, match="continuity gate"):
+        PolicyInputSnapshotBuilder.build(
+            task=task,
+            graph=graph,
+            environment=environment,
+            header=_header(
+                "input-builder",
+                mechanism="PolicyInputSnapshotBuilder",
+            ),
+            budget=PolicyBudget(
+                remaining_tokens=100,
+                remaining_cost_usd=1,
+                remaining_time_ms=1000,
+                max_communication_bytes=100,
+                max_fan_out=2,
+                max_topology_churn=2,
+                minimum_dwell_seconds=0,
+            ),
+            readiness_refs=(_readiness(),),
+            registry_versions={"role_registry": "r1"},
+            registered_roles=("worker",),
+            registered_capabilities=("execute",),
+        )

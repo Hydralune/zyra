@@ -197,9 +197,40 @@ class PolicyInputSnapshotBuilder:
         allowed_placements: Iterable[str] = (),
         privacy_class: str = "internal",
         last_topology_change_at: str = "",
+        continuity_gate: Any | None = None,
     ) -> PolicyInputSnapshot:
         if task.run_id != graph.run_id:
             raise PolicyContractError("task and graph snapshots belong to different runs")
+        if continuity_gate is None or getattr(continuity_gate, "passed", False) is not True:
+            raise PolicyContractError(
+                "policy input construction requires a passing continuity gate"
+            )
+        gate_after = getattr(continuity_gate, "after", None)
+        if (
+            gate_after is None
+            or getattr(gate_after, "run_id", "") != task.run_id
+            or getattr(gate_after, "task_id", "") != task.task_id
+            or getattr(gate_after, "requirement_revision", "")
+            != requirement_revision
+        ):
+            raise PolicyContractError(
+                "policy input continuity gate scope or requirement revision mismatch"
+            )
+        if header.causation_id != getattr(continuity_gate, "gate_id", ""):
+            raise PolicyContractError(
+                "policy input header is not caused by the continuity gate"
+            )
+        memory_refs = tuple(memory_refs)
+        if {
+            (item.ref_id, item.digest)
+            for item in memory_refs
+        } != {
+            (item.ref_id, item.digest)
+            for item in getattr(continuity_gate, "accepted_fact_refs", ())
+        }:
+            raise PolicyContractError(
+                "policy input memory refs differ from continuity-accepted facts"
+            )
         roles = set(registered_roles)
         capabilities = set(registered_capabilities)
         nodes = []
