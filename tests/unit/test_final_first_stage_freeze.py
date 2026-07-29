@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import shutil
 import subprocess
@@ -258,12 +259,86 @@ def test_submission_round_trip_and_tamper_detection(tmp_path: Path) -> None:
         bundle.writestr("unexpected.txt", b"tamper")
     tampered = SubmissionCandidateVerifier().verify(output)
     assert tampered["valid"] is False
+    assert tampered["archive"]["valid"] is False
     codes = {
         finding["code"]
         for finding in tampered["findings"]["findings"]
     }
     assert "unexpected-archive-member" in codes
     assert "checksum-mismatch" in codes
+
+
+def test_submission_verifier_rejects_self_consistent_duplicate_manifest_member(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    manifest = SubmissionManifestBuilder(
+        repository,
+        target_commit="d" * 40,
+    ).require_valid(create_submission_source(repository))
+    output = tmp_path / "candidate"
+    SubmissionCandidateBuilder(repository).build(
+        output,
+        manifest,
+        email_recipients=("submit@example.com",),
+        email_subject="Zyra first-stage submission",
+        instructions=("verify checksums",),
+    )
+
+    manifest_path = output / "submission-manifest.json"
+    changed_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    changed_manifest["members"].append(
+        copy.deepcopy(changed_manifest["members"][0])
+    )
+    changed_manifest["member_count"] += 1
+    changed_manifest["total_bytes"] += changed_manifest["members"][0][
+        "size_bytes"
+    ]
+    changed_manifest["role_counts"][
+        changed_manifest["members"][0]["role"]
+    ] += 1
+    changed_manifest.pop("digest")
+    changed_manifest = object_with_digest(changed_manifest)
+    write_json(manifest_path, changed_manifest)
+
+    email_path = output / "submission-email-checklist.json"
+    email = json.loads(email_path.read_text(encoding="utf-8"))
+    email["manifest_digest"] = changed_manifest["digest"]
+    email.pop("digest")
+    email = object_with_digest(email)
+    write_json(email_path, email)
+
+    receipt_path = output / "candidate-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["manifest_digest"] = changed_manifest["digest"]
+    receipt["email_checklist_digest"] = email["digest"]
+    receipt.pop("digest")
+    write_json(receipt_path, object_with_digest(receipt))
+
+    checksum_path = output / "SHA256SUMS"
+    checksum_names = [
+        line.split("  ", 1)[1]
+        for line in checksum_path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    checksum_path.write_text(
+        "".join(
+            f"{hashlib.sha256((output / name).read_bytes()).hexdigest()}  "
+            f"{name}\n"
+            for name in checksum_names
+        ),
+        encoding="utf-8",
+    )
+
+    verified = SubmissionCandidateVerifier().verify(output)
+    codes = {
+        finding["code"]
+        for finding in verified["findings"]["findings"]
+    }
+    assert verified["valid"] is False
+    assert verified["archive"]["valid"] is False
+    assert "duplicate-manifest-member" in codes
 
 
 def test_manifest_rejects_path_escape_and_missing_roles(

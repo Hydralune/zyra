@@ -910,20 +910,84 @@ class SubmissionCandidateVerifier:
                 archive_path=archive_path.name,
             )
             return {"valid": False, "member_count": 0}
+        initial_blocker_count = len(ledger.blockers)
         expected_rows: dict[str, dict[str, Any]] = {}
-        for index, raw in enumerate(
-            require_sequence(
+        expected_folded: dict[str, str] = {}
+        try:
+            raw_members = require_sequence(
                 manifest.get("members", []),
                 "manifest.members",
             )
-        ):
-            row = require_mapping(raw, f"manifest.members[{index}]")
-            path = safe_relative_path(
-                row.get("archive_path"),
-                f"manifest.members[{index}].archive_path",
+            declared_count = require_integer(
+                manifest.get("member_count"),
+                "manifest.member_count",
+                minimum=1,
             )
-            expected_rows[path] = row
+            if declared_count != len(raw_members):
+                ledger.blocker(
+                    "manifest-member-count-mismatch",
+                    "submission manifest member count is inconsistent",
+                    category="submission-verification",
+                    declared=declared_count,
+                    observed=len(raw_members),
+                )
+            declared_total = require_integer(
+                manifest.get("total_bytes"),
+                "manifest.total_bytes",
+                minimum=0,
+                maximum=MAX_ARCHIVE_BYTES,
+            )
+            observed_total = 0
+            for index, raw in enumerate(raw_members):
+                row = require_mapping(raw, f"manifest.members[{index}]")
+                path = safe_relative_path(
+                    row.get("archive_path"),
+                    f"manifest.members[{index}].archive_path",
+                )
+                size = require_integer(
+                    row.get("size_bytes"),
+                    f"manifest.members[{index}].size_bytes",
+                    minimum=0,
+                    maximum=MAX_MEMBER_BYTES,
+                )
+                require_digest(
+                    row.get("sha256"),
+                    f"manifest.members[{index}].sha256",
+                )
+                observed_total += size
+                prior = expected_folded.get(path.casefold())
+                if prior is not None:
+                    ledger.blocker(
+                        (
+                            "duplicate-manifest-member"
+                            if prior == path
+                            else "case-colliding-manifest-member"
+                        ),
+                        "submission manifest contains colliding archive paths",
+                        category="submission-verification",
+                        first=prior,
+                        second=path,
+                    )
+                    continue
+                expected_folded[path.casefold()] = path
+                expected_rows[path] = row
+            if declared_total != observed_total:
+                ledger.blocker(
+                    "manifest-total-bytes-mismatch",
+                    "submission manifest total byte count is inconsistent",
+                    category="submission-verification",
+                    declared=declared_total,
+                    observed=observed_total,
+                )
+        except FinalFreezeError as error:
+            ledger.blocker(
+                error.code,
+                str(error),
+                category="submission-verification",
+                **error.detail,
+            )
         seen: set[str] = set()
+        seen_folded: dict[str, str] = {}
         total = 0
         try:
             with zipfile.ZipFile(archive_path, "r") as archive:
@@ -931,15 +995,38 @@ class SubmissionCandidateVerifier:
                     name = self._safe_zip_name(info.filename, ledger)
                     if name is None:
                         continue
-                    if name in seen:
+                    prior = seen_folded.get(name.casefold())
+                    if prior is not None:
                         ledger.blocker(
-                            "duplicate-archive-member",
-                            "archive contains a duplicate member path",
+                            (
+                                "duplicate-archive-member"
+                                if prior == name
+                                else "case-colliding-archive-member"
+                            ),
+                            "archive contains colliding member paths",
+                            category="submission-verification",
+                            first=prior,
+                            second=name,
+                        )
+                    else:
+                        seen_folded[name.casefold()] = name
+                    seen.add(name)
+                    if info.is_dir():
+                        ledger.blocker(
+                            "archive-directory-member",
+                            "submission archive contains a directory entry",
                             category="submission-verification",
                             member=name,
                         )
-                    seen.add(name)
-                    if info.is_dir():
+                        continue
+                    unix_mode = info.external_attr >> 16
+                    if stat.S_ISLNK(unix_mode):
+                        ledger.blocker(
+                            "archive-symlink-member",
+                            "submission archive contains a symbolic link",
+                            category="submission-verification",
+                            member=name,
+                        )
                         continue
                     total += info.file_size
                     if info.file_size > MAX_MEMBER_BYTES:
@@ -950,6 +1037,7 @@ class SubmissionCandidateVerifier:
                             member=name,
                             size_bytes=info.file_size,
                         )
+                        continue
                     if total > MAX_ARCHIVE_BYTES:
                         ledger.blocker(
                             "archive-expansion-too-large",
@@ -957,6 +1045,7 @@ class SubmissionCandidateVerifier:
                             category="submission-verification",
                             total_bytes=total,
                         )
+                        continue
                     data_digest, count = self._digest_member(
                         archive.open(info, "r")
                     )
@@ -1003,7 +1092,10 @@ class SubmissionCandidateVerifier:
                 missing=missing,
             )
         return {
-            "valid": not missing,
+            "valid": (
+                not missing
+                and len(ledger.blockers) == initial_blocker_count
+            ),
             "archive_path": archive_path.name,
             "archive_sha256": file_digest(archive_path),
             "archive_size_bytes": archive_path.stat().st_size,

@@ -6,6 +6,7 @@ import tarfile
 import threading
 import time
 import tomllib
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -52,6 +53,7 @@ from zyra_productization.release.bundle import (
 )
 from zyra_productization.release.errors import InstallationFailure
 from zyra_productization.release.integrity import (
+    ArchiveInspector,
     CanonicalTreeWalker,
     normalize_relative_path,
     sha256_file,
@@ -316,6 +318,32 @@ def test_deterministic_tar_and_zip_are_byte_reproducible(
             second,
             expected_commit="a" * 40,
         )
+
+
+@pytest.mark.parametrize("archive_kind", ("tar.gz", "zip"))
+def test_archive_inspector_rejects_exact_duplicate_entries(
+    tmp_path: Path,
+    archive_kind: str,
+) -> None:
+    archive = tmp_path / f"duplicate.{archive_kind}"
+    if archive_kind == "zip":
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("release/payload.txt", b"first")
+                bundle.writestr("release/payload.txt", b"second")
+    else:
+        first = tmp_path / "first.txt"
+        second = tmp_path / "second.txt"
+        first.write_text("first", encoding="utf-8")
+        second.write_text("second", encoding="utf-8")
+        with tarfile.open(archive, "w:gz") as bundle:
+            bundle.add(first, arcname="release/payload.txt")
+            bundle.add(second, arcname="release/payload.txt")
+
+    with pytest.raises(IntegrityViolation) as captured:
+        ArchiveInspector(archive).inspect()
+
+    assert captured.value.code == "archive_duplicate_entry"
 
 
 def test_deterministic_wheel_is_installable_and_record_bound(

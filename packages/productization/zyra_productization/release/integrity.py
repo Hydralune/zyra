@@ -1225,7 +1225,13 @@ class ArchiveInspector:
             path = item["path"]
             key = path.casefold()
             prior = folded.get(key)
-            if prior is not None and prior != path:
+            if prior is not None:
+                if prior == path:
+                    raise IntegrityViolation(
+                        "Archive contains duplicate entries.",
+                        code="archive_duplicate_entry",
+                        details={"path": path},
+                    )
                 raise IntegrityViolation(
                     "Archive contains case-colliding entries.",
                     code="archive_case_collision",
