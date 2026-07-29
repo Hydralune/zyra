@@ -139,6 +139,30 @@ def test_missing_or_corrupt_report_resolves_every_mechanism_to_baseline(
     )
 
 
+def test_default_resolver_requires_registry_bound_formal_report() -> None:
+    resolver = MechanismModeResolver(ROOT)
+    resolutions = resolver.resolve_all()
+    formal = json.loads(
+        (
+            ROOT
+            / "docs"
+            / "reviews"
+            / "phase2"
+            / "MechanismEvidenceReadinessReport.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert resolver.disconnect_reason == ""
+    assert all(
+        item.mode is MechanismExecutionMode.BASELINE
+        for item in resolutions.values()
+    )
+    assert all(
+        item.report_digest == formal["report_digest"]
+        for item in resolutions.values()
+    )
+
+
 def test_report_digest_or_contract_mismatch_disconnects_resolver(
     tmp_path: Path,
     formal_report: dict[str, object],

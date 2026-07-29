@@ -19,6 +19,7 @@ from .contracts import (
     canonical_digest,
     file_digest,
     parse_mechanism_status,
+    Phase2PolicyContractBundle,
 )
 from .evidence_index import (
     BASELINE_MANIFEST_DIGEST,
@@ -1892,6 +1893,7 @@ class MechanismModeResolver:
             self.repository_root,
             path=config_path,
         )
+        using_default_report = report_path is None
         self.report_path = (
             report_path.resolve()
             if report_path is not None
@@ -1911,10 +1913,65 @@ class MechanismModeResolver:
                 config=self.config,
                 repository_root=self.repository_root,
             )
+            if using_default_report:
+                Phase2PolicyContractBundle.load(self.repository_root).validate()
+                self._validate_registry_binding(self.report)
         except (OSError, json.JSONDecodeError, ContractViolation) as exc:
             self.disconnect_reason = (
                 exc.code if isinstance(exc, ContractViolation) else type(exc).__name__
             )
+
+    def _validate_registry_binding(self, report: Mapping[str, Any]) -> None:
+        activation_path = (
+            self.repository_root / "config" / "phase2" / "activation-gates.yaml"
+        )
+        try:
+            activation = json.loads(activation_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ContractViolation(
+                "readiness-registry-invalid",
+                "The Phase 2 activation registry is missing or invalid.",
+                path=str(activation_path),
+            ) from exc
+        selected = _mapping(activation, "activation gates")
+        readiness = _mapping(selected.get("readiness"), "activation readiness")
+        entries = {
+            str(item.get("mechanism_id")): item
+            for item in (
+                _mapping(value, "activation readiness mechanism")
+                for value in _sequence(
+                    readiness.get("mechanisms"),
+                    "activation readiness mechanisms",
+                )
+            )
+        }
+        report_digest = str(report.get("report_digest", ""))
+        expected_ref = self.report_path.relative_to(
+            self.repository_root
+        ).as_posix()
+        mechanisms = _mapping(report.get("mechanisms"), "report mechanisms")
+        for mechanism_id in MECHANISM_IDS:
+            entry = entries.get(mechanism_id)
+            mechanism = mechanisms.get(mechanism_id)
+            if not isinstance(entry, Mapping) or not isinstance(
+                mechanism, Mapping
+            ):
+                raise ContractViolation(
+                    "readiness-registry-mechanism-missing",
+                    f"Activation readiness is missing {mechanism_id}.",
+                    path="config/phase2/activation-gates.yaml",
+                )
+            if (
+                entry.get("report_ref") != expected_ref
+                or entry.get("report_digest") != report_digest
+                or entry.get("status") != mechanism.get("status")
+                or entry.get("stage") != mechanism.get("readiness_stage")
+            ):
+                raise ContractViolation(
+                    "readiness-registry-report-mismatch",
+                    f"Activation readiness does not match {mechanism_id}.",
+                    path="config/phase2/activation-gates.yaml",
+                )
 
     def resolve(self, mechanism_id: str) -> MechanismResolution:
         if mechanism_id not in self.config.contracts:
