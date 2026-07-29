@@ -1,0 +1,126 @@
+{
+  "schema": "zyra.phase2.slice-verification-summary/v1",
+  "slice_id": "P2-S02-02",
+  "recorded_at": "2026-07-29",
+  "base_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+  "implementation_commit": "1fd314a02520f96a033bfea2a7602fb4225b7628",
+  "implementation_tree": "c6a2cb4a9b6579bbcd9374269c056b11cbd818d5",
+  "policy_config_digest": "ae3cdb9df1fd323c0cdb88b5dd56efc7651b2011095b1fdd285ca4e96f8379c8",
+  "loaded_registry_digest": "8b6d37b93734d5aa55b0af7cd761b9776790a2b2cb9eb58c77f182c2a78c5e88",
+  "verdict": "pass",
+  "implementation_line_audit": {
+    "added": 4610,
+    "deleted": 0,
+    "buckets": {
+      "production": {
+        "added": 3020,
+        "deleted": 0
+      },
+      "data": {
+        "added": 237,
+        "deleted": 0,
+        "note": "Mechanism registry metadata/configuration; no training data."
+      },
+      "test": {
+        "added": 1353,
+        "deleted": 0
+      },
+      "runtime_assets": {
+        "added": 0,
+        "deleted": 0
+      },
+      "generated": {
+        "added": 0,
+        "deleted": 0
+      },
+      "docs": {
+        "added": 0,
+        "deleted": 0,
+        "note": "Review and evidence are committed separately."
+      },
+      "adapter_only_mock_fixture": {
+        "added": 0,
+        "deleted": 0,
+        "note": "Production ports are counted as production; test helpers are not counted as implementation."
+      }
+    }
+  },
+  "checks": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/orchestration/test_policy_registry.py tests/integration/test_mechanism_diagnostic_activation_rollback.py tests/unit/orchestration/test_policy_contracts.py tests/integration/test_policy_projector_graph_custody.py tests/integration/test_policy_contract_replay.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_topology_route_placement_projection.py -q",
+      "result": "50 passed in 6.90s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/orchestration/test_policy_registry.py tests/integration/test_mechanism_diagnostic_activation_rollback.py -q",
+      "result": "29 passed in 1.32s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages/orchestration/zyra_orchestration/topology_policy packages/evaluation/zyra_evaluation/policy_benchmark",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts/verify_phase2_policy_contracts.py",
+      "result": "valid=true; hard_gate_count=23; strongest_activation_eligible=false; blockers=loopx,arg_designer,card,agentprune,maas",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts/verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0; warnings=734",
+      "status": "passed"
+    },
+    {
+      "command": "NoPolicyTrainingValidator.validate_release_inputs(<five production/config paths>, dependencies=[])",
+      "result": "no_policy_training_audit=pass paths=5 dependencies=0",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_mechanism_readiness_enforcement.py -q",
+      "result": "1 failed, 2 passed, 6 errors; frozen baseline package-manifest SHA mismatch; reproduced before slice changes",
+      "status": "preexisting_failure_not_slice_regression"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m ruff check <slice paths>",
+      "result": "project venv has no ruff module",
+      "status": "tool_unavailable"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pyflakes <slice paths>",
+      "result": "project venv has no pyflakes module",
+      "status": "tool_unavailable"
+    }
+  ],
+  "acceptance": {
+    "family_version_config_digest_registry": true,
+    "lifecycle_and_activation_state_matrix": true,
+    "duplicate_version_rejected": true,
+    "run_pin_prevents_hot_drift": true,
+    "historical_pin_and_receipt_replay": true,
+    "validation_requires_isolated_manifest": true,
+    "normal_resolver_cannot_select_validation": true,
+    "readiness_stage_and_status_enforced": true,
+    "unique_strongest_default_enforced": true,
+    "all_activation_hard_gates_required": true,
+    "rollback_target_audited": true,
+    "new_run_only_activation_and_rollback": true,
+    "diagnostic_same_input_as_baseline": true,
+    "diagnostic_no_graph_route_lease_or_side_effect_diff": true,
+    "diagnostic_exception_cannot_hide_mutation": true,
+    "diagnostic_not_attributed_as_actual_outcome": true,
+    "explicit_degraded_event": true,
+    "degraded_fallback_not_strongest_success": true,
+    "existing_config_runtime_event_owners_used": true,
+    "parallel_session_or_config_store_absent": true,
+    "no_policy_training_enforced": true,
+    "openclaw_excluded": true
+  },
+  "phase2_strongest_v1_activated": false,
+  "phase2_strongest_v1_note": "Production readiness remains unavailable/input_precheck, so the frozen deterministic baseline remains the only normal resolver target."
+}

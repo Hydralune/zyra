@@ -1,0 +1,194 @@
+{
+  "schema": "zyra.phase2.policy-registry-shadow-audit/v1",
+  "slice_id": "P2-S02-02",
+  "implementation_commit": "1fd314a02520f96a033bfea2a7602fb4225b7628",
+  "verdict": "pass",
+  "production_registry_state": {
+    "normal_family": "topology_policy",
+    "normal_version": "phase1_deterministic_baseline",
+    "normal_profile": "phase1_deterministic_baseline",
+    "strongest_version": "phase2_strongest_v1",
+    "strongest_lifecycle": "validation",
+    "strongest_activation_state": "blocked_pending_readiness",
+    "diagnostic_version": "phase2_diagnostic_v1",
+    "diagnostic_lifecycle": "diagnostic",
+    "formal_required_mechanism_status": "unavailable",
+    "strongest_activated": false,
+    "default_switched": false
+  },
+  "lifecycle_matrix": [
+    {
+      "lifecycle": "baseline",
+      "activation_states": [
+        "active",
+        "standby"
+      ],
+      "normal_resolver": "active_only",
+      "new_run_allowed": true,
+      "historical_replay_allowed": true
+    },
+    {
+      "lifecycle": "validation",
+      "activation_states": [
+        "blocked_pending_readiness",
+        "validation_ready",
+        "rollback_ready"
+      ],
+      "normal_resolver": "forbidden",
+      "new_run_allowed": "explicit_isolated_manifest_only",
+      "historical_replay_allowed": true
+    },
+    {
+      "lifecycle": "default",
+      "activation_states": [
+        "active"
+      ],
+      "normal_resolver": "active_only",
+      "new_run_allowed": "phase2_strongest_v1_only",
+      "historical_replay_allowed": true
+    },
+    {
+      "lifecycle": "diagnostic",
+      "activation_states": [
+        "read_only"
+      ],
+      "normal_resolver": "forbidden",
+      "new_run_allowed": "explicit_diagnostic_only",
+      "historical_replay_allowed": true
+    },
+    {
+      "lifecycle": "retired",
+      "activation_states": [
+        "disabled"
+      ],
+      "normal_resolver": "forbidden",
+      "new_run_allowed": false,
+      "historical_replay_allowed": true
+    }
+  ],
+  "readiness_matrix": [
+    {
+      "stage": "input_precheck",
+      "status": "deterministic_ready",
+      "allowed_runtime": "development_only",
+      "validation": false,
+      "default": false,
+      "diagnostic": false
+    },
+    {
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "allowed_runtime": "explicit_validation",
+      "validation": true,
+      "default": false,
+      "diagnostic": true
+    },
+    {
+      "stage": "activation_ready",
+      "status": "deterministic_ready",
+      "allowed_runtime": "validation_or_gated_default",
+      "validation": true,
+      "default": true,
+      "diagnostic": true
+    },
+    {
+      "stage": "implementation_validated",
+      "status": "evidence_only",
+      "allowed_runtime": "diagnostic",
+      "validation": false,
+      "default": false,
+      "diagnostic": true
+    },
+    {
+      "stage": "input_precheck",
+      "status": "unavailable",
+      "allowed_runtime": "baseline",
+      "validation": false,
+      "default": false,
+      "diagnostic": false
+    }
+  ],
+  "diagnostic_no_effect_evidence": {
+    "test": "test_diagnostic_guard_observes_real_graph_scheduler_and_artifact_owners",
+    "owners": [
+      "GraphStateCustody/GraphStateStore",
+      "ResourceScheduler",
+      "TaskState",
+      "LocalArtifactStore"
+    ],
+    "same_immutable_input": true,
+    "baseline_actual_execution_count": 1,
+    "diagnostic_executed": false,
+    "diagnostic_actual_outcome_recorded": false,
+    "graph_revision_diff": 0,
+    "route_diff": 0,
+    "lease_diff": 0,
+    "artifact_diff": 0,
+    "side_effect_diff_vs_baseline_only": 0,
+    "mutation_disconnect_test": "test_diagnostic_no_effect_guard_is_disconnect_to_fail_mutation_evidence",
+    "exception_mutation_test": "test_diagnostic_mutation_cannot_hide_behind_executor_exception"
+  },
+  "activation_rollback_evidence": {
+    "test": "test_activation_and_rollback_only_change_new_runs_and_keep_receipts_replayable",
+    "activation_event": "phase2.policy_registry.activate_default",
+    "rollback_event": "phase2.policy_registry.rollback",
+    "event_owner": "zyra_core.append_event/read_events",
+    "old_run_version_preserved": true,
+    "new_run_version_changes_after_activation": true,
+    "new_run_returns_to_baseline_after_rollback": true,
+    "old_strongest_run_continues_after_rollback": true,
+    "historical_receipt_replays_after_retire": true,
+    "arbitrary_unactivated_rollback_target_rejected": true
+  },
+  "degraded_evidence": {
+    "event_name": "phase2.mechanism_degraded",
+    "silent_fallback": false,
+    "fallback_profile": "phase1_deterministic_baseline",
+    "strongest_success_eligible": false,
+    "covered_failures": [
+      "registry-config-missing",
+      "registry-config-corrupt",
+      "registry-digest-mismatch",
+      "config-digest-mismatch",
+      "registry-schema-incompatible",
+      "readiness-report-missing",
+      "mechanism_executor_missing",
+      "mechanism_exception",
+      "mechanism_timeout",
+      "diagnostic_no_effect_guard"
+    ]
+  },
+  "owner_checks": {
+    "registry_metadata_lifecycle_owner_only": true,
+    "run_session_owner_preserved": true,
+    "existing_config_file_owner_preserved": true,
+    "existing_event_contract_and_admission_preserved": true,
+    "graph_state_custody_preserved": true,
+    "resource_scheduler_preserved": true,
+    "permission_and_lease_owners_preserved": true,
+    "artifact_owner_preserved": true,
+    "parallel_registry_session_store_absent": true,
+    "parallel_config_store_absent": true,
+    "parallel_event_store_absent": true,
+    "diagnostic_write_ports_absent": true,
+    "openclaw_excluded": true,
+    "external_source_runtime_dependency": false
+  },
+  "no_policy_training": {
+    "runtime_training_entry": false,
+    "training_dataset": false,
+    "checkpoint": false,
+    "mutable_learned_parameter": false,
+    "training_dependency": false,
+    "validator_passed_for_release_paths": true
+  },
+  "known_preexisting_issue": {
+    "test": "tests/integration/test_mechanism_readiness_enforcement.py",
+    "result": "1 failed, 2 passed, 6 errors",
+    "failure_code": "baseline-reference-digest-mismatch",
+    "reference_id": "package-manifest",
+    "present_at_slice_base": true,
+    "caused_by_slice": false,
+    "frozen_history_rewritten": false
+  }
+}
