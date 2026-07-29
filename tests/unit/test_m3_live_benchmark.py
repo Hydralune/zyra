@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -519,13 +520,28 @@ def current_campaign_evidence(sources: list[dict]) -> dict:
         providers = []
         for index in (1, 2):
             provider_id = f"provider-{index}"
+            model_id = f"model-{index}"
+            tool_call_id = f"tool-{case_id}-{index}"
+            binding_token = hashlib.sha256(
+                "\n".join(
+                    (
+                        "campaign-current",
+                        case_id,
+                        binding["source_run_id"],
+                        binding["source_archive_digest"],
+                        binding["source_outcome_digest"],
+                        provider_id,
+                        model_id,
+                    )
+                ).encode("utf-8")
+            ).hexdigest()[:24]
             providers.append(
                 {
                     "observation_id": f"{case_id}:{provider_id}",
                     **binding,
                     "run_id": binding["source_run_id"],
                     "provider_id": provider_id,
-                    "model_id": f"model-{index}",
+                    "model_id": model_id,
                     "live": True,
                     "fresh": True,
                     "authenticated": True,
@@ -533,11 +549,27 @@ def current_campaign_evidence(sources: list[dict]) -> dict:
                     "simulated": False,
                     "credential_material_persisted": False,
                     "http_status": 200,
-                    "tool_call_ids": [f"tool-{case_id}-{index}"],
-                    "tool_result_ids": [f"tool-{case_id}-{index}"],
+                    "tool_call_ids": [tool_call_id],
+                    "tool_result_ids": [tool_call_id],
+                    "tool_name": "bind_formal_case",
                     "request_id": f"request-{case_id}-{index}",
                     "request_digest": digest((case_id, index, "request")),
                     "response_digest": digest((case_id, index, "response")),
+                    "binding_token_digest": digest(binding_token),
+                    "tool_result_digest": digest(
+                        {
+                            "tool_call_id": tool_call_id,
+                            "tool_name": "bind_formal_case",
+                            "accepted": True,
+                            "binding_token": binding_token,
+                            "source_archive_digest": binding[
+                                "source_archive_digest"
+                            ],
+                            "source_outcome_digest": binding[
+                                "source_outcome_digest"
+                            ],
+                        }
+                    ),
                 }
             )
         cases.append(
@@ -586,6 +618,23 @@ def test_current_provider_and_tier_evidence_is_bound_to_every_formal_case() -> N
     assert receipt["case_count"] == 6
     assert receipt["provider_request_count"] == 12
     assert receipt["tier_ids"] == ["device", "edge", "cloud"]
+
+    shared_response_digest = evidence["cases"][0]["provider_observations"][0][
+        "response_digest"
+    ]
+    evidence["cases"][1]["provider_observations"][0][
+        "response_digest"
+    ] = shared_response_digest
+    evidence["receipt_digest"] = digest(
+        {key: value for key, value in evidence.items() if key != "receipt_digest"}
+    )
+    duplicate_response_receipt = CurrentCampaignEvidenceVerifier().verify(
+        evidence,
+        campaign_id="campaign-current",
+        implementation_commit=COMMIT,
+        sources=sources,
+    )
+    assert duplicate_response_receipt["valid"] is True
 
     evidence["cases"][0]["provider_observations"][0][
         "source_archive_digest"

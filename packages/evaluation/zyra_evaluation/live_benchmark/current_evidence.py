@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import os
 import socket
@@ -515,7 +516,8 @@ class CurrentCampaignEvidenceVerifier:
         observed_cases: dict[str, Mapping[str, Any]] = {}
         request_ids: set[str] = set()
         request_digests: set[str] = set()
-        response_digests: set[str] = set()
+        binding_token_digests: set[str] = set()
+        tool_result_digests: set[str] = set()
         provider_ids: set[str] = set()
         model_ids: set[str] = set()
         for raw in sequence(value.get("cases"), "current evidence cases"):
@@ -551,9 +553,11 @@ class CurrentCampaignEvidenceVerifier:
                 case,
                 source,
                 findings,
+                campaign_id=selected_campaign,
                 request_ids=request_ids,
                 request_digests=request_digests,
-                response_digests=response_digests,
+                binding_token_digests=binding_token_digests,
+                tool_result_digests=tool_result_digests,
                 provider_ids=provider_ids,
                 model_ids=model_ids,
             )
@@ -719,9 +723,11 @@ class CurrentCampaignEvidenceVerifier:
         source: Mapping[str, Any],
         findings: list[dict[str, Any]],
         *,
+        campaign_id: str,
         request_ids: set[str],
         request_digests: set[str],
-        response_digests: set[str],
+        binding_token_digests: set[str],
+        tool_result_digests: set[str],
         provider_ids: set[str],
         model_ids: set[str],
     ) -> None:
@@ -823,7 +829,6 @@ class CurrentCampaignEvidenceVerifier:
             for label, selected, seen in (
                 ("request-id", request_id, request_ids),
                 ("request-digest", request_digest, request_digests),
-                ("response-digest", response_digest, response_digests),
             ):
                 if not selected or selected in seen:
                     findings.append(
@@ -845,6 +850,56 @@ class CurrentCampaignEvidenceVerifier:
                         "provider_id": provider_id,
                     }
                 )
+            binding_token = hashlib.sha256(
+                "\n".join(
+                    (
+                        campaign_id,
+                        case_id,
+                        str(source["source_run_id"]),
+                        str(source["source_archive_digest"]),
+                        str(source["source_outcome_digest"]),
+                        provider_id,
+                        model_id,
+                    )
+                ).encode("utf-8")
+            ).hexdigest()[:24]
+            expected_binding_digest = digest(binding_token)
+            binding_digest = str(item.get("binding_token_digest") or "")
+            tool_result_digest = str(item.get("tool_result_digest") or "")
+            expected_tool_result_digest = digest(
+                {
+                    "tool_call_id": next(iter(calls), ""),
+                    "tool_name": "bind_formal_case",
+                    "accepted": True,
+                    "binding_token": binding_token,
+                    "source_archive_digest": source["source_archive_digest"],
+                    "source_outcome_digest": source["source_outcome_digest"],
+                }
+            )
+            if (
+                binding_digest != expected_binding_digest
+                or binding_digest in binding_token_digests
+            ):
+                findings.append(
+                    {
+                        "code": "provider-binding-token-invalid",
+                        "case_id": case_id,
+                        "provider_id": provider_id,
+                    }
+                )
+            binding_token_digests.add(binding_digest)
+            if (
+                tool_result_digest != expected_tool_result_digest
+                or tool_result_digest in tool_result_digests
+            ):
+                findings.append(
+                    {
+                        "code": "provider-tool-result-binding-invalid",
+                        "case_id": case_id,
+                        "provider_id": provider_id,
+                    }
+                )
+            tool_result_digests.add(tool_result_digest)
         if len(case_providers) < MINIMUM_CURRENT_PROVIDERS_PER_CASE:
             findings.append(
                 {

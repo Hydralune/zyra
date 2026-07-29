@@ -41,6 +41,7 @@ from apps.api.zyra_api.live_benchmark_port import (
     ARCHIVE_MEMBERS,
     ProductLiveBenchmarkPort,
 )
+from zyra_evaluation.experiment_runtime import EvidenceArchiveLoader
 from zyra_evaluation.live_benchmark import (
     BenchmarkReportBuilder,
     COMPETITION_REQUIREMENTS,
@@ -62,7 +63,18 @@ from zyra_evaluation.live_benchmark.canonical import (
     require_digest,
     utc_now,
 )
+from zyra_evaluation.live_benchmark.models import (
+    BenchmarkCell,
+    Campaign,
+    CampaignConditions,
+    CampaignPhase,
+    CapabilityVector,
+    DomainKind,
+    Variant,
+    VariantKind,
+)
 from zyra_evaluation.scenario_runner.registry import ScenarioRegistry
+from zyra_evaluation.scenario_runner.canonical import digest as scenario_digest
 
 
 M1_EVIDENCE = (
@@ -114,6 +126,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evidence-root", required=True)
     parser.add_argument("--validation-receipt", required=True)
     parser.add_argument("--source-timeout-seconds", type=float, default=1200.0)
+    parser.add_argument(
+        "--resume-after-provider",
+        action="store_true",
+        help=(
+            "Finalize an admitted campaign from its sealed provider receipt "
+            "without issuing another provider request."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -138,6 +158,211 @@ def require_empty_target(path: Path, label: str) -> Path:
         raise RuntimeError(f"{label} must be absent or empty: {selected}")
     selected.mkdir(parents=True, exist_ok=True)
     return selected
+
+
+def require_resume_work_root(path: Path) -> Path:
+    selected = path.resolve(strict=True)
+    for relative in (
+        "benchmark-store",
+        "sources",
+        "current-provider-input.json",
+        "current-provider-dispatch.json",
+    ):
+        if not (selected / relative).exists():
+            raise RuntimeError(f"resume work root is incomplete: {relative}")
+    return selected
+
+
+def campaign_from_dict(value: Mapping[str, Any]) -> Campaign:
+    conditions = CampaignConditions(**dict(value["conditions"]))
+    variants = tuple(
+        Variant(
+            variant_id=str(item["variant_id"]),
+            kind=VariantKind(str(item["kind"])),
+            title=str(item["title"]),
+            capabilities=CapabilityVector(**dict(item["capabilities"])),
+            comparison_anchor=str(item["comparison_anchor"]),
+            expected_disabled_capability=str(
+                item.get("expected_disabled_capability") or ""
+            ),
+            metadata=dict(item.get("metadata") or {}),
+        )
+        for item in value["variants"]
+    )
+    cells = tuple(
+        BenchmarkCell(
+            cell_id=str(item["cell_id"]),
+            campaign_id=str(item["campaign_id"]),
+            domain=DomainKind(str(item["domain"])),
+            variant_id=str(item["variant_id"]),
+            repetition=int(item["repetition"]),
+            seed=int(item["seed"]),
+            input_revision=str(item["input_revision"]),
+            task_family_digest=str(item["task_family_digest"]),
+            condition_digest=str(item["condition_digest"]),
+            planned_at=str(item["planned_at"]),
+        )
+        for item in value["cells"]
+    )
+    campaign = Campaign(
+        campaign_id=str(value["campaign_id"]),
+        schema_version=str(value["schema_version"]),
+        phase=CampaignPhase(str(value["phase"])),
+        conditions=conditions,
+        domains=tuple(DomainKind(str(item)) for item in value["domains"]),
+        variants=variants,
+        seeds=tuple(int(item) for item in value["seeds"]),
+        cells=cells,
+        created_at=str(value["created_at"]),
+        updated_at=str(value["updated_at"]),
+        minimum_effective_steps=int(value["minimum_effective_steps"]),
+        required_long_run_steps=int(value["required_long_run_steps"]),
+        metadata=dict(value.get("metadata") or {}),
+    )
+    if digest(campaign.to_dict()) != digest(dict(value)):
+        raise RuntimeError("stored campaign cannot be reconstructed canonically")
+    return campaign
+
+
+def load_resume_campaign(work_root: Path, commit: str) -> Campaign:
+    path = next(
+        (work_root / "benchmark-store").glob("*/campaign.json"),
+        None,
+    )
+    if path is None:
+        raise RuntimeError("resume campaign is missing")
+    campaign = campaign_from_dict(
+        json.loads(path.resolve(strict=True).read_text(encoding="utf-8"))
+    )
+    if campaign.conditions.commit_sha != commit:
+        raise RuntimeError("resume campaign belongs to another commit")
+    return campaign
+
+
+def load_resume_source_receipts(
+    work_root: Path,
+    *,
+    campaign: Campaign,
+    commit: str,
+) -> tuple[dict[str, Any], ...]:
+    provider_input = json.loads(
+        (work_root / "current-provider-input.json")
+        .resolve(strict=True)
+        .read_text(encoding="utf-8")
+    )
+    if (
+        provider_input.get("schema") != "zyra.m3-current-provider-input/v1"
+        or provider_input.get("campaign_id") != campaign.campaign_id
+        or provider_input.get("implementation_commit") != commit
+    ):
+        raise RuntimeError("resume provider input belongs to another campaign")
+    expected_cases = {
+        str(item["source_run_id"]): dict(item)
+        for item in provider_input.get("cases") or []
+    }
+    receipts: list[dict[str, Any]] = []
+    for outcome_path in sorted(
+        (work_root / "sources").glob("*/benchmark-source-outcome.json")
+    ):
+        outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+        declared = str(outcome.pop("outcome_digest", "") or "")
+        if require_digest(declared, "source outcome digest") != scenario_digest(
+            outcome
+        ):
+            raise RuntimeError("resume source outcome digest mismatch")
+        outcome["outcome_digest"] = declared
+        scenario = dict(outcome.get("scenario_run") or {})
+        source_run_id = str(scenario.get("scenario_run_id") or "")
+        expected = expected_cases.get(source_run_id)
+        if expected is None:
+            raise RuntimeError("resume source is not part of the formal cases")
+        archive_manifest = Path(
+            str(outcome.get("archive_manifest_path") or "")
+        ).resolve(strict=True)
+        source_root = outcome_path.parent.resolve(strict=True)
+        try:
+            archive_manifest.relative_to(source_root)
+        except ValueError as error:
+            raise RuntimeError("resume source archive escaped its root") from error
+        archive_root = archive_manifest.parent
+        source = EvidenceArchiveLoader(
+            allowed_roots=(source_root,),
+        ).from_members(
+            {
+                name: (archive_root / name).read_bytes()
+                for name in ARCHIVE_MEMBERS
+            },
+            archive_digest=require_digest(
+                outcome.get("archive_manifest_digest"),
+                "source archive manifest digest",
+            ),
+            source_path=str(archive_root),
+        )
+        observed = {
+            "case_id": expected["case_id"],
+            "domain": str(outcome.get("domain") or ""),
+            "repetition": int(expected["repetition"]),
+            "source_run_id": source.scenario_run_id,
+            "owner_run_id": source.owner_run_id,
+            "task_id": source.task_id,
+            "source_archive_digest": source.archive_digest,
+            "source_outcome_digest": declared,
+        }
+        if observed != expected:
+            raise RuntimeError("resume source binding does not match provider input")
+        receipts.append(
+            {
+                "domain": observed["domain"],
+                "repetition": observed["repetition"],
+                "source": source.to_dict(),
+                "outcome_digest": declared,
+                "root": str(source_root),
+            }
+        )
+    if source_case_projection(receipts) != sorted(
+        expected_cases.values(),
+        key=lambda item: item["case_id"],
+    ):
+        raise RuntimeError("resume source case set is incomplete")
+    return tuple(sorted(receipts, key=lambda item: (item["domain"], item["repetition"])))
+
+
+def load_resume_provider_receipt(
+    work_root: Path,
+    *,
+    campaign: Campaign,
+    commit: str,
+) -> dict[str, Any]:
+    value = json.loads(
+        (work_root / "current-provider-dispatch.json")
+        .resolve(strict=True)
+        .read_text(encoding="utf-8")
+    )
+    projection = dict(value)
+    declared = require_digest(
+        projection.pop("receipt_digest", ""),
+        "resume provider receipt digest",
+    )
+    if digest(projection) != declared:
+        raise RuntimeError("resume provider receipt digest mismatch")
+    if (
+        value.get("schema") != "zyra.m3-current-provider-dispatch/v1"
+        or value.get("status") != "passed"
+        or value.get("campaign_id") != campaign.campaign_id
+        or value.get("implementation_commit") != commit
+        or int(value.get("provider_request_count") or 0)
+        != MAXIMUM_CURRENT_PROVIDER_REQUESTS
+    ):
+        raise RuntimeError("resume provider receipt identity is invalid")
+    return value
+
+
+def next_resume_tier_root(work_root: Path) -> Path:
+    for index in range(1, 100):
+        candidate = work_root / f"current-tier-dispatch-resume-{index:02d}"
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError("no unused resume tier state root is available")
 
 
 def load_validation(path: Path, commit: str) -> dict[str, Any]:
@@ -397,17 +622,23 @@ def run_current_campaign_evidence(
     commit: str,
     sources: Sequence[Mapping[str, Any]],
     work_root: Path,
+    provider_receipt: Mapping[str, Any] | None = None,
+    tier_state_root: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     cases = source_case_projection(sources)
-    provider_receipt = run_current_provider_evidence(
-        campaign_id=campaign_id,
-        commit=commit,
-        sources=sources,
-        work_root=work_root,
+    selected_provider_receipt = (
+        dict(provider_receipt)
+        if provider_receipt is not None
+        else run_current_provider_evidence(
+            campaign_id=campaign_id,
+            commit=commit,
+            sources=sources,
+            work_root=work_root,
+        )
     )
     tier_receipt = CurrentTierDispatchRunner(
         project_root=ROOT,
-        state_root=work_root / "current-tier-dispatch",
+        state_root=tier_state_root or work_root / "current-tier-dispatch",
         environment=os.environ,
     ).run(cases)
     current = assemble_current_campaign_evidence(
@@ -415,7 +646,7 @@ def run_current_campaign_evidence(
         implementation_commit=commit,
         sources=sources,
         tier_receipt=tier_receipt,
-        provider_receipt=provider_receipt,
+        provider_receipt=selected_provider_receipt,
     )
     verification = CurrentCampaignEvidenceVerifier().verify(
         current,
@@ -629,14 +860,36 @@ def main() -> int:
     arguments = parse_args()
     commit = require_commit(arguments.implementation_commit)
     observed_head = git("rev-parse", "HEAD").strip()
-    if observed_head != commit:
+    if arguments.resume_after_provider:
+        git("merge-base", "--is-ancestor", commit, observed_head)
+        allowed_resume_changes = {
+            "packages/evaluation/zyra_evaluation/live_benchmark/current_evidence.py",
+            "scripts/run_m3_s02a02_live_benchmark.py",
+            "tests/unit/test_m3_live_benchmark.py",
+        }
+        changed = {
+            item.strip()
+            for item in git("diff", "--name-only", f"{commit}..{observed_head}").splitlines()
+            if item.strip()
+        }
+        unexpected = sorted(changed - allowed_resume_changes)
+        if unexpected:
+            raise RuntimeError(
+                "resume HEAD changes files outside the bounded evidence tooling: "
+                + ", ".join(unexpected)
+            )
+    elif observed_head != commit:
         raise RuntimeError(
             f"implementation commit is not HEAD: expected {commit}, observed {observed_head}"
         )
     dirty = git("status", "--porcelain", "--untracked-files=all").strip()
     if dirty:
         raise RuntimeError("formal benchmark requires a clean implementation tree")
-    work_root = require_empty_target(Path(arguments.work_root), "work root")
+    work_root = (
+        require_resume_work_root(Path(arguments.work_root))
+        if arguments.resume_after_provider
+        else require_empty_target(Path(arguments.work_root), "work root")
+    )
     evidence_root = require_empty_target(
         Path(arguments.evidence_root),
         "evidence root",
@@ -649,28 +902,66 @@ def main() -> int:
         ) from error
     validation = load_validation(Path(arguments.validation_receipt), commit)
     protected = ProtectedDeploymentEvidenceLoader().load(M1_EVIDENCE)
-    campaign = create_campaign(
-        campaign_request(commit=commit, protected=protected)
-    )
-    print(
-        f"campaign-start id={campaign.campaign_id} cells={len(campaign.cells)} "
-        f"provider-request-cap={MAXIMUM_CURRENT_PROVIDER_REQUESTS}",
-        flush=True,
-    )
-    port = ProductLiveBenchmarkPort(
-        project_root=ROOT,
-        source_root=work_root / "sources",
-        protected_evidence=protected,
-        source_timeout_seconds=arguments.source_timeout_seconds,
-        progress=lambda message: print(message, flush=True),
-    )
-    runtime = LiveBenchmarkRuntime(
-        store_root=work_root / "benchmark-store",
-        live_port=port,
-        maximum_workers=1,
-    )
-    runtime.create(campaign)
-    evaluation = runtime.run(campaign)
+    if arguments.resume_after_provider:
+        campaign = load_resume_campaign(work_root, commit)
+        runtime = LiveBenchmarkRuntime(
+            store_root=work_root / "benchmark-store",
+            maximum_workers=1,
+        )
+        evaluation = runtime.evaluate(campaign)
+        source_receipts = load_resume_source_receipts(
+            work_root,
+            campaign=campaign,
+            commit=commit,
+        )
+        provider_receipt = load_resume_provider_receipt(
+            work_root,
+            campaign=campaign,
+            commit=commit,
+        )
+        print(
+            f"campaign-resume id={campaign.campaign_id} "
+            f"cells={len(campaign.cells)} provider-requests=0",
+            flush=True,
+        )
+        current_evidence, current_verification = run_current_campaign_evidence(
+            campaign_id=campaign.campaign_id,
+            commit=commit,
+            sources=source_receipts,
+            work_root=work_root,
+            provider_receipt=provider_receipt,
+            tier_state_root=next_resume_tier_root(work_root),
+        )
+    else:
+        campaign = create_campaign(
+            campaign_request(commit=commit, protected=protected)
+        )
+        print(
+            f"campaign-start id={campaign.campaign_id} cells={len(campaign.cells)} "
+            f"provider-request-cap={MAXIMUM_CURRENT_PROVIDER_REQUESTS}",
+            flush=True,
+        )
+        port = ProductLiveBenchmarkPort(
+            project_root=ROOT,
+            source_root=work_root / "sources",
+            protected_evidence=protected,
+            source_timeout_seconds=arguments.source_timeout_seconds,
+            progress=lambda message: print(message, flush=True),
+        )
+        runtime = LiveBenchmarkRuntime(
+            store_root=work_root / "benchmark-store",
+            live_port=port,
+            maximum_workers=1,
+        )
+        runtime.create(campaign)
+        evaluation = runtime.run(campaign)
+        source_receipts = port.source_receipts()
+        current_evidence, current_verification = run_current_campaign_evidence(
+            campaign_id=campaign.campaign_id,
+            commit=commit,
+            sources=source_receipts,
+            work_root=work_root,
+        )
     print(
         f"campaign-evaluated results={evaluation['result_count']} "
         f"samples={evaluation['sample_count']}",
@@ -679,13 +970,6 @@ def main() -> int:
     results = tuple(evaluation["results"])
     samples = tuple(evaluation["samples"])
     statistics = dict(evaluation["statistical_evaluation"])
-    source_receipts = port.source_receipts()
-    current_evidence, current_verification = run_current_campaign_evidence(
-        campaign_id=campaign.campaign_id,
-        commit=commit,
-        sources=source_receipts,
-        work_root=work_root,
-    )
     print(
         "current-evidence-verified "
         f"providers={len(current_verification['provider_ids'])} "
