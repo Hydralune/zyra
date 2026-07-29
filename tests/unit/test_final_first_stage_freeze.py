@@ -52,6 +52,8 @@ from zyra_evaluation.final_freeze.submission import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 STAGE_BASELINE = "944846fd484b465b3c4e2b4ec87565752b4baf67"
 SLICE_BASELINE = "98a001a44f2e506c0ef0144e912c3ba55699f11b"
+FINAL_S03_REVIEW_TARGET = "8825722359e2ca30998d42e9fccf4a35ee307f31"
+RETROSPECTIVE_RUNTIME_FIX = "3c32dddf4cb81f9a00cf84bcae8e7fc6150297ed"
 S03_OUTPUT = (
     REPOSITORY_ROOT
     / "docs"
@@ -87,7 +89,7 @@ def test_real_s03_evidence_passes_increment_only_critical_review() -> None:
         S03_OUTPUT,
         expected_evidence_commit=SLICE_BASELINE,
         stage_baseline_commit=STAGE_BASELINE,
-        review_target_commit=head_commit(),
+        review_target_commit=FINAL_S03_REVIEW_TARGET,
     ).review()
 
     assert receipt["verdict"] == "PASS"
@@ -95,12 +97,30 @@ def test_real_s03_evidence_passes_increment_only_critical_review() -> None:
     assert receipt["review_scope"] == {
         "kind": "M3-03-increment-only",
         "stage_baseline_commit": STAGE_BASELINE,
-        "review_target_commit": head_commit(),
+        "review_target_commit": FINAL_S03_REVIEW_TARGET,
         "protected_history_reopened": False,
         "inherited_evidence_reverified": True,
     }
     assert receipt["findings"]["counts"]["blocker"] == 0
     assert receipt["identities"]["replay_projection_count"] == 3
+
+
+def test_historical_s03_evidence_does_not_admit_later_runtime_changes() -> None:
+    receipt = CriticalReviewEngine(
+        REPOSITORY_ROOT,
+        S03_OUTPUT,
+        expected_evidence_commit=SLICE_BASELINE,
+        stage_baseline_commit=STAGE_BASELINE,
+        review_target_commit=RETROSPECTIVE_RUNTIME_FIX,
+    ).review()
+
+    codes = {
+        finding["code"]
+        for finding in receipt["findings"]["findings"]
+        if finding["severity"] == "blocker"
+    }
+    assert receipt["verdict"] == "BLOCKED"
+    assert "m3-03-runtime-boundary-change" in codes
 
 
 def test_critical_review_detects_tampered_archive(tmp_path: Path) -> None:
