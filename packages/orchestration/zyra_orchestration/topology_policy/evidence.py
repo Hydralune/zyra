@@ -12,6 +12,7 @@ from .contracts import (
     PolicyDecisionReceipt,
     PolicyOutcome,
     StableArtifactRef,
+    canonical_digest,
     canonical_json,
     parse_policy_contract,
 )
@@ -104,6 +105,18 @@ class PolicyEvidencePublisher:
         event = EventRecord(
             run_id=run_id,
             task_id=task_id,
+            event_id=(
+                "event_policy_"
+                + canonical_digest(
+                    (
+                        run_id,
+                        task_id,
+                        contract.CONTRACT_KIND,
+                        contract.header.idempotency_key,
+                        contract.digest,
+                    )
+                )[:24]
+            ),
             node_id=producer_node_id,
             event_type=self._event_type(contract),
             payload={

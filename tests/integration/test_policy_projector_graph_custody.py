@@ -4,7 +4,12 @@ import ast
 from dataclasses import replace
 from pathlib import Path
 
-from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
+from zyra_orchestration.graph_custody import (
+    GraphConflictStrategy,
+    GraphNode,
+    GraphStateCustody,
+    GraphStateStore,
+)
 from zyra_orchestration.topology_policy import (
     ContractHeader,
     EnvironmentSnapshot,
@@ -215,7 +220,7 @@ def test_policy_proposal_is_projected_committed_and_idempotently_replayed(tmp_pa
         current_snapshot=custody.current("graph-policy"),
         policy_input=policy_input,
         proposal=proposal,
-        decision_id="decision-accepted",
+        decision_id="a-different-retry-receipt-id",
     )
     assert repeated_delta.delta_id == first_delta.delta_id
     assert repeated_delta.content_digest == first_delta.content_digest
@@ -285,14 +290,14 @@ def test_stale_unknown_expired_unready_and_disabled_paths_fail_closed(tmp_path: 
     expired = projector.execute(
         current_input,
         _proposal(
-            current_input,
-            (_add_node("node-expired"),),
-            idempotency_key="expired",
-            expires_at="2026-07-29T11:59:59Z",
-        ),
-        decision_id="decision-expired",
-        evaluated_at=NOW,
-    )
+                current_input,
+                (_add_node("node-expired"),),
+                idempotency_key="expired",
+                expires_at="2026-07-29T12:01:00Z",
+            ),
+            decision_id="decision-expired",
+            evaluated_at="2026-07-29T12:02:00Z",
+        )
     assert "proposal_expired" in _reason_codes(expired)
 
     unavailable_input = _input(custody, readiness="unavailable")
@@ -307,6 +312,40 @@ def test_stale_unknown_expired_unready_and_disabled_paths_fail_closed(tmp_path: 
         evaluated_at=NOW,
     )
     assert "mechanism_not_activation_ready" in _reason_codes(unavailable)
+
+    premature_ref = replace(
+        current_input.readiness_refs[0],
+        readiness_stage="input_precheck",
+    )
+    premature_input = replace(current_input, readiness_refs=(premature_ref,))
+    premature = projector.execute(
+        premature_input,
+        _proposal(
+            premature_input,
+            (_add_node("node-premature"),),
+            idempotency_key="premature",
+        ),
+        decision_id="decision-premature",
+        evaluated_at=NOW,
+    )
+    assert "mechanism_not_activation_ready" in _reason_codes(premature)
+
+    forged_nodes = tuple(
+        replace(node, role="reviewer") if node.node_id == "node-a" else node
+        for node in current_input.nodes
+    )
+    forged_input = replace(current_input, nodes=forged_nodes)
+    forged = projector.execute(
+        forged_input,
+        _proposal(
+            forged_input,
+            (_add_node("node-forged"),),
+            idempotency_key="forged",
+        ),
+        decision_id="decision-forged",
+        evaluated_at=NOW,
+    )
+    assert "stale_or_mismatched_snapshot" in _reason_codes(forged)
 
     disabled = TopologyConstraintProjector(custody, enabled=False).execute(
         current_input,
@@ -341,6 +380,24 @@ def test_permission_budget_capacity_cycle_and_idempotency_mismatch_are_rejected(
         evaluated_at=NOW,
     )
     assert "permission_or_placement_denied" in _reason_codes(denied)
+
+    undeclared = replace(_add_node("node-undeclared"), required_permissions=())
+    missing_permission = projector.execute(
+        policy_input,
+        _proposal(policy_input, (undeclared,), idempotency_key="undeclared"),
+        decision_id="decision-undeclared",
+        evaluated_at=NOW,
+    )
+    assert "permission_or_placement_denied" in _reason_codes(missing_permission)
+
+    no_resource = replace(_add_node("node-no-resource"), resource_id="")
+    missing_resource = projector.execute(
+        policy_input,
+        _proposal(policy_input, (no_resource,), idempotency_key="no-resource"),
+        decision_id="decision-no-resource",
+        evaluated_at=NOW,
+    )
+    assert "permission_or_placement_denied" in _reason_codes(missing_resource)
 
     over_capacity = replace(_add_node("node-capacity"), required_capacity=3)
     capacity = projector.execute(
@@ -409,6 +466,71 @@ def test_permission_budget_capacity_cycle_and_idempotency_mismatch_are_rejected(
     )
     assert "idempotency_mismatch" in _reason_codes(mismatch)
     assert custody.current("graph-policy").revision == 1
+
+
+def test_real_graph_commit_receipts_distinguish_rebase_and_conflict(tmp_path: Path) -> None:
+    class RacingDeltaBuilder(PolicyDeltaBuilder):
+        def __init__(self, custody: GraphStateCustody, *, conflict: bool) -> None:
+            self.custody = custody
+            self.conflict = conflict
+
+        def build(self, **kwargs):
+            delta = super().build(**kwargs)
+            branch = self.custody.branch(
+                "graph-policy",
+                branch_id=f"race:{'conflict' if self.conflict else 'rebase'}",
+                actor_id="race-test",
+                causation_id="race-test",
+                idempotency_key=f"race:{'conflict' if self.conflict else 'rebase'}",
+            )
+            if self.conflict:
+                branch.add_node(
+                    GraphNode(
+                        node_id="node-policy",
+                        role="worker",
+                        capabilities=("execute",),
+                    )
+                )
+            else:
+                branch.set_metadata("disjoint-race", True)
+            assert self.custody.commit(branch.build()).receipt.committed
+            return delta
+
+    rebase_custody = _custody(tmp_path / "rebase.sqlite3")
+    rebase_input = _input(rebase_custody)
+    rebase = TopologyConstraintProjector(
+        rebase_custody,
+        delta_builder=RacingDeltaBuilder(rebase_custody, conflict=False),
+    ).execute(
+        rebase_input,
+        _proposal(rebase_input, (_add_node("node-policy"),), idempotency_key="rebase"),
+        decision_id="decision-rebase",
+        evaluated_at=NOW,
+        strategy=GraphConflictStrategy.REBASE,
+    )
+    assert rebase.receipt.disposition is PolicyDecisionDisposition.REBASE
+    assert rebase.commit is not None
+    assert rebase_custody.current("graph-policy").revision == 2
+
+    conflict_custody = _custody(tmp_path / "conflict.sqlite3")
+    conflict_input = _input(conflict_custody)
+    conflict = TopologyConstraintProjector(
+        conflict_custody,
+        delta_builder=RacingDeltaBuilder(conflict_custody, conflict=True),
+    ).execute(
+        conflict_input,
+        _proposal(
+            conflict_input,
+            (_add_node("node-policy"),),
+            idempotency_key="conflict",
+        ),
+        decision_id="decision-conflict",
+        evaluated_at=NOW,
+    )
+    assert conflict.receipt.disposition is PolicyDecisionDisposition.CONFLICT
+    assert conflict.receipt.fallback_profile == "phase1_deterministic_baseline"
+    assert conflict.commit is not None
+    assert conflict_custody.current("graph-policy").revision == 1
 
 
 def test_only_policy_delta_adapter_imports_canonical_graph_delta_builder() -> None:

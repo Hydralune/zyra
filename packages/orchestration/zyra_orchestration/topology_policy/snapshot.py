@@ -224,7 +224,10 @@ class PolicyInputSnapshotBuilder:
             PlanNodeStatus.CANCELLED,
             PlanNodeStatus.SUPERSEDED,
         }
-        obligations = []
+        obligations = [
+            *task.constraints.requirements,
+            *task.constraints.success_criteria,
+        ]
         for node in task.plan_nodes.values():
             if node.status not in terminal:
                 obligations.extend(node.constraints.requirements)

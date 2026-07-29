@@ -298,6 +298,12 @@ def test_digest_tampering_missing_headers_and_future_schema_fail_closed() -> Non
     with pytest.raises(UnsupportedPolicySchema):
         parse_policy_contract(future)
 
+    wrong_kind = proposal.to_dict()
+    wrong_kind["contract_kind"] = "policy_outcome"
+    wrong_kind.pop("digest")
+    with pytest.raises(PolicyContractError, match="cannot carry contract_kind"):
+        parse_policy_contract(wrong_kind)
+
 
 def test_declared_legacy_schema_is_read_and_normalized_to_v1() -> None:
     proposal = _proposal(_policy_input())
@@ -400,6 +406,9 @@ def test_policy_input_builder_reads_existing_owners_into_detached_snapshot() -> 
         registered_capabilities=("execute",),
     )
     assert snapshot.graph.signature == graph.signature
-    assert snapshot.unresolved_obligations == ("deliver-proof",)
+    assert "deliver-proof" in snapshot.unresolved_obligations
+    assert any(
+        "traceable result" in item for item in snapshot.unresolved_obligations
+    )
     task.plan_nodes[task.root_node_id].completion_criteria.append("late-mutation")
-    assert snapshot.unresolved_obligations == ("deliver-proof",)
+    assert "late-mutation" not in snapshot.unresolved_obligations

@@ -334,6 +334,7 @@ class TopologyConstraintProjector:
             and proposal.base_graph == policy_input.graph
             and proposal.base_graph.revision == current.revision
             and proposal.base_graph.signature == current.signature
+            and self._nodes_match_canonical_graph(policy_input, current)
         )
         yield result(
             "snapshot_identity",
@@ -355,9 +356,11 @@ class TopologyConstraintProjector:
             evaluated_at=evaluated_at,
         )
         readiness = {
-            item.header.mechanism_id: item.status for item in policy_input.readiness_refs
+            item.header.mechanism_id: (item.readiness_stage, item.status)
+            for item in policy_input.readiness_refs
         }
-        readiness_ok = readiness.get(proposal.header.mechanism_id) == "deterministic_ready"
+        readiness_value = readiness.get(proposal.header.mechanism_id)
+        readiness_ok = readiness_value == ("activation_ready", "deterministic_ready")
         yield result(
             "mechanism_readiness",
             readiness_ok,
@@ -365,7 +368,7 @@ class TopologyConstraintProjector:
             "mechanism_not_activation_ready",
             "only deterministic-ready mechanisms may enter the canonical path",
             mechanism_id=proposal.header.mechanism_id,
-            status=readiness.get(proposal.header.mechanism_id, "missing"),
+            readiness=readiness_value or ("missing", "missing"),
         )
 
         roles, capabilities = self._requested_registry_values(proposal)
@@ -386,6 +389,11 @@ class TopologyConstraintProjector:
         requested_permissions = {
             item for operation in proposal.operations for item in operation.required_permissions
         }
+        operations_without_permission = sorted(
+            operation.entity_id
+            for operation in proposal.operations
+            if not operation.required_permissions
+        )
         disallowed_permissions = sorted(
             requested_permissions - set(policy_input.allowed_permissions)
         )
@@ -397,14 +405,24 @@ class TopologyConstraintProjector:
         disallowed_placements = sorted(
             requested_placements - set(policy_input.allowed_placements)
         )
+        placements_without_resource = sorted(
+            operation.entity_id
+            for operation in proposal.operations
+            if operation.requested_placement and not operation.resource_id
+        )
         yield result(
             "permission_privacy_placement",
-            not disallowed_permissions and not disallowed_placements,
+            not operations_without_permission
+            and not disallowed_permissions
+            and not disallowed_placements
+            and not placements_without_resource,
             "permission_and_placement_allowed",
             "permission_or_placement_denied",
             "proposal permission and placement requests are checked before projection",
+            operations_without_permission=operations_without_permission,
             denied_permissions=disallowed_permissions,
             denied_placements=disallowed_placements,
+            placements_without_resource=placements_without_resource,
             privacy_class=policy_input.privacy_class,
         )
 
@@ -512,6 +530,25 @@ class TopologyConstraintProjector:
                     str(item) for item in value.get("required_capabilities") or ()
                 )
         return roles, capabilities
+
+    @staticmethod
+    def _nodes_match_canonical_graph(policy_input: PolicyInputSnapshot, current) -> bool:
+        policy_nodes = {item.node_id: item for item in policy_input.nodes}
+        if set(policy_nodes) != set(current.node_map):
+            return False
+        for node_id, current_node in current.node_map.items():
+            policy_node = policy_nodes[node_id]
+            if (
+                policy_node.role != current_node.role
+                or policy_node.capabilities != current_node.capabilities
+                or policy_node.dependencies != current_node.dependencies
+                or policy_node.state != current_node.state.value
+                or policy_node.revision != current_node.revision
+                or dict(policy_node.labels) != dict(current_node.labels)
+                or dict(policy_node.metadata) != dict(current_node.metadata)
+            ):
+                return False
+        return True
 
     @staticmethod
     def _telemetry_failure(

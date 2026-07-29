@@ -838,7 +838,9 @@ class TopologyProposalArtifact(PolicyContract):
             "constraint_assumptions",
             tuple(str(item) for item in self.constraint_assumptions),
         )
-        parse_timestamp(self.expires_at, "expires_at")
+        expires = parse_timestamp(self.expires_at, "expires_at")
+        if expires < parse_timestamp(self.header.created_at, "created_at"):
+            raise PolicyContractError("topology proposal expires before it is created")
         object.__setattr__(
             self,
             "fallback_profile",
@@ -1009,6 +1011,21 @@ class PolicyOutcome(PolicyContract):
         object.__setattr__(self, "decision_ref", required_text(self.decision_ref, "decision_ref"))
         object.__setattr__(
             self,
+            "verifier_result",
+            required_text(self.verifier_result, "verifier_result"),
+        )
+        object.__setattr__(
+            self,
+            "permission_result",
+            required_text(self.permission_result, "permission_result"),
+        )
+        object.__setattr__(
+            self,
+            "recovery_result",
+            required_text(self.recovery_result, "recovery_result"),
+        )
+        object.__setattr__(
+            self,
             "artifact_refs",
             tuple(sorted(self.artifact_refs, key=lambda item: item.ref_id)),
         )
@@ -1069,6 +1086,16 @@ class MemoryContinuityReceipt(PolicyContract):
     def __post_init__(self) -> None:
         for name in ("before_digest", "after_digest"):
             object.__setattr__(self, name, required_sha256(getattr(self, name), name))
+        object.__setattr__(
+            self,
+            "requirement_revision",
+            required_text(self.requirement_revision, "requirement_revision"),
+        )
+        object.__setattr__(
+            self,
+            "continuity_result",
+            required_text(self.continuity_result, "continuity_result"),
+        )
         object.__setattr__(self, "critical_fact_results", FrozenDict(self.critical_fact_results))
         object.__setattr__(self, "obligation_results", FrozenDict(self.obligation_results))
         object.__setattr__(
@@ -1221,6 +1248,16 @@ class PhysicalDispatchReceipt(PolicyContract):
         object.__setattr__(self, "input_signals", FrozenDict(self.input_signals))
         object.__setattr__(self, "physical_identity", FrozenDict(self.physical_identity))
         object.__setattr__(self, "allowed_placements", normalized_tokens(self.allowed_placements))
+        object.__setattr__(
+            self,
+            "privacy_class",
+            required_text(self.privacy_class, "privacy_class"),
+        )
+        object.__setattr__(
+            self,
+            "permission_ref",
+            required_text(self.permission_ref, "permission_ref"),
+        )
 
     def payload_dict(self) -> dict[str, Any]:
         return {
@@ -1436,6 +1473,11 @@ def _contract_parts(
     if schema not in {contract_type.SCHEMA_VERSION, *contract_type.LEGACY_SCHEMA_VERSIONS}:
         raise UnsupportedPolicySchema(
             f"{contract_type.CONTRACT_KIND} cannot read schema {schema or '<missing>'}"
+        )
+    supplied_kind = str(data.get("contract_kind") or "")
+    if supplied_kind and supplied_kind != contract_type.CONTRACT_KIND:
+        raise PolicyContractError(
+            f"schema {schema} cannot carry contract_kind {supplied_kind}"
         )
     if schema == contract_type.SCHEMA_VERSION:
         required_header_fields = (

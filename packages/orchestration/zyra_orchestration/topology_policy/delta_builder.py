@@ -43,7 +43,7 @@ class PolicyDeltaBuilder:
                 "policy_proposal_digest": proposal.digest,
                 "policy_input_snapshot_id": policy_input.header.contract_id,
                 "policy_input_snapshot_digest": policy_input.digest,
-                "policy_decision_id": decision_id,
+                "policy_decision_id": f"decision:{proposal.header.idempotency_key}",
                 "policy_path": "TopologyProposalArtifact->constraint_projector->GraphDeltaBuilder",
             },
         )
