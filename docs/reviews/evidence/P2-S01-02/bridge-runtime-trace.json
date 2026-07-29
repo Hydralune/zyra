@@ -1,0 +1,125 @@
+{
+  "schema": "zyra.phase2-loopx-bridge-runtime-trace/v1",
+  "slice_id": "P2-S01-02",
+  "base_commit": "25b9da61dbb8d26072a48185491971407328bc26",
+  "implementation_commit": "68adc01deb95c3767b2800a4dcb94bd441193abb",
+  "risk_fix_commit": "c35fa796757e2029c1c5ae87629ea8fe2163ca3e",
+  "verdict": "PASS",
+  "runtime": {
+    "loopx_version": "0.2.4",
+    "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
+    "loading_contract": "project-local pinned install receipt",
+    "external_source_runtime_dependency": false,
+    "real_loopx_event_store": true,
+    "mock_bridge": false
+  },
+  "canonical_admission": {
+    "accepted_statuses": [
+      "committed",
+      "rebased",
+      "replayed"
+    ],
+    "failed_serialized_commit_rejected": true,
+    "failed_commit_error_code": "loopx_canonical_commit_required",
+    "persisted_receipt_digest_revalidated": true,
+    "outbox_content_digest_revalidated": true
+  },
+  "outbox_trace": {
+    "schema": "zyra.loopx-outbox/v1",
+    "database_version": 1,
+    "first_sequence": 1,
+    "duplicate_enqueue_returns_same_sequence": true,
+    "duplicate_enqueue_pending_count": 1,
+    "delivery": "at-least-once",
+    "states_exercised": [
+      "pending",
+      "inflight",
+      "acked",
+      "dead_letter"
+    ],
+    "dead_letter_replay_exercised": true,
+    "idempotency_receipt": {
+      "schema": "zyra.loopx-bridge-apply-receipt/v1",
+      "mapping_version": "zyra.loopx-state-mapping/v1",
+      "duplicate_loopx_event_ids": true,
+      "duplicate_claim_side_effect": false,
+      "duplicate_spend_side_effect": false,
+      "duplicate_interaction_side_effect": false
+    }
+  },
+  "restart_trace": {
+    "fault_point": "after LoopX apply and durable apply receipt, before outbox ack",
+    "fault_kind": "simulated process crash using BaseException",
+    "state_after_fault": "inflight",
+    "attempts_after_fault": 1,
+    "quota_spend_event_count_after_fault": 1,
+    "restart_action": "single-writer acquisition followed by inflight recovery and replay",
+    "state_after_restart": "acked",
+    "attempts_after_restart": 2,
+    "replay_status": "idempotent_replay",
+    "event_count_unchanged": true,
+    "quota_spend_event_count_after_restart": 1,
+    "quota_spent_slots_after_restart": 1
+  },
+  "writer_fencing_trace": {
+    "platform_contract": "Windows-safe O_CREAT|O_EXCL plus PID/create-time identity",
+    "spawned_contenders": 2,
+    "successful_owners": 1,
+    "conflicts": 1,
+    "conflict_error_code": "loopx_writer_conflict",
+    "live_writer_stolen": false,
+    "crash_exit_code": 17,
+    "dead_process_takeover_succeeded": true,
+    "replacement_epoch_greater_than_stale_epoch": true,
+    "replacement_token_changed": true,
+    "old_fence_rejected": true,
+    "old_fence_error_code": "loopx_writer_fence_lost",
+    "cross_workspace_fence_rejected": true,
+    "cross_workspace_error_code": "loopx_writer_workspace_mismatch"
+  },
+  "validation_before_spend": {
+    "validation_passed_false_spend_slots": 0,
+    "permission_allowed_false_spend_slots": 0,
+    "lease_valid_false_spend_slots": 0,
+    "budget_allowed_false_spend_slots": 0,
+    "loopx_quota_changes_zyra_budget": false
+  },
+  "claim_boundary": {
+    "conflict_status": "claim_conflict",
+    "conflict_terminal_state": "dead_letter",
+    "conflicting_loopx_events_appended": 0,
+    "spend_after_conflict": 0,
+    "worker_lease_changed": false
+  },
+  "workspace_isolation": {
+    "state_locator": "{workspace}/.zyra/loopx/state",
+    "workspace_a_and_b_ids_differ": true,
+    "goal_state_shared": false,
+    "quota_state_shared": false,
+    "claim_state_shared": false
+  },
+  "observability": {
+    "event_owner": "typescript.RuntimeEventSpine",
+    "event_type": "runtime.audit.finding",
+    "artifact_owner": "LocalArtifactStore",
+    "artifact_contract": "zyra.loopx-sync-status/v1",
+    "event_artifact_ref_verified": true,
+    "fields_verified": [
+      "sync_status",
+      "canonical_commit",
+      "source_causation_id",
+      "last_validated_receipt",
+      "claim_conflict",
+      "quota_exhausted",
+      "degraded_reason"
+    ]
+  },
+  "degraded_route": {
+    "disabled_status": "sync_degraded",
+    "disabled_private_state_created": false,
+    "unavailable_first_status": "sync_degraded",
+    "unavailable_terminal_status": "dead_letter",
+    "canonical_graph_revision_preserved": true,
+    "fallback_claimed_loopx_active": false
+  }
+}

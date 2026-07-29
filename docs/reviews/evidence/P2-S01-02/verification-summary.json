@@ -1,0 +1,98 @@
+{
+  "schema": "zyra.phase2-slice-verification-summary/v1",
+  "slice_id": "P2-S01-02",
+  "base_commit": "25b9da61dbb8d26072a48185491971407328bc26",
+  "implementation_commit": "68adc01deb95c3767b2800a4dcb94bd441193abb",
+  "risk_fix_commit": "c35fa796757e2029c1c5ae87629ea8fe2163ca3e",
+  "verdict": "PASS",
+  "evidence": {
+    "runtime_trace": {
+      "path": "docs/reviews/evidence/P2-S01-02/bridge-runtime-trace.json",
+      "sha256": "efbd739c0a3e3501f96d79da0eaab47d7bc48066bf725d1d574685540f919e88",
+      "verdict": "PASS"
+    },
+    "risk_audit": {
+      "path": "docs/reviews/evidence/P2-S01-02/risk-audit.json",
+      "sha256": "f129907d69970cdc56789085de625bb807f0b0a6e5475e01c3e37972a4964963",
+      "verdict": "PASS"
+    }
+  },
+  "verification": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_loopx_bridge_outbox.py tests/integration/test_loopx_bridge_restart.py tests/integration/test_loopx_bridge_single_writer.py tests/integration/test_worker_pool_integration_runtime.py tests/unit/orchestration/test_phase2_owner_registry.py -q -p no:cacheprovider --basetemp <new-workspace-local-directory>",
+      "result": "39 passed in 52.26s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true; strongest_activation_eligible=false; target_commit=c35fa796757e2029c1c5ae87629ea8fe2163ca3e"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages\\integrations\\zyra_integrations\\loopx\\bridge tests\\integration\\loopx_bridge_helpers.py tests\\integration\\test_loopx_bridge_outbox.py tests\\integration\\test_loopx_bridge_restart.py tests\\integration\\test_loopx_bridge_single_writer.py",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "test_coverage": {
+    "canonical_commit_success_gate": true,
+    "failed_commit_outbox_exclusion": true,
+    "duplicate_enqueue_and_apply": true,
+    "apply_before_ack_crash_restart": true,
+    "dead_letter_replay": true,
+    "claim_conflict": true,
+    "quota_exhaustion_contract": true,
+    "four_independent_spend_gates": true,
+    "two_process_writer_conflict": true,
+    "dead_process_writer_takeover": true,
+    "old_fence_rejection": true,
+    "cross_workspace_fence_rejection": true,
+    "workspace_state_isolation": true,
+    "disabled_route": true,
+    "unavailable_route": true,
+    "real_event_and_artifact": true,
+    "adjacent_worker_lease_runtime": true,
+    "phase2_owner_registry": true
+  },
+  "environment_diagnostic": {
+    "slice_suggested_worker_test": "tests/integration/test_worker_lease_runtime.py",
+    "diagnosis": "The suggested historical filename is absent from this repository.",
+    "repository_failure": false,
+    "substitution": "tests/integration/test_worker_pool_integration_runtime.py plus tests/unit/orchestration/test_phase2_owner_registry.py",
+    "pytest_temp_policy": "A fresh workspace-local basetemp and disabled cache provider avoid unrelated inherited Windows temp ACL failures."
+  },
+  "effective_change_buckets": {
+    "production_raw_additions": 2776,
+    "adapter_only_raw_additions": 379,
+    "test_raw_additions": 709,
+    "runtime_assets_bytes_added": 0,
+    "data_raw_additions": 0,
+    "generated_raw_additions": 0,
+    "mock_fixture_raw_additions": 0,
+    "implementation_docs_raw_additions": 0,
+    "classification": {
+      "production": [
+        "bridge/contracts.py",
+        "bridge/outbox.py",
+        "bridge/dispatcher.py",
+        "bridge/single_writer.py",
+        "bridge/__init__.py"
+      ],
+      "adapter_only": [
+        "bridge/state_mapping.py"
+      ],
+      "test": [
+        "tests/integration/loopx_bridge_helpers.py",
+        "tests/integration/test_loopx_bridge_outbox.py",
+        "tests/integration/test_loopx_bridge_restart.py",
+        "tests/integration/test_loopx_bridge_single_writer.py"
+      ],
+      "runtime_assets": "No new bytes; uses the pinned P2-S01-01 LoopX 0.2.4 package."
+    }
+  }
+}
