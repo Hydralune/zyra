@@ -12,6 +12,7 @@ from zyra_integrations.loopx.install import (
     LoopXPackageLock,
 )
 from zyra_integrations.loopx.runtime import LoopXRuntimeResolver
+from zyra_integrations.loopx.runtime.first_task import run_first_task_probe
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -138,3 +139,20 @@ def test_package_lock_binds_embedded_source_without_archive_fallback() -> None:
     assert "../long-horizon-systems" not in serialized
     assert ".whl" not in serialized
     assert ".tar.gz" not in serialized
+
+
+def test_first_task_uses_embedded_runtime_without_install_or_home_write(
+    tmp_path: Path,
+) -> None:
+    receipt = run_first_task_probe(tmp_path / "detached-first-task")
+
+    assert receipt["ready"] is True
+    assert receipt["receipt_status"] == "applied"
+    assert receipt["lifecycle"] == "enabled"
+    assert receipt["sync_cursor"] == 1
+    assert receipt["runtime"]["version"] == "0.2.13"
+    assert receipt["runtime"]["archive_extraction"] is False
+    assert receipt["retired_install_created"] is False
+    assert receipt["user_home_entries"] == []
+    assert receipt["claim_is_worker_lease"] is False
+    assert receipt["quota_is_execution_budget"] is False

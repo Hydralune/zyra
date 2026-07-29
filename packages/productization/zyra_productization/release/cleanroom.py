@@ -862,6 +862,33 @@ class CleanInstallRunner:
                     "external_source_required": False,
                     "archive_install_required": False,
                 }
+                first_task = runner.run(
+                    [
+                        str(python),
+                        "-m",
+                        "zyra_integrations.loopx.runtime.first_task",
+                        "--workspace",
+                        str(workspace / "loopx-first-task"),
+                    ],
+                    cwd=workspace,
+                    timeout=command_timeout,
+                )
+                commands.append(first_task.to_dict())
+                try:
+                    first_task_receipt = json.loads(first_task.stdout)
+                except json.JSONDecodeError as error:
+                    raise CleanroomFailure(
+                        "Cleanroom LoopX first-task receipt is invalid.",
+                        code="cleanroom_loopx_first_task_invalid",
+                        details={"stdout": first_task.stdout},
+                    ) from error
+                if first_task_receipt.get("ready") is not True:
+                    raise CleanroomFailure(
+                        "Cleanroom LoopX first task did not pass.",
+                        code="cleanroom_loopx_first_task_failed",
+                        details={"receipt": first_task_receipt},
+                    )
+                receipts["loopx"]["first_task"] = first_task_receipt
             if run_product_lifecycle:
                 bun = environment["ZYRA_BUN_EXECUTABLE"]
                 javascript_commands = (
