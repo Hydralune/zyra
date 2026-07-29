@@ -21,6 +21,12 @@ import {
   deepSeekV4ProProfile,
   installDeepSeekV4ProProfile,
 } from "../src/profiles/deepseek.ts";
+import {
+  KIMI_API_KEY_ENV,
+  KIMI_PLATFORM_CREDENTIAL_ID,
+  installKimiK27CodeProfile,
+  kimiK27CodeProfile,
+} from "../src/profiles/kimi-platform.ts";
 
 interface CapturedRequest {
   readonly url: string;
@@ -111,6 +117,38 @@ test("DeepSeek V4 Pro profile fails closed when its environment secret is absent
   assert.throws(
     () => installDeepSeekV4ProProfile(controlPlane, {}),
     new RegExp(`${DEEPSEEK_API_KEY_ENV} is required`),
+  );
+  assert.deepEqual(controlPlane.catalog.providers(), []);
+  assert.deepEqual(controlPlane.credentials.list(), []);
+});
+
+test("Kimi Open Platform K2.7 Code profile keeps thinking enabled and persists only an environment reference", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const secret = "kimi-platform-test-secret";
+  const installed = installKimiK27CodeProfile(controlPlane, {
+    [KIMI_API_KEY_ENV]: secret,
+  });
+  const profile = kimiK27CodeProfile();
+
+  assert.equal(profile.provider.baseUrl, "https://api.moonshot.cn/v1");
+  assert.equal(profile.provider.protocol, "openai_chat");
+  assert.deepEqual(profile.provider.allowedHosts, ["api.moonshot.cn"]);
+  assert.equal(profile.model.modelId, "kimi-k2.7-code");
+  assert.equal(profile.model.contextWindow, 262_144);
+  assert.equal(profile.model.endpointPath, "/chat/completions");
+  assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
+  assert.equal(installed.credential.credentialId, KIMI_PLATFORM_CREDENTIAL_ID);
+  assert.equal(installed.credential.secretRef, `env://${KIMI_API_KEY_ENV}`);
+  assert.notEqual(installed.credential.fingerprint, secret);
+  assert.equal(JSON.stringify(controlPlane.catalog.snapshot()).includes(secret), false);
+  assert.equal(JSON.stringify(controlPlane.credentials.list()).includes(secret), false);
+});
+
+test("Kimi Open Platform K2.7 Code profile fails closed when its environment secret is absent", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  assert.throws(
+    () => installKimiK27CodeProfile(controlPlane, {}),
+    new RegExp(`${KIMI_API_KEY_ENV} is required`),
   );
   assert.deepEqual(controlPlane.catalog.providers(), []);
   assert.deepEqual(controlPlane.credentials.list(), []);
@@ -329,6 +367,8 @@ test("credential rotation preserves an acquired route snapshot and changes only 
 test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", async (t) => {
   const capture = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write('data: {"id":"response-1","choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\n');
+    response.write('data: {"id":"response-1","choices":[{"delta":{},"finish_reason":null}]}\n\n');
     response.write('data: {"id":"response-1","choices":[{"delta":{"content":"hello "},"finish_reason":null}]}\n\n');
     response.write('data: {"choices":[{"delta":{"content":"world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}\n\n');
     response.end("data: [DONE]\n\n");
@@ -346,6 +386,7 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
   const result = await controlPlane.dispatch(dispatchRequest(route.routeId));
 
   assert.equal(result.text, "hello world");
+  assert.equal(result.frames.filter((frame) => frame.kind === "response_start").length, 1);
   assert.equal(result.attempts.length, 1);
   assert.equal(result.attempts[0]?.outcome, "succeeded");
   assert.equal(capture.requests.length, 1);

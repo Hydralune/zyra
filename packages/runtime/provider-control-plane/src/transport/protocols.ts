@@ -65,6 +65,10 @@ export class ProtocolFrameState {
   readonly ids: IdFactory;
   readonly now: () => number;
 
+  get frameCount(): number {
+    return this.sequence;
+  }
+
   constructor(
     request: ProviderDispatchRequest,
     ids: IdFactory,
@@ -136,7 +140,12 @@ function decodeOpenAiChat(value: Record<string, unknown>, eventName: string | nu
     if (typeof item.finish_reason === "string") state.stopReason = item.finish_reason;
   }
   if (value.usage && typeof value.usage === "object") frames.push(state.frame("usage", { usage: canonicalize(value.usage) as JsonRecord, providerEvent: eventName }));
-  if (frames.length === 0 && typeof value.id === "string") frames.push(state.frame("response_start", { providerEvent: eventName, metadata: { responseId: value.id } }));
+  if (frames.length === 0 && typeof value.id === "string" && state.frameCount === 0) {
+    frames.push(state.frame("response_start", {
+      providerEvent: eventName,
+      metadata: { responseId: value.id },
+    }));
+  }
   return frames;
 }
 
