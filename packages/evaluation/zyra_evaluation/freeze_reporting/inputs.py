@@ -30,6 +30,7 @@ FORMAL_REQUIRED_MEMBERS = {
     "benchmark-report.json": "benchmark-report",
     "campaign-store-receipt.json": "benchmark-campaign-store",
     "campaign.json": "benchmark-campaign",
+    "current-campaign-evidence.json": "benchmark-current-campaign-evidence",
     "evaluation-summary.json": "benchmark-summary",
     "evidence-manifest.json": "benchmark-manifest",
     "freeze-admission.json": "benchmark-admission",

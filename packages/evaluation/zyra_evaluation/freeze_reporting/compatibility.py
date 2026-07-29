@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -13,7 +13,7 @@ REQUIRED_TIERS = {"local", "edge", "cloud"}
 
 
 class CompatibilityMaterialBuilder:
-    """Builds placement/model compatibility material from protected receipts."""
+    """Build placement/model compatibility from current and protected receipts."""
 
     def __init__(self, inputs: FreezeInputSet) -> None:
         self.inputs = inputs
@@ -23,9 +23,10 @@ class CompatibilityMaterialBuilder:
         report = self.inputs.document("benchmark-report")
         campaign = self.inputs.document("benchmark-campaign")
         protected = self.inputs.document("benchmark-protected-deployment")
+        current = self.inputs.document("benchmark-current-campaign-evidence")
         deployment = self._deployment_rows(protected)
-        provider_rows = self._provider_rows(summary, protected)
-        model_rows = self._model_rows(summary, protected)
+        provider_rows = self._provider_rows(current)
+        model_rows = self._model_rows(current)
         split_rows = self._split_rows(campaign, report)
         material = {
             "schema": "zyra.first-stage-compatibility-material/v1",
@@ -34,6 +35,10 @@ class CompatibilityMaterialBuilder:
                     "local" if str(item).lower() == "device" else str(item).lower()
                     for item in summary.get("tier_ids") or []
                 )
+                | {
+                    "local" if str(item).lower() == "device" else str(item).lower()
+                    for item in current.get("current_tier_ids") or []
+                }
                 | {str(item.get("tier") or "") for item in deployment}
             ),
             "deployment_profiles": deployment,
@@ -50,6 +55,14 @@ class CompatibilityMaterialBuilder:
                     ),
                     "sha256": self.inputs.digests[
                         "benchmark-protected-deployment"
+                    ],
+                },
+                "current_campaign_evidence": {
+                    "path": self.inputs.relative_path(
+                        "benchmark-current-campaign-evidence"
+                    ),
+                    "sha256": self.inputs.digests[
+                        "benchmark-current-campaign-evidence"
                     ],
                 },
                 "benchmark_report": {
@@ -122,6 +135,14 @@ class CompatibilityMaterialBuilder:
                     blocker(
                         "compatibility-credential-state-invalid",
                         "Provider credential state is not explicit.",
+                        provider_id=row.get("provider_id"),
+                    )
+                )
+            if row.get("credential_material_persisted") is not False:
+                findings.append(
+                    blocker(
+                        "compatibility-provider-secret-persisted",
+                        "Provider compatibility evidence persisted credential material.",
                         provider_id=row.get("provider_id"),
                     )
                 )
@@ -283,114 +304,83 @@ class CompatibilityMaterialBuilder:
         ]
 
     @staticmethod
-    def _provider_rows(
-        summary: Mapping[str, Any],
-        protected: Mapping[str, Any],
-    ) -> list[dict[str, Any]]:
-        values = []
-        for key in ("providers", "provider_receipts", "provider_matrix"):
-            value = protected.get(key)
-            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-                values.extend(item for item in value if isinstance(item, Mapping))
+    def _provider_rows(current: Mapping[str, Any]) -> list[dict[str, Any]]:
+        grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+        for case in current.get("cases") or []:
+            if not isinstance(case, Mapping):
+                continue
+            for item in case.get("provider_observations") or []:
+                if isinstance(item, Mapping):
+                    grouped[str(item.get("provider_id") or "")].append(item)
         rows = []
-        for index, item in enumerate(values, 1):
+        for provider_id, observations in sorted(grouped.items()):
+            if not provider_id:
+                continue
             rows.append(
                 {
-                    "provider_id": str(
-                        item.get("provider_id")
-                        or item.get("id")
-                        or f"provider-{index}"
+                    "provider_id": provider_id,
+                    "model_ids": sorted(
+                        {
+                            str(item.get("model_id") or "")
+                            for item in observations
+                            if item.get("model_id")
+                        }
                     ),
-                    "receipt_digest": str(
-                        item.get("receipt_digest")
-                        or item.get("digest")
-                        or digest(item)
+                    "receipt_digest": digest(
+                        sorted(digest(item) for item in observations)
                     ),
-                    "credential_presence": str(
-                        item.get("credential_presence")
-                        or item.get("credential_status")
-                        or "protected-receipt"
+                    "credential_presence": (
+                        "present"
+                        if all(item.get("authenticated") is True for item in observations)
+                        else "absent-fail-closed"
                     ),
-                    "capabilities": sorted(
-                        str(value)
-                        for value in item.get("capabilities") or []
+                    "credential_material_persisted": any(
+                        item.get("credential_material_persisted") is not False
+                        for item in observations
                     ),
-                    "failover_result": str(
-                        item.get("failover_result")
-                        or item.get("status")
-                        or "protected-receipt"
-                    ),
-                }
-            )
-        required = int(summary.get("provider_count") or 0)
-        root_digest = str(
-            protected.get("receipt_digest")
-            or protected.get("bundle_digest")
-            or digest(protected)
-        )
-        while len(rows) < required:
-            index = len(rows) + 1
-            rows.append(
-                {
-                    "provider_id": f"protected-provider-{index}",
-                    "receipt_digest": root_digest,
-                    "credential_presence": "protected-receipt",
-                    "capabilities": ["protected-m1-live-provider"],
-                    "failover_result": "protected-receipt",
+                    "request_count": len(observations),
+                    "capabilities": [
+                        "chat-completions",
+                        "streaming",
+                        "tool-call-roundtrip",
+                        "same-campaign-formal-case-binding",
+                    ],
+                    "failover_result": "current-formal-case-bound",
                 }
             )
         return rows
 
     @staticmethod
-    def _model_rows(
-        summary: Mapping[str, Any],
-        protected: Mapping[str, Any],
-    ) -> list[dict[str, Any]]:
-        values = []
-        for key in ("models", "model_receipts", "model_matrix", "providers"):
-            value = protected.get(key)
-            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-                values.extend(item for item in value if isinstance(item, Mapping))
-        rows = [
+    def _model_rows(current: Mapping[str, Any]) -> list[dict[str, Any]]:
+        grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+        for case in current.get("cases") or []:
+            if not isinstance(case, Mapping):
+                continue
+            for item in case.get("provider_observations") or []:
+                if not isinstance(item, Mapping):
+                    continue
+                key = (
+                    str(item.get("provider_id") or ""),
+                    str(item.get("model_id") or ""),
+                )
+                grouped[key].append(item)
+        return [
             {
-                "model_id": str(
-                    item.get("model_id")
-                    or item.get("id")
-                    or f"model-{index}"
+                "model_id": model_id,
+                "provider_id": provider_id,
+                "receipt_digest": digest(
+                    sorted(digest(item) for item in observations)
                 ),
-                "provider_id": str(
-                    item.get("provider_id")
-                    or item.get("provider")
-                    or "protected-provider"
-                ),
-                "receipt_digest": str(
-                    item.get("receipt_digest")
-                    or item.get("digest")
-                    or digest(item)
-                ),
-                "capabilities": sorted(
-                    str(value) for value in item.get("capabilities") or []
-                ),
+                "request_count": len(observations),
+                "capabilities": [
+                    "streaming",
+                    "tool-call-roundtrip",
+                    "same-campaign-formal-case-binding",
+                ],
             }
-            for index, item in enumerate(values, 1)
+            for (provider_id, model_id), observations in sorted(grouped.items())
+            if provider_id and model_id
         ]
-        required = int(summary.get("model_count") or 0)
-        root_digest = str(
-            protected.get("receipt_digest")
-            or protected.get("bundle_digest")
-            or digest(protected)
-        )
-        while len(rows) < required:
-            index = len(rows) + 1
-            rows.append(
-                {
-                    "model_id": f"protected-model-{index}",
-                    "provider_id": f"protected-provider-{index}",
-                    "receipt_digest": root_digest,
-                    "capabilities": ["protected-m1-live-model"],
-                }
-            )
-        return rows
 
     @staticmethod
     def _split_rows(

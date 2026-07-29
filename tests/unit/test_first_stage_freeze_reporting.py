@@ -106,6 +106,7 @@ def test_real_formal_inputs_build_a_complete_100_point_index(
     assert receipt["valid"] is True
     assert len(index["requirements"]) == 19
     assert "benchmark-campaign-store" in admitted_inputs.documents
+    assert "benchmark-current-campaign-evidence" in admitted_inputs.documents
     assert len(
         [
             input_id
@@ -320,34 +321,41 @@ def test_application_value_rejects_unsupported_savings_claim(
     )
 
 
-def test_compatibility_material_uses_actual_protected_providers(
+def test_compatibility_material_uses_current_formal_case_providers(
     admitted_inputs: FreezeInputSet,
 ) -> None:
     material = CompatibilityMaterialBuilder(admitted_inputs).build()
 
     assert {row["provider_id"] for row in material["providers"]} == {
-        "anthropic",
-        "openai",
+        "deepseek",
+        "kimi-platform",
+        "zhipu",
     }
     assert {row["model_id"] for row in material["models"]} == {
-        "claude-sonnet-5",
-        "gpt-5.5",
+        "deepseek-v4-pro",
+        "glm-5.2",
+        "kimi-k2.7-code",
     }
     assert set(material["tiers"]) == {"local", "edge", "cloud"}
 
 
-def test_case_material_separates_case_runs_from_protected_provider_receipts(
+def test_case_material_binds_current_providers_without_hidden_cell_calls(
     admitted_inputs: FreezeInputSet,
 ) -> None:
     material = CaseStudyBuilder(admitted_inputs).build()
     compatibility = material["deployment_compatibility"]
 
-    assert compatibility["same_run_as_case"] is False
+    assert compatibility["same_run_as_case"] is True
     assert compatibility["case_runs_no_new_provider_call"] is True
+    assert compatibility["cell_execution_issued_provider_request"] is False
+    assert compatibility["current_provider_evidence_attached"] is True
+    assert compatibility["protected_prior_receipts_only"] is False
+    assert compatibility["current_provider_request_count"] == 12
     assert set(compatibility["tiers"]) == {"local", "edge", "cloud"}
     assert {row["provider_id"] for row in compatibility["providers"]} == {
-        "anthropic",
-        "openai",
+        "deepseek",
+        "kimi-platform",
+        "zhipu",
     }
 
 

@@ -114,12 +114,11 @@ class CaseStudyBuilder:
             material.get("deployment_compatibility"),
             "case deployment compatibility",
         )
-        if deployment.get("same_run_as_case") is not False:
+        if deployment.get("same_run_as_case") is not True:
             findings.append(
                 blocker(
-                    "case-deployment-claim-conflated",
-                    "Protected M1 deployment evidence cannot be presented as a "
-                    "new provider call inside M3 case runs.",
+                    "case-current-provider-binding-missing",
+                    "Current provider evidence is not bound to the formal M3 cases.",
                 )
             )
         if deployment.get("case_runs_no_new_provider_call") is not True:
@@ -128,6 +127,20 @@ class CaseStudyBuilder:
                     "case-provider-call-boundary-invalid",
                     "Formal M3 case material must preserve its no-new-provider-call "
                     "boundary when using protected compatibility evidence.",
+                )
+            )
+        if deployment.get("current_provider_evidence_attached") is not True:
+            findings.append(
+                blocker(
+                    "case-current-provider-evidence-missing",
+                    "Formal M3 case material does not include current provider evidence.",
+                )
+            )
+        if deployment.get("protected_prior_receipts_only") is not False:
+            findings.append(
+                blocker(
+                    "case-current-provider-evidence-not-primary",
+                    "Formal M3 case material still relies only on protected provider receipts.",
                 )
             )
         if set(deployment.get("tiers") or []) != {"local", "edge", "cloud"}:
@@ -272,38 +285,74 @@ class CaseStudyBuilder:
 
     def _deployment_compatibility(self) -> dict[str, Any]:
         protected = self.inputs.document("benchmark-protected-deployment")
-        tiers = []
-        for row in protected.get("tiers") or []:
-            if not isinstance(row, Mapping):
+        current = self.inputs.document("benchmark-current-campaign-evidence")
+        run_receipts = self.inputs.document("benchmark-run-receipts")
+        tiers = [
+            "local" if str(value).lower() == "device" else str(value).lower()
+            for value in current.get("current_tier_ids") or []
+        ]
+        grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+        for case in current.get("cases") or []:
+            if not isinstance(case, Mapping):
                 continue
-            tier = str(row.get("tier") or "").lower()
-            tiers.append("local" if tier == "device" else tier)
+            for row in case.get("provider_observations") or []:
+                if not isinstance(row, Mapping):
+                    continue
+                grouped[
+                    (
+                        str(row.get("provider_id") or ""),
+                        str(row.get("model_id") or ""),
+                    )
+                ].append(row)
         providers = [
             {
-                "provider_id": str(row.get("provider_id") or ""),
-                "model_id": str(row.get("model_id") or ""),
-                "wire_dialect": str(row.get("wire_dialect") or ""),
-                "simulated": row.get("simulated"),
-                "receipt_digest": digest(row),
+                "provider_id": provider_id,
+                "model_id": model_id,
+                "simulated": any(
+                    row.get("simulated") is not False for row in observations
+                ),
+                "authenticated": all(
+                    row.get("authenticated") is True for row in observations
+                ),
+                "request_count": len(observations),
+                "receipt_digest": digest(
+                    sorted(digest(row) for row in observations)
+                ),
             }
-            for row in protected.get("providers") or []
-            if isinstance(row, Mapping)
+            for (provider_id, model_id), observations in sorted(grouped.items())
+            if provider_id and model_id
         ]
+        cell_provider_call = run_receipts.get(
+            "cell_execution_issued_provider_request"
+        )
         return {
-            "same_run_as_case": False,
-            "case_runs_no_new_provider_call": self.inputs.document(
-                "benchmark-source-runs"
-            ).get("no_new_provider_call"),
+            "same_run_as_case": current.get("same_run_as_formal_cases"),
+            "case_runs_no_new_provider_call": cell_provider_call is False,
+            "cell_execution_issued_provider_request": cell_provider_call,
+            "current_provider_evidence_attached": True,
+            "protected_prior_receipts_only": current.get(
+                "protected_prior_receipts_only"
+            ),
+            "current_provider_request_count": current.get(
+                "provider_request_count"
+            ),
             "evidence_role": (
-                "protected live deployment compatibility; M3 case runs prove "
-                "long-horizon sealed autonomy and do not claim new provider calls"
+                "current provider/tier evidence is bound to each formal case; "
+                "the 42 benchmark cell executions remain deterministic and "
+                "issue no hidden provider request"
             ),
             "tiers": sorted(set(tiers)),
             "providers": providers,
             "source_path": self.inputs.relative_path(
-                "benchmark-protected-deployment"
+                "benchmark-current-campaign-evidence"
             ),
             "source_sha256": self.inputs.digests[
+                "benchmark-current-campaign-evidence"
+            ],
+            "protected_supplementary_path": self.inputs.relative_path(
+                "benchmark-protected-deployment"
+            ),
+            "protected_supplementary_sha256": self.inputs.digests[
                 "benchmark-protected-deployment"
             ],
         }
