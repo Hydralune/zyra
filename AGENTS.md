@@ -63,17 +63,33 @@ LoopX
 
 ## LoopX 产品形态
 
-- LoopX 固定为完整的长程目标控制插件，版本 `0.2.4`，source commit `8e79843704a40d8069a9cab4ede6edc6d29f671b`。
+- P2-01 已完成并冻结；最终证据为
+  `docs/reviews/P2-S01-04-loopx-v0213-embedded-source-cutover-review.md`。
+- LoopX 固定为完整的长程目标控制插件，版本 `0.2.13`，annotated tag
+  object `a2c072d412d90839132e1cf39c23dd431c394175`，peeled source commit
+  `7232dca45ec2ca996edc43b2d3558edc802c844e`，tree digest
+  `66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961`。
 - source role：`supplementary_implementation`。
-- migration mode：`pinned_package_integration`。
-- LoopX 完整包进入 Zyra release，但不计作 Zyra 深度内化代码。
-- Linux/WSL 应保持上游安装语义；Windows 和 release 使用同源、同版本、同 hash 的可离线安装包。
-- 运行时不得依赖 `../../long-horizon-systems/loopx`、在线 Git 仓库或工作区外路径。
+- migration mode：`pinned_embedded_source_integration`。
+- LoopX 完整可运行源码进入 Zyra release，但按
+  `runtime-assets/vendor-like` 单列，不计作 Zyra 深度内化代码。
+- Windows 与 Linux/WSL 使用同一 canonical source manifest、package lock
+  和 tree digest；运行时不执行 LoopX 专用安装或 archive extraction。
+- 运行时不得依赖 `../../long-horizon-systems/loopx`、在线 Git 仓库、用户级
+  LoopX、`.zyra/loopx/install` 或任何工作区外路径。
 
 正式目标路径：
 
 ```text
+packages/integrations/loopx_runtime/
+  SOURCE-MANIFEST.json
+  loopx/
+  packages/
+  skills/
+  templates and package resources
+
 packages/integrations/zyra_integrations/loopx/
+  runtime/
   install/
   bridge/
     contracts.py
@@ -85,6 +101,11 @@ packages/integrations/zyra_integrations/loopx/
 apps/api/zyra_api/loopx_api.py
 apps/web/src/features/long-horizon/loopx/
 ```
+
+`LoopXRuntimeResolver` 是唯一 runtime locator；`install/**` 只保留最薄兼容
+facade 与 retired-path 诊断。`LoopXDoctor --deep` 必须验证 import、CLI、
+extension、skill/template、package resource、manifest、source digest 和
+workspace private state provenance，并在任何损坏时 fail closed。
 
 状态边界：
 

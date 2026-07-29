@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.phase2.loopx-cross-version-upgrade-summary/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "ready": true,
+  "base_commit": "3c4d1092187b1777468cad0ce2a772244d012197",
+  "target_commit": "89a2def73645936a421a97bf398f67759cb842be",
+  "independent_processes": {
+    "baseline": 1,
+    "target_restarts": 2
+  },
+  "baseline_state": {
+    "canonical_mutation_count": 3,
+    "cursor": 3,
+    "acked": 3,
+    "pending": 0,
+    "dead_letter": 0,
+    "claim_count": 1,
+    "quota_spent_slots": 1,
+    "has_goal": true,
+    "has_todo": true,
+    "has_history": true,
+    "has_interaction": true,
+    "historical_install_preserved": true
+  },
+  "target_runtime": {
+    "version": "0.2.13",
+    "source_commit": "a2c072d412d90839132e1cf39c23dd431c394175",
+    "source_tree_commit": "7232dca45ec2ca996edc43b2d3558edc802c844e",
+    "source_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "source_kind": "embedded_source",
+    "archive_fallback": false
+  },
+  "invariants": {
+    "semantic_state_preserved": true,
+    "cursor_monotonic": true,
+    "duplicate_canonical_commit": false,
+    "duplicate_claim": false,
+    "duplicate_spend": false,
+    "duplicate_interaction": false,
+    "historical_install_preserved_and_ignored": true,
+    "new_install_or_extraction": false,
+    "claim_became_worker_lease": false,
+    "quota_became_execution_budget": false
+  },
+  "raw_receipt": {
+    "path": "temporary validation output; not a release dependency",
+    "sha256": "990cffba17db7d145ae51c56045da5ee4bd9f0cb3c9252a125fa879487125460"
+  }
+}

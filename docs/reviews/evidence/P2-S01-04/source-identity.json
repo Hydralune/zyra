@@ -1,0 +1,69 @@
+{
+  "schema": "zyra.phase2.loopx-source-identity/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "ready": true,
+  "source_role": "supplementary_implementation",
+  "migration_mode": "pinned_embedded_source_integration",
+  "package": {
+    "name": "loopx",
+    "version": "0.2.13",
+    "source_ref": "v0.2.13",
+    "source_object_type": "annotated_tag",
+    "source_commit": "a2c072d412d90839132e1cf39c23dd431c394175",
+    "source_tree_commit": "7232dca45ec2ca996edc43b2d3558edc802c844e"
+  },
+  "embedded_source": {
+    "root": "packages/integrations/loopx_runtime",
+    "file_count": 1925,
+    "tree_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "manifest_path": "packages/integrations/loopx_runtime/SOURCE-MANIFEST.json",
+    "manifest_sha256": "7d040170be1624b89076303f0bfb9d227760bf39c667505889981aba1997acd0",
+    "package_lock_file_sha256": "9b7ebb8208fc955db9d379c29d96a4d88666bf6a977def33323772739f251c19",
+    "package_lock_digest": "7f3cee74b1e5530ae8574510f3e9cacf3cec893e9f94982f8d27aa28a118a164"
+  },
+  "inventory": {
+    "packages": 46,
+    "entry_points": 3,
+    "extension_entry_points": 1,
+    "extension_descriptors": 4,
+    "skills": 5,
+    "templates": 2,
+    "package_data": 7,
+    "upstream_tests": 125
+  },
+  "exclusions": [
+    {
+      "pattern": ".github/**",
+      "count": 7,
+      "reason": "Upstream CI and issue automation are not runtime, resource, or test inputs."
+    },
+    {
+      "pattern": "AGENTS.md",
+      "count": 1,
+      "reason": "Upstream contributor-agent instructions are not product runtime inputs."
+    },
+    {
+      "pattern": ".git/** and generated caches",
+      "count": 0,
+      "reason": "Repository metadata and generated interpreter/test caches are never source inputs."
+    }
+  ],
+  "runtime_provenance": {
+    "python_import": "packages/integrations/loopx_runtime/loopx/__init__.py",
+    "cli_result": "loopx 0.2.13",
+    "package_resource": "packages/integrations/loopx_runtime/loopx/capabilities/auto_research/worker_skill/SKILL.md",
+    "runtime_source": "pinned_embedded_source",
+    "archive_artifact_count": 0,
+    "archive_extraction": false,
+    "archive_fallback": false,
+    "root_source_fallback": false,
+    "user_level_fallback": false
+  },
+  "integrity_mutations": {
+    "source_file_tamper_fails_closed": true,
+    "manifest_tamper_fails_closed": true,
+    "version_mismatch_fails_closed": true,
+    "missing_entry_point_or_resource_fails_closed": true
+  }
+}

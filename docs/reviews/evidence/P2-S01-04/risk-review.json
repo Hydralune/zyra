@@ -1,0 +1,83 @@
+{
+  "schema": "zyra.phase2.slice-risk-review/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "verdict": "pass",
+  "base_commit": "3c4d1092187b1777468cad0ce2a772244d012197",
+  "implementation_commit": "ba2aceea0d48c75648ae6c3fe0f3f1c2cd51e670",
+  "final_target_commit": "89a2def73645936a421a97bf398f67759cb842be",
+  "review_fix_commits": [
+    "79cba8b33c483ec1ae79745ecc59577107260107",
+    "81a79c2c2421576abb04339e5192d79e5249f48c",
+    "5d0f0a6d583c5f04080a14c7a30838a633a11c8f",
+    "1d64d01ee08200aad0b0b0a02407a9e7473b42d9",
+    "89a2def73645936a421a97bf398f67759cb842be"
+  ],
+  "risks": [
+    {
+      "risk": "Default import or runtime still resolves the retired archive or an external checkout.",
+      "status": "closed",
+      "evidence": "Deep doctor, direct import, CLI, package resource, clean workspace, wheel, and detached release all resolve embedded source; archive and external-source counts are zero."
+    },
+    {
+      "risk": "Release silently retains a LoopX wheel/tar install path.",
+      "status": "closed",
+      "evidence": "Tracked archive count and legacy asset count are zero. Release inventory and cleanroom first task require neither LoopX archive installation nor extraction."
+    },
+    {
+      "risk": "v0.2.13 changes private state, idempotency, single-writer, or control semantics.",
+      "status": "closed",
+      "evidence": "A P2-S01-03 workspace with real goal/todo/claim/quota/history/interaction/outbox/cursor state survives two independent target restarts with the same semantic digest and no duplicate side effect."
+    },
+    {
+      "risk": "Upgrade silently resets state or transfers lease/budget ownership.",
+      "status": "closed",
+      "evidence": "Cursor remains 3, quota spend remains 1, claim remains private, canonical mutation count remains 3, claim is not a worker lease, and quota is not an execution budget."
+    },
+    {
+      "risk": "The complete source exists only as dead package content.",
+      "status": "closed",
+      "evidence": "API /loopx-connect reaches the embedded runtime in a detached first task. Probe, API, runtime, CLI, extension, skill, template, and package-resource provenance is verified."
+    },
+    {
+      "risk": "Cross-host builds bind different bytes.",
+      "status": "closed",
+      "evidence": "Windows and Ubuntu 22.04 WSL produce the same 1,925-file tree digest, manifest SHA-256, package lock digest, and source identities after explicit LF materialization."
+    }
+  ],
+  "review_discoveries": [
+    {
+      "discovery": "No reusable two-checkout upgrade harness existed after the implementation commit.",
+      "resolution": "Added an independent-process baseline-to-target upgrade gate.",
+      "commit": "79cba8b33c483ec1ae79745ecc59577107260107"
+    },
+    {
+      "discovery": "Host line-ending conversion made Windows and WSL archive bytes diverge.",
+      "resolution": "Canonicalized Git materialization and repository line endings.",
+      "commit": "81a79c2c2421576abb04339e5192d79e5249f48c"
+    },
+    {
+      "discovery": "The previous cleanroom verified resolver and doctor but did not execute an actual first task.",
+      "resolution": "Added a task-creation and /loopx-connect cleanroom probe; its first run also found and eliminated a user-home Bun cache write.",
+      "commit": "5d0f0a6d583c5f04080a14c7a30838a633a11c8f"
+    },
+    {
+      "discovery": "Wheel-only API execution could not prove the TypeScript runtime source that belongs to the full release payload.",
+      "resolution": "Bound first-task API and package imports to the full verified payload and required all origins to remain beneath it.",
+      "commit": "1d64d01ee08200aad0b0b0a02407a9e7473b42d9"
+    },
+    {
+      "discovery": "The first-task provenance re-check used cleanroom cwd instead of the verified payload root.",
+      "resolution": "Made package-root custody explicit at the probe boundary.",
+      "commit": "89a2def73645936a421a97bf398f67759cb842be"
+    }
+  ],
+  "owner_boundaries_preserved": {
+    "graph_state_custody": true,
+    "permission_runtime": true,
+    "worker_lease": true,
+    "resource_scheduler_budget": true,
+    "loopx_private_control": true
+  },
+  "openclaw_accessed_or_restored": false
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "zyra.phase2.loopx-runtime-path-audit/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "ready": true,
+  "target_commit": "89a2def73645936a421a97bf398f67759cb842be",
+  "checks": {
+    "tracked_loopx_wheel_or_tar_count": 0,
+    "legacy_asset_file_count": 0,
+    "production_external_source_reference_count": 0,
+    "production_archive_extractor_count": 0,
+    "runtime_network_access": false,
+    "runtime_user_home_write": false,
+    "runtime_system_path_write": false,
+    "runtime_root_source_fallback": false,
+    "runtime_user_level_fallback": false,
+    "runtime_archive_fallback": false
+  },
+  "allowed_diagnostic_references": [
+    "Doctor scans for unexpected .whl and .tar.gz artifacts and fails closed if present.",
+    "Compatibility facade documents that .zyra/loopx/install is retired.",
+    "Package lock records the retired install path so doctor can prove that historical state is preserved and ignored."
+  ],
+  "historical_install_policy": {
+    "preserved": true,
+    "used_as_runtime": false,
+    "new_install_created": false
+  },
+  "release_runtime_locator": "packages/integrations/loopx_runtime",
+  "external_source_checkout_required_after_build": false,
+  "openclaw_accessed_or_restored": false
+}

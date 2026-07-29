@@ -1,0 +1,62 @@
+{
+  "schema": "zyra.phase2.loopx-detached-release-cleanroom-summary/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "ready": true,
+  "target_commit": "89a2def73645936a421a97bf398f67759cb842be",
+  "release": {
+    "release_id": "p2-s01-04-89a2def",
+    "archive_sha256": "0420f0ea215b4e18e430b9f98141a7dfd7e4d819b2dbb4adfc6f9ccc624846a9",
+    "archive_size": 32669854,
+    "file_count": 4291,
+    "manifest_digest": "05c81f076fa3509f7d6ead41646daa064f9ac3f63d98f5bab8c4fccf2f37fc3a",
+    "payload_digest": "bff542c86c75c07615520c051601fc7a0b85e9f015d45adea3ccd0c0ecfa17bc",
+    "wheel_sha256": "f918de1e3949bf9eca17a38d6d9d39705c58e12b1e16cbf26ca881ca35f0e5d0",
+    "loopx_source_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "two_builds_byte_identical": true
+  },
+  "cleanroom": {
+    "receipt_sha256": "f8fb45aca1a3fa763754b9b9ee17c5486cc87c94e4d14dc47919b4c42b350971",
+    "isolated_venv": true,
+    "generic_dependency_bootstrap_offline": false,
+    "generic_dependency_bootstrap_note": "No complete offline Python wheelhouse exists; declared hash-pinned dependencies were bootstrapped online into the isolated venv.",
+    "loopx_offline": true,
+    "external_source_required": false,
+    "archive_install_required": false,
+    "release_pythonpath_bound_to_payload": true
+  },
+  "first_task": {
+    "ready": true,
+    "receipt_status": "applied",
+    "sync_cursor": 1,
+    "lifecycle": "enabled",
+    "runtime_version": "0.2.13",
+    "runtime_source": "embedded_source",
+    "probe_origin_under_release_payload": true,
+    "api_origin_under_release_payload": true,
+    "runtime_origin_under_release_payload": true,
+    "retired_install_created": false,
+    "archive_extraction": false,
+    "network_mode": "offline",
+    "user_home_entries": [],
+    "claim_is_worker_lease": false,
+    "quota_is_execution_budget": false
+  },
+  "review_failures_closed": [
+    {
+      "failure": "The first detached task wrote Bun cache metadata beneath the synthetic user home.",
+      "fix_commit": "5d0f0a6d583c5f04080a14c7a30838a633a11c8f",
+      "fix": "Bind Bun and XDG caches to the task workspace."
+    },
+    {
+      "failure": "A wheel-only API import could not reach the TypeScript runtime event spine shipped in the full release payload.",
+      "fix_commit": "1d64d01ee08200aad0b0b0a02407a9e7473b42d9",
+      "fix": "Execute the first-task probe from the verified full release payload and check all import origins."
+    },
+    {
+      "failure": "The provenance re-check reconstructed its resolver from the cleanroom cwd and mixed payload and wheel manifests.",
+      "fix_commit": "89a2def73645936a421a97bf398f67759cb842be",
+      "fix": "Pass the verified release payload root explicitly to the resolver."
+    }
+  ]
+}

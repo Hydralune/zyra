@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.phase2.loopx-cross-platform-build/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "ready": true,
+  "source": {
+    "source_ref": "v0.2.13",
+    "source_commit": "a2c072d412d90839132e1cf39c23dd431c394175",
+    "source_tree_commit": "7232dca45ec2ca996edc43b2d3558edc802c844e"
+  },
+  "canonicalization": {
+    "git_config": [
+      "core.autocrlf=false",
+      "core.eol=lf"
+    ],
+    "repository_rule": "packages/integrations/loopx_runtime/** text=auto eol=lf",
+    "materialized_from_git_object": true
+  },
+  "windows": {
+    "environment": "Windows PowerShell; Python 3.13.9",
+    "source_file_count": 1925,
+    "tree_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "manifest_sha256": "7d040170be1624b89076303f0bfb9d227760bf39c667505889981aba1997acd0",
+    "package_lock_digest": "7f3cee74b1e5530ae8574510f3e9cacf3cec893e9f94982f8d27aa28a118a164"
+  },
+  "linux_wsl": {
+    "environment": "Ubuntu 22.04 WSL; Python 3.10",
+    "offline": true,
+    "materialized_source": true,
+    "source_file_count": 1925,
+    "tree_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "manifest_sha256": "7d040170be1624b89076303f0bfb9d227760bf39c667505889981aba1997acd0",
+    "package_lock_digest": "7f3cee74b1e5530ae8574510f3e9cacf3cec893e9f94982f8d27aa28a118a164",
+    "raw_receipt_sha256": "751303dbcabbf05c9da3358a8bcbb4e8c77bc30df24862aff59745a90e9c42b1"
+  },
+  "comparison": {
+    "source_identity_equal": true,
+    "file_count_equal": true,
+    "tree_digest_equal": true,
+    "manifest_sha256_equal": true,
+    "package_lock_digest_equal": true
+  },
+  "review_discovery": {
+    "initial_archive_bytes_differed_across_hosts": true,
+    "cause": "Host Git line-ending conversion affected git archive output.",
+    "fix_commit": "81a79c2c2421576abb04339e5192d79e5249f48c",
+    "fix": "Materialize the tagged object with explicit LF Git configuration and enforce repository LF attributes."
+  },
+  "release_dependency_on_source_checkout": false
+}

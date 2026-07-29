@@ -1,0 +1,104 @@
+{
+  "schema": "zyra.phase2.slice-verification-summary/v1",
+  "slice_id": "P2-S01-04",
+  "recorded_at": "2026-07-29",
+  "base_commit": "3c4d1092187b1777468cad0ce2a772244d012197",
+  "implementation_commit": "ba2aceea0d48c75648ae6c3fe0f3f1c2cd51e670",
+  "target_commit": "89a2def73645936a421a97bf398f67759cb842be",
+  "verdict": "pass",
+  "checks": [
+    {
+      "check": "deep embedded runtime verifier",
+      "result": "ready=true; 0.2.13; 1,925 files; direct import/CLI/resource provenance; no archive/root/user fallback",
+      "status": "passed"
+    },
+    {
+      "check": "LoopX cumulative Python integration suite",
+      "result": "All 29 cases passed on the final target across a split rerun: the combined run had 28 passes and one sandbox Git subprocess failure; the isolated release-doctor file then passed 2/2.",
+      "status": "passed"
+    },
+    {
+      "check": "clean-install and release affected regression",
+      "result": "7 passed after explicit payload-root custody fix",
+      "status": "passed"
+    },
+    {
+      "check": "cross-version independent-process upgrade",
+      "result": "ready=true; one baseline process and two target restarts; all duplicate, cursor, state, install, lease, and budget invariants passed",
+      "status": "passed"
+    },
+    {
+      "check": "detached release and cleanroom first task",
+      "result": "ready=true; reproducible 4,291-file release; isolated task and /loopx-connect applied from payload; zero LoopX network/install/extraction/home writes",
+      "status": "passed"
+    },
+    {
+      "check": "Windows and WSL source build comparison",
+      "result": "same source identities, 1,925-file tree digest, manifest SHA-256, and package lock digest",
+      "status": "passed"
+    },
+    {
+      "check": "owner, dynamic graph, continuation, permission, scheduler adjacent unit regression",
+      "result": "33 passed, 14 subtests passed",
+      "status": "passed"
+    },
+    {
+      "check": "LoopX Web typed feature",
+      "result": "typecheck passed; 3 LoopX feature tests passed; production build passed with 375 modules",
+      "status": "passed"
+    },
+    {
+      "check": "full Web suite after Web changes",
+      "result": "274 passed, 2 failed; both failures are pre-existing MCP elicitation cases whose fixed 2026-07-25 expiry precedes the 2026-07-29 execution date; all LoopX tests passed. Later fixes were Python-only.",
+      "status": "accepted_out_of_scope"
+    },
+    {
+      "check": "selected upstream LoopX tests",
+      "result": "64 passed; one POSIX executable-bit/shebang/chmod test is not portable to Windows",
+      "status": "accepted_platform_limitation"
+    },
+    {
+      "check": "Phase 2 policy contracts",
+      "result": "valid=true at target commit; strongest profile remains closed because later mechanism readiness slices have not run",
+      "status": "passed"
+    },
+    {
+      "check": "internalization ledger",
+      "result": "audit_ok=true; errors=0; blockers=0; warnings=734",
+      "status": "passed"
+    },
+    {
+      "check": "runtime path audit",
+      "result": "no tracked LoopX wheel/tar, legacy assets, external source dependency, production archive extraction, user fallback, or new retired install",
+      "status": "passed"
+    },
+    {
+      "check": "expanded code-worker permission integration probe",
+      "result": "A permission_pending versus permission_denied expectation failed; the same case also fails at the P2-S01-03 base and is outside this source-cutover diff. Required adjacent owner/permission/budget unit gates passed.",
+      "status": "accepted_pre_existing"
+    },
+    {
+      "check": "git diff --check",
+      "result": "passed before evidence generation; repeated before evidence commit",
+      "status": "passed"
+    }
+  ],
+  "acceptance": {
+    "complete_source_embedded": true,
+    "default_runtime_cutover": true,
+    "archive_runtime_retired": true,
+    "release_self_contained": true,
+    "first_task_zero_loopx_install": true,
+    "first_task_zero_loopx_extraction": true,
+    "first_task_loopx_offline": true,
+    "first_task_zero_user_home_write": true,
+    "source_integrity_fail_closed": true,
+    "cross_platform_digest_equal": true,
+    "cross_version_state_preserved": true,
+    "cross_version_duplicate_side_effect_absent": true,
+    "canonical_owner_boundaries_preserved": true,
+    "api_cli_web_projection_0_2_13": true
+  },
+  "phase2_strongest_v1_activated": false,
+  "phase2_strongest_v1_note": "P2-01 is closed, but the combined profile remains fail-closed until the later required mechanisms complete readiness."
+}
