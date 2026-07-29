@@ -165,7 +165,7 @@ class LoopXOutbox:
             return self._row(row)
 
     def recover_inflight(self, fence: WriterFence) -> int:
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         with self._transaction() as connection:
             cursor = connection.execute(
                 """
@@ -185,7 +185,7 @@ class LoopXOutbox:
                 ),
             )
             recovered = int(cursor.rowcount)
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         return recovered
 
     def claim_next(
@@ -195,7 +195,7 @@ class LoopXOutbox:
         lease_seconds: float = 30.0,
         now_epoch: float | None = None,
     ) -> OutboxRecord | None:
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         now = time.time() if now_epoch is None else float(now_epoch)
         lease_token = f"outbox-lease:{fence.fencing_epoch}:{uuid4().hex}"
         with self._transaction() as connection:
@@ -250,7 +250,7 @@ class LoopXOutbox:
             if claimed is None:
                 raise RuntimeError("LoopX outbox claim disappeared")
             record = self._row(claimed)
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         return record
 
     def record_apply_receipt(
@@ -345,7 +345,7 @@ class LoopXOutbox:
         sequence: int,
         fence: WriterFence,
     ) -> OutboxRecord:
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         with self._transaction() as connection:
             row = connection.execute(
                 "SELECT * FROM loopx_outbox WHERE sequence = ? AND workspace_id = ?",
@@ -381,7 +381,7 @@ class LoopXOutbox:
             if updated is None:
                 raise RuntimeError("LoopX replay record disappeared")
             result = self._row(updated)
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         return result
 
     def get(self, sequence: int) -> OutboxRecord | None:
@@ -455,7 +455,7 @@ class LoopXOutbox:
         fence: WriterFence,
         **values: Any,
     ) -> OutboxRecord:
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         assignments = {**values, "updated_at": _now_iso()}
         columns = ", ".join(f"{key} = ?" for key in assignments)
         parameters = tuple(assignments.values()) + (
@@ -496,8 +496,20 @@ class LoopXOutbox:
             if row is None:
                 raise RuntimeError("LoopX outbox update disappeared")
             updated = self._row(row)
-        fence.assert_owned()
+        self._assert_workspace_fence(fence)
         return updated
+
+    def _assert_workspace_fence(self, fence: WriterFence) -> None:
+        fence.assert_owned()
+        if fence.owner.workspace_id != self.workspace_id:
+            raise OutboxLeaseError(
+                "LoopX outbox rejected a writer fence from another workspace.",
+                code="loopx_writer_workspace_mismatch",
+                details={
+                    "outbox_workspace_id": self.workspace_id,
+                    "fence_workspace_id": fence.owner.workspace_id,
+                },
+            )
 
     def _initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

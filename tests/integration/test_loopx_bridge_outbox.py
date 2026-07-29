@@ -7,7 +7,9 @@ import pytest
 
 from zyra_integrations.loopx.bridge import (
     LoopXBridgeObservability,
+    OutboxLeaseError,
     OutboxState,
+    SingleWriterFenceLostError,
     SyncStatus,
 )
 from zyra_orchestration.graph_custody import GraphConflictStrategy
@@ -204,7 +206,7 @@ def test_workspace_isolation_validation_before_spend_and_disabled_route(
 ) -> None:
     workspace_a = tmp_path / "workspace-a"
     workspace_b = tmp_path / "workspace-b"
-    outbox_a, _, runtime_a, dispatcher_a = bridge_runtime(
+    outbox_a, writer_a, runtime_a, dispatcher_a = bridge_runtime(
         workspace_a,
         install_loopx(workspace_a),
     )
@@ -239,6 +241,17 @@ def test_workspace_isolation_validation_before_spend_and_disabled_route(
             claimant="workspace-b-controller",
         ),
     )
+
+    with writer_a.acquire() as foreign_fence:
+        with pytest.raises(OutboxLeaseError) as outbox_mismatch:
+            outbox_b.claim_next(foreign_fence)
+        assert outbox_mismatch.value.code == "loopx_writer_workspace_mismatch"
+        with pytest.raises(SingleWriterFenceLostError) as runtime_mismatch:
+            runtime_b.apply(
+                outbox_b.list_records()[0].command,
+                foreign_fence,
+            )
+        assert runtime_mismatch.value.code == "loopx_writer_workspace_mismatch"
 
     disabled = dispatcher_a.dispatch(enabled=False)
     assert disabled[0].status is SyncStatus.SYNC_DEGRADED

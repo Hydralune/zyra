@@ -25,11 +25,12 @@ from .contracts import (
     LoopXUnavailableError,
     OutboxRecord,
     OutboxState,
+    SingleWriterFenceLostError,
     SyncStatus,
     stable_digest,
 )
 from .outbox import LoopXOutbox
-from .single_writer import LoopXSingleWriter, WriterFence
+from .single_writer import LoopXSingleWriter, WriterFence, workspace_identity
 from .state_mapping import LoopXStateMapper, quota_spent_slots
 
 
@@ -191,6 +192,16 @@ class LoopXRuntimeStateAdapter:
         after_event_append: Callable[[int, Mapping[str, Any]], None] | None = None,
     ) -> ApplyReceipt:
         fence.assert_owned()
+        runtime_workspace_id = workspace_identity(self.workspace_root)
+        if fence.owner.workspace_id != runtime_workspace_id:
+            raise SingleWriterFenceLostError(
+                "LoopX runtime rejected a writer fence from another workspace.",
+                code="loopx_writer_workspace_mismatch",
+                details={
+                    "runtime_workspace_id": runtime_workspace_id,
+                    "fence_workspace_id": fence.owner.workspace_id,
+                },
+            )
         runtime = _load_installed_runtime(self.module_root)
         goal_root = self.private_root / "goals" / command.update.goal_id
         event_log = goal_root / "events.jsonl"
