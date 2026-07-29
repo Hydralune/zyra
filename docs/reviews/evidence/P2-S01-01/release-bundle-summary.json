@@ -1,0 +1,70 @@
+{
+  "schema": "zyra.phase2-loopx-release-bundle-summary/v1",
+  "slice_id": "P2-S01-01",
+  "implementation_commit": "1e1aa1fa0d242de6ea38e48286a9325f245eed05",
+  "release_id": "P2-S01-01-1e1aa1f",
+  "ready": true,
+  "archive": {
+    "name": "P2-S01-01-1e1aa1f.zip",
+    "sha256": "bf2eb9a0c6a3eaa2fd657f4f609690480f30c042272e6166d8d89df2d126fee9",
+    "size": 37360183,
+    "file_count": 2334,
+    "manifest_digest": "8c71ef681aec4b64515f369057fbbd2bc3a097ce622e9c1f367a227d07b569ae",
+    "payload_digest": "c4dafcdba80080814a5b7830e2a24fae41401c5f87d3a0644c1016893dad9bda"
+  },
+  "reproducibility": {
+    "ready": true,
+    "byte_identical": true,
+    "first_sha256": "bf2eb9a0c6a3eaa2fd657f4f609690480f30c042272e6166d8d89df2d126fee9",
+    "second_sha256": "bf2eb9a0c6a3eaa2fd657f4f609690480f30c042272e6166d8d89df2d126fee9",
+    "size_delta": 0,
+    "receipt_digest": "60f26552ee4471fafa4dcff0767968549c6aa334d252c443a805a2e66761136d"
+  },
+  "loopx": {
+    "version": "0.2.4",
+    "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
+    "source_digest": "3ed673d4f9533c85a502332ebe4694eb1ef0310543372a22e95f50880fd9b390",
+    "package_lock_digest": "f3fe301364a2a6fbeaf0f04ebb4356502bc9d2861d2f866f6852709c5016f8c2",
+    "source_role": "supplementary_implementation",
+    "line_bucket": "runtime-assets/vendor-like",
+    "profiles": [
+      "linux_wsl_upstream_semantics",
+      "windows_release_offline_wheel"
+    ],
+    "wheel": {
+      "sha256": "906acc18a98d9b7acefb50489b9683b57883382109bd36751928c6dc33b96a7f",
+      "size": 1924451,
+      "entry_count": 505
+    },
+    "source_bundle": {
+      "sha256": "3670963274f3e70b0d5100557dd8a76638fea1901415687bb40e5fd8c7e2293e",
+      "size": 9115809,
+      "file_count": 1568
+    },
+    "release_artifacts_present": [
+      "loopx_package_lock",
+      "loopx_wheel",
+      "loopx_source_bundle",
+      "loopx_doctor_metadata",
+      "sbom"
+    ],
+    "deep_doctor": {
+      "ready": true,
+      "blocker_count": 0,
+      "external_source_required": false,
+      "network_required": false,
+      "root_source_reference_count": 0,
+      "user_level_write_count": 0,
+      "cli_stdout": "loopx 0.2.4"
+    }
+  },
+  "pipeline": {
+    "schema": "zyra.release-pipeline/v1",
+    "ready": true,
+    "digest": "e0bcffa6f04b308485ffeab2925045bec82a37dac781f495077650ede3ddeba4",
+    "pipeline_report_sha256": "d558528a02a344bf7459b66fab638ff292ee1d2d968cb9308949c3b95ba52b3e",
+    "benchmark_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+    "ci_executed": false,
+    "ci_note": "Slice-specific and adjacent regression tests were executed separately."
+  }
+}

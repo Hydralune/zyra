@@ -1,0 +1,49 @@
+{
+  "schema": "zyra.phase2-loopx-detached-install-summary/v1",
+  "slice_id": "P2-S01-01",
+  "implementation_commit": "1e1aa1fa0d242de6ea38e48286a9325f245eed05",
+  "release_archive_sha256": "bf2eb9a0c6a3eaa2fd657f4f609690480f30c042272e6166d8d89df2d126fee9",
+  "source_receipt_sha256": "375c9cac4bc2be59543e7dff5e4201f92c462f12db1fc93634a283d5b78b62f8",
+  "ready": true,
+  "profile": "windows_release_offline_wheel",
+  "version": "0.2.4",
+  "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
+  "source_digest": "3ed673d4f9533c85a502332ebe4694eb1ef0310543372a22e95f50880fd9b390",
+  "package_lock_digest": "f3fe301364a2a6fbeaf0f04ebb4356502bc9d2861d2f866f6852709c5016f8c2",
+  "install": {
+    "file_count": 507,
+    "installed_file_digest": "99319582fec4c6cb5b398edd1d572360a8240dd5db7695984c8d22e7ffc2b9e3",
+    "receipt_digest": "4bc238b257712a53989cee53cdbdd41b4d3a01a791eeaf5ec320b59664fde70f",
+    "workspace_local": true,
+    "state_workspace_local": true,
+    "network_access": false,
+    "user_home_write": false,
+    "system_path_write": false,
+    "disabled_user_surfaces": [
+      "user_shell_profile",
+      "user_codex_skill",
+      "user_claude_adapter",
+      "global_slash_command",
+      "system_path",
+      "tmux_dashboard",
+      "canary_symlink"
+    ]
+  },
+  "doctor": {
+    "mode": "deep",
+    "ready": true,
+    "blocker_count": 0,
+    "digest": "f2d527f5be0d1c7da8cabc55bf81ef04157ace3b9e76391d60dace16e6267701",
+    "import_version": "0.2.4",
+    "cli_stdout": "loopx 0.2.4",
+    "external_source_required": false,
+    "network_required": false,
+    "root_source_reference_count": 0,
+    "user_level_write_count": 0
+  },
+  "provenance": {
+    "source": "The release ZIP was expanded into a new detached directory and its bundled verification script installed LoopX into a separate workspace.",
+    "external_loopx_source_used": false,
+    "online_install_used": false
+  }
+}

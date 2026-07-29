@@ -1,0 +1,128 @@
+{
+  "schema": "zyra.phase2-slice-verification-summary/v1",
+  "slice_id": "P2-S01-01",
+  "p2_base_commit": "f9d9558cb67560ad88c52058ffb1644bf21d2773",
+  "implementation_commit": "1e1aa1fa0d242de6ea38e48286a9325f245eed05",
+  "verdict": "PASS",
+  "loopx_identity": {
+    "version": "0.2.4",
+    "source_commit": "8e79843704a40d8069a9cab4ede6edc6d29f671b",
+    "source_digest": "3ed673d4f9533c85a502332ebe4694eb1ef0310543372a22e95f50880fd9b390",
+    "package_lock_digest": "f3fe301364a2a6fbeaf0f04ebb4356502bc9d2861d2f866f6852709c5016f8c2"
+  },
+  "evidence": {
+    "release_bundle": {
+      "path": "docs/reviews/evidence/P2-S01-01/release-bundle-summary.json",
+      "sha256": "09a4f446536cc3e11c33b2877df1eb449b49c142ef598661ce8177f5c755b532",
+      "ready": true
+    },
+    "detached_install": {
+      "path": "docs/reviews/evidence/P2-S01-01/detached-install-summary.json",
+      "sha256": "fa0850485551377b0f9b69bd0279093aea64f78619e70c09f31f1238ca1df1c1",
+      "ready": true
+    },
+    "risk_audit": {
+      "path": "docs/reviews/evidence/P2-S01-01/risk-audit.json",
+      "sha256": "612a7c13d9b5b98fe9f18b7888b714e6f2d68a6a9c4cc8d06b5d0d7694bd9cea",
+      "verdict": "PASS"
+    }
+  },
+  "verification": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_loopx_clean_install.py -q",
+      "result": "5 passed in 29.42s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_loopx_release_doctor.py -q",
+      "result": "3 passed in 76.13s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\test_release_productization.py -q -p no:cacheprovider --basetemp <new-workspace-local-directory>",
+      "result": "45 passed in 4.82s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_release_bundle_clean_install.py -q",
+      "result": "2 passed in 0.47s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_loopx_clean_install.py tests\\integration\\test_loopx_release_doctor.py tests\\unit\\test_release_productization.py tests\\integration\\test_release_bundle_clean_install.py -q -p no:cacheprovider --basetemp G:\\agent-zoo\\zyra\\.tmp\\pytest-P2-S01-01-final",
+      "result": "55 passed in 108.02s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\release\\build_loopx_bundle.py",
+      "result": "Two consecutive builds produced identical wheel, source bundle, source digest, and lock content."
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\run_release_pipeline.py --release-id P2-S01-01-1e1aa1f --expected-commit 1e1aa1fa0d242de6ea38e48286a9325f245eed05 --benchmark-commit 09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b --output-root .tmp\\P2-S01-01-release --format zip --skip-ci",
+      "result": "ready=true; byte_identical=true; archive_sha256=bf2eb9a0c6a3eaa2fd657f4f609690480f30c042272e6166d8d89df2d126fee9"
+    },
+    {
+      "command": "<detached release>\\scripts\\release\\verify_loopx_install.py --project-root <detached release> --workspace <separate workspace> --profile windows_release_offline_wheel --install --deep",
+      "result": "ready=true; file_count=507; blocker_count=0; cli='loopx 0.2.4'; user_level_write_count=0"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true; strongest_activation_eligible=false"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_internalization_ledger_gate_cli.py -q",
+      "result": "5 passed in 183.75s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_source_custody_repository_audit.py -q",
+      "result": "2 passed in 92.06s"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages\\integrations\\zyra_integrations\\loopx packages\\productization\\zyra_productization\\release scripts\\release\\build_loopx_bundle.py scripts\\release\\verify_loopx_install.py",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "expected_fail_closed_checks": [
+    {
+      "condition": "incorrect requested implementation commit",
+      "code": "release_pipeline_revision_mismatch"
+    },
+    {
+      "condition": "incorrect benchmark evidence commit",
+      "code": "release_benchmark_revision_mismatch"
+    }
+  ],
+  "environment_diagnostic": {
+    "first_release_unit_run": "36 setup errors before test execution",
+    "cause": "A reused Windows pytest basetemp could not be enumerated because of its existing ACL state.",
+    "repository_failure": false,
+    "resolution": "The identical 45-test suite passed with a new workspace-local basetemp and cache provider disabled."
+  },
+  "line_buckets": {
+    "production_and_scripts_raw_additions": 2594,
+    "test_raw_additions": 333,
+    "data_raw_additions": 9577,
+    "docs_raw_additions": 0,
+    "runtime_assets_bytes": 11040260,
+    "runtime_assets_raw_additions": 0,
+    "generated_raw_additions": 0,
+    "adapter_only_raw_additions": 0,
+    "mock_fixture_raw_additions": 0
+  },
+  "risk_assessment": {
+    "high_risk_review_triggered": true,
+    "high_risk_review_verdict": "PASS",
+    "canonical_owner_transfer": false,
+    "external_zyra_dependency_added": false,
+    "runtime_external_source_dependency": false,
+    "network_install_required": false,
+    "user_level_write_enabled": false,
+    "long_lived_process_or_port_added": false,
+    "training_lifecycle_added": false,
+    "openclaw_used": false,
+    "phase2_strongest_v1_activated": false
+  }
+}
