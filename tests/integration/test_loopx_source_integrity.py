@@ -16,7 +16,18 @@ def _isolated_runtime(tmp_path: Path) -> Path:
     root = tmp_path / "isolated"
     embedded = root / EMBEDDED_RELATIVE
     embedded.parent.mkdir(parents=True)
-    shutil.copytree(PROJECT_ROOT / EMBEDDED_RELATIVE, embedded)
+    shutil.copytree(
+        PROJECT_ROOT / EMBEDDED_RELATIVE,
+        embedded,
+        ignore=shutil.ignore_patterns(
+            "__pycache__",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".ruff_cache",
+            "*.pyc",
+            "*.pyo",
+        ),
+    )
     lock_source = PROJECT_ROOT / "config" / "loopx" / "package-lock.json"
     lock_target = root / "config" / "loopx" / "package-lock.json"
     lock_target.parent.mkdir(parents=True)

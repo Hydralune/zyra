@@ -94,13 +94,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=str(PROJECT_ROOT.parent / "long-horizon-systems" / "loopx"),
     )
     parser.add_argument("--project-root", default=str(PROJECT_ROOT))
+    parser.add_argument(
+        "--materialize-source",
+        action="store_true",
+        help=(
+            "Write the canonical v0.2.13 Git archive bytes into the embedded "
+            "runtime before verifying and regenerating metadata."
+        ),
+    )
     parser.add_argument("--output", default="")
     return parser
 
 
 def _git(source_root: Path, *arguments: str, binary: bool = False) -> str | bytes:
     result = subprocess.run(
-        ["git", "-C", str(source_root), *arguments],
+        [
+            "git",
+            "-c",
+            "core.autocrlf=false",
+            "-c",
+            "core.eol=lf",
+            "-C",
+            str(source_root),
+            *arguments,
+        ],
         check=False,
         capture_output=True,
         text=not binary,
@@ -138,6 +155,8 @@ def _excluded(path: str) -> bool:
 def _archive_records(
     source_root: Path,
     embedded_root: Path,
+    *,
+    materialize_source: bool,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     modes = _tree_modes(source_root)
     excluded_counts = {item["pattern"]: 0 for item in EXCLUSIONS}
@@ -157,6 +176,15 @@ def _archive_records(
                 for name in bundle.namelist()
                 if not name.endswith("/")
             }
+        if materialize_source:
+            embedded_root.mkdir(parents=True, exist_ok=True)
+            for path, content in archive_files.items():
+                if _excluded(path):
+                    continue
+                target = embedded_root.joinpath(*PurePosixPath(path).parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+                target.chmod(0o755 if modes.get(path) == "100755" else 0o644)
         for path in sorted(archive_files, key=lambda item: item.encode("utf-8")):
             if path.startswith(".github/"):
                 excluded_counts[".github/**"] += 1
@@ -311,6 +339,7 @@ def build(
     source_root: Path,
     project_root: Path,
     output_path: Path | None,
+    materialize_source: bool = False,
 ) -> dict[str, Any]:
     source_root = source_root.resolve()
     project_root = project_root.resolve()
@@ -331,6 +360,11 @@ def build(
             "LoopX source identity mismatch: "
             f"tag={tag_object}, peeled={source_commit}, type={object_type}"
         )
+    records, excluded_counts = _archive_records(
+        source_root,
+        embedded_root,
+        materialize_source=materialize_source,
+    )
     with (embedded_root / "pyproject.toml").open("rb") as stream:
         pyproject = tomllib.load(stream)
     project = pyproject.get("project")
@@ -346,7 +380,6 @@ def build(
     )
     if f'__version__ = "{LOOPX_VERSION}"' not in init_text:
         raise RuntimeError("embedded LoopX runtime version is inconsistent")
-    records, excluded_counts = _archive_records(source_root, embedded_root)
     inventory = _inventory(embedded_root, pyproject)
     tree_digest = source_manifest_digest(records)
     manifest: dict[str, Any] = {
@@ -466,6 +499,7 @@ def build(
         / "loopx"
         / "runtime"
     )
+    packaged_root.mkdir(parents=True, exist_ok=True)
     _write_json(lock_path, lock)
     shutil.copyfile(manifest_path, packaged_root / SOURCE_MANIFEST_NAME)
     shutil.copyfile(lock_path, packaged_root / "package-lock.json")
@@ -484,6 +518,7 @@ def build(
         "package_lock": str(lock_path),
         "package_lock_digest": lock["lock_digest"],
         "archive_artifact_count": 0,
+        "materialized_source": materialize_source,
         "inventory": {
             key: len(value) if not isinstance(value, Mapping) else len(value)
             for key, value in inventory.items()
@@ -510,6 +545,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         source_root=Path(arguments.source_root),
         project_root=Path(arguments.project_root),
         output_path=Path(arguments.output).resolve() if arguments.output else None,
+        materialize_source=arguments.materialize_source,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
