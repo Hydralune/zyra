@@ -1,0 +1,73 @@
+{
+  "schema": "zyra.phase2.loopx-control-risk-audit/v1",
+  "slice_id": "P2-S01-03",
+  "implementation_commit": "a9e3dec92bee73cb6405c3bad80e4da181899008",
+  "summary": {
+    "blockers": 0,
+    "open_slice_risks": 0,
+    "mitigated": 6,
+    "accepted_out_of_scope": 2,
+    "verdict": "pass"
+  },
+  "findings": [
+    {
+      "id": "P2-S01-03-R01",
+      "risk": "LoopX private claim or quota could be mistaken for Zyra lease or execution budget.",
+      "mitigation": "The versioned projection separates private and canonical sections; command tests assert claim conflicts create no lease effect and quota changes do not mutate the canonical budget.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R02",
+      "risk": "A typed API commit receipt could be misreported as a LoopX delivery ACK.",
+      "mitigation": "Mutation responses expose the typed receipt and sync_receipt separately; idempotency tests verify replay preserves the original bridge ACK without a second delivery.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R03",
+      "risk": "Importing the immutable pinned package could create __pycache__ and fail restart integrity validation.",
+      "mitigation": "The pinned loader temporarily disables bytecode writes during import; clean-process restart tests validate the same installed package twice.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R04",
+      "risk": "A corrupt or future-version private projection could silently disable long-horizon continuity.",
+      "mitigation": "State loading fails degraded, and sync retry deterministically rebuilds from the latest ACKed bridge command under the single-writer fence.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R05",
+      "risk": "The workbench could mutate browser-local state and present it as canonical success.",
+      "mitigation": "The panel consumes typed backend state only, coalesces duplicate submit, binds expected_cursor, and refreshes from returned receipts.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R06",
+      "risk": "LoopX could become a second task runtime or bypass physical dispatch ownership.",
+      "mitigation": "LoopX contributes only continuation constraints before the existing task graph dispatch; ResourceScheduler/worker leases and GraphStateCustody remain canonical owners.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S01-03-R07",
+      "risk": "Two full Web tests fail when their fixed MCP elicitation timestamp expires.",
+      "evidence": "test:web: 274 passed, 2 failed; both failures are in the pre-existing MCP elicitation fixture fixed to 2026-07-25, while all LoopX feature tests pass.",
+      "disposition": "Existing time-sensitive test debt is outside P2-S01-03; recorded transparently and not modified.",
+      "status": "accepted_out_of_scope"
+    },
+    {
+      "id": "P2-S01-03-R08",
+      "risk": "The broad legacy API control test file does not complete cleanly in the available validation window.",
+      "evidence": "The broad file timed out after 304 seconds; four split adjacent cases passed and the existing /help case failed because the TypeScript E02 response omits the old Python groups field.",
+      "disposition": "The behavior is unrelated to the new LoopX routes; the dedicated real-server LoopX integration suite passed.",
+      "status": "accepted_out_of_scope"
+    }
+  ],
+  "owner_checks": {
+    "graph_state_custody_preserved": true,
+    "loopx_private_state_preserved": true,
+    "resource_scheduler_preserved": true,
+    "permission_gate_present": true,
+    "durable_outbox_single_writer_preserved": true,
+    "openclaw_excluded": true,
+    "external_source_runtime_dependency": false
+  }
+}

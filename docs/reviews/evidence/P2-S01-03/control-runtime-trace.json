@@ -1,0 +1,147 @@
+{
+  "schema": "zyra.phase2.loopx-control-runtime-trace/v1",
+  "slice_id": "P2-S01-03",
+  "recorded_at": "2026-07-29",
+  "base_commit": "5b5da14511d4615282a4f969321eb368c5a8d8d6",
+  "implementation_commit": "a9e3dec92bee73cb6405c3bad80e4da181899008",
+  "runtime": {
+    "loopx_package": "repository-local pinned immutable installation from P2-S01-01",
+    "external_source_runtime_dependency": false,
+    "canonical_mutation_owner": "GraphStateCustody",
+    "private_state_owner": "LoopX",
+    "sync_owner": "Zyra LoopX bridge durable outbox",
+    "permission_action": "loopx.control"
+  },
+  "control_surface": {
+    "commands": [
+      "/loopx-connect",
+      "/loopx-status",
+      "/loopx-disconnect",
+      "/loopx-todos",
+      "/loopx-todo",
+      "/loopx-claim",
+      "/loopx-release",
+      "/loopx-quota",
+      "/loopx-interaction",
+      "/loopx-sync",
+      "/loopx-retry"
+    ],
+    "api": [
+      "GET /tasks/{task_id}/loopx",
+      "POST /tasks/{task_id}/loopx/commands"
+    ],
+    "state_schema": "zyra.loopx-control-state/v1",
+    "typed_api_receipt_separate_from_sync_receipt": true
+  },
+  "observed_paths": [
+    {
+      "case": "connect",
+      "path": [
+        "RuntimeControlDispatcher",
+        "permission loopx.control",
+        "GraphStateCustody metadata commit",
+        "enqueue_after_commit",
+        "durable outbox",
+        "pinned LoopX dispatcher",
+        "ACK",
+        "runtime event and artifact receipt"
+      ],
+      "assertions": [
+        "one canonical revision is committed before enqueue",
+        "one outbox record reaches ACK",
+        "private goal and todo are visible only through the LoopX projection",
+        "continuation metadata is available to the task graph"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "typed mutation idempotency",
+      "assertions": [
+        "duplicate typed request returns replayed typed receipt",
+        "duplicate request does not create another bridge ACK",
+        "sync_receipt remains the original LoopX delivery proof"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "stale cursor",
+      "assertions": [
+        "expected_cursor mismatch returns conflict before graph mutation",
+        "no claim, worker lease, or budget effect is created"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "claim conflict and recovery",
+      "assertions": [
+        "conflicting claimant produces a dead-letter rather than a fake ACK",
+        "LoopX claim never becomes a Zyra worker lease",
+        "correct claimant release followed by sync retry ACKs the pending command",
+        "dead-letter count returns to zero"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "quota exhaustion and recovery",
+      "assertions": [
+        "spend at limit is recorded",
+        "later spend applies zero and remains exhausted",
+        "Zyra execution budget remains a separate owner",
+        "reconnect with a higher private limit makes continuation available"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "task semantic gate",
+      "assertions": [
+        "continuation=false blocks before physical worker dispatch",
+        "blocked path spends no worker/tool budget",
+        "disabled LoopX path executes the baseline worker",
+        "continuation=true injects goal, todo, and obligation constraints"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "clean OS process restart",
+      "process_count": 2,
+      "shared_inputs": [
+        "workspace root",
+        "graph state store",
+        "worker pool store",
+        "LoopX bridge state directory",
+        "pinned LoopX installation"
+      ],
+      "restored": [
+        "workspace identity",
+        "goal",
+        "todo",
+        "claim",
+        "quota",
+        "history",
+        "outbox cursor",
+        "continuation"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "corrupt or future private projection",
+      "assertions": [
+        "GET returns lifecycle=degraded instead of success",
+        "sync retry replays the latest ACKed command under the single-writer fence",
+        "private projection is rebuilt without changing the canonical graph",
+        "repeated retry is idempotent"
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "disconnect and sealed permission",
+      "assertions": [
+        "disconnect changes continuation behavior",
+        "sealed mutation is deterministically denied",
+        "denial creates no LoopX ACK and no artificial human intervention"
+      ],
+      "status": "passed"
+    }
+  ],
+  "verdict": "pass"
+}

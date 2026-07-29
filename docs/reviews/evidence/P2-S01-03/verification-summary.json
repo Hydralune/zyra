@@ -1,0 +1,112 @@
+{
+  "schema": "zyra.phase2.slice-verification-summary/v1",
+  "slice_id": "P2-S01-03",
+  "recorded_at": "2026-07-29",
+  "base_commit": "5b5da14511d4615282a4f969321eb368c5a8d8d6",
+  "implementation_commit": "a9e3dec92bee73cb6405c3bad80e4da181899008",
+  "verdict": "pass",
+  "implementation_line_audit": {
+    "added": 2542,
+    "deleted": 6,
+    "buckets": {
+      "production_and_config": {
+        "added": 1721,
+        "deleted": 6
+      },
+      "test": {
+        "added": 821,
+        "deleted": 0
+      },
+      "runtime_assets": {
+        "added": 0,
+        "deleted": 0
+      },
+      "generated": {
+        "added": 0,
+        "deleted": 0
+      },
+      "data": {
+        "added": 0,
+        "deleted": 0
+      },
+      "docs": {
+        "added": 0,
+        "deleted": 0,
+        "note": "Review and evidence are committed separately."
+      },
+      "adapter_only_mock_fixture": {
+        "added": 0,
+        "deleted": 0
+      }
+    }
+  },
+  "checks": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_loopx_control_commands.py tests/integration/test_loopx_api_restart.py tests/integration/test_loopx_bridge_outbox.py tests/integration/test_loopx_bridge_restart.py tests/unit/test_task_graph.py -q",
+      "result": "18 passed in 123.91s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run typecheck:web",
+      "result": "typed-api-client, commands, and apps/web TypeScript checks passed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe test .\\packages\\core\\typed-api-client\\test .\\apps\\web\\src\\features\\long-horizon\\loopx",
+      "result": "21 passed, 0 failed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run build:web",
+      "result": "production build passed; 375 modules bundled",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q apps\\api\\zyra_api\\main.py packages\\commands\\zyra_commands\\runtime\\registry.py packages\\integrations\\zyra_integrations\\loopx packages\\orchestration\\zyra_orchestration\\task_graph.py tests\\integration\\test_loopx_control_commands.py tests\\integration\\test_loopx_api_restart.py",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true; target_commit=a9e3dec92bee73cb6405c3bad80e4da181899008; strongest_activation_eligible=false",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0; warnings=734",
+      "status": "passed"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run test:web",
+      "result": "274 passed, 2 failed; both failures are pre-existing MCP elicitation cases whose fixed 2026-07-25 expiry precedes the 2026-07-29 execution date; all LoopX tests passed",
+      "status": "accepted_out_of_scope"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_api_control_commands.py -q",
+      "result": "timed out after 304 seconds; split adjacent checks had 4 passes and one pre-existing /help groups mismatch unrelated to LoopX",
+      "status": "accepted_out_of_scope"
+    }
+  ],
+  "acceptance": {
+    "cli_commands": true,
+    "versioned_api": true,
+    "existing_workbench_panel": true,
+    "permission_and_idempotency": true,
+    "real_bridge_ack": true,
+    "private_and_canonical_owner_separation": true,
+    "claim_conflict_recovery": true,
+    "quota_exhaustion_recovery": true,
+    "sync_degraded_recovery": true,
+    "corruption_and_version_recovery": true,
+    "clean_os_process_restart": true,
+    "task_semantic_mutation_evidence": true,
+    "external_runtime_dependency_absent": true
+  },
+  "phase2_strongest_v1_activated": false,
+  "phase2_strongest_v1_note": "This slice completes LoopX control/restart integration only; the frozen readiness policy correctly remains closed until all required mechanisms are deterministic_ready."
+}
