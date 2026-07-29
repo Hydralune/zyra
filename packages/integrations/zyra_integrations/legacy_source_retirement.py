@@ -550,11 +550,14 @@ def audit_candidate_files(
     frozen_legacy_blobs = set(legacy_blob_ids)
     allowed_existing_pairs = set(base_nonlegacy_pairs)
     for item in target_files:
-        if _forbidden_pool_path(item.path):
+        if (
+            _forbidden_pool_path(item.path)
+            and (item.path, item.blob_id) not in allowed_existing_pairs
+        ):
             findings.append(
                 RetirementFinding(
                     "forbidden_source_pool_path",
-                    "target revision contains a forbidden source-pool path",
+                    "target revision adds or changes a forbidden source-pool path",
                     item.path,
                 )
             )

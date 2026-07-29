@@ -92,6 +92,7 @@ class LegacySourceRetirementTests(unittest.TestCase):
 
     def test_candidate_gate_rejects_reintroduced_and_renamed_pools(self) -> None:
         legacy_blob = "a" * 40
+        retained_notice_blob = "c" * 40
         candidates = (
             GitFile(
                 path="vendor/reintroduced.py",
@@ -111,17 +112,31 @@ class LegacySourceRetirementTests(unittest.TestCase):
                 blob_id=legacy_blob,
                 size=1,
             ),
+            GitFile(
+                path="third_party/NOTICE.md",
+                mode="100644",
+                blob_id=retained_notice_blob,
+                size=1,
+            ),
         )
 
         findings = audit_candidate_files(
             candidates,
             legacy_blob_ids={legacy_blob},
-            base_nonlegacy_pairs=(),
+            base_nonlegacy_pairs={
+                ("third_party/NOTICE.md", retained_notice_blob),
+            },
         )
         codes = {finding.code for finding in findings}
 
         self.assertIn("forbidden_source_pool_path", codes)
         self.assertIn("renamed_source_pool_blob", codes)
+        self.assertFalse(
+            any(
+                finding.path == "third_party/NOTICE.md"
+                for finding in findings
+            )
+        )
 
     def test_source_identities_are_metadata_only_and_roots_are_absent(self) -> None:
         for source in (
