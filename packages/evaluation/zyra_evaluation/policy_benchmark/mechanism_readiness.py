@@ -6,7 +6,7 @@ import json
 import tomllib
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import timezone
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
@@ -1716,14 +1716,21 @@ def build_mechanism_readiness_report(
             "The report requires a lowercase 40-character implementation commit.",
             path="implementation_commit",
         )
+    frozen_evidence_at = _text(
+        index.current_campaign.get("completed_at"),
+        "current campaign completed_at",
+    )
     report: dict[str, Any] = {
         "schema": READINESS_REPORT_SCHEMA,
         "slice_id": "P2-S00-03",
         "readiness_stage": READINESS_STAGE,
         "p2_base_commit": P2_BASE_COMMIT,
         "implementation_commit": implementation_commit,
-        "generated_at": generated_at
-        or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": generated_at or frozen_evidence_at,
+        "generation_clock": (
+            "frozen current-campaign completion; rerunning the same "
+            "implementation and evidence is byte-deterministic"
+        ),
         "valid": no_training["passed"] is True,
         "activation_allowed": False,
         "activation_reason": (

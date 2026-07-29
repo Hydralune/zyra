@@ -118,6 +118,21 @@ def test_identical_frozen_input_rebuilds_identical_snapshot_digests(
         ]
 
 
+def test_default_report_generation_clock_is_frozen_and_reproducible() -> None:
+    first = build_mechanism_readiness_report(
+        ROOT,
+        implementation_commit=IMPLEMENTATION_COMMIT,
+    )
+    second = build_mechanism_readiness_report(
+        ROOT,
+        implementation_commit=IMPLEMENTATION_COMMIT,
+    )
+
+    assert first["generated_at"] == "2026-07-29T04:15:04.407602Z"
+    assert second["generated_at"] == first["generated_at"]
+    assert second["report_digest"] == first["report_digest"]
+
+
 def test_missing_or_corrupt_report_resolves_every_mechanism_to_baseline(
     tmp_path: Path,
 ) -> None:
