@@ -1,0 +1,59 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-line-buckets/v1",
+  "slice_id": "P2-S02A-01",
+  "base_commit": "eff77b612c5d73dacc8b34960c601740fa8669a9",
+  "target_commit": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "git_shortstat": {
+    "files_changed": 3721,
+    "insertions": 52625,
+    "deletions": 773902
+  },
+  "buckets": [
+    {
+      "bucket": "production",
+      "files": 20,
+      "insertions": 1368,
+      "deletions": 1509,
+      "treatment": "Zyra-owned runtime, API, worker, ledger and release implementation."
+    },
+    {
+      "bucket": "test",
+      "files": 8,
+      "insertions": 401,
+      "deletions": 508,
+      "treatment": "Behavior, failure, mutation, doctor and release regression tests; no production credit."
+    },
+    {
+      "bucket": "audit",
+      "files": 7,
+      "insertions": 523,
+      "deletions": 768,
+      "treatment": "Provenance, source-custody and historical smoke entrypoints; no production credit."
+    },
+    {
+      "bucket": "data",
+      "files": 1,
+      "insertions": 11,
+      "deletions": 0,
+      "treatment": "Current ledger retirement overlay; no production credit."
+    },
+    {
+      "bucket": "docs",
+      "files": 1,
+      "insertions": 50322,
+      "deletions": 0,
+      "treatment": "Checksum-bound immutable provenance manifest; no production credit."
+    },
+    {
+      "bucket": "runtime-assets-deleted",
+      "files": 3684,
+      "insertions": 0,
+      "deletions": 771117,
+      "treatment": "Deleted legacy vendor/source-pool files; never counted as Zyra production implementation."
+    }
+  ],
+  "generated_files_counted_as_production": 0,
+  "runtime_assets_counted_as_production": 0,
+  "tests_counted_as_production": 0,
+  "docs_counted_as_production": 0
+}

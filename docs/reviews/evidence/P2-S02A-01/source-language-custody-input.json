@@ -1,0 +1,33 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-language-custody/v1",
+  "slice_id": "P2-S02A-01",
+  "language_custody": [
+    {
+      "source_repo": "claude-code-best",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_formal_runtime_custody",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/query-engine.ts",
+        "packages/runtime/claude-runtime/src/session.ts",
+        "packages/runtime/claude-runtime/src/tools.ts"
+      ],
+      "minimum_added_lines_by_language": {}
+    },
+    {
+      "source_repo": "browser-use",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_formal_worker_custody",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "packages/workers/zyra_workers/browser_session/session_runtime.py",
+        "packages/workers/zyra_workers/browser_worker.py"
+      ],
+      "minimum_added_lines_by_language": {}
+    }
+  ]
+}

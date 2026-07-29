@@ -1,0 +1,128 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-verification-summary/v1",
+  "slice_id": "P2-S02A-01",
+  "verdict": "PASS_WITH_NONBLOCKING_RESIDUALS",
+  "base_commit": "eff77b612c5d73dacc8b34960c601740fa8669a9",
+  "provenance_commit": "e0e31f0",
+  "implementation_commits": [
+    "ecf46265ed4ce9cddc1ebeb73d97abb62a5cbc94",
+    "d79380c5ed98bd78f1829c32bb4202df6995893e",
+    "360633c7fdf9e45b059ee1ee5e3b196dbe6a0aeb",
+    "c8436744a86f4218c8d9675e441214fd5591cb99"
+  ],
+  "target_commit": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "retirement": {
+    "valid": true,
+    "root_file_count": 3684,
+    "root_total_bytes": 30656839,
+    "historical_target_count": 273,
+    "current_target_count": 0,
+    "findings": 0,
+    "manifest_digest": "a860a1c20c0c23cecf52776371e7a4c3a839cae94ca9bcecb01fdb629c52ab53"
+  },
+  "checks": [
+    {
+      "check": "focused and adjacent retirement regression",
+      "result": "74 passed, 6 subtests passed in 133.02s",
+      "status": "passed"
+    },
+    {
+      "check": "doctor retirement projection",
+      "result": "1 passed in 10.85s",
+      "status": "passed"
+    },
+    {
+      "check": "retirement tamper and mutation behavior",
+      "result": "Manifest digest/file tamper, reintroduced roots, new source-pool paths and renamed frozen blobs fail closed.",
+      "status": "passed"
+    },
+    {
+      "check": "internalization ledger",
+      "result": "ok=true; blocker_count=0; error_count=0; seed_entry_count=1097; normalized current entries=1302; current legacy target bindings=0",
+      "status": "passed_with_existing_warnings"
+    },
+    {
+      "check": "source-language custody",
+      "result": "ok=true; TypeScript and Python production custody present; violations=0",
+      "status": "passed"
+    },
+    {
+      "check": "source-to-target audit",
+      "result": "17 entries; 60 resolved source files; 81 resolved targets; 0 blocking findings",
+      "status": "passed"
+    },
+    {
+      "check": "submission boundary",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "check": "TypeScript runtime custody",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "check": "CodeWorker formal runtime",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "check": "M2 migrated smoke",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "check": "Claude productization clean source",
+      "result": "Formal runtime and built contracts pass in a temporary clean source tree; legacy roots absent.",
+      "status": "passed"
+    },
+    {
+      "check": "reproducible release",
+      "result": "Two byte-identical archives; SHA-256 389643eb0abfe6f4af16a828a6e45e22e7e81421db585708b9fce50eac8a3490; 4,323 files",
+      "status": "passed"
+    },
+    {
+      "check": "release archive and wheel retirement scan",
+      "result": "4,719 archive entries and 2,192 wheel entries; legacy-root path hits=0; release metadata legacy-path text hits=0",
+      "status": "passed"
+    },
+    {
+      "check": "clean install and product lifecycle",
+      "result": "ready=true; isolated install committed; lifecycle passed; uninstall completed; parent source repositories absent",
+      "status": "passed"
+    }
+  ],
+  "broad_validation": {
+    "unscoped_pytest": {
+      "status": "environment_collection_failed",
+      "result": "250 collection errors from protected tmp/browser profiles, old cleanroom copies and package caches; no project test result claimed."
+    },
+    "tests_root_pytest": {
+      "status": "timed_out_with_existing_failures",
+      "result": "Exceeded 3,600 seconds at about 88 percent with many protected cross-stage failures/errors; no full-suite PASS claimed."
+    },
+    "mixed_api_run": {
+      "status": "existing_release_policy_debt",
+      "result": "85 passed and 15 failed; all 15 failures came from tests/integration/test_api_control_commands.py, which config/release-python-tests.json explicitly ignores after the TypeScript E02 cutover."
+    },
+    "generic_source_custody": {
+      "status": "repository_wide_existing_debt",
+      "result": "release_ready=false with 1,084 broad blockers; custody section valid with zero findings. This result is not used as slice acceptance evidence."
+    },
+    "release_ci": {
+      "status": "not_executed",
+      "result": "Two-build release, explicit retirement verification and formal clean-install/product lifecycle passed; no 13-gate CI PASS claimed."
+    }
+  },
+  "acceptance": {
+    "legacy_roots_absent": true,
+    "immutable_provenance_preserved": true,
+    "runtime_fallback_absent": true,
+    "current_legacy_target_bindings_zero": true,
+    "related_regression_passed": true,
+    "release_byte_reproducible": true,
+    "clean_install_ready": true,
+    "protected_history_rewritten": false,
+    "canonical_owner_transfer": false
+  }
+}

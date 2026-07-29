@@ -1,0 +1,11 @@
+{
+  "base_commit": "eff77b612c5d73dacc8b34960c601740fa8669a9",
+  "current_legacy_target_count": 0,
+  "findings": [],
+  "historical_target_count": 273,
+  "root_file_count": 3684,
+  "root_total_bytes": 30656839,
+  "schema": "zyra.phase2.legacy-source-pool-retirement-verification/v1",
+  "target_revision": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "valid": true
+}

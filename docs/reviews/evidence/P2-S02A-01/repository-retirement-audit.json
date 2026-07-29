@@ -1,0 +1,36 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-repository-audit/v1",
+  "slice_id": "P2-S02A-01",
+  "base_commit": "eff77b612c5d73dacc8b34960c601740fa8669a9",
+  "base_tree": "be22e4514305c433c962b5652b79389d66f5b6b6",
+  "provenance_commit": "e0e31f0",
+  "target_commit": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "manifest": "legacy-source-pool-retirement-manifest.json",
+  "manifest_digest": "a860a1c20c0c23cecf52776371e7a4c3a839cae94ca9bcecb01fdb629c52ab53",
+  "frozen_roots": {
+    "vendor": {
+      "file_count": 3310,
+      "total_bytes": 25811199,
+      "git_tree": "d94012ca6ac6508f366b3fb321c65a7040814fbe"
+    },
+    "vendor-runtimes": {
+      "file_count": 374,
+      "total_bytes": 4845640,
+      "git_tree": "8fbfc1bf477249a86a903b04ae1c08fe1270a879"
+    }
+  },
+  "frozen_total_file_count": 3684,
+  "frozen_total_bytes": 30656839,
+  "historical_legacy_target_bindings": 273,
+  "current_legacy_target_bindings": 0,
+  "target_tree_legacy_root_file_count": 0,
+  "target_worktree_legacy_roots_present": false,
+  "renamed_legacy_blob_findings": 0,
+  "active_runtime_reference_findings": 0,
+  "loopx_changed_file_count": 0,
+  "openclaw_changed_file_count": 0,
+  "unmerged_path_count": 0,
+  "protected_internalization_ledger_seed_rewritten": false,
+  "fallback_available": false,
+  "verification_valid": true
+}

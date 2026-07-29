@@ -1,0 +1,59 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-release-cleanroom/v1",
+  "slice_id": "P2-S02A-01",
+  "source_commit": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "benchmark_commit": "09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b",
+  "release_id": "p2-s02a-01-c843674",
+  "pipeline": {
+    "ready": true,
+    "ci_executed": false,
+    "byte_identical_rebuilds": true,
+    "archive_sha256": "389643eb0abfe6f4af16a828a6e45e22e7e81421db585708b9fce50eac8a3490",
+    "archive_size": 29197310,
+    "bundle_file_count": 4323,
+    "archive_entry_count": 4719,
+    "manifest_digest": "c6920de489a29882b2592aee350222f13d6f447866104d7176c4a67a1fcdabfc",
+    "payload_digest": "fc4b2c8d7fba3a8bd17be7efd65b92a4ebc14467094f6c2c7e54df36b6375be9"
+  },
+  "wheel": {
+    "ready": true,
+    "entry_count": 2192,
+    "sha256": "7f2567414e4ec73e7c30d149165d30eea8aa72bbc027f1aba59ad34d3d0a8ea3",
+    "size": 9611598,
+    "legacy_root_path_hits": 0
+  },
+  "content_scan": {
+    "archive_legacy_root_path_hits": 0,
+    "wheel_legacy_root_path_hits": 0,
+    "sbom_notice_runtime_inventory_legacy_path_text_hits": 0
+  },
+  "clean_install": {
+    "ready": true,
+    "digest": "02683f2fa0f2f0a5254a441e1623f6a374e9395428d21e056b41e72eed6afc43",
+    "archive_sha256": "389643eb0abfe6f4af16a828a6e45e22e7e81421db585708b9fce50eac8a3490",
+    "command_count": 9,
+    "all_commands_ready": true,
+    "workspace_isolated": true,
+    "parent_source_repositories_present": false,
+    "install_state": "committed",
+    "uninstall_state": "uninstalled",
+    "product_lifecycle_exercised": true,
+    "lifecycle_ready": true,
+    "lifecycle_commands": [
+      "submission-boundary",
+      "release-doctor",
+      "product-start",
+      "semantic-health",
+      "product-stop"
+    ],
+    "loopx_first_task_ready": true,
+    "loopx_probe_origin_under_release_payload": true
+  },
+  "dependency_bootstrap": {
+    "first_sandbox_attempt": "failed during isolated dependency installation",
+    "final_attempt": "passed after scoped approval for hash-locked Python and Bun dependencies",
+    "unlocked_dependency_or_source_pool_used": false
+  },
+  "release_ci_executed": false,
+  "release_ci_note": "The two-build release, archive verification, explicit retirement verifier, clean install and product lifecycle were run. The repository-wide 13-gate CI graph was not claimed because its protected broad source-custody and Python debt are outside this slice and are recorded in verification-summary.json."
+}

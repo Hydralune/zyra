@@ -1,0 +1,77 @@
+{
+  "schema": "zyra.phase2.legacy-source-retirement-risk-review/v1",
+  "slice_id": "P2-S02A-01",
+  "review_target": "c8436744a86f4218c8d9675e441214fd5591cb99",
+  "verdict": "PASS_WITH_NONBLOCKING_RESIDUALS",
+  "blocking_findings": [],
+  "review_fixes": [
+    {
+      "finding": "The retirement path gate rejected the pre-existing third_party/NOTICE.md baseline file.",
+      "resolution": "Allow only an unchanged base path/blob pair while still rejecting newly added or changed source-pool paths and copied legacy blobs.",
+      "fix_commit": "d79380c5ed98bd78f1829c32bb4202df6995893e"
+    },
+    {
+      "finding": "The local browser-use editable install pointed into the deleted vendor root.",
+      "resolution": "Reinstalled the exact browser-use 0.13.3 wheel in the development environment; no repository fallback or source-pool dependency was added.",
+      "repository_change": false
+    },
+    {
+      "finding": "The historical Claude productization clean-source script imported retired extraction APIs.",
+      "resolution": "Migrated it to the formal TypeScript runtime, checksum-bound prerequisite evidence, clean dependency bootstrap, built bundle and current contracts.",
+      "fix_commit": "360633c7fdf9e45b059ee1ee5e3b196dbe6a0aeb"
+    },
+    {
+      "finding": "verify_m2.py still expected removed Python-owned command/skill/browser/static-source contracts.",
+      "resolution": "Migrated the smoke to current TypeScript command/runtime owners, formal BrowserWorker metadata and permission-correct CodeWorker behavior.",
+      "fix_commit": "c8436744a86f4218c8d9675e441214fd5591cb99"
+    }
+  ],
+  "risk_checks": [
+    {
+      "risk": "provenance loss after deleting source pools",
+      "result": "closed",
+      "evidence": "The pre-deletion manifest binds all 3,684 paths to Git modes, blobs, SHA-256 values, root tree objects, source commits, versions and licenses."
+    },
+    {
+      "risk": "renamed or copied legacy pool survives outside the retired roots",
+      "result": "closed",
+      "evidence": "Candidate audit rejects forbidden new/changed pool paths and frozen legacy blob IDs at new paths; mutation tests pass."
+    },
+    {
+      "risk": "runtime, doctor, test, audit or release silently falls back to deleted files",
+      "result": "closed",
+      "evidence": "Current identities are metadata-only, extraction/crosswalk writers fail closed, current target bindings are zero, clean-source and clean-install paths pass without either root."
+    },
+    {
+      "risk": "release or wheel retains legacy roots",
+      "result": "closed",
+      "evidence": "Archive, wheel and release metadata direct scans report zero legacy-root hits."
+    },
+    {
+      "risk": "protected Phase 1 history is rewritten",
+      "result": "closed",
+      "evidence": "The protected ledger seed and historical review/evidence records are unchanged; a current overlay removes active bindings without changing historical rows."
+    },
+    {
+      "risk": "unrelated LoopX or excluded OpenClaw scope changes",
+      "result": "closed",
+      "evidence": "Base-to-target changed-file counts are zero for LoopX and OpenClaw."
+    },
+    {
+      "risk": "canonical state ownership changes",
+      "result": "closed",
+      "evidence": "Graph, memory, scheduler, permission, lease, event and artifact owners are unchanged; this slice only removes source-pool fallback surfaces."
+    }
+  ],
+  "nonblocking_residuals": [
+    "A repository-wide pytest run scoped to tests/ reached about 88 percent but exceeded the 60-minute command budget with many protected cross-stage failures/errors; no full-suite PASS is claimed.",
+    "The release policy explicitly excludes stale Python-owned API/control tests after the TypeScript E02 cutover. The slice-specific doctor behavior passes independently.",
+    "The generic M3 source-custody candidate scan remains repository-release-unready because of broad historical dependency/process/source findings; its custody section reported zero findings. Slice-specific language custody, source-to-target, ledger, submission and retirement gates pass.",
+    "The release pipeline was run with --skip-ci, followed by explicit archive verification and the formal clean-install/product lifecycle. A full 13-gate release CI PASS is not claimed."
+  ],
+  "canonical_owner_transfer": false,
+  "public_persistence_migration": false,
+  "new_external_source_dependency": false,
+  "training_or_policy_learning_added": false,
+  "protected_history_rewritten": false
+}
