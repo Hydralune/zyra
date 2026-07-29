@@ -1,0 +1,632 @@
+{
+  "schema": "zyra.phase2-mechanism-readiness-config/v1",
+  "slice_id": "P2-S00-03",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "baseline_manifest": "docs/release/phase2-baseline-manifest.json",
+  "baseline_manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+  "readiness_stage": "input_precheck",
+  "default_unknown_status": "unavailable",
+  "fallback_profile": "phase1_deterministic_baseline",
+  "mechanisms": [
+    {
+      "mechanism_id": "arg_designer",
+      "display_name": "ARG joint role-node-edge topology",
+      "decision_event_type": "topology_mutation",
+      "semantic_effect": "Produce one joint role, node, and incident-edge base topology proposal conditioned on the current task phase, requirements, obligations, capabilities, graph, and continuity verdict.",
+      "deterministic_decision_contract": "A fixed immutable snapshot and config digest must produce one stably ordered joint hypothesis and explicit END result. ARG never writes the graph.",
+      "causal_receipt_contract": [
+        "proposal",
+        "symbolic_verdict",
+        "commit_or_route",
+        "execution",
+        "artifact",
+        "verification_outcome"
+      ],
+      "fallback": {
+        "on_missing": "phase1_deterministic_baseline",
+        "on_stale": "phase1_deterministic_baseline",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_deterministic_baseline",
+        "silent_fallback_allowed": false,
+        "degraded_event": "phase2.mechanism_degraded"
+      },
+      "required_inputs": [
+        {
+          "field_id": "task_phase",
+          "canonical_owner": "ClaudeRuntimeCore",
+          "owner_domain": "task_session_attempt",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "event.task_created.phase",
+          "max_age_seconds": 86400,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "requirement_revision",
+          "canonical_owner": "ClaudeRuntimeCore",
+          "owner_domain": "task_session_attempt",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "campaign.input_revision",
+          "max_age_seconds": 86400,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "unresolved_obligations",
+          "canonical_owner": "ClaudeRuntimeCore",
+          "owner_domain": "task_session_attempt",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "event.task_updated.unresolved",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "capability_registry",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "environment.worker_classes",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "immutable_graph_snapshot",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "event.topology_mutation.snapshot",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "memory_continuity_verdict",
+          "canonical_owner": "RetrievalIntegrationRuntime",
+          "owner_domain": "memory_retrieval_compact",
+          "decision_timing": "strictly before ARG proposal",
+          "evidence_key": "domain_verification.continuity",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        }
+      ],
+      "optional_inputs": [
+        {
+          "field_id": "recent_recovery_outcome",
+          "canonical_owner": "RecoveryApplication",
+          "owner_domain": "scheduler_recovery",
+          "decision_timing": "before ARG proposal or excluded",
+          "evidence_key": "raw_metric.recovery.fault_success_rate",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "exclude_optional"
+        }
+      ],
+      "required_scenarios": [
+        "normal",
+        "requirement_change",
+        "fault_degraded",
+        "recovery"
+      ],
+      "required_failure_paths": [
+        "reject",
+        "invalid",
+        "unavailable",
+        "reroute",
+        "recovery"
+      ],
+      "allowed_follow_up_scope": [
+        "typed PolicyInputSnapshot instrumentation",
+        "deterministic joint hypothesis implementation in P2-S03-01",
+        "proposal and symbolic verdict receipts",
+        "no training or learned scorer"
+      ],
+      "instrumentation_requirements": [
+        "pre-proposal unresolved-obligation digest",
+        "pre-proposal immutable graph identity and revision",
+        "pre-proposal capability registry version",
+        "MemoryContinuityVerifier decision receipt",
+        "ARG proposal-to-projector causation ID"
+      ]
+    },
+    {
+      "mechanism_id": "card",
+      "display_name": "CARD condition residual correction",
+      "decision_event_type": "resource_decision",
+      "semantic_effect": "Add, drop, or reweight directional residual edges on the ARG base topology from current health, load, latency, cost, privacy, location, freshness, and confidence.",
+      "deterministic_decision_contract": "A fixed ARG base topology, EnvironmentSnapshot, and config digest must produce a stable directional residual diff with hysteresis and switch-cost reasons. CARD never creates a second graph owner.",
+      "causal_receipt_contract": [
+        "proposal",
+        "symbolic_verdict",
+        "commit_or_route",
+        "execution",
+        "artifact",
+        "verification_outcome"
+      ],
+      "fallback": {
+        "on_missing": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+        "on_stale": "use_unmodified_arg_base_or_phase1_deterministic_baseline",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_deterministic_baseline",
+        "silent_fallback_allowed": false,
+        "degraded_event": "phase2.mechanism_degraded"
+      },
+      "required_inputs": [
+        {
+          "field_id": "arg_base_topology",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "after ARG proposal and strictly before CARD residual",
+          "evidence_key": "event.topology_mutation.snapshot",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "worker_provider_health",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "current_tier.health",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "load_capacity",
+          "canonical_owner": "ResourceScheduler",
+          "owner_domain": "resource_placement",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "raw_metric.resource.cpu_utilization",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "latency",
+          "canonical_owner": "ProviderControlPlane",
+          "owner_domain": "provider_model_cost",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "current_provider.latency",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "cost",
+          "canonical_owner": "ProviderControlPlane",
+          "owner_domain": "provider_model_cost",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "current_provider.cost_tokens",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "privacy_constraint",
+          "canonical_owner": "PermissionApprovalRuntime",
+          "owner_domain": "permission",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "owner_route.privacy",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "physical_location",
+          "canonical_owner": "ResourceScheduler",
+          "owner_domain": "resource_placement",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "owner_route.location",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "observation_freshness",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "current_tier.freshness",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "observation_confidence",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before CARD residual",
+          "evidence_key": "current_tier.freshness",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        }
+      ],
+      "optional_inputs": [
+        {
+          "field_id": "network_degradation",
+          "canonical_owner": "RecoveryApplication",
+          "owner_domain": "scheduler_recovery",
+          "decision_timing": "before CARD residual or excluded",
+          "evidence_key": "raw_metric.recovery.delivery_after_fault",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "exclude_optional"
+        }
+      ],
+      "required_scenarios": [
+        "normal",
+        "requirement_change",
+        "fault_degraded",
+        "privacy",
+        "placement",
+        "recovery"
+      ],
+      "required_failure_paths": [
+        "reject",
+        "invalid",
+        "unavailable",
+        "reroute",
+        "recovery"
+      ],
+      "allowed_follow_up_scope": [
+        "versioned EnvironmentSnapshot instrumentation",
+        "deterministic directional residual implementation in P2-S03-02",
+        "freshness confidence hysteresis and switch-cost receipts",
+        "no GCN training or learned calibration"
+      ],
+      "instrumentation_requirements": [
+        "decision-time worker and provider health",
+        "decision-time load and capacity",
+        "decision-time latency and real cost",
+        "privacy and allowed-placement classification before residual scoring",
+        "freshness and confidence per observation",
+        "CARD residual-to-projector causation ID"
+      ]
+    },
+    {
+      "mechanism_id": "agentprune",
+      "display_name": "AgentPrune spatial and temporal communication pruning",
+      "decision_event_type": "permission_decision",
+      "semantic_effect": "Produce deterministic spatial and temporal keep/drop masks that preserve critical obligations, provenance, recovery, and verifier paths while reducing communication.",
+      "deterministic_decision_contract": "A fixed corrected topology, communication outcome window, protected-path set, budget, and config digest must produce one stably ordered keep/drop set and savings receipt.",
+      "causal_receipt_contract": [
+        "proposal",
+        "symbolic_verdict",
+        "commit_or_route",
+        "execution",
+        "artifact",
+        "verification_outcome"
+      ],
+      "fallback": {
+        "on_missing": "phase1_targeted_communication_baseline",
+        "on_stale": "phase1_targeted_communication_baseline",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_targeted_communication_baseline",
+        "silent_fallback_allowed": false,
+        "degraded_event": "phase2.mechanism_degraded"
+      },
+      "required_inputs": [
+        {
+          "field_id": "spatial_edges",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "after CARD residual and strictly before pruning",
+          "evidence_key": "event.topology_mutation.edges",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "temporal_edges",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "after CARD residual and strictly before pruning",
+          "evidence_key": "event.temporal_edges",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "delivery_outcome",
+          "canonical_owner": "RuntimeEventSqliteStore",
+          "owner_domain": "event_trace",
+          "decision_timing": "from an earlier completed outcome window",
+          "evidence_key": "raw_metric.communication.useful_ratio",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "byte_token_cost",
+          "canonical_owner": "ProviderControlPlane",
+          "owner_domain": "provider_model_cost",
+          "decision_timing": "from an earlier completed outcome window",
+          "evidence_key": "raw_metric.efficiency.token_units",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "redundancy_ratio",
+          "canonical_owner": "RuntimeEventSqliteStore",
+          "owner_domain": "event_trace",
+          "decision_timing": "from an earlier completed outcome window",
+          "evidence_key": "raw_metric.communication.duplicate_ratio",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "evidence_utilization",
+          "canonical_owner": "RuntimeEventSqliteStore",
+          "owner_domain": "event_trace",
+          "decision_timing": "from an earlier completed outcome window",
+          "evidence_key": "raw_metric.communication.useful_ratio",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "critical_paths",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "strictly before pruning",
+          "evidence_key": "event.critical_paths",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "verifier_outcome",
+          "canonical_owner": "LocalArtifactStore",
+          "owner_domain": "artifact",
+          "decision_timing": "from an earlier completed outcome window",
+          "evidence_key": "domain_verification.continuity",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        }
+      ],
+      "optional_inputs": [
+        {
+          "field_id": "wall_time",
+          "canonical_owner": "RuntimeEventSqliteStore",
+          "owner_domain": "event_trace",
+          "decision_timing": "from an earlier completed outcome window or excluded",
+          "evidence_key": "raw_metric.efficiency.wall_time_ms",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "exclude_optional"
+        }
+      ],
+      "required_scenarios": [
+        "normal",
+        "requirement_change",
+        "fault_degraded",
+        "recovery"
+      ],
+      "required_failure_paths": [
+        "reject",
+        "invalid",
+        "unavailable",
+        "reroute",
+        "recovery"
+      ],
+      "allowed_follow_up_scope": [
+        "spatial and temporal edge outcome instrumentation",
+        "deterministic pruning implementation in P2-S03-03",
+        "protected-path and counterfactual receipts",
+        "no policy gradient or random online edge sampling"
+      ],
+      "instrumentation_requirements": [
+        "separate spatial and temporal edge identities",
+        "per-edge delivery byte token latency and real-cost receipts",
+        "downstream evidence-use and redundancy attribution",
+        "critical obligation provenance recovery and verifier path markers",
+        "AgentPrune mask-to-projector causation ID"
+      ]
+    },
+    {
+      "mechanism_id": "maas",
+      "display_name": "MaAS deterministic operator selection",
+      "decision_event_type": "resource_decision",
+      "semantic_effect": "Select concrete operator, skill, worker, tool, model, breadth, and depth candidates after graph commit without taking placement, lease, or execution ownership.",
+      "deterministic_decision_contract": "A fixed committed topology, catalog, obligations, permission, capability, health, cost, latency, budget, verifier contract, and config digest must produce a stable constrained candidate ordering and early-exit proposal.",
+      "causal_receipt_contract": [
+        "proposal",
+        "symbolic_verdict",
+        "commit_or_route",
+        "execution",
+        "artifact",
+        "verification_outcome"
+      ],
+      "fallback": {
+        "on_missing": "phase1_resource_scheduler_baseline",
+        "on_stale": "phase1_resource_scheduler_baseline",
+        "on_corrupt": "phase1_deterministic_baseline",
+        "on_exception": "phase1_resource_scheduler_baseline",
+        "silent_fallback_allowed": false,
+        "degraded_event": "phase2.mechanism_degraded"
+      },
+      "required_inputs": [
+        {
+          "field_id": "committed_topology",
+          "canonical_owner": "GraphStateCustody",
+          "owner_domain": "graph_state",
+          "decision_timing": "after canonical graph commit and strictly before MaAS selection",
+          "evidence_key": "event.topology_mutation.snapshot",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "operator_catalog",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "operator.catalog",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "permission_constraints",
+          "canonical_owner": "PermissionApprovalRuntime",
+          "owner_domain": "permission",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "event.permission.allowed_tiers",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "capability_registry",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "owner_route.capability",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "health",
+          "canonical_owner": "WorkerPoolFoundationRuntime",
+          "owner_domain": "worker_lease_physical_attempt",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "current_tier.health",
+          "max_age_seconds": 60,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "cost_latency",
+          "canonical_owner": "ProviderControlPlane",
+          "owner_domain": "provider_model_cost",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "current_provider.latency",
+          "max_age_seconds": 300,
+          "minimum_confidence": 1.0,
+          "missingness": "explicit_baseline"
+        },
+        {
+          "field_id": "execution_budget",
+          "canonical_owner": "ResourceScheduler",
+          "owner_domain": "execution_budget",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "campaign.budget",
+          "max_age_seconds": 86400,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "unresolved_obligations",
+          "canonical_owner": "ClaudeRuntimeCore",
+          "owner_domain": "task_session_attempt",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "event.task_updated.unresolved",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        },
+        {
+          "field_id": "verifier_contract",
+          "canonical_owner": "LocalArtifactStore",
+          "owner_domain": "artifact",
+          "decision_timing": "strictly before MaAS selection",
+          "evidence_key": "campaign.verifier_contract",
+          "max_age_seconds": 86400,
+          "minimum_confidence": 1.0,
+          "missingness": "fail_closed"
+        }
+      ],
+      "optional_inputs": [
+        {
+          "field_id": "privacy_constraint",
+          "canonical_owner": "PermissionApprovalRuntime",
+          "owner_domain": "permission",
+          "decision_timing": "before MaAS selection or excluded",
+          "evidence_key": "owner_route.privacy",
+          "max_age_seconds": 3600,
+          "minimum_confidence": 1.0,
+          "missingness": "exclude_optional"
+        }
+      ],
+      "required_scenarios": [
+        "normal",
+        "requirement_change",
+        "fault_degraded",
+        "privacy",
+        "placement",
+        "recovery"
+      ],
+      "required_failure_paths": [
+        "reject",
+        "invalid",
+        "unavailable",
+        "reroute",
+        "recovery"
+      ],
+      "allowed_follow_up_scope": [
+        "versioned OperatorCatalog instrumentation",
+        "deterministic constrained selector implementation in P2-S04-01",
+        "verifier-gated early-exit receipts in P2-S04-02",
+        "scheduler input only; no placement lease or execution ownership",
+        "no controller training textual gradient or generated code execution"
+      ],
+      "instrumentation_requirements": [
+        "decision-time versioned operator catalog",
+        "permission and capability verdict before candidate inclusion",
+        "decision-time health latency real cost and budget",
+        "active unresolved-obligation digest",
+        "operator selection to scheduler and verifier causation IDs"
+      ]
+    }
+  ],
+  "no_training_audit": {
+    "runtime_entry_points": [],
+    "training_datasets": [],
+    "training_checkpoints": [],
+    "mutable_learned_parameters": [],
+    "scan_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "packages/orchestration/zyra_orchestration/topology_policy/condition",
+      "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+      "packages/scheduler/zyra_scheduler/operator_policy",
+      "scripts/phase2-validation"
+    ],
+    "forbidden_path_patterns": [
+      "*/train.py",
+      "*/trainer.py",
+      "*/train_*.py",
+      "*/training_*.py",
+      "*/dataset*",
+      "*/checkpoint*",
+      "*/learned_parameter*",
+      "*/policy_gradient*",
+      "*/textual_gradient*"
+    ],
+    "forbidden_symbol_tokens": [
+      "train",
+      "trainer",
+      "fit_policy",
+      "fine_tune",
+      "policy_gradient",
+      "textual_gradient",
+      "reinforcement_learning",
+      "mutable_learned_parameter"
+    ],
+    "forbidden_dependencies": [
+      "torch",
+      "tensorflow",
+      "jax",
+      "trl",
+      "datasets",
+      "stable-baselines3"
+    ]
+  }
+}
