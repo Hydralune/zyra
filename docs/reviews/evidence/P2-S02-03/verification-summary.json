@@ -1,0 +1,152 @@
+{
+  "schema": "zyra.phase2-slice-verification-summary/v1",
+  "slice_id": "P2-S02-03",
+  "title": "Memory continuity and neuro-symbolic evidence foundation",
+  "date": "2026-07-30",
+  "verdict": "PASS",
+  "commits": {
+    "base": "881825a9efa5cdc0f7cb07e7547b6c4bcdf00037",
+    "implementation": "31fafb83a96da951c5ae5a516aa0777fea56a975",
+    "implementation_tree": "5fb57a10d4229d36080168c05913790da4380cd2",
+    "evidence": "SELF"
+  },
+  "scope": {
+    "implemented": [
+      "read-only MemoryFabric canonical task record port",
+      "MemoryContinuityVerifier and fail-closed policy-input gate",
+      "compact/restore, process restart, worker/role handoff, node replacement, checkpoint restart and requirement-revision receipts",
+      "active, stale, superseded, conflicting and poisoned memory-state classification",
+      "downstream decision/tool-use causal continuity checks",
+      "fixed-model observation contract without canonical mutation authority",
+      "projector-derived neuro-symbolic evidence bundle",
+      "pending-side-effect symbolic constraint",
+      "private projector authorization for PolicyDeltaBuilder",
+      "deterministic semantic GraphDelta operation ordering",
+      "17-class adversarial symbolic-constraint corpus and executable matrix",
+      "continuity and neuro-symbolic hard-gate evaluation summaries"
+    ],
+    "not_implemented": [
+      "P2-S02-02A policy benchmark framework",
+      "P2-S03 long-horizon controller integration",
+      "default activation of phase2_strongest_v1",
+      "policy training, reinforcement learning, fine-tuning or an additional neural network"
+    ]
+  },
+  "activation_state": {
+    "phase2_strongest_v1_requested": false,
+    "phase2_strongest_v1_eligible": false,
+    "blockers": [
+      "loopx",
+      "arg_designer",
+      "card",
+      "agentprune",
+      "maas"
+    ],
+    "required_mechanism_status": "unavailable",
+    "default_path_changed": false
+  },
+  "line_accounting": {
+    "implementation_commit_total": {
+      "files": 16,
+      "insertions": 3166,
+      "deletions": 45
+    },
+    "production": {
+      "insertions": 1372,
+      "deletions": 3
+    },
+    "test": {
+      "insertions": 1633,
+      "deletions": 42
+    },
+    "data": {
+      "insertions": 161,
+      "deletions": 0,
+      "classification": "evaluation/adversarial corpus; not a training dataset"
+    },
+    "docs": {
+      "insertions": 0,
+      "deletions": 0
+    },
+    "runtime_assets": {
+      "insertions": 0,
+      "deletions": 0
+    },
+    "generated": {
+      "insertions": 0,
+      "deletions": 0
+    },
+    "adapter_only": {
+      "insertions": 0,
+      "deletions": 0
+    },
+    "mock_or_fixture": {
+      "insertions": 0,
+      "deletions": 0
+    },
+    "training_dataset_or_checkpoint": {
+      "insertions": 0,
+      "deletions": 0
+    }
+  },
+  "verification": [
+    {
+      "name": "post-commit target suite",
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\integration\\test_memory_continuity_policy_runtime.py tests\\integration\\test_neuro_symbolic_projector.py tests\\scenarios\\test_continuity_adversarial_matrix.py --basetemp .tmp\\pytest-p2-s02-03-postcommit-2 -q",
+      "result": "10 passed in 5.64s"
+    },
+    {
+      "name": "implementation suite",
+      "coverage": "target tests plus policy contracts, projector, replay, registry, diagnostic, dynamic custody and memory regressions",
+      "result": "60 passed in 12.17s"
+    },
+    {
+      "name": "adjacent integration matrix",
+      "coverage": "policy, dynamic custody, memory fabric, skill compact/restore and physical deployment node-process regressions",
+      "result": "57 passed in 132.29s"
+    },
+    {
+      "name": "post-gate focused regression",
+      "result": "50 passed in 5.93s"
+    },
+    {
+      "name": "Python compile",
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall packages\\orchestration\\zyra_orchestration\\topology_policy packages\\evaluation\\zyra_evaluation\\policy_benchmark packages\\memory\\zyra_memory",
+      "result": "PASS"
+    },
+    {
+      "name": "phase2 policy contracts",
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true; target_commit=31fafb83a96da951c5ae5a516aa0777fea56a975; hard_gate_count=23; strongest_activation_eligible=false"
+    },
+    {
+      "name": "internalization ledger",
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0; pre-existing warnings=734"
+    },
+    {
+      "name": "no-policy-training validator",
+      "coverage": "all release paths added by this slice",
+      "result": "PASS"
+    },
+    {
+      "name": "diff whitespace",
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "acceptance": {
+    "continuity_across_required_transitions": true,
+    "handoff_ack_and_no_duplicate_artifact": true,
+    "unsafe_memory_fails_closed": true,
+    "downstream_first-decision_trace_verified": true,
+    "fixed_model_signal_is_read_only": true,
+    "symbolic_accept_reject_commit_chain_complete": true,
+    "all_17_adversarial_classes_executed": true,
+    "unsafe_canonical_commits": 0,
+    "production_bypass_paths": 0,
+    "canonical_owner_changed": false,
+    "additional_store_created": false,
+    "policy_training_introduced": false
+  }
+}

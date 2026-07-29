@@ -1,0 +1,245 @@
+{
+  "schema": "zyra.memory-neuro-symbolic-owner-audit/v1",
+  "slice_id": "P2-S02-03",
+  "implementation_commit": "31fafb83a96da951c5ae5a516aa0777fea56a975",
+  "verdict": "PASS",
+  "canonical_owners": {
+    "memory_facts": {
+      "owner": "MemoryFabric",
+      "slice_access": "read_only",
+      "new_store": false
+    },
+    "graph_state": {
+      "owner": "GraphStateCustody",
+      "mutation_path": "proposal -> ConstraintAwareProjector -> PolicyDeltaBuilder -> GraphStateCustody.commit"
+    },
+    "topology_delta": {
+      "owner": "GraphDeltaBuilder",
+      "direct_policy_adapter_access": "denied",
+      "projector_authorization_required": true
+    },
+    "physical_placement": {
+      "owner": "ResourceScheduler",
+      "changed": false
+    },
+    "evidence": {
+      "owners": [
+        "EventLog",
+        "ArtifactStore"
+      ],
+      "publisher": "PolicyEvidencePublisher",
+      "second_ledger_or_store": false
+    }
+  },
+  "continuity": {
+    "gate_position": "before PolicyInputSnapshot construction",
+    "accepted_ref_rule": "snapshot memory_refs must exactly match the passing continuity receipt",
+    "transitions_executed": [
+      "compact_restore",
+      "process_restart",
+      "role_handoff",
+      "worker_handoff",
+      "node_replacement",
+      "checkpoint_restart",
+      "requirement_revision"
+    ],
+    "memory_states_exercised": [
+      "active",
+      "stale",
+      "superseded",
+      "conflicting",
+      "poisoned"
+    ],
+    "fail_closed_reasons_exercised": [
+      "critical_fact_missing",
+      "obligation_missing",
+      "content_digest_mismatch",
+      "conflicting_fact",
+      "stale_requirement_execution",
+      "duplicate_completed_artifact"
+    ],
+    "receipt_fields": [
+      "task_id",
+      "run_id",
+      "requirement_revision",
+      "transition_kind",
+      "before_snapshot",
+      "after_snapshot",
+      "critical_fact_ids",
+      "obligation_ids",
+      "accepted_memory_refs",
+      "source_event_refs",
+      "artifact_refs",
+      "status",
+      "reason_codes",
+      "causation_id"
+    ],
+    "downstream_trace": {
+      "verified": true,
+      "links": [
+        "continuity receipt",
+        "policy input snapshot",
+        "first policy decision",
+        "first tool use",
+        "published evidence artifact",
+        "event replay"
+      ]
+    },
+    "handoff": {
+      "real_physical_nodes": [
+        "device",
+        "edge"
+      ],
+      "acknowledges": [
+        "source worker",
+        "target worker",
+        "current requirement revision",
+        "obligation digest",
+        "critical fact IDs"
+      ],
+      "duplicate_completed_artifact": "rejected"
+    },
+    "metrics": [
+      "critical_fact_recall",
+      "critical_fact_provenance",
+      "obligation_retention",
+      "stale_execution_count",
+      "duplicate_work_count",
+      "downstream_usage_coverage"
+    ]
+  },
+  "neuro_symbolic": {
+    "model_signal_mode": {
+      "default": "deterministic_only",
+      "fixed_model_contract": [
+        "model_id",
+        "model_version",
+        "input_digest",
+        "output_digest",
+        "output_ref",
+        "confidence"
+      ],
+      "canonical_mutation_authority": false,
+      "unverifiable_label": "rejected"
+    },
+    "evidence_chain": [
+      "input snapshot",
+      "proposal",
+      "optional fixed-model observation",
+      "symbolic constraint verdicts",
+      "proposal/projected operation diff",
+      "canonical delta",
+      "custody commit or no-commit",
+      "verification and outcome refs"
+    ],
+    "projector_disable_switch": "test_only",
+    "production_disabled_constructor": "rejected",
+    "direct_delta_adapter_bypass": "rejected",
+    "counterfactual": "test-only offline raw GraphDeltaBuilder construction demonstrates privacy risk when projector is omitted; it never reaches canonical custody",
+    "unsafe_canonical_commits": 0,
+    "production_bypass_paths": 0
+  },
+  "adversarial_corpus": {
+    "path": "packages/evaluation/zyra_evaluation/policy_benchmark/data/continuity_neuro_symbolic_adversarial_v1.json",
+    "digest": "a89d13419e1cc22807576ebb69f6b8ee53d2633d3fa27431ac7516a032e30634",
+    "digest_kind": "canonical semantic digest produced by load_adversarial_proposal_corpus",
+    "case_count": 17,
+    "training_dataset": false,
+    "policy_training_input": false,
+    "cases": [
+      {
+        "attack_class": "budget",
+        "expected_reason": "budget_exceeded",
+        "committed": false
+      },
+      {
+        "attack_class": "capacity",
+        "expected_reason": "capacity_lease_or_telemetry_invalid",
+        "committed": false
+      },
+      {
+        "attack_class": "churn",
+        "expected_reason": "churn_or_dwell_limit",
+        "committed": false
+      },
+      {
+        "attack_class": "cycle",
+        "expected_reason": "graph_constraint_rejected",
+        "committed": false
+      },
+      {
+        "attack_class": "expired_proposal",
+        "expected_reason": "proposal_expired",
+        "committed": false
+      },
+      {
+        "attack_class": "fanout",
+        "expected_reason": "fanout_exceeded",
+        "committed": false
+      },
+      {
+        "attack_class": "idempotency",
+        "expected_reason": "idempotency_mismatch",
+        "committed": false
+      },
+      {
+        "attack_class": "lease",
+        "expected_reason": "capacity_lease_or_telemetry_invalid",
+        "committed": false
+      },
+      {
+        "attack_class": "minimum_dwell",
+        "expected_reason": "churn_or_dwell_limit",
+        "committed": false
+      },
+      {
+        "attack_class": "missing_capability",
+        "expected_reason": "unknown_role_or_capability",
+        "committed": false
+      },
+      {
+        "attack_class": "missing_endpoint",
+        "expected_reason": "graph_constraint_rejected",
+        "committed": false
+      },
+      {
+        "attack_class": "pending_side_effect",
+        "expected_reason": "pending_side_effect_unsettled",
+        "committed": false
+      },
+      {
+        "attack_class": "permission",
+        "expected_reason": "permission_or_placement_denied",
+        "committed": false
+      },
+      {
+        "attack_class": "privacy",
+        "expected_reason": "permission_or_placement_denied",
+        "committed": false
+      },
+      {
+        "attack_class": "readiness",
+        "expected_reason": "mechanism_not_activation_ready",
+        "committed": false
+      },
+      {
+        "attack_class": "stale_environment",
+        "expected_reason": "capacity_lease_or_telemetry_invalid",
+        "committed": false
+      },
+      {
+        "attack_class": "stale_revision",
+        "expected_reason": "stale_or_mismatched_snapshot",
+        "committed": false
+      }
+    ]
+  },
+  "production_dependency_audit": {
+    "openclaw": false,
+    "external_workspace_runtime_source": false,
+    "training_framework": false,
+    "training_dataset": false,
+    "training_checkpoint": false,
+    "additional_neural_network": false
+  }
+}
