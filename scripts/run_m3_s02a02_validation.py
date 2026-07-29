@@ -12,6 +12,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SLICE_BASELINE = "c01fcacf7cd30c37aa9629aed76a7df5256dad63"
+CURRENT_PROVIDER_BASELINE = "271acd1b35d1cf4e887780f52437b28df3064512"
 PRODUCTION_PATHS = (
     "apps/api/zyra_api/live_benchmark_port.py",
     "packages/evaluation/zyra_evaluation/live_benchmark/",
@@ -110,7 +111,7 @@ def source_boundary(commit: str) -> dict[str, Any]:
         for line in git(
             "diff",
             "--name-only",
-            f"{SLICE_BASELINE}..{commit}",
+            f"{CURRENT_PROVIDER_BASELINE}..{commit}",
         ).splitlines()
         if line.strip()
     )
@@ -173,6 +174,7 @@ def source_boundary(commit: str) -> dict[str, Any]:
         )
     projection = {
         "status": "passed",
+        "baseline": CURRENT_PROVIDER_BASELINE,
         "changed_file_count": len(changed),
         "production_file_count": len(production),
         "new_external_dependencies": 0,
