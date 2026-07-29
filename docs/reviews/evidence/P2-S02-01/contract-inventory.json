@@ -1,0 +1,76 @@
+{
+  "schema": "zyra.phase2.policy-contract-inventory/v1",
+  "slice_id": "P2-S02-01",
+  "catalog_api": "GET /schema/policy-contracts",
+  "canonical_serialization": "UTF-8 compact JSON with sorted keys and NaN rejected",
+  "canonical_digest": "SHA-256 over normalized v1 data excluding the digest field",
+  "compatibility": {
+    "legacy": "declared v0 is read and normalized to v1",
+    "same_version_additive_fields": "accepted",
+    "unknown_future_versions": "rejected"
+  },
+  "contracts": [
+    {
+      "contract_kind": "mechanism_evidence_readiness_report_ref",
+      "schema_version": "zyra.mechanism-evidence-readiness-report-ref/v1",
+      "producer": "MechanismEvidenceReadinessReport artifact projection",
+      "consumer": "TopologyConstraintProjector activation gate"
+    },
+    {
+      "contract_kind": "policy_input_snapshot",
+      "schema_version": "zyra.policy-input-snapshot/v1",
+      "producer": "PolicyInputSnapshotBuilder over existing owners",
+      "consumer": "policy proposal mechanisms and projector"
+    },
+    {
+      "contract_kind": "environment_snapshot",
+      "schema_version": "zyra.environment-snapshot/v1",
+      "producer": "EnvironmentSnapshotBuilder over ResourceScheduler worker-pool projection",
+      "consumer": "capacity, lease, privacy and freshness constraints"
+    },
+    {
+      "contract_kind": "topology_proposal_artifact",
+      "schema_version": "zyra.topology-proposal-artifact/v1",
+      "producer": "future deterministic-ready ARG/CARD/AgentPrune policy stages",
+      "consumer": "TopologyConstraintProjector"
+    },
+    {
+      "contract_kind": "policy_decision_receipt",
+      "schema_version": "zyra.policy-decision-receipt/v1",
+      "producer": "TopologyConstraintProjector",
+      "consumer": "event/artifact evidence and policy outcome"
+    },
+    {
+      "contract_kind": "policy_outcome",
+      "schema_version": "zyra.policy-outcome/v1",
+      "producer": "post-commit verifier integration",
+      "consumer": "evaluation and evidence reporting"
+    },
+    {
+      "contract_kind": "memory_continuity_receipt",
+      "schema_version": "zyra.memory-continuity-receipt/v1",
+      "producer": "MemoryContinuityVerifier",
+      "consumer": "policy input and long-horizon evidence"
+    },
+    {
+      "contract_kind": "neuro_symbolic_evidence_bundle",
+      "schema_version": "zyra.neuro-symbolic-evidence-bundle/v1",
+      "producer": "proposal/projector/commit evidence composition",
+      "consumer": "evaluation and competition evidence"
+    },
+    {
+      "contract_kind": "physical_dispatch_receipt",
+      "schema_version": "zyra.physical-dispatch-receipt/v1",
+      "producer": "ResourceScheduler and worker dispatch evidence bridge",
+      "consumer": "policy outcome and physical placement verification"
+    }
+  ],
+  "canonical_owner_path": [
+    "TopologyProposalArtifact",
+    "TopologyConstraintProjector",
+    "PolicyDeltaBuilder",
+    "GraphDeltaBuilder",
+    "GraphStateCustody.commit"
+  ],
+  "phase2_strongest_v1_activated": false
+}

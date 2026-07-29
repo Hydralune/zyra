@@ -1,0 +1,109 @@
+{
+  "schema": "zyra.phase2.slice-verification-summary/v1",
+  "slice_id": "P2-S02-01",
+  "recorded_at": "2026-07-29",
+  "base_commit": "1df3c5e19ca00eb9858cbf3cb6b0f411f6424d86",
+  "implementation_commit": "9eb984657f842144c673a1a8bd1acb8428a102a0",
+  "post_review_fix_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+  "verdict": "pass",
+  "implementation_line_audit": {
+    "added": 3947,
+    "deleted": 0,
+    "buckets": {
+      "production_and_config": {
+        "added": 2843,
+        "deleted": 0
+      },
+      "test": {
+        "added": 1104,
+        "deleted": 0
+      },
+      "runtime_assets": {
+        "added": 0,
+        "deleted": 0
+      },
+      "generated": {
+        "added": 0,
+        "deleted": 0
+      },
+      "data": {
+        "added": 0,
+        "deleted": 0
+      },
+      "docs": {
+        "added": 0,
+        "deleted": 0,
+        "note": "Review and evidence are committed separately."
+      },
+      "adapter_only_mock_fixture": {
+        "added": 0,
+        "deleted": 0,
+        "note": "The canonical adapter is production code; no mock or fixture is counted as implementation."
+      }
+    }
+  },
+  "checks": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/orchestration/test_policy_contracts.py tests/integration/test_policy_projector_graph_custody.py tests/integration/test_policy_contract_replay.py tests/unit/test_dynamic_graph_custody.py -q -p no:cacheprovider --basetemp .tmp\\pytest-p2-s02-01-final",
+      "result": "20 passed in 5.28s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_topology_route_placement_projection.py -q -p no:cacheprovider --basetemp .tmp\\pytest-p2-s02-01-adjacent",
+      "result": "1 passed in 1.89s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages/orchestration/zyra_orchestration/topology_policy tests/unit/orchestration/test_policy_contracts.py tests/integration/test_policy_projector_graph_custody.py tests/integration/test_policy_contract_replay.py",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true; target_commit=8d6151e7bf66b8423e4767ca25098a5f93ac94b1; strongest_activation_eligible=false",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0; warnings=734",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m ruff check <slice paths>",
+      "result": "project venv has no ruff module",
+      "status": "tool_unavailable"
+    }
+  ],
+  "acceptance": {
+    "nine_versioned_contracts": true,
+    "full_json_schema_catalog": true,
+    "canonical_serialization_and_digest": true,
+    "legacy_v0_read_compatibility": true,
+    "unknown_future_schema_fail_closed": true,
+    "immutable_owner_snapshot": true,
+    "worker_pool_environment_attribution": true,
+    "telemetry_freshness_confidence_missingness": true,
+    "readiness_activation_gate": true,
+    "stale_and_forged_snapshot_rejection": true,
+    "role_capability_permission_privacy_rejection": true,
+    "capacity_lease_budget_fanout_churn_dwell_rejection": true,
+    "dag_cycle_validation": true,
+    "deterministic_idempotent_delta": true,
+    "accept_reject_replay_rebase_conflict_receipts": true,
+    "explicit_fallback": true,
+    "canonical_graph_custody_commit_only": true,
+    "existing_artifact_event_replay_path": true,
+    "real_api_catalog_route": true,
+    "direct_policy_mutation_bypass_absent": true,
+    "parallel_policy_state_store_absent": true,
+    "disable_mutation_evidence": true,
+    "openclaw_excluded": true
+  },
+  "phase2_strongest_v1_activated": false,
+  "phase2_strongest_v1_note": "This slice establishes contracts and the guarded execution boundary only. Frozen readiness remains unavailable/input_precheck, so no policy mechanism is activated."
+}

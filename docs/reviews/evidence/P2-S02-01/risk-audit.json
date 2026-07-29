@@ -1,0 +1,81 @@
+{
+  "schema": "zyra.phase2.policy-contract-risk-audit/v1",
+  "slice_id": "P2-S02-01",
+  "implementation_commit": "9eb984657f842144c673a1a8bd1acb8428a102a0",
+  "post_review_fix_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+  "summary": {
+    "blockers": 0,
+    "open_slice_risks": 0,
+    "mitigated": 9,
+    "accepted_out_of_scope": 0,
+    "verdict": "pass"
+  },
+  "findings": [
+    {
+      "id": "P2-S02-01-R01",
+      "risk": "A policy package could become a parallel graph state owner.",
+      "mitigation": "The package has no database/table and only PolicyDeltaBuilder imports canonical GraphDeltaBuilder; GraphStateCustody remains the sole commit owner.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R02",
+      "risk": "Mutable source task, graph, registry or scheduler projections could change after a policy decision.",
+      "mitigation": "Builders copy into deeply immutable canonical value objects; tests mutate source projections after construction and observe no snapshot change.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R03",
+      "risk": "A valid graph signature could be paired with forged node role/capability/state content.",
+      "mitigation": "Projector checks graph ID/revision/signature and compares every policy node to the current GraphStateCustody snapshot before projection.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R04",
+      "risk": "A mechanism at input_precheck could be presented as activation-ready.",
+      "mitigation": "Canonical mutation requires the exact pair activation_ready and deterministic_ready; unavailable and premature stage tests fail closed.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R05",
+      "risk": "Topology operations could omit permission, use unregistered roles, or bypass privacy/capacity/lease/budget limits.",
+      "mitigation": "The symbolic projector rejects missing or denied permission, unknown registry values, placement without resource, stale/missing telemetry, privacy/capacity/lease failures and all configured budgets.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R06",
+      "risk": "Retry-specific random IDs or timestamps could map one idempotency key to different graph delta content.",
+      "mitigation": "Delta, mutation and event IDs plus graph payload timestamps derive from proposal semantics; builds with different decision receipt IDs have identical canonical delta IDs and digests.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R07",
+      "risk": "Stale, cycle, concurrent rebase or write conflict paths could be reported as successful commits.",
+      "mitigation": "Real SQLite GraphStateCustody tests prove reject, replay, rebase and conflict dispositions, explicit fallback and unchanged revision on rejection.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R08",
+      "risk": "A stored policy artifact could be replayed after byte or schema tampering.",
+      "mitigation": "Replay verifies artifact revision/SHA-256, contract digest, schema version and schema/contract-kind agreement; tamper and future-version tests reject.",
+      "status": "mitigated"
+    },
+    {
+      "id": "P2-S02-01-R09",
+      "risk": "Contract availability could be mistaken for activation of ARG, CARD, AgentPrune or MaAS.",
+      "mitigation": "No mechanism is wired into the default profile; frozen Phase 2 policy validation reports strongest_activation_eligible=false and the review records this slice as contract-only.",
+      "status": "mitigated"
+    }
+  ],
+  "owner_checks": {
+    "graph_state_custody_preserved": true,
+    "dynamic_topology_runtime_preserved": true,
+    "resource_scheduler_preserved": true,
+    "permission_and_lease_owners_preserved": true,
+    "memory_fabric_preserved": true,
+    "artifact_and_event_owners_preserved": true,
+    "parallel_policy_store_absent": true,
+    "direct_shared_graph_mutation_absent": true,
+    "openclaw_excluded": true,
+    "external_source_runtime_dependency": false
+  }
+}
