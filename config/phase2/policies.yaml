@@ -1,0 +1,237 @@
+{
+  "schema": "zyra.phase2-policy-registry/v1",
+  "slice_id": "P2-S02-02",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "slice_base_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+  "registry_revision": 1,
+  "active_versions": {
+    "topology_policy": "phase1_deterministic_baseline"
+  },
+  "fallback": {
+    "family": "topology_policy",
+    "version": "phase1_deterministic_baseline"
+  },
+  "records": [
+    {
+      "family": "topology_policy",
+      "version": "phase1_deterministic_baseline",
+      "profile_id": "phase1_deterministic_baseline",
+      "lifecycle": "baseline",
+      "activation_state": "active",
+      "schema_version": "v1",
+      "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
+      "source_digest": "1512d91bfcf14f14b2d23e4057b5b56a17177e2b944fd2f755d14e74ba646449",
+      "configuration": {
+        "baseline_decision_owner": "TopologyRouter",
+        "baseline_route_owner": "ResourceScheduler",
+        "frozen_reference": "docs/reviews/evidence/P2-S00-01/mechanism-baseline.json",
+        "side_effect_execution": "existing_runtime_only"
+      },
+      "config_digest": "3b82d5a69a0b8815d5e8d79b83baee2aebb102352d68efbc683d5e02172889cd",
+      "implementation_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+      "evidence_commit": "13c2964fbe1981fec7bc9af06627e8580e6e3f78",
+      "required_mechanisms": [],
+      "readiness": [],
+      "rollback_family": "topology_policy",
+      "rollback_version": "phase1_deterministic_baseline",
+      "timeout_seconds": 30.0,
+      "no_policy_training": {
+        "runtime_entry_points": [],
+        "datasets": [],
+        "checkpoints": [],
+        "mutable_learned_parameters": [],
+        "dependencies": []
+      },
+      "hard_gate_ids": [],
+      "audit_gate_ids": []
+    },
+    {
+      "family": "topology_policy",
+      "version": "phase2_strongest_v1",
+      "profile_id": "phase2_strongest_v1",
+      "lifecycle": "validation",
+      "activation_state": "blocked_pending_readiness",
+      "schema_version": "v1",
+      "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
+      "source_digest": "9019b89bd8dfe9550e92d54cd908f2b5d929d6d42254090c6ee8608b19e06f15",
+      "configuration": {
+        "composition": [
+          "loopx",
+          "memory_continuity_verifier",
+          "arg_designer",
+          "card",
+          "agentprune",
+          "symbolic_projector",
+          "graph_state_custody",
+          "maas",
+          "resource_scheduler",
+          "verifier_receipts"
+        ],
+        "diagnostic_side_effects_allowed": false,
+        "normal_auto_select_validation": false,
+        "profile_id": "phase2_strongest_v1",
+        "training_allowed": false
+      },
+      "config_digest": "32cc905ba65e5cf736e2c6a4c8b42033e70134a0e63a2e3fee3183c498197df5",
+      "implementation_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+      "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+      "required_mechanisms": [
+        "loopx",
+        "arg_designer",
+        "card",
+        "agentprune",
+        "maas"
+      ],
+      "readiness": [
+        {
+          "mechanism_id": "loopx",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "pending:P2-01/activation_ready",
+          "report_digest": ""
+        },
+        {
+          "mechanism_id": "arg_designer",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "card",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "agentprune",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "maas",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        }
+      ],
+      "rollback_family": "topology_policy",
+      "rollback_version": "phase1_deterministic_baseline",
+      "timeout_seconds": 30.0,
+      "no_policy_training": {
+        "runtime_entry_points": [],
+        "datasets": [],
+        "checkpoints": [],
+        "mutable_learned_parameters": [],
+        "dependencies": []
+      },
+      "hard_gate_ids": [
+        "success",
+        "safety",
+        "sealed_task_completion_ratio",
+        "human_intervention_count",
+        "effective_transition_count",
+        "canonical_mutation_custody_ratio",
+        "invalid_proposal_rejection_ratio",
+        "duplicate_side_effect_count",
+        "early_exit_false_positive_count",
+        "privacy_permission_violation_count",
+        "state_owner_duplicate_count",
+        "root_source_runtime_dependency_count",
+        "loopx_validation_failure_spend_count",
+        "no_policy_training_violation_count",
+        "required_mechanism_ready_ratio",
+        "memory_critical_fact_recall_ratio",
+        "unresolved_obligation_retention_ratio",
+        "stale_memory_execution_count",
+        "unsafe_symbolic_commit_count",
+        "production_projector_bypass_count",
+        "real_local_dispatch_receipt_ratio",
+        "real_edge_dispatch_receipt_ratio",
+        "real_cloud_dispatch_receipt_ratio",
+        "physical_placement_causality_ratio",
+        "required_condition_switch_lane_pass_ratio"
+      ],
+      "audit_gate_ids": [
+        "state_owner",
+        "runtime_path",
+        "dependency",
+        "rollback"
+      ]
+    },
+    {
+      "family": "topology_policy",
+      "version": "phase2_diagnostic_v1",
+      "profile_id": "phase2_diagnostic_v1",
+      "lifecycle": "diagnostic",
+      "activation_state": "read_only",
+      "schema_version": "v1",
+      "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
+      "source_digest": "9019b89bd8dfe9550e92d54cd908f2b5d929d6d42254090c6ee8608b19e06f15",
+      "configuration": {
+        "actual_outcome_claim_allowed": false,
+        "canonical_mutation_allowed": false,
+        "lease_allowed": false,
+        "profile_id": "phase2_diagnostic_v1",
+        "route_change_allowed": false,
+        "side_effect_allowed": false
+      },
+      "config_digest": "9b25e67cae4eac3878a15dd899c15d8c748432e4ec89c4281adf1108fde30073",
+      "implementation_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+      "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+      "required_mechanisms": [
+        "arg_designer",
+        "card",
+        "agentprune",
+        "maas"
+      ],
+      "readiness": [
+        {
+          "mechanism_id": "arg_designer",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "card",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "agentprune",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        },
+        {
+          "mechanism_id": "maas",
+          "stage": "input_precheck",
+          "status": "unavailable",
+          "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
+          "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde"
+        }
+      ],
+      "rollback_family": "topology_policy",
+      "rollback_version": "phase1_deterministic_baseline",
+      "timeout_seconds": 10.0,
+      "no_policy_training": {
+        "runtime_entry_points": [],
+        "datasets": [],
+        "checkpoints": [],
+        "mutable_learned_parameters": [],
+        "dependencies": []
+      },
+      "hard_gate_ids": [],
+      "audit_gate_ids": []
+    }
+  ],
+  "registry_digest": "ae3cdb9df1fd323c0cdb88b5dd56efc7651b2011095b1fdd285ca4e96f8379c8"
+}

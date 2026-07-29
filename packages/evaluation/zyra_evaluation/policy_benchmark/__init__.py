@@ -1,3 +1,8 @@
+from .activation import (
+    OutcomeAttributionError,
+    PolicyOutcomeAttribution,
+    attribute_runtime_receipt,
+)
 from .contracts import (
     ContractViolation,
     MechanismReadinessStatus,
@@ -45,6 +50,7 @@ from .mechanism_readiness import (
 
 __all__ = [
     "ContractViolation",
+    "OutcomeAttributionError",
     "BASELINE_MANIFEST_DIGEST",
     "CAUSAL_LINKS",
     "EvidenceEvent",
@@ -65,6 +71,7 @@ __all__ = [
     "Phase2PolicyContractBundle",
     "Phase2PolicyContractPaths",
     "PolicyContractValidationReport",
+    "PolicyOutcomeAttribution",
     "READINESS_CONFIG_SCHEMA",
     "READINESS_REPORT_SCHEMA",
     "READINESS_STAGE",
@@ -73,6 +80,7 @@ __all__ = [
     "build_mechanism_readiness_report",
     "build_mechanism_samples",
     "build_read_only_evidence_index",
+    "attribute_runtime_receipt",
     "canonical_digest",
     "compute_frozen_gate_digest",
     "evaluate_mechanism",
