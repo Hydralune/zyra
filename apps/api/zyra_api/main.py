@@ -81,6 +81,8 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/scenarios/runs/{scenario_run_id}/archive"),
     ("POST", "/scenarios/runs/{scenario_run_id}/verify"),
     ("POST", "/tasks/{task_id}/workers/browser"),
+    ("GET", "/tasks/{task_id}/loopx"),
+    ("POST", "/tasks/{task_id}/loopx/commands"),
     ("GET", "/tasks/{task_id}/memory/curator"),
     ("POST", "/tasks/{task_id}/memory/curator"),
     ("POST", "/tasks/{task_id}/memory/curator/task-end"),
@@ -525,6 +527,19 @@ from zyra_integrations.e02_ports import (
     TypeScriptE02ApiPort,
     TypeScriptE02PortError,
     materialize_bundled_skills,
+)
+from zyra_integrations.loopx import (
+    InstallProfile as LoopXInstallProfile,
+    LoopXControlRuntime,
+    LoopXInstaller,
+    task_goal_id,
+)
+from zyra_integrations.loopx.bridge import (
+    LoopXBridgeObservability,
+    LoopXDispatcher,
+    LoopXOutbox,
+    LoopXRuntimeStateAdapter,
+    LoopXSingleWriter,
 )
 
 from .mcp_api import McpApiFacade
@@ -2867,6 +2882,8 @@ _CONTROL_SOURCE_COORDINATOR: CommandRegistryCoordinator | None = None
 _CONTROL_DISPATCHER: RuntimeControlDispatcher | None = None
 _STRUCTURED_CONTROL_HUB: StructuredControlHub | None = None
 _CONTROL_RUNTIME_KEY: str | None = None
+_LOOPX_CONTROL_RUNTIME: LoopXControlRuntime | None = None
+_LOOPX_CONTROL_KEY: tuple[str, str, str] | None = None
 _TYPESCRIPT_AGENT_PORT_LOCK = threading.RLock()
 _TYPESCRIPT_AGENT_PORT: TypeScriptAgentDurablePort | None = None
 _TYPESCRIPT_AGENT_PORT_KEY: str | None = None
@@ -3324,6 +3341,44 @@ def get_control_dispatcher() -> RuntimeControlDispatcher:
         return _CONTROL_DISPATCHER
 
 
+def get_loopx_control_runtime() -> LoopXControlRuntime:
+    global _LOOPX_CONTROL_RUNTIME, _LOOPX_CONTROL_KEY
+    workspace = tool_workspace_path().resolve()
+    database = Path(sqlite_path()).resolve()
+    artifacts = artifact_root_path().resolve()
+    key = (str(workspace), str(database), str(artifacts))
+    with _CONTROL_RUNTIME_LOCK:
+        if _LOOPX_CONTROL_RUNTIME is None or _LOOPX_CONTROL_KEY != key:
+            installed = LoopXInstaller(PROJECT_ROOT).install(
+                workspace,
+                profile=LoopXInstallProfile.current(),
+                python_executable=Path(sys.executable),
+            )
+            outbox = LoopXOutbox(workspace_root=workspace)
+            runtime = LoopXRuntimeStateAdapter(
+                workspace_root=workspace,
+                install_receipt=installed,
+            )
+            _LOOPX_CONTROL_RUNTIME = LoopXControlRuntime(
+                workspace_root=workspace,
+                outbox=outbox,
+                runtime=runtime,
+                dispatcher=LoopXDispatcher(
+                    outbox=outbox,
+                    single_writer=LoopXSingleWriter(
+                        workspace_root=workspace
+                    ),
+                    runtime=runtime,
+                    observability=LoopXBridgeObservability(
+                        artifact_store=LocalArtifactStore(artifacts),
+                        event_spine=get_runtime_event_spine_bridge(),
+                    ),
+                ),
+            )
+            _LOOPX_CONTROL_KEY = key
+        return _LOOPX_CONTROL_RUNTIME
+
+
 def get_structured_control_hub() -> StructuredControlHub:
     global _STRUCTURED_CONTROL_HUB
     with _CONTROL_RUNTIME_LOCK:
@@ -3351,13 +3406,15 @@ def get_structured_control_hub() -> StructuredControlHub:
 
 
 def reset_control_runtime() -> None:
-    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY, _CONTROL_REGISTRY, _CONTROL_SOURCE_COORDINATOR, _STRUCTURED_CONTROL_HUB
+    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY, _CONTROL_REGISTRY, _CONTROL_SOURCE_COORDINATOR, _STRUCTURED_CONTROL_HUB, _LOOPX_CONTROL_RUNTIME, _LOOPX_CONTROL_KEY
     with _CONTROL_RUNTIME_LOCK:
         _CONTROL_DISPATCHER = None
         _CONTROL_RUNTIME_KEY = None
         _CONTROL_REGISTRY = None
         _CONTROL_SOURCE_COORDINATOR = None
         _STRUCTURED_CONTROL_HUB = None
+        _LOOPX_CONTROL_RUNTIME = None
+        _LOOPX_CONTROL_KEY = None
 
 
 def get_typescript_agent_port() -> TypeScriptAgentDurablePort:
@@ -6829,6 +6886,57 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"events": store.task_events(parts[1])})
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "loopx":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "task_not_found"},
+                )
+                return
+            goal_id = str(
+                _flatten_query(
+                    parse_qs(parsed.query, keep_blank_values=True)
+                ).get("goal_id")
+                or task_goal_id(state.task_id)
+            )
+            try:
+                projection = _loopx_task_projection(
+                    state,
+                    get_loopx_control_runtime().snapshot(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        goal_id=goal_id,
+                    ),
+                )
+            except Exception as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "schema": "zyra.loopx-control-state/v1",
+                        "task_id": state.task_id,
+                        "goal_id": goal_id,
+                        "lifecycle": "degraded",
+                        "degraded": True,
+                        "error": {
+                            "code": getattr(
+                                error,
+                                "code",
+                                "loopx_runtime_unavailable",
+                            ),
+                            "message": str(error),
+                            "recovery": "repair_pinned_runtime_and_retry",
+                        },
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                projection,
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "browser-context":
             state = store.load_task(parts[1])
             if state is None:
@@ -7293,6 +7401,140 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        if (
+            len(parts) == 4
+            and parts[0] == "tasks"
+            and parts[2] == "loopx"
+            and parts[3] == "commands"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "task_not_found"},
+                )
+                return
+            action = str(payload.get("action") or "").strip().lower()
+            command_names = {
+                "connect": "/loopx-connect",
+                "disconnect": "/loopx-disconnect",
+                "claim": "/loopx-claim",
+                "release": "/loopx-release",
+                "interaction_submit": "/loopx-interaction",
+                "sync_retry": "/loopx-retry",
+            }
+            command_name = command_names.get(action)
+            if command_name is None:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "schema": "zyra.loopx-control-error/v1",
+                        "error": "loopx_action_unsupported",
+                        "action": action,
+                    },
+                )
+                return
+            reservation = self._begin_typed_receipt(
+                operation="task.loopx.command",
+                path=parsed.path,
+                payload=payload,
+            )
+            if reservation is False:
+                return
+            command_payload = {
+                **payload,
+                "text": command_name,
+                "arguments": {
+                    **dict(payload.get("arguments") or {}),
+                    **{
+                        key: value
+                        for key, value in payload.items()
+                        if key
+                        not in {
+                            "action",
+                            "arguments",
+                            "text",
+                        }
+                    },
+                },
+            }
+            request = _control_command_request_from_text(
+                state,
+                command_name,
+                command_payload,
+            )
+            if request is None:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "loopx_command_invalid"},
+                )
+                return
+            response = get_control_dispatcher().submit(
+                request,
+                _control_context_for_task(state, store),
+            )
+            latest = store.load_task(state.task_id) or state
+            result = dict(response.result.data or {})
+            projection = result.get("state")
+            body = {
+                "schema": "zyra.loopx-control-result/v1",
+                "ok": response.ok,
+                "action": action,
+                "control_request": request.to_dict(),
+                "command_result": response.to_dict(),
+                "receipt": dict(result.get("receipt") or {}),
+                "sync_receipt": dict(result.get("receipt") or {}),
+                "state": (
+                    _loopx_task_projection(latest, projection)
+                    if isinstance(projection, Mapping)
+                    else _loopx_task_projection(
+                        latest,
+                        get_loopx_control_runtime().snapshot(
+                            run_id=latest.run_id,
+                            task_id=latest.task_id,
+                        ),
+                    )
+                ),
+            }
+            receipt_status = str(
+                body["sync_receipt"].get("status") or ""
+            )
+            body["ok"] = bool(
+                response.ok
+                and receipt_status
+                not in {
+                    "claim_conflict",
+                    "dead_letter",
+                    "sync_degraded",
+                }
+            )
+            status = (
+                HTTPStatus.CREATED
+                if body["ok"]
+                else HTTPStatus.CONFLICT
+            )
+            committed_response = self._commit_typed_receipt(
+                reservation,
+                status=status,
+                body=body,
+                binding={
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                },
+            )
+            if committed_response is None:
+                return
+            committed_body, receipt_headers = committed_response
+            self._send_json(
+                status,
+                committed_body,
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    **receipt_headers,
+                },
+            )
             return
 
         if parts == ["deployment", "shutdown"]:
@@ -10883,6 +11125,38 @@ def _scheduler_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:
     }
 
 
+def _loopx_task_projection(
+    state: Any,
+    projection: Mapping[str, Any],
+) -> dict[str, Any]:
+    value = copy.deepcopy(dict(projection))
+    canonical = dict(value.get("canonical_state") or {})
+    worker_projection = dict(
+        state.metadata.get("worker_pool_projection") or {}
+    )
+    canonical.update(
+        {
+            "task": {
+                "task_id": state.task_id,
+                "run_id": state.run_id,
+                "status": str(state.status),
+                "owner": "Zyra orchestration/runtime",
+            },
+            "worker_lease": {
+                "lease_id": str(worker_projection.get("lease_id") or ""),
+                "status": str(worker_projection.get("status") or "none"),
+                "owner": "WorkerLeaseManager",
+            },
+            "execution_budget": {
+                **to_jsonable(state.budget),
+                "owner": "ResourceScheduler",
+            },
+        }
+    )
+    value["canonical_state"] = canonical
+    return value
+
+
 def _control_command_request_from_text(state: Any, text: str, payload: dict[str, Any]) -> ControlCommandRequest | None:
     stripped = text.strip()
     if not stripped.startswith("/"):
@@ -11186,9 +11460,318 @@ def _control_context_for_task(
             "recovery.retry",
             "worker.reassign",
             "subagent.control",
+            "loopx.control",
         }
 
     handlers: dict[str, Any] = {}
+
+    def loopx_snapshot() -> dict[str, Any]:
+        return _loopx_task_projection(
+            state,
+            get_loopx_control_runtime().snapshot(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                goal_id=str(
+                    state.metadata.get("loopx_goal_id")
+                    or task_goal_id(state.task_id)
+                ),
+            ),
+        )
+
+    def persist_loopx_continuation(
+        projection: Mapping[str, Any],
+    ) -> None:
+        private = dict(projection.get("private_state") or {})
+        goal = dict(private.get("goal") or {})
+        todos = [
+            dict(item)
+            for item in private.get("todos") or ()
+            if isinstance(item, Mapping)
+        ]
+        next_todo = next(
+            (
+                item
+                for item in todos
+                if not bool(item.get("done"))
+                and str(item.get("status") or "open")
+                not in {"done", "completed"}
+            ),
+            {},
+        )
+        continuation = dict(projection.get("continuation") or {})
+        state.metadata["loopx_goal_id"] = str(
+            projection.get("goal_id") or task_goal_id(state.task_id)
+        )
+        state.metadata["loopx_continuation"] = {
+            "schema": "zyra.loopx-continuation/v1",
+            "enabled": bool(projection.get("connected")),
+            "lifecycle": str(projection.get("lifecycle") or "disabled"),
+            "goal_id": str(projection.get("goal_id") or ""),
+            "objective_ref": str(goal.get("objective_ref") or ""),
+            "requirement_revision": str(
+                goal.get("requirement_revision") or ""
+            ),
+            "todo_id": str(next_todo.get("todo_id") or ""),
+            "obligation": str(
+                next_todo.get("title")
+                or next_todo.get("text")
+                or ""
+            ),
+            "continuation_allowed": bool(continuation.get("allowed")),
+            "sync_cursor": int(
+                dict(projection.get("sync") or {}).get("cursor") or 0
+            ),
+            "last_validated_receipt": dict(
+                projection.get("last_validated_receipt") or {}
+            ),
+            "owner": "LoopX private control",
+            "canonical_mutation_owner": "GraphStateCustody",
+        }
+        store.save_checkpoint(state)
+
+    def loopx_read(
+        request: ControlCommandRequest,
+        descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        projection = loopx_snapshot()
+        handler_id = str(descriptor.handler_id)
+        data: dict[str, Any]
+        if handler_id == "loopx.todos":
+            data = {
+                "schema": projection["schema"],
+                "goal_id": projection["goal_id"],
+                "todos": projection["private_state"]["todos"],
+            }
+        elif handler_id == "loopx.todo":
+            argv = list(request.arguments.get("argv") or ())
+            todo_id = str(
+                request.arguments.get("todo_id")
+                or (argv[0] if argv else "")
+            )
+            todo = next(
+                (
+                    item
+                    for item in projection["private_state"]["todos"]
+                    if str(item.get("todo_id") or "") == todo_id
+                ),
+                None,
+            )
+            if todo is None:
+                raise ValueError(f"LoopX todo not found: {todo_id}")
+            data = {"goal_id": projection["goal_id"], "todo": todo}
+        elif handler_id == "loopx.quota":
+            data = {
+                "goal_id": projection["goal_id"],
+                "loopx_private_quota": projection["private_state"]["quota"],
+                "zyra_execution_budget": projection["canonical_state"][
+                    "execution_budget"
+                ],
+                "same_owner": False,
+            }
+        elif handler_id == "loopx.sync":
+            data = {
+                "goal_id": projection["goal_id"],
+                "lifecycle": projection["lifecycle"],
+                "sync": projection["sync"],
+                "last_sync_receipt": projection["last_sync_receipt"],
+                "error": projection["error"],
+            }
+        else:
+            data = projection
+        return ControlResult(
+            display_text=(
+                f"LoopX {handler_id.removeprefix('loopx.')} "
+                f"is {projection['lifecycle']}."
+            ),
+            data=data,
+            metadata={
+                "runtime_status": "read_only",
+                "state_owner": "LoopXControlRuntime",
+            },
+        )
+
+    for handler_id in {
+        "loopx.status",
+        "loopx.todos",
+        "loopx.todo",
+        "loopx.quota",
+        "loopx.sync",
+    }:
+        handlers[handler_id] = loopx_read
+
+    def loopx_mutation(
+        request: ControlCommandRequest,
+        descriptor: Any,
+        _context: Any,
+    ) -> ControlResult:
+        action = str(descriptor.handler_id).removeprefix("loopx.")
+        arguments = dict(request.arguments)
+        argv = list(arguments.get("argv") or ())
+        if action in {"claim", "release"}:
+            arguments.setdefault(
+                "todo_id",
+                argv[0] if len(argv) > 0 else "",
+            )
+            arguments.setdefault(
+                "claimant",
+                argv[1] if len(argv) > 1 else "",
+            )
+        elif action == "connect":
+            arguments.setdefault(
+                "objective",
+                str(arguments.get("raw") or state.user_goal),
+            )
+            arguments.setdefault(
+                "objective_ref",
+                f"zyra://run/{state.run_id}/task/{state.task_id}/objective",
+            )
+            arguments.setdefault(
+                "requirement_revision",
+                str(
+                    len(state.metadata.get("requirement_changes") or ())
+                    + 1
+                ),
+            )
+        elif action == "interaction":
+            action = "interaction_submit"
+            arguments.setdefault(
+                "continuation_hint",
+                str(arguments.get("raw") or ""),
+            )
+        expected_cursor = arguments.get("expected_cursor")
+        if expected_cursor not in {None, ""}:
+            actual_cursor = int(
+                dict(loopx_snapshot().get("sync") or {}).get("cursor") or 0
+            )
+            if int(expected_cursor) != actual_cursor:
+                raise ValueError(
+                    "LoopX sync cursor changed before command execution: "
+                    f"expected {expected_cursor}, actual {actual_cursor}"
+                )
+        if action == "retry":
+            sequence = arguments.get("sequence")
+            if sequence is None and argv:
+                sequence = argv[0]
+            result = get_loopx_control_runtime().retry_sync(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                goal_id=str(
+                    state.metadata.get("loopx_goal_id")
+                    or task_goal_id(state.task_id)
+                ),
+                sequence=int(sequence) if sequence not in {None, ""} else None,
+            )
+            projection = _loopx_task_projection(state, result["state"])
+            persist_loopx_continuation(projection)
+            result["state"] = projection
+            return ControlResult(
+                display_text="LoopX dead-letter sync retry completed.",
+                data=result,
+                metadata={
+                    "runtime_status": "stateful",
+                    "state_owner": "LoopXControlRuntime",
+                },
+            )
+
+        worker_api = get_worker_pool_api()
+        graph_id = worker_api.ensure_task_graph(state)
+        effective_idempotency = (
+            request.idempotency_key or request.request_id
+        )
+        branch = worker_api.graph_custody.branch(
+            graph_id,
+            branch_id=f"loopx-control:{request.request_id}",
+            actor_id="LoopXControlRuntime",
+            causation_id=request.command_id,
+            correlation_id=request.request_id,
+            idempotency_key=f"loopx-control:{effective_idempotency}",
+            metadata={
+                "control_action": action,
+                "private_payload_excluded": True,
+            },
+        )
+        branch.set_metadata(
+            "loopx_control",
+            {
+                "schema": "zyra.loopx-canonical-control-ref/v1",
+                "action": action,
+                "goal_id": str(
+                    arguments.get("goal_id")
+                    or state.metadata.get("loopx_goal_id")
+                    or task_goal_id(state.task_id)
+                ),
+                "request_id": request.request_id,
+                "permission_action": descriptor.permission_action,
+                "private_payload_excluded": True,
+            },
+        )
+        committed = worker_api.graph_custody.commit(branch.build())
+        if not committed.receipt.committed:
+            raise RuntimeError(
+                "GraphStateCustody rejected LoopX control mutation"
+            )
+        validation = {
+            "validation_passed": True,
+            "permission_allowed": True,
+            "lease_valid": True,
+            "budget_allowed": True,
+            "validation_receipt_id": committed.receipt.commit_id,
+            "permission_receipt_id": request.request_id,
+            "lease_receipt_id": "control-plane:no-worker-dispatch",
+            "budget_receipt_id": "loopx-private-quota:not-zyra-budget",
+        }
+        result = get_loopx_control_runtime().mutate(
+            action=action,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            canonical_commit=committed,
+            validation=validation,
+            payload=arguments,
+            idempotency_key=f"loopx-control:{effective_idempotency}",
+            causation_id=request.command_id,
+        )
+        projection = _loopx_task_projection(state, result["state"])
+        persist_loopx_continuation(projection)
+        result["state"] = projection
+        state.metadata.setdefault("control_mutations", []).append(
+            {
+                "request_id": request.request_id,
+                "command": request.canonical_name,
+                "action": action,
+                "canonical_commit_id": committed.receipt.commit_id,
+                "outbox_sequence": result["sequence"],
+                "sync_status": str(
+                    dict(result.get("receipt") or {}).get("status") or ""
+                ),
+                "canonical_owner": "GraphStateCustody",
+                "private_state_owner": "LoopX",
+            }
+        )
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text=(
+                f"LoopX {action} synchronized with "
+                f"{result['receipt'].get('status') or 'pending'}."
+            ),
+            data=result,
+            metadata={
+                "runtime_status": "stateful",
+                "canonical_owner": "GraphStateCustody",
+                "private_state_owner": "LoopX",
+                "bridge_owner": "LoopXControlRuntime",
+            },
+        )
+
+    for handler_id in {
+        "loopx.connect",
+        "loopx.disconnect",
+        "loopx.claim",
+        "loopx.release",
+        "loopx.interaction",
+        "loopx.retry",
+    }:
+        handlers[handler_id] = loopx_mutation
 
     def read_projection(request: ControlCommandRequest, descriptor: Any, _context: Any) -> ControlResult:
         command = ControlCommand(

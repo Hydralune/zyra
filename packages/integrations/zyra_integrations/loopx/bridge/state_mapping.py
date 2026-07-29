@@ -109,6 +109,19 @@ def projected_todo_ids(projection: Mapping[str, Any]) -> set[str]:
     return result
 
 
+def projected_todos(
+    projection: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for summary_name in ("user_todos", "agent_todos"):
+        summary = projection.get(summary_name)
+        items = summary.get("items") if isinstance(summary, Mapping) else ()
+        for item in items if isinstance(items, list) else ():
+            if isinstance(item, Mapping) and item.get("todo_id"):
+                result[str(item["todo_id"])] = dict(item)
+    return result
+
+
 @dataclass(frozen=True, slots=True)
 class StateMappingPlan:
     events: tuple[dict[str, Any], ...]
@@ -136,6 +149,7 @@ class LoopXStateMapper:
         existing_todos = projected_todo_ids(current_projection)
         incoming_todos = {item.todo_id for item in command.update.todos}
         claims = projected_claims(current_projection)
+        todo_projection = projected_todos(current_projection)
         for request in command.update.claims:
             existing = claims.get(request.todo_id)
             if existing and existing != request.claimant:
@@ -157,6 +171,20 @@ class LoopXStateMapper:
                     details={
                         "goal_id": command.update.goal_id,
                         "todo_id": request.todo_id,
+                        "worker_lease_changed": False,
+                    },
+                )
+        for request in command.update.release_claims:
+            existing = claims.get(request.todo_id)
+            if not existing or existing != request.claimant:
+                raise LoopXClaimConflictError(
+                    "LoopX private claim release does not match its current claimant.",
+                    code="loopx_claim_release_conflict",
+                    details={
+                        "goal_id": command.update.goal_id,
+                        "todo_id": request.todo_id,
+                        "existing_claimant": existing,
+                        "requested_claimant": request.claimant,
                         "worker_lease_changed": False,
                     },
                 )
@@ -205,6 +233,39 @@ class LoopXStateMapper:
                     payload={
                         "claimed_by": claim.claimant,
                         "claim_owner": "loopx_private_control",
+                        "worker_lease_changed": False,
+                    },
+                )
+            )
+        for release in command.update.release_claims:
+            # LoopX 0.2.4 has no destructive claim-clear event. Replaying a
+            # todo_added event for the stable id is its event-sourced replace
+            # operation and removes claimed_by without rewriting history.
+            current = todo_projection[release.todo_id]
+            events.append(
+                _event(
+                    command,
+                    kind="release",
+                    identity=release.todo_id,
+                    event_type=TODO_ADDED,
+                    refs={"todo_id": release.todo_id},
+                    payload={
+                        "role": str(current.get("role") or "agent"),
+                        "priority": str(current.get("priority") or "P2"),
+                        "title": str(
+                            current.get("title")
+                            or current.get("text")
+                            or release.todo_id
+                        ),
+                        "action_kind": str(
+                            current.get("action_kind") or "advance"
+                        ),
+                        "continuation_policy": str(
+                            current.get("continuation_policy")
+                            or "independent_handoff"
+                        ),
+                        "bridge_kind": "claim_released",
+                        "released_claimant": release.claimant,
                         "worker_lease_changed": False,
                     },
                 )
@@ -374,6 +435,7 @@ __all__ = [
     "TODO_ADDED",
     "TODO_CLAIMED",
     "projected_claims",
+    "projected_todos",
     "projected_todo_ids",
     "quota_spent_slots",
 ]

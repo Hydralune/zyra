@@ -518,6 +518,14 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskEventIngressSse, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskMutation, normalizeTaskMutation)
   registry.register(CONTRACT_NAMES.taskControlCommand, normalizeControlCommand)
+  registry.register(
+    CONTRACT_NAMES.taskLoopxState,
+    (value) => ({ ...responseRecord(value, "LoopX control state response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.taskLoopxCommand,
+    (value) => ({ ...responseRecord(value, "LoopX control result response") }),
+  )
   registry.register(CONTRACT_NAMES.taskCommandQueue, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskCommandCancel, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.permissionControl, normalizePermissionControl)

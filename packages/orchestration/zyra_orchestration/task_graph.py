@@ -341,6 +341,46 @@ def _run_execute_node(
     node.updated_at = now_iso()
     events.append(_node_event(state, node, "running", "Worker runtime execution started."))
 
+    continuation = _loopx_continuation(state)
+    if continuation.get("enabled") and not continuation.get(
+        "continuation_allowed"
+    ):
+        error = RuntimeError(
+            "LoopX continuation is blocked by quota, sync, or validation state"
+        )
+        node.status = PlanNodeStatus.BLOCKED
+        node.updated_at = now_iso()
+        node.metadata["result_summary"] = (
+            "LoopX continuation gate blocked physical worker dispatch."
+        )
+        node.metadata["loopx_continuation"] = continuation
+        events.append(
+            _node_event(
+                state,
+                node,
+                "blocked",
+                node.metadata["result_summary"],
+            )
+        )
+        events.append(
+            EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.SYSTEM_NOTICE,
+                node_id=node.node_id,
+                payload={
+                    "schema": "zyra.loopx-continuation-blocked/v1",
+                    "summary": node.metadata["result_summary"],
+                    "loopx_continuation": continuation,
+                    "physical_worker_dispatched": False,
+                    "execution_budget_spent": False,
+                    "recovery": "repair_sync_or_quota_then_replan",
+                },
+            )
+        )
+        events.extend(_plan_runtime_recovery(state, node, error=error))
+        return events
+
     try:
         worker_run, worker_name = _run_selected_worker(state, node, execution_context)
     except Exception as error:  # noqa: BLE001 - worker failures must stay in the trace.
@@ -848,7 +888,13 @@ def _runtime_hints(state: TaskState) -> dict[str, Any]:
     return dict(hints) if isinstance(hints, dict) else {}
 
 
+def _loopx_continuation(state: TaskState) -> dict[str, Any]:
+    value = state.metadata.get("loopx_continuation")
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
 def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]:
+    continuation = _loopx_continuation(state)
     if isinstance(hints.get("tool_plan"), list):
         constraints: dict[str, Any] = {
             "tool_plan": hints["tool_plan"],
@@ -856,6 +902,8 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
         }
         if str(hints.get("session_id") or ""):
             constraints["session_id"] = str(hints["session_id"])
+        if continuation.get("enabled"):
+            constraints["loopx_continuation"] = continuation
         return constraints
     relative_path = f"runs/{state.task_id}/execution-summary.md"
     content = "\n".join(
@@ -868,6 +916,16 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
             "## User Goal",
             "",
             state.user_goal,
+            "",
+            "## LoopX Continuation",
+            "",
+            (
+                f"- goal_id: `{continuation.get('goal_id')}`\n"
+                f"- todo_id: `{continuation.get('todo_id')}`\n"
+                f"- obligation: {continuation.get('obligation')}"
+                if continuation.get("enabled")
+                else "- disabled"
+            ),
             "",
             "## Runtime",
             "",
@@ -884,6 +942,8 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
     }
     if str(hints.get("session_id") or ""):
         constraints["session_id"] = str(hints["session_id"])
+    if continuation.get("enabled"):
+        constraints["loopx_continuation"] = continuation
     return constraints
 
 
@@ -893,6 +953,9 @@ def _browser_constraints(
     browser_url: str,
 ) -> dict[str, Any]:
     constraints: dict[str, Any] = {}
+    continuation = _loopx_continuation(state)
+    if continuation.get("enabled"):
+        constraints["loopx_continuation"] = continuation
     browser_backend = hints.get("browser_backend")
     if isinstance(browser_backend, str) and browser_backend.strip():
         constraints["browser_backend"] = browser_backend.strip()

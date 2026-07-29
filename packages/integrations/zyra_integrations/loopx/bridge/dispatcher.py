@@ -91,7 +91,12 @@ def _load_installed_runtime(module_root: Path) -> _LoadedRuntime:
         if prior is not None:
             return prior
         alias = f"_zyra_pinned_loopx_{stable_digest(cache_key)[:16]}"
+        prior_dont_write_bytecode = sys.dont_write_bytecode
         try:
+            # The install receipt seals an exact offline file manifest. Loading
+            # the pinned package must therefore never materialize __pycache__
+            # inside that immutable runtime tree.
+            sys.dont_write_bytecode = True
             spec = importlib.util.spec_from_file_location(
                 alias,
                 package_init,
@@ -119,6 +124,8 @@ def _load_installed_runtime(module_root: Path) -> _LoadedRuntime:
                     "error": f"{type(error).__name__}: {error}",
                 },
             ) from error
+        finally:
+            sys.dont_write_bytecode = prior_dont_write_bytecode
         origin = Path(str(event_state.__file__ or "")).resolve()
         if not origin.is_relative_to(root):
             raise LoopXUnavailableError(
@@ -253,7 +260,8 @@ class LoopXRuntimeStateAdapter:
             command.update.interaction is None or plan.interaction_accepted
         )
         continuation_allowed = (
-            limit > 0
+            command.update.connected
+            and limit > 0
             and total_spent < limit
             and requested_fully_admitted
             and interaction_gate
@@ -295,6 +303,7 @@ class LoopXRuntimeStateAdapter:
             "schema": LOOPX_PRIVATE_STATE_SCHEMA,
             "mapping_version": command.mapping_version,
             "goal_id": command.update.goal_id,
+            "connected": command.update.connected,
             "objective_ref": command.update.objective_ref,
             "requirement_revision": command.update.requirement_revision,
             "canonical_commit": command.canonical_commit.to_dict(),
@@ -398,9 +407,13 @@ class LoopXRuntimeStateAdapter:
                 "id": command.update.goal_id,
                 "domain": "zyra-long-horizon",
                 "status": (
-                    "quota_exhausted"
-                    if quota.get("exhausted")
-                    else "connected"
+                    "disconnected"
+                    if not command.update.connected
+                    else (
+                        "quota_exhausted"
+                        if quota.get("exhausted")
+                        else "connected"
+                    )
                 ),
                 "role": "controller",
                 "repo": str(self.workspace_root),

@@ -455,8 +455,10 @@ class LoopXStateUpdate:
     goal_id: str
     objective_ref: str
     requirement_revision: str
+    connected: bool = True
     todos: tuple[TodoHint, ...] = ()
     claims: tuple[ClaimRequest, ...] = ()
+    release_claims: tuple[ClaimRequest, ...] = ()
     quota: QuotaView = field(default_factory=lambda: QuotaView(limit_slots=0))
     validation: ValidationReceipt = field(
         default_factory=lambda: ValidationReceipt(False, False, False, False)
@@ -485,6 +487,7 @@ class LoopXStateUpdate:
             goal_id=goal_id,
             objective_ref=objective_ref,
             requirement_revision=requirement_revision,
+            connected=raw.get("connected", True) is True,
             todos=tuple(
                 TodoHint.from_mapping(_mapping(item, "todos[]"))
                 for item in _sequence(raw.get("todos"), "todos")
@@ -492,6 +495,13 @@ class LoopXStateUpdate:
             claims=tuple(
                 ClaimRequest.from_mapping(_mapping(item, "claims[]"))
                 for item in _sequence(raw.get("claims"), "claims")
+            ),
+            release_claims=tuple(
+                ClaimRequest.from_mapping(_mapping(item, "release_claims[]"))
+                for item in _sequence(
+                    raw.get("release_claims"),
+                    "release_claims",
+                )
             ),
             quota=QuotaView.from_mapping(
                 raw.get("quota") if isinstance(raw.get("quota"), Mapping) else None
@@ -517,8 +527,12 @@ class LoopXStateUpdate:
             "goal_id": self.goal_id,
             "objective_ref": self.objective_ref,
             "requirement_revision": self.requirement_revision,
+            "connected": self.connected,
             "todos": [item.to_dict() for item in self.todos],
             "claims": [item.to_dict() for item in self.claims],
+            "release_claims": [
+                item.to_dict() for item in self.release_claims
+            ],
             "quota": self.quota.to_dict(),
             "validation": self.validation.to_dict(),
             "history": [item.to_dict() for item in self.history],

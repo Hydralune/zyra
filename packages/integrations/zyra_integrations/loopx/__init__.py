@@ -9,6 +9,7 @@ from .install import (
     LoopXInstaller,
     LoopXPackageLock,
 )
+from .control import LoopXControlRuntime, task_goal_id
 
 __all__ = [
     "LOOPX_SOURCE_COMMIT",
@@ -18,4 +19,6 @@ __all__ = [
     "LoopXInstallError",
     "LoopXInstaller",
     "LoopXPackageLock",
+    "LoopXControlRuntime",
+    "task_goal_id",
 ]

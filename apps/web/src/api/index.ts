@@ -5,6 +5,7 @@ export * from "./event-transport.ts"
 export * from "./permission-api.ts"
 export * from "./scenario-api.ts"
 export * from "./experiment-api.ts"
+export * from "./loopx-api.ts"
 
 import { ZyraApiClient, type ZyraClientOptions } from "./client.ts"
 import { TaskApi } from "./task-api.ts"
@@ -13,6 +14,7 @@ import { TaskEventTransport } from "./event-transport.ts"
 import { PermissionApi } from "./permission-api.ts"
 import { ScenarioApi } from "./scenario-api.ts"
 import { ExperimentApi } from "./experiment-api.ts"
+import { LoopXApi } from "./loopx-api.ts"
 
 export function createZyraApi(options: ZyraClientOptions = {}): {
   client: ZyraApiClient
@@ -22,6 +24,7 @@ export function createZyraApi(options: ZyraClientOptions = {}): {
   permissions: PermissionApi
   scenarios: ScenarioApi
   experiments: ExperimentApi
+  loopx: LoopXApi
   close(reason?: unknown): void
 } {
   const client = new ZyraApiClient(options)
@@ -31,6 +34,7 @@ export function createZyraApi(options: ZyraClientOptions = {}): {
   const permissions = new PermissionApi(client)
   const scenarios = new ScenarioApi(client)
   const experiments = new ExperimentApi(client)
+  const loopx = new LoopXApi(client)
   return {
     client,
     tasks,
@@ -39,6 +43,7 @@ export function createZyraApi(options: ZyraClientOptions = {}): {
     permissions,
     scenarios,
     experiments,
+    loopx,
     close(reason?: unknown) {
       lifecycle.close(reason)
       events.stopAll(reason)

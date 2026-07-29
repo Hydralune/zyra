@@ -28,6 +28,7 @@ import { SessionConsoleWorkbench } from "../../features/session/index.ts"
 import { McpWorkbench } from "../../features/mcp/index.ts"
 import { SkillWorkbench } from "../../features/skills/index.ts"
 import { SubagentWorkbench } from "../../features/subagents/index.ts"
+import { LoopXWorkbench } from "../../features/long-horizon/loopx/index.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -271,6 +272,8 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </section>
 
       <TopologyWorkbench runtime={runtime} task={task} />
+
+      <LoopXWorkbench runtime={runtime} task={task} />
 
       <PermissionWorkbench runtime={runtime} task={task} />
 
