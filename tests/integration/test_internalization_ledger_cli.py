@@ -36,7 +36,7 @@ class InternalizationLedgerCliTests(unittest.TestCase):
 
             export_completed = subprocess.run(
                 [
-                    str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                    sys.executable,
                     "scripts/zyra_integration_ledger.py",
                     "export",
                     "--source-repo",
@@ -61,7 +61,7 @@ class InternalizationLedgerCliTests(unittest.TestCase):
 
 def _run(args: list[str], env: dict[str, str]) -> dict:
     completed = subprocess.run(
-        [str(ROOT / ".venv" / "Scripts" / "python.exe"), "scripts/zyra_integration_ledger.py", *args],
+        [sys.executable, "scripts/zyra_integration_ledger.py", *args],
         cwd=ROOT,
         env=env,
         check=True,
