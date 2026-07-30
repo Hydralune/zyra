@@ -1,0 +1,15 @@
+{
+  "digest": "1ab0b9ef4775cc364f92d72d74edafe81eeb6b019ddcad1bc456a6ecbf5d68a3",
+  "failed_run_count": 0,
+  "generated_at": "2026-07-30T10:26:44.329127Z",
+  "implementation_commit": "9eb2e750b5ceaa2df9e5ca68fadad4f6ab18ff15",
+  "lineage_digest": "3f7748b5c6eb3899b327bbd20f94269adf84eefd6e534e84ba37b1267d6ce03b",
+  "mechanism_count": 1,
+  "metric_spec_count": 57,
+  "registry_digest": "64bab25967951abc5f43ce4c7df834475f700d147d2d54a3d0685dcaf2a176a6",
+  "report_digest": "88f14995bf57f26eff174728a253aacc640da73df52b6b024b50c062840cd133",
+  "run_count": 1,
+  "scenario_count": 1,
+  "schema_version": "zyra.p2-s05-01-evidence-manifest/v1",
+  "slice_id": "P2-S05-01"
+}

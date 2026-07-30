@@ -1,0 +1,1375 @@
+{
+  "digest": "64bab25967951abc5f43ce4c7df834475f700d147d2d54a3d0685dcaf2a176a6",
+  "first_stage_compatibility": {
+    "communication.cost_per_effective_transition": [
+      "cost_per_transition"
+    ],
+    "communication.delivered_tokens": [
+      "message_tokens",
+      "communication.token_total"
+    ],
+    "communication.duplicate_semantic_payload_ratio": [
+      "duplicate_fact_ratio",
+      "communication.duplicate_ratio"
+    ],
+    "communication.normalized_entropy": [
+      "communication_entropy",
+      "communication.entropy"
+    ],
+    "communication.useful_message_ratio": [
+      "useful_communication_ratio",
+      "communication.useful_ratio"
+    ],
+    "continuity.critical_fact_recall": [
+      "memory_recall",
+      "memory.critical_fact_recall"
+    ],
+    "dispatch.causal_chain_completeness": [
+      "dispatch_receipt_completeness"
+    ],
+    "topology.adaptation_latency_ms": [
+      "adaptation_latency_ms"
+    ],
+    "topology.normalized_churn": [
+      "topology_churn",
+      "topology.churn"
+    ]
+  },
+  "history_rewrite": false,
+  "registry_id": "phase2_strongest_v1.metrics",
+  "schema_version": "zyra.phase2-metric-registry/v1",
+  "specs": [
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "effective canonical transitions",
+      "description": "Communication cost per effective transition",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "exclude_from_optimization",
+      "metric_id": "communication.cost_per_effective_transition",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "actual communication cost",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Communication cost per effective transition",
+      "unit": "USD/transition"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "1",
+      "description": "Delivered bytes",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "exclude_from_optimization",
+      "metric_id": "communication.delivered_bytes",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "actual bytes on delivered messages",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Delivered bytes",
+      "unit": "bytes"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "1",
+      "description": "Delivered cost",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "exclude_from_optimization",
+      "metric_id": "communication.delivered_cost_usd",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "actual communication cost",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Delivered cost",
+      "unit": "USD"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "1",
+      "description": "Delivered tokens",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "exclude_from_optimization",
+      "metric_id": "communication.delivered_tokens",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "actual prompt plus completion tokens",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Delivered tokens",
+      "unit": "tokens"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "delivered messages",
+      "description": "Duplicate semantic payload ratio",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.duplicate_semantic_payload_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "delivered messages whose digest repeats or carries a redundancy reference",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Duplicate semantic payload ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "unique evidence references carried",
+      "description": "Evidence utilization ratio",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.evidence_utilization_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "unique evidence references consumed downstream",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Evidence utilization ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "log2(maximum directed pairs for participating nodes)",
+      "description": "Graph-size-normalized communication entropy; a small graph is not automatically low entropy.",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.normalized_entropy",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "entropy over delivered source-target pairs",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Normalized communication entropy",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "weighted log2(maximum recipients per sender)",
+      "description": "Sender-conditioned recipient entropy",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.sender_conditioned_recipient_entropy",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "weighted recipient entropy conditioned on sender",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Sender-conditioned recipient entropy",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "1",
+      "description": "Spatial deliveries",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.spatial_delivery_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "delivered spatial messages",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Spatial deliveries",
+      "unit": "messages"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "1",
+      "description": "Temporal deliveries",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.temporal_delivery_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "delivered temporal messages",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Temporal deliveries",
+      "unit": "messages"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "communication",
+      "denominator": "delivered messages",
+      "description": "Useful message ratio",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.agentprune-outcome-observation/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "communication.useful_message_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "delivered messages with consumed evidence or verified artifact",
+      "requirement_ids": [
+        "REQ-COMM-01",
+        "SCORE-NOISE"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Useful message ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "required critical facts",
+      "description": "Critical-fact recall",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.critical_fact_recall",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "required critical facts recalled and used",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Critical-fact recall",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "1",
+      "description": "Duplicate completed work after handoff",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.duplicate_completed_work_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "duplicate completed obligations",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Duplicate completed work after handoff",
+      "unit": "obligations"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "restore/handoff receipts",
+      "description": "First-decision correctness after restore",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.first_decision_correctness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "correct downstream first decisions",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "First-decision correctness after restore",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "recalled critical facts",
+      "description": "Provenance coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.provenance_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "recalled facts with stable provenance",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Provenance coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "1",
+      "description": "Stale requirement execution",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.stale_requirement_execution_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "stale-revision executions",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Stale requirement execution",
+      "unit": "executions"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "continuity",
+      "denominator": "unresolved obligations before restore/handoff",
+      "description": "Unresolved-obligation retention",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.memory-continuity-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "continuity.unresolved_obligation_retention",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "unresolved obligations retained",
+      "requirement_ids": [
+        "REQ-MEM-01",
+        "SCORE-ALGO"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Unresolved-obligation retention",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "six required links per real receipt",
+      "description": "Dispatch causal-chain completeness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.causal_chain_completeness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "present decision, lease, attempt, call, artifact and verification links",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Dispatch causal-chain completeness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "real cloud dispatch attempts",
+      "description": "Cloud real-receipt completeness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.cloud_real_receipt_completeness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "complete real cloud dispatch receipts",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Cloud real-receipt completeness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "real edge dispatch attempts",
+      "description": "Edge real-receipt completeness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.edge_real_receipt_completeness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "complete real edge dispatch receipts",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Edge real-receipt completeness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "real local dispatch attempts",
+      "description": "Local real-receipt completeness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.local_real_receipt_completeness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "complete real local dispatch receipts",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Local real-receipt completeness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "1",
+      "description": "Physical reroute count",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.physical_reroute_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "location changes across causally ordered attempts",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Physical reroute count",
+      "unit": "reroutes"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "1",
+      "description": "Privacy placement violations",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.privacy_placement_violation_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "placements outside allowed locations or privacy policy",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Privacy placement violations",
+      "unit": "violations"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "dispatch",
+      "denominator": "real cloud receipts",
+      "description": "Provider receipt coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.physical-dispatch-receipt/v2"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "dispatch.provider_receipt_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "cloud receipts with provider/model wire evidence",
+      "requirement_ids": [
+        "REQ-EDGE-01",
+        "SCORE-COMPAT",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Provider receipt coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "evidence",
+      "denominator": "1",
+      "description": "Evidence volume only; it is never interpreted as an independent sample count.",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "evidence.canonical_transition_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "effective canonical transitions",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Canonical evidence transitions",
+      "unit": "transitions"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "operator",
+      "denominator": "all executed early exits with posterior result",
+      "description": "Early-exit false-positive ratio",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.early-exit-decision-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "operator.early_exit_false_positive_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "false exits",
+      "requirement_ids": [
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Early-exit false-positive ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "operator",
+      "denominator": "all executed early exits with posterior result",
+      "description": "Early-exit true-positive ratio",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.early-exit-decision-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "operator.early_exit_true_positive_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "true exits",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Early-exit true-positive ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "operator",
+      "denominator": "executed depth",
+      "description": "Executed operator breadth",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.adaptive-depth-cost-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "operator.executed_breadth",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "executed operators",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Executed operator breadth",
+      "unit": "operators/layer"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "operator",
+      "denominator": "adaptive-depth receipts",
+      "description": "Executed operator depth",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.adaptive-depth-cost-receipt/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "operator.executed_depth",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "executed layers",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Executed operator depth",
+      "unit": "layers"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "mechanism mode resolutions",
+      "description": "Actual default mode ratio",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.actual_default_mode_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "mechanisms resolved to default mode",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Actual default mode ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "mechanism mode resolutions",
+      "description": "Baseline mode ratio",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.baseline_mode_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "mechanisms resolved to baseline mode",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Baseline mode ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required causal links",
+      "description": "Readiness causal-link completeness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.causal_link_completeness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "present required causal links",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Readiness causal-link completeness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required input observations",
+      "description": "Input confidence",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.confidence",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "confidence-weighted required input observations",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Input confidence",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "evaluated replays",
+      "description": "Deterministic replay match",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.deterministic_replay_match",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "matching deterministic replays",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Deterministic replay match",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "mechanism mode resolutions",
+      "description": "Diagnostic mode ratio",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.diagnostic_mode_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "mechanisms resolved to diagnostic mode",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Diagnostic mode ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required failure paths",
+      "description": "Failure-path coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.failure_path_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "covered required failure paths",
+      "requirement_ids": [
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Failure-path coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required input observations",
+      "description": "Input freshness",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.freshness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "fresh required input observations",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Input freshness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required input observations",
+      "description": "Input missingness",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.missingness",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "missing required input observations",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Input missingness",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "readiness reports",
+      "description": "No-policy-update audit pass",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.no_policy_audit_pass",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "reports with a passing prohibited-update audit",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "No-policy-update audit pass",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "optional fields",
+      "description": "Optional input coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "not_applicable",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.optional_input_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "covered optional fields",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Optional input coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required fields",
+      "description": "Required input coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.required_input_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "covered required fields",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Required input coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "required scenarios",
+      "description": "Scenario coverage",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.scenario_coverage",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "covered required scenarios",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Scenario coverage",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "activation_ready ordinal",
+      "description": "Readiness stage score",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.stage_score",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "ordinal stage of the latest signed report",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Readiness stage score",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "readiness",
+      "denominator": "deterministic_ready ordinal",
+      "description": "Readiness status score",
+      "direction": "higher_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.mechanism-evidence-readiness-report/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "readiness.status_score",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "ordinal status of the latest signed report",
+      "requirement_ids": [
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Readiness status score",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "symbolic",
+      "denominator": "adversarial proposals",
+      "description": "Adversarial accept ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.neuro-symbolic-evidence-bundle/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "symbolic.adversarial_accept_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "adversarial proposals accepted unchanged",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Adversarial accept ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "symbolic",
+      "denominator": "adversarial proposals",
+      "description": "Adversarial project ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.neuro-symbolic-evidence-bundle/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "symbolic.adversarial_project_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "adversarial proposals projected safely",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Adversarial project ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "symbolic",
+      "denominator": "adversarial proposals",
+      "description": "Adversarial reject ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.neuro-symbolic-evidence-bundle/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "symbolic.adversarial_reject_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "adversarial proposals rejected without commit",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Adversarial reject ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "symbolic",
+      "denominator": "production bundles",
+      "description": "Projector bypass reachability",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.neuro-symbolic-evidence-bundle/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "symbolic.projector_bypass_reachable",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "production bundles missing projection/decision chain",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Projector bypass reachability",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "symbolic",
+      "denominator": "1",
+      "description": "Unsafe commit count",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.neuro-symbolic-evidence-bundle/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "symbolic.unsafe_commit_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "commits made after failed symbolic constraints",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-TRACE-01"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Unsafe commit count",
+      "unit": "commits"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "committed adaptations",
+      "description": "Topology adaptation latency",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.adaptation_latency_ms",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "sum of causal trigger-to-commit latency",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Topology adaptation latency",
+      "unit": "milliseconds"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "measured decisions",
+      "description": "Mechanism decision overhead",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.mechanism_decision_overhead_ms",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "sum of canonical mechanism decision latency",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Mechanism decision overhead",
+      "unit": "milliseconds"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "participating graph entities times decision windows",
+      "description": "Normalized topology churn",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.normalized_churn",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "canonical node/edge/role/capability mutations",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Normalized topology churn",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "1",
+      "description": "Topology oscillation count",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.oscillation_count",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "unexplained inverse mutations to the same entity",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Topology oscillation count",
+      "unit": "mutations"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "all proposal decisions",
+      "description": "Proposal accept ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.proposal_accept_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "accepted decisions",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Proposal accept ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "all proposal decisions",
+      "description": "Proposal degraded ratio",
+      "direction": "lower_is_better",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.proposal_degraded_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "conflict, diagnostic, or fallback decisions",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG",
+        "REQ-FAULT-01",
+        "SCORE-ROBUST"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Proposal degraded ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "all proposal decisions",
+      "description": "Proposal project ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.proposal_project_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "projected or rebased decisions",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Proposal project ratio",
+      "unit": "ratio"
+    },
+    {
+      "aggregation_unit": "run",
+      "category": "topology",
+      "denominator": "all proposal decisions",
+      "description": "Proposal reject ratio",
+      "direction": "informational",
+      "empty_semantics": "degraded",
+      "evidence_contracts": [
+        "zyra.topology-proposal-artifact/v1",
+        "zyra.policy-decision-receipt/v1",
+        "zyra.policy-outcome/v1"
+      ],
+      "failed_task_semantics": "include",
+      "metric_id": "topology.proposal_reject_ratio",
+      "minimum_sample_size": 1,
+      "missing_semantics": "failed",
+      "numerator": "rejected decisions",
+      "requirement_ids": [
+        "REQ-TOPO-01",
+        "SCORE-ORG"
+      ],
+      "schema_version": "zyra.phase2-metric-spec/v1",
+      "title": "Proposal reject ratio",
+      "unit": "ratio"
+    }
+  ]
+}

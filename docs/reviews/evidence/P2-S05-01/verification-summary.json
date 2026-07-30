@@ -1,0 +1,88 @@
+{
+  "schema_version": "zyra.p2-s05-01-verification-summary/v1",
+  "slice_id": "P2-S05-01",
+  "slice_base_commit": "6b81f660822b1f8d5c30206d38f7d4d9d998f0fc",
+  "implementation_commit": "9eb2e750b5ceaa2df9e5ca68fadad4f6ab18ff15",
+  "overall_status": "passed",
+  "target_commands": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/evaluation/test_phase2_metrics.py -q",
+      "result": "6 passed in 1.00s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_policy_metrics_from_receipts.py -q",
+      "result": "1 passed in 0.96s",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/test_metrics_anti_gaming.py -q",
+      "result": "7 passed in 2.35s",
+      "status": "passed"
+    }
+  ],
+  "adjacent_regression": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/evaluation/test_phase2_metrics.py tests/integration/test_policy_metrics_from_receipts.py tests/integration/test_metrics_anti_gaming.py tests/unit/orchestration/test_policy_contracts.py tests/integration/test_spatial_temporal_pruning.py tests/integration/test_physical_dispatch_receipts.py -q",
+    "result": "30 passed in 11.15s",
+    "status": "passed"
+  },
+  "static_checks": [
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m compileall -q packages/evaluation/zyra_evaluation/policy_benchmark apps/api/zyra_api",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m ruff check <slice paths>",
+      "status": "tool_unavailable",
+      "detail": "ruff is not installed in the project virtual environment"
+    }
+  ],
+  "acceptance_checks": {
+    "versioned_metric_specs": true,
+    "metric_spec_count": 57,
+    "run_scenario_mechanism_aggregate_reports": true,
+    "canonical_receipt_only": true,
+    "first_stage_compatibility_mapping": true,
+    "failed_runs_excluded_from_optimization": true,
+    "normalized_graph_scale": true,
+    "raw_transition_is_evidence_volume_only": true,
+    "simulated_dispatch_excluded": true,
+    "missing_resolver_fails_closed": true,
+    "duplicate_exact_import_is_idempotent": true,
+    "conflicting_idempotency_fails_closed": true,
+    "stale_receipt_fails_closed": true,
+    "inconsistent_digest_fails_closed": true,
+    "memory_presence_requires_downstream_use": true,
+    "projector_reject_without_commit_is_not_unsafe_commit": true,
+    "zero_denominator_is_non_success": true,
+    "read_only_api_projection": true
+  },
+  "negative_case_tests": [
+    "test_empty_and_disconnected_receipts_never_report_success",
+    "test_report_separates_failed_low_cost_run_from_optimization",
+    "test_duplicate_import_is_idempotent_but_conflicting_identity_fails",
+    "test_inconsistent_supplied_digest_fails_closed",
+    "test_simulated_dispatch_is_excluded_from_real_edge_numerator",
+    "test_memory_presence_without_downstream_use_does_not_pass_continuity",
+    "test_projector_reject_without_commit_records_zero_unsafe_commit",
+    "test_transition_volume_cannot_raise_readiness_status",
+    "test_stale_proposal_and_missing_outcome_fail_closed",
+    "test_zero_denominator_and_disconnected_resolver_are_non_success"
+  ],
+  "broader_non_slice_observation": {
+    "command_scope": "target and adjacent tests plus tests/integration/test_api_control_commands.py",
+    "result": "41 passed, 15 failed",
+    "status": "not_counted_as_slice_pass",
+    "detail": "The failures are on existing POST permission, tool, skill, command, and browser-worker behavior. P2-S05-01 adds GET-only policy metric routes and does not alter those POST handlers. The failures are recorded without being relabeled as passing."
+  },
+  "evidence": {
+    "registry_digest": "64bab25967951abc5f43ce4c7df834475f700d147d2d54a3d0685dcaf2a176a6",
+    "report_digest": "88f14995bf57f26eff174728a253aacc640da73df52b6b024b50c062840cd133",
+    "lineage_digest": "3f7748b5c6eb3899b327bbd20f94269adf84eefd6e534e84ba37b1267d6ce03b",
+    "manifest_digest": "1ab0b9ef4775cc364f92d72d74edafe81eeb6b019ddcad1bc456a6ecbf5d68a3"
+  }
+}

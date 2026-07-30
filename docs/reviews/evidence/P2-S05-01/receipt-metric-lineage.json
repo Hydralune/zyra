@@ -1,0 +1,294 @@
+{
+  "canonical_only": true,
+  "digest": "3f7748b5c6eb3899b327bbd20f94269adf84eefd6e534e84ba37b1267d6ce03b",
+  "implementation_commit": "9eb2e750b5ceaa2df9e5ca68fadad4f6ab18ff15",
+  "metric_sources": {
+    "communication.cost_per_effective_transition": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.delivered_bytes": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.delivered_cost_usd": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.delivered_tokens": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.duplicate_semantic_payload_ratio": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.evidence_utilization_ratio": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.normalized_entropy": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.sender_conditioned_recipient_entropy": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.spatial_delivery_count": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.temporal_delivery_count": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "communication.useful_message_ratio": [
+      "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+      "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+    ],
+    "continuity.critical_fact_recall": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "continuity.duplicate_completed_work_count": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "continuity.first_decision_correctness": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "continuity.provenance_coverage": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "continuity.stale_requirement_execution_count": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "continuity.unresolved_obligation_retention": [
+      "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+    ],
+    "dispatch.causal_chain_completeness": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.cloud_real_receipt_completeness": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.edge_real_receipt_completeness": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.local_real_receipt_completeness": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.physical_reroute_count": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.privacy_placement_violation_count": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "dispatch.provider_receipt_coverage": [
+      "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+      "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0",
+      "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f"
+    ],
+    "evidence.canonical_transition_count": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "operator.early_exit_false_positive_ratio": [
+      "6ce9a46c5f7550ee217ee53eca4c9b19e472cb172efb205f46203c76ff6b6a65",
+      "e9a0ddd5032e6f5d86358c86d669270cfa69d25bf5cbf9056ae96475cd949faf"
+    ],
+    "operator.early_exit_true_positive_ratio": [
+      "6ce9a46c5f7550ee217ee53eca4c9b19e472cb172efb205f46203c76ff6b6a65",
+      "e9a0ddd5032e6f5d86358c86d669270cfa69d25bf5cbf9056ae96475cd949faf"
+    ],
+    "operator.executed_breadth": [
+      "6ce9a46c5f7550ee217ee53eca4c9b19e472cb172efb205f46203c76ff6b6a65",
+      "e9a0ddd5032e6f5d86358c86d669270cfa69d25bf5cbf9056ae96475cd949faf"
+    ],
+    "operator.executed_depth": [
+      "6ce9a46c5f7550ee217ee53eca4c9b19e472cb172efb205f46203c76ff6b6a65",
+      "e9a0ddd5032e6f5d86358c86d669270cfa69d25bf5cbf9056ae96475cd949faf"
+    ],
+    "readiness.actual_default_mode_ratio": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.baseline_mode_ratio": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.causal_link_completeness": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.confidence": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.deterministic_replay_match": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.diagnostic_mode_ratio": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.failure_path_coverage": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.freshness": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.missingness": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.no_policy_audit_pass": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.optional_input_coverage": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.required_input_coverage": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.scenario_coverage": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.stage_score": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "readiness.status_score": [
+      "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+    ],
+    "symbolic.adversarial_accept_ratio": [
+      "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+    ],
+    "symbolic.adversarial_project_ratio": [
+      "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+    ],
+    "symbolic.adversarial_reject_ratio": [
+      "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+    ],
+    "symbolic.projector_bypass_reachable": [
+      "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+    ],
+    "symbolic.unsafe_commit_count": [
+      "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+    ],
+    "topology.adaptation_latency_ms": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.mechanism_decision_overhead_ms": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.normalized_churn": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.oscillation_count": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.proposal_accept_ratio": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.proposal_degraded_ratio": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.proposal_project_ratio": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ],
+    "topology.proposal_reject_ratio": [
+      "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f",
+      "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822",
+      "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+    ]
+  },
+  "receipt_kinds": {
+    "adaptive_depth_receipts": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "e9a0ddd5032e6f5d86358c86d669270cfa69d25bf5cbf9056ae96475cd949faf"
+      ]
+    },
+    "communication_observations": {
+      "receipt_count": 2,
+      "receipt_digests": [
+        "0f06ad7be12aa463e6e0a3e45e659e24a109d5c6039d3da8d7b5a343b1d4f10b",
+        "9ed285e140235607a6a2dca57f2e73b42c0c7769f110f50f47c2287b3c9ea658"
+      ]
+    },
+    "continuity_receipts": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "2e237280617741f9a29105ce1d455f71517b7fd7b199277faa4a0706a0c1cfee"
+      ]
+    },
+    "early_exit_receipts": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "6ce9a46c5f7550ee217ee53eca4c9b19e472cb172efb205f46203c76ff6b6a65"
+      ]
+    },
+    "physical_dispatch_receipts": {
+      "receipt_count": 3,
+      "receipt_digests": [
+        "aff927376f7cc41404b4ab87cce94bafb14df9141c14c5a56ea47410c5cfaca1",
+        "f1be38fb18030b26158ea95f23d647a3b7d07ec0650bf0345f9f475d063a7a2f",
+        "b9714b68c5d33b2a552824f0348f386d213be60fd134838e68d50bfeabcba9c0"
+      ]
+    },
+    "policy_decisions": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "1af73a73115465683c437bba774a09f3baebc99f69f7ec2ad8e8f5fabd50569f"
+      ]
+    },
+    "policy_outcomes": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "adcd137fa36eb9c4658b79a6048614a3e8c332a9a3858fe5b98791ca323f7ba2"
+      ]
+    },
+    "readiness_reports": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "88cede2aedd76f0e2c018d4ab604b65983e98ff5cfb008b0db48b1e774871464"
+      ]
+    },
+    "symbolic_bundles": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "570c7a8f096630b7f4b2bb4141568176b1c9c1dd95a5397222b2703e4a79ef54"
+      ]
+    },
+    "topology_proposals": {
+      "receipt_count": 1,
+      "receipt_digests": [
+        "8ccf5f3716e0fd5a859c50009a03e8da08042f080b33b76a161140ee219ad822"
+      ]
+    }
+  },
+  "run_id": "run-real-receipts",
+  "schema_version": "zyra.phase2-metric-lineage/v1",
+  "slice_id": "P2-S05-01",
+  "task_id": "task-real-receipts",
+  "ui_projection_used_as_input": false
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": "zyra.p2-s05-01-effective-lines/v1",
+  "slice_id": "P2-S05-01",
+  "slice_base_commit": "6b81f660822b1f8d5c30206d38f7d4d9d998f0fc",
+  "implementation_commit": "9eb2e750b5ceaa2df9e5ca68fadad4f6ab18ff15",
+  "method": "Git added lines for committed implementation; nonblank non-comment lines for new source files; generated JSON reported separately and never counted as implementation.",
+  "buckets": {
+    "production": {
+      "added_lines": 1796,
+      "effective_nonblank_noncomment_lines": 1651,
+      "files": [
+        "apps/api/zyra_api/main.py",
+        "apps/api/zyra_api/policy_api.py",
+        "packages/evaluation/zyra_evaluation/policy_benchmark/__init__.py",
+        "packages/evaluation/zyra_evaluation/policy_benchmark/metric_specs.py",
+        "packages/evaluation/zyra_evaluation/policy_benchmark/metrics.py",
+        "packages/evaluation/zyra_evaluation/policy_benchmark/report.py"
+      ]
+    },
+    "test": {
+      "added_lines": 931,
+      "effective_nonblank_noncomment_lines": 871,
+      "files": [
+        "tests/unit/evaluation/test_phase2_metrics.py",
+        "tests/integration/test_policy_metrics_from_receipts.py",
+        "tests/integration/test_metrics_anti_gaming.py"
+      ]
+    },
+    "validation": {
+      "added_lines": 250,
+      "effective_nonblank_noncomment_lines": 234,
+      "files": [
+        "scripts/generate_p2_s05_01_evidence.py"
+      ]
+    },
+    "data_docs": {
+      "generated_json_lines_before_review_files": 5532,
+      "files": [
+        "docs/reviews/evidence/P2-S05-01/evidence-manifest.json",
+        "docs/reviews/evidence/P2-S05-01/metric-report.json",
+        "docs/reviews/evidence/P2-S05-01/metric-spec-registry.json",
+        "docs/reviews/evidence/P2-S05-01/receipt-metric-lineage.json",
+        "docs/reviews/evidence/P2-S05-01/verification-summary.json",
+        "docs/reviews/P2-S05-01-metrics-upgrade-review.md"
+      ],
+      "counted_as_implementation": false
+    },
+    "runtime_assets_vendor_like": {
+      "added_lines": 0,
+      "files": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "detail": "No generated source is counted. JSON evidence is classified under data_docs."
+    },
+    "external_data_or_models": {
+      "added_lines": 0,
+      "files": []
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "files": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "detail": "Tests construct immutable canonical receipt contracts; no fixture or mock output is used as a formal metric source."
+    }
+  }
+}
