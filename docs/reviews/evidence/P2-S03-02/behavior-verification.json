@@ -1,0 +1,126 @@
+{
+  "schema": "zyra.p2-s03-02-card-behavior-evidence/v1",
+  "slice_id": "P2-S03-02",
+  "implementation_commit": "a8977c1e2cdee1f44705710e73d7523e3687ada9",
+  "mechanism_version": "card_directional_residual_v1",
+  "configuration_digest": "fc0d699fead07217b6b24c557b183c5d6a0542d4dab2d590b20c0b2e3d3c815e",
+  "environment_lineage": {
+    "environment_schema": "zyra.environment-snapshot/v1",
+    "encoded_schema": "zyra.card-environment-features/v1",
+    "required_categories": [
+      "worker"
+    ],
+    "optional_categories": [
+      "provider",
+      "model",
+      "tool"
+    ],
+    "observation_sources": [
+      "ResourceScheduler.worker_pool_api_projection",
+      "provider.registry.telemetry",
+      "model.registry.telemetry",
+      "tool.registry.telemetry"
+    ],
+    "feature_groups": [
+      "availability",
+      "success_failure",
+      "p50_p95_latency",
+      "queue_load_capacity",
+      "prompt_completion_tokens",
+      "real_cost",
+      "physical_identity",
+      "network_disconnect",
+      "privacy_allowed_placement",
+      "freshness_source_confidence",
+      "fault_requirement_change_compact_recovery"
+    ]
+  },
+  "normal": {
+    "correction_digest": "b55e07e9756d1e288abe37e9fe83074ff6c2e8233e6c9c33e6dbd67e32635020",
+    "directional_scores": {
+      "node-a->node-b": 0.443125,
+      "node-b->node-a": 0.910375,
+      "node-b->node-c-temporal": 0.85375
+    },
+    "actions": {
+      "edge-a-b": "reweight",
+      "edge-b-a": "reweight",
+      "edge-b-c-temporal": "reweight"
+    },
+    "directional_asymmetry": true,
+    "spatial_temporal_separated": true
+  },
+  "worker_failure": {
+    "correction_digest": "c611721c87be34baf43258252eb4351cb6b3beda1ff00dc898f5b9bc623b2067",
+    "actions": {
+      "edge-a-b": "drop",
+      "edge-b-a": "drop",
+      "edge-b-c-temporal": "drop"
+    },
+    "reason_codes": [
+      "target_unavailable",
+      "target_capacity_or_lease_unavailable",
+      "source_unavailable"
+    ],
+    "hard_constraint_bypassed_hysteresis": true
+  },
+  "privacy": {
+    "correction_digest": "9c166f1edef4e134e02f216a169b212dcf5e9a872b286716cec327639c9e30cd",
+    "forbidden_cloud_edge_count": 3,
+    "remaining_forbidden_cloud_edge_count": 0,
+    "reason_code": "privacy_or_placement_forbidden"
+  },
+  "stale": {
+    "correction_digest": "5f358250ad0cee78f15c09b79500248488593adcd1b5796ccfdff1c97dc4b0c4",
+    "effective_confidence": 0.25,
+    "actions": {
+      "edge-a-b": "hold",
+      "edge-b-a": "hold",
+      "edge-b-c-temporal": "hold"
+    },
+    "reason_code": "stale_telemetry:worker-b",
+    "stale_entered_effective_candidate": false
+  },
+  "hysteresis": {
+    "minimum_dwell_seconds": 30,
+    "switch_confirmations": 2,
+    "reweight_epsilon": 0.025,
+    "switch_cost": 0.12,
+    "minimum_dwell_blocks_non_hard_switch": true,
+    "first_candidate_switch_is_pending": true,
+    "second_identical_candidate_switch_is_applied": true,
+    "stable_noise_add_drop_count": 0
+  },
+  "readiness_branches": {
+    "implementation_validated_deterministic_ready": "validation",
+    "evidence_only": "diagnostic_with_diff_arg_base_remains_commit_input",
+    "unavailable": "unmodified_arg_base",
+    "disabled": "unmodified_arg_base"
+  },
+  "determinism": {
+    "same_frozen_environment_config_and_hysteresis_state": true,
+    "same_encoded_digest": true,
+    "same_correction_digest": true
+  },
+  "owner_boundary": {
+    "arg_base_owner": "arg_designer",
+    "condition_residual_owner": "card",
+    "canonical_owner": "GraphStateCustody",
+    "canonical_mutation_attempted": false,
+    "graph_revision_before": 0,
+    "graph_revision_after": 0
+  },
+  "disconnect_effect": {
+    "enabled_failure_condition_action": "drop",
+    "disabled_failure_condition_action": "no_card_correction",
+    "disabled_effective_edge_ids": [
+      "edge-source-target"
+    ],
+    "semantic_difference": true
+  },
+  "empty_arg_base": {
+    "result": "fail_closed",
+    "reason_code": "card_arg_base_edges_missing",
+    "second_topology_generated": false
+  }
+}

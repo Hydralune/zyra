@@ -1,0 +1,71 @@
+{
+  "schema": "zyra.p2-s03-02-verification-summary/v1",
+  "slice_id": "P2-S03-02",
+  "base_commit": "b4ee7819acaebab4e79ad25c93bc7c0520343b5e",
+  "implementation_commit": "a8977c1e2cdee1f44705710e73d7523e3687ada9",
+  "verdict": "PASS",
+  "focused_tests": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_card_residual_corrector.py tests\\integration\\test_environment_conditioned_topology_residual.py -q",
+    "result": "8 passed in 0.97s"
+  },
+  "focused_and_adjacent_tests": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_card_residual_corrector.py tests\\integration\\test_environment_conditioned_topology_residual.py tests\\unit\\orchestration\\test_arg_joint_topology_builder.py tests\\integration\\test_arg_joint_topology_runtime.py tests\\unit\\orchestration\\test_policy_contracts.py tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\integration\\test_policy_contract_replay.py tests\\integration\\test_neuro_symbolic_projector.py -q",
+    "result": "49 passed in 4.94s"
+  },
+  "source_language_custody": {
+    "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_source_language_custody.py --evidence docs\\reviews\\evidence\\P2-S03-02\\source-language-custody-input.json --base b4ee7819acaebab4e79ad25c93bc7c0520343b5e --target a8977c1e2cdee1f44705710e73d7523e3687ada9",
+    "result": "PASS",
+    "production_python_added_lines": 2586,
+    "violations": 0
+  },
+  "readiness": {
+    "shared_contract_validation": "PASS",
+    "default_card_runtime_resolution": {
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "mode": "validation",
+      "canonical_mutation_allowed": false,
+      "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244"
+    }
+  },
+  "static_checks": {
+    "python_py_compile": "PASS",
+    "git_diff_check": "PASS",
+    "ruff": "NOT_RUN: repository virtual environment has no ruff module"
+  },
+  "behavior": {
+    "directional_score_asymmetry": true,
+    "worker_failure_changes_inbound_outbound_residual": true,
+    "privacy_and_disconnect_remove_forbidden_edges": true,
+    "stale_telemetry_rejected_or_held": true,
+    "minimum_dwell_and_switch_confirmation": true,
+    "spatial_temporal_separated": true,
+    "fixed_input_deterministic": true,
+    "evidence_only_keeps_arg_commit_input": true,
+    "disable_changes_semantics": true,
+    "empty_arg_cannot_generate_topology": true,
+    "canonical_mutation_attempted": false
+  },
+  "no_policy_training": {
+    "passed": true,
+    "training_sample_count": 0,
+    "gcn_or_mlp_weights_migrated": false,
+    "random_sampling_entry_points": 0
+  },
+  "inherited_non_slice_check": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_policy_contracts.py tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\integration\\test_policy_contract_replay.py tests\\integration\\test_mechanism_readiness_enforcement.py tests\\integration\\test_neuro_symbolic_projector.py -q",
+    "result": "33 passed, 1 failed, 6 errors",
+    "cause": "Frozen evidence index reports package-manifest digest mismatch: baseline expects package.json SHA-256 2b15563f..., while the repository package.json is 4e2b0531....",
+    "attribution": "Inherited at slice base. git diff b4ee7819acaebab4e79ad25c93bc7c0520343b5e -- package.json is empty; P2-S03-02 does not modify the baseline manifest, package.json or readiness evidence index.",
+    "slice_blocking": false
+  },
+  "risk_assessment": {
+    "high_risk_slice": false,
+    "canonical_owner_transfer": false,
+    "default_topology_policy_changed": false,
+    "public_persistence_migration": false,
+    "external_dependency_added": false,
+    "root_source_runtime_dependency_added": false,
+    "openclaw_used": false
+  }
+}

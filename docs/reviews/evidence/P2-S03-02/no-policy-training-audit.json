@@ -1,0 +1,32 @@
+{
+  "schema": "zyra.p2-s03-02-no-policy-training-audit/v1",
+  "slice_id": "P2-S03-02",
+  "implementation_commit": "a8977c1e2cdee1f44705710e73d7523e3687ada9",
+  "passed": true,
+  "training_sample_count": 0,
+  "runtime_entry_points": [],
+  "training_datasets": [],
+  "training_checkpoints": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "learned_gcn_weights": [],
+  "machine_learning_dependencies_added": [],
+  "scan_roots": [
+    "packages/orchestration/zyra_orchestration/topology_policy/condition",
+    "config/phase2/card-directional-residual.json"
+  ],
+  "rejected_source_dependencies": [
+    "torch",
+    "torch_geometric",
+    "numpy"
+  ],
+  "rejected_source_controls": [
+    "GCN training and inference",
+    "MLP learned weights",
+    "symmetric Z dot Z-transpose score",
+    "torch.rand edge sampling",
+    "random.choice graph combination",
+    "trainable spatial and temporal logits"
+  ],
+  "finding_count": 0
+}

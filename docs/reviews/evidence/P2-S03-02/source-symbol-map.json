@@ -1,0 +1,133 @@
+{
+  "schema": "zyra.p2-s03-02-source-symbol-map/v1",
+  "slice_id": "P2-S03-02",
+  "sources": [
+    {
+      "repository": "CARD",
+      "path": "long-horizon-systems/CARD/CARD/graph/graph.py",
+      "source_role": "supplementary_implementation",
+      "source_language": "python"
+    },
+    {
+      "repository": "CARD",
+      "path": "long-horizon-systems/CARD/CARD/gnn/gcn.py",
+      "source_role": "supplementary_implementation",
+      "source_language": "python"
+    }
+  ],
+  "target": {
+    "path": "packages/orchestration/zyra_orchestration/topology_policy/condition",
+    "target_language": "python",
+    "migration_mode": "cropped_same_language_migration",
+    "implementation_commit": "a8977c1e2cdee1f44705710e73d7523e3687ada9"
+  },
+  "symbol_decisions": [
+    {
+      "source_symbols": [
+        "Graph.prepare_feature_cache_for_all_combinations",
+        "Graph.construct_dynamic_llm_features",
+        "Graph.construct_dynamic_externel_features"
+      ],
+      "decision": "concept_preserved_control_corrected",
+      "target_symbols": [
+        "CARDEnvironmentEncoder.encode",
+        "CARDEnvironmentEncoder._observation_feature",
+        "CARDEncodedEnvironment"
+      ],
+      "reason": "Retains ordered condition-feature combination, but replaces hand-written LLM/tool descriptions and embeddings with versioned worker/provider/model/tool telemetry, source-event lineage, freshness, confidence and explicit missingness."
+    },
+    {
+      "source_symbols": [
+        "Graph.construct_adj_matrix",
+        "PromptSet.get_role_connection"
+      ],
+      "decision": "boundary_preserved_and_restricted",
+      "target_symbols": [
+        "CARDEnvironmentEncoder._base_edges",
+        "CARDReplacementCandidate"
+      ],
+      "reason": "Role-edge priors are accepted only through the ARG joint base hypothesis or an upstream constrained replacement candidate; CARD cannot enumerate or own a complete topology."
+    },
+    {
+      "source_symbols": [
+        "Graph.arun condition-aware fusion order"
+      ],
+      "decision": "preserved_and_corrected",
+      "target_symbols": [
+        "CARDTopologyRuntime.execute",
+        "CARDResidualCorrector.correct",
+        "CARDResidualCorrector.build_proposal"
+      ],
+      "reason": "Preserves environment encoding before correction and edge selection, while separating typed residual evidence from the later symbolic composer and canonical graph owner."
+    },
+    {
+      "source_symbols": [
+        "FeatureFusion.forward"
+      ],
+      "decision": "replaced_with_deterministic_auditable_fusion",
+      "target_symbols": [
+        "CARDResidualCorrector._score",
+        "CARDScoreComponents",
+        "CARDResidualDecision.feature_contributions"
+      ],
+      "reason": "Learned alpha/beta fusion is replaced by seven versioned deterministic terms for capability, health, latency, load, cost, privacy and freshness."
+    },
+    {
+      "source_symbols": [
+        "GCN.forward",
+        "MLP.forward",
+        "Graph.arun logits @ logits.t"
+      ],
+      "decision": "rejected_and_directionally_replaced",
+      "target_symbols": [
+        "CARDResidualCorrector._score"
+      ],
+      "reason": "GCN/MLP weights and the symmetric Z·Zᵀ score are not migrated. Source and target have different capability, health, latency, load, cost, privacy and freshness roles, so score(A→B) and score(B→A) are independently reproducible."
+    },
+    {
+      "source_symbols": [
+        "Graph.construct_spatial_connection",
+        "Graph.construct_temporal_connection"
+      ],
+      "decision": "control_structure_preserved_sampling_rejected",
+      "target_symbols": [
+        "CARDResidualCorrector.correct",
+        "CARDResidualCorrection.effective_spatial_edge_ids",
+        "CARDResidualCorrection.effective_temporal_edge_ids",
+        "CARDHysteresisController.evaluate"
+      ],
+      "reason": "Spatial and temporal residuals remain separate, but torch.rand sampling is replaced by stable thresholds, switch cost, minimum dwell and confirmation hysteresis."
+    },
+    {
+      "source_symbols": [
+        "Graph.allow_random_combination",
+        "random.choice",
+        "torch.rand",
+        "trainable edge logits",
+        "GCNConv",
+        "torch.nn.Parameter"
+      ],
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "Random graph selection, learned logits, training parameters, torch and torch-geometric are prohibited by no_policy_training and deterministic replay."
+    },
+    {
+      "source_symbols": [
+        "Graph.run",
+        "Graph.arun node execution",
+        "AgentRegistry",
+        "ToolRegistry",
+        "decision_node",
+        "update_memory"
+      ],
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "The CARD executor, provider/agent runtime, tool registry, memory loop and decision node would duplicate Zyra owners and are not migrated."
+    }
+  ],
+  "full_source_copy": false,
+  "external_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "symmetric_edge_score_migrated": false,
+  "openclaw_used": false
+}

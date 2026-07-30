@@ -1,0 +1,65 @@
+{
+  "schema": "zyra.p2-s03-02-line-buckets/v1",
+  "slice_id": "P2-S03-02",
+  "base_commit": "b4ee7819acaebab4e79ad25c93bc7c0520343b5e",
+  "implementation_commit": "a8977c1e2cdee1f44705710e73d7523e3687ada9",
+  "buckets": {
+    "production": {
+      "added_lines": 2586,
+      "paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/environment_encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/hysteresis.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/residual_corrector.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/runtime.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1328,
+      "paths": [
+        "tests/unit/orchestration/test_card_residual_corrector.py",
+        "tests/integration/test_environment_conditioned_topology_residual.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 61,
+      "paths": [
+        "config/phase2/card-directional-residual.json"
+      ]
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "source_pool": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "Controlled typed telemetry is test input, not a production or evidence-volume bucket."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S03-02",
+        "docs/reviews/P2-S03-02-card-directional-edges-review.md"
+      ],
+      "note": "Committed after the frozen implementation target and excluded from production totals."
+    }
+  },
+  "total_implementation_added_lines": 3975,
+  "production_share": 0.65056604,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}

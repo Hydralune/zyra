@@ -1,0 +1,30 @@
+{
+  "base": "b4ee7819acaebab4e79ad25c93bc7c0520343b5e",
+  "ok": true,
+  "roles": [
+    {
+      "actual_production_languages": [
+        "python"
+      ],
+      "added_production_lines": {
+        "python": 2586
+      },
+      "expected_production_languages": [
+        "python"
+      ],
+      "migration_mode": "cropped_same_language_migration",
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/environment_encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/hysteresis.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/residual_corrector.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/runtime.py"
+      ],
+      "source_repo": "CARD",
+      "source_role": "supplementary_implementation"
+    }
+  ],
+  "schema": "zyra.source-language-custody-report/v1",
+  "target": "a8977c1e2cdee1f44705710e73d7523e3687ada9",
+  "violations": []
+}
