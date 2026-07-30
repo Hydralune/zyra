@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.p2-s04-02-checkpoint-recovery-evidence/v1",
+  "slice_id": "P2-S04-02",
+  "implementation_commit": "ec501cbd107724069628a259049d5488879cf8d2",
+  "checkpoint_binding": {
+    "snapshot_id_saved": true,
+    "snapshot_digest_saved": true,
+    "decision_id_saved": true,
+    "decision_digest_saved": true,
+    "decision_receipt_saved": true,
+    "requirement_revision_saved": true,
+    "policy_input_digest_saved": true,
+    "proposal_digest_saved": true,
+    "gate_configuration_digest_saved": true,
+    "owner_refs_saved": true,
+    "restore_policy": "revalidate_fresh_owner_state_never_reuse_verdict"
+  },
+  "restart": {
+    "store_reopened_from_same_sqlite_path": true,
+    "committed_checkpoint_restored": true,
+    "prior_verdict_reused": false,
+    "fresh_snapshot_rebuilt": true,
+    "revalidated_decision": "exit",
+    "eligibility_inputs_changed_recorded": true
+  },
+  "requirement_change": {
+    "from_revision": "requirement-r1",
+    "to_revision": "requirement-r2",
+    "prior_verdict_reused": false,
+    "revalidated_decision": "continue",
+    "invalidation_reasons": [
+      "requirement_revision_changed",
+      "policy_input_changed",
+      "operator_proposal_changed",
+      "eligibility_inputs_changed"
+    ],
+    "failed_conditions": [
+      "critical_obligations_resolved",
+      "checkpoint_requirement_current",
+      "memory_continuity_passed",
+      "final_verifier_passed"
+    ]
+  },
+  "hidden_pending_side_effect": {
+    "pending_fence_written_to_canonical_owner": true,
+    "pending_fence_listed_in_old_checkpoint": false,
+    "detected_by_task_scope_projection": true,
+    "decision": "continue"
+  }
+}

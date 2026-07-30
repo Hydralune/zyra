@@ -1,0 +1,32 @@
+{
+  "schema": "zyra.p2-s04-02-no-policy-training-audit/v1",
+  "slice_id": "P2-S04-02",
+  "implementation_commit": "ec501cbd107724069628a259049d5488879cf8d2",
+  "passed": true,
+  "training_sample_count": 0,
+  "runtime_training_entry_points": [],
+  "training_datasets": [],
+  "training_checkpoints": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "pretrained_model_observations": [],
+  "machine_learning_dependencies_added": [],
+  "source_role": "supplementary_implementation",
+  "source_mechanism": "MaAS MultiLayerController adaptive-depth concept",
+  "source_runtime_migrated": false,
+  "deterministic_replacements": [
+    "versioned canonical-owner ExitEligibilitySnapshot",
+    "twelve-condition deterministic early-exit gate",
+    "external-owner layer execution port",
+    "digest-bound final verifier receipt",
+    "checkpoint restore revalidation",
+    "complete outcome and cost receipts"
+  ],
+  "scan_roots": [
+    "packages/scheduler/zyra_scheduler/operator_policy/early_exit.py",
+    "packages/scheduler/zyra_scheduler/operator_policy/adaptive_depth.py",
+    "config/phase2/maas-early-exit.json"
+  ],
+  "finding_count": 0,
+  "openclaw_used": false
+}

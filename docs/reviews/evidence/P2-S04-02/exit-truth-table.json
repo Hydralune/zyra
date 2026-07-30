@@ -1,0 +1,98 @@
+{
+  "schema": "zyra.p2-s04-02-exit-truth-table/v1",
+  "slice_id": "P2-S04-02",
+  "implementation_commit": "ec501cbd107724069628a259049d5488879cf8d2",
+  "all_conditions_pass": {
+    "decision": "exit",
+    "failed_conditions": []
+  },
+  "hard_conditions": [
+    {
+      "condition_id": "early_exit_enabled",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "snapshot_fresh",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "canonical_owner_evidence_complete",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "final_verifier_passed",
+      "failure_decision": "continue",
+      "covered": true,
+      "variants": [
+        "failed",
+        "stale",
+        "ttl_too_long",
+        "forged_digest"
+      ]
+    },
+    {
+      "condition_id": "critical_obligations_resolved",
+      "failure_decision": "continue",
+      "covered": true,
+      "variants": [
+        "unresolved",
+        "removed_from_observed_scope"
+      ]
+    },
+    {
+      "condition_id": "required_artifacts_complete",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "permission_settled",
+      "failure_decision": "continue",
+      "covered": true,
+      "canonical_owner_integration": true
+    },
+    {
+      "condition_id": "side_effects_settled",
+      "failure_decision": "continue",
+      "covered": true,
+      "canonical_owner_integration": true,
+      "hidden_from_checkpoint_detected": true
+    },
+    {
+      "condition_id": "minimum_operator_path_executed",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "checkpoint_requirement_current",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "memory_continuity_passed",
+      "failure_decision": "continue",
+      "covered": true
+    },
+    {
+      "condition_id": "confidence_and_cost_benefit",
+      "failure_decision": "continue",
+      "covered": true,
+      "variants": [
+        "confidence_below_threshold",
+        "no_avoided_operator",
+        "no_avoided_tokens"
+      ]
+    }
+  ],
+  "adversarial_inputs": {
+    "missing_field": "fail_closed_continue",
+    "unknown_field": "fail_closed_continue",
+    "boolean_type_confusion": "fail_closed_continue",
+    "obligation_removal_without_canonical_digest": "fail_closed_continue",
+    "verifier_mutation": "fail_closed_continue",
+    "pending_side_effect_hidden_from_checkpoint": "detected_from_canonical_task_scope_and_continue"
+  },
+  "false_exit_count": 0
+}

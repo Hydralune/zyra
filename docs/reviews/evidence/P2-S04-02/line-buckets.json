@@ -1,0 +1,66 @@
+{
+  "schema": "zyra.p2-s04-02-line-buckets/v1",
+  "slice_id": "P2-S04-02",
+  "base_commit": "b575d40f877a5b3511c3fd2ac7cb0a78c7f12d7e",
+  "implementation_commit": "ec501cbd107724069628a259049d5488879cf8d2",
+  "buckets": {
+    "production": {
+      "added_lines": 2885,
+      "paths": [
+        "packages/scheduler/zyra_scheduler/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/adaptive_depth.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/early_exit.py",
+        "packages/scheduler/zyra_scheduler/recovery_runtime/store.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1154,
+      "paths": [
+        "tests/unit/scheduler/test_early_exit_gate.py",
+        "tests/integration/test_adaptive_depth_verifier.py",
+        "tests/integration/test_early_exit_checkpoint_recovery.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 24,
+      "paths": [
+        "config/phase2/maas-early-exit.json"
+      ]
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "data": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "Integration harnesses call actual artifact, permission, side-effect and checkpoint owners; no replay trace or mock provider is counted as production."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S04-02",
+        "docs/reviews/P2-S04-02-verifier-early-exit-review.md"
+      ],
+      "note": "Evidence is committed after the frozen implementation target and excluded from implementation totals."
+    }
+  },
+  "total_implementation_added_lines": 4063,
+  "production_share": 0.71006645,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}

@@ -1,0 +1,74 @@
+{
+  "schema": "zyra.p2-s04-02-early-exit-behavior-evidence/v1",
+  "slice_id": "P2-S04-02",
+  "base_commit": "b575d40f877a5b3511c3fd2ac7cb0a78c7f12d7e",
+  "implementation_commit": "ec501cbd107724069628a259049d5488879cf8d2",
+  "mechanism_version": "maas_verifier_early_exit_v1",
+  "configuration_digest": "fe8cb61afa5f3c0c7c2ebcc31f590ff1df929df532b2e77f09f190aeeef59739",
+  "proposal": {
+    "proposed_depth": 4,
+    "proposed_operator_count": 4,
+    "expected_breadth": 1,
+    "minimum_operator_path": [
+      "worker:operator-1@1",
+      "worker:final-verifier@1"
+    ],
+    "minimum_verification_path": [
+      "final_verifier"
+    ]
+  },
+  "enabled": {
+    "decision": "exit",
+    "posterior_result": "true_exit",
+    "executed_depth": 2,
+    "executed_operator_count": 2,
+    "avoided_operator_refs": [
+      "worker:operator-3@1",
+      "worker:operator-4@1"
+    ],
+    "actual_tokens": 80,
+    "actual_cost_usd": 0.008,
+    "actual_latency_ms": 20,
+    "estimated_avoided_tokens": 200,
+    "estimated_avoided_cost_usd": 0.02,
+    "task_completed": true,
+    "artifact_complete": true,
+    "verifier_passed": true,
+    "permission_result": "settled",
+    "recovery_result": "not_required",
+    "policy_outcome_complete": true,
+    "causal_receipts_complete": true
+  },
+  "disabled": {
+    "decision": "continue",
+    "posterior_result": "not_exited",
+    "executed_depth": 4,
+    "executed_operator_count": 4,
+    "actual_tokens": 160,
+    "actual_cost_usd": 0.016,
+    "actual_latency_ms": 40,
+    "task_completed": true,
+    "artifact_complete": true,
+    "verifier_passed": true,
+    "policy_outcome_complete": true
+  },
+  "comparison": {
+    "depth_reduction": 2,
+    "operator_reduction": 2,
+    "token_reduction": 80,
+    "cost_reduction_usd": 0.008,
+    "latency_reduction_ms": 20,
+    "same_completed_task_semantics": true,
+    "false_exit_count": 0
+  },
+  "owner_evidence": {
+    "task": "TaskState",
+    "artifact": "LocalArtifactStore",
+    "permission": "PermissionStateStore/PermissionRequestQueue",
+    "side_effect": "RecoveryPlanStore",
+    "checkpoint": "CheckpointCommitRuntime/RecoveryPlanStore",
+    "continuity": "MemoryContinuityReceipt",
+    "final_verifier": "digest-bound TaskState decision",
+    "parallel_state_store_added": false
+  }
+}
