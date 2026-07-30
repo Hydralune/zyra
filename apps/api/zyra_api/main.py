@@ -151,6 +151,8 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/deployment/faults/{profile}"),
     ("POST", "/deployment/exercise"),
     ("POST", "/deployment/shutdown"),
+    ("GET", "/policy/metrics/specs"),
+    ("GET", "/policy/metrics/reports/{report_id}"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -174,6 +176,7 @@ from .terminal_api import TerminalApiService
 from .scenario_api import get_scenario_runner_api, reset_scenario_runner_api
 from .experiment_api import get_experiment_api, reset_experiment_api
 from .deployment_api import get_deployment_api, reset_deployment_api
+from .policy_api import get_policy_metric_api, reset_policy_metric_api
 
 from zyra_core import (
     AgentMessage,
@@ -5102,6 +5105,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                                 reset_experiment_api(wait=False)
                                             finally:
                                                 reset_deployment_api()
+                                                reset_policy_metric_api()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -5624,6 +5628,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
         store = get_store()
+
+        policy_metric_response = get_policy_metric_api(PROJECT_ROOT).route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if policy_metric_response is not None:
+            self._send_json(
+                policy_metric_response.status,
+                policy_metric_response.body,
+                headers=dict(policy_metric_response.headers),
+            )
+            return
 
         deployment_response = get_deployment_api().route_get(
             tuple(parts),
