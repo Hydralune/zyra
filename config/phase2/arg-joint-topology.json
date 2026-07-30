@@ -1,0 +1,81 @@
+{
+  "schema": "zyra.arg-joint-topology-config/v1",
+  "slice_id": "P2-S03-01",
+  "mechanism_id": "arg_designer",
+  "mechanism_version": "arg_joint_v1",
+  "catalog_schema_version": "zyra.arg-role-catalog/v1",
+  "input_schema_version": "zyra.arg-input/v1",
+  "start_token": "ARG_START_V1",
+  "end_token": "ARG_END_V1",
+  "fallback_profile": "phase1_deterministic_baseline",
+  "input_precheck_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "candidate_cap": 12,
+  "beam_cap": 4,
+  "minimum_nodes": 2,
+  "maximum_nodes": 4,
+  "maximum_incident_edges_per_node": 3,
+  "proposal_ttl_seconds": 300,
+  "estimated_node_tokens": 48,
+  "estimated_edge_tokens": 12,
+  "estimated_node_time_ms": 20,
+  "estimated_edge_time_ms": 5,
+  "estimated_edge_bytes": 96,
+  "score_weights": {
+    "obligation_coverage": 4.0,
+    "capability_fit": 3.0,
+    "dependency_reachability": 2.0,
+    "critical_path": 2.0,
+    "communication_cost": 1.25,
+    "switch_cost": 1.5,
+    "recovery_value": 2.5
+  },
+  "phase_capability_affinity": {
+    "planning": [
+      "planning",
+      "research",
+      "task_analysis",
+      "coordination",
+      "decomposition"
+    ],
+    "execution": [
+      "execution",
+      "coding",
+      "browser",
+      "tool_use",
+      "artifact_production"
+    ],
+    "verification": [
+      "verification",
+      "testing",
+      "review",
+      "validation",
+      "quality"
+    ],
+    "recovery": [
+      "recovery",
+      "fault_diagnosis",
+      "checkpoint_restore",
+      "reroute",
+      "repair"
+    ]
+  },
+  "critical_path_capabilities": [
+    "artifact_production",
+    "execution",
+    "verification"
+  ],
+  "recovery_capabilities": [
+    "recovery",
+    "fault_diagnosis",
+    "checkpoint_restore",
+    "reroute",
+    "repair"
+  ],
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "mutable_learned_parameters": [],
+    "datasets": [],
+    "checkpoints": []
+  }
+}
