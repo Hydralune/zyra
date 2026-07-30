@@ -1,7 +1,9 @@
 from .activation import (
     OutcomeAttributionError,
     PolicyOutcomeAttribution,
+    StrongestPreflightActivationReport,
     attribute_runtime_receipt,
+    build_strongest_preflight_activation_report,
 )
 from .contracts import (
     ContractViolation,
@@ -72,6 +74,18 @@ from .operator_outcome import (
     evaluate_operator_outcome,
     implementation_validated_readiness_revision,
 )
+from .preflight import (
+    BASELINE_PROFILE,
+    HARD_GATE_ORDER,
+    REQUIRED_CHAIN,
+    REQUIRED_CHECKS,
+    STRONGEST_PROFILE,
+    FrozenPreflightManifest,
+    StrongestPreflightError,
+    StrongestPreflightResult,
+    StrongestPreflightRunner,
+    compute_preflight_id,
+)
 from .dispatch import (
     DispatchLaneEvidence,
     PhysicalDispatchGateReport,
@@ -112,6 +126,7 @@ from .report import (
     MetricGroupReport,
     Phase2MetricReport,
     Phase2MetricReportBuilder,
+    StrongestPreflightReport,
 )
 
 __all__ = [
@@ -146,6 +161,7 @@ __all__ = [
     "Phase2PolicyContractPaths",
     "PolicyContractValidationReport",
     "PolicyOutcomeAttribution",
+    "StrongestPreflightActivationReport",
     "PhysicalDispatchGateReport",
     "PretrainedModelObservation",
     "READINESS_CONFIG_SCHEMA",
@@ -160,6 +176,7 @@ __all__ = [
     "build_continuity_evidence_report",
     "build_mechanism_samples",
     "build_read_only_evidence_index",
+    "build_strongest_preflight_activation_report",
     "attribute_runtime_receipt",
     "canonical_digest",
     "compute_frozen_gate_digest",
@@ -200,6 +217,17 @@ __all__ = [
     "Phase2MetricError",
     "Phase2MetricReport",
     "Phase2MetricReportBuilder",
+    "StrongestPreflightReport",
+    "BASELINE_PROFILE",
+    "HARD_GATE_ORDER",
+    "REQUIRED_CHAIN",
+    "REQUIRED_CHECKS",
+    "STRONGEST_PROFILE",
+    "FrozenPreflightManifest",
+    "StrongestPreflightError",
+    "StrongestPreflightResult",
+    "StrongestPreflightRunner",
+    "compute_preflight_id",
     "READINESS_REPORTS",
     "ReceiptResolution",
     "RunMetricInput",

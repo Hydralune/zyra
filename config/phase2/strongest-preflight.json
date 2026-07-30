@@ -1,0 +1,261 @@
+{
+  "schema": "zyra.strongest-preflight-manifest/v1",
+  "slice_id": "P2-S06-01",
+  "frozen_at": "2026-07-30T00:00:00+08:00",
+  "preflight_id": "preflight_c34f22170d1b29f60696e895",
+  "frozen_inputs": {
+    "p2_eval_base_commit": "ff460ab7c3c138ad021b64edc303fc282effb995",
+    "profile": {
+      "family": "topology_policy",
+      "version": "phase2_strongest_v1",
+      "config_digest": "ac1b51034906aadeb39b6b9991bd5c70b2a8bd1a01873dabdc0371a334333f3c"
+    },
+    "baseline_version": "phase1_deterministic_baseline",
+    "mechanism_chain": [
+      "loopx",
+      "memory_continuity_verifier",
+      "arg_designer",
+      "card",
+      "agentprune",
+      "symbolic_projector",
+      "graph_state_custody",
+      "maas",
+      "resource_scheduler_permission_lease_physical_dispatch",
+      "verifier_evidence_receipts"
+    ],
+    "tasks": [
+      {
+        "task_id": "preflight-software-engineering",
+        "domain_id": "software_engineering",
+        "task_input": "Produce a deterministic local artifact through topology commit, operator placement, lease, tool execution, and verifier closure.",
+        "verifier": {
+          "contract_id": "preflight-software-verifier-v1",
+          "required_receipts": [
+            "graph_commit",
+            "operator_attempt",
+            "artifact",
+            "verification"
+          ]
+        }
+      },
+      {
+        "task_id": "preflight-research-evidence",
+        "domain_id": "research_evidence",
+        "task_input": "Preserve cited evidence and unresolved obligations across compact, restore, requirement revision, restart, and recovery.",
+        "verifier": {
+          "contract_id": "preflight-research-verifier-v1",
+          "required_receipts": [
+            "memory_continuity",
+            "provenance",
+            "restart",
+            "verification"
+          ]
+        }
+      }
+    ],
+    "seeds": [
+      17,
+      29
+    ],
+    "budgets": {
+      "token_limit": 20000,
+      "cost_usd_limit": 0.25,
+      "time_seconds": 300,
+      "communication_bytes": 65536
+    },
+    "provider_model_hardware_profile": {
+      "profile_id": "p2-s06-01-local-isolated-v1",
+      "local_runtime": "current_python_process",
+      "edge_runtime": "previously_validated_isolated_edge_receipts",
+      "cloud_runtime": "previously_validated_provider_model_receipts",
+      "new_external_smoke_required": false,
+      "credential_material_persisted": false
+    },
+    "failure_schedule": [
+      "stale_graph_snapshot",
+      "corrupt_readiness_digest",
+      "worker_failure_before_side_effect",
+      "restart_after_outbox_apply_before_ack",
+      "requirement_revision_after_compact"
+    ],
+    "metric_activation_gate_versions": {
+      "metric_registry": "zyra.phase2-metric-spec-registry/v1",
+      "activation_gate": "zyra.phase2.activation-gates/v1",
+      "preflight_admission": "zyra.strongest-preflight-activation-report/v1"
+    },
+    "policy_registry": {
+      "path": "config/phase2/policies.yaml",
+      "file_sha256": "87c10c1a9ebb72dc2b0de89c12f53d83675de7b96538ee2e4232d1f3f5ce0aaf",
+      "registry_digest": "f922555df523035db37f687e97c2e4a5e815376e2efab738e3c4b70f1dffa82d"
+    },
+    "activation_gates": {
+      "path": "config/phase2/activation-gates.yaml",
+      "file_sha256": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01",
+      "gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238"
+    },
+    "phase1_baseline_manifest": {
+      "path": "docs/release/phase2-baseline-manifest.json",
+      "file_sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e",
+      "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37"
+    }
+  },
+  "evidence_bindings": [
+    {
+      "mechanism_id": "arg_designer",
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "report_ref": "docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json",
+      "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+      "file_sha256": "3bfbcecf1c4fa61ee587fb18be20cc6bb5e31c5a0eb4b22d943fce904bed56d7"
+    },
+    {
+      "mechanism_id": "card",
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "report_ref": "docs/reviews/evidence/P2-S03-02/MechanismEvidenceReadinessReport.json",
+      "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244",
+      "file_sha256": "6b58955a4969aefa87db8997a0cba0e42909ae389f763eeebeea0668c1b38a8a"
+    },
+    {
+      "mechanism_id": "agentprune",
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "report_ref": "docs/reviews/evidence/P2-S03-03/MechanismEvidenceReadinessReport.json",
+      "report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc",
+      "file_sha256": "2aca84694a4f9e4e42a26b278e0f344114702c3a8b8850efa5ddf92af9742ed3"
+    },
+    {
+      "mechanism_id": "maas",
+      "stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "report_ref": "docs/reviews/evidence/P2-S04-03/MechanismEvidenceReadinessReport.json",
+      "report_digest": "138cce611d4971ed090f17866a6b4a911dd16312d1eef788df3ac462d0445d2b",
+      "file_sha256": "20b1579d7d1963b6460c6a62129fa078fa207f6d4f911275f78b3ef03f99b6ef"
+    }
+  ],
+  "supporting_evidence": [
+    {
+      "component": "loopx_runtime",
+      "path": "docs/reviews/evidence/P2-S01-04/verification-summary.json",
+      "file_sha256": "523f3e03fd54bbecbd90f145355e16c37e1dad9a9e848fec10b68d7bd22ab1ad"
+    },
+    {
+      "component": "loopx_bridge",
+      "path": "docs/reviews/evidence/P2-S01-02/bridge-runtime-trace.json",
+      "file_sha256": "efbd739c0a3e3501f96d79da0eaab47d7bc48066bf725d1d574685540f919e88"
+    },
+    {
+      "component": "physical_dispatch",
+      "path": "docs/reviews/evidence/P2-S04-04/MechanismEvidenceReadinessReport.json",
+      "file_sha256": "6894d78bf8b0f7659c37fc781b03d02d0ee9fc41cba4ea606f0a72a399886494"
+    }
+  ],
+  "required_checks": [
+    "readiness_enforcement",
+    "determinism",
+    "fail_closed_inputs",
+    "diagnostic_side_effect_zero",
+    "local_isolated_integration",
+    "continuity_restart_recovery",
+    "loopx_restart_outbox",
+    "phase1_read_only_replay",
+    "no_policy_training",
+    "failure_retention"
+  ],
+  "command_probes": [
+    {
+      "probe_id": "strongest_runtime",
+      "argv": [
+        "-m",
+        "pytest",
+        "tests/integration/test_strongest_profile_runtime.py",
+        "-q",
+        "--basetemp",
+        ".tmp/pytest-p2-s06-preflight-strongest"
+      ],
+      "timeout_seconds": 180,
+      "required": true,
+      "isolated": true,
+      "external_cost": false,
+      "categories": [
+        "integration",
+        "determinism",
+        "fault",
+        "symbolic",
+        "physical_dispatch"
+      ]
+    },
+    {
+      "probe_id": "continuity_restart",
+      "argv": [
+        "-m",
+        "pytest",
+        "tests/integration/test_memory_continuity_policy_runtime.py::test_compact_restore_and_process_restart_gate_policy_input_and_usage",
+        "tests/integration/test_memory_continuity_policy_runtime.py::test_node_replacement_and_checkpoint_restart_keep_continuity",
+        "-q",
+        "--basetemp",
+        ".tmp/pytest-p2-s06-preflight-continuity"
+      ],
+      "timeout_seconds": 180,
+      "required": true,
+      "isolated": true,
+      "external_cost": false,
+      "categories": [
+        "continuity",
+        "compact_restore",
+        "restart"
+      ]
+    },
+    {
+      "probe_id": "loopx_restart_outbox",
+      "argv": [
+        "-m",
+        "pytest",
+        "tests/integration/test_loopx_bridge_restart.py::test_restart_after_apply_before_ack_replays_without_duplicate_side_effect",
+        "tests/integration/test_loopx_bridge_outbox.py::test_only_successful_canonical_commit_enters_durable_outbox",
+        "-q",
+        "--basetemp",
+        ".tmp/pytest-p2-s06-preflight-loopx"
+      ],
+      "timeout_seconds": 180,
+      "required": true,
+      "isolated": true,
+      "external_cost": false,
+      "categories": [
+        "loopx",
+        "restart",
+        "outbox"
+      ]
+    },
+    {
+      "probe_id": "phase1_read_only_replay",
+      "argv": [
+        "-m",
+        "pytest",
+        "tests/integration/test_phase2_frozen_baseline_replay.py",
+        "-q",
+        "--basetemp",
+        ".tmp/pytest-p2-s06-preflight-replay"
+      ],
+      "timeout_seconds": 120,
+      "required": true,
+      "isolated": true,
+      "external_cost": false,
+      "categories": [
+        "replay"
+      ]
+    }
+  ],
+  "prohibited_operations": {
+    "training": true,
+    "fine_tuning": true,
+    "reinforcement_learning": true,
+    "policy_gradient": true,
+    "textual_gradient": true,
+    "weight_search": true,
+    "combination_search": true,
+    "baseline_rewrite": true,
+    "result_overwrite": true
+  },
+  "manifest_digest": "8fd50245dea05632536add4559c1708ba3734a08e9c978b125f7dbe2d2c865c3"
+}

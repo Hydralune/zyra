@@ -22,6 +22,7 @@ from .metrics import (
 
 PHASE2_METRIC_REPORT_SCHEMA = "zyra.phase2-metric-report/v1"
 PHASE2_METRIC_GROUP_SCHEMA = "zyra.phase2-metric-group/v1"
+STRONGEST_PREFLIGHT_REPORT_SCHEMA = "zyra.strongest-preflight-report/v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,10 +194,84 @@ class Phase2MetricReportBuilder:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class StrongestPreflightReport:
+    preflight_id: str
+    status: str
+    profile_family: str
+    profile_version: str
+    p2_eval_base_commit: str
+    implementation_commit: str
+    manifest_digest: str
+    policy_registry_digest: str
+    activation_gate_digest: str
+    hard_gate_order: tuple[str, ...]
+    hard_gates: Mapping[str, bool]
+    metrics: Mapping[str, Any]
+    raw_receipt_refs: tuple[str, ...]
+    failed_receipt_refs: tuple[str, ...]
+    outliers: tuple[Mapping[str, Any], ...]
+    failure_retention: Mapping[str, Any]
+    readiness_statuses: Mapping[str, str]
+    resolver_before: str
+    resolver_after: str
+    replay_semantics: str
+    training_sample_count: int = 0
+    transition_count_semantics: str = "evidence_volume_only"
+    schema: str = STRONGEST_PREFLIGHT_REPORT_SCHEMA
+
+    @property
+    def digest(self) -> str:
+        return canonical_digest(self.to_dict(include_digest=False))
+
+    def to_dict(self, *, include_digest: bool = True) -> dict[str, Any]:
+        value = {
+            "schema": self.schema,
+            "preflight_id": self.preflight_id,
+            "status": self.status,
+            "profile_family": self.profile_family,
+            "profile_version": self.profile_version,
+            "p2_eval_base_commit": self.p2_eval_base_commit,
+            "implementation_commit": self.implementation_commit,
+            "manifest_digest": self.manifest_digest,
+            "policy_registry_digest": self.policy_registry_digest,
+            "activation_gate_digest": self.activation_gate_digest,
+            "hard_gate_order": list(self.hard_gate_order),
+            "hard_gates": {
+                key: bool(self.hard_gates[key])
+                for key in self.hard_gate_order
+            },
+            "metrics": dict(self.metrics),
+            "raw_receipt_refs": list(self.raw_receipt_refs),
+            "failed_receipt_refs": list(self.failed_receipt_refs),
+            "outliers": [dict(item) for item in self.outliers],
+            "failure_retention": dict(self.failure_retention),
+            "readiness_statuses": dict(sorted(self.readiness_statuses.items())),
+            "resolver_before": self.resolver_before,
+            "resolver_after": self.resolver_after,
+            "replay_semantics": self.replay_semantics,
+            "training_sample_count": self.training_sample_count,
+            "transition_count_semantics": self.transition_count_semantics,
+            "anti_gaming": {
+                "success_and_safety_precede_efficiency": True,
+                "failed_and_degraded_receipts_retained": True,
+                "replay_not_counted_as_live_improvement": True,
+                "diagnostic_not_counted_as_execution": True,
+                "transition_count_not_training_or_confidence": True,
+                "combination_or_weight_search_performed": False,
+            },
+        }
+        if include_digest:
+            value["report_digest"] = self.digest
+        return value
+
+
 __all__ = [
     "MetricGroupReport",
     "PHASE2_METRIC_GROUP_SCHEMA",
     "PHASE2_METRIC_REPORT_SCHEMA",
+    "STRONGEST_PREFLIGHT_REPORT_SCHEMA",
     "Phase2MetricReport",
     "Phase2MetricReportBuilder",
+    "StrongestPreflightReport",
 ]
