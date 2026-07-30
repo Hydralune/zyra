@@ -1,0 +1,61 @@
+{
+  "schema": "zyra.card-directional-residual-config/v1",
+  "slice_id": "P2-S03-02",
+  "mechanism_id": "card",
+  "mechanism_version": "card_directional_residual_v1",
+  "environment_schema_version": "zyra.environment-snapshot/v1",
+  "encoded_schema_version": "zyra.card-environment-features/v1",
+  "residual_schema_version": "zyra.card-residual/v1",
+  "fallback_profile": "unmodified_arg_base",
+  "input_precheck_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "proposal_ttl_seconds": 300,
+  "required_categories": [
+    "worker"
+  ],
+  "optional_categories": [
+    "provider",
+    "model",
+    "tool"
+  ],
+  "required_observation_fields": [
+    "availability",
+    "health",
+    "load_capacity",
+    "latency",
+    "cost",
+    "privacy",
+    "physical_location",
+    "physical_runtime_id",
+    "freshness",
+    "confidence"
+  ],
+  "minimum_confidence": 0.5,
+  "stale_confidence_multiplier": 0.25,
+  "latency_reference_ms": 2000.0,
+  "cost_reference_usd": 1.0,
+  "load_reference": 1.0,
+  "score_weights": {
+    "capability": 1.5,
+    "health": 2.0,
+    "latency": 1.25,
+    "load": 1.25,
+    "cost": 0.75,
+    "privacy": 2.0,
+    "freshness": 1.25
+  },
+  "add_threshold": 0.3,
+  "drop_threshold": -0.25,
+  "switch_cost": 0.12,
+  "minimum_dwell_seconds": 30,
+  "switch_confirmations": 2,
+  "reweight_epsilon": 0.025,
+  "estimated_edge_bytes": 96,
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "mutable_learned_parameters": [],
+    "datasets": [],
+    "checkpoints": [],
+    "learned_gcn_weights": []
+  }
+}
