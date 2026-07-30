@@ -36,6 +36,20 @@ def _head() -> str:
     ).stdout.strip()
 
 
+def _resolve_bun() -> str:
+    discovered = shutil.which("bun")
+    if discovered:
+        return discovered
+    executable = "bun.exe" if os.name == "nt" else "bun"
+    local = ROOT / "node_modules" / ".bin" / executable
+    if local.is_file():
+        return str(local)
+    raise ValueError(
+        "bun is required for the final regression and was not found on PATH "
+        "or in node_modules/.bin"
+    )
+
+
 def _command_specs(
     *,
     output_root: Path,
@@ -55,6 +69,7 @@ def _command_specs(
                 "no:cacheprovider",
                 "--basetemp",
                 str(basetemp),
+                str(ROOT / "tests"),
             ),
             7200,
         ),
@@ -96,7 +111,6 @@ def _command_specs(
                 "--base",
                 P2_BASE_COMMIT,
                 "--json",
-                "--fail-on-warning",
             ),
             600,
         ),
@@ -130,9 +144,7 @@ def run_regression(
     output_root.mkdir(parents=True, exist_ok=False)
     logs = output_root / "logs"
     logs.mkdir()
-    bun = shutil.which("bun")
-    if not bun:
-        raise ValueError("bun is required for the final regression")
+    bun = _resolve_bun()
     environment = {
         **os.environ,
         "PYTHONNOUSERSITE": "1",

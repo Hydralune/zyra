@@ -177,7 +177,13 @@ export function buildMcpConsoleProjection(
       upsertCatalog(target, item)
       if (item.eventId) accumulator.eventIds.add(item.eventId)
     }
-    for (const elicitation of elicitationFacts(candidate.fact, candidate.entity, candidate.serverId, candidate.ownerId)) {
+    for (const elicitation of elicitationFacts(
+      candidate.fact,
+      candidate.entity,
+      candidate.serverId,
+      candidate.ownerId,
+      nowMs,
+    )) {
       upsertElicitation(accumulator.elicitations, elicitation)
       if (elicitation.settledEventId) accumulator.eventIds.add(elicitation.settledEventId)
     }
@@ -994,6 +1000,7 @@ function elicitationFacts(
   entity: ProjectionEntity,
   serverId: string,
   ownerId: string,
+  nowMs: number,
 ): McpElicitationProjection[] {
   const values: unknown[] = []
   for (const key of ["elicitations", "elicitation_requests", "elicitationRequests"]) {
@@ -1028,6 +1035,7 @@ function elicitationFacts(
     const state = normalizeElicitationState(
       textFrom(source, ["state", "status"]),
       isoDate(source.expires_at ?? source.expiresAt),
+      nowMs,
     )
     output.push(Object.freeze({
       id,
@@ -1189,9 +1197,10 @@ function normalizeCatalogKind(value: string): McpCatalogKind | undefined {
 
 function normalizeElicitationState(
   value: string,
-  expiresAt?: string,
+  expiresAt: string | undefined,
+  nowMs: number,
 ): McpElicitationProjection["state"] {
-  if (expiresAt && Date.parse(expiresAt) <= Date.now()) return "expired"
+  if (expiresAt && Date.parse(expiresAt) <= nowMs) return "expired"
   const normalized = value.toLowerCase().replace(/[_\s]+/g, "-")
   if (["pending", "open", "requested"].includes(normalized)) return "pending"
   if (["permission-pending", "waiting-policy", "waiting-permission"].includes(normalized)) return "permission-pending"
