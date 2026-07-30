@@ -4,7 +4,7 @@
 - Verdict: `PASS`
 - Base commit: `cdb1c4537a22469669a3d412c0990d36eed9832d`
 - Implementation commit: `d8f67a1d4854a80a5edee44f449e2fc55506ad9e`
-- Evidence commit: `pending_evidence_commit`
+- Evidence commit: `bae98197e2a5d481279597faa8f29c5f7d8aef4c`
 - Mechanism version: `maas_operator_placement_lease_v1`
 - Configuration digest: `ed216b21558ff32312c7d00faf28c984fa9e19316500acc07801813ebe56322b`
 - Readiness report digest: `138cce611d4971ed090f17866a6b4a911dd16312d1eef788df3ac462d0445d2b`
