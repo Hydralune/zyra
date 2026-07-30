@@ -79,6 +79,10 @@ def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def _evidence_digest(value: Any) -> str:
+    return canonical_digest(canonicalize(value))
+
+
 def _sequence(value: Any) -> tuple[Any, ...]:
     return tuple(value) if isinstance(value, Sequence) and not isinstance(value, str) else ()
 
@@ -242,7 +246,7 @@ class SealedLongRunRunner:
             "failed_runs": failures,
             "created_at": utc_now(),
         }
-        index["index_digest"] = canonical_digest(index)
+        index["index_digest"] = _evidence_digest(index)
         index_path = self.evidence_root / "sealed-evidence-index.json"
         _json(index_path, index)
         if failures or len(run_values) != 2:
@@ -394,7 +398,7 @@ class SealedLongRunRunner:
             "human_intervention_count": 0,
             "verified_at": utc_now(),
         }
-        verifier["verifier_digest"] = canonical_digest(verifier)
+        verifier["verifier_digest"] = _evidence_digest(verifier)
         verifier_path = run_root / "final-verifier.json"
         _json(verifier_path, verifier)
         if verifier["passed"] is not True:
@@ -517,13 +521,13 @@ class SealedLongRunRunner:
                     or ("public" if str(run_spec.get("domain")) == "cross_source_research" else "internal")
                 ),
                 "sealed_manifest_digest": self.manifest_digest,
-                "failure_schedule_digest": canonical_digest(
+                "failure_schedule_digest": _evidence_digest(
                     run_spec.get("failure_schedule")
                 ),
-                "hardware_profile_digest": canonical_digest(
+                "hardware_profile_digest": _evidence_digest(
                     self.manifest.get("hardware_profile")
                 ),
-                "provider_profile_digest": canonical_digest(
+                "provider_profile_digest": _evidence_digest(
                     self.manifest.get("provider_profile")
                 ),
             },
@@ -619,7 +623,7 @@ class SealedLongRunRunner:
                 "conflicting_rejected": continuity.get(
                     "conflicting_rejected"
                 ),
-                "receipt_digest": canonical_digest(continuity),
+                "receipt_digest": _evidence_digest(continuity),
             },
             "loopx": {
                 "restart_recovered": loopx.get("restart_recovered"),
@@ -635,7 +639,7 @@ class SealedLongRunRunner:
                 "execution_budget_owner_preserved": loopx.get(
                     "execution_budget_owner_preserved"
                 ),
-                "receipt_digest": canonical_digest(loopx),
+                "receipt_digest": _evidence_digest(loopx),
             },
             "topology_operator": {
                 name: topology.get(name)
@@ -681,7 +685,7 @@ class SealedLongRunRunner:
                 "canonical_event_count": len(result.events),
             },
         }
-        value["hard_gate_digest"] = canonical_digest(value)
+        value["hard_gate_digest"] = _evidence_digest(value)
         return value
 
     @staticmethod
@@ -690,25 +694,38 @@ class SealedLongRunRunner:
         run_spec: Mapping[str, Any],
     ) -> Path:
         domain = str(run_spec.get("domain") or "")
-        candidates: list[Path] = []
+        candidates: list[tuple[Mapping[str, Any], Path]] = []
         for value in artifacts:
             path = Path(str(value.get("path") or value.get("uri") or ""))
             if path.is_file():
-                candidates.append(path.resolve())
+                candidates.append((value, path.resolve()))
         if domain == "software_delivery":
             selected = next(
-                (item for item in candidates if item.suffix == ".patch"),
+                (
+                    path
+                    for _artifact, path in candidates
+                    if path.suffix == ".patch"
+                ),
                 None,
             )
         else:
             selected = next(
                 (
-                    item
-                    for item in candidates
-                    if item.name == "research-report.json"
+                    path
+                    for artifact, path in candidates
+                    if str(artifact.get("kind") or "") == "report"
                 ),
                 None,
             )
+            if selected is None:
+                selected = next(
+                    (
+                        path
+                        for _artifact, path in candidates
+                        if path.name == "research-report.json"
+                    ),
+                    None,
+                )
         if selected is None:
             raise SealedLongRunError(
                 f"final artifact is missing for domain {domain}"

@@ -18,6 +18,7 @@ from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
 from zyra_evaluation.policy_benchmark.sealed_long_run import (
     SealedLongRunError,
     SealedLongRunRunner,
+    _evidence_digest,
     _json,
 )
 from zyra_evaluation.policy_benchmark.sealed_physical import (
@@ -404,6 +405,23 @@ def test_sealed_manifest_preflight_rejects_noncanonical_fault_kind() -> None:
         )
 
 
+def test_final_research_artifact_uses_canonical_kind_after_publication(
+    tmp_path: Path,
+) -> None:
+    randomized_report = tmp_path / "artifact_abcd1234.json"
+    randomized_report.write_text('{"valid": true}\n', encoding="utf-8")
+    selected = SealedLongRunRunner._final_artifact(
+        (
+            {
+                "kind": "report",
+                "path": str(randomized_report),
+            },
+        ),
+        {"domain": "cross_source_research"},
+    )
+    assert selected == randomized_report.resolve()
+
+
 def test_actual_mechanisms_cover_restart_attacks_and_disable_paths(
     tmp_path: Path,
 ) -> None:
@@ -433,3 +451,4 @@ def test_actual_mechanisms_cover_restart_attacks_and_disable_paths(
     _json(mechanism_path, bundle)
     persisted = json.loads(mechanism_path.read_text(encoding="utf-8"))
     assert persisted["topology_operator"]["canonical_custody_commit"] is True
+    assert len(_evidence_digest(bundle["continuity"])) == 64
