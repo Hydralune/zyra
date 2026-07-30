@@ -702,11 +702,27 @@ class StrongestPreflightRunner:
         outliers = tuple(
             {
                 "receipt_id": str(item["receipt_id"]),
-                "status": str(item.get("status") or ""),
-                "reason": str(item.get("reason") or item.get("stderr_tail") or ""),
+                "status": (
+                    str(item.get("status") or "")
+                    if not item.get("warning_count")
+                    else "warning"
+                ),
+                "reason": str(
+                    item.get("reason")
+                    or (
+                        "command emitted a retained warning summary"
+                        if item.get("warning_count")
+                        else item.get("stderr_tail")
+                    )
+                    or ""
+                ),
             }
             for item in all_receipts
-            if item.get("status") in {"failed", "blocked", "degraded", "unavailable"}
+            if (
+                item.get("status")
+                in {"failed", "blocked", "degraded", "unavailable"}
+                or int(item.get("warning_count") or 0) > 0
+            )
         )
         metrics = self._metrics(
             command_receipts=command_receipts,
@@ -831,6 +847,14 @@ class StrongestPreflightRunner:
     ) -> dict[str, Any]:
         stdout = str(result.get("stdout") or "")
         stderr = str(result.get("stderr") or "")
+        warning_count = sum(
+            marker in (stdout + "\n" + stderr).casefold()
+            for marker in (
+                "warnings summary",
+                "runtimewarning:",
+                "pytestwarning:",
+            )
+        )
         receipt = {
             "schema": "zyra.strongest-preflight-command-receipt/v1",
             "receipt_id": "receipt_command_" + _text(
@@ -849,6 +873,7 @@ class StrongestPreflightRunner:
             "stderr_digest": canonical_digest(stderr),
             "stdout_tail": stdout[-4000:],
             "stderr_tail": stderr[-4000:],
+            "warning_count": warning_count,
             "retained": result.get("retained") is True,
         }
         receipt["receipt_digest"] = canonical_digest(receipt)

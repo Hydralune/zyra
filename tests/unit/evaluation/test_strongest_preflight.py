@@ -60,7 +60,7 @@ def test_frozen_manifest_has_one_profile_two_domains_and_stable_id() -> None:
     manifest = FrozenPreflightManifest.load(ROOT, MANIFEST)
 
     assert manifest.profile_version == "phase2_strongest_v1"
-    assert manifest.preflight_id == "preflight_c34f22170d1b29f60696e895"
+    assert manifest.preflight_id == "preflight_a26163647ae31a5ef2b9b282"
     assert set(manifest.evidence_bindings) == {
         "arg_designer",
         "card",
@@ -202,6 +202,31 @@ def test_failed_probe_is_retained_and_blocks_admission() -> None:
         "receipt_command_strongest_runtime"
     )
     assert result.activation_report["sealed_run_admission_eligible"] is False
+
+
+def test_passing_probe_warning_is_retained_as_outlier() -> None:
+    def warns_once(probe):
+        value = dict(_command_result(probe))
+        if probe["probe_id"] == "strongest_runtime":
+            value["stdout"] = "warnings summary\n1 warning"
+        return value
+
+    runner = StrongestPreflightRunner.from_manifest(
+        ROOT,
+        MANIFEST,
+        command_probe_runner=warns_once,
+    )
+
+    result = runner.run(implementation_commit=IMPLEMENTATION_COMMIT)
+
+    assert result.passed is True
+    assert result.report["outliers"] == [
+        {
+            "receipt_id": "receipt_command_strongest_runtime",
+            "status": "warning",
+            "reason": "command emitted a retained warning summary",
+        }
+    ]
 
 
 def test_frozen_result_directory_cannot_be_overwritten(tmp_path: Path) -> None:
