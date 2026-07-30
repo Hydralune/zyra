@@ -58,8 +58,14 @@ LoopX
 - 禁止新增强化学习、策略梯度、文本梯度、在线学习、离线微调、额外神经网络训练、训练 dataset 和训练 checkpoint。
 - 不迁移 ARG、CARD、AgentPrune 或 MaAS 的训练器与训练流水线。
 - 不把规则、排序、阈值、prompt 或确定性适配表述为训练结果。
-- 允许使用已存在的 embedding 或 LLM 作为只读 proposal feature，但必须固定模型标识、输入和输出 receipt，且不得绕过 symbolic、permission、scheduler 或 custody。
 - 不进行开发期全组合消融。封闭测试不理想时，只根据分层 receipt 对单个机制层做定点诊断。
+
+## 模型 API 默认顺序
+
+- 已配置模型的默认顺序为 `zhipu/glm-5.2`、`kimi-platform/kimi-k2.7-code`、`deepseek/deepseek-v4-pro`。
+- 未显式指定 provider/model 的真实模型调用必须选择 `zhipu/glm-5.2`。
+- Kimi 是第二候选，DeepSeek 是最后候选；不得在 runtime、测试入口或 release 配置中把 DeepSeek 固定成默认值。
+- 显式的当前任务选择可以覆盖默认顺序，但必须保留实际 provider/model 调用结果。
 
 ## LoopX 产品形态
 
@@ -195,7 +201,6 @@ input_precheck
 
 - memory 不能只证明“可以检索”。必须证明目标、约束、证据、决策和未完成工作跨 checkpoint、compact、restart、需求变更和恢复保持 lineage。
 - 每次 memory 使用都应关联 run、task、checkpoint、source event、retrieval reason 和 downstream decision。
-- 模型信号必须以 proposal receipt 记录；符号层必须记录接受、拒绝、裁剪、补约束或降级原因。
 - graph delta、operator choice、permission result、lease、dispatch、verification 和最终 commit 必须能沿同一 causal chain 回放。
 - UI 展示必须来自真实 event/artifact/readiness receipt，不得由静态演示数据拼接。
 

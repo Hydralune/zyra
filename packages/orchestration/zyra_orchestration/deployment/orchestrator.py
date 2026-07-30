@@ -220,6 +220,8 @@ class DeploymentOrchestrator:
         for name in (
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
+            "ZAI_API_KEY",
+            "KIMI_API_KEY",
             "DEEPSEEK_API_KEY",
             "ZYRA_PERMISSION_SERVICE_TOKEN",
             "ZYRA_WORKER_POOL_SECRET",

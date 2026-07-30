@@ -25,18 +25,128 @@ from .errors import DispatchRejected
 from .models import digest
 
 
+@dataclass(frozen=True, slots=True)
+class LiveProviderProfile:
+    provider_id: str
+    model_id: str
+    integration_id: str
+    credential_id: str
+    api_key_env: str
+    provider_display_name: str
+    model_display_name: str
+    family: str
+    base_url: str
+    endpoint_host: str
+    endpoint_path: str
+    released_at_ms: int
+    context_window: int
+    maximum_output_tokens: int
+    input_per_million: float
+    cached_input_per_million: float
+    output_per_million: float
+    pricing_currency: str
+    pricing_source: str
+    normalized_input_usd_per_million: float | None = None
+    normalized_cached_input_usd_per_million: float | None = None
+    normalized_output_usd_per_million: float | None = None
+    normalized_pricing_source: str | None = None
+
+
+ZHIPU_PROVIDER_ID = "zhipu"
+GLM_52_MODEL_ID = "glm-5.2"
+ZAI_API_KEY_ENV = "ZAI_API_KEY"
+KIMI_PROVIDER_ID = "kimi-platform"
+KIMI_MODEL_ID = "kimi-k2.7-code"
+KIMI_API_KEY_ENV = "KIMI_API_KEY"
 DEEPSEEK_PROVIDER_ID = "deepseek"
 DEEPSEEK_MODEL_ID = "deepseek-v4-pro"
-DEEPSEEK_INTEGRATION_ID = "deepseek-bearer"
-DEEPSEEK_CREDENTIAL_ID = "deepseek-physical-dispatch"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
-DEEPSEEK_CACHED_INPUT_USD_PER_MILLION = 0.003625
-DEEPSEEK_INPUT_USD_PER_MILLION = 0.435
-DEEPSEEK_OUTPUT_USD_PER_MILLION = 0.87
-DEEPSEEK_PRICING_SOURCE = (
-    "https://api-docs.deepseek.com/quick_start/pricing/"
-    "?article_id=article_1779470751466_8"
+
+PROVIDER_PRIORITY = (
+    (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
+    (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
+    (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
 )
+
+_LIVE_PROFILES = {
+    (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID): LiveProviderProfile(
+        provider_id=ZHIPU_PROVIDER_ID,
+        model_id=GLM_52_MODEL_ID,
+        integration_id="zhipu-bearer",
+        credential_id="zhipu-physical-dispatch",
+        api_key_env=ZAI_API_KEY_ENV,
+        provider_display_name="Zhipu AI",
+        model_display_name="GLM-5.2",
+        family="glm-5.2",
+        base_url="https://open.bigmodel.cn/api/paas/v4",
+        endpoint_host="open.bigmodel.cn",
+        endpoint_path="/chat/completions",
+        released_at_ms=1_781_568_000_000,
+        context_window=1_000_000,
+        maximum_output_tokens=131_072,
+        input_per_million=8,
+        cached_input_per_million=2,
+        output_per_million=28,
+        pricing_currency="CNY",
+        pricing_source="https://bigmodel.cn/pricing",
+        normalized_input_usd_per_million=1.4,
+        normalized_cached_input_usd_per_million=0.26,
+        normalized_output_usd_per_million=4.4,
+        normalized_pricing_source="https://docs.z.ai/guides/overview/pricing",
+    ),
+    (KIMI_PROVIDER_ID, KIMI_MODEL_ID): LiveProviderProfile(
+        provider_id=KIMI_PROVIDER_ID,
+        model_id=KIMI_MODEL_ID,
+        integration_id="kimi-platform-bearer",
+        credential_id="kimi-platform-physical-dispatch",
+        api_key_env=KIMI_API_KEY_ENV,
+        provider_display_name="Kimi Open Platform",
+        model_display_name="Kimi K2.7 Code",
+        family="kimi-k2.7-code",
+        base_url="https://api.moonshot.cn/v1",
+        endpoint_host="api.moonshot.cn",
+        endpoint_path="/chat/completions",
+        released_at_ms=1_781_222_400_000,
+        context_window=262_144,
+        maximum_output_tokens=131_072,
+        input_per_million=6.5,
+        cached_input_per_million=1.3,
+        output_per_million=27,
+        pricing_currency="CNY",
+        pricing_source="https://platform.kimi.com/",
+    ),
+    (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID): LiveProviderProfile(
+        provider_id=DEEPSEEK_PROVIDER_ID,
+        model_id=DEEPSEEK_MODEL_ID,
+        integration_id="deepseek-bearer",
+        credential_id="deepseek-physical-dispatch",
+        api_key_env=DEEPSEEK_API_KEY_ENV,
+        provider_display_name="DeepSeek",
+        model_display_name="DeepSeek V4 Pro",
+        family="deepseek-v4",
+        base_url="https://api.deepseek.com",
+        endpoint_host="api.deepseek.com",
+        endpoint_path="/chat/completions",
+        released_at_ms=1_776_988_800_000,
+        context_window=1_000_000,
+        maximum_output_tokens=384_000,
+        input_per_million=0.435,
+        cached_input_per_million=0.003625,
+        output_per_million=0.87,
+        pricing_currency="USD",
+        pricing_source=(
+            "https://api-docs.deepseek.com/quick_start/pricing/"
+            "?article_id=article_1779470751466_8"
+        ),
+        normalized_input_usd_per_million=0.435,
+        normalized_cached_input_usd_per_million=0.003625,
+        normalized_output_usd_per_million=0.87,
+        normalized_pricing_source=(
+            "https://api-docs.deepseek.com/quick_start/pricing/"
+            "?article_id=article_1779470751466_8"
+        ),
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +165,10 @@ class LiveProviderDispatchEvidence:
     completion_tokens: int
     total_tokens: int
     cost_usd: float
+    cost_amount: float
+    cost_currency: str
+    pricing_source_ref: str
+    normalized_pricing_source_ref: str | None
     latency_ms: int
     request_digest: str
     response_digest: str
@@ -85,8 +199,11 @@ class LiveProviderDispatchEvidence:
                 "total_tokens": self.total_tokens,
             },
             "cost_usd": self.cost_usd,
+            "cost_amount": self.cost_amount,
+            "cost_currency": self.cost_currency,
             "cost_source": "provider_usage_x_versioned_catalog_pricing",
-            "pricing_source_ref": DEEPSEEK_PRICING_SOURCE,
+            "pricing_source_ref": self.pricing_source_ref,
+            "normalized_pricing_source_ref": self.normalized_pricing_source_ref,
             "latency_ms": self.latency_ms,
             "request_digest": self.request_digest,
             "response_digest": self.response_digest,
@@ -137,30 +254,64 @@ class LiveProviderDispatchRuntime:
         idempotency_key: str,
         payload_digest: str,
     ) -> LiveProviderDispatchEvidence:
-        selected_provider = provider_id.strip().casefold() or DEEPSEEK_PROVIDER_ID
-        selected_model = model_id.strip() or DEEPSEEK_MODEL_ID
-        if (
-            selected_provider != DEEPSEEK_PROVIDER_ID
-            or selected_model != DEEPSEEK_MODEL_ID
-        ):
+        selected_provider = provider_id.strip().casefold() or ZHIPU_PROVIDER_ID
+        selected_model = model_id.strip() or (
+            GLM_52_MODEL_ID
+            if selected_provider == ZHIPU_PROVIDER_ID
+            else ""
+        )
+        requested_key = (selected_provider, selected_model)
+        requested_profile = _LIVE_PROFILES.get(requested_key)
+        if requested_profile is None:
             raise DispatchRejected(
                 "node_provider_profile_unsupported",
-                "physical dispatch currently requires the frozen DeepSeek live profile",
+                "physical dispatch requires a registered live provider profile",
                 operation="provider_dispatch",
                 profile="cloud",
                 details={
                     "provider": selected_provider,
                     "model": selected_model,
+                    "supported_priority": [
+                        f"{provider}/{model}"
+                        for provider, model in PROVIDER_PRIORITY
+                    ],
                 },
             )
-        secret = str(self.environment.get(DEEPSEEK_API_KEY_ENV) or "").strip()
-        if not secret:
+        priority_offset = PROVIDER_PRIORITY.index(requested_key)
+        candidates = [
+            (
+                _LIVE_PROFILES[key],
+                str(
+                    self.environment.get(_LIVE_PROFILES[key].api_key_env)
+                    or ""
+                ).strip(),
+            )
+            for key in PROVIDER_PRIORITY[priority_offset:]
+        ]
+        available = [
+            (candidate, secret)
+            for candidate, secret in candidates
+            if secret
+        ]
+        if not available:
             raise DispatchRejected(
                 "node_provider_credential_missing",
-                "physical cloud dispatch requires a real provider credential",
+                (
+                    "physical cloud dispatch requires a credential for the "
+                    "requested provider or a lower-priority fallback"
+                ),
                 operation="provider_dispatch",
                 profile="cloud",
+                details={
+                    "requested_provider": requested_profile.provider_id,
+                    "requested_model": requested_profile.model_id,
+                    "credential_priority": [
+                        candidate.api_key_env
+                        for candidate, _secret in candidates
+                    ],
+                },
             )
+        preferred_profile = available[0][0]
         request_id = f"physical-{hashlib.sha256(idempotency_key.encode()).hexdigest()[:24]}"
         database_path = self.state_root / "provider.sqlite3"
         try:
@@ -169,7 +320,8 @@ class LiveProviderDispatchRuntime:
                 database_path=database_path,
                 request_timeout_seconds=120.0,
             ) as client:
-                credential = self._install_deepseek(client, secret)
+                for candidate, secret in available:
+                    self._install_profile(client, candidate, secret)
                 route = client.routing.acquire(
                     RouteRequest(
                         run_id=run_id,
@@ -178,19 +330,28 @@ class LiveProviderDispatchRuntime:
                         session_id=f"physical-session:{task_id}",
                         turn_id=request_id,
                         purpose="verify",
-                        preferred_provider_id=DEEPSEEK_PROVIDER_ID,
-                        preferred_model_id=DEEPSEEK_MODEL_ID,
-                        route_hint=f"{DEEPSEEK_PROVIDER_ID}/{DEEPSEEK_MODEL_ID}",
+                        preferred_provider_id=preferred_profile.provider_id,
+                        preferred_model_id=preferred_profile.model_id,
+                        route_hint=(
+                            f"{preferred_profile.provider_id}/"
+                            f"{preferred_profile.model_id}"
+                        ),
                         constraints=RouteConstraints(
-                            provider_ids=(DEEPSEEK_PROVIDER_ID,),
-                            model_ids=(DEEPSEEK_MODEL_ID,),
+                            provider_ids=tuple(
+                                candidate.provider_id
+                                for candidate, _secret in available
+                            ),
+                            model_ids=tuple(
+                                candidate.model_id
+                                for candidate, _secret in available
+                            ),
                             required_input=("text",),
                             required_output=("text",),
                             require_tools=False,
                             require_streaming=True,
                             minimum_context_window=1_000,
-                            maximum_input_price_per_million=1.0,
-                            maximum_output_price_per_million=1.0,
+                            maximum_input_price_per_million=None,
+                            maximum_output_price_per_million=None,
                             required_scopes=("chat.completions",),
                         ),
                         metadata={
@@ -218,18 +379,34 @@ class LiveProviderDispatchRuntime:
                                 ),
                             ),
                         ),
-                        maximum_output_tokens=32,
-                        temperature=0,
+                        maximum_output_tokens=64,
+                        temperature=None,
                         stream=True,
                         timeout_milliseconds=90_000,
                         chunk_timeout_milliseconds=45_000,
                         idempotency_key=idempotency_key,
-                        extra_body={"thinking": {"type": "disabled"}},
                         metadata={
                             "purpose": "p2-physical-dispatch-marker",
                             "payload_digest": payload_digest,
                         },
                     )
+                )
+                profile = _LIVE_PROFILES.get(
+                    (
+                        str(result.get("providerId") or ""),
+                        str(result.get("modelId") or ""),
+                    )
+                )
+                if profile is None:
+                    raise DispatchRejected(
+                        "node_provider_result_profile_unknown",
+                        "provider control plane returned an unregistered profile",
+                        operation="provider_dispatch",
+                        profile="cloud",
+                    )
+                route = client.routing.get(str(result.get("routeId") or ""))
+                credential = client.credentials.get(
+                    str(route.get("credentialId") or "")
                 )
         except ProviderControlPlanePortError as error:
             raise DispatchRejected(
@@ -305,17 +482,36 @@ class LiveProviderDispatchRuntime:
             attempt.get("completedAt") or result.get("completedAt") or 0
         )
         latency_ms = max(0, completed_at_ms - started_at_ms)
-        cost_usd = round(
+        cost_amount = round(
             (
                 (prompt_tokens - cached_prompt_tokens)
-                * DEEPSEEK_INPUT_USD_PER_MILLION
+                * profile.input_per_million
                 + cached_prompt_tokens
-                * DEEPSEEK_CACHED_INPUT_USD_PER_MILLION
-                + completion_tokens * DEEPSEEK_OUTPUT_USD_PER_MILLION
+                * profile.cached_input_per_million
+                + completion_tokens * profile.output_per_million
             )
             / 1_000_000,
             10,
         )
+        if (
+            profile.normalized_input_usd_per_million is not None
+            and profile.normalized_cached_input_usd_per_million is not None
+            and profile.normalized_output_usd_per_million is not None
+        ):
+            cost_usd = round(
+                (
+                    (prompt_tokens - cached_prompt_tokens)
+                    * profile.normalized_input_usd_per_million
+                    + cached_prompt_tokens
+                    * profile.normalized_cached_input_usd_per_million
+                    + completion_tokens
+                    * profile.normalized_output_usd_per_million
+                )
+                / 1_000_000,
+                10,
+            )
+        else:
+            cost_usd = 0.0
         return LiveProviderDispatchEvidence(
             provider_id=str(result.get("providerId") or ""),
             model_id=str(result.get("modelId") or ""),
@@ -323,14 +519,18 @@ class LiveProviderDispatchRuntime:
             provider_attempt_id=str(attempt.get("attemptId") or ""),
             route_id=str(result.get("routeId") or route.get("routeId") or ""),
             protocol=str(result.get("protocol") or ""),
-            endpoint_host="api.deepseek.com",
-            endpoint_path="/chat/completions",
+            endpoint_host=profile.endpoint_host,
+            endpoint_path=profile.endpoint_path,
             http_status=http_status,
             prompt_tokens=prompt_tokens,
             cached_prompt_tokens=cached_prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             cost_usd=cost_usd,
+            cost_amount=cost_amount,
+            cost_currency=profile.pricing_currency,
+            pricing_source_ref=profile.pricing_source,
+            normalized_pricing_source_ref=profile.normalized_pricing_source,
             latency_ms=latency_ms,
             request_digest=str(attempt.get("requestDigest") or ""),
             response_digest=response_digest,
@@ -344,16 +544,17 @@ class LiveProviderDispatchRuntime:
         )
 
     @staticmethod
-    def _install_deepseek(
+    def _install_profile(
         client: ProviderControlPlaneClient,
+        profile: LiveProviderProfile,
         secret: str,
     ) -> dict[str, Any]:
         client.integrations.upsert(
             IntegrationDefinition(
-                integration_id=DEEPSEEK_INTEGRATION_ID,
-                display_name="DeepSeek API bearer credential",
+                integration_id=profile.integration_id,
+                display_name=f"{profile.provider_display_name} API bearer credential",
                 kind="bearer",
-                env_names=(DEEPSEEK_API_KEY_ENV,),
+                env_names=(profile.api_key_env,),
                 authorization_scheme="Bearer",
                 supports_refresh=False,
                 metadata={"secret_custody": "environment-reference-only"},
@@ -361,31 +562,40 @@ class LiveProviderDispatchRuntime:
         )
         client.catalog.upsert_provider(
             ProviderDefinition(
-                provider_id=DEEPSEEK_PROVIDER_ID,
-                display_name="DeepSeek",
-                integration_id=DEEPSEEK_INTEGRATION_ID,
+                provider_id=profile.provider_id,
+                display_name=profile.provider_display_name,
+                integration_id=profile.integration_id,
                 status="active",
-                base_url="https://api.deepseek.com",
+                base_url=profile.base_url,
                 protocol=ProviderProtocol.OPENAI_CHAT,
-                allowed_hosts=("api.deepseek.com",),
+                allowed_hosts=(profile.endpoint_host,),
                 tags=(
                     "cloud",
                     "openai-compatible",
                     "real-provider",
                     "physical-dispatch",
                 ),
-                metadata={"profile_revision": "2026-07-27"},
+                metadata={
+                    "profile_revision": "2026-07-31",
+                    "routing_priority": (
+                        len(PROVIDER_PRIORITY)
+                        - PROVIDER_PRIORITY.index(
+                            (profile.provider_id, profile.model_id)
+                        )
+                    )
+                    * 100,
+                },
             )
         )
         client.catalog.upsert_model(
             ModelDefinition(
-                provider_id=DEEPSEEK_PROVIDER_ID,
-                model_id=DEEPSEEK_MODEL_ID,
-                display_name="DeepSeek V4 Pro",
-                family="deepseek-v4",
-                released_at=1_776_988_800_000,
-                context_window=1_000_000,
-                maximum_output_tokens=384_000,
+                provider_id=profile.provider_id,
+                model_id=profile.model_id,
+                display_name=profile.model_display_name,
+                family=profile.family,
+                released_at=profile.released_at_ms,
+                context_window=profile.context_window,
+                maximum_output_tokens=profile.maximum_output_tokens,
                 capabilities=ModelCapabilities(
                     input=("text",),
                     output=("text", "tool"),
@@ -396,33 +606,49 @@ class LiveProviderDispatchRuntime:
                 ),
                 pricing=(
                     {
-                        "inputPerMillion": DEEPSEEK_INPUT_USD_PER_MILLION,
-                        "outputPerMillion": DEEPSEEK_OUTPUT_USD_PER_MILLION,
-                        "cachedInputPerMillion": (
-                            DEEPSEEK_CACHED_INPUT_USD_PER_MILLION
-                        ),
-                        "currency": "USD",
+                        "inputPerMillion": profile.input_per_million,
+                        "outputPerMillion": profile.output_per_million,
+                        "cachedInputPerMillion": profile.cached_input_per_million,
+                        "currency": profile.pricing_currency,
                     },
                 ),
-                endpoint_path="/chat/completions",
+                endpoint_path=profile.endpoint_path,
                 protocol=ProviderProtocol.OPENAI_CHAT,
-                request_defaults={"thinking": {"type": "disabled"}},
-                tags=("non-thinking-default", "physical-dispatch"),
-                metadata={"pricing_checked_at": "2026-07-27"},
+                request_defaults=(
+                    {
+                        "thinking": {"type": "enabled"},
+                        "reasoning_effort": "max",
+                    }
+                    if profile.provider_id == ZHIPU_PROVIDER_ID
+                    else {
+                        "thinking": {
+                            "type": (
+                                "enabled"
+                                if profile.provider_id == KIMI_PROVIDER_ID
+                                else "disabled"
+                            )
+                        }
+                    }
+                ),
+                tags=("physical-dispatch",),
+                metadata={
+                    "pricing_checked_at": "2026-07-31",
+                    "pricing_reference": profile.pricing_source,
+                },
             )
         )
         fingerprint = "sha256:" + hashlib.sha256(secret.encode()).hexdigest()[:16]
         existing = next(
             (
                 item
-                for item in client.credentials.list(provider_id=DEEPSEEK_PROVIDER_ID)
-                if item.get("credentialId") == DEEPSEEK_CREDENTIAL_ID
+                for item in client.credentials.list(provider_id=profile.provider_id)
+                if item.get("credentialId") == profile.credential_id
             ),
             None,
         )
         if existing is not None:
             if (
-                existing.get("secretRef") != f"env://{DEEPSEEK_API_KEY_ENV}"
+                existing.get("secretRef") != f"env://{profile.api_key_env}"
                 or existing.get("fingerprint") != fingerprint
             ):
                 raise DispatchRejected(
@@ -434,14 +660,14 @@ class LiveProviderDispatchRuntime:
             return dict(existing)
         return client.credentials.register(
             CredentialRegistration(
-                credential_id=DEEPSEEK_CREDENTIAL_ID,
-                integration_id=DEEPSEEK_INTEGRATION_ID,
-                provider_id=DEEPSEEK_PROVIDER_ID,
+                credential_id=profile.credential_id,
+                integration_id=profile.integration_id,
+                provider_id=profile.provider_id,
                 account_id="physical-dispatch",
-                secret_ref=f"env://{DEEPSEEK_API_KEY_ENV}",
+                secret_ref=f"env://{profile.api_key_env}",
                 fingerprint=fingerprint,
                 priority=100,
-                allowed_models=(DEEPSEEK_MODEL_ID,),
+                allowed_models=(profile.model_id,),
                 scopes=("chat.completions",),
                 metadata={
                     "purpose": "p2-physical-dispatch",
@@ -455,6 +681,14 @@ __all__ = [
     "DEEPSEEK_API_KEY_ENV",
     "DEEPSEEK_MODEL_ID",
     "DEEPSEEK_PROVIDER_ID",
+    "GLM_52_MODEL_ID",
+    "KIMI_API_KEY_ENV",
+    "KIMI_MODEL_ID",
+    "KIMI_PROVIDER_ID",
     "LiveProviderDispatchEvidence",
+    "LiveProviderProfile",
     "LiveProviderDispatchRuntime",
+    "PROVIDER_PRIORITY",
+    "ZAI_API_KEY_ENV",
+    "ZHIPU_PROVIDER_ID",
 ]

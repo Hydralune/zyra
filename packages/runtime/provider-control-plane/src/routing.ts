@@ -279,6 +279,11 @@ export class ProviderRoutePlanner {
       if (!matchesConstraints(provider, model, request)) continue;
       const reasons: string[] = [];
       let score = model.releasedAt / 1_000_000_000;
+      const routingPriority = Number(provider.metadata.routing_priority ?? 0);
+      if (Number.isFinite(routingPriority)) {
+        score += routingPriority;
+        reasons.push(`provider routing priority ${routingPriority}`);
+      }
       if (this.health !== null) {
         const health = this.health.snapshot(provider.providerId, model.modelId);
         score += this.health.scoreAdjustment(provider.providerId, model.modelId);

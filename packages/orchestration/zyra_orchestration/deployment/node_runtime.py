@@ -1020,12 +1020,12 @@ class DeploymentNodeRuntime:
                     provider_id=str(
                         payload.get("provider")
                         or workload.preferred_provider
-                        or "deepseek"
+                        or "zhipu"
                     ),
                     model_id=str(
                         payload.get("model")
                         or workload.preferred_model
-                        or "deepseek-v4-pro"
+                        or "glm-5.2"
                     ),
                     idempotency_key=(
                         workload.idempotency_key

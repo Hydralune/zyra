@@ -68,8 +68,8 @@ class PhysicalDispatchTask:
     privacy_class: str
     allowed_placements: tuple[str, ...]
     permission_ref: str
-    provider_id: str = "deepseek"
-    model_id: str = "deepseek-v4-pro"
+    provider_id: str = "zhipu"
+    model_id: str = "glm-5.2"
     latency_sla_ms: int = 120_000
     maximum_cost_usd: float = 0.01
     verifier_id: str = "physical-dispatch-marker-verifier/v1"
@@ -522,7 +522,12 @@ class PhysicalDispatchReceiptValidator:
                         int(usage.get("total_tokens") or 0) > 0
                     ),
                     "cloud_cost_present": (
-                        float(provider.get("cost_usd") or 0) > 0
+                        (
+                            float(provider.get("cost_usd") or 0) > 0
+                            or float(provider.get("cost_amount") or 0) > 0
+                        )
+                        and bool(provider.get("cost_currency"))
+                        and bool(provider.get("pricing_source_ref"))
                     ),
                     "cloud_latency_present": (
                         int(provider.get("latency_ms") or 0) > 0

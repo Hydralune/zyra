@@ -54,6 +54,7 @@ export function glm52Profile(): Glm52Profile {
       billing_mode: "pay-as-you-go",
       key_source: "open.bigmodel.cn",
       preserve_client_identity: true,
+      routing_priority: 300,
     },
   };
   const model: ModelDefinition = {
@@ -74,7 +75,12 @@ export function glm52Profile(): Glm52Profile {
       reasoning: true,
       structuredOutput: true,
     },
-    pricing: [],
+    pricing: [{
+      inputPerMillion: 8,
+      outputPerMillion: 28,
+      cachedInputPerMillion: 2,
+      currency: "CNY",
+    }],
     endpointPath: "/chat/completions",
     protocol: "openai_chat",
     requestDefaults: {
@@ -87,6 +93,8 @@ export function glm52Profile(): Glm52Profile {
       availability: "account-model-catalog",
       pricing_model: "pay-as-you-go",
       model_catalog_verified_at: "2026-07-29",
+      pricing_checked_at: "2026-07-31",
+      pricing_reference: "https://bigmodel.cn/pricing",
       input_modality: "text",
       output_modality: "text",
       model_reference: "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.2",

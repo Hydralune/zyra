@@ -27,8 +27,8 @@ def _execute_and_close(harness):
 def test_same_minimal_task_really_reroutes_across_frozen_conditions(
     tmp_path,
 ) -> None:
-    environment = read_env_file(ROOT / ".env.deepseek.local")
-    assert environment.get("DEEPSEEK_API_KEY"), (
+    environment = read_env_file(ROOT / ".env.glm.local")
+    assert environment.get("ZAI_API_KEY"), (
         "condition-switch cloud lane is unclosed without a real credential"
     )
     lanes = []
@@ -112,7 +112,7 @@ def test_same_minimal_task_really_reroutes_across_frozen_conditions(
             tmp_path / "cloud-unavailable",
             location="cloud",
             fallback_locations=("local",),
-            environment={"DEEPSEEK_API_KEY": ""},
+            environment={"ZAI_API_KEY": ""},
             condition="cloud_unavailable",
             condition_signals={"cloud_credential_ready": False},
         )
@@ -168,8 +168,8 @@ def test_same_minimal_task_really_reroutes_across_frozen_conditions(
         environment_profile={
             "operating_system": "windows",
             "edge_transport": "authenticated-loopback-http",
-            "cloud_provider": "deepseek",
-            "api_key": environment["DEEPSEEK_API_KEY"],
+            "cloud_provider": "zhipu",
+            "api_key": environment["ZAI_API_KEY"],
         },
         target_commit="test-target",
     )
@@ -177,4 +177,4 @@ def test_same_minimal_task_really_reroutes_across_frozen_conditions(
     assert index["gate_closed"] is True
     assert index["credential_material_persisted"] is False
     assert "api_key" not in index["environment_profile"]
-    assert environment["DEEPSEEK_API_KEY"] not in encoded
+    assert environment["ZAI_API_KEY"] not in encoded

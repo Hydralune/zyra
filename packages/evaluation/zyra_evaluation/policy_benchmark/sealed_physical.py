@@ -188,10 +188,18 @@ class SealedPhysicalDispatchRuntime:
         maximum_cost_usd: float,
         maximum_latency_ms: int,
     ) -> SealedPhysicalEvidence:
-        missing_credential = not bool(self.environment.get("DEEPSEEK_API_KEY"))
+        missing_credential = not any(
+            bool(self.environment.get(name))
+            for name in (
+                "ZAI_API_KEY",
+                "KIMI_API_KEY",
+                "DEEPSEEK_API_KEY",
+            )
+        )
         if missing_credential:
             raise SealedPhysicalDispatchError(
-                "DEEPSEEK_API_KEY is required for the sealed cloud lane"
+                "a GLM, Kimi, or DeepSeek credential is required for "
+                "the sealed cloud lane"
             )
         deployment_root = self.state_root / "deployment"
         catalog = ProfileCatalog.defaults(
@@ -312,7 +320,7 @@ class SealedPhysicalDispatchRuntime:
                     capabilities=list(capabilities),
                     tools=["physical-dispatch-proof"],
                     models=[
-                        "deepseek-v4-pro"
+                        "glm-5.2"
                         if location == "cloud"
                         else "local-deterministic"
                     ],
@@ -321,7 +329,7 @@ class SealedPhysicalDispatchRuntime:
                     ),
                     latency_ms={"local": 1, "edge": 25, "cloud": 100}[location],
                     cost_per_1k_tokens=(
-                        0.00087 if location == "cloud" else 0.0
+                        0.0044 if location == "cloud" else 0.0
                     ),
                 )
                 decision = ResourceScheduler(
@@ -613,7 +621,7 @@ class SealedPhysicalDispatchRuntime:
         cloud_usage = _mapping(cloud_provider.get("usage"))
         cloud_endpoint = str(
             cloud_provider.get("endpoint")
-            or "https://api.deepseek.com/chat/completions"
+            or "https://open.bigmodel.cn/api/paas/v4/chat/completions"
         )
         return (
             {
@@ -663,7 +671,7 @@ class SealedPhysicalDispatchRuntime:
                 "route_id": str(cloud.get("placement_decision_id") or ""),
                 "credential_custodian": str(
                     cloud_provider.get("credential_ref")
-                    or "env://DEEPSEEK_API_KEY"
+                    or "env://ZAI_API_KEY"
                 ),
                 "authenticated": bool(cloud_provider.get("live")),
                 "response_status": int(

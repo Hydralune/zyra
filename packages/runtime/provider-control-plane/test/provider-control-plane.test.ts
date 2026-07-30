@@ -18,12 +18,16 @@ import { ProviderControlPlaneRpcServer, RPC_PROTOCOL } from "../src/stdio-server
 import {
   DEEPSEEK_API_KEY_ENV,
   DEEPSEEK_CREDENTIAL_ID,
+  DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_V4_PRO_MODEL_ID,
   deepSeekV4ProProfile,
   installDeepSeekV4ProProfile,
 } from "../src/profiles/deepseek.ts";
 import {
   KIMI_API_KEY_ENV,
   KIMI_PLATFORM_CREDENTIAL_ID,
+  KIMI_PLATFORM_PROVIDER_ID,
+  KIMI_K27_CODE_MODEL_ID,
   installKimiK27CodeProfile,
   kimiK27CodeProfile,
 } from "../src/profiles/kimi-platform.ts";
@@ -31,6 +35,7 @@ import {
   GLM_52_MODEL_ID,
   ZAI_API_KEY_ENV,
   ZHIPU_CREDENTIAL_ID,
+  ZHIPU_PROVIDER_ID,
   glm52Profile,
   installGlm52Profile,
 } from "../src/profiles/zhipu.ts";
@@ -108,6 +113,7 @@ test("DeepSeek V4 Pro profile binds an environment reference without persisting 
   assert.equal(profile.provider.baseUrl, "https://api.deepseek.com");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
+  assert.equal(profile.provider.metadata.routing_priority, 100);
   assert.equal(profile.model.modelId, "deepseek-v4-pro");
   assert.equal(profile.model.endpointPath, "/chat/completions");
   assert.equal(profile.provider.requestDefaults.thinking, undefined);
@@ -140,6 +146,7 @@ test("Kimi Open Platform K2.7 Code profile keeps thinking enabled and persists o
   assert.equal(profile.provider.baseUrl, "https://api.moonshot.cn/v1");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["api.moonshot.cn"]);
+  assert.equal(profile.provider.metadata.routing_priority, 200);
   assert.equal(profile.model.modelId, "kimi-k2.7-code");
   assert.equal(profile.model.contextWindow, 262_144);
   assert.equal(profile.model.endpointPath, "/chat/completions");
@@ -172,6 +179,7 @@ test("Zhipu AI GLM-5.2 profile enables reasoning and persists only an environmen
   assert.equal(profile.provider.baseUrl, "https://open.bigmodel.cn/api/paas/v4");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["open.bigmodel.cn"]);
+  assert.equal(profile.provider.metadata.routing_priority, 300);
   assert.equal(profile.model.modelId, GLM_52_MODEL_ID);
   assert.equal(profile.model.contextWindow, 1_000_000);
   assert.equal(profile.model.maximumOutputTokens, 131_072);
@@ -193,6 +201,38 @@ test("Zhipu AI GLM-5.2 profile fails closed when its environment secret is absen
   );
   assert.deepEqual(controlPlane.catalog.providers(), []);
   assert.deepEqual(controlPlane.credentials.list(), []);
+});
+
+test("default provider routing prefers GLM, then Kimi, with DeepSeek last", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  installGlm52Profile(controlPlane, { [ZAI_API_KEY_ENV]: "zhipu-secret" });
+  installKimiK27CodeProfile(controlPlane, { [KIMI_API_KEY_ENV]: "kimi-secret" });
+  installDeepSeekV4ProProfile(controlPlane, {
+    [DEEPSEEK_API_KEY_ENV]: "deepseek-secret",
+  });
+
+  const unconstrained: RouteRequest = {
+    ...routeRequest(ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
+    preferredProviderId: null,
+    preferredModelId: null,
+    routeHint: null,
+  };
+  const first = controlPlane.acquireRoute(unconstrained);
+  assert.equal(first.providerId, ZHIPU_PROVIDER_ID);
+  assert.equal(first.modelId, GLM_52_MODEL_ID);
+
+  const withoutGlm: RouteRequest = {
+    ...unconstrained,
+    turnId: "turn-without-glm",
+    constraints: {
+      ...unconstrained.constraints,
+      providerIds: [KIMI_PLATFORM_PROVIDER_ID, DEEPSEEK_PROVIDER_ID],
+      modelIds: [KIMI_K27_CODE_MODEL_ID, DEEPSEEK_V4_PRO_MODEL_ID],
+    },
+  };
+  const second = controlPlane.acquireRoute(withoutGlm);
+  assert.equal(second.providerId, KIMI_PLATFORM_PROVIDER_ID);
+  assert.equal(second.modelId, KIMI_K27_CODE_MODEL_ID);
 });
 
 test("RPC server fails closed when the provider control-plane owner is disabled", async (t) => {

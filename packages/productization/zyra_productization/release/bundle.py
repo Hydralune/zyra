@@ -654,6 +654,8 @@ class BenchmarkEvidenceLinker:
         ).casefold()
         candidates = (
             "openai",
+            "zhipu",
+            "kimi-platform",
             "deepseek",
             "anthropic",
             "google",

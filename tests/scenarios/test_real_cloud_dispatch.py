@@ -9,24 +9,40 @@ from tests.integration.physical_dispatch_harness import (
 )
 
 
-DEEPSEEK_ENV = "DEEPSEEK_API_KEY"
+GLM_ENV = "ZAI_API_KEY"
 
 
 def _real_cloud_environment() -> dict[str, str]:
-    path = ROOT / ".env.deepseek.local"
+    path = ROOT / ".env.glm.local"
     assert path.is_file(), (
-        "real cloud gate is unclosed: .env.deepseek.local is missing"
+        "real cloud gate is unclosed: .env.glm.local is missing"
     )
     values = read_env_file(path)
-    assert values.get(DEEPSEEK_ENV), (
-        "real cloud gate is unclosed: DEEPSEEK_API_KEY is missing"
+    assert values.get(GLM_ENV), (
+        "real cloud gate is unclosed: ZAI_API_KEY is missing"
     )
+    return values
+
+
+def _lower_priority_cloud_environment() -> dict[str, str]:
+    values: dict[str, str] = {}
+    for path in (
+        ROOT / ".env.kimi.local",
+        ROOT / ".env.deepseek.local",
+    ):
+        assert path.is_file(), (
+            f"real fallback gate is unclosed: {path.name} is missing"
+        )
+        values.update(read_env_file(path))
+    values["ZAI_API_KEY"] = ""
+    assert values.get("KIMI_API_KEY")
+    assert values.get("DEEPSEEK_API_KEY")
     return values
 
 
 def test_real_cloud_provider_request_closes_receipt_gate(tmp_path) -> None:
     environment = _real_cloud_environment()
-    secret = environment[DEEPSEEK_ENV]
+    secret = environment[GLM_ENV]
     harness = build_physical_harness(
         tmp_path,
         location="cloud",
@@ -43,8 +59,8 @@ def test_real_cloud_provider_request_closes_receipt_gate(tmp_path) -> None:
         assert validation.real_gate_closed is True
         assert validation.blockers == ()
         assert receipt.physical_identity["location"] == "cloud"
-        assert provider["provider_id"] == "deepseek"
-        assert provider["model_id"] == "deepseek-v4-pro"
+        assert provider["provider_id"] == "zhipu"
+        assert provider["model_id"] == "glm-5.2"
         assert provider["request_id"]
         assert provider["provider_attempt_id"]
         assert 200 <= int(provider["http_status"]) < 300
@@ -52,7 +68,7 @@ def test_real_cloud_provider_request_closes_receipt_gate(tmp_path) -> None:
         assert float(provider["cost_usd"]) > 0
         assert int(provider["latency_ms"]) > 0
         assert provider["marker_verified"] is True
-        assert provider["credential_ref"] == "env://DEEPSEEK_API_KEY"
+        assert provider["credential_ref"] == "env://ZAI_API_KEY"
         assert provider["credential_material_persisted"] is False
         assert attempt.actual_tokens == int(usage["total_tokens"])
         assert attempt.actual_cost_usd == float(provider["cost_usd"])
@@ -68,6 +84,26 @@ def test_real_cloud_provider_request_closes_receipt_gate(tmp_path) -> None:
         harness.close()
 
 
+def test_cloud_fallback_prefers_kimi_before_deepseek(tmp_path) -> None:
+    environment = _lower_priority_cloud_environment()
+    harness = build_physical_harness(
+        tmp_path,
+        location="cloud",
+        environment=environment,
+    )
+    try:
+        harness.execute()
+        provider = dict(harness.physical_port.receipts[0].provider_evidence)
+
+        assert provider["provider_id"] == "kimi-platform"
+        assert provider["model_id"] == "kimi-k2.7-code"
+        assert provider["credential_ref"] == "env://KIMI_API_KEY"
+        assert provider["credential_material_persisted"] is False
+        assert provider["marker_verified"] is True
+    finally:
+        harness.close()
+
+
 def test_cloud_without_credential_is_blocked_and_safely_rerouted(
     tmp_path,
 ) -> None:
@@ -75,7 +111,7 @@ def test_cloud_without_credential_is_blocked_and_safely_rerouted(
         tmp_path,
         location="cloud",
         fallback_locations=("local",),
-        environment={DEEPSEEK_ENV: ""},
+        environment={GLM_ENV: ""},
     )
     try:
         result = harness.execute()

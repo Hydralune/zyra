@@ -140,3 +140,17 @@ def test_local_only_privacy_never_starts_cloud_runtime(tmp_path) -> None:
             allowed_placements=("local", "cloud"),
             permission_ref="permission://allowed",
         )
+
+
+def test_physical_dispatch_defaults_to_glm() -> None:
+    task = PhysicalDispatchTask(
+        run_id="run",
+        task_id="task",
+        payload=FrozenDict({"marker": True}),
+        privacy_class="internal",
+        allowed_placements=("cloud",),
+        permission_ref="permission://allowed",
+    )
+
+    assert task.provider_id == "zhipu"
+    assert task.model_id == "glm-5.2"

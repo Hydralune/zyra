@@ -305,7 +305,7 @@ def build_physical_harness(
             ],
             tools=["produce-tool"],
             models=(
-                ["deepseek-v4-pro"]
+                ["glm-5.2"]
                 if selected_location == "cloud"
                 else ["local-deterministic"]
             ),
@@ -321,7 +321,7 @@ def build_physical_harness(
                 ]
             ),
             cost_per_1k_tokens=(
-                0.00087 if selected_location == "cloud" else 0
+                0.0044 if selected_location == "cloud" else 0
             ),
         )
         values = dict(overrides.get(selected_location) or {})

@@ -435,8 +435,8 @@ def campaign_request(
     deployment = {
         "current": {
             "tier_ids": ["device", "edge", "cloud"],
-            "provider_ids": ["zhipu", "deepseek", "kimi-platform"],
-            "model_ids": ["glm-5.2", "deepseek-v4-pro", "kimi-k2.7-code"],
+            "provider_ids": ["zhipu", "kimi-platform", "deepseek"],
+            "model_ids": ["glm-5.2", "kimi-k2.7-code", "deepseek-v4-pro"],
             "current_dispatch_required": True,
         },
         "protected_m1_bundle_digest": protected.bundle_digest,
@@ -579,7 +579,7 @@ def run_current_provider_evidence(
     )
     command = [
         "node",
-        "--env-file=.env.deepseek.local",
+        "--env-file=.env.glm.local",
         "--env-file=.env.kimi.local",
         "--env-file=.env.glm.local",
         "--experimental-strip-types",
