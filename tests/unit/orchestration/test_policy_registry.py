@@ -158,25 +158,17 @@ def _activation_evidence(
     )
 
 
-def test_production_registry_exposes_validated_topology_only_by_explicit_purpose() -> None:
+def test_production_registry_resolves_activation_ready_strongest_by_default() -> None:
     registry = MechanismRegistry.load(ROOT)
 
-    assert registry.resolve(FAMILY).profile_id == "phase1_deterministic_baseline"
+    assert registry.resolve(FAMILY).profile_id == "phase2_strongest_v1"
     strongest = registry.get(FAMILY, "phase2_strongest_v1")
-    assert strongest.lifecycle is MechanismLifecycle.VALIDATION
-    assert strongest.activation_state == "validation_ready"
+    assert strongest.lifecycle is MechanismLifecycle.DEFAULT
+    assert strongest.activation_state == "active"
     assert all(
         item.status is ReadinessStatus.DETERMINISTIC_READY
+        and item.stage is ReadinessStage.ACTIVATION_READY
         for item in strongest.readiness
-    )
-    assert (
-        registry.resolve(
-            FAMILY,
-            purpose=ResolutionPurpose.VALIDATION,
-            version=strongest.version,
-            validation_manifest=_manifest(),
-        ).profile_id
-        == "phase2_strongest_v1"
     )
     assert (
         registry.resolve(
@@ -186,17 +178,9 @@ def test_production_registry_exposes_validated_topology_only_by_explicit_purpose
         ).profile_id
         == "phase2_diagnostic_v1"
     )
-    decision = StrongestProfileActivationGate().evaluate(
-        registry,
-        family=FAMILY,
-        version=strongest.version,
-        evidence=_activation_evidence(strongest),
-    )
-    assert decision.eligible is False
-    assert {
-        "required_mechanism_missing:loopx",
-        "required_mechanism_missing:maas",
-    }.issubset(decision.blockers)
+    baseline = registry.get(FAMILY, "phase1_deterministic_baseline")
+    assert baseline.lifecycle is MechanismLifecycle.BASELINE
+    assert baseline.activation_state == "standby"
 
 
 def test_duplicate_family_version_is_rejected_for_same_or_different_digest() -> None:

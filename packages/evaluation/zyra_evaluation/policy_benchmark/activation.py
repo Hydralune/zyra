@@ -237,16 +237,27 @@ def build_strongest_preflight_activation_report(
 
     resolver_before = str(preflight_report.get("resolver_before") or "")
     resolver_after = str(preflight_report.get("resolver_after") or "")
-    expected_baseline = "phase1_deterministic_baseline"
+    execution_mode = str(
+        preflight_report.get("execution_mode")
+        or "pre_activation_validation"
+    )
+    expected_resolver = (
+        "phase2_strongest_v1"
+        if execution_mode == "active_default_revalidation"
+        else "phase1_deterministic_baseline"
+    )
     if (
-        resolver_before != expected_baseline
-        or resolver_after != expected_baseline
+        resolver_before != expected_resolver
+        or resolver_after != expected_resolver
     ):
-        blockers.append("baseline_resolver_retention")
+        blockers.append("resolver_retention")
     else:
-        passed.append("baseline_resolver_retention")
+        passed.append("resolver_retention")
 
     eligible = not blockers
+    active_revalidation = (
+        execution_mode == "active_default_revalidation"
+    )
     return StrongestPreflightActivationReport(
         preflight_id=str(preflight_report.get("preflight_id") or ""),
         profile_family=str(preflight_report.get("profile_family") or ""),
@@ -258,9 +269,11 @@ def build_strongest_preflight_activation_report(
             readiness_report.get("report_digest") or ""
         ),
         sealed_run_admission_eligible=eligible,
-        default_activation_allowed=False,
+        default_activation_allowed=eligible and active_revalidation,
         conclusion=(
-            "admit_to_P2-S06-02"
+            "phase2_strongest_v1_revalidated"
+            if eligible and active_revalidation
+            else "admit_to_P2-S06-02"
             if eligible
             else "retain_phase1_baseline"
         ),

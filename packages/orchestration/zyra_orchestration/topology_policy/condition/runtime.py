@@ -620,7 +620,18 @@ class CARDTopologyRuntime:
             if supplied_digest != config.input_precheck_report_digest:
                 raise ValueError("card_input_precheck_digest_mismatch")
         else:
-            if (
+            preflight = report.get("preflight")
+            activation_evidence_ready = (
+                stage == "activation_ready"
+                and report.get("valid") is True
+                and report.get("sealed_run_admission_candidate") is True
+                and isinstance(preflight, Mapping)
+                and bool(preflight.get("preflight_id"))
+                and bool(preflight.get("receipt_set_digest"))
+            )
+            if stage == "activation_ready" and not activation_evidence_ready:
+                raise ValueError("card_activation_evidence_missing")
+            if stage != "activation_ready" and (
                 report.get("supersedes_report_digest")
                 != config.input_precheck_report_digest
             ):

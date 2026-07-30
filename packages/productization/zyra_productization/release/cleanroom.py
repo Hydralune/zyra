@@ -1021,6 +1021,12 @@ class CleanInstallRunner:
                     timeout=command_timeout,
                 )
                 receipts["lifecycle"] = lifecycle_receipts
+                receipts["post_lifecycle_ports"] = (
+                    PortAvailabilityProbe().probe(
+                        "127.0.0.1",
+                        ports,
+                    )
+                )
             uninstall_receipt = installer.uninstall(
                 install_receipt.transaction_id,
                 purge_state=False,
@@ -1036,6 +1042,23 @@ class CleanInstallRunner:
                     "Cleanroom uninstall did not complete.",
                     code="cleanroom_uninstall_incomplete",
                 )
+            isolation_audit = self._isolation_audit(
+                workspace=workspace,
+                payload=payload,
+                environment=environment,
+                ports=ports,
+                commands=commands,
+                lifecycle=receipts.get("lifecycle"),
+                post_lifecycle_ports=receipts.get(
+                    "post_lifecycle_ports"
+                ),
+            )
+            if isolation_audit["ready"] is not True:
+                raise CleanroomFailure(
+                    "Cleanroom isolation audit failed closed.",
+                    code="cleanroom_isolation_audit_failed",
+                    details=isolation_audit,
+                )
             result = {
                 "schema": "zyra.clean-install-receipt/v1",
                 "ready": True,
@@ -1048,6 +1071,7 @@ class CleanInstallRunner:
                 "product_lifecycle_exercised": run_product_lifecycle,
                 "workspace_isolated": True,
                 "parent_source_repositories_present": False,
+                "isolation_audit": isolation_audit,
                 "commands": commands,
                 "receipts": receipts,
                 "started_at": started_at,
@@ -1163,6 +1187,146 @@ class CleanInstallRunner:
         return allowed
 
     @staticmethod
+    def _isolation_audit(
+        *,
+        workspace: Path,
+        payload: Path,
+        environment: Mapping[str, str],
+        ports: Sequence[int],
+        commands: Sequence[Mapping[str, Any]],
+        lifecycle: object,
+        post_lifecycle_ports: object,
+    ) -> dict[str, Any]:
+        workspace = workspace.resolve()
+        payload = payload.resolve()
+        cache_keys = (
+            "BUN_INSTALL_CACHE_DIR",
+            "PIP_CACHE_DIR",
+            "UV_CACHE_DIR",
+        )
+        state_keys = ("ZYRA_STATE_ROOT",)
+        path_findings: list[dict[str, str]] = []
+        for name in (*cache_keys, *state_keys):
+            raw = str(environment.get(name) or "")
+            try:
+                resolved = Path(raw).resolve()
+                resolved.relative_to(workspace)
+            except (OSError, ValueError):
+                path_findings.append(
+                    {
+                        "environment": name,
+                        "path": raw,
+                        "reason": "not_workspace_local",
+                    }
+                )
+        editable_tokens = {"-e", "--editable"}
+        editable_or_link_commands: list[list[str]] = []
+        external_build_contexts: list[str] = []
+        for receipt in commands:
+            raw_command = receipt.get("command")
+            if not isinstance(raw_command, Sequence) or isinstance(
+                raw_command,
+                (str, bytes),
+            ):
+                continue
+            command = [str(item) for item in raw_command]
+            folded = {item.casefold() for item in command}
+            if folded & editable_tokens or any(
+                item.casefold().startswith(("file:", "link:"))
+                for item in command
+            ):
+                editable_or_link_commands.append(command)
+            raw_cwd = str(receipt.get("cwd") or "")
+            if raw_cwd:
+                try:
+                    cwd = Path(raw_cwd).resolve()
+                    if not (
+                        cwd == workspace
+                        or cwd.is_relative_to(workspace)
+                        or cwd == payload
+                        or cwd.is_relative_to(payload)
+                    ):
+                        external_build_contexts.append(raw_cwd)
+                except OSError:
+                    external_build_contexts.append(raw_cwd)
+        lifecycle_mapping = (
+            lifecycle if isinstance(lifecycle, Mapping) else {}
+        )
+        lifecycle_commands = lifecycle_mapping.get("commands")
+        if not isinstance(lifecycle_commands, Sequence) or isinstance(
+            lifecycle_commands,
+            (str, bytes),
+        ):
+            lifecycle_commands = ()
+        names = [
+            str(item.get("name") or "")
+            for item in lifecycle_commands
+            if isinstance(item, Mapping)
+        ]
+        required_lifecycle = {
+            "release-doctor",
+            "product-start",
+            "semantic-health",
+            "product-restart",
+            "post-restart-health",
+            "product-stop",
+            "post-stop-status",
+        }
+        missing_lifecycle = sorted(required_lifecycle - set(names))
+        post_ports = (
+            post_lifecycle_ports
+            if isinstance(post_lifecycle_ports, Mapping)
+            else {}
+        )
+        released_ports = sorted(
+            int(item) for item in post_ports.get("available", ())
+        )
+        declared_ports = sorted(set(int(item) for item in ports))
+        port_release_ready = (
+            post_ports.get("ready") is True
+            and released_ports == declared_ports
+            and not post_ports.get("occupied")
+        )
+        user_state_ready = (
+            environment.get("PYTHONNOUSERSITE") == "1"
+            and environment.get("PYTHONDONTWRITEBYTECODE") == "1"
+            and not path_findings
+        )
+        ready = (
+            user_state_ready
+            and not editable_or_link_commands
+            and not external_build_contexts
+            and not missing_lifecycle
+            and lifecycle_mapping.get("ready") is True
+            and port_release_ready
+        )
+        return {
+            "schema": "zyra.cleanroom-isolation-audit/v1",
+            "ready": ready,
+            "workspace_local_cache_count": len(cache_keys),
+            "workspace_local_state_count": len(state_keys),
+            "implicit_cache_or_user_state_dependency_count": len(
+                path_findings
+            ),
+            "editable_or_link_install_count": len(
+                editable_or_link_commands
+            ),
+            "external_build_context_count": len(external_build_contexts),
+            "declared_process_actions": names,
+            "missing_process_actions": missing_lifecycle,
+            "undeclared_process_count": 0 if not missing_lifecycle else 1,
+            "declared_ports": declared_ports,
+            "released_ports": released_ports,
+            "undeclared_port_count": 0 if port_release_ready else 1,
+            "python_user_site_disabled": (
+                environment.get("PYTHONNOUSERSITE") == "1"
+            ),
+            "cache_and_state_findings": path_findings,
+            "editable_or_link_commands": editable_or_link_commands,
+            "external_build_contexts": external_build_contexts,
+        }
+
+    @staticmethod
     def _allocate_ports(count: int) -> list[int]:
         sockets: list[socket.socket] = []
         ports: list[int] = []
@@ -1237,6 +1401,15 @@ class CleanInstallRunner:
             "--state-root",
             str(state_root),
         ]
+        deployment_launcher = [
+            str(python),
+            "-m",
+            "zyra_orchestration.deployment.cli",
+            "--project-root",
+            str(payload),
+            "--state-root",
+            str(state_root / "deployment"),
+        ]
         commands = [
             (
                 "submission-boundary",
@@ -1251,7 +1424,16 @@ class CleanInstallRunner:
                 "semantic-health",
                 [*launcher, "lifecycle", "health"],
             ),
+            (
+                "product-restart",
+                [*launcher, "lifecycle", "restart", "--no-build-web"],
+            ),
+            (
+                "post-restart-health",
+                [*launcher, "lifecycle", "health"],
+            ),
             ("product-stop", [*launcher, "lifecycle", "stop"]),
+            ("post-stop-status", [*deployment_launcher, "status"]),
         ]
         receipts: list[dict[str, Any]] = []
         try:
@@ -1260,12 +1442,48 @@ class CleanInstallRunner:
                     command,
                     cwd=payload,
                     timeout=timeout,
+                    check=name != "post-stop-status",
                 )
                 value = result.to_dict()
                 value["name"] = name
+                if name == "post-stop-status":
+                    try:
+                        status = json.loads(result.stdout)
+                    except json.JSONDecodeError as error:
+                        raise CleanroomFailure(
+                            "Post-stop lifecycle status is invalid.",
+                            code="cleanroom_post_stop_status_invalid",
+                        ) from error
+                    stopped = (
+                        isinstance(status, Mapping)
+                        and status.get("status") == "stopped"
+                        and status.get("ready") is False
+                        and isinstance(status.get("processes"), Mapping)
+                        and int(
+                            status["processes"].get("active_count") or 0
+                        )
+                        == 0
+                    )
+                    value["ready"] = stopped
+                    value["observed_status"] = (
+                        status.get("status")
+                        if isinstance(status, Mapping)
+                        else ""
+                    )
+                    if not stopped:
+                        raise CleanroomFailure(
+                            "Release processes remain after lifecycle stop.",
+                            code="cleanroom_post_stop_not_stopped",
+                            details=value,
+                        )
                 receipts.append(value)
         finally:
-            if not receipts or receipts[-1].get("name") != "product-stop":
+            stopped = any(
+                item.get("name") == "product-stop"
+                and item.get("ready") is True
+                for item in receipts
+            )
+            if not stopped:
                 emergency = runner.run(
                     [*launcher, "lifecycle", "stop"],
                     cwd=payload,

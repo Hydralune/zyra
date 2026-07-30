@@ -1,0 +1,51 @@
+{
+  "schema": "zyra.phase2-mechanism-manifest/v1",
+  "profile": "phase2_strongest_v1",
+  "loopx_version": "0.2.13",
+  "mechanisms": [
+    {
+      "mechanism_id": "loopx",
+      "version": "0.2.13",
+      "configuration": "packages/integrations/loopx_runtime/pyproject.toml",
+      "source_role": "supplementary_implementation"
+    },
+    {
+      "mechanism_id": "arg_designer",
+      "version": "arg_joint_v1",
+      "configuration": "config/phase2/arg-joint-topology.json",
+      "configuration_sha256": "81dfa019bcc4aedc24aa9fa78c3e1f8a35fb6b532b857b278f63087675c74f15",
+      "source_role": "primary_implementation"
+    },
+    {
+      "mechanism_id": "card",
+      "version": "card_directional_residual_v1",
+      "configuration": "config/phase2/card-directional-residual.json",
+      "configuration_sha256": "88fc4e5f6f697f966543c9126f1908152d6ab5dfadba34fb7263d14629ae4d63",
+      "source_role": "supplementary_implementation"
+    },
+    {
+      "mechanism_id": "agentprune",
+      "version": "agentprune_spatiotemporal_v1",
+      "configuration": "config/phase2/agentprune-pruning.json",
+      "configuration_sha256": "3e44ec896df4655255147782f331b67c000294597e1cc4b4c96da8eed1c1b794",
+      "source_role": "supplementary_implementation"
+    },
+    {
+      "mechanism_id": "maas",
+      "version": "maas_operator_selector_v1",
+      "configuration": "config/phase2/maas-operator-selector.json",
+      "configuration_sha256": "0f9aea053a19c3fa7b396fbba8f28616e40fc2ed406d7ecd21d7c86c17ed775b",
+      "source_role": "supplementary_implementation"
+    }
+  ],
+  "topology_composer": {
+    "version": "topology_composer_v1",
+    "configuration": "config/phase2/topology-composer.json",
+    "configuration_sha256": "8be647df6d68f420023bd3641f5a6d61cebf6a4ecfbfb6445ae351f9fc4f82ef"
+  },
+  "policy_registry": {
+    "configuration": "config/phase2/policies.yaml",
+    "configuration_sha256": "677646765b657c8006b26591e601575ae1b79dd76718ea548fc4ec0cdad354b5"
+  },
+  "no_policy_training": true
+}

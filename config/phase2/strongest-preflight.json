@@ -1,15 +1,16 @@
 {
   "schema": "zyra.strongest-preflight-manifest/v1",
-  "slice_id": "P2-S06-01",
-  "frozen_at": "2026-07-30T00:00:00+08:00",
-  "preflight_id": "preflight_deafc65877387ab74bbef93c",
+  "slice_id": "P2-S06-03",
+  "frozen_at": "2026-07-30T12:00:00+08:00",
+  "preflight_id": "preflight_9cb5edda9af0048f4b561d77",
   "frozen_inputs": {
-    "p2_eval_base_commit": "ff460ab7c3c138ad021b64edc303fc282effb995",
-    "runner_contract_version": "strongest_preflight_v1.1",
+    "p2_eval_base_commit": "a312129f2b358e534321c4ec58989f4674dc8a7f",
+    "runner_contract_version": "strongest_preflight_v1.2",
+    "execution_mode": "active_default_revalidation",
     "profile": {
       "family": "topology_policy",
       "version": "phase2_strongest_v1",
-      "config_digest": "ac1b51034906aadeb39b6b9991bd5c70b2a8bd1a01873dabdc0371a334333f3c"
+      "config_digest": "c0ae2fcd2a8a1337a4abeab11ccc72de5b3a9d5f3b18e91158a3b906d6617424"
     },
     "baseline_version": "phase1_deterministic_baseline",
     "mechanism_chain": [
@@ -86,13 +87,13 @@
     },
     "policy_registry": {
       "path": "config/phase2/policies.yaml",
-      "file_sha256": "87c10c1a9ebb72dc2b0de89c12f53d83675de7b96538ee2e4232d1f3f5ce0aaf",
-      "registry_digest": "f922555df523035db37f687e97c2e4a5e815376e2efab738e3c4b70f1dffa82d"
+      "file_sha256": "677646765b657c8006b26591e601575ae1b79dd76718ea548fc4ec0cdad354b5",
+      "registry_digest": "054b4335ed7e0a18d60e13fbb6f3d476bab159826122ae5ab879659130094f13"
     },
     "activation_gates": {
       "path": "config/phase2/activation-gates.yaml",
-      "file_sha256": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01",
-      "gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238"
+      "file_sha256": "2b464af75e21a57e2bdd9c12973c0da0d412db0e6795f1f55a03a97459484da6",
+      "gate_digest": "6df6c08c67cb4698c374c77eda8583f1b11d6c44916e32b0f999bb5e50c0c1ab"
     },
     "phase1_baseline_manifest": {
       "path": "docs/release/phase2-baseline-manifest.json",
@@ -266,5 +267,5 @@
     "baseline_rewrite": true,
     "result_overwrite": true
   },
-  "manifest_digest": "602a7c9bc3be65ac8557848350c2ed22a97ef28f44e2df7293bf06210a033ce1"
+  "manifest_digest": "a07ce98c5c37baa43879ca5b945857cdcb1fdbe0ab73f6ea0e579ea2970446c3"
 }

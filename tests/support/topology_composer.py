@@ -59,22 +59,19 @@ LAST_TOPOLOGY_CHANGE = (_IMPORTED_AT - timedelta(hours=1)).isoformat(
 REPORT_PATHS = {
     "arg_designer": ROOT
     / "docs"
-    / "reviews"
-    / "evidence"
-    / "P2-S03-01"
-    / "MechanismEvidenceReadinessReport.json",
+    / "release"
+    / "phase2"
+    / "activation-readiness.json",
     "card": ROOT
     / "docs"
-    / "reviews"
-    / "evidence"
-    / "P2-S03-02"
-    / "MechanismEvidenceReadinessReport.json",
+    / "release"
+    / "phase2"
+    / "activation-readiness.json",
     "agentprune": ROOT
     / "docs"
-    / "reviews"
-    / "evidence"
-    / "P2-S03-03"
-    / "MechanismEvidenceReadinessReport.json",
+    / "release"
+    / "phase2"
+    / "activation-readiness.json",
 }
 
 
@@ -251,6 +248,7 @@ def policy_input(
     max_topology_churn: int = 32,
     max_communication_bytes: int = 16_384,
     max_fan_out: int = 4,
+    readiness_stage: str = "activation_ready",
 ) -> PolicyInputSnapshot:
     digests = readiness_digests()
     return PolicyInputSnapshot(
@@ -324,7 +322,7 @@ def policy_input(
                 ),
                 report_ref=str(REPORT_PATHS[mechanism_id].relative_to(ROOT)),
                 report_digest=digests[mechanism_id],
-                readiness_stage="implementation_validated",
+                readiness_stage=readiness_stage,
                 status="deterministic_ready",
             )
             for mechanism_id in ("arg_designer", "card", "agentprune")

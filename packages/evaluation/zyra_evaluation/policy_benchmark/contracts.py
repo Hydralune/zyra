@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
-EXPECTED_ADR_IDS = tuple(f"P2-ADR-{index:03d}" for index in range(1, 8))
+EXPECTED_ADR_IDS = tuple(f"P2-ADR-{index:03d}" for index in range(1, 9))
 EXPECTED_CONFIG_IDS = ("source_roles", "state_owners", "activation_gates")
 EXPECTED_REQUIRED_MECHANISMS = (
     "loopx",
@@ -1076,7 +1076,7 @@ class Phase2PolicyContractBundle:
         if tuple(document_ids) != EXPECTED_ADR_IDS:
             raise ContractViolation(
                 "adr-set-invalid",
-                "The digest manifest must contain P2-ADR-001 through P2-ADR-007 in order.",
+                "The digest manifest must contain P2-ADR-001 through P2-ADR-008 in order.",
                 path="contract_digests.documents",
             )
         config_values = [

@@ -1,11 +1,11 @@
 {
   "schema": "zyra.phase2-policy-registry/v1",
-  "slice_id": "P2-S03-04",
+  "slice_id": "P2-S06-03",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
-  "slice_base_commit": "d0afb45ea26f817258d3a56a3b61690f22fc1362",
-  "registry_revision": 1,
+  "slice_base_commit": "a312129f2b358e534321c4ec58989f4674dc8a7f",
+  "registry_revision": 2,
   "active_versions": {
-    "topology_policy": "phase1_deterministic_baseline"
+    "topology_policy": "phase2_strongest_v1"
   },
   "fallback": {
     "family": "topology_policy",
@@ -17,7 +17,7 @@
       "version": "phase1_deterministic_baseline",
       "profile_id": "phase1_deterministic_baseline",
       "lifecycle": "baseline",
-      "activation_state": "active",
+      "activation_state": "standby",
       "schema_version": "v1",
       "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
       "source_digest": "1512d91bfcf14f14b2d23e4057b5b56a17177e2b944fd2f755d14e74ba646449",
@@ -49,8 +49,8 @@
       "family": "topology_policy",
       "version": "phase2_strongest_v1",
       "profile_id": "phase2_strongest_v1",
-      "lifecycle": "validation",
-      "activation_state": "validation_ready",
+      "lifecycle": "default",
+      "activation_state": "active",
       "schema_version": "v1",
       "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
       "source_digest": "e1f819a731273ca527ed2d17d996028083e7e09821349a05c8ea06c5b1094052",
@@ -68,40 +68,56 @@
           "verifier_receipts"
         ],
         "diagnostic_side_effects_allowed": false,
-        "normal_auto_select_validation": false,
+        "normal_auto_select_validation": true,
         "profile_id": "phase2_strongest_v1",
         "training_allowed": false,
-        "validated_scope": "P2-03 topology composer only; activation remains closed"
+        "validated_scope": "P2-S06-02 sealed evidence; P2-S06-03 active-default revalidation"
       },
-      "config_digest": "ac1b51034906aadeb39b6b9991bd5c70b2a8bd1a01873dabdc0371a334333f3c",
-      "implementation_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
-      "evidence_commit": "8ec8e9bb6d81cf3f1fb9b9878c81ef76f283813c",
+      "config_digest": "c0ae2fcd2a8a1337a4abeab11ccc72de5b3a9d5f3b18e91158a3b906d6617424",
+      "implementation_commit": "28c0a1376c6d4226975e8fd60a1f088b75be3a42",
+      "evidence_commit": "a312129f2b358e534321c4ec58989f4674dc8a7f",
       "required_mechanisms": [
+        "loopx",
         "arg_designer",
         "card",
-        "agentprune"
+        "agentprune",
+        "maas"
       ],
       "readiness": [
         {
-          "mechanism_id": "arg_designer",
-          "stage": "implementation_validated",
+          "mechanism_id": "loopx",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json",
-          "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+        },
+        {
+          "mechanism_id": "arg_designer",
+          "stage": "activation_ready",
+          "status": "deterministic_ready",
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
         },
         {
           "mechanism_id": "card",
-          "stage": "implementation_validated",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-02/MechanismEvidenceReadinessReport.json",
-          "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
         },
         {
           "mechanism_id": "agentprune",
-          "stage": "implementation_validated",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-03/MechanismEvidenceReadinessReport.json",
-          "report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+        },
+        {
+          "mechanism_id": "maas",
+          "stage": "activation_ready",
+          "status": "deterministic_ready",
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
         }
       ],
       "rollback_family": "topology_policy",
@@ -210,5 +226,5 @@
       "audit_gate_ids": []
     }
   ],
-  "registry_digest": "f922555df523035db37f687e97c2e4a5e815376e2efab738e3c4b70f1dffa82d"
+  "registry_digest": "054b4335ed7e0a18d60e13fbb6f3d476bab159826122ae5ab879659130094f13"
 }

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from zyra_evaluation.policy_benchmark import evaluate_operator_outcome
-from zyra_orchestration.topology_policy import PolicyDecisionDisposition
+from zyra_orchestration.topology_policy import (
+    PolicyDecisionDisposition,
+    ResolutionPurpose,
+)
 from zyra_scheduler.worker_pool.models import AttemptState, LeaseState
 
 from tests.integration.operator_placement_harness import (
@@ -54,7 +57,7 @@ def test_identical_snapshot_produces_identical_arg_card_agentprune_digests(
     assert first == second
 
 
-def test_strongest_validation_projects_commits_and_replays_once(tmp_path) -> None:
+def test_strongest_default_projects_commits_and_replays_once(tmp_path) -> None:
     graph_custody = custody(tmp_path, suffix="strongest-commit")
     current = graph_custody.current("graph-strongest-commit")
     environment, catalog = environment_and_catalog()
@@ -69,6 +72,7 @@ def test_strongest_validation_projects_commits_and_replays_once(tmp_path) -> Non
         input_snapshot=input_snapshot,
         current_graph=current,
         catalog=catalog,
+        purpose=ResolutionPurpose.NORMAL,
     )
 
     first = policy_value.execute(request_value)

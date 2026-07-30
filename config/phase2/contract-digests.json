@@ -1,7 +1,7 @@
 {
   "schema": "zyra.phase2.policy-contract-digests/v1",
   "slice_id": "P2-S00-02",
-  "updated_by_slice": "P2-S01-04",
+  "updated_by_slice": "P2-S06-03",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "documents": [
     {
@@ -38,6 +38,11 @@
       "adr_id": "P2-ADR-007",
       "path": "docs/architecture/phase2/adr/P2-ADR-007.md",
       "sha256": "e7928dbfbf77816c8810946ab1606405a86b98d9396a7488bb359eebb0cd7b0f"
+    },
+    {
+      "adr_id": "P2-ADR-008",
+      "path": "docs/architecture/phase2/adr/P2-ADR-008.md",
+      "sha256": "fcda341e4e971bff9703d68655a65d8ac6b1a70125553d96ade136e0c004284b"
     }
   ],
   "configs": [
@@ -54,7 +59,7 @@
     {
       "config_id": "activation_gates",
       "path": "config/phase2/activation-gates.yaml",
-      "sha256": "0bfe21787e53299c917f81d8230a2ba1ca022ba1db941f91e326c3c641d37e01"
+      "sha256": "2b464af75e21a57e2bdd9c12973c0da0d412db0e6795f1f55a03a97459484da6"
     }
   ]
 }

@@ -1,13 +1,13 @@
 {
   "schema": "zyra.phase2.activation-gates/v1",
-  "slice_id": "P2-S00-02",
+  "slice_id": "P2-S06-03",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "frozen": true,
-  "gate_revision": 1,
-  "frozen_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
+  "gate_revision": 2,
+  "frozen_gate_digest": "6df6c08c67cb4698c374c77eda8583f1b11d6c44916e32b0f999bb5e50c0c1ab",
   "supersession": {
-    "supersedes_gate_digest": null,
-    "superseding_adr": null
+    "supersedes_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
+    "superseding_adr": "docs/architecture/phase2/adr/P2-ADR-008.md"
   },
   "readiness": {
     "allowed_stages": [
@@ -23,45 +23,46 @@
     "mechanisms": [
       {
         "mechanism_id": "loopx",
-        "status": "unavailable",
-        "stage": "input_precheck",
-        "report_ref": "pending:P2-S00-03/input_precheck",
+        "status": "deterministic_ready",
+        "stage": "activation_ready",
+        "report_ref": "docs/release/phase2/activation-readiness.json",
+        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
       {
         "mechanism_id": "arg_designer",
-        "status": "unavailable",
-        "stage": "input_precheck",
-        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
-        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+        "status": "deterministic_ready",
+        "stage": "activation_ready",
+        "report_ref": "docs/release/phase2/activation-readiness.json",
+        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
       {
         "mechanism_id": "card",
-        "status": "unavailable",
-        "stage": "input_precheck",
-        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
-        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+        "status": "deterministic_ready",
+        "stage": "activation_ready",
+        "report_ref": "docs/release/phase2/activation-readiness.json",
+        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
       {
         "mechanism_id": "agentprune",
-        "status": "unavailable",
-        "stage": "input_precheck",
-        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
-        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+        "status": "deterministic_ready",
+        "stage": "activation_ready",
+        "report_ref": "docs/release/phase2/activation-readiness.json",
+        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
       {
         "mechanism_id": "maas",
-        "status": "unavailable",
-        "stage": "input_precheck",
-        "report_ref": "docs/reviews/phase2/MechanismEvidenceReadinessReport.json",
-        "report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+        "status": "deterministic_ready",
+        "stage": "activation_ready",
+        "report_ref": "docs/release/phase2/activation-readiness.json",
+        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       }
@@ -78,16 +79,17 @@
     },
     {
       "profile_id": "phase1_deterministic_baseline",
-      "lifecycle": "default",
-      "activation_state": "active",
+      "lifecycle": "baseline",
+      "activation_state": "standby",
       "configuration_ref": "docs/reviews/evidence/P2-S00-01/mechanism-baseline.json",
       "fallback_profile": "phase1_deterministic_baseline",
       "required_mechanisms": []
     },
     {
       "profile_id": "phase2_strongest_v1",
-      "lifecycle": "validation",
-      "activation_state": "blocked_pending_readiness",
+      "lifecycle": "default",
+      "activation_state": "active",
+      "configuration_ref": "config/phase2/policies.yaml",
       "required_mechanisms": [
         "loopx",
         "arg_designer",

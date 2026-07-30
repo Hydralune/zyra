@@ -184,6 +184,7 @@ class FrozenPreflightManifest:
     profile_family: str
     profile_version: str
     profile_config_digest: str
+    execution_mode: str
     frozen_at: str
     evidence_bindings: Mapping[str, Mapping[str, Any]]
     command_probes: tuple[Mapping[str, Any], ...]
@@ -250,6 +251,18 @@ class FrozenPreflightManifest:
             raise StrongestPreflightError(
                 "preflight-profile-invalid",
                 "Only phase2_strongest_v1 is permitted.",
+            )
+        execution_mode = str(
+            frozen_inputs.get("execution_mode")
+            or "pre_activation_validation"
+        )
+        if execution_mode not in {
+            "pre_activation_validation",
+            "active_default_revalidation",
+        }:
+            raise StrongestPreflightError(
+                "preflight-execution-mode-invalid",
+                "The preflight execution mode is not supported.",
             )
         if tuple(frozen_inputs.get("mechanism_chain") or ()) != REQUIRED_CHAIN:
             raise StrongestPreflightError(
@@ -459,6 +472,7 @@ class FrozenPreflightManifest:
                 profile.get("config_digest"),
                 "frozen_inputs.profile.config_digest",
             ),
+            execution_mode=execution_mode,
             frozen_at=_text(value.get("frozen_at"), "frozen_at"),
             evidence_bindings=bindings,
             command_probes=probes,
@@ -538,17 +552,20 @@ class StrongestPreflightRunner:
             self.manifest.profile_family,
             purpose=ResolutionPurpose.NORMAL,
         )
-        validation = registry.resolve(
-            self.manifest.profile_family,
-            purpose=ResolutionPurpose.VALIDATION,
-            version=self.manifest.profile_version,
-            validation_manifest=ValidationManifest(
-                manifest_id=self.manifest.preflight_id,
-                scenario_id="P2-S06-01",
-                isolated=True,
-                purpose="preflight",
-            ),
-        )
+        if self.manifest.execution_mode == "active_default_revalidation":
+            validation = normal_before
+        else:
+            validation = registry.resolve(
+                self.manifest.profile_family,
+                purpose=ResolutionPurpose.VALIDATION,
+                version=self.manifest.profile_version,
+                validation_manifest=ValidationManifest(
+                    manifest_id=self.manifest.preflight_id,
+                    scenario_id="P2-S06-01",
+                    isolated=True,
+                    purpose="preflight",
+                ),
+            )
 
         deterministic_receipts, determinism_match = (
             self._deterministic_contract_receipts()
@@ -634,15 +651,30 @@ class StrongestPreflightRunner:
                 "side_effect_count",
             )
         )
-        registry_default = (
-            normal_before.profile_id == BASELINE_PROFILE
-            and normal_before.version == BASELINE_PROFILE
-        )
-        validation_explicit = (
-            validation.profile_id == STRONGEST_PROFILE
-            and validation.lifecycle.value == "validation"
-            and validation.config_digest == self.manifest.profile_config_digest
-        )
+        if self.manifest.execution_mode == "active_default_revalidation":
+            registry_default = (
+                normal_before.profile_id == STRONGEST_PROFILE
+                and normal_before.version == STRONGEST_PROFILE
+                and normal_before.lifecycle.value == "default"
+                and normal_before.activation_state == "active"
+            )
+            validation_explicit = (
+                validation.profile_id == STRONGEST_PROFILE
+                and validation.version == STRONGEST_PROFILE
+                and validation.config_digest
+                == self.manifest.profile_config_digest
+            )
+        else:
+            registry_default = (
+                normal_before.profile_id == BASELINE_PROFILE
+                and normal_before.version == BASELINE_PROFILE
+            )
+            validation_explicit = (
+                validation.profile_id == STRONGEST_PROFILE
+                and validation.lifecycle.value == "validation"
+                and validation.config_digest
+                == self.manifest.profile_config_digest
+            )
         base_gates = {
             "manifest_integrity": True,
             "registry_default_baseline": registry_default,
@@ -747,6 +779,7 @@ class StrongestPreflightRunner:
         )
         report_value = StrongestPreflightReport(
             preflight_id=self.manifest.preflight_id,
+            execution_mode=self.manifest.execution_mode,
             status=status,
             profile_family=self.manifest.profile_family,
             profile_version=self.manifest.profile_version,

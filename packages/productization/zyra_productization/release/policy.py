@@ -165,6 +165,8 @@ class ReleasePolicy:
             return True, "explicit_release_exclusion"
         if folded.startswith("docs/reviews/evidence/"):
             return True, "generated_evidence_excluded"
+        if folded.startswith("docs/evidence/"):
+            return True, "generated_evidence_excluded"
         if folded.startswith("docs/reviews/") and folded.endswith(".json"):
             return True, "generated_review_excluded"
         return False, ""

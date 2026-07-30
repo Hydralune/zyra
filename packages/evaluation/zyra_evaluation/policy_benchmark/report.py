@@ -197,6 +197,7 @@ class Phase2MetricReportBuilder:
 @dataclass(frozen=True, slots=True)
 class StrongestPreflightReport:
     preflight_id: str
+    execution_mode: str
     status: str
     profile_family: str
     profile_version: str
@@ -228,6 +229,7 @@ class StrongestPreflightReport:
         value = {
             "schema": self.schema,
             "preflight_id": self.preflight_id,
+            "execution_mode": self.execution_mode,
             "status": self.status,
             "profile_family": self.profile_family,
             "profile_version": self.profile_version,

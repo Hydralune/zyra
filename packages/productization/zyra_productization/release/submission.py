@@ -306,12 +306,64 @@ class CleanInstallReceiptVerifier:
             lifecycle = receipts.get("lifecycle")
             if not isinstance(lifecycle, Mapping) or lifecycle.get("ready") is not True:
                 failures.append("lifecycle_not_ready")
+        isolation_audit = value.get("isolation_audit")
+        if (
+            not isinstance(isolation_audit, Mapping)
+            or isolation_audit.get("ready") is not True
+        ):
+            failures.append("isolation_audit_not_ready")
+        else:
+            zero_count_fields = (
+                "implicit_cache_or_user_state_dependency_count",
+                "editable_or_link_install_count",
+                "external_build_context_count",
+                "undeclared_process_count",
+                "undeclared_port_count",
+            )
+            if any(
+                int(isolation_audit.get(field) or 0) != 0
+                for field in zero_count_fields
+            ):
+                failures.append("isolation_audit_finding_present")
+            declared_ports = sorted(
+                int(item)
+                for item in isolation_audit.get("declared_ports", ())
+            )
+            released_ports = sorted(
+                int(item)
+                for item in isolation_audit.get("released_ports", ())
+            )
+            if not declared_ports or declared_ports != released_ports:
+                failures.append("cleanroom_port_not_released")
+            required_actions = {
+                "release-doctor",
+                "product-start",
+                "semantic-health",
+                "product-restart",
+                "post-restart-health",
+                "product-stop",
+                "post-stop-status",
+            }
+            actions = {
+                str(item)
+                for item in isolation_audit.get(
+                    "declared_process_actions",
+                    (),
+                )
+            }
+            if not required_actions.issubset(actions):
+                failures.append("cleanroom_lifecycle_action_missing")
         report = {
             "schema": "zyra.clean-install-admission/v1",
             "ready": not failures,
             "source_commit": expected_commit,
             "failures": failures,
             "command_failures": command_failures,
+            "isolation_audit_digest": (
+                stable_digest(isolation_audit)
+                if isinstance(isolation_audit, Mapping)
+                else ""
+            ),
             "receipt_digest": stable_digest(value),
         }
         report["digest"] = stable_digest(report)

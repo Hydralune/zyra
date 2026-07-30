@@ -131,7 +131,7 @@ class DefaultTopologyPolicyResult:
 
 
 class DefaultTopologyPolicy:
-    """Default trigger entry: normal runs stay baseline until activation."""
+    """Default trigger entry with explicit strongest activation and rollback."""
 
     def __init__(
         self,
@@ -169,6 +169,13 @@ class DefaultTopologyPolicy:
     ) -> DefaultTopologyPolicy:
         root = repository_root.resolve()
         sink = admit_event or (lambda event: None)
+        activation_readiness_report = (
+            root
+            / "docs"
+            / "release"
+            / "phase2"
+            / "activation-readiness.json"
+        )
         config = TopologyComposerConfig.load(
             (
                 composer_config_path.resolve()
@@ -189,19 +196,19 @@ class DefaultTopologyPolicy:
         )
         arg_runtime = ARGTopologyRuntime.from_repository(
             root,
-            report_path=arg_report_path,
+            report_path=arg_report_path or activation_readiness_report,
             evidence_publisher=evidence_publisher,
             admit_event=sink,
         )
         card_runtime = CARDTopologyRuntime.from_repository(
             root,
-            report_path=card_report_path,
+            report_path=card_report_path or activation_readiness_report,
             evidence_publisher=evidence_publisher,
             admit_event=sink,
         )
         pruning_runtime = AgentPruneRuntime.from_repository(
             root,
-            report_path=pruning_report_path,
+            report_path=pruning_report_path or activation_readiness_report,
             evidence_publisher=evidence_publisher,
             admit_event=sink,
         )

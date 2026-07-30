@@ -1,0 +1,108 @@
+{
+  "schema": "zyra.source-language-custody-evidence/v1",
+  "slice_id": "P2-S06-03",
+  "source_decisions": [
+    {
+      "source_repo": "LoopX",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "fixed_source_embedding_with_zyra_bridge"
+    },
+    {
+      "source_repo": "ARG-Designer",
+      "source_role": "primary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    },
+    {
+      "source_repo": "CARD",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    },
+    {
+      "source_repo": "AgentPrune",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    },
+    {
+      "source_repo": "MaAS",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "LoopX",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "fixed_source_embedding_with_zyra_bridge",
+      "expected_production_languages": ["python"],
+      "production_paths": [
+        "packages/integrations/loopx_runtime/loopx/__init__.py",
+        "packages/integrations/zyra_integrations/loopx/runtime/resolver.py",
+        "packages/integrations/zyra_integrations/loopx/bridge/dispatcher.py"
+      ],
+      "minimum_added_lines_by_language": {"python": 1},
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "ARG-Designer",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": ["python"],
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/catalog.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/joint_builder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {"python": 1},
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "CARD",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": ["python"],
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/residual_corrector.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {"python": 1},
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "AgentPrune",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": ["python"],
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/optimizer.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {"python": 1},
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "MaAS",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": ["python"],
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/operator_policy/catalog.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/encoder.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/selector.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {"python": 1},
+      "cross_language_exception": false
+    }
+  ]
+}

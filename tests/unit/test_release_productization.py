@@ -60,7 +60,10 @@ from zyra_productization.release.integrity import (
     stable_digest,
 )
 from zyra_productization.release.models import GateState
-from zyra_productization.release.policy import ReleasePolicy
+from zyra_productization.release.policy import (
+    DEFAULT_RELEASE_POLICY,
+    ReleasePolicy,
+)
 from zyra_productization.release.transactions import default_migration_registry
 
 
@@ -963,6 +966,25 @@ def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
         "workspace_isolated": True,
         "parent_source_repositories_present": False,
         "product_lifecycle_exercised": True,
+        "isolation_audit": {
+            "ready": True,
+            "implicit_cache_or_user_state_dependency_count": 0,
+            "editable_or_link_install_count": 0,
+            "external_build_context_count": 0,
+            "undeclared_process_count": 0,
+            "undeclared_port_count": 0,
+            "declared_ports": [41001, 41002, 41003, 41004, 41005],
+            "released_ports": [41001, 41002, 41003, 41004, 41005],
+            "declared_process_actions": [
+                "release-doctor",
+                "product-start",
+                "semantic-health",
+                "product-restart",
+                "post-restart-health",
+                "product-stop",
+                "post-stop-status",
+            ],
+        },
         "commands": [],
         "receipts": {
             "install": {"state": "committed"},
@@ -1127,6 +1149,70 @@ def test_cleanroom_bun_cache_stays_outside_release_payload(
     assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
         tmp_path / "cleanroom"
     )
+
+
+def test_release_policy_separates_phase2_evidence_from_runtime_payload() -> None:
+    excluded, reason = DEFAULT_RELEASE_POLICY.excluded(
+        "docs/evidence/phase2/final/evidence-index.json"
+    )
+
+    assert excluded is True
+    assert reason == "generated_evidence_excluded"
+
+
+def test_cleanroom_isolation_audit_requires_restart_and_port_release(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "cleanroom"
+    payload = workspace / "payload"
+    payload.mkdir(parents=True)
+    plan = PlatformPlanner(tmp_path).current()
+    ports = (41001, 41002, 41003, 41004, 41005)
+    environment = CleanInstallRunner._environment(
+        workspace=workspace,
+        plan=plan,
+        ports=ports,
+    )
+    actions = [
+        "release-doctor",
+        "product-start",
+        "semantic-health",
+        "product-restart",
+        "post-restart-health",
+        "product-stop",
+        "post-stop-status",
+    ]
+    audit = CleanInstallRunner._isolation_audit(
+        workspace=workspace,
+        payload=payload,
+        environment=environment,
+        ports=ports,
+        commands=(
+            {
+                "command": ["python", "-m", "pip", "install", "zyra.whl"],
+                "cwd": str(payload),
+            },
+        ),
+        lifecycle={
+            "ready": True,
+            "commands": [
+                {"name": name, "ready": True}
+                for name in actions
+            ],
+        },
+        post_lifecycle_ports={
+            "ready": True,
+            "available": list(ports),
+            "occupied": [],
+        },
+    )
+
+    assert audit["ready"] is True
+    assert audit["implicit_cache_or_user_state_dependency_count"] == 0
+    assert audit["editable_or_link_install_count"] == 0
+    assert audit["external_build_context_count"] == 0
+    assert audit["undeclared_process_count"] == 0
+    assert audit["undeclared_port_count"] == 0
 
 
 def test_gate_registry_rejects_cycles() -> None:

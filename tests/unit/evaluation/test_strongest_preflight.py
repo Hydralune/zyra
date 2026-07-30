@@ -67,7 +67,8 @@ def test_frozen_manifest_has_one_profile_two_domains_and_stable_id() -> None:
     manifest = FrozenPreflightManifest.load(ROOT, MANIFEST)
 
     assert manifest.profile_version == "phase2_strongest_v1"
-    assert manifest.preflight_id == "preflight_deafc65877387ab74bbef93c"
+    assert manifest.preflight_id == "preflight_9cb5edda9af0048f4b561d77"
+    assert manifest.execution_mode == "active_default_revalidation"
     assert set(manifest.evidence_bindings) == {
         "arg_designer",
         "card",
@@ -76,7 +77,7 @@ def test_frozen_manifest_has_one_profile_two_domains_and_stable_id() -> None:
     }
 
 
-def test_successful_preflight_admits_sealed_runs_without_activating_default() -> None:
+def test_successful_preflight_revalidates_active_default() -> None:
     runner = StrongestPreflightRunner.from_manifest(
         ROOT,
         MANIFEST,
@@ -87,11 +88,14 @@ def test_successful_preflight_admits_sealed_runs_without_activating_default() ->
 
     assert result.passed is True
     assert result.report["status"] == "completed"
-    assert result.report["resolver_before"] == BASELINE_PROFILE
-    assert result.report["resolver_after"] == BASELINE_PROFILE
+    assert result.report["resolver_before"] == "phase2_strongest_v1"
+    assert result.report["resolver_after"] == "phase2_strongest_v1"
     assert result.activation_report["sealed_run_admission_eligible"] is True
-    assert result.activation_report["default_activation_allowed"] is False
-    assert result.activation_report["conclusion"] == "admit_to_P2-S06-02"
+    assert result.activation_report["default_activation_allowed"] is True
+    assert (
+        result.activation_report["conclusion"]
+        == "phase2_strongest_v1_revalidated"
+    )
     assert set(result.readiness_report["mechanism_statuses"].values()) == {
         "deterministic_ready"
     }

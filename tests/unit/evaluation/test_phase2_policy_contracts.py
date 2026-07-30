@@ -38,21 +38,15 @@ def _copy_contracts(target: Path) -> Path:
     return target
 
 
-def test_production_bundle_validates_and_remains_inactive() -> None:
+def test_production_bundle_validates_active_strongest_profile() -> None:
     report = Phase2PolicyContractBundle.load(ROOT).validate()
 
     assert report.valid is True
     assert report.source_roles["topology_primary"] == ["arg_designer"]
     assert report.source_roles["topology_supplementary"] == ["card", "agentprune"]
     assert report.activation_gates["hard_gate_count"] >= 20
-    assert report.activation_gates["strongest_activation_eligible"] is False
-    assert set(report.activation_gates["strongest_activation_blockers"]) == {
-        "loopx",
-        "arg_designer",
-        "card",
-        "agentprune",
-        "maas",
-    }
+    assert report.activation_gates["strongest_activation_eligible"] is True
+    assert report.activation_gates["strongest_activation_blockers"] == []
 
 
 @pytest.mark.parametrize(
@@ -134,7 +128,7 @@ def test_frozen_threshold_change_requires_superseding_adr() -> None:
     with pytest.raises(ContractViolation) as failure:
         validate_activation_contract(contract)
 
-    assert failure.value.code == "frozen-gate-modified-without-adr"
+    assert failure.value.code == "frozen-gate-digest-stale"
 
 
 def test_every_hard_gate_traces_to_requirements_and_evidence_contracts() -> None:

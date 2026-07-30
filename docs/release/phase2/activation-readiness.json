@@ -1,0 +1,163 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S06-03",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "p2_eval_base_commit": "a312129f2b358e534321c4ec58989f4674dc8a7f",
+  "evidence_commit": "a312129f2b358e534321c4ec58989f4674dc8a7f",
+  "readiness_stage": "activation_ready",
+  "valid": true,
+  "sealed_run_admission_candidate": true,
+  "baseline_manifest": {
+    "path": "docs/release/phase2-baseline-manifest.json",
+    "sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e",
+    "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37"
+  },
+  "contract": {
+    "path": "config/phase2/mechanism-readiness.json",
+    "sha256": "18ebbfa669911371e05678cb53ad1d641bda6d0e484d48c7adc31f7978af7af2"
+  },
+  "preflight": {
+    "preflight_id": "preflight_deafc65877387ab74bbef93c",
+    "receipt_set_digest": "621b0944534d195277ce59c0acea1c1336903d230816b39f8f3ee180741fb9af",
+    "sealed_validation_ref": "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+  },
+  "mechanism_statuses": {
+    "loopx": "deterministic_ready",
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "agentprune": "deterministic_ready",
+    "maas": "deterministic_ready"
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "runtime_entry_point_count": 0,
+    "training_dataset_count": 0,
+    "training_checkpoint_count": 0,
+    "mutable_learned_parameter_count": 0,
+    "training_sample_count": 0,
+    "findings": []
+  },
+  "mechanisms": {
+    "loopx": {
+      "mechanism_id": "loopx",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "input_coverage": 1.0,
+      "causal_link_completeness": 1.0,
+      "deterministic_replay_match": true,
+      "evidence_refs": [
+        "docs/reviews/evidence/P2-S01-04/verification-summary.json",
+        "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+      ]
+    },
+    "arg_designer": {
+      "mechanism_id": "arg_designer",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "input_coverage": 1.0,
+      "causal_link_completeness": 1.0,
+      "deterministic_replay_match": true,
+      "implementation_validation": {
+        "passed": true,
+        "mechanism_version": "arg_joint_v1",
+        "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+        "catalog_schema_version": "zyra.arg-role-catalog/v1",
+        "input_schema_version": "zyra.arg-input/v1",
+        "determinism_replay_match": true,
+        "canonical_mutation_attempted": false,
+        "source_custody_ok": true,
+        "training_sample_count": 0
+      },
+      "evidence_refs": [
+        "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
+        "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+      ]
+    },
+    "card": {
+      "mechanism_id": "card",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "input_coverage": 1.0,
+      "causal_link_completeness": 1.0,
+      "deterministic_replay_match": true,
+      "implementation_validation": {
+        "passed": true,
+        "mechanism_version": "card_directional_residual_v1",
+        "configuration_digest": "fc0d699fead07217b6b24c557b183c5d6a0542d4dab2d590b20c0b2e3d3c815e",
+        "environment_schema_version": "zyra.environment-snapshot/v1",
+        "encoded_schema_version": "zyra.card-environment-features/v1",
+        "residual_schema_version": "zyra.card-residual/v1",
+        "determinism_replay_match": true,
+        "canonical_mutation_attempted": false,
+        "source_custody_ok": true,
+        "training_sample_count": 0
+      },
+      "evidence_refs": [
+        "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
+        "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+      ]
+    },
+    "agentprune": {
+      "mechanism_id": "agentprune",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "input_coverage": 1.0,
+      "causal_link_completeness": 1.0,
+      "deterministic_replay_match": true,
+      "implementation_validation": {
+        "passed": true,
+        "mechanism_version": "agentprune_spatiotemporal_v1",
+        "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+        "outcome_schema_version": "zyra.agentprune-communication-outcome/v1",
+        "stats_schema_version": "zyra.agentprune-edge-contribution/v1",
+        "mask_schema_version": "zyra.agentprune-deterministic-mask/v1",
+        "determinism_replay_match": true,
+        "canonical_mutation_attempted": false,
+        "source_custody_ok": true,
+        "training_sample_count": 0
+      },
+      "evidence_refs": [
+        "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
+        "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+      ]
+    },
+    "maas": {
+      "mechanism_id": "maas",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "input_coverage": 1.0,
+      "causal_link_completeness": 1.0,
+      "deterministic_replay_match": true,
+      "evidence_refs": [
+        "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
+        "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
+      ]
+    }
+  },
+  "evidence_files": [
+    {
+      "path": "docs/reviews/evidence/P2-S01-04/verification-summary.json",
+      "sha256": "523f3e03fd54bbecbd90f145355e16c37e1dad9a9e848fec10b68d7bd22ab1ad"
+    },
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
+      "sha256": "66ac3887feeadb3a5aeb042282ad49dd05ca2e97251652960ab456e92881dc0e"
+    },
+    {
+      "path": "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json",
+      "sha256": "ae33fc14c5cafaf00a185f425c1ed631ca27afdeed96f684a19e8b8ef26b771f"
+    },
+    {
+      "path": "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/sealed-evidence-index.json",
+      "sha256": "5022b4ac064024b78f7e70d17bdfae0f6fc838062aa5c1b34fbf039082879772"
+    }
+  ],
+  "activation_constraints": {
+    "all_required_mechanisms_deterministic_ready": true,
+    "canonical_mutation_owner_unchanged": true,
+    "permission_lease_budget_scheduler_authority_unchanged": true,
+    "no_policy_training": true,
+    "rollback_profile": "phase1_deterministic_baseline"
+  },
+  "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+}
