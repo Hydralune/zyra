@@ -524,7 +524,7 @@ class CatalogLoader:
         requested_path: str | Path | None,
     ) -> tuple[set[str], tuple[EvidencePointer, ...], tuple[Finding, ...]]:
         if requested_path is None:
-            candidate = self.root.parent / "docs" / "比赛要求追踪矩阵.md"
+            candidate = self._default_requirement_matrix()
         else:
             requested = Path(requested_path)
             candidate = (
@@ -583,6 +583,14 @@ class CatalogLoader:
             ),
             (),
         )
+
+    def _default_requirement_matrix(self) -> Path:
+        relative = Path("docs") / "比赛要求追踪矩阵.md"
+        candidates = tuple(parent / relative for parent in self.root.parents)
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return candidates[0] if candidates else self.root / relative
 
     def _validate_matrix_parity(
         self,

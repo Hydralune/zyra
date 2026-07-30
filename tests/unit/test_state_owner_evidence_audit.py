@@ -154,6 +154,34 @@ def test_authoritative_catalog_is_strict_and_complete(context: AuditContext) -> 
     }
 
 
+def test_catalog_finds_requirement_matrix_above_nested_cleanroom(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    workspace = tmp_path / "competition-workspace"
+    cleanroom = workspace / ".tmp" / "target"
+    catalog = cleanroom / CATALOG_RELATIVE
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text(json.dumps(payload), encoding="utf-8")
+    matrix = workspace / "docs" / "比赛要求追踪矩阵.md"
+    matrix.parent.mkdir(parents=True)
+    matrix.write_text(
+        "\n".join(
+            f"| {requirement_id} | frozen evidence |"
+            for requirement_id in payload["required_requirements"]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CatalogLoader(cleanroom).load(CATALOG_RELATIVE)
+
+    assert result.catalog is not None
+    assert not result.section.findings
+    assert result.section.metrics["matrix_requirement_count"] == len(
+        payload["required_requirements"]
+    )
+
+
 def test_all_declared_state_references_resolve_to_executable_source(
     context: AuditContext,
 ) -> None:
