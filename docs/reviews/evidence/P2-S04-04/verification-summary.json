@@ -1,0 +1,149 @@
+{
+  "schema": "zyra.p2-s04-04-verification-summary/v1",
+  "slice_id": "P2-S04-04",
+  "verdict": "PASS",
+  "base_commit": "cefd5dff62f0f32c00d74b04f67ecf31bc6de6db",
+  "implementation_commit": "5a1aa06b64ffd81d6e95030a3b113d9b7865f039",
+  "evidence_commit": "fec06b920fa5e1d1afb524a0535b98f92a1366e1",
+  "mechanism_version": "physical_dispatch_v1",
+  "configuration_digest": "8c1ee38a87c699052e055ea936dde573bdc2a22b7b2be7cc2ca39c086d55b9b1",
+  "physical_dispatch_gate_digest": "c572a35ca8cd431da512eaa5db32d6f6581335e160c27c14953c4f72f5aee9b9",
+  "evidence_index_digest": "21fd337b07b661711c4707618c6330fd56ba7a7f022ff66e0cc124cedf17cea5",
+  "readiness_report_digest": "ef02da429aa0756118bc287a5e84487a54d9e94b6a84aa6b095b4540ca8f5d56",
+  "tests": [
+    {
+      "scope": "focused_physical_dispatch",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_physical_dispatch_receipts.py tests/scenarios/test_real_edge_dispatch.py tests/scenarios/test_real_cloud_dispatch.py tests/scenarios/test_dispatch_condition_reroute.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-04-focused-final",
+      "result": "10 passed in 40.24s",
+      "passed": true,
+      "real_cloud_requests": 2
+    },
+    {
+      "scope": "worker_pool_foundation",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/unit/test_worker_pool_foundation.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-04-worker-unit",
+      "result": "6 passed in 4.05s",
+      "passed": true
+    },
+    {
+      "scope": "worker_placement_lease_adjacent",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_worker_pool_integration_runtime.py tests/integration/test_operator_scheduler_lease_path.py tests/integration/test_operator_lease_failure_recovery.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-04-worker-adjacent",
+      "result": "23 passed in 58.95s",
+      "passed": true
+    },
+    {
+      "scope": "worker_api_main_path",
+      "result": "1 passed in 11.96s",
+      "passed": true,
+      "whole_file_claimed": false
+    },
+    {
+      "scope": "deployment_profiles",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/unit/test_deployment_profiles_runtime.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-04-deployment-profiles",
+      "result": "8 passed in 1.12s",
+      "passed": true
+    },
+    {
+      "scope": "policy_contracts",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/unit/orchestration/test_policy_contracts.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-04-contracts",
+      "result": "7 passed in 0.20s",
+      "passed": true
+    },
+    {
+      "scope": "deployment_clean_state_retry",
+      "result": "1 passed in 73.92s",
+      "passed": true
+    },
+    {
+      "scope": "three_real_profiles_dispatch_recover_restart",
+      "result": "1 passed in 5.79s",
+      "passed": true
+    }
+  ],
+  "test_totals": {
+    "focused_passed": 10,
+    "adjacent_passed": 47,
+    "total_passed": 57
+  },
+  "static_checks": {
+    "compileall": "passed",
+    "diff_check": "passed",
+    "internalization_ledger": "audit_ok=true errors=0 blockers=0 effective_added=3173 effective_deleted=19",
+    "no_policy_training_audit": "passed",
+    "openclaw_and_source_boundary_scan": "passed",
+    "evidence_secret_scan": "passed",
+    "ruff": "not_installed"
+  },
+  "behavior": {
+    "same_payload_condition_lane_count": 7,
+    "real_location_count": 3,
+    "local_real": true,
+    "edge_real": true,
+    "cloud_real": true,
+    "all_receipts_real": true,
+    "privacy_cloud_dispatch_count": 0,
+    "simulated_receipt_count": 0,
+    "physical_identity_changes": true,
+    "fault_recovery_linked": true,
+    "edge_kill_isolated_from_orchestrator": true,
+    "cloud_without_credential_fails_closed": true,
+    "label_only_reroute_rejected": true,
+    "credential_material_persisted": false,
+    "provider_output_text_persisted": false,
+    "raw_task_payload_persisted": false
+  },
+  "cloud_evidence": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "http_status": 200,
+    "provider_request_id_present": true,
+    "provider_attempt_id_present": true,
+    "usage_present": true,
+    "cost_present": true,
+    "latency_present": true,
+    "marker_verified": true,
+    "credential_source": "env://DEEPSEEK_API_KEY",
+    "credential_value_recorded": false
+  },
+  "ownership": {
+    "parallel_state_added": false,
+    "operator_candidate_owner": "MaAS proposal",
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "WorkerLeaseManager",
+    "deployment_process_owner": "DeploymentProcessManager",
+    "provider_route_and_transport_owner": "ProviderControlPlane",
+    "recovery_owner": "RecoveryPlanner",
+    "artifact_owner": "LocalArtifactStore",
+    "canonical_owner_transfer_count": 0
+  },
+  "implementation_accounting": {
+    "production_added_lines": 2148,
+    "test_added_lines": 1025,
+    "configuration_added_lines": 0,
+    "runtime_assets_added_lines": 0,
+    "generated_added_lines": 0,
+    "data_added_lines": 0,
+    "docs_added_lines": 0,
+    "adapter_only_added_lines": 0,
+    "mock_fixture_added_lines": 0,
+    "production_share": 0.67696187
+  },
+  "readiness": {
+    "stage": "implementation_validated",
+    "maas": "deterministic_ready",
+    "zyra_physical_dispatch": "deterministic_ready",
+    "activation_allowed": false,
+    "deferred_to": "P2-S06-01"
+  },
+  "parent_unit": {
+    "unit_id": "P2-04",
+    "completed": true,
+    "completed_through": "P2-S04-04"
+  },
+  "environment_notes": [
+    "One combined deployment invocation failed at a short-task checkpoint handoff; the affected clean-state retry test passed when rerun on the same final target.",
+    "The complete worker API file exceeded the bounded slice validation window because it launches long-lived foreground TypeScript agents; only the directly relevant real main-path test is claimed.",
+    "Ruff is not installed in the repository virtual environment."
+  ],
+  "next_slice_authorized": false
+}
