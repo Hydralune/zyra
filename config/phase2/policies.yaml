@@ -75,7 +75,7 @@
       },
       "config_digest": "ac1b51034906aadeb39b6b9991bd5c70b2a8bd1a01873dabdc0371a334333f3c",
       "implementation_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
-      "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+      "evidence_commit": "8ec8e9bb6d81cf3f1fb9b9878c81ef76f283813c",
       "required_mechanisms": [
         "arg_designer",
         "card",
@@ -167,7 +167,7 @@
       },
       "config_digest": "9b25e67cae4eac3878a15dd899c15d8c748432e4ec89c4281adf1108fde30073",
       "implementation_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
-      "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+      "evidence_commit": "8ec8e9bb6d81cf3f1fb9b9878c81ef76f283813c",
       "required_mechanisms": [
         "arg_designer",
         "card",
@@ -210,5 +210,5 @@
       "audit_gate_ids": []
     }
   ],
-  "registry_digest": "ddc141f4c58fbec08383066c94c5a2272074c9970ba74f246be2c2a3a13caecf"
+  "registry_digest": "f922555df523035db37f687e97c2e4a5e815376e2efab738e3c4b70f1dffa82d"
 }
