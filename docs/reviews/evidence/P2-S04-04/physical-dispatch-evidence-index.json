@@ -1,0 +1,166 @@
+{
+  "schema": "zyra.physical-dispatch-evidence-index/v1",
+  "slice_id": "P2-S04-04",
+  "implementation_commit": "5a1aa06b64ffd81d6e95030a3b113d9b7865f039",
+  "generated_at": "2026-07-30T09:04:14.912Z",
+  "gate_report": {
+    "schema": "zyra.physical-dispatch-gate/v1",
+    "receipt_digest": "c572a35ca8cd431da512eaa5db32d6f6581335e160c27c14953c4f72f5aee9b9",
+    "gate_closed": true,
+    "blockers": [],
+    "checks": {
+      "all_receipts_real": true,
+      "cloud_real": true,
+      "condition_lanes_present": true,
+      "edge_real": true,
+      "fault_recovery_linked": true,
+      "local_real": true,
+      "physical_identity_changes": true,
+      "privacy_cloud_dispatch_zero": true,
+      "simulated_receipt_zero": true
+    },
+    "privacy_cloud_dispatch_count": 0,
+    "real_location_count": 3
+  },
+  "environment_profile": {
+    "operating_system": "Windows 11",
+    "python": "3.13.9",
+    "local_transport": "authenticated-loopback-http",
+    "edge_isolation": "independent-supervised-process",
+    "edge_network_namespace": "host-loopback-port",
+    "cloud_provider": "deepseek",
+    "cloud_model": "deepseek-v4-pro",
+    "provider_protocol": "openai_chat",
+    "credential_source": "env://DEEPSEEK_API_KEY",
+    "credential_present": true,
+    "credential_value_recorded": false
+  },
+  "provider_profile": {
+    "base_url": "https://api.deepseek.com",
+    "endpoint_path": "/chat/completions",
+    "pricing_source": "https://api-docs.deepseek.com/quick_start/pricing/?article_id=article_1779470751466_8",
+    "usd_per_million_tokens": {
+      "cached_input": 0.003625,
+      "input": 0.435,
+      "output": 0.87
+    }
+  },
+  "same_minimal_task": {
+    "payload_digest": "4820c6e5b51c2af423c00117d92356ab0399c86cc6f437a3bd8def18d61b3346",
+    "condition_count": 7,
+    "raw_payload_recorded": false
+  },
+  "lanes": [
+    {
+      "condition": "normal",
+      "location": "cloud",
+      "receipt_digest": "bf643e8ba66fb8e92f66c6bf771c9a973c5934488dfcac0fe0a66de35e282bf6",
+      "physical_attempt_id": "attempt_d39649c579934405b2271b998f2a972a",
+      "node_id": "zyra-cloud-241b6df76c08447b",
+      "pid": 61712,
+      "failure_boundary_id": "process:61712:generation_35fc7abb432c47ee",
+      "provider_request_id": "physical-7b07d27fb6544acda1b8d269",
+      "provider_attempt_id": "provider_attempt_d59583449beb428e998dcf9220ba11b7",
+      "provider_model": "deepseek-v4-pro",
+      "http_status": 200,
+      "total_tokens": 50,
+      "cost_usd": 0.00002958,
+      "latency_ms": 1539,
+      "recovery_count": 0,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "privacy_local_only",
+      "location": "local",
+      "receipt_digest": "2c803e5d8601a715b0da90ab4e54580efa290ed16a451af867208a25ce15ce66",
+      "physical_attempt_id": "attempt_3e7ca71d7dea4b099c22c2daf7c433de",
+      "node_id": "zyra-device-12ecf2d3ee364b6b",
+      "pid": 38876,
+      "failure_boundary_id": "process:38876:generation_507fe56db4744b75",
+      "provider_request_id": "",
+      "recovery_count": 0,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "local_load",
+      "location": "edge",
+      "receipt_digest": "ca429813c8d2dfb82318f715b77f5367c26df1359ef3b5c14db7efb9a17eb0e9",
+      "physical_attempt_id": "attempt_bd2267145d27419c8806d03a92ff6b65",
+      "node_id": "zyra-edge-7bb48676ed8041fb",
+      "pid": 34780,
+      "failure_boundary_id": "process:34780:generation_516cc01a4d98473f",
+      "provider_request_id": "",
+      "recovery_count": 0,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "edge_health",
+      "location": "local",
+      "receipt_digest": "ef88e31a938c7bd30de0bf4a0594df50f1fa5cc47f5ac7bd065404174d14c099",
+      "physical_attempt_id": "attempt_e1c4da2e5164405984ee353a6db1ea95",
+      "node_id": "zyra-device-decdc818c58f42a5",
+      "pid": 59656,
+      "failure_boundary_id": "process:59656:generation_399ed447c11f4992",
+      "provider_request_id": "",
+      "recovery_count": 1,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "edge_disconnect",
+      "location": "local",
+      "receipt_digest": "9748583de9ae7ba16665db118fcf3b503fff438387b480de38014ecf7915912f",
+      "physical_attempt_id": "attempt_df3db3e709ae409e91bf5ad9ac63aa6c",
+      "node_id": "zyra-device-7aae10d6af4c48b2",
+      "pid": 48564,
+      "failure_boundary_id": "process:48564:generation_7d5c9f7f7762428a",
+      "provider_request_id": "",
+      "recovery_count": 1,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "cloud_unavailable",
+      "location": "local",
+      "receipt_digest": "aa7d439fead6922dbe5f931fda4b0259e29065d1d09cca7b44bb8ac300b1be08",
+      "physical_attempt_id": "attempt_36ef26678f32444ea71b412316f2790c",
+      "node_id": "zyra-device-7d7379a542284a5c",
+      "pid": 3856,
+      "failure_boundary_id": "process:3856:generation_d10e3192cb0a44d2",
+      "provider_request_id": "",
+      "recovery_count": 1,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    },
+    {
+      "condition": "latency_cost",
+      "location": "edge",
+      "receipt_digest": "e94502558d166c97a32f7cfa9e8bf66563d55b070d7505c0906a132aa56f708f",
+      "physical_attempt_id": "attempt_b25c77fa99494da6bb1a87a58638ac1d",
+      "node_id": "zyra-edge-cb2e36c98c3c43bb",
+      "pid": 40092,
+      "failure_boundary_id": "process:40092:generation_181cdc5445be45cc",
+      "provider_request_id": "",
+      "recovery_count": 0,
+      "real_gate_closed": true,
+      "validator_blockers": []
+    }
+  ],
+  "negative_evidence": {
+    "simulated_receipt_closes_gate": false,
+    "semantic_only_receipt_closes_gate": false,
+    "location_label_only_reroute_valid": false,
+    "cloud_without_credential_succeeds": false,
+    "edge_kill_terminates_orchestrator": false
+  },
+  "redaction": {
+    "credential_material_persisted": false,
+    "provider_output_text_persisted": false,
+    "raw_task_payload_persisted": false,
+    "credential_fingerprint_only": true
+  },
+  "digest": "21fd337b07b661711c4707618c6330fd56ba7a7f022ff66e0cc124cedf17cea5"
+}

@@ -1,0 +1,85 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S04-04",
+  "slice_base_commit": "cefd5dff62f0f32c00d74b04f67ecf31bc6de6db",
+  "implementation_commit": "5a1aa06b64ffd81d6e95030a3b113d9b7865f039",
+  "generated_at": "2026-07-30T09:04:14.912Z",
+  "readiness_stage": "implementation_validated",
+  "mechanism_statuses": {
+    "maas": "deterministic_ready",
+    "zyra_physical_dispatch": "deterministic_ready"
+  },
+  "mechanisms": {
+    "maas": {
+      "mechanism_id": "maas",
+      "mechanism_version": "maas_operator_placement_lease_v1",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "status_scope": "operator selection through ResourceScheduler placement, canonical lease, real local/edge/cloud execution, artifact, verifier and recovery receipt",
+      "activation_allowed": false,
+      "deferred_to": "P2-S06-01"
+    },
+    "zyra_physical_dispatch": {
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "status_scope": "real device process, isolated edge process and live DeepSeek provider dispatch under canonical scheduler/lease/permission ownership",
+      "configuration_digest": "8c1ee38a87c699052e055ea936dde573bdc2a22b7b2be7cc2ca39c086d55b9b1",
+      "gate_report_digest": "c572a35ca8cd431da512eaa5db32d6f6581335e160c27c14953c4f72f5aee9b9",
+      "validation": {
+        "passed": true,
+        "condition_lane_count": 7,
+        "real_location_count": 3,
+        "privacy_cloud_dispatch_count": 0,
+        "simulated_receipt_count": 0,
+        "checks": {
+          "local_real": true,
+          "edge_real": true,
+          "cloud_real": true,
+          "all_receipts_real": true,
+          "condition_lanes_present": true,
+          "privacy_cloud_dispatch_zero": true,
+          "physical_identity_changes": true,
+          "fault_recovery_linked": true,
+          "simulated_receipt_zero": true
+        }
+      },
+      "activation_allowed": false,
+      "deferred_to": "P2-S06-01"
+    }
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "pretrained_model_used": true,
+    "pretrained_model_role": "real external cloud execution lane; output is verified evidence and cannot commit canonical state"
+  },
+  "owner_boundary": {
+    "operator_candidate_owner": "MaAS proposal",
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "WorkerLeaseManager",
+    "deployment_process_owner": "DeploymentProcessManager",
+    "provider_route_and_transport_owner": "ProviderControlPlane",
+    "recovery_owner": "RecoveryPlanner",
+    "artifact_owner": "LocalArtifactStore",
+    "canonical_owner_transfer_count": 0
+  },
+  "external_gate": {
+    "credential_source": "env://DEEPSEEK_API_KEY",
+    "credential_value_recorded": false,
+    "provider_request_verified": true,
+    "http_status": 200,
+    "provider_request_id_present": true,
+    "usage_present": true,
+    "cost_present": true,
+    "latency_present": true,
+    "marker_verified": true
+  },
+  "report_digest": "ef02da429aa0756118bc287a5e84487a54d9e94b6a84aa6b095b4540ca8f5d56"
+}
