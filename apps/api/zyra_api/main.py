@@ -151,6 +151,7 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/deployment/faults/{profile}"),
     ("POST", "/deployment/exercise"),
     ("POST", "/deployment/shutdown"),
+    ("GET", "/policy/evidence"),
     ("GET", "/policy/metrics/specs"),
     ("GET", "/policy/metrics/reports/{report_id}"),
 )
@@ -5629,7 +5630,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
         store = get_store()
 
-        policy_metric_response = get_policy_metric_api(PROJECT_ROOT).route_get(
+        policy_metric_response = get_policy_metric_api(
+            PROJECT_ROOT,
+            event_api=get_runtime_event_api(),
+            artifact_root=artifact_root_path(),
+        ).route_get(
             tuple(parts),
             _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
         )
@@ -10713,6 +10718,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             "X-Correlation-Id, X-Causation-Id, X-Zyra-Client, "
             "X-Zyra-Client-Version, X-Zyra-Operation, X-Zyra-Contract, "
             "X-Zyra-Attempt, X-Zyra-Deadline-Ms",
+        )
+        self.send_header(
+            "Access-Control-Expose-Headers",
+            "X-Zyra-Api-Version, X-Zyra-Api-Min-Version, X-Request-Id, "
+            "X-Correlation-Id, X-Causation-Id, X-Zyra-Receipt-Id, "
+            "X-Zyra-Receipt-Replayed, X-Next-Cursor, X-Zyra-Event-Cursor, "
+            "X-Zyra-Event-High-Watermark, X-Zyra-Projection-Cursor, "
+            "Retry-After",
         )
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 

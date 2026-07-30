@@ -526,6 +526,18 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     CONTRACT_NAMES.taskLoopxCommand,
     (value) => ({ ...responseRecord(value, "LoopX control result response") }),
   )
+  registry.register(
+    CONTRACT_NAMES.policyEvidence,
+    (value) => ({ ...responseRecord(value, "policy evidence response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.policyMetricSpecs,
+    (value) => ({ ...responseRecord(value, "policy metric registry response") }),
+  )
+  registry.register(
+    CONTRACT_NAMES.policyMetricReport,
+    (value) => ({ ...responseRecord(value, "policy metric report response") }),
+  )
   registry.register(CONTRACT_NAMES.taskCommandQueue, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskCommandCancel, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.permissionControl, normalizePermissionControl)

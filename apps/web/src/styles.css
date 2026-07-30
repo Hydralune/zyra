@@ -23,6 +23,115 @@
   --shadow: 0 24px 64px rgb(0 0 0 / 0.42);
 }
 
+.policy-evidence-view,
+.policy-metric-projection {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.24));
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(145deg, rgba(14, 116, 144, 0.08), transparent 45%),
+    var(--surface-raised, rgba(15, 23, 42, 0.62));
+}
+
+.policy-evidence-filters {
+  align-items: end;
+}
+
+.policy-evidence-window-controls,
+.policy-evidence-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.policy-evidence-window-controls {
+  justify-content: space-between;
+  margin: 0.85rem 0;
+}
+
+.policy-evidence-timeline {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 42rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  contain: content;
+}
+
+.policy-evidence-timeline > li {
+  padding: 0.65rem;
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.2));
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 42, 0.22);
+  content-visibility: auto;
+  contain-intrinsic-size: 8rem;
+}
+
+.policy-evidence-transition {
+  display: grid;
+  grid-template-columns: auto minmax(11rem, 1fr) repeat(4, auto);
+  align-items: center;
+  width: 100%;
+  gap: 0.5rem;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.policy-evidence-transition small,
+.policy-evidence-transition strong {
+  display: block;
+}
+
+.policy-evidence-sequence {
+  color: var(--text-muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-evidence-links {
+  margin-top: 0.55rem;
+}
+
+.policy-evidence-ref {
+  gap: 0.3rem;
+  min-height: 1.8rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.policy-evidence-inspector {
+  margin-top: 0.8rem;
+  padding: 0.85rem;
+  border-left: 3px solid var(--accent, #22d3ee);
+  background: rgba(8, 47, 73, 0.18);
+}
+
+[data-policy-execution="simulated"] {
+  border-color: rgba(251, 191, 36, 0.55) !important;
+}
+
+[data-policy-integrity="inconsistent"],
+[data-policy-integrity="missing"] {
+  border-color: rgba(248, 113, 113, 0.6) !important;
+}
+
+@media (max-width: 920px) {
+  .policy-evidence-transition {
+    grid-template-columns: auto 1fr;
+  }
+
+  .policy-evidence-transition .tag {
+    justify-self: start;
+  }
+}
+
 /* Causal trace cross-view workbench */
 .causal-trace-workbench {
   --trace-border: color-mix(in srgb, var(--border, #334155) 78%, transparent);

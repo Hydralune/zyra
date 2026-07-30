@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type {
   PlanNodeProjection,
   TaskProjection,
@@ -150,11 +150,26 @@ function BoundSubagentWorkbench({
   runtime: WorkbenchRuntime
   task: TaskProjection
 }) {
+  const [bindingError, setBindingError] = useState("")
   useEffect(() => {
-    runtime.subagentConsole.openViewer()
-    runtime.subagentConsole.bind(task.taskId, task.runId)
+    try {
+      runtime.subagentConsole.openViewer()
+      runtime.subagentConsole.bind(task.taskId, task.runId)
+      setBindingError("")
+    } catch (error) {
+      setBindingError(
+        error instanceof Error ? error.message : String(error),
+      )
+    }
     return () => runtime.subagentConsole.closeViewer()
   }, [runtime.subagentConsole, task.runId, task.taskId])
+  if (bindingError) {
+    return (
+      <div className="plan-warning" role="alert">
+        Subagent projection degraded: {bindingError}
+      </div>
+    )
+  }
   return <SubagentWorkbench controller={runtime.subagentConsole} />
 }
 

@@ -194,6 +194,7 @@ export function createWorkbenchRuntime(
   })
   const experimentConsole = new ExperimentWorkbenchRuntime({
     api: api.experiments,
+    policyApi: api.policy,
   })
   const synchronizePanelSealedMode = () => {
     const sealed = selectedTaskIsSealed()

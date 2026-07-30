@@ -16,6 +16,14 @@ import { TopologyMinimap } from "./minimap.tsx"
 import { TopologyToolbar } from "./toolbar.tsx"
 import { safeDomId } from "./accessibility.ts"
 import { dispatchArtifactNavigation } from "../../artifacts/catalog.ts"
+import {
+  PolicyEvidenceRuntime,
+  PolicyEvidenceView,
+} from "../policy/index.ts"
+import type {
+  PolicyCausalReference,
+  PolicyEvidenceTransition,
+} from "../../../api/policy-api.ts"
 
 function scrollToTarget(selector: string): boolean {
   if (typeof document === "undefined") return false
@@ -88,6 +96,54 @@ function handleNavigation(
   runtime.announcer.announce(
     `${label} is linked but not present in the current detail window.`,
   )
+}
+
+function handlePolicyNavigation(
+  runtime: WorkbenchRuntime,
+  reference: PolicyCausalReference,
+  transition: PolicyEvidenceTransition,
+): void {
+  let resolved = false
+  if (reference.kind === "artifact" && typeof window !== "undefined") {
+    dispatchArtifactNavigation(
+      {
+        artifactId: reference.id,
+        source: "topology",
+        sourceEventId: transition.event_id,
+        focus: true,
+      },
+      window,
+    )
+    resolved =
+      scrollToTarget(".artifact-workbench")
+      || scrollToTarget(
+        `[data-artifact-id="${domAttribute(reference.id)}"]`,
+      )
+  } else if (reference.kind === "event") {
+    resolved = scrollToTarget(
+      `[data-event-id="${domAttribute(reference.id)}"]`,
+    )
+  } else {
+    resolved =
+      scrollToTarget(`[data-receipt-id="${domAttribute(reference.id)}"]`)
+      || scrollToTarget(`[data-event-id="${domAttribute(reference.id)}"]`)
+  }
+  if (resolved) {
+    runtime.announcer.announce(
+      `Opened ${reference.kind} ${reference.id} from policy evidence.`,
+    )
+    return
+  }
+  runtime.notifications.push({
+    id: `policy-evidence-${safeDomId(reference.kind)}-${safeDomId(reference.id)}`,
+    title: "Canonical evidence target remains linked",
+    message:
+      `${reference.kind} ${reference.id} is not mounted in the current viewport. `
+      + `Its route and source digest remain in the exported evidence chain.`,
+    tone: "warning",
+    durationMs: 8_000,
+    taskId: transition.task_id,
+  })
 }
 
 function TopologyStatus({
@@ -200,6 +256,15 @@ export function TopologyWorkbench({
       }),
     [runtime, task.taskId],
   )
+  const policyEvidence = useMemo(
+    () => new PolicyEvidenceRuntime({
+      api: runtime.api.policy,
+      query: { taskId: task.taskId },
+      pageLimit: 100,
+      maximumTransitions: 5_000,
+    }),
+    [runtime.api.policy, task.taskId],
+  )
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -285,6 +350,12 @@ export function TopologyWorkbench({
           onNavigate={(intent) => handleNavigation(runtime, intent)}
         />
       </div>
+      <PolicyEvidenceView
+        runtime={policyEvidence}
+        title="Proposal → symbolic verdict → canonical commit"
+        onNavigate={(reference, transition) =>
+          handlePolicyNavigation(runtime, reference, transition)}
+      />
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">
         {controller.announcements().at(-1) ?? ""}
       </div>

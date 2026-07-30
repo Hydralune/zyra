@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { ExperimentWorkbenchRuntime } from "../runtime.ts"
+import { ExperimentPolicyEvidence } from "../policy/index.ts"
 
 function shortDigest(value: unknown): string {
   const selected = String(value || "")
@@ -33,6 +34,14 @@ export function ExperimentWorkbench({
   const [metricFilter, setMetricFilter] = useState("")
   const [variantFilter, setVariantFilter] = useState("")
   const selected = snapshot.selected
+  const policyCell = selected?.run.cells.find((item) => Boolean(item.task_id))
+  const policyReportId = selected
+    ? String(
+        selected.run.metadata.policy_metric_report_id
+        ?? selected.run.metadata.policy_report_id
+        ?? "",
+      )
+    : ""
   const metrics = useMemo(
     () => snapshot.metrics.filter(
       (row) =>
@@ -408,6 +417,24 @@ export function ExperimentWorkbench({
             </ol>
           </section>
         </>
+      ) : null}
+      {selected
+        && runtime.policyApi
+        && (
+          policyCell?.task_id
+          || policyCell?.owner_run_id
+          || policyCell?.scenario_run_id
+        ) ? (
+        <ExperimentPolicyEvidence
+          api={runtime.policyApi}
+          taskId={policyCell?.task_id || undefined}
+          runId={
+            policyCell?.owner_run_id
+            || policyCell?.scenario_run_id
+            || undefined
+          }
+          reportId={policyReportId || undefined}
+        />
       ) : null}
     </section>
   )

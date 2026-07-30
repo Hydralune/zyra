@@ -4,6 +4,7 @@ import type {
   ExperimentRunProjection,
   ExperimentStatusProjection,
 } from "../../api/experiment-api.ts"
+import type { PolicyApi } from "../../api/policy-api.ts"
 import { ExperimentProjectionStore, type ExperimentProjection } from "./projection.ts"
 
 type Listener = () => void
@@ -35,6 +36,7 @@ function networkFailure(value: unknown): boolean {
 
 export class ExperimentWorkbenchRuntime {
   readonly api: ExperimentApi
+  readonly policyApi?: PolicyApi
   readonly store = new ExperimentProjectionStore()
   readonly pollIntervalMs: number
   readonly activePollIntervalMs: number
@@ -58,10 +60,12 @@ export class ExperimentWorkbenchRuntime {
 
   constructor(input: {
     api: ExperimentApi
+    policyApi?: PolicyApi
     pollIntervalMs?: number
     activePollIntervalMs?: number
   }) {
     this.api = input.api
+    this.policyApi = input.policyApi
     this.pollIntervalMs = Math.max(1_000, input.pollIntervalMs ?? 15_000)
     this.activePollIntervalMs = Math.max(
       500,

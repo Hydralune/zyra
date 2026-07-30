@@ -227,6 +227,9 @@ export const OPERATION_NAMES = {
   experimentRunCancel: "experiment.run.cancel",
   experimentRunArchive: "experiment.run.archive",
   experimentRunVerify: "experiment.run.verify",
+  policyEvidence: "policy.evidence",
+  policyMetricSpecs: "policy.metrics.specs",
+  policyMetricReport: "policy.metrics.report",
 } as const
 
 export const CONTRACT_NAMES = {
@@ -272,6 +275,9 @@ export const CONTRACT_NAMES = {
   experimentSource: "zyra.experiment-source.v1",
   experimentRequirements: "zyra.experiment-requirements.v1",
   experimentMutation: "zyra.experiment-mutation.v1",
+  policyEvidence: "zyra.policy-evidence-projection.v1",
+  policyMetricSpecs: "zyra.phase2-metric-spec-registry.v1",
+  policyMetricReport: "zyra.phase2-metric-report.v1",
   error: "zyra.error.v1",
 } as const
 
