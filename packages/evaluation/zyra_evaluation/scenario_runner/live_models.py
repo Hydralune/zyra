@@ -796,12 +796,48 @@ class TierObservation:
                 detail={"tier": self.tier.value},
             )
         if self.tier in {TierKind.EDGE, TierKind.CLOUD} and self.loopback:
-            raise conflict(
-                "live_tier_loopback",
-                "Remote tier evidence cannot use a loopback endpoint.",
-                phase="placement-evidence",
-                detail={"tier": self.tier.value, "endpoint": self.endpoint},
+            physical_validation = self.metadata.get(
+                "physical_dispatch_validation"
             )
+            physical_validation = (
+                dict(physical_validation)
+                if isinstance(physical_validation, Mapping)
+                else {}
+            )
+            remote_boundary = str(
+                self.metadata.get("remote_boundary") or ""
+            )
+            permitted_boundary = (
+                self.tier is TierKind.EDGE
+                and remote_boundary == "isolated-process"
+                and bool(self.metadata.get("failure_boundary_id"))
+                and self.metadata.get("independent_process") is True
+            ) or (
+                self.tier is TierKind.CLOUD
+                and remote_boundary == "live-provider"
+                and bool(
+                    dict(self.metadata.get("provider_evidence") or {}).get(
+                        "request_id"
+                    )
+                )
+            )
+            if (
+                physical_validation.get("real_gate_closed") is not True
+                or not permitted_boundary
+            ):
+                raise conflict(
+                    "live_tier_loopback",
+                    (
+                        "A loopback control endpoint requires a validated "
+                        "independent edge boundary or live cloud-provider request."
+                    ),
+                    phase="placement-evidence",
+                    detail={
+                        "tier": self.tier.value,
+                        "endpoint": self.endpoint,
+                        "remote_boundary": remote_boundary,
+                    },
+                )
         if not (self.handshake_ok and self.heartbeat_ok and self.task_success):
             raise conflict(
                 "live_tier_execution_failed",
