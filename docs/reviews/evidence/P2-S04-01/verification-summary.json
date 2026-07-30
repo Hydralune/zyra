@@ -1,0 +1,71 @@
+{
+  "schema": "zyra.p2-s04-01-verification-summary/v1",
+  "slice_id": "P2-S04-01",
+  "verdict": "PASS",
+  "base_commit": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "mechanism_version": "maas_operator_selector_v1",
+  "configuration_digest": "0cd8bca03e57b77a773038c864f4f5b185c1bc308003c7b66524fe496481dfdf",
+  "readiness_report_digest": "8e7ec1a16249079071eca03869b370675a6a39b4a1c52d8c0a8995937e4838d8",
+  "tests": [
+    {
+      "scope": "operator_catalog_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\scheduler\\test_operator_catalog.py -q --basetemp .tmp\\pytest-maas-unit-final -p no:cacheprovider",
+      "result": "5 passed in 1.94s",
+      "passed": true
+    },
+    {
+      "scope": "maas_selector_integration_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_maas_operator_selector.py -q --basetemp .tmp\\pytest-maas-integration-final -p no:cacheprovider",
+      "result": "8 passed in 1.01s",
+      "passed": true
+    },
+    {
+      "scope": "selector_scheduler_registry_worker_readiness_topology_adjacent",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\scheduler\\test_operator_catalog.py tests\\integration\\test_maas_operator_selector.py tests\\unit\\test_scheduler.py tests\\unit\\test_backend_registry.py tests\\unit\\test_worker_pool_foundation.py tests\\integration\\test_scheduler_api.py tests\\integration\\test_mechanism_readiness_enforcement.py tests\\integration\\test_mechanism_diagnostic_activation_rollback.py tests\\integration\\test_topology_policy_default_path.py tests\\integration\\test_topology_policy_composer.py -q --basetemp .tmp\\pytest-maas-adjacent-final -p no:cacheprovider",
+      "result": "69 passed in 62.76s",
+      "passed": true
+    }
+  ],
+  "static_checks": {
+    "compileall": "passed",
+    "source_language_custody": "ok=true violations=0 production_python_added_lines=3012",
+    "diff_check": "passed",
+    "ruff": "not_installed"
+  },
+  "behavior": {
+    "fixed_input_repeatable": true,
+    "dynamic_registry_registration_visible": true,
+    "hard_filters_fail_closed": true,
+    "breadth_depth_budget_conditioned": true,
+    "catalog_drift_rejected": true,
+    "revoked_operator_rejected": true,
+    "cold_start_reserve_enforced": true,
+    "evidence_only_has_no_scheduler_effect": true,
+    "disabled_or_unavailable_uses_explicit_baseline": true
+  },
+  "ownership": {
+    "proposal_owner": "MaAS operator_policy",
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "existing worker/deployment runtime",
+    "placement_changed_by_this_slice": false
+  },
+  "readiness": {
+    "stage": "input_precheck",
+    "maas": "deterministic_ready",
+    "scope": "selector-level explicit validation only",
+    "implementation_validated_claimed": false,
+    "activation_allowed": false,
+    "placement_change_allowed": false,
+    "deferred_to": "P2-S04-03"
+  },
+  "environment_notes": [
+    "One adjacent-regression invocation used stale test directory prefixes and collected no tests; the command was corrected against repository paths and the complete intended suite passed.",
+    "Ruff is not installed in the repository virtual environment."
+  ],
+  "next_slice_candidate": "P2-S04-02",
+  "next_slice_authorized": false
+}

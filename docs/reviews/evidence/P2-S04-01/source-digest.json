@@ -1,0 +1,21 @@
+{
+  "schema": "zyra.p2-s04-01-source-digest/v1",
+  "slice_id": "P2-S04-01",
+  "sources": [
+    {
+      "repository": "MaAS",
+      "path": "long-horizon-systems/MaAS/maas/ext/maas/models/controller.py",
+      "normalized_lf_sha256": "9c948671ffd48c3d0ea21b177700ff336d48a4153f7607db9983fc2fffbe3e8f"
+    },
+    {
+      "repository": "MaAS",
+      "path": "long-horizon-systems/MaAS/maas/ext/maas/models/utils.py",
+      "normalized_lf_sha256": "47c1f4b72f816ff8c588a52f3167561bbba6346f39ae81bc650ab4ca8c37c078"
+    }
+  ],
+  "source_role": "supplementary_implementation",
+  "source_language": "python",
+  "target_language": "python",
+  "migration_mode": "cropped_same_language_migration",
+  "runtime_source_dependency": false
+}

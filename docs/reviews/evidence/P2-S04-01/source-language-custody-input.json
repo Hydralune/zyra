@@ -1,0 +1,36 @@
+{
+  "schema": "zyra.source-language-custody-evidence/v1",
+  "slice_id": "P2-S04-01",
+  "source_decisions": [
+    {
+      "source_repo": "MaAS",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "MaAS",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/__init__.py",
+        "packages/scheduler/zyra_scheduler/scheduler.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/catalog.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/encoder.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/selector.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 3000
+      },
+      "cross_language_exception": false
+    }
+  ]
+}

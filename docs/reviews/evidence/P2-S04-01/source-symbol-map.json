@@ -1,0 +1,131 @@
+{
+  "schema": "zyra.p2-s04-01-source-symbol-map/v1",
+  "slice_id": "P2-S04-01",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "sources": [
+    {
+      "repository": "MaAS",
+      "path": "long-horizon-systems/MaAS/maas/ext/maas/models/controller.py",
+      "symbols": [
+        "OperatorSelector",
+        "MultiLayerController"
+      ]
+    },
+    {
+      "repository": "MaAS",
+      "path": "long-horizon-systems/MaAS/maas/ext/maas/models/utils.py",
+      "symbols": [
+        "SentenceEncoder",
+        "sample_operators"
+      ]
+    }
+  ],
+  "target": {
+    "path": "packages/scheduler/zyra_scheduler/operator_policy",
+    "target_language": "python",
+    "migration_mode": "cropped_same_language_migration"
+  },
+  "symbol_decisions": [
+    {
+      "source_symbols": [
+        "OperatorSelector.forward",
+        "query_encoder",
+        "operator_encoder"
+      ],
+      "decision": "query_operator_conditioning_preserved_and_determinized",
+      "target_symbols": [
+        "OperatorSelectionContext",
+        "DeterministicOperatorEncoder.encode",
+        "DeterministicOperatorSelector._score"
+      ],
+      "reason": "Query, committed roles, capabilities, phase and obligations jointly condition each profile. Learned linear layers are replaced by auditable lexical overlap and eight fixed constraint-score components."
+    },
+    {
+      "source_symbols": [
+        "MultiLayerController.forward",
+        "layers",
+        "prev_operators"
+      ],
+      "decision": "multilayer_breadth_depth_control_preserved_and_bounded",
+      "target_symbols": [
+        "DeterministicOperatorSelector._breadth_depth",
+        "OperatorLayerProposal",
+        "OperatorSelectionProposal.expected_breadth",
+        "OperatorSelectionProposal.expected_depth"
+      ],
+      "reason": "Budget, phase, committed roles and unresolved obligations bound deterministic breadth/depth. Layers contain typed candidates only and never instantiate or execute an operator."
+    },
+    {
+      "source_symbols": [
+        "MultiLayerController first-layer Generate guard",
+        "EarlyStop handling"
+      ],
+      "decision": "first_layer_guard_preserved_early_stop_deferred",
+      "target_symbols": [
+        "DeterministicOperatorSelector._first_layer_guard",
+        "DeterministicOperatorSelector._ensure_verifier_candidate"
+      ],
+      "reason": "The first layer remains execution-capable and later layers preserve verifier necessity. Actual verifier-gated early exit is intentionally deferred to P2-S04-02."
+    },
+    {
+      "source_symbols": [
+        "SentenceEncoder",
+        "all-MiniLM-L6-v2"
+      ],
+      "decision": "pretrained_encoder_not_migrated",
+      "target_symbols": [
+        "DeterministicOperatorEncoder",
+        "OperatorEncoding.observation_digest"
+      ],
+      "reason": "This slice uses deterministic lexical features only. No pretrained model, weight, network download, fine-tuning or model observation is present."
+    },
+    {
+      "source_symbols": [
+        "sample_operators",
+        "torch.multinomial",
+        "softmax probabilities"
+      ],
+      "decision": "random_sampling_rejected",
+      "target_symbols": [
+        "OperatorScoreComponents",
+        "stable score/type/id/version tie-break"
+      ],
+      "reason": "Stochastic sampling and trained probabilities are prohibited. Fixed score weights and a stable tie-break produce exact replay."
+    },
+    {
+      "source_symbols": [
+        "controller optimizer state",
+        "policy-gradient log probabilities",
+        "textual gradient",
+        "MetaGPT runtime"
+      ],
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "Training, textual gradients, generated-code execution, provider runtime and the MaAS task executor are outside the slice and would duplicate Zyra owners."
+    },
+    {
+      "source_symbols": [
+        "selection_operator_names"
+      ],
+      "decision": "hardcoded_operator_list_replaced",
+      "target_symbols": [
+        "OperatorCatalogBuilder.build",
+        "SkillRegistrySnapshot",
+        "AgentDefinition",
+        "WorkerPool",
+        "ToolRegistry",
+        "ProviderControlPlane model definitions"
+      ],
+      "reason": "Operator identities are rebuilt from current Zyra registries. New skill, worker and model registrations enter a new catalog version without selector source changes."
+    }
+  ],
+  "full_source_copy": false,
+  "external_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "random_sampling_migrated": false,
+  "provider_runtime_migrated": false,
+  "metagpt_runtime_migrated": false,
+  "openclaw_used": false
+}

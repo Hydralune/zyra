@@ -1,0 +1,32 @@
+{
+  "base": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+  "ok": true,
+  "roles": [
+    {
+      "actual_production_languages": [
+        "python"
+      ],
+      "added_production_lines": {
+        "python": 3012
+      },
+      "expected_production_languages": [
+        "python"
+      ],
+      "migration_mode": "cropped_same_language_migration",
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/__init__.py",
+        "packages/scheduler/zyra_scheduler/scheduler.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/catalog.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/encoder.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/selector.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/runtime.py"
+      ],
+      "source_repo": "MaAS",
+      "source_role": "supplementary_implementation"
+    }
+  ],
+  "schema": "zyra.source-language-custody-report/v1",
+  "target": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "violations": []
+}

@@ -1,0 +1,148 @@
+{
+  "schema": "zyra.p2-s04-01-maas-selector-behavior-evidence/v1",
+  "slice_id": "P2-S04-01",
+  "base_commit": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "mechanism_version": "maas_operator_selector_v1",
+  "configuration_digest": "0cd8bca03e57b77a773038c864f4f5b185c1bc308003c7b66524fe496481dfdf",
+  "dynamic_catalog": {
+    "before": {
+      "version": "operator-catalog-v1-g1-e3eaee0040ba23b4",
+      "operator_ids": [
+        "skill:project:release-verifier"
+      ]
+    },
+    "after_skill_registration": {
+      "version": "operator-catalog-v1-g2-30545cc6901ecbcb",
+      "operator_ids": [
+        "skill:project:release-verifier",
+        "skill:project:security-review"
+      ],
+      "new_operator_cold_start": true,
+      "new_operator_confidence": 0.55
+    },
+    "after_worker_model_registration": {
+      "version": "operator-catalog-v1-g4-fdc5c49c97b94515",
+      "operator_ids": [
+        "model:cloud-hot/model-hot",
+        "skill:project:release-verifier",
+        "skill:project:security-review",
+        "worker:hot-worker"
+      ]
+    },
+    "selector_source_change_required": false,
+    "hardcoded_operator_ids": false
+  },
+  "representative_catalog": {
+    "version": "operator-catalog-v1-g1-a8f9e15bc88928ce",
+    "digest": "a8f9e15bc88928cee7c09a0bce922a90f525ed3686aa4292b7c4db3e25d84769",
+    "entry_count": 10
+  },
+  "hard_filters": {
+    "worker:valid": {
+      "executable": true,
+      "reasons": [
+        "all hard filters passed"
+      ]
+    },
+    "worker:missing-capability": {
+      "executable": false,
+      "reasons": [
+        "missing required capability"
+      ]
+    },
+    "worker:permission-denied": {
+      "executable": false,
+      "reasons": [
+        "required permission not allowed"
+      ]
+    },
+    "worker:privacy-denied": {
+      "executable": false,
+      "reasons": [
+        "privacy class not allowed"
+      ]
+    },
+    "worker:unhealthy": {
+      "executable": false,
+      "reasons": [
+        "operator health unavailable"
+      ]
+    },
+    "worker:no-verifier-contract": {
+      "executable": false,
+      "reasons": [
+        "operator contract or verifier evidence contract missing"
+      ]
+    }
+  },
+  "breadth_depth": {
+    "low_budget": {
+      "proposal_digest": "a74c9bf86aaf2c7f7086318ddf3269e26e9007b375de53d0db3e0915b174d105",
+      "breadth": 1,
+      "depth": 1,
+      "candidate_ids": [
+        "worker:operator-0"
+      ]
+    },
+    "verification_high_budget": {
+      "proposal_digest": "605abf4e5ebd41462c21ea453de2a098f52d89025971373f65d526d5fdccb071",
+      "breadth": 3,
+      "depth": 4,
+      "candidate_count": 10
+    },
+    "changed": true
+  },
+  "determinism": {
+    "first_proposal_digest": "9e093904c6e7165bcd226ca84823bff479b254a63246fe9fcaea7855601413ad",
+    "repeat_proposal_digest": "9e093904c6e7165bcd226ca84823bff479b254a63246fe9fcaea7855601413ad",
+    "match": true,
+    "stable_tie_break": [
+      "score descending",
+      "operator type",
+      "operator id",
+      "operator version"
+    ]
+  },
+  "cold_start": {
+    "candidate_when_budget_allows": true,
+    "confidence": 0.55,
+    "tight_budget_rejected_reason": "cold-start token reserve unavailable",
+    "reserve_ratio": 0.25
+  },
+  "catalog_invalidation": {
+    "version_drift_rejected": true,
+    "revoked_operator_rejected": true,
+    "error_codes": [
+      "operator_catalog_drift",
+      "operator_reference_revoked"
+    ]
+  },
+  "readiness": {
+    "input_precheck_deterministic_ready": "explicit_validation_scheduler_input",
+    "evidence_only": "diagnostic_ranking_no_scheduler_input",
+    "unavailable": "phase1_resource_scheduler_baseline_no_maas_proposal",
+    "disabled": "phase1_resource_scheduler_baseline_no_maas_proposal",
+    "unknown_or_unverified_report": "fail_closed_baseline"
+  },
+  "scheduler_boundary": {
+    "baseline_manifest": "cloud-planner-verifier",
+    "with_maas_candidate_manifest": "cloud-planner-verifier",
+    "candidate_contract_consumed": true,
+    "candidate_contract_effect": "selection_input_only_pending_P2-S04-03",
+    "diagnostic_input_force_rejected": true,
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "placement_changed_by_this_slice": false,
+    "lease_created": false,
+    "physical_attempt_created": false
+  },
+  "semantic_scope": {
+    "selector_level_determinism_proven": true,
+    "scheduler_placement_effect_claimed": false,
+    "implementation_validated_readiness_claimed": false,
+    "deferred_to": "P2-S04-03"
+  }
+}

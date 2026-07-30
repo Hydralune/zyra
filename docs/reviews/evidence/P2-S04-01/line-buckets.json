@@ -1,0 +1,69 @@
+{
+  "schema": "zyra.p2-s04-01-line-buckets/v1",
+  "slice_id": "P2-S04-01",
+  "base_commit": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "buckets": {
+    "production": {
+      "added_lines": 3012,
+      "paths": [
+        "packages/scheduler/zyra_scheduler/__init__.py",
+        "packages/scheduler/zyra_scheduler/scheduler.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/catalog.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/encoder.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/selector.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/runtime.py"
+      ]
+    },
+    "test": {
+      "added_lines": 967,
+      "paths": [
+        "tests/unit/scheduler/test_operator_catalog.py",
+        "tests/integration/test_maas_operator_selector.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 40,
+      "paths": [
+        "config/phase2/maas-operator-selector.json"
+      ]
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "data": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "Tests use existing typed registry, topology and scheduler contracts; no replay trace or mock provider is counted as production."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S04-01",
+        "docs/reviews/P2-S04-01-maas-operator-selector-review.md"
+      ],
+      "note": "Evidence is committed after the frozen implementation target and excluded from implementation totals."
+    }
+  },
+  "total_implementation_added_lines": 4019,
+  "production_share": 0.74944016,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}

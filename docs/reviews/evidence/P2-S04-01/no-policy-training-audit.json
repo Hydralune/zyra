@@ -1,0 +1,37 @@
+{
+  "schema": "zyra.p2-s04-01-no-policy-training-audit/v1",
+  "slice_id": "P2-S04-01",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "passed": true,
+  "training_sample_count": 0,
+  "runtime_training_entry_points": [],
+  "training_datasets": [],
+  "training_checkpoints": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "pretrained_model_observations": [],
+  "machine_learning_dependencies_added": [],
+  "forbidden_source_controls_rejected": [
+    "torch.nn learned query/operator encoders",
+    "softmax/log-softmax trained selection probabilities",
+    "torch.multinomial operator sampling",
+    "controller policy-gradient log probabilities",
+    "textual-gradient generated code",
+    "MetaGPT-derived task/provider runtime"
+  ],
+  "deterministic_replacements": [
+    "registry-backed immutable OperatorCatalog",
+    "lexical query/role/obligation feature encoder",
+    "eight fixed constrained score components",
+    "stable score/type/id/version tie-break",
+    "budget-bounded multilayer breadth/depth",
+    "typed scheduler input without placement authority"
+  ],
+  "scan_roots": [
+    "packages/scheduler/zyra_scheduler/operator_policy",
+    "config/phase2/maas-operator-selector.json"
+  ],
+  "finding_count": 0
+}

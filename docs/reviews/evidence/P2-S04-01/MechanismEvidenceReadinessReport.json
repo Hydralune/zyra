@@ -1,0 +1,89 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S04-01",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "slice_base_commit": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+  "implementation_commit": "e5e6b85793c12ad5c0477a937f0a1bda43810f5a",
+  "post_implementation_fix_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "final_target_commit": "70fcf3570ee45dad6c6c15f04413b2944852fcc5",
+  "generated_at": "2026-07-30T08:00:00Z",
+  "readiness_stage": "input_precheck",
+  "supersedes_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "mechanism_statuses": {
+    "maas": "deterministic_ready"
+  },
+  "mechanisms": {
+    "maas": {
+      "mechanism_id": "maas",
+      "readiness_stage": "input_precheck",
+      "status": "deterministic_ready",
+      "status_scope": "selector-level explicit validation only",
+      "selector_validation": {
+        "passed": true,
+        "mechanism_version": "maas_operator_selector_v1",
+        "configuration_digest": "0cd8bca03e57b77a773038c864f4f5b185c1bc308003c7b66524fe496481dfdf",
+        "catalog_schema_version": "zyra.operator-catalog/v1",
+        "proposal_schema_version": "zyra.operator-selection-proposal/v1",
+        "scheduler_input_schema_version": "zyra.operator-scheduler-input/v1",
+        "fixed_input_proposal_match": true,
+        "dynamic_registry_registration_passed": true,
+        "hard_filter_passed": true,
+        "breadth_depth_conditioning_passed": true,
+        "catalog_invalidation_passed": true,
+        "cold_start_budget_passed": true,
+        "evidence_only_no_effect_passed": true,
+        "disable_baseline_passed": true,
+        "placement_change_allowed": false,
+        "lease_created": false,
+        "physical_attempt_created": false
+      },
+      "required_inputs": {
+        "committed_topology": "covered_by_graph_id_revision_signature_commit_id",
+        "operator_catalog": "covered_by_dynamic_version_and_digest",
+        "permission_constraints": "covered_by_policy_input_allowed_permissions",
+        "capability_registry": "covered_by_registry-backed profiles and topology nodes",
+        "health": "covered_by registry health snapshot or fail-closed unknown",
+        "cost_latency": "covered_by registry profile estimates",
+        "execution_budget": "covered_by PolicyBudget",
+        "unresolved_obligations": "covered and required non-empty",
+        "verifier_contract": "covered and required before executable inclusion",
+        "privacy_constraint": "covered by privacy and allowed-placement filters"
+      },
+      "causal_contract": {
+        "proposal_to_scheduler_input": true,
+        "scheduler_input_to_resource_decision": true,
+        "placement_or_lease_effect": false,
+        "implementation_validated_chain_complete": false,
+        "deferred_to": "P2-S04-03"
+      },
+      "fallback": {
+        "unavailable": "phase1_resource_scheduler_baseline",
+        "evidence_only": "diagnostic ranking plus unchanged baseline scheduler",
+        "disabled": "phase1_resource_scheduler_baseline",
+        "missing_or_unverified_report": "fail-closed baseline",
+        "silent_fallback_allowed": false
+      },
+      "activation_allowed": false,
+      "default_placement_change_allowed": false,
+      "implementation_validated_claimed": false
+    }
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "runtime_training_entry_points": [],
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "pretrained_model_used": false
+  },
+  "owner_boundary": {
+    "operator_proposal_owner": "MaAS operator_policy",
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "existing worker/deployment runtime",
+    "owner_transfer_count": 0
+  },
+  "report_digest": "8e7ec1a16249079071eca03869b370675a6a39b4a1c52d8c0a8995937e4838d8"
+}
