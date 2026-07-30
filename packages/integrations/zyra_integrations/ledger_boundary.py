@@ -100,6 +100,14 @@ BOUNDARY_HINTS = (
 
 PARENT_RELATIVE_MARKER = ".." + "/"
 
+VENDOR_LIKE_RUNTIME_ROOTS = (
+    Path("packages/integrations/loopx_runtime"),
+)
+
+NON_RUNTIME_DATA_ROOTS = (
+    Path("packages/integrations/zyra_integrations/data"),
+)
+
 
 @dataclass(slots=True)
 class BoundaryFinding:
@@ -246,7 +254,11 @@ def build_clean_boundary_report(
         findings.extend(_findings_for_path_env(project_root, path, lines))
     cache_artifacts = list(scan_cache_artifacts(project_root)) if include_cache else []
     findings.extend(_findings_for_cache_artifacts(cache_artifacts))
-    runtime_boundaries = discover_runtime_boundaries(project_root, roots=roots)
+    runtime_boundaries = discover_runtime_boundaries(
+        project_root,
+        roots=roots,
+        files=files,
+    )
     findings.extend(_findings_for_runtime_boundaries(runtime_boundaries))
     warning_count = sum(1 for finding in findings if finding.severity == BoundarySeverity.WARNING)
     error_count = sum(1 for finding in findings if finding.severity == BoundarySeverity.ERROR)
@@ -279,17 +291,39 @@ def iter_boundary_files(project_root: Path, *, roots: Iterable[str]) -> Iterable
         root_path = project_root / root
         if not root_path.exists():
             continue
-        for path in root_path.rglob("*"):
-            if not path.is_file():
-                continue
+        if root_path.is_file():
+            relative = root_path.relative_to(project_root)
+            if (
+                root_path.suffix in SCANNED_SUFFIXES
+                and not _is_non_runtime_scan_path(relative)
+            ):
+                yield root_path
+            continue
+        for current_root, dirnames, filenames in os.walk(root_path):
+            current = Path(current_root)
             try:
-                relative_parts = set(path.relative_to(project_root).parts)
+                relative_root = current.relative_to(project_root)
             except ValueError:
+                dirnames[:] = []
                 continue
-            if relative_parts & IGNORED_DIRS:
+            if (
+                set(relative_root.parts) & IGNORED_DIRS
+                or _is_non_runtime_scan_path(relative_root)
+            ):
+                dirnames[:] = []
                 continue
-            if path.suffix in SCANNED_SUFFIXES:
-                yield path
+            dirnames[:] = sorted(
+                dirname
+                for dirname in dirnames
+                if dirname not in IGNORED_DIRS
+                and not _is_non_runtime_scan_path(
+                    relative_root / dirname
+                )
+            )
+            for filename in sorted(filenames):
+                path = current / filename
+                if path.suffix in SCANNED_SUFFIXES:
+                    yield path
 
 
 def scan_text_for_source_references(project_root: Path, path: Path, lines: Iterable[str]) -> list[SourceReference]:
@@ -350,9 +384,19 @@ def scan_cache_artifacts(project_root: Path) -> Iterable[CacheArtifact]:
             )
 
 
-def discover_runtime_boundaries(project_root: Path, *, roots: Iterable[str] | None = None) -> list[RuntimeBoundary]:
+def discover_runtime_boundaries(
+    project_root: Path,
+    *,
+    roots: Iterable[str] | None = None,
+    files: Iterable[Path] | None = None,
+) -> list[RuntimeBoundary]:
     boundaries: list[RuntimeBoundary] = []
     selected_roots = list(roots or ["vendor-runtimes", "packages", "apps"])
+    selected_files = (
+        list(files)
+        if files is not None
+        else list(iter_boundary_files(project_root, roots=selected_roots))
+    )
     for root in selected_roots:
         if root not in {"vendor-runtimes", "packages", "apps"}:
             continue
@@ -364,11 +408,24 @@ def discover_runtime_boundaries(project_root: Path, *, roots: Iterable[str] | No
                 if child.is_dir():
                     boundaries.append(_runtime_boundary_from_directory(project_root, child, "vendor_runtime"))
         else:
-            for child in sorted(root_path.rglob("*")):
-                if child.is_file() and child.suffix in {".py", ".ts", ".tsx"}:
-                    rel = _relative(project_root, child)
-                    if any(token in rel.lower() for token in ["runtime", "sidecar", "adapter", "gateway"]):
-                        boundaries.append(_runtime_boundary_from_file(project_root, child))
+            for child in selected_files:
+                try:
+                    relative = child.relative_to(project_root)
+                except ValueError:
+                    continue
+                if (
+                    relative.parts
+                    and relative.parts[0] == root
+                    and child.suffix in {".py", ".ts", ".tsx"}
+                ):
+                    rel = relative.as_posix()
+                    if any(
+                        token in rel.lower()
+                        for token in ["runtime", "sidecar", "adapter", "gateway"]
+                    ):
+                        boundaries.append(
+                            _runtime_boundary_from_file(project_root, child)
+                        )
     return _deduplicate_boundaries(boundaries)
 
 
@@ -712,6 +769,13 @@ def _source_repo_from_path(path: str) -> str:
         if repo.lower().replace("-", "_") in lowered or repo.lower() in lowered:
             return repo
     return ""
+
+
+def _is_non_runtime_scan_path(path: Path) -> bool:
+    return any(
+        path == root or root in path.parents
+        for root in VENDOR_LIKE_RUNTIME_ROOTS + NON_RUNTIME_DATA_ROOTS
+    )
 
 
 def _relative(project_root: Path, path: Path) -> str:

@@ -103,6 +103,14 @@ RUNTIME_STRATEGIES = {
     MigrationStrategy.DIRECT_PORT,
 }
 
+VENDOR_LIKE_RUNTIME_ROOTS = (
+    Path("packages/integrations/loopx_runtime"),
+)
+
+NON_RUNTIME_DATA_ROOTS = (
+    Path("packages/integrations/zyra_integrations/data"),
+)
+
 
 @dataclass(slots=True)
 class LedgerAuditFinding:
@@ -570,7 +578,11 @@ class InternalizationLedgerAuditor:
             if not raw_path:
                 continue
             relative = Path(raw_path)
-            if relative.suffix.lower() not in suffixes or set(relative.parts) & ignored_dirs:
+            if (
+                relative.suffix.lower() not in suffixes
+                or set(relative.parts) & ignored_dirs
+                or _is_non_runtime_scan_path(relative)
+            ):
                 continue
             candidate = self.project_root / relative
             if candidate.is_file():
@@ -582,13 +594,19 @@ class InternalizationLedgerAuditor:
         for root, dirnames, filenames in os.walk(self.project_root):
             root_path = Path(root)
             try:
-                relative_parts = set(root_path.relative_to(self.project_root).parts)
+                relative = root_path.relative_to(self.project_root)
+                relative_parts = set(relative.parts)
             except ValueError:
                 continue
-            if relative_parts & ignored_dirs:
+            if relative_parts & ignored_dirs or _is_non_runtime_scan_path(relative):
                 dirnames[:] = []
                 continue
-            dirnames[:] = [dirname for dirname in dirnames if dirname not in ignored_dirs]
+            dirnames[:] = [
+                dirname
+                for dirname in dirnames
+                if dirname not in ignored_dirs
+                and not _is_non_runtime_scan_path(relative / dirname)
+            ]
             for filename in filenames:
                 path = root_path / filename
                 if path.suffix.lower() in suffixes:
@@ -689,6 +707,13 @@ def _forbidden_fragments() -> list[str]:
             ]
         )
     return fragments
+
+
+def _is_non_runtime_scan_path(path: Path) -> bool:
+    return any(
+        path == root or root in path.parents
+        for root in VENDOR_LIKE_RUNTIME_ROOTS + NON_RUNTIME_DATA_ROOTS
+    )
 
 
 def _python_runtime_dependency_fragments(text: str, forbidden: list[str]) -> list[str]:

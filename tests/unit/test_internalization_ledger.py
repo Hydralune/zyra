@@ -239,19 +239,59 @@ class InternalizationLedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             source = root / "packages" / "runtime" / "live.py"
+            wrapper = (
+                root
+                / "packages"
+                / "integrations"
+                / "zyra_integrations"
+                / "loopx"
+                / "runtime.py"
+            )
+            vendor = (
+                root
+                / "packages"
+                / "integrations"
+                / "loopx_runtime"
+                / "upstream.py"
+            )
+            data = (
+                root
+                / "packages"
+                / "integrations"
+                / "zyra_integrations"
+                / "data"
+                / "ledger.json"
+            )
             ignored = root / ".git" / "config"
             source.parent.mkdir(parents=True)
+            wrapper.parent.mkdir(parents=True)
+            vendor.parent.mkdir(parents=True)
+            data.parent.mkdir(parents=True)
             ignored.parent.mkdir(parents=True)
             source.write_text("RUNTIME_SOURCE = '../claude-code-best'\n", encoding="utf-8")
+            wrapper.write_text("ZYRA_BRIDGE = True\n", encoding="utf-8")
+            vendor.write_text("UPSTREAM_RUNTIME = True\n", encoding="utf-8")
+            data.write_text('{"source": "../claude-code-best"}\n', encoding="utf-8")
             ignored.write_text("ignored ../claude-code-best\n", encoding="utf-8")
 
             with patch(
                 "zyra_integrations.ledger_audit.subprocess.run",
-                return_value=SimpleNamespace(stdout="packages/runtime/live.py\n.git/config\n"),
+                return_value=SimpleNamespace(
+                    stdout=(
+                        "packages/runtime/live.py\n"
+                        "packages/integrations/zyra_integrations/loopx/runtime.py\n"
+                        "packages/integrations/loopx_runtime/upstream.py\n"
+                        "packages/integrations/zyra_integrations/data/ledger.json\n"
+                        ".git/config\n"
+                    )
+                ),
             ) as run:
                 scanned = InternalizationLedgerAuditor(root, strict=True)._iter_scanned_project_files()
 
-        self.assertEqual([path.as_posix() for path in scanned], [source.as_posix()])
+        self.assertEqual(
+            [path.as_posix() for path in scanned],
+            [source.as_posix(), wrapper.as_posix()],
+        )
         self.assertEqual(
             run.call_args.args[0][:3],
             ["git", "-c", f"safe.directory={root.as_posix()}"],
@@ -261,12 +301,31 @@ class InternalizationLedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             source = root / "packages" / "runtime" / "live.py"
+            vendor = (
+                root
+                / "packages"
+                / "integrations"
+                / "loopx_runtime"
+                / "upstream.py"
+            )
+            data = (
+                root
+                / "packages"
+                / "integrations"
+                / "zyra_integrations"
+                / "data"
+                / "ledger.json"
+            )
             generated = root / ".tmp" / "diagnostic.py"
             dependency = root / "node_modules" / "dependency.js"
             source.parent.mkdir(parents=True)
+            vendor.parent.mkdir(parents=True)
+            data.parent.mkdir(parents=True)
             generated.parent.mkdir(parents=True)
             dependency.parent.mkdir(parents=True)
             source.write_text("LIVE = True\n", encoding="utf-8")
+            vendor.write_text("RUNTIME_SOURCE = '../claude-code-best'\n", encoding="utf-8")
+            data.write_text('{"source": "../claude-code-best"}\n', encoding="utf-8")
             generated.write_text("RUNTIME_SOURCE = '../claude-code-best'\n", encoding="utf-8")
             dependency.write_text("const source = '../browser-use';\n", encoding="utf-8")
 

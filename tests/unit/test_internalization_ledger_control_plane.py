@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -149,6 +150,66 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
         codes = {finding.code for finding in report.findings}
         self.assertFalse(report.ok)
         self.assertIn(BoundaryCode.SUBPROCESS_SOURCE_REPO_REFERENCE, codes)
+
+    def test_boundary_scan_excludes_vendor_like_loopx_but_keeps_zyra_bridge(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bad_ref = "../" + "claude-code-best" + "/bin/run"
+            vendor = (
+                root
+                / "packages"
+                / "integrations"
+                / "loopx_runtime"
+                / "upstream_runtime.py"
+            )
+            wrapper = (
+                root
+                / "packages"
+                / "integrations"
+                / "zyra_integrations"
+                / "loopx"
+                / "runtime.py"
+            )
+            data = (
+                root
+                / "packages"
+                / "integrations"
+                / "zyra_integrations"
+                / "data"
+                / "ledger.json"
+            )
+            _write(
+                vendor,
+                f"import subprocess\nsubprocess.run('{bad_ref}')\n",
+            )
+            _write(
+                wrapper,
+                f"import subprocess\nsubprocess.run('{bad_ref}')\n",
+            )
+            _write(data, json.dumps({"source": bad_ref}))
+
+            report = build_clean_boundary_report(
+                root,
+                include_cache=False,
+                scan_roots=["packages"],
+            )
+
+        paths = {finding.path for finding in report.findings}
+        self.assertEqual(report.summary.scanned_files, 1)
+        self.assertIn(
+            "packages/integrations/zyra_integrations/loopx/runtime.py",
+            paths,
+        )
+        self.assertNotIn(
+            "packages/integrations/loopx_runtime/upstream_runtime.py",
+            paths,
+        )
+        self.assertNotIn(
+            "packages/integrations/zyra_integrations/data/ledger.json",
+            paths,
+        )
 
     def test_reachability_flags_missing_connected_route(self) -> None:
         entry = sample_entry()
