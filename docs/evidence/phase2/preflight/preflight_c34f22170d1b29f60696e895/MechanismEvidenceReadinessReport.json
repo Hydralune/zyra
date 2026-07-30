@@ -1,0 +1,210 @@
+{
+  "activation_allowed": false,
+  "activation_reason": "activation_ready permits explicit sealed-run validation; the normal resolver remains on the Phase 1 baseline until a later explicit activation transition",
+  "baseline_manifest": {
+    "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+    "path": "docs/release/phase2-baseline-manifest.json",
+    "sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e"
+  },
+  "contract": {
+    "path": "config/phase2/mechanism-readiness.json",
+    "sha256": "18ebbfa669911371e05678cb53ad1d641bda6d0e484d48c7adc31f7978af7af2"
+  },
+  "generated_at": "2026-07-30T00:00:00+08:00",
+  "generation_clock": "frozen preflight manifest timestamp",
+  "implementation_commit": "539e6bfb3655c11e40f0e8782a8b4f43f0c52cbb",
+  "mechanism_statuses": {
+    "agentprune": "deterministic_ready",
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "maas": "deterministic_ready"
+  },
+  "mechanisms": {
+    "agentprune": {
+      "activation_preflight": {
+        "deterministic_replay_match": true,
+        "failure_retention_passed": true,
+        "no_policy_training_passed": true,
+        "preflight_id": "preflight_c34f22170d1b29f60696e895",
+        "receipt_set_digest": "015ffa05598406ee7059a85b9c7361bb3561c542b8bada7eba6d383c50ca3152",
+        "source_report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc",
+        "source_report_ref": "docs/reviews/evidence/P2-S03-03/MechanismEvidenceReadinessReport.json",
+        "source_stage": "implementation_validated"
+      },
+      "implementation_validation": {
+        "actual_bytes_reduced": true,
+        "actual_cost_reduced": true,
+        "actual_delivery_reduced": true,
+        "actual_tokens_reduced": true,
+        "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-03/behavior-verification.json",
+        "canonical_mutation_attempted": false,
+        "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+        "determinism_replay_match": true,
+        "disabled_verifier_passed": true,
+        "enabled_verifier_passed": true,
+        "failed_verifier_efficiency_gain_valid": false,
+        "mask_schema_version": "zyra.agentprune-deterministic-mask/v1",
+        "mechanism_version": "agentprune_spatiotemporal_v1",
+        "outcome_schema_version": "zyra.agentprune-communication-outcome/v1",
+        "passed": true,
+        "protected_edge_drop_count": 0,
+        "same_epoch_resampling_rejected": true,
+        "source_custody_ok": true,
+        "spatial_temporal_separated": true,
+        "stats_schema_version": "zyra.agentprune-edge-contribution/v1",
+        "training_sample_count": 0
+      },
+      "mechanism_id": "agentprune",
+      "readiness_stage": "activation_ready",
+      "reason": "Typed prior delivery/token/cost/evidence/artifact/verifier outcomes, separate spatial/temporal aggregation, deterministic protected budget masks, fixed epochs, readiness enforcement and paired real delivery behavior pass the slice gates.",
+      "status": "deterministic_ready"
+    },
+    "arg_designer": {
+      "activation_preflight": {
+        "deterministic_replay_match": true,
+        "failure_retention_passed": true,
+        "no_policy_training_passed": true,
+        "preflight_id": "preflight_c34f22170d1b29f60696e895",
+        "receipt_set_digest": "015ffa05598406ee7059a85b9c7361bb3561c542b8bada7eba6d383c50ca3152",
+        "source_report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+        "source_report_ref": "docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json",
+        "source_stage": "implementation_validated"
+      },
+      "implementation_validation": {
+        "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-01/behavior-verification.json",
+        "canonical_mutation_attempted": false,
+        "catalog_schema_version": "zyra.arg-role-catalog/v1",
+        "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+        "determinism_replay_match": true,
+        "input_schema_version": "zyra.arg-input/v1",
+        "mechanism_version": "arg_joint_v1",
+        "passed": true,
+        "source_custody_ok": true,
+        "training_sample_count": 0
+      },
+      "mechanism_id": "arg_designer",
+      "readiness_stage": "activation_ready",
+      "reason": "The versioned catalog, immutable encoder, deterministic joint role-node-edge expansion, readiness runtime, failure paths, and non-commit behavior pass slice tests.",
+      "status": "deterministic_ready"
+    },
+    "card": {
+      "activation_preflight": {
+        "deterministic_replay_match": true,
+        "failure_retention_passed": true,
+        "no_policy_training_passed": true,
+        "preflight_id": "preflight_c34f22170d1b29f60696e895",
+        "receipt_set_digest": "015ffa05598406ee7059a85b9c7361bb3561c542b8bada7eba6d383c50ca3152",
+        "source_report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244",
+        "source_report_ref": "docs/reviews/evidence/P2-S03-02/MechanismEvidenceReadinessReport.json",
+        "source_stage": "implementation_validated"
+      },
+      "implementation_validation": {
+        "arg_base_replaced": false,
+        "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-02/behavior-verification.json",
+        "canonical_mutation_attempted": false,
+        "configuration_digest": "fc0d699fead07217b6b24c557b183c5d6a0542d4dab2d590b20c0b2e3d3c815e",
+        "determinism_replay_match": true,
+        "directional_score_asymmetry": true,
+        "encoded_schema_version": "zyra.card-environment-features/v1",
+        "environment_schema_version": "zyra.environment-snapshot/v1",
+        "mechanism_version": "card_directional_residual_v1",
+        "passed": true,
+        "residual_schema_version": "zyra.card-residual/v1",
+        "source_custody_ok": true,
+        "stale_entered_effective_candidate": false,
+        "training_sample_count": 0
+      },
+      "mechanism_id": "card",
+      "readiness_stage": "activation_ready",
+      "reason": "The real EnvironmentSnapshot encoder, deterministic source-to-target residual, separate spatial/temporal diff, missing/stale handling, hysteresis, readiness runtime and non-commit behavior pass slice tests.",
+      "status": "deterministic_ready"
+    },
+    "maas": {
+      "activation_allowed": false,
+      "activation_preflight": {
+        "deterministic_replay_match": true,
+        "failure_retention_passed": true,
+        "no_policy_training_passed": true,
+        "preflight_id": "preflight_c34f22170d1b29f60696e895",
+        "receipt_set_digest": "015ffa05598406ee7059a85b9c7361bb3561c542b8bada7eba6d383c50ca3152",
+        "source_report_digest": "138cce611d4971ed090f17866a6b4a911dd16312d1eef788df3ac462d0445d2b",
+        "source_report_ref": "docs/reviews/evidence/P2-S04-03/MechanismEvidenceReadinessReport.json",
+        "source_stage": "implementation_validated"
+      },
+      "causal_chain_digest": "2c92aa251b96dc49fc789f6349b18045d5b56e79988d8d7424836c92f4c29df8",
+      "configuration_digest": "ed216b21558ff32312c7d00faf28c984fa9e19316500acc07801813ebe56322b",
+      "deferred_to": "P2-S06-01",
+      "mechanism_id": "maas",
+      "mechanism_version": "maas_operator_placement_lease_v1",
+      "readiness_stage": "activation_ready",
+      "status": "deterministic_ready",
+      "status_scope": "operator selection through scheduler placement, canonical lease, execution, artifact, verifier and outcome; global activation remains deferred",
+      "validation": {
+        "checks": {
+          "adaptive_outcome_present": true,
+          "artifact_and_verifier_complete": true,
+          "candidate_set_bound": true,
+          "canonical_attempts_complete": true,
+          "causal_refs_reach_outcome": true,
+          "executed_subset_of_scheduler_selection": true,
+          "lease_owner_preserved": true,
+          "lease_precedes_every_execution": true,
+          "no_duplicate_side_effect": true,
+          "placement_owner_preserved": true
+        },
+        "duplicate_side_effect_count": 0,
+        "execution_without_lease_count": 0,
+        "lease_precedes_execution_count": 2,
+        "passed": true,
+        "stale_or_revoked_execution_count": 0
+      }
+    }
+  },
+  "no_policy_training_audit": {
+    "checked_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "packages/orchestration/zyra_orchestration/topology_policy/condition",
+      "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+      "packages/scheduler/zyra_scheduler/operator_policy",
+      "scripts/phase2-validation"
+    ],
+    "declared_dependencies": [
+      "browser-use[core]==0.13.3",
+      "psutil>=7,<8"
+    ],
+    "findings": [],
+    "mutable_learned_parameter_count": 0,
+    "passed": true,
+    "runtime_entry_point_count": 0,
+    "scanned_file_count": 48,
+    "training_checkpoint_count": 0,
+    "training_dataset_count": 0,
+    "training_sample_count": 0
+  },
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "p2_eval_base_commit": "ff460ab7c3c138ad021b64edc303fc282effb995",
+  "preflight": {
+    "manifest_digest": "8fd50245dea05632536add4559c1708ba3734a08e9c978b125f7dbe2d2c865c3",
+    "preflight_id": "preflight_c34f22170d1b29f60696e895",
+    "receipt_set_digest": "015ffa05598406ee7059a85b9c7361bb3561c542b8bada7eba6d383c50ca3152"
+  },
+  "raw_transition_count_semantics": "evidence_volume_only",
+  "readiness_stage": "activation_ready",
+  "report_digest": "bf1e28cb992f363e8144fedbb49241080375bb3c6d59fce31b1c82f63ea6b743",
+  "resolver_policy": {
+    "evidence_only_influence": {
+      "graph": 0,
+      "lease": 0,
+      "route": 0,
+      "side_effect": 0
+    },
+    "normal_after_preflight": "phase1_deterministic_baseline",
+    "normal_before_activation": "phase1_deterministic_baseline",
+    "strongest_execution_mode": "validation"
+  },
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "sealed_run_admission_candidate": true,
+  "slice_id": "P2-S06-01",
+  "training_sample_count": 0,
+  "valid": true
+}

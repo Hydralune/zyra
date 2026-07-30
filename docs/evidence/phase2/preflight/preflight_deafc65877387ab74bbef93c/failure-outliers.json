@@ -1,0 +1,13 @@
+{
+  "failed_receipt_refs": [],
+  "failures": [],
+  "preflight_id": "preflight_deafc65877387ab74bbef93c",
+  "retention": {
+    "expected_receipt_count": 30,
+    "failed_receipt_count": 0,
+    "failures_removed": false,
+    "passed": true,
+    "retained_receipt_count": 30
+  },
+  "schema": "zyra.strongest-preflight-failure-outliers/v1"
+}

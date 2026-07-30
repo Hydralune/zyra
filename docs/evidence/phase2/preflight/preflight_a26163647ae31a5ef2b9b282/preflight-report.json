@@ -1,0 +1,153 @@
+{
+  "activation_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
+  "anti_gaming": {
+    "combination_or_weight_search_performed": false,
+    "diagnostic_not_counted_as_execution": true,
+    "failed_and_degraded_receipts_retained": true,
+    "replay_not_counted_as_live_improvement": true,
+    "success_and_safety_precede_efficiency": true,
+    "transition_count_not_training_or_confidence": true
+  },
+  "failed_receipt_refs": [],
+  "failure_retention": {
+    "expected_receipt_count": 30,
+    "failed_receipt_count": 0,
+    "failures_removed": false,
+    "passed": true,
+    "retained_receipt_count": 30
+  },
+  "hard_gate_order": [
+    "success_and_safety",
+    "manifest_integrity",
+    "registry_default_baseline",
+    "validation_profile_explicit",
+    "readiness_enforcement",
+    "determinism",
+    "fail_closed_inputs",
+    "diagnostic_side_effect_zero",
+    "local_isolated_integration",
+    "continuity_restart_recovery",
+    "loopx_restart_outbox",
+    "phase1_read_only_replay",
+    "no_policy_training",
+    "failure_retention",
+    "efficiency_observed_without_optimization"
+  ],
+  "hard_gates": {
+    "continuity_restart_recovery": true,
+    "determinism": true,
+    "diagnostic_side_effect_zero": true,
+    "efficiency_observed_without_optimization": true,
+    "fail_closed_inputs": true,
+    "failure_retention": true,
+    "local_isolated_integration": true,
+    "loopx_restart_outbox": true,
+    "manifest_integrity": true,
+    "no_policy_training": true,
+    "phase1_read_only_replay": true,
+    "readiness_enforcement": true,
+    "registry_default_baseline": true,
+    "success_and_safety": true,
+    "validation_profile_explicit": true
+  },
+  "implementation_commit": "b2102ff97c5a7c7448f9e64c0bf32257c12edb70",
+  "manifest_digest": "e863ec319f2577415366132bbb3568ba3c459081c6584d4e679332cb2f0f6c1e",
+  "metrics": {
+    "communication": {
+      "communication_bytes_budget": 65536,
+      "full_broadcast_allowed": false,
+      "status": "contract_observed"
+    },
+    "completion_safety": {
+      "hard_gate_pass_ratio": 1.0,
+      "required_command_pass_ratio": 1.0,
+      "status": "observed"
+    },
+    "continuity": {
+      "continuity_probe_passed": true,
+      "status": "observed"
+    },
+    "physical_dispatch": {
+      "new_external_smoke_required": false,
+      "physical_dispatch_probe_passed": true,
+      "status": "existing_real_lane_contract_revalidated"
+    },
+    "receipt_volume": {
+      "failed_receipt_count": 0,
+      "receipt_count": 30,
+      "semantic_label": "evidence_volume_only"
+    },
+    "recovery": {
+      "fault_probe_passed": true,
+      "status": "observed"
+    },
+    "symbolic": {
+      "status": "observed",
+      "symbolic_probe_passed": true
+    },
+    "token_cost_time": {
+      "cost_usd_budget": 0.25,
+      "external_cost_usd": 0.0,
+      "external_smoke_count": 0,
+      "status": "budget_observed_no_external_smoke_required",
+      "time_seconds_budget": 300,
+      "token_budget": 20000
+    },
+    "topology_churn": {
+      "status": "contract_and_integration_observed",
+      "weight_or_combination_search_count": 0
+    }
+  },
+  "outliers": [],
+  "p2_eval_base_commit": "ff460ab7c3c138ad021b64edc303fc282effb995",
+  "policy_registry_digest": "f922555df523035db37f687e97c2e4a5e815376e2efab738e3c4b70f1dffa82d",
+  "preflight_id": "preflight_a26163647ae31a5ef2b9b282",
+  "profile_family": "topology_policy",
+  "profile_version": "phase2_strongest_v1",
+  "raw_receipt_refs": [
+    "raw-receipts.json#receipt_determinism_d0ea3a2beda3d3c9f7b2bae6",
+    "raw-receipts.json#receipt_determinism_44936254e50a35e5354b32d2",
+    "raw-receipts.json#receipt_determinism_31bee0467d56a6eb08d940de",
+    "raw-receipts.json#receipt_determinism_32b4d3849ef84eeba84ab4f4",
+    "raw-receipts.json#receipt_determinism_cbe7caa19c496d10f25d6bc9",
+    "raw-receipts.json#receipt_determinism_86da9151b2e5335bf86d4886",
+    "raw-receipts.json#receipt_determinism_558ccec0a866965744b0c0ad",
+    "raw-receipts.json#receipt_determinism_5b8b8571a2abdf47f489b651",
+    "raw-receipts.json#receipt_determinism_b7c2ae7b28ce13552734a8a4",
+    "raw-receipts.json#receipt_determinism_3f22546e429d81f0e407d1c6",
+    "raw-receipts.json#receipt_determinism_141251f89ac7c460a53e0741",
+    "raw-receipts.json#receipt_determinism_87c32b20fb43efe6d6d38e50",
+    "raw-receipts.json#receipt_determinism_441fe63e8665cbf84b3aad97",
+    "raw-receipts.json#receipt_determinism_2507032f79d64591f293492b",
+    "raw-receipts.json#receipt_determinism_b4db39690541595e75534ad6",
+    "raw-receipts.json#receipt_determinism_8418320e7a311c1cf10fd5c9",
+    "raw-receipts.json#receipt_determinism_87c84920250ca8c5dd167a69",
+    "raw-receipts.json#receipt_determinism_a145995b93e10d1c31300820",
+    "raw-receipts.json#receipt_determinism_abc452d9626d843c00026fe0",
+    "raw-receipts.json#receipt_determinism_ac38e6aa63a36c51c87f84bf",
+    "raw-receipts.json#receipt_fail_closed_missing",
+    "raw-receipts.json#receipt_fail_closed_stale",
+    "raw-receipts.json#receipt_fail_closed_corrupt",
+    "raw-receipts.json#receipt_diagnostic_zero_influence",
+    "raw-receipts.json#receipt_phase1_read_only_replay",
+    "raw-receipts.json#receipt_no_policy_training",
+    "raw-receipts.json#receipt_command_strongest_runtime",
+    "raw-receipts.json#receipt_command_continuity_restart",
+    "raw-receipts.json#receipt_command_loopx_restart_outbox",
+    "raw-receipts.json#receipt_command_phase1_read_only_replay"
+  ],
+  "readiness_statuses": {
+    "agentprune": "deterministic_ready",
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "maas": "deterministic_ready"
+  },
+  "replay_semantics": "read_only_frozen_phase1_reference_not_live_improvement",
+  "report_digest": "31b05b64637a7e88b4b5a16e1c9f94d9e7d3da50606b5f1ed0bedc3ba66ac2b0",
+  "resolver_after": "phase1_deterministic_baseline",
+  "resolver_before": "phase1_deterministic_baseline",
+  "schema": "zyra.strongest-preflight-report/v1",
+  "status": "completed",
+  "training_sample_count": 0,
+  "transition_count_semantics": "evidence_volume_only"
+}

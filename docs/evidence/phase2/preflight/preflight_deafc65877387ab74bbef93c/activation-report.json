@@ -1,0 +1,95 @@
+{
+  "activation_report_digest": "c1e7faa2f5cfedb9dbfbdd90d876b81381a4096d95ff5ac5f13c927ddccd3d39",
+  "activation_semantics": {
+    "baseline_retained_until_transition": true,
+    "default_profile_activated": false,
+    "explicit_activation_transition_required_later": true,
+    "normal_resolver_mutated": false,
+    "scope": "admission_to_P2-S06-02_sealed_runs"
+  },
+  "blockers": [],
+  "conclusion": "admit_to_P2-S06-02",
+  "default_activation_allowed": false,
+  "passed_gates": [
+    "baseline_resolver_retention",
+    "hard_gate:continuity_restart_recovery",
+    "hard_gate:determinism",
+    "hard_gate:diagnostic_side_effect_zero",
+    "hard_gate:efficiency_observed_without_optimization",
+    "hard_gate:fail_closed_inputs",
+    "hard_gate:failure_retention",
+    "hard_gate:local_isolated_integration",
+    "hard_gate:loopx_restart_outbox",
+    "hard_gate:manifest_integrity",
+    "hard_gate:no_policy_training",
+    "hard_gate:phase1_read_only_replay",
+    "hard_gate:readiness_enforcement",
+    "hard_gate:registry_default_baseline",
+    "hard_gate:success_and_safety",
+    "hard_gate:validation_profile_explicit",
+    "preflight_status",
+    "readiness:agentprune",
+    "readiness:arg_designer",
+    "readiness:card",
+    "readiness:maas"
+  ],
+  "preflight_id": "preflight_deafc65877387ab74bbef93c",
+  "preflight_report_digest": "a14756cbde482b0c71ddf52172c7d22faba5ad37bb4fbc769a46a32561067dd2",
+  "profile_family": "topology_policy",
+  "profile_version": "phase2_strongest_v1",
+  "raw_receipt_refs": [
+    "raw-receipts.json#receipt_determinism_d0ea3a2beda3d3c9f7b2bae6",
+    "raw-receipts.json#receipt_determinism_44936254e50a35e5354b32d2",
+    "raw-receipts.json#receipt_determinism_31bee0467d56a6eb08d940de",
+    "raw-receipts.json#receipt_determinism_32b4d3849ef84eeba84ab4f4",
+    "raw-receipts.json#receipt_determinism_cbe7caa19c496d10f25d6bc9",
+    "raw-receipts.json#receipt_determinism_86da9151b2e5335bf86d4886",
+    "raw-receipts.json#receipt_determinism_558ccec0a866965744b0c0ad",
+    "raw-receipts.json#receipt_determinism_5b8b8571a2abdf47f489b651",
+    "raw-receipts.json#receipt_determinism_b7c2ae7b28ce13552734a8a4",
+    "raw-receipts.json#receipt_determinism_3f22546e429d81f0e407d1c6",
+    "raw-receipts.json#receipt_determinism_141251f89ac7c460a53e0741",
+    "raw-receipts.json#receipt_determinism_87c32b20fb43efe6d6d38e50",
+    "raw-receipts.json#receipt_determinism_441fe63e8665cbf84b3aad97",
+    "raw-receipts.json#receipt_determinism_2507032f79d64591f293492b",
+    "raw-receipts.json#receipt_determinism_b4db39690541595e75534ad6",
+    "raw-receipts.json#receipt_determinism_8418320e7a311c1cf10fd5c9",
+    "raw-receipts.json#receipt_determinism_87c84920250ca8c5dd167a69",
+    "raw-receipts.json#receipt_determinism_a145995b93e10d1c31300820",
+    "raw-receipts.json#receipt_determinism_abc452d9626d843c00026fe0",
+    "raw-receipts.json#receipt_determinism_ac38e6aa63a36c51c87f84bf",
+    "raw-receipts.json#receipt_fail_closed_missing",
+    "raw-receipts.json#receipt_fail_closed_stale",
+    "raw-receipts.json#receipt_fail_closed_corrupt",
+    "raw-receipts.json#receipt_diagnostic_zero_influence",
+    "raw-receipts.json#receipt_phase1_read_only_replay",
+    "raw-receipts.json#receipt_no_policy_training",
+    "raw-receipts.json#receipt_command_strongest_runtime",
+    "raw-receipts.json#receipt_command_continuity_restart",
+    "raw-receipts.json#receipt_command_loopx_restart_outbox",
+    "raw-receipts.json#receipt_command_phase1_read_only_replay"
+  ],
+  "readiness": {
+    "agentprune": {
+      "stage": "activation_ready",
+      "status": "deterministic_ready"
+    },
+    "arg_designer": {
+      "stage": "activation_ready",
+      "status": "deterministic_ready"
+    },
+    "card": {
+      "stage": "activation_ready",
+      "status": "deterministic_ready"
+    },
+    "maas": {
+      "stage": "activation_ready",
+      "status": "deterministic_ready"
+    }
+  },
+  "readiness_report_digest": "8818445291a7e0c23fe6dbc92ae8d9201ded5de797ec9e2959ecb23a3accb0f7",
+  "resolver_after": "phase1_deterministic_baseline",
+  "resolver_before": "phase1_deterministic_baseline",
+  "schema": "zyra.strongest-preflight-activation-report/v1",
+  "sealed_run_admission_eligible": true
+}

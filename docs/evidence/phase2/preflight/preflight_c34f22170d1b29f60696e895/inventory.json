@@ -1,0 +1,37 @@
+{
+  "activation_conclusion": "admit_to_P2-S06-02",
+  "files": [
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_c34f22170d1b29f60696e895/raw-receipts.json",
+      "schema": "zyra.strongest-preflight-receipt-set/v1",
+      "sha256": "ffc9a68e03fffb872a3c617116628742cc63ecedfcdc37c8ced0630d7124728c"
+    },
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_c34f22170d1b29f60696e895/preflight-report.json",
+      "schema": "zyra.strongest-preflight-report/v1",
+      "sha256": "cfab7f27d51593de129929a0bb62edae63f75d2f1948e2a80cd3ad3fcb9dc2df"
+    },
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_c34f22170d1b29f60696e895/MechanismEvidenceReadinessReport.json",
+      "schema": "zyra.mechanism-evidence-readiness-report/v1",
+      "sha256": "f33155ceb586c16199454b4b2d0a58f5757971c54d096dc439b9e642a77f325c"
+    },
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_c34f22170d1b29f60696e895/activation-report.json",
+      "schema": "zyra.strongest-preflight-activation-report/v1",
+      "sha256": "9ae5851e993f2dbdcfd06509d0dd30e774c786f057f5f6655c7d01a3bb34c8ee"
+    },
+    {
+      "path": "docs/evidence/phase2/preflight/preflight_c34f22170d1b29f60696e895/failure-outliers.json",
+      "schema": "zyra.strongest-preflight-failure-outliers/v1",
+      "sha256": "168f19f43dc0265f16a6fddea70a22f7434f8735469eb048223f2a50f08436c3"
+    }
+  ],
+  "implementation_commit": "539e6bfb3655c11e40f0e8782a8b4f43f0c52cbb",
+  "inventory_digest": "df8711b218d25062ca3b6a857299b2fc323b0224b15b52fb32139ad75e392aab",
+  "manifest": "config/phase2/strongest-preflight.json",
+  "manifest_digest": "8fd50245dea05632536add4559c1708ba3734a08e9c978b125f7dbe2d2c865c3",
+  "preflight_id": "preflight_c34f22170d1b29f60696e895",
+  "result_status": "completed",
+  "schema": "zyra.strongest-preflight-inventory/v1"
+}
