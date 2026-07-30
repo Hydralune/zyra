@@ -1,0 +1,61 @@
+{
+  "schema": "zyra.p2-s04-03-operator-causal-chain-evidence/v1",
+  "slice_id": "P2-S04-03",
+  "base_commit": "cdb1c4537a22469669a3d412c0990d36eed9832d",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "generated_at": "2026-07-30T07:52:46.005Z",
+  "assessment_digest": "4ad72b5b6c4b301c8c60bcfa943556c86e366e76dc8ba7e78be93d132b8cf3a4",
+  "passed": true,
+  "chain": {
+    "schema_version": "zyra.operator-causal-chain/v1",
+    "run_id": "run_dffb86c214ed",
+    "task_id": "task_4c1b3f60575c",
+    "mechanism_input_ref": "f142cf36a36d0a8c2e1eb21c98130275af0236ca7b5335919f5f48e9894189e3",
+    "mechanism_receipt_ref": "91cc5bc9450c009cbcafa6c1f423f2da4935347fec96fe9ec4ed756711291435",
+    "operator_proposal_ref": "proposal-operator",
+    "operator_proposal_digest": "78660fdd521566ce3831bc0e15444be013d7c51ff87b56fd70c5f596a64646e8",
+    "scheduler_decision_ref": "operator-placement-resdec_f3363d9cc68b",
+    "scheduler_decision_digest": "d1aadd0cb37008d9e066e6754f817935cc72ac36b4f445ca922ed37d6b1faf5b",
+    "lease_refs": [
+      "lease_767174d4bcd04f32a27cca83247d707f",
+      "lease_45fe711757f646e095427f270ad9b4c4"
+    ],
+    "attempt_refs": [
+      "attempt_43b83f259b8141b595b65ce8960b58dc",
+      "attempt_72228c6ade8c451f908aeadf4efe76ab"
+    ],
+    "call_refs": [
+      "operator-call://attempt_43b83f259b8141b595b65ce8960b58dc",
+      "operator-call://attempt_72228c6ade8c451f908aeadf4efe76ab"
+    ],
+    "artifact_refs": [
+      "artifact_f8f125873e5f"
+    ],
+    "verifier_refs": [
+      "verifier://operator/final"
+    ],
+    "outcome_ref": "adaptive-depth-outcome-4b03d83f9b0d572acd8ed10f",
+    "outcome_digest": "505592fb4cd86856dbacd1a023bda750b39c9b1a0c410f676ba6b3c97a84dd37",
+    "recovery_refs": [],
+    "route_mode": "operator_constrained",
+    "digest": "2c92aa251b96dc49fc789f6349b18045d5b56e79988d8d7424836c92f4c29df8"
+  },
+  "checks": {
+    "placement_owner_preserved": true,
+    "lease_owner_preserved": true,
+    "candidate_set_bound": true,
+    "executed_subset_of_scheduler_selection": true,
+    "adaptive_outcome_present": true,
+    "artifact_and_verifier_complete": true,
+    "canonical_attempts_complete": true,
+    "lease_precedes_every_execution": true,
+    "no_duplicate_side_effect": true,
+    "causal_refs_reach_outcome": true
+  },
+  "counts": {
+    "lease_precedes_execution": 2,
+    "duplicate_side_effect": 0,
+    "execution_without_lease": 0,
+    "stale_or_revoked_execution": 0
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "schema": "zyra.p2-s04-03-verification-summary/v1",
+  "slice_id": "P2-S04-03",
+  "verdict": "PASS",
+  "base_commit": "cdb1c4537a22469669a3d412c0990d36eed9832d",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "evidence_commit": "pending_evidence_commit",
+  "mechanism_version": "maas_operator_placement_lease_v1",
+  "configuration_digest": "ed216b21558ff32312c7d00faf28c984fa9e19316500acc07801813ebe56322b",
+  "readiness_report_digest": "138cce611d4971ed090f17866a6b4a911dd16312d1eef788df3ac462d0445d2b",
+  "tests": [
+    {
+      "scope": "focused_slice",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_operator_scheduler_lease_path.py tests/integration/test_operator_lease_failure_recovery.py tests/scenarios/test_operator_adaptive_depth_runtime.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-03-focused-c",
+      "result": "12 passed in 9.88s",
+      "passed": true
+    },
+    {
+      "scope": "frozen_combined_review",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_operator_scheduler_lease_path.py tests/integration/test_operator_lease_failure_recovery.py tests/scenarios/test_operator_adaptive_depth_runtime.py tests/unit/scheduler/test_operator_catalog.py tests/unit/scheduler/test_early_exit_gate.py tests/integration/test_maas_operator_selector.py tests/integration/test_adaptive_depth_verifier.py tests/integration/test_early_exit_checkpoint_recovery.py tests/unit/test_scheduler.py tests/unit/test_worker_pool_foundation.py tests/integration/test_worker_pool_integration_runtime.py tests/unit/test_recovery_planner_routing_memory_integration.py tests/unit/test_permission_continuation.py tests/integration/test_browser_worker_permission_gate.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_policy_projector_graph_custody.py -q --tb=short -p no:cacheprovider --basetemp .tmp/pytest-p2-s04-03-frozen-review-a",
+      "result": "117 passed, 16 subtests passed in 68.04s",
+      "passed": true
+    }
+  ],
+  "static_checks": {
+    "compileall": "passed",
+    "diff_check": "passed",
+    "internalization_ledger": "audit_ok=True errors=0 blockers=0",
+    "no_policy_training_audit": "passed",
+    "ruff": "not_installed"
+  },
+  "behavior": {
+    "candidate_set_materially_changes_placement": true,
+    "scheduler_order_and_concurrency_recorded": true,
+    "lease_precedes_every_external_call": true,
+    "lease_snapshot_permission_catalog_and_mechanism_rechecked": true,
+    "replay_adds_no_lease_or_side_effect": true,
+    "uncertain_external_outcome_not_retried": true,
+    "worker_failure_uses_recovery_owner_and_reroutes": true,
+    "revoked_lease_and_catalog_drift_fail_closed": true,
+    "selector_disabled_baseline_completes_real_task": true,
+    "early_exit_disabled_executes_full_plan": true,
+    "pending_side_effect_blocks_exit": true
+  },
+  "ownership": {
+    "parallel_state_added": false,
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "WorkerLeaseManager",
+    "recovery_owner": "RecoveryPlanner",
+    "canonical_owner_transfer_count": 0
+  },
+  "readiness": {
+    "stage": "implementation_validated",
+    "maas": "deterministic_ready",
+    "activation_allowed": false,
+    "default_path_changed": false,
+    "deferred_to": "P2-S06-01"
+  },
+  "environment_notes": [
+    "The default user TEMP/pytest cache path became unreadable during one run; all final commands used task-owned workspace basetemp paths and passed.",
+    "Ruff is not installed in the repository virtual environment."
+  ],
+  "next_slice_authorized": false
+}

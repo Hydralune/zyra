@@ -1,0 +1,49 @@
+{
+  "schema": "zyra.p2-s04-03-failure-recovery-evidence/v1",
+  "slice_id": "P2-S04-03",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "generated_at": "2026-07-30T07:52:46.005Z",
+  "worker_failure_before_side_effect": {
+    "placement_sequence": [
+      "worker-b",
+      "worker-a"
+    ],
+    "final_worker": "worker-a",
+    "recovery_owner": "RecoveryPlanner",
+    "recovery_plan_refs": [
+      "recovery_0a63de8bfbad"
+    ],
+    "side_effect_count": 1,
+    "duplicate_side_effect_count": 0,
+    "final_placement_digest": "817f66216fd8d40d19f9a34fef6026dc6cdca6579a231ed5e408a6ea0610c07a"
+  },
+  "revoked_lease": {
+    "error": "lease_fenced",
+    "lease_state": "cancelled",
+    "side_effect_count": 0,
+    "fail_closed": true
+  },
+  "catalog_drift": {
+    "error": "operator_catalog_stale",
+    "side_effect_count": 0,
+    "recovery_owner_reached": true,
+    "fail_closed": true
+  },
+  "permission_rejection": {
+    "rejected_operator_received_lease": false,
+    "explicit_baseline_used": true,
+    "fail_open": false
+  },
+  "uncertain_external_call_outcome": {
+    "error": "operator_call_outcome_unknown",
+    "side_effect_count": 1,
+    "lease_count": 1,
+    "automatic_retry_count": 0,
+    "fail_closed": true
+  },
+  "lease_gate_disabled": {
+    "error": "operator_execution_gate_disabled",
+    "side_effect_count": 0,
+    "fail_closed": true
+  }
+}

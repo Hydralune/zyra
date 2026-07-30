@@ -1,0 +1,70 @@
+{
+  "schema": "zyra.p2-s04-03-line-buckets/v1",
+  "slice_id": "P2-S04-03",
+  "base_commit": "cdb1c4537a22469669a3d412c0990d36eed9832d",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "buckets": {
+    "production": {
+      "added_lines": 3138,
+      "paths": [
+        "packages/evaluation/zyra_evaluation/policy_benchmark/__init__.py",
+        "packages/evaluation/zyra_evaluation/policy_benchmark/operator_outcome.py",
+        "packages/scheduler/zyra_scheduler/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/__init__.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/adaptive_depth.py",
+        "packages/scheduler/zyra_scheduler/operator_policy/integration.py",
+        "packages/scheduler/zyra_scheduler/scheduler.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/leases.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1137,
+      "paths": [
+        "tests/integration/operator_placement_harness.py",
+        "tests/integration/test_operator_lease_failure_recovery.py",
+        "tests/integration/test_operator_scheduler_lease_path.py",
+        "tests/scenarios/test_operator_adaptive_depth_runtime.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 15,
+      "paths": [
+        "config/phase2/operator-placement-lease.json"
+      ]
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "data": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "The integration harness invokes real ResourceScheduler, WorkerPoolFoundationRuntime, WorkerLeaseManager, permission, recovery, artifact and early-exit owners; no replay trace or mock provider is counted as production."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S04-03",
+        "docs/reviews/P2-S04-03-operator-placement-lease-review.md"
+      ],
+      "note": "Evidence is committed after the frozen implementation target and excluded from implementation totals."
+    }
+  },
+  "total_implementation_added_lines": 4290,
+  "production_share": 0.73146853,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}

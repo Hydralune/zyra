@@ -1,0 +1,59 @@
+{
+  "schema": "zyra.p2-s04-03-placement-lease-behavior/v1",
+  "slice_id": "P2-S04-03",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "generated_at": "2026-07-30T07:52:46.005Z",
+  "candidate_effect": {
+    "unconstrained_manifest": "worker-a",
+    "operator_constrained_manifest": "worker-b",
+    "route_mode": "operator_constrained",
+    "selected_operator_refs": [
+      "tool:produce-tool@1",
+      "worker:worker-b@1",
+      "tool:optional-three@1",
+      "tool:optional-four@1"
+    ],
+    "scheduler_maximum_concurrency": 1,
+    "reason": "worker-b is the only placement that can host the complete ordered operator plan"
+  },
+  "real_execution": {
+    "attempt_count": 2,
+    "lease_states_after_completion": [
+      "released",
+      "released"
+    ],
+    "lease_precedes_execution_count": 2,
+    "execution_without_lease_count": 0,
+    "artifact_complete": true,
+    "verifier_passed": true,
+    "outcome_complete": true
+  },
+  "early_exit_enabled": {
+    "proposed_depth": 4,
+    "executed_depth": 2,
+    "actual_tokens": 80,
+    "actual_cost_usd": 0.008,
+    "exited_early": true
+  },
+  "early_exit_disabled": {
+    "proposed_depth": 4,
+    "executed_depth": 4,
+    "attempt_count": 4,
+    "actual_tokens": 160,
+    "actual_cost_usd": 0.016,
+    "exited_early": false
+  },
+  "selector_disabled_baseline": {
+    "assessment_passed": true,
+    "route_mode": "baseline",
+    "baseline_profile": "phase1_resource_scheduler_baseline",
+    "selected_manifest_id": "worker-a",
+    "operator_ref": "baseline:worker-a@1",
+    "attempt_count": 1,
+    "side_effect_count": 1,
+    "artifact_and_verifier_complete": true,
+    "execution_without_lease_count": 0,
+    "duplicate_side_effect_count": 0,
+    "result_digest": "b1c8f45e064efeee8d275e3907bddc722e3692e773097c9644aa5f23c96c89b1"
+  }
+}

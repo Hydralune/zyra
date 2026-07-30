@@ -1,0 +1,60 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S04-03",
+  "slice_base_commit": "cdb1c4537a22469669a3d412c0990d36eed9832d",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "generated_at": "2026-07-30T07:52:46.005Z",
+  "readiness_stage": "implementation_validated",
+  "mechanism_statuses": {
+    "maas": "deterministic_ready"
+  },
+  "mechanisms": {
+    "maas": {
+      "mechanism_id": "maas",
+      "mechanism_version": "maas_operator_placement_lease_v1",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "status_scope": "operator selection through scheduler placement, canonical lease, execution, artifact, verifier and outcome; global activation remains deferred",
+      "configuration_digest": "ed216b21558ff32312c7d00faf28c984fa9e19316500acc07801813ebe56322b",
+      "causal_chain_digest": "2c92aa251b96dc49fc789f6349b18045d5b56e79988d8d7424836c92f4c29df8",
+      "validation": {
+        "passed": true,
+        "lease_precedes_execution_count": 2,
+        "duplicate_side_effect_count": 0,
+        "execution_without_lease_count": 0,
+        "stale_or_revoked_execution_count": 0,
+        "checks": {
+          "placement_owner_preserved": true,
+          "lease_owner_preserved": true,
+          "candidate_set_bound": true,
+          "executed_subset_of_scheduler_selection": true,
+          "adaptive_outcome_present": true,
+          "artifact_and_verifier_complete": true,
+          "canonical_attempts_complete": true,
+          "lease_precedes_every_execution": true,
+          "no_duplicate_side_effect": true,
+          "causal_refs_reach_outcome": true
+        }
+      },
+      "activation_allowed": false,
+      "deferred_to": "P2-S06-01"
+    }
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "pretrained_model_used": false
+  },
+  "owner_boundary": {
+    "placement_owner": "ResourceScheduler",
+    "lease_owner": "WorkerPoolFoundationRuntime",
+    "physical_attempt_owner": "WorkerLeaseManager",
+    "recovery_owner": "RecoveryPlanner",
+    "canonical_owner_transfer_count": 0
+  },
+  "report_digest": "138cce611d4971ed090f17866a6b4a911dd16312d1eef788df3ac462d0445d2b"
+}

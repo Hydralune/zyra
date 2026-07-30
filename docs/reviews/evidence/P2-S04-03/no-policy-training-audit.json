@@ -1,0 +1,26 @@
+{
+  "schema": "zyra.p2-no-policy-training-audit/v1",
+  "slice_id": "P2-S04-03",
+  "implementation_commit": "d8f67a1d4854a80a5edee44f449e2fc55506ad9e",
+  "passed": true,
+  "production_paths_scanned": [
+    "config/phase2/operator-placement-lease.json",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/operator_outcome.py",
+    "packages/scheduler/zyra_scheduler/operator_policy/integration.py",
+    "packages/scheduler/zyra_scheduler/operator_policy/adaptive_depth.py",
+    "packages/scheduler/zyra_scheduler/scheduler.py",
+    "packages/scheduler/zyra_scheduler/worker_pool/leases.py"
+  ],
+  "forbidden_runtime_matches": [],
+  "training_sample_count": 0,
+  "datasets_added": [],
+  "checkpoints_added": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "pretrained_model_used": false,
+  "notes": [
+    "MaAS signals remain deterministic read-only proposals.",
+    "ResourceScheduler, permission, lease, recovery and verifier owners retain final authority.",
+    "No OpenClaw source, dependency or runtime path was introduced."
+  ]
+}
