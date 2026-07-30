@@ -1,0 +1,14 @@
+{
+  "candidate_commit": "c30fd810717e01859419a7beef088fa70765c4cc",
+  "continued_as_same_run": false,
+  "failed_at": "2026-07-30T13:44:07.037Z",
+  "failure_type": "ScenarioRunnerError",
+  "human_intervention_count": 0,
+  "manifest_commit": "6426599ce32b8bed4ddb9ff2123ba03020539841",
+  "message": "Software command returned an unexpected exit code.",
+  "run_key": "software-sdk",
+  "scenario_run_id": "sealed-software-sdk-e034dd091f-c91e93468973",
+  "schema": "zyra.phase2-sealed-run-failure/v1",
+  "sealed_manifest_digest": "e034dd091f2861bda32e351467e4216bd2f3ce8dbd30c2ec08f88af773f77540",
+  "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 168, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 300, in _run_one\n    result = executor.execute(\n        scenario_run_id=scenario_run_id,\n    ...<3 lines>...\n        cancel_requested=lambda: False,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 432, in execute\n    payload = self._execute_domain(\n        scenario_run_id=scenario_run_id,\n    ...<4 lines>...\n        cancel_requested=cancel_requested,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 860, in _execute_domain\n    ).execute(\n      ~~~~~~~^\n        domain_input=domain_input,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        requirement_change=options.requirement_change,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\software_delivery.py\", line 912, in execute\n    runner.execute(\n    ~~~~~~~~~~~~~~^\n        (\"git\", \"init\", \"--quiet\"),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        purpose=\"git-init\",\n        ^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\software_delivery.py\", line 278, in execute\n    raise conflict(\n    ...<4 lines>...\n    )\nzyra_evaluation.scenario_runner.errors.ScenarioRunnerError: Software command returned an unexpected exit code.\n"
+}

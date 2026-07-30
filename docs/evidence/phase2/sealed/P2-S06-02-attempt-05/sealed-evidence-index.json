@@ -1,0 +1,44 @@
+{
+  "candidate_commit": "53a83f0cdd4fa8a3a5031e404d6a8b26752e2b81",
+  "created_at": "2026-07-30T13:51:10.898Z",
+  "failed_runs": [
+    {
+      "candidate_commit": "53a83f0cdd4fa8a3a5031e404d6a8b26752e2b81",
+      "continued_as_same_run": false,
+      "failed_at": "2026-07-30T13:50:53.533Z",
+      "failure_path": "runs/sw-90bc1335-0cc4052c/failure.json",
+      "failure_type": "ScenarioRunnerError",
+      "human_intervention_count": 0,
+      "manifest_commit": "b6e5f6c5103108a83369cdd0f152b43edf8889a1",
+      "message": "Fault schedule contains an unsupported fault kind.",
+      "run_key": "software-sdk",
+      "scenario_run_id": "sw-90bc1335-0cc4052c",
+      "schema": "zyra.phase2-sealed-run-failure/v1",
+      "sealed_manifest_digest": "90bc13353e3c5c4885a982db0c0a031a524a1006e700ec0a53b6be0ddb74b8a9",
+      "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 369, in _validate\n    FaultKind(item.kind)\n    ~~~~~~~~~^^^^^^^^^^^\n  File \"D:\\miniconda3\\Lib\\enum.py\", line 726, in __call__\n    return cls.__new__(cls, value)\n           ~~~~~~~~~~~^^^^^^^^^^^^\n  File \"D:\\miniconda3\\Lib\\enum.py\", line 1203, in __new__\n    raise ve_exc\nValueError: 'worker_loss' is not a valid FaultKind\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 173, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 311, in _run_one\n    result = executor.execute(\n        scenario_run_id=scenario_run_id,\n    ...<3 lines>...\n        cancel_requested=lambda: False,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 533, in execute\n    schedule=FaultSchedule.for_domain(\n             ~~~~~~~~~~~~~~~~~~~~~~~~^\n        domain_input.domain,\n        ^^^^^^^^^^^^^^^^^^^^\n        overrides=configuration.faults,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ),\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 314, in for_domain\n    return cls(selected)\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 300, in __init__\n    self._validate()\n    ~~~~~~~~~~~~~~^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 371, in _validate\n    raise invalid(\n    ...<4 lines>...\n    ) from error\nzyra_evaluation.scenario_runner.errors.ScenarioRunnerError: Fault schedule contains an unsupported fault kind.\n"
+    },
+    {
+      "candidate_commit": "53a83f0cdd4fa8a3a5031e404d6a8b26752e2b81",
+      "continued_as_same_run": false,
+      "failed_at": "2026-07-30T13:51:10.780Z",
+      "failure_path": "runs/rs-90bc1335-13796389/failure.json",
+      "failure_type": "ScenarioRunnerError",
+      "human_intervention_count": 0,
+      "manifest_commit": "b6e5f6c5103108a83369cdd0f152b43edf8889a1",
+      "message": "Fault schedule contains an unsupported fault kind.",
+      "run_key": "technical-intelligence",
+      "scenario_run_id": "rs-90bc1335-13796389",
+      "schema": "zyra.phase2-sealed-run-failure/v1",
+      "sealed_manifest_digest": "90bc13353e3c5c4885a982db0c0a031a524a1006e700ec0a53b6be0ddb74b8a9",
+      "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 369, in _validate\n    FaultKind(item.kind)\n    ~~~~~~~~~^^^^^^^^^^^\n  File \"D:\\miniconda3\\Lib\\enum.py\", line 726, in __call__\n    return cls.__new__(cls, value)\n           ~~~~~~~~~~~^^^^^^^^^^^^\n  File \"D:\\miniconda3\\Lib\\enum.py\", line 1203, in __new__\n    raise ve_exc\nValueError: 'node_loss' is not a valid FaultKind\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 173, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 311, in _run_one\n    result = executor.execute(\n        scenario_run_id=scenario_run_id,\n    ...<3 lines>...\n        cancel_requested=lambda: False,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 533, in execute\n    schedule=FaultSchedule.for_domain(\n             ~~~~~~~~~~~~~~~~~~~~~~~~^\n        domain_input.domain,\n        ^^^^^^^^^^^^^^^^^^^^\n        overrides=configuration.faults,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ),\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 314, in for_domain\n    return cls(selected)\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 300, in __init__\n    self._validate()\n    ~~~~~~~~~~~~~~^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\fault_campaign.py\", line 371, in _validate\n    raise invalid(\n    ...<4 lines>...\n    ) from error\nzyra_evaluation.scenario_runner.errors.ScenarioRunnerError: Fault schedule contains an unsupported fault kind.\n"
+    }
+  ],
+  "human_intervention_count": 0,
+  "index_digest": "c3f5b7749727d03b9200887ff26fdc11755e4ca059f065ed6f1cf6012c10ef70",
+  "manifest_commit": "b6e5f6c5103108a83369cdd0f152b43edf8889a1",
+  "runs": [],
+  "schema": "zyra.phase2-sealed-evidence-index/v1",
+  "sealed_manifest": "sealed-manifest.json",
+  "sealed_manifest_digest": "90bc13353e3c5c4885a982db0c0a031a524a1006e700ec0a53b6be0ddb74b8a9",
+  "slice": "P2-S06-02"
+}

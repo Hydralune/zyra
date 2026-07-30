@@ -1,0 +1,45 @@
+{
+  "acquired_at": "2026-07-30T14:23:20.036Z",
+  "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\rs-14441f11-2dc7ad92\\s\\artifacts\\live-scenario-inputs\\rs-14441f11-2dc7ad92\\cross_source_research\\sources\\source-003-93450a73fbc03f06.txt",
+  "authority": "developer.mozilla.org",
+  "byte_count": 31481,
+  "charset": "",
+  "content_encoding": "gzip",
+  "elapsed_ms": 3661,
+  "live": true,
+  "media_type": "text/html",
+  "metadata": {
+    "cache_used": false,
+    "egress_proxy_cidrs": [
+      "198.18.0.0/15"
+    ],
+    "fixture": false,
+    "resolved_addresses": [
+      "198.18.0.120",
+      "2a04:4e42:15::347"
+    ]
+  },
+  "redirect_chain": [],
+  "replay": false,
+  "request_id": "research-request-bd5630d1914c4a3daade4e71c6519ccd",
+  "requested_url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+  "response_headers": {
+    "cache-control": "public, max-age=3600",
+    "content-encoding": "gzip",
+    "content-length": "31481",
+    "content-type": "text/html",
+    "date": "Thu, 30 Jul 2026 14:23:23 GMT",
+    "etag": "\"dfeedb96480f09e1edae4cbc51cf7e30\"",
+    "last-modified": "Thu, 30 Jul 2026 01:06:21 GMT",
+    "server": "Google Frontend",
+    "via": "1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish"
+  },
+  "schema": "zyra.live-research-source/v1",
+  "source_digest": "93450a73fbc03f06e6ac2b46d09915e4da599f52c60eae61aaa02413d27bbf92",
+  "source_id": "source-003-93450a73fbc03f06",
+  "status": 200,
+  "text_byte_count": 23240,
+  "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+  "wire_digest": "6e6f06af0842c5e8d937f4ccdf157d736f7e105e5f3f0593ddb9ef235724b38e",
+  "wire_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\rs-14441f11-2dc7ad92\\s\\artifacts\\live-scenario-inputs\\rs-14441f11-2dc7ad92\\cross_source_research\\sources\\source-003-93450a73fbc03f06.wire"
+}

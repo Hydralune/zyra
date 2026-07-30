@@ -1,0 +1,18 @@
+{
+  "artifact_digest": "3e8a3efa0880ab77ffda6f560c28a14f808c01ad46317f20d10ad683e925439b",
+  "domain": "software_delivery",
+  "domain_verification_receipt_digest": "04a043e7fa8a33fd2ce3fe5887c3d3c0ee8c8927431f8720ec166130e985b5bb",
+  "hard_gate_bundle_digest": "5fe18f196b35aa1b914171f824be33493f90a505d8cd1d27117d0baae2ee6d04",
+  "human_intervention_count": 0,
+  "mechanism_bundle_digest": "6b6bcc2d93e82b0de4c51cfe2123634aeaf2f0bd8025c888af3975b1fdb030cb",
+  "passed": true,
+  "physical_dispatch_bundle_digest": "5b6a99e91ce861764903550069027287ad72dcfb5a5c9c5de47bcfe2d65700d4",
+  "raw_events_digest": "cc514cfe7c927ba39e68c8f5096020730df772e257d28ca972e20b2fd90eeb94",
+  "run_id": "run_bc378ef6b364",
+  "schema": "zyra.phase2-sealed-final-verifier/v1",
+  "task_id": "task_139b9972db3c",
+  "transition_index_digest": "229c42ec59287e90f9d52b50a8824a197f2727d3e98c6fe6b2487d71251f10f1",
+  "verified_at": "2026-07-30T14:23:06.580Z",
+  "verifier_digest": "501b5eb9095a86e63a7ce0e51c4e0fe44d2ea74d8b6b7e18949585b3abebdea2",
+  "verifier_id": "software-verifier:software-plan:767cfd7e63d25993106e:60201"
+}

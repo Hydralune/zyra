@@ -1,0 +1,75 @@
+{
+  "schema": "zyra.phase2-sealed-campaign-index/v1",
+  "slice": "P2-S06-02",
+  "base_commit": "3d766628caee0fcff9bffb5789b27a756d037593",
+  "authoritative_success_attempt": "P2-S06-02-attempt-08",
+  "candidate_commit": "28c0a1376c6d4226975e8fd60a1f088b75be3a42",
+  "manifest_commit": "3c55f7895b4f0b8d6f570a04f5e97aaa1a8857f3",
+  "sealed_manifest_digest": "14441f1136a7e26f19c831031204d928999202f4fa31e23610c75e51aced4e31",
+  "runner_index_digest": "626d805a44f45da862cd0466e8b3fb3ec891afbb953279d2c86acbca9a1fdede",
+  "evidence_index_file_digest": "5022b4ac064024b78f7e70d17bdfae0f6fc838062aa5c1b34fbf039082879772",
+  "independent_validation_digest": "051b3e6de622a17c15e3d08573363f13b4f4c79ffc88d447a17b5c55c3cce084",
+  "human_intervention_count": 0,
+  "attempts": [
+    {
+      "attempt": "P2-S06-02-attempt-01",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-01/sealed-evidence-index.json",
+      "index_digest": "5597d127ccd70fd1d6da541e939259975f89974d09e4275a35d565cb4457a04f",
+      "failure_summary": "Git collapsed-evidence-parent and source-mutation guards rejected the run."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-02",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-02/sealed-evidence-index.json",
+      "index_digest": "370ee6fa9b25e676cf1a0cc8e3ee8e27a1bc38ffa0962bc5828af7de0abf8dcf",
+      "failure_summary": "The sandboxed cloud provider boundary returned failed physical attempts."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-03",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-03/sealed-evidence-index.json",
+      "index_digest": "b097a27c7ea4dee2ab930715146aa8d99716eee234e2c3db3cef55510996cc48",
+      "failure_summary": "Live cloud calls succeeded, then policy-contract envelope projection raised KeyError('local')."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-04",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-04/sealed-evidence-index.json",
+      "index_digest": "ea14b36f1bd41de9f12d0328cd47ea51c211492d6f1f7bdb8deded859327146d",
+      "failure_summary": "Windows path length blocked git init and bounded SSRF policy rejected the host proxy mapping."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-05",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-05/sealed-evidence-index.json",
+      "index_digest": "c3f5b7749727d03b9200887ff26fdc11755e4ca059f065ed6f1cf6012c10ef70",
+      "failure_summary": "Manifest fault names did not match canonical FaultKind values."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-06",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-06/sealed-evidence-index.json",
+      "index_digest": "fe166fd53bcfd88e67b127b46d88aa7d556c7f8aca9b98b9b32ce3f2d954cff8",
+      "failure_summary": "Both real domain executions completed, then FrozenDict blocked mechanism JSON serialization."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-07",
+      "status": "rejected",
+      "evidence_index": "P2-S06-02-attempt-07/sealed-evidence-index.json",
+      "index_digest": "b4ecbad119b012283d9b0b29cb19637495f3628ff33b793dee854e06801d6d0d",
+      "failure_summary": "Hard-gate digest normalization and published report-kind selection remained incomplete."
+    },
+    {
+      "attempt": "P2-S06-02-attempt-08",
+      "status": "accepted",
+      "evidence_index": "P2-S06-02-attempt-08/sealed-evidence-index.json",
+      "independent_validation": "P2-S06-02-attempt-08/independent-validation.json",
+      "index_digest": "626d805a44f45da862cd0466e8b3fb3ec891afbb953279d2c86acbca9a1fdede",
+      "run_count": 2,
+      "failed_run_count": 0,
+      "valid": true
+    }
+  ],
+  "created_at": "2026-07-30T14:30:20.142Z"
+}

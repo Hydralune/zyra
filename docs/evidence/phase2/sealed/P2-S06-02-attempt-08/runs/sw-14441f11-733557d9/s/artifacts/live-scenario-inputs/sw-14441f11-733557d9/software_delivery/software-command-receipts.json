@@ -1,0 +1,197 @@
+[
+  {
+    "argv": [
+      "git",
+      "init",
+      "--quiet"
+    ],
+    "command_id": "software-command-0001-4ea2aa347b82",
+    "completed_at": "2026-07-30T14:21:15.857Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 134,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "git-init",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:15.719Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0001-4ea2aa347b82.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0001-4ea2aa347b82.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "git",
+      "add",
+      "."
+    ],
+    "command_id": "software-command-0002-dd62ea5f8763",
+    "completed_at": "2026-07-30T14:21:16.057Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 197,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "git-stage-before",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:15.858Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0002-dd62ea5f8763.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0002-dd62ea5f8763.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "git",
+      "-c",
+      "user.name=Zyra Scenario",
+      "-c",
+      "user.email=zyra-scenario@example.invalid",
+      "commit",
+      "--quiet",
+      "-m",
+      "baseline"
+    ],
+    "command_id": "software-command-0003-dccac75218b8",
+    "completed_at": "2026-07-30T14:21:16.197Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 138,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "git-baseline",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:16.058Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0003-dccac75218b8.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0003-dccac75218b8.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "-m",
+      "compileall",
+      "-q",
+      "."
+    ],
+    "command_id": "software-command-0004-2d5761392707",
+    "completed_at": "2026-07-30T14:21:16.348Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 133,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "compile",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:16.212Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0004-2d5761392707.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0004-2d5761392707.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-v"
+    ],
+    "command_id": "software-command-0005-e14562dd0192",
+    "completed_at": "2026-07-30T14:21:16.500Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 148,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "test",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:16.349Z",
+    "stderr_digest": "e09d14239940f0d36dda90ff78a14c7974f7ee8f2305055dfd60175cc369e078",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0005-e14562dd0192.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0005-e14562dd0192.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "command_id": "software-command-0006-4f52a06f45cb",
+    "completed_at": "2026-07-30T14:21:16.584Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 81,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "verification",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:16.501Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0006-4f52a06f45cb.stderr.txt",
+    "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0006-4f52a06f45cb.stdout.txt",
+    "timed_out": false
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-ext-diff",
+      "--binary"
+    ],
+    "command_id": "software-command-0007-f2da9e932b83",
+    "completed_at": "2026-07-30T14:21:16.670Z",
+    "cwd": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\software-project",
+    "elapsed_ms": 83,
+    "exit_code": 0,
+    "metadata": {
+      "expected_exit_codes": [
+        0
+      ],
+      "purpose": "git-diff",
+      "shell": false,
+      "workspace_bound": true
+    },
+    "started_at": "2026-07-30T14:21:16.585Z",
+    "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0007-f2da9e932b83.stderr.txt",
+    "stdout_digest": "39329a4b8cf27094210c465cc6391be9dd686cad44bb772f4ba433089e10b62a",
+    "stdout_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-02-attempt-08\\runs\\sw-14441f11-733557d9\\s\\scratch\\sw-14441f11-733557d9\\software_delivery\\command-evidence\\software-command-0007-f2da9e932b83.stdout.txt",
+    "timed_out": false
+  }
+]

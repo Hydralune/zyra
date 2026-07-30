@@ -1,0 +1,282 @@
+{
+  "adversarial_proposals": {
+    "rejected_or_projected": 3,
+    "total": 3
+  },
+  "continuity": {
+    "conflicting_rejected": true,
+    "poisoned_rejected": true,
+    "receipt_digest": "2b50a4bacbc8c9f50581743250208b72beb102ae05266f83810599a18a4d0d10",
+    "stale_rejected": true,
+    "verified_transitions": [
+      "compact_restore",
+      "process_restart",
+      "handoff",
+      "requirement_revision"
+    ]
+  },
+  "critical_fact_recall": 1.0,
+  "critical_retrieval_without_provenance": 0,
+  "disable_evidence": {
+    "dynamic_topology": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": "baseline graph remained unchanged",
+      "enabled_outcome": "role/operator added and removed",
+      "mechanism": "dynamic_topology",
+      "schema": "zyra.phase2-disable-evidence/v1",
+      "test_only_counterfactual": true
+    },
+    "loopx": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": "sync_degraded",
+      "enabled_outcome": "acked/private state recovered",
+      "mechanism": "loopx",
+      "schema": "zyra.phase2-disable-evidence/v1",
+      "test_only_switch": true
+    },
+    "memory_continuity": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": [
+        "continuity_verifier_disabled"
+      ],
+      "enabled_outcome": "passed",
+      "mechanism": "memory_continuity",
+      "schema": "zyra.phase2-disable-evidence/v1",
+      "test_only_switch": true
+    },
+    "operator_selection": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": "maas_selector_disabled",
+      "enabled_outcome": "default",
+      "mechanism": "operator_selection",
+      "placement_owner_preserved": true,
+      "schema": "zyra.phase2-disable-evidence/v1"
+    },
+    "physical_dispatch": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": "physical_dispatch_disabled before side effect",
+      "enabled_outcome": "three real lanes committed",
+      "mechanism": "physical_dispatch",
+      "schema": "zyra.phase2-disable-evidence/v1",
+      "test_only_switch": true
+    },
+    "symbolic_projector": {
+      "disabled_changed_outcome": true,
+      "disabled_outcome": "reject",
+      "enabled_outcome": "canonical commits",
+      "mechanism": "symbolic_projector",
+      "schema": "zyra.phase2-disable-evidence/v1",
+      "test_only_switch": true
+    }
+  },
+  "duplicate_claim": 0,
+  "duplicate_commit": 0,
+  "duplicate_completed_work": 0,
+  "duplicate_lease": 0,
+  "duplicate_side_effect": 0,
+  "duplicate_spend": 0,
+  "early_exit_false_positive": 0,
+  "hard_gate_digest": "655ad13e0d523c5e39e9f89b76f8e1007cfed08d26e2aae838c944bfe54b9fbb",
+  "human_intervention_count": 0,
+  "invalid_transition_count": 0,
+  "loopx": {
+    "claim_conflict_rejected": true,
+    "execution_budget_owner_preserved": true,
+    "quota_exhaustion_fail_closed": true,
+    "receipt_digest": "17e9740bd2e5fff46d11fcaa19f296964e9f0475258915f9f98d8ae1bbb87b7b",
+    "restart_recovered": true,
+    "worker_lease_owner_preserved": true
+  },
+  "metrics": {
+    "canonical_event_count": 7168,
+    "communication_bytes": 2711418,
+    "provider_cost_usd": 3.48e-05,
+    "provider_latency_ms": 1590
+  },
+  "obligation_retention": 1.0,
+  "permission_recovery": {
+    "autonomous_recovery": true,
+    "denial_observed": true
+  },
+  "physical_dispatch": {
+    "artifact_continuity": true,
+    "condition_change_effect": "safe_fail_closed_recovery",
+    "degradation": {
+      "artifact_continuity": true,
+      "event_id": "sealed-edge-loss-rs-14441f11-2dc7ad92",
+      "failed_endpoint_id": "zyra-edge-7fa34d0a3f5241af",
+      "failed_runtime_id": "process:22856:generation_ee037c30ec524dbb",
+      "fallback_tier": "device",
+      "observed": true,
+      "observed_at": "2026-07-30T14:23:14.306Z",
+      "reason": "isolated edge process was stopped after its committed receipt; the fenced local receipt is the safe fallback",
+      "relabeled_as_cloud": false,
+      "route_after": "resdec_2d2637526286",
+      "route_before": "resdec_fd4624a1f0e7",
+      "safe": true,
+      "schema": "zyra.live-disconnected-degradation/v1",
+      "side_effect_idempotent": true,
+      "transport_closed_after_task": true
+    },
+    "lanes": [
+      {
+        "lane": "local",
+        "real_gate_closed": true,
+        "receipt_digest": "7a609bef3e1021d30a2e7527ffc2f7bc042c9d747b81bc89150d074d994a73a2",
+        "semantic_only": false,
+        "simulated": false,
+        "validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "local_host_identity": true,
+            "local_process_identity": true,
+            "local_provider_request_zero": true,
+            "local_terminal_identity": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "verifier_present": true,
+            "worker_manifest_present": true
+          },
+          "location": "local",
+          "real_gate_closed": true,
+          "receipt_digest": "7a609bef3e1021d30a2e7527ffc2f7bc042c9d747b81bc89150d074d994a73a2",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        }
+      },
+      {
+        "lane": "edge",
+        "real_gate_closed": true,
+        "receipt_digest": "5792276188c7ee04d9eef03f945917dcd85e568c9c9949ea6f6800e87a71cc2b",
+        "semantic_only": false,
+        "simulated": false,
+        "validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "edge_failure_boundary": true,
+            "edge_independent_process": true,
+            "edge_network_endpoint": true,
+            "edge_network_namespace": true,
+            "edge_provider_request_zero": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "verifier_present": true,
+            "worker_manifest_present": true
+          },
+          "location": "edge",
+          "real_gate_closed": true,
+          "receipt_digest": "5792276188c7ee04d9eef03f945917dcd85e568c9c9949ea6f6800e87a71cc2b",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        }
+      },
+      {
+        "lane": "cloud",
+        "real_gate_closed": true,
+        "receipt_digest": "b38cf5d89538d410e573c7ad116bfac5a6fc968163e8dccff0a4494180c58f29",
+        "semantic_only": false,
+        "simulated": false,
+        "validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "cloud_cost_present": true,
+            "cloud_credential_redacted": true,
+            "cloud_http_success": true,
+            "cloud_latency_present": true,
+            "cloud_live_request": true,
+            "cloud_marker_verified": true,
+            "cloud_payload_digest": true,
+            "cloud_provider_model_request": true,
+            "cloud_usage_present": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "verifier_present": true,
+            "worker_manifest_present": true
+          },
+          "location": "cloud",
+          "real_gate_closed": true,
+          "receipt_digest": "b38cf5d89538d410e573c7ad116bfac5a6fc968163e8dccff0a4494180c58f29",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        }
+      }
+    ],
+    "placement_verification": {
+      "degradation_digest": "c45ec3937905432b2727882ae1f7bd76b4f45387a2ee48d62b778c4f15552ff8",
+      "failures": [],
+      "lease_ids": [
+        "lease_090495ffa9f74262a00c3a8fc912a04a",
+        "lease_54b4fe373f8348b19a6c16eae3f4c80f",
+        "lease_0bb52975f2db4002a00e434b001a5d75",
+        "lease_a79ca9594a544de788c16c7e08a1d526"
+      ],
+      "maximum_provider_latency_ms": 4136,
+      "policy_digest": "8d9f1da1e632f564e419876874d62a7c4f7243256d23a8d98f9d40ddbeceff55",
+      "provider_capabilities": [
+        "deepseek/deepseek-v4-pro",
+        "zyra-local/local-deterministic"
+      ],
+      "provider_capability_count": 2,
+      "receipt_digest": "16717920fe2434a7d8ae829252a9f9c6e89c5d946722623eca9148cedfa75ae3",
+      "route_count": 4,
+      "route_ids": [
+        "worker-pool-route:attempt_ccfa7808f6db4abbab02e7ab5195effa:local-sandbox-gateway",
+        "worker-pool-route:attempt_42f9dc340cd545cb8c7158531e7138f4:local-sandbox-gateway",
+        "worker-pool-route:attempt_e2f1c97443a24515a555dee81035244d:local-sandbox-gateway",
+        "worker-pool-route:attempt_fc057d91520348579f45a5ea7db28979:local-sandbox-gateway"
+      ],
+      "schema": "zyra.live-placement-verification/v1",
+      "tier_count": 3,
+      "tier_kinds": [
+        "cloud",
+        "device",
+        "edge"
+      ],
+      "total_cost_usd": 3.48e-05,
+      "valid": true
+    }
+  },
+  "privacy_permission_violation": 0,
+  "production_bypass_reachable": false,
+  "schema": "zyra.phase2-sealed-hard-gates/v1",
+  "superseded_requirement_execution": 0,
+  "topology_operator": {
+    "canonical_custody_commit": true,
+    "operator_added": true,
+    "operator_removed": true,
+    "role_added": true,
+    "role_removed": true
+  },
+  "unsafe_commit": 0,
+  "valid_transition_count": 7168
+}

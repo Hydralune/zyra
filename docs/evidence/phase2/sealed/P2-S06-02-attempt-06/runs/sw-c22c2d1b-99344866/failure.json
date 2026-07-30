@@ -1,0 +1,14 @@
+{
+  "candidate_commit": "1ea8737d829606a6408114edf6cd5cf6191dcf8e",
+  "continued_as_same_run": false,
+  "failed_at": "2026-07-30T13:55:48.768Z",
+  "failure_type": "TypeError",
+  "human_intervention_count": 0,
+  "manifest_commit": "31508c3d9958d6596a97c9110449d4dddc536463",
+  "message": "Object of type FrozenDict is not JSON serializable",
+  "run_key": "software-sdk",
+  "scenario_run_id": "sw-c22c2d1b-99344866",
+  "schema": "zyra.phase2-sealed-run-failure/v1",
+  "sealed_manifest_digest": "c22c2d1bea00d108aaf6061ce2d94a3bb4b65f679d424a4b1b545b742d9c0cf8",
+  "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 174, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 334, in _run_one\n    _json(mechanism_path, mechanism)\n    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 50, in _json\n    json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + \"\\n\",\n    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\miniconda3\\Lib\\json\\__init__.py\", line 238, in dumps\n    **kw).encode(obj)\n          ~~~~~~^^^^^\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 200, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 261, in iterencode\n    return _iterencode(o, 0)\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 180, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\n                    f'is not JSON serializable')\nTypeError: Object of type FrozenDict is not JSON serializable\n"
+}

@@ -1,0 +1,44 @@
+{
+  "candidate_commit": "2093100876ca8cd2f0f6463162522aa758743c57",
+  "created_at": "2026-07-30T12:47:48.858Z",
+  "failed_runs": [
+    {
+      "candidate_commit": "2093100876ca8cd2f0f6463162522aa758743c57",
+      "continued_as_same_run": false,
+      "failed_at": "2026-07-30T12:47:43.229Z",
+      "failure_path": "runs/sealed-software-sdk-e1202d6969-683a94baae75/failure.json",
+      "failure_type": "OperatorPlacementError",
+      "human_intervention_count": 0,
+      "manifest_commit": "ff146dfaa109558c74701417d3a3f23efe139d88",
+      "message": "the physical deployment node returned a failed attempt",
+      "run_key": "software-sdk",
+      "scenario_run_id": "sealed-software-sdk-e1202d6969-683a94baae75",
+      "schema": "zyra.phase2-sealed-run-failure/v1",
+      "sealed_manifest_digest": "e1202d69697aa6c6566442eb36b8d59e5e3b00fb49592c131bf4720258a9c967",
+      "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 168, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 300, in _run_one\n    result = executor.execute(\n        scenario_run_id=scenario_run_id,\n    ...<3 lines>...\n        cancel_requested=lambda: False,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 419, in execute\n    placement = placement_runtime.execute(\n        scenario_run_id=scenario_run_id,\n    ...<2 lines>...\n        require_real_providers=options.require_real_providers,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\placement_evidence.py\", line 279, in execute\n    for item in self.owner.execute_tiers(\n                ~~~~~~~~~~~~~~~~~~~~~~~~^\n        scenario_run_id=scenario_run_id,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        domain_input=domain_input,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n        route=route,\n        ^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 708, in execute_tiers\n    evidence = self._require_evidence(\n        scenario_run_id=scenario_run_id,\n        domain_input=domain_input,\n        route=route,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 755, in _require_evidence\n    self._evidence = self.physical_runtime.execute(\n                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        scenario_run_id=scenario_run_id,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<13 lines>...\n        maximum_latency_ms=int(domain_input.maximum_latency_ms),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 407, in execute\n    result = call_port.execute(context)\n  File \"G:\\agent-zoo\\zyra\\packages\\scheduler\\zyra_scheduler\\dispatch_evidence.py\", line 908, in execute\n    raise OperatorPlacementError(\n    ...<7 lines>...\n    )\nzyra_scheduler.operator_policy.integration.OperatorPlacementError: the physical deployment node returned a failed attempt\n"
+    },
+    {
+      "candidate_commit": "2093100876ca8cd2f0f6463162522aa758743c57",
+      "continued_as_same_run": false,
+      "failed_at": "2026-07-30T12:47:48.738Z",
+      "failure_path": "runs/sealed-technical-intelligence-e1202d6969-6199fe5263f4/failure.json",
+      "failure_type": "OperatorPlacementError",
+      "human_intervention_count": 0,
+      "manifest_commit": "ff146dfaa109558c74701417d3a3f23efe139d88",
+      "message": "the physical deployment node returned a failed attempt",
+      "run_key": "technical-intelligence",
+      "scenario_run_id": "sealed-technical-intelligence-e1202d6969-6199fe5263f4",
+      "schema": "zyra.phase2-sealed-run-failure/v1",
+      "sealed_manifest_digest": "e1202d69697aa6c6566442eb36b8d59e5e3b00fb49592c131bf4720258a9c967",
+      "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 168, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 300, in _run_one\n    result = executor.execute(\n        scenario_run_id=scenario_run_id,\n    ...<3 lines>...\n        cancel_requested=lambda: False,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\dual_domain.py\", line 419, in execute\n    placement = placement_runtime.execute(\n        scenario_run_id=scenario_run_id,\n    ...<2 lines>...\n        require_real_providers=options.require_real_providers,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\scenario_runner\\placement_evidence.py\", line 279, in execute\n    for item in self.owner.execute_tiers(\n                ~~~~~~~~~~~~~~~~~~~~~~~~^\n        scenario_run_id=scenario_run_id,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        domain_input=domain_input,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n        route=route,\n        ^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 708, in execute_tiers\n    evidence = self._require_evidence(\n        scenario_run_id=scenario_run_id,\n        domain_input=domain_input,\n        route=route,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 755, in _require_evidence\n    self._evidence = self.physical_runtime.execute(\n                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        scenario_run_id=scenario_run_id,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<13 lines>...\n        maximum_latency_ms=int(domain_input.maximum_latency_ms),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_physical.py\", line 407, in execute\n    result = call_port.execute(context)\n  File \"G:\\agent-zoo\\zyra\\packages\\scheduler\\zyra_scheduler\\dispatch_evidence.py\", line 908, in execute\n    raise OperatorPlacementError(\n    ...<7 lines>...\n    )\nzyra_scheduler.operator_policy.integration.OperatorPlacementError: the physical deployment node returned a failed attempt\n"
+    }
+  ],
+  "human_intervention_count": 0,
+  "index_digest": "370ee6fa9b25e676cf1a0cc8e3ee8e27a1bc38ffa0962bc5828af7de0abf8dcf",
+  "manifest_commit": "ff146dfaa109558c74701417d3a3f23efe139d88",
+  "runs": [],
+  "schema": "zyra.phase2-sealed-evidence-index/v1",
+  "sealed_manifest": "sealed-manifest.json",
+  "sealed_manifest_digest": "e1202d69697aa6c6566442eb36b8d59e5e3b00fb49592c131bf4720258a9c967",
+  "slice": "P2-S06-02"
+}

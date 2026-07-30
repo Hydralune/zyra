@@ -1,0 +1,14 @@
+{
+  "candidate_commit": "474412415a169d20f83faeb867fc961bc696127d",
+  "continued_as_same_run": false,
+  "failed_at": "2026-07-30T14:09:06.336Z",
+  "failure_type": "TypeError",
+  "human_intervention_count": 0,
+  "manifest_commit": "b2a23a93b9c2b224eb45568914c62f92cc80f321",
+  "message": "Object of type FrozenDict is not JSON serializable",
+  "run_key": "software-sdk",
+  "scenario_run_id": "sw-d4bdc4bf-aec46a79",
+  "schema": "zyra.phase2-sealed-run-failure/v1",
+  "sealed_manifest_digest": "d4bdc4bfb6fc596a19e89f0dc87bbd39a941810301ddd2c355d4040316ae6340",
+  "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 180, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 359, in _run_one\n    hard_gates = self._hard_gates(\n        result=result,\n    ...<2 lines>...\n        transitions=transition_index,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 622, in _hard_gates\n    \"receipt_digest\": canonical_digest(continuity),\n                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\long_run_validator.py\", line 98, in canonical_digest\n    return hashlib.sha256(canonical_json(value).encode(\"utf-8\")).hexdigest()\n                          ~~~~~~~~~~~~~~^^^^^^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\long_run_validator.py\", line 89, in canonical_json\n    return json.dumps(\n           ~~~~~~~~~~^\n        value,\n        ^^^^^^\n    ...<2 lines>...\n        separators=(\",\", \":\"),\n        ^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"D:\\miniconda3\\Lib\\json\\__init__.py\", line 238, in dumps\n    **kw).encode(obj)\n          ~~~~~~^^^^^\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 200, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 261, in iterencode\n    return _iterencode(o, 0)\n  File \"D:\\miniconda3\\Lib\\json\\encoder.py\", line 180, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\n                    f'is not JSON serializable')\nTypeError: Object of type FrozenDict is not JSON serializable\n"
+}

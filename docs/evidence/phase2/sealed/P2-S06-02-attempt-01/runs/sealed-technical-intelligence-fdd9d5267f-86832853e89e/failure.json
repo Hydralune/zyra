@@ -1,0 +1,14 @@
+{
+  "candidate_commit": "58f2aea6bf1d7af75183b62394a21364429c3ce9",
+  "continued_as_same_run": false,
+  "failed_at": "2026-07-30T12:44:47.295Z",
+  "failure_type": "SealedLongRunError",
+  "human_intervention_count": 0,
+  "manifest_commit": "6fb5c0daa165c5686e90511dbdd5dffbc205bc30",
+  "message": "source/config worktree changed during sealed execution",
+  "run_key": "technical-intelligence",
+  "scenario_run_id": "sealed-technical-intelligence-fdd9d5267f-86832853e89e",
+  "schema": "zyra.phase2-sealed-run-failure/v1",
+  "sealed_manifest_digest": "fdd9d5267f3eb20cc87e19d03890f9137f658cbcd788b949094acd785d96a1f3",
+  "traceback": "Traceback (most recent call last):\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 163, in run\n    result = self._run_one(\n        run_spec=run_spec,\n    ...<2 lines>...\n        manifest_commit=manifest_commit,\n    )\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 246, in _run_one\n    self._assert_frozen()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"G:\\agent-zoo\\zyra\\packages\\evaluation\\zyra_evaluation\\policy_benchmark\\sealed_long_run.py\", line 793, in _assert_frozen\n    raise SealedLongRunError(\n        \"source/config worktree changed during sealed execution\"\n    )\nzyra_evaluation.policy_benchmark.sealed_long_run.SealedLongRunError: source/config worktree changed during sealed execution\n"
+}
