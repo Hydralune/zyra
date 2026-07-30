@@ -52,3 +52,12 @@ def test_bun_resolution_accepts_the_frozen_local_install(
     local.write_bytes(b"bun")
 
     assert MODULE._resolve_bun() == str(local)
+
+
+def test_final_regression_python_path_is_bound_to_target_sources() -> None:
+    roots = tuple(Path(item) for item in MODULE._source_python_path().split(os.pathsep))
+
+    assert roots
+    assert all(path.is_relative_to(ROOT) for path in roots)
+    assert ROOT / "packages" / "evaluation" in roots
+    assert ROOT / "packages" / "productization" in roots

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,34 @@ def test_production_bundle_validates_active_strongest_profile() -> None:
     assert report.activation_gates["hard_gate_count"] >= 20
     assert report.activation_gates["strongest_activation_eligible"] is True
     assert report.activation_gates["strongest_activation_blockers"] == []
+
+
+def test_digest_bound_contracts_have_canonical_lf_checkout_bytes() -> None:
+    digest_manifest = _load("contract-digests.json")
+    paths = [
+        str(item["path"])
+        for section in ("documents", "configs")
+        for item in digest_manifest[section]  # type: ignore[index]
+    ]
+    state_owners = _load("state-owners.yaml")
+    paths.append(
+        str(state_owners["frozen_owner_evidence_catalog"]["path"])  # type: ignore[index]
+    )
+
+    completed = subprocess.run(
+        ["git", "check-attr", "eol", "--", *paths],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    attributes = {
+        line.rsplit(": eol: ", 1)[0]: line.rsplit(": eol: ", 1)[1]
+        for line in completed.stdout.splitlines()
+    }
+
+    assert attributes == {path: "lf" for path in paths}
 
 
 @pytest.mark.parametrize(

@@ -1130,6 +1130,7 @@ class ReleaseRuntime:
                 "GIT_CONFIG_COUNT": "1",
                 "GIT_CONFIG_KEY_0": "safe.directory",
                 "GIT_CONFIG_VALUE_0": self.project_root.as_posix(),
+                "PYTHONPATH": self._source_python_path(),
                 "PYTHONNOUSERSITE": "1",
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PIP_DISABLE_PIP_VERSION_CHECK": "1",
@@ -1153,6 +1154,38 @@ class ReleaseRuntime:
         else:
             allowed.pop("USERPROFILE", None)
         return allowed
+
+    def _source_python_path(self) -> str:
+        with (self.project_root / "pyproject.toml").open("rb") as stream:
+            pyproject = tomllib.load(stream)
+        entries = (
+            pyproject.get("tool", {})
+            .get("setuptools", {})
+            .get("packages", {})
+            .get("find", {})
+            .get("where", ())
+        )
+        if not isinstance(entries, list) or not entries:
+            raise ReleaseError(
+                "Release source CI cannot resolve project Python package roots.",
+                code="release_python_source_roots_missing",
+            )
+        roots = tuple(
+            (self.project_root / entry).resolve()
+            for entry in entries
+            if isinstance(entry, str)
+            and (self.project_root / entry).is_dir()
+        )
+        if len(roots) != len(entries):
+            raise ReleaseError(
+                "Release source CI found a missing Python package root.",
+                code="release_python_source_root_missing",
+                details={
+                    "declared": list(entries),
+                    "resolved": [str(path) for path in roots],
+                },
+            )
+        return os.pathsep.join(str(path) for path in roots)
 
 
 __all__ = ["ReleaseDoctor", "ReleaseRuntime"]

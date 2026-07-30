@@ -16,4 +16,9 @@ docs/reviews/evidence/M3-S03-01/generated-*/*.zip binary
 docs/release/phase2-baseline-manifest.json text eol=lf
 docs/reviews/P2-S00-01-freeze-reconciliation-review.md text eol=lf
 docs/reviews/evidence/P2-S00-01/*.json text eol=lf
+docs/architecture/phase2/adr/P2-ADR-*.md text eol=lf
+config/phase2/source-roles.yaml text eol=lf
+config/phase2/state-owners.yaml text eol=lf
+config/phase2/activation-gates.yaml text eol=lf
+packages/evaluation/zyra_evaluation/data/state_owner_evidence_catalog.json text eol=lf
 packages/integrations/loopx_runtime/** text=auto eol=lf whitespace=-blank-at-eol,-blank-at-eof

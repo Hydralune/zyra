@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,28 @@ def _resolve_bun() -> str:
         "bun is required for the final regression and was not found on PATH "
         "or in node_modules/.bin"
     )
+
+
+def _source_python_path() -> str:
+    with (ROOT / "pyproject.toml").open("rb") as stream:
+        pyproject = tomllib.load(stream)
+    entries = (
+        pyproject.get("tool", {})
+        .get("setuptools", {})
+        .get("packages", {})
+        .get("find", {})
+        .get("where", ())
+    )
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("project Python package roots are missing")
+    roots = tuple(
+        (ROOT / entry).resolve()
+        for entry in entries
+        if isinstance(entry, str) and (ROOT / entry).is_dir()
+    )
+    if len(roots) != len(entries):
+        raise ValueError("a declared project Python package root is missing")
+    return os.pathsep.join(str(path) for path in roots)
 
 
 def _command_specs(
@@ -154,6 +177,7 @@ def run_regression(
         "PIP_CACHE_DIR": str(output_root / "cache" / "pip"),
         "UV_CACHE_DIR": str(output_root / "cache" / "uv"),
         "ZYRA_STATE_ROOT": str(output_root / "state"),
+        "PYTHONPATH": _source_python_path(),
     }
     commands: list[dict[str, Any]] = []
     for command_id, command, timeout in _command_specs(
@@ -225,6 +249,7 @@ def run_regression(
                 "PIP_CACHE_DIR",
                 "UV_CACHE_DIR",
                 "ZYRA_STATE_ROOT",
+                "PYTHONPATH",
             )
         },
         "commands": commands,

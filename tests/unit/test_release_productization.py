@@ -1038,6 +1038,12 @@ def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
 ) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir()
+    declared_python_root = project_root / "python-source"
+    declared_python_root.mkdir()
+    (project_root / "pyproject.toml").write_text(
+        '[tool.setuptools.packages.find]\nwhere = ["python-source"]\n',
+        encoding="utf-8",
+    )
     home_root = tmp_path / "ci-home"
     home_root.mkdir()
     host_profile = tmp_path / "host-profile"
@@ -1069,6 +1075,7 @@ def test_release_ci_environment_isolates_tool_homes_and_trusts_only_project(
     assert environment["GIT_CONFIG_COUNT"] == "1"
     assert environment["GIT_CONFIG_KEY_0"] == "safe.directory"
     assert environment["GIT_CONFIG_VALUE_0"] == project_root.as_posix()
+    assert environment["PYTHONPATH"] == str(declared_python_root.resolve())
     assert environment["ZYRA_RELEASE_CI"] == "1"
 
 
