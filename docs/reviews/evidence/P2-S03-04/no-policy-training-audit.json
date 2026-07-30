@@ -1,0 +1,30 @@
+{
+  "schema": "zyra.p2-s03-04-no-policy-training-audit/v1",
+  "slice_id": "P2-S03-04",
+  "implementation_commit": "a07fec0ae539f5da9b258ac6ea7ca70b7237820e",
+  "risk_fix_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "passed": true,
+  "training_sample_count": 0,
+  "runtime_entry_points": [],
+  "training_datasets": [],
+  "training_checkpoints": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "machine_learning_dependencies_added": [],
+  "scan_roots": [
+    "packages/orchestration/zyra_orchestration/topology_policy/composer.py",
+    "packages/orchestration/zyra_orchestration/topology_policy/default_policy.py",
+    "packages/orchestration/zyra_orchestration/topology_policy/runtime.py",
+    "config/phase2/topology-composer.json"
+  ],
+  "deterministic_controls": [
+    "stable operation ordering",
+    "immutable snapshot and lineage binding",
+    "fixed layer precedence",
+    "typed protected-edge rejection",
+    "durable signature history",
+    "fixed churn window and minimum dwell",
+    "explicit readiness and fallback gates"
+  ],
+  "finding_count": 0
+}

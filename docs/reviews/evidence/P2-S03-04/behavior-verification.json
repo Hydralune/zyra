@@ -1,0 +1,89 @@
+{
+  "schema": "zyra.p2-s03-04-behavior-verification/v1",
+  "slice_id": "P2-S03-04",
+  "base_commit": "d0afb45ea26f817258d3a56a3b61690f22fc1362",
+  "implementation_commit": "a07fec0ae539f5da9b258ac6ea7ca70b7237820e",
+  "risk_fix_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "verdict": "PASS",
+  "normal_path": {
+    "actual_profile": "phase1_deterministic_baseline",
+    "composer_invoked": false,
+    "graph_revision_before": 0,
+    "graph_revision_after": 0,
+    "activation_allowed": false
+  },
+  "isolated_validation": {
+    "actual_profile": "phase2_strongest_v1",
+    "execution_mode": "validation",
+    "graph_revision_before": 0,
+    "graph_revision_after": 1,
+    "commit_owner": "GraphStateCustody",
+    "delta_builder": "PolicyDeltaBuilder",
+    "projector": "TopologyConstraintProjector",
+    "spatial_edge_count": 1,
+    "temporal_edge_count": 1,
+    "layer_order": [
+      "arg_designer",
+      "card",
+      "agentprune"
+    ],
+    "all_layers_affected_commit": true,
+    "permission_result": "permission_and_placement_allowed",
+    "verifier_result": "graph_commit_verified"
+  },
+  "diagnostic": {
+    "actual_profile": "phase1_deterministic_baseline",
+    "proposal_discard_reason": "diagnostic_canonical_mutation_forbidden",
+    "graph_mutated": false
+  },
+  "causation": {
+    "scheduler_event_ref_count": 4,
+    "memory_refs": [
+      "memory-continuity-r1"
+    ],
+    "recovery_refs": [
+      "receipt-recovery-topology"
+    ],
+    "verification_refs": [
+      "GraphStateCustody.validate_graph"
+    ],
+    "permission_constraint_recorded": true,
+    "graph_commit_recorded": true
+  },
+  "disable_matrix": {
+    "arg_designer": "arg_disabled",
+    "card": "card_disabled",
+    "agentprune": "agentprune_disabled",
+    "policy": "phase2_topology_policy_disabled",
+    "all_fallbacks_explicit": true,
+    "graph_mutation_count": 0
+  },
+  "constraint_matrix": {
+    "permission_denied": "rejected",
+    "unknown_capability": "rejected",
+    "mixed_snapshot": "composer_mixed_snapshot",
+    "changed_stale_snapshot": "stale_or_mismatched_snapshot",
+    "agentprune_budget_overrun": "agentprune_budget_exceeds_policy_input",
+    "fanout_overrun": "fanout_exceeded",
+    "cycle": "graph_constraint_rejected",
+    "protected_edge_drop": "agentprune_protected_edge_dropped"
+  },
+  "replay_and_stability": {
+    "identical_replay_created_duplicate_revision": false,
+    "changed_stale_replayed": false,
+    "churn_limit_reason": "composer_churn_window_limit",
+    "oscillation_reason": "topology_oscillation_detected",
+    "durable_history_required": true,
+    "restart_preserved_oscillation_guard": true
+  },
+  "adaptation": {
+    "execution_roles_include": "execution_role",
+    "recovery_roles_include": "recovery_role",
+    "phase_topologies_differ": true,
+    "fault_requirement_change_proposed_replace_node": true,
+    "fault_requirement_change_proposed_remove_edge": true,
+    "unsafe_fault_change_committed": false,
+    "unsafe_fault_change_fallback": "phase1_deterministic_baseline"
+  },
+  "counterfactual_claimed_as_actual": false
+}

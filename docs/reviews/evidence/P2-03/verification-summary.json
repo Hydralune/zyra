@@ -1,0 +1,42 @@
+{
+  "schema": "zyra.p2-03-parent-verification-summary/v1",
+  "unit_id": "P2-03",
+  "verdict": "PASS",
+  "base_commit": "7d2658635460163478d88848e79f7ecc650a9274",
+  "target_before_evidence": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "completed_slices": [
+    "P2-S03-01",
+    "P2-S03-02",
+    "P2-S03-03",
+    "P2-S03-04"
+  ],
+  "mechanism_versions": {
+    "arg_designer": "arg_joint_v1",
+    "card": "card_directional_residual_v1",
+    "agentprune": "agentprune_spatiotemporal_v1",
+    "composer": "topology_composer_v1"
+  },
+  "readiness": {
+    "stage": "implementation_validated",
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "agentprune": "deterministic_ready",
+    "activation_allowed": false
+  },
+  "owners": {
+    "base_topology": "arg_designer",
+    "conditional_residual": "card",
+    "communication_pruning": "agentprune",
+    "combined_proposal": "phase2_topology_composer",
+    "canonical_graph": "GraphStateCustody",
+    "physical_placement": "ResourceScheduler"
+  },
+  "evidence_refs": [
+    "docs/reviews/evidence/P2-S03-01",
+    "docs/reviews/evidence/P2-S03-02",
+    "docs/reviews/evidence/P2-S03-03",
+    "docs/reviews/evidence/P2-S03-04"
+  ],
+  "next_slice_candidate": "P2-S04-01",
+  "next_slice_authorized": false
+}

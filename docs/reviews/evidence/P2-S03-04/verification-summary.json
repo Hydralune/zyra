@@ -1,0 +1,81 @@
+{
+  "schema": "zyra.p2-s03-04-verification-summary/v1",
+  "slice_id": "P2-S03-04",
+  "verdict": "PASS",
+  "base_commit": "d0afb45ea26f817258d3a56a3b61690f22fc1362",
+  "implementation_commit": "a07fec0ae539f5da9b258ac6ea7ca70b7237820e",
+  "risk_fix_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "mechanism_version": "topology_composer_v1",
+  "configuration_digest": "9a39bcb82f31ec2efbee972cf07aec5bb8001cd29c7555d1647ab304eb465d5b",
+  "readiness_report_digest": "fe122535b8b77294ba3fc31cdab2dbf167b1108e02b54050c51ffda90913f834",
+  "tests": [
+    {
+      "scope": "composer_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest --basetemp .tmp\\pytest-p2-s03-04-focused-final -p no:cacheprovider tests\\integration\\test_topology_policy_composer.py -q",
+      "result": "16 passed in 3.55s",
+      "passed": true
+    },
+    {
+      "scope": "default_path_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest --basetemp .tmp\\pytest-p2-s03-04-default-final -p no:cacheprovider tests\\integration\\test_topology_policy_default_path.py -q",
+      "result": "4 passed in 1.69s",
+      "passed": true
+    },
+    {
+      "scope": "fault_change_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest --basetemp .tmp\\pytest-p2-s03-04-fault-final -p no:cacheprovider tests\\scenarios\\test_topology_policy_fault_change.py -q",
+      "result": "2 passed in 1.65s",
+      "passed": true
+    },
+    {
+      "scope": "projector_custody_focused_final",
+      "command": ".venv\\Scripts\\python.exe -m pytest --basetemp .tmp\\pytest-p2-s03-04-projector-final -p no:cacheprovider tests\\integration\\test_policy_projector_graph_custody.py -q",
+      "result": "5 passed in 0.85s",
+      "passed": true
+    },
+    {
+      "scope": "composer_default_fault_and_adjacent_risk_review",
+      "result": "81 passed in 18.49s",
+      "passed": true
+    },
+    {
+      "scope": "task_graph_hook_regression",
+      "result": "4 passed in 9.83s",
+      "passed": true
+    },
+    {
+      "scope": "registry_diagnostic_rollback",
+      "result": "29 passed in 1.28s",
+      "passed": true
+    }
+  ],
+  "static_checks": {
+    "compileall": "passed",
+    "internalization_ledger": "audit_ok=True errors=0 blockers=0",
+    "release_path_policy": "passed",
+    "openclaw_scan": "passed",
+    "diff_check": "passed",
+    "ruff": "not_installed"
+  },
+  "ownership": {
+    "proposal_owner": "TopologyPolicyComposer",
+    "projection_owner": "TopologyConstraintProjector",
+    "delta_owner": "PolicyDeltaBuilder",
+    "commit_owner": "GraphStateCustody",
+    "physical_route_owner": "ResourceScheduler"
+  },
+  "readiness": {
+    "stage": "implementation_validated",
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "agentprune": "deterministic_ready",
+    "normal_default": "phase1_deterministic_baseline",
+    "activation_allowed": false
+  },
+  "environment_notes": [
+    "A combined invocation encountered a permission-denied user pytest temp directory; the identical suite passed with a workspace-local basetemp.",
+    "Ruff is not installed in the repository virtual environment."
+  ],
+  "next_slice_candidate": "P2-S04-01",
+  "next_slice_authorized": false
+}

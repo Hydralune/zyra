@@ -1,0 +1,41 @@
+{
+  "schema": "zyra.p2-s03-04-source-digest/v1",
+  "slice_id": "P2-S03-04",
+  "target_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "algorithm": "canonical_digest(path/git_blob ordered mapping)",
+  "entries": [
+    {
+      "path": "packages/orchestration/zyra_orchestration/task_graph.py",
+      "git_blob": "7cb71f989f209de3e809d40d80b3e51b0a845041"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/__init__.py",
+      "git_blob": "7ddbc1a98579a91d59b9ca286eef45d6fe9285d4"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/composer.py",
+      "git_blob": "b7466b140f4e46a9e3d1f8e78b5a4fd9354d7753"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/condition/environment_encoder.py",
+      "git_blob": "0fc1637b41ce213fb2ebe0209cbd047c567725df"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/default_policy.py",
+      "git_blob": "7650f65d7f903368cfb4af548aeef2109df66796"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/projector.py",
+      "git_blob": "d655addf63885adae9d240b400b73b5a3d40aa28"
+    },
+    {
+      "path": "packages/orchestration/zyra_orchestration/topology_policy/runtime.py",
+      "git_blob": "a55df580a544fa76ce208f3f4afbde6728c6a818"
+    },
+    {
+      "path": "packages/symbolic/zyra_symbolic/topology.py",
+      "git_blob": "b563efab05988ed2a46fc9f5f604db90b663b889"
+    }
+  ],
+  "source_digest": "e1f819a731273ca527ed2d17d996028083e7e09821349a05c8ea06c5b1094052"
+}

@@ -1,8 +1,8 @@
 {
   "schema": "zyra.phase2-policy-registry/v1",
-  "slice_id": "P2-S02-02",
+  "slice_id": "P2-S03-04",
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
-  "slice_base_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
+  "slice_base_commit": "d0afb45ea26f817258d3a56a3b61690f22fc1362",
   "registry_revision": 1,
   "active_versions": {
     "topology_policy": "phase1_deterministic_baseline"
@@ -53,7 +53,7 @@
       "activation_state": "validation_ready",
       "schema_version": "v1",
       "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
-      "source_digest": "9019b89bd8dfe9550e92d54cd908f2b5d929d6d42254090c6ee8608b19e06f15",
+      "source_digest": "e1f819a731273ca527ed2d17d996028083e7e09821349a05c8ea06c5b1094052",
       "configuration": {
         "composition": [
           "loopx",
@@ -74,7 +74,7 @@
         "validated_scope": "P2-03 topology composer only; activation remains closed"
       },
       "config_digest": "ac1b51034906aadeb39b6b9991bd5c70b2a8bd1a01873dabdc0371a334333f3c",
-      "implementation_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+      "implementation_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
       "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
       "required_mechanisms": [
         "arg_designer",
@@ -156,7 +156,7 @@
       "activation_state": "read_only",
       "schema_version": "v1",
       "schema_digest": "099a8e0bc8a2862e45b9c8682f0543bd2b276da15c548cf0a4d0dcc9dd6f055a",
-      "source_digest": "9019b89bd8dfe9550e92d54cd908f2b5d929d6d42254090c6ee8608b19e06f15",
+      "source_digest": "e1f819a731273ca527ed2d17d996028083e7e09821349a05c8ea06c5b1094052",
       "configuration": {
         "actual_outcome_claim_allowed": false,
         "canonical_mutation_allowed": false,
@@ -166,7 +166,7 @@
         "side_effect_allowed": false
       },
       "config_digest": "9b25e67cae4eac3878a15dd899c15d8c748432e4ec89c4281adf1108fde30073",
-      "implementation_commit": "8d6151e7bf66b8423e4767ca25098a5f93ac94b1",
+      "implementation_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
       "evidence_commit": "d478366fda71bf04a2f3625b350c9a1325406dd7",
       "required_mechanisms": [
         "arg_designer",
@@ -210,5 +210,5 @@
       "audit_gate_ids": []
     }
   ],
-  "registry_digest": "327dbdbd92b6424d47f10e34accf2b936a9204836b0852daba4f26f03efccf53"
+  "registry_digest": "ddc141f4c58fbec08383066c94c5a2272074c9970ba74f246be2c2a3a13caecf"
 }

@@ -1,0 +1,106 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S03-04",
+  "readiness_stage": "implementation_validated",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "implementation_commit": "a07fec0ae539f5da9b258ac6ea7ca70b7237820e",
+  "risk_fix_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "generated_at": "2026-07-30T11:07:36+08:00",
+  "generation_clock": "risk-fix commit time",
+  "valid": true,
+  "activation_allowed": false,
+  "activation_reason": "P2-S03-04 validates the unified topology path only; phase2_strongest_v1 remains non-default until P2-S06-01 activation readiness.",
+  "supersedes_report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc",
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "runtime_entry_points": [],
+    "training_datasets": [],
+    "training_checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "evidence_ref": "docs/reviews/evidence/P2-S03-04/no-policy-training-audit.json"
+  },
+  "mechanism_statuses": {
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "agentprune": "deterministic_ready",
+    "maas": "unavailable"
+  },
+  "mechanisms": {
+    "arg_designer": {
+      "mechanism_id": "arg_designer",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "mechanism_version": "arg_joint_v1",
+      "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+      "carried_forward_report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+      "composition_validation": {
+        "passed": true,
+        "owns_joint_base": true,
+        "mixed_snapshot_rejected": true,
+        "canonical_mutation_attempted": false
+      }
+    },
+    "card": {
+      "mechanism_id": "card",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "mechanism_version": "card_directional_residual_v1",
+      "configuration_digest": "fc0d699fead07217b6b24c557b183c5d6a0542d4dab2d590b20c0b2e3d3c815e",
+      "carried_forward_report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244",
+      "composition_validation": {
+        "passed": true,
+        "arg_add_overlay_valid": true,
+        "forbidden_edge_overrides_pruning_keep": true,
+        "canonical_predecessor_telemetry_bound": true,
+        "canonical_mutation_attempted": false
+      }
+    },
+    "agentprune": {
+      "mechanism_id": "agentprune",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "mechanism_version": "agentprune_spatiotemporal_v1",
+      "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+      "carried_forward_report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc",
+      "composition_validation": {
+        "passed": true,
+        "spatial_temporal_separated": true,
+        "protected_edge_drop_rejected": true,
+        "budget_overrun_failed_closed": true,
+        "canonical_mutation_attempted": false
+      }
+    },
+    "maas": {
+      "mechanism_id": "maas",
+      "readiness_stage": "implementation_validated",
+      "status": "unavailable",
+      "reason": "P2-S04-01 is outside this slice."
+    }
+  },
+  "composer_validation": {
+    "mechanism_id": "phase2_topology_composer",
+    "mechanism_version": "topology_composer_v1",
+    "configuration_digest": "9a39bcb82f31ec2efbee972cf07aec5bb8001cd29c7555d1647ab304eb465d5b",
+    "passed": true,
+    "normal_default_unchanged": true,
+    "isolated_validation_commit": true,
+    "diagnostic_read_only": true,
+    "graph_state_custody_exclusive": true,
+    "idempotent_replay": true,
+    "durable_oscillation_guard": true,
+    "layer_disable_specific": true,
+    "training_sample_count": 0,
+    "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-04/behavior-verification.json"
+  },
+  "resolver_policy": {
+    "normal": "phase1_deterministic_baseline",
+    "explicit_isolated_validation": "phase2_strongest_v1",
+    "diagnostic": "phase2_diagnostic_v1_read_only",
+    "required_layer_not_ready": "phase1_deterministic_baseline",
+    "activation_ready_required_for_default": true
+  },
+  "training_sample_count": 0,
+  "report_digest": "fe122535b8b77294ba3fc31cdab2dbf167b1108e02b54050c51ffda90913f834"
+}

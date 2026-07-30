@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.p2-s03-04-source-symbol-map/v1",
+  "slice_id": "P2-S03-04",
+  "new_external_source_migration": false,
+  "carried_forward_sources": [
+    {
+      "mechanism_id": "arg_designer",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-01/source-symbol-map.json",
+      "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28"
+    },
+    {
+      "mechanism_id": "card",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-02/source-symbol-map.json",
+      "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244"
+    },
+    {
+      "mechanism_id": "agentprune",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-03/source-symbol-map.json",
+      "report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc"
+    }
+  ],
+  "composition_decisions": [
+    {
+      "target_symbol": "TopologyPolicyComposer.compose",
+      "decision": "compose_typed_proposals_only",
+      "reason": "ARG, CARD and AgentPrune retain their cropped deterministic semantics and immutable lineage; no source executor is reintroduced."
+    },
+    {
+      "target_symbol": "TopologyConstraintProjector.execute",
+      "decision": "single_symbolic_projection_path",
+      "reason": "The composer cannot authorize or commit its own mutation."
+    },
+    {
+      "target_symbol": "TopologyPolicyTriggerAdapter",
+      "decision": "bounded_existing_trigger_hook",
+      "reason": "The existing TopologyRouter invokes policy resolution while ResourceScheduler remains the physical route owner."
+    },
+    {
+      "target_symbol": "TopologyComposerRuntime._commit_guard",
+      "decision": "durable_deterministic_stability_guard",
+      "reason": "GraphStateStore snapshots provide restart-stable churn and oscillation history without a second state store."
+    }
+  ],
+  "full_source_copy": false,
+  "external_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "random_sampling_migrated": false,
+  "graph_executor_migrated": false,
+  "openclaw_used": false
+}

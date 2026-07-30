@@ -1,0 +1,75 @@
+{
+  "schema": "zyra.p2-s03-04-line-buckets/v1",
+  "slice_id": "P2-S03-04",
+  "base_commit": "d0afb45ea26f817258d3a56a3b61690f22fc1362",
+  "implementation_commit": "a07fec0ae539f5da9b258ac6ea7ca70b7237820e",
+  "risk_fix_commit": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
+  "buckets": {
+    "production": {
+      "added_lines": 2328,
+      "paths": [
+        "packages/orchestration/zyra_orchestration/task_graph.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/composer.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/condition/environment_encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/default_policy.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/projector.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/runtime.py",
+        "packages/symbolic/zyra_symbolic/topology.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1530,
+      "paths": [
+        "tests/integration/test_topology_policy_composer.py",
+        "tests/integration/test_topology_policy_default_path.py",
+        "tests/scenarios/test_topology_policy_fault_change.py",
+        "tests/support/topology_composer.py",
+        "tests/unit/orchestration/test_policy_registry.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 57,
+      "paths": [
+        "config/phase2/policies.yaml",
+        "config/phase2/topology-composer.json"
+      ]
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "source_pool": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "Typed test inputs are test/support and are not production or evidence volume."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S03-04",
+        "docs/reviews/evidence/P2-03",
+        "docs/reviews/P2-S03-04-topology-composer-default-review.md",
+        "docs/reviews/P2-03-topology-policy-review.md"
+      ],
+      "note": "Evidence follows the frozen implementation and risk-fix targets."
+    }
+  },
+  "total_implementation_added_lines": 3915,
+  "production_share": 0.59463602,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}

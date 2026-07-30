@@ -1,0 +1,33 @@
+{
+  "schema": "zyra.p2-03-source-custody-summary/v1",
+  "unit_id": "P2-03",
+  "verdict": "PASS",
+  "mechanisms": [
+    {
+      "mechanism_id": "arg_designer",
+      "source_language": "python",
+      "target_language": "python",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-01/source-symbol-map.json"
+    },
+    {
+      "mechanism_id": "card",
+      "source_language": "python",
+      "target_language": "python",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-02/source-symbol-map.json"
+    },
+    {
+      "mechanism_id": "agentprune",
+      "source_language": "python",
+      "target_language": "python",
+      "evidence_ref": "docs/reviews/evidence/P2-S03-03/source-symbol-map.json"
+    }
+  ],
+  "composer_external_source_migration": false,
+  "source_material_counted_as_production": false,
+  "external_runtime_dependency": false,
+  "workspace_root_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "provider_runtime_migrated": false,
+  "graph_executor_migrated": false,
+  "openclaw_used": false
+}
