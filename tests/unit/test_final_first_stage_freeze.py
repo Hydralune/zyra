@@ -111,6 +111,41 @@ def evidence_commit() -> str:
     ).stdout.strip()
 
 
+def test_current_formal_evidence_members_have_canonical_lf_checkout_bytes() -> None:
+    pointer = json.loads(
+        (
+            REPOSITORY_ROOT
+            / "docs"
+            / "reviews"
+            / "evidence"
+            / "M3-S02A-02"
+            / "formal-current.json"
+        ).read_text(encoding="utf-8")
+    )
+    evidence_root = Path(str(pointer["relative_evidence_root"]))
+    members = sorted(
+        path.relative_to(REPOSITORY_ROOT).as_posix()
+        for path in (REPOSITORY_ROOT / evidence_root).glob("*.json")
+    )
+
+    completed = subprocess.run(
+        ["git", "check-attr", "eol", "--", *members],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        check=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    attributes = {
+        line.rsplit(": eol: ", 1)[0]: line.rsplit(": eol: ", 1)[1]
+        for line in completed.stdout.splitlines()
+    }
+
+    assert members
+    assert attributes == {path: "lf" for path in members}
+
+
 def test_historical_s03_evidence_is_blocked_by_current_summary_identity() -> None:
     receipt = CriticalReviewEngine(
         REPOSITORY_ROOT,

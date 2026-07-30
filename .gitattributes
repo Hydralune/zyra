@@ -1,4 +1,6 @@
 docs/reviews/evidence/M3-S02A-02/formal-current.json text eol=lf
+docs/reviews/evidence/M3-S02A-02/formal-current-*/*.json text eol=lf
+docs/reviews/evidence/M3-S02A-02/formal-current-*/source-archives/*.zip binary
 docs/reviews/evidence/M3-S02A-02/formal-live-*/*.json text eol=lf
 docs/reviews/evidence/M3-S02A-02/formal-live-*/source-archives/*.zip binary
 docs/reviews/evidence/M1-08-and-M1-exit-review-2026-07-23.json text eol=lf
