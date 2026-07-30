@@ -60,6 +60,43 @@ def _analyze_source(root: Path):
     return inventory, python, python_section, javascript, javascript_section
 
 
+def test_embedded_loopx_upstream_is_vendor_like_but_bridge_is_not(
+    tmp_path: Path,
+) -> None:
+    upstream = (
+        tmp_path
+        / "packages"
+        / "integrations"
+        / "loopx_runtime"
+        / "loopx"
+        / "runtime.py"
+    )
+    bridge = (
+        tmp_path
+        / "packages"
+        / "integrations"
+        / "zyra_integrations"
+        / "loopx"
+        / "bridge.py"
+    )
+    upstream.parent.mkdir(parents=True)
+    bridge.parent.mkdir(parents=True)
+    upstream.write_text("UPSTREAM = True\n", encoding="utf-8")
+    bridge.write_text("BRIDGE = True\n", encoding="utf-8")
+
+    inventory, _ = RepositoryScanner(
+        tmp_path,
+        include_vendor=False,
+    ).scan()
+    paths = {item.path for item in inventory.files}
+
+    assert "packages/integrations/loopx_runtime/loopx/runtime.py" not in paths
+    assert (
+        "packages/integrations/zyra_integrations/loopx/bridge.py"
+        in paths
+    )
+
+
 def test_checked_in_catalog_is_complete_and_role_bounded() -> None:
     result = CatalogLoader(REPO_ROOT).load(CATALOG_PATH)
 

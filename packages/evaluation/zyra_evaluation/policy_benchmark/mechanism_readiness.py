@@ -35,6 +35,7 @@ READINESS_REPORT_SCHEMA = "zyra.mechanism-evidence-readiness-report/v1"
 READINESS_CONFIG_SCHEMA = "zyra.phase2-mechanism-readiness-config/v1"
 READINESS_STAGE = "input_precheck"
 MECHANISM_IDS = ("arg_designer", "card", "agentprune", "maas")
+READINESS_EXTENSION_IDS = ("loopx",)
 CAUSAL_LINKS = (
     "proposal",
     "symbolic_verdict",
@@ -1848,13 +1849,19 @@ def validate_readiness_report(
             path=baseline_path_value,
         )
     mechanisms = _mapping(report.get("mechanisms"), "readiness report mechanisms")
-    if set(mechanisms) != set(MECHANISM_IDS):
+    mechanism_ids = set(mechanisms)
+    required_ids = set(MECHANISM_IDS)
+    allowed_ids = required_ids | set(READINESS_EXTENSION_IDS)
+    if not required_ids.issubset(mechanism_ids) or not mechanism_ids.issubset(
+        allowed_ids
+    ):
         raise ContractViolation(
             "readiness-report-mechanism-set-invalid",
-            "The report must contain exactly the four audited mechanisms.",
+            "The report must contain the four resolver-owned mechanisms and "
+            "may add only the LoopX activation extension.",
             path="MechanismEvidenceReadinessReport.json",
         )
-    for mechanism_id in MECHANISM_IDS:
+    for mechanism_id in sorted(mechanism_ids):
         mechanism = _mapping(mechanisms.get(mechanism_id), mechanism_id)
         parse_mechanism_status(mechanism.get("status"))
         if mechanism.get("readiness_stage") != report.get("readiness_stage"):
@@ -1913,6 +1920,8 @@ class MechanismModeResolver:
         self.report: Mapping[str, Any] | None = None
         self.disconnect_reason = ""
         try:
+            if using_default_report:
+                self.report_path = self._default_report_path()
             raw = json.loads(self.report_path.read_text(encoding="utf-8"))
             selected = _mapping(raw, "mechanism readiness report")
             self.report = validate_readiness_report(
@@ -1928,7 +1937,7 @@ class MechanismModeResolver:
                 exc.code if isinstance(exc, ContractViolation) else type(exc).__name__
             )
 
-    def _validate_registry_binding(self, report: Mapping[str, Any]) -> None:
+    def _activation_entries(self) -> dict[str, Mapping[str, Any]]:
         activation_path = (
             self.repository_root / "config" / "phase2" / "activation-gates.yaml"
         )
@@ -1942,7 +1951,7 @@ class MechanismModeResolver:
             ) from exc
         selected = _mapping(activation, "activation gates")
         readiness = _mapping(selected.get("readiness"), "activation readiness")
-        entries = {
+        return {
             str(item.get("mechanism_id")): item
             for item in (
                 _mapping(value, "activation readiness mechanism")
@@ -1952,12 +1961,43 @@ class MechanismModeResolver:
                 )
             )
         }
+
+    def _default_report_path(self) -> Path:
+        entries = self._activation_entries()
+        report_refs = {
+            str(entry.get("report_ref") or "")
+            for entry in entries.values()
+        }
+        if len(report_refs) != 1 or "" in report_refs:
+            raise ContractViolation(
+                "readiness-registry-report-mismatch",
+                "Activation readiness must bind one canonical report.",
+                path="config/phase2/activation-gates.yaml",
+            )
+        report_ref = next(iter(report_refs))
+        if Path(report_ref).is_absolute():
+            raise ContractViolation(
+                "readiness-registry-invalid",
+                "The activation readiness report path must be repository-relative.",
+                path="config/phase2/activation-gates.yaml",
+            )
+        report_path = (self.repository_root / report_ref).resolve()
+        if not report_path.is_relative_to(self.repository_root):
+            raise ContractViolation(
+                "readiness-registry-invalid",
+                "The activation readiness report path escapes the repository.",
+                path="config/phase2/activation-gates.yaml",
+            )
+        return report_path
+
+    def _validate_registry_binding(self, report: Mapping[str, Any]) -> None:
+        entries = self._activation_entries()
         report_digest = str(report.get("report_digest", ""))
         expected_ref = self.report_path.relative_to(
             self.repository_root
         ).as_posix()
         mechanisms = _mapping(report.get("mechanisms"), "report mechanisms")
-        for mechanism_id in MECHANISM_IDS:
+        for mechanism_id in (*READINESS_EXTENSION_IDS, *MECHANISM_IDS):
             entry = entries.get(mechanism_id)
             mechanism = mechanisms.get(mechanism_id)
             if not isinstance(entry, Mapping) or not isinstance(

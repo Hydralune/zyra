@@ -48,6 +48,15 @@ from .source_bridge import SourceBridgeResult, SourceRiskBridge
 
 RECEIPT_SCHEMA = "zyra.state-owner-reachability-evidence-audit/v1"
 DOWNSTREAM_SCHEMA = "zyra.m3-freeze-audit-work-queue/v1"
+SOURCE_DISPOSITION_MAP = {
+    "accept": Disposition.ACCEPT,
+    "track": Disposition.TRACK,
+    "remove": Disposition.REMOVE,
+    "absorb": Disposition.ABSORB,
+    "externalize": Disposition.REWIRE,
+    "declare": Disposition.ADD_EVIDENCE,
+    "block_release": Disposition.BLOCK_RELEASE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -559,7 +568,7 @@ def adapt_source_section(source_section: Any) -> AuditSection:
                 path=item.path,
                 line=item.line,
                 owner_unit=item.owner_unit,
-                disposition=Disposition(item.disposition.value),
+                disposition=SOURCE_DISPOSITION_MAP[item.disposition.value],
                 default_path_impact=item.default_path_impact,
                 remediation=item.remediation,
                 evidence=evidence,

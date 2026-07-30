@@ -151,6 +151,7 @@ VENDOR_PARTS = frozenset(
         "source-pool",
         "runtime-sources",
         "productized",
+        "loopx_runtime",
     }
 )
 

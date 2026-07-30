@@ -17,6 +17,10 @@ from typing import Any, Iterator
 
 import pytest
 
+from zyra_evaluation.scenario_runner.software_delivery import (
+    SourceInventoryBuilder,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -107,6 +111,23 @@ def request(
             return response.status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
+
+
+def test_software_inventory_ignores_only_repository_relative_tmp_parts(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / ".tmp" / "clean-checkout"
+    source = project_root / "packages" / "example" / "runtime.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+
+    records = SourceInventoryBuilder(project_root=project_root).build(
+        ("packages",),
+        minimum_work_units=1,
+    )
+
+    assert len(records) == 1
+    assert records[0].relative_path == "packages/example/runtime.py"
 
 
 def test_short_sealed_scenario_reaches_real_canonical_owners_and_evidence(

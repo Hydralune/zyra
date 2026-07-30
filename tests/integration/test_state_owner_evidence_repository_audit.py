@@ -8,9 +8,14 @@ from zyra_evaluation.freeze_audit.engine import (
     FreezeAuditEngine,
     adapt_source_section,
 )
-from zyra_evaluation.freeze_audit.model import RuleSwitches
+from zyra_evaluation.freeze_audit.model import Disposition, RuleSwitches
 from zyra_evaluation.freeze_audit.policy import queue_summary
 from zyra_evaluation.freeze_audit.policy import FreezeFindingPolicy
+from zyra_integrations.source_custody.model import (
+    Disposition as SourceDisposition,
+)
+from zyra_integrations.source_custody.model import finding as source_finding
+from zyra_integrations.source_custody.model import section as source_section
 from zyra_integrations.source_custody.repository import RepositoryScanner
 
 
@@ -36,6 +41,34 @@ def test_repository_inventory_section_crosses_model_boundary_explicitly() -> Non
     assert adapted.metrics == source_section.metrics
     assert all(hasattr(item, "domain") for item in adapted.findings)
     assert all(hasattr(item, "requirement_id") for item in adapted.findings)
+
+
+def test_source_dispositions_are_explicitly_adapted() -> None:
+    adapted = adapt_source_section(
+        source_section(
+            "source-disposition-adapter",
+            findings=(
+                source_finding(
+                    "declare-generator",
+                    "Declare generated-source custody.",
+                    "generated",
+                    disposition=SourceDisposition.DECLARE,
+                ),
+                source_finding(
+                    "externalize-runtime",
+                    "Move the runtime behind a declared boundary.",
+                    "runtime",
+                    disposition=SourceDisposition.EXTERNALIZE,
+                ),
+            ),
+        )
+    )
+
+    by_code = {item.code: item.disposition for item in adapted.findings}
+    assert by_code == {
+        "declare-generator": Disposition.ADD_EVIDENCE,
+        "externalize-runtime": Disposition.REWIRE,
+    }
 
 
 def test_real_repository_audit_writes_stable_downstream_inputs(

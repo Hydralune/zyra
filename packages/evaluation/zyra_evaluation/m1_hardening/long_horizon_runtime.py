@@ -611,10 +611,14 @@ class SealedLongHorizonRuntime:
             if not root.is_dir():
                 continue
             for path in root.rglob("*"):
+                relative = path.relative_to(self.project_root)
                 if (
                     path.is_file()
                     and path.suffix.lower() in extensions
-                    and not any(part in self._EXCLUDED_PARTS for part in path.parts)
+                    and not any(
+                        part in self._EXCLUDED_PARTS
+                        for part in relative.parts
+                    )
                     and 0 < path.stat().st_size <= 2 * 1024 * 1024
                 ):
                     values.append(path)

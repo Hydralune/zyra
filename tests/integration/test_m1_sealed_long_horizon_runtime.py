@@ -104,6 +104,23 @@ def test_long_horizon_refuses_to_dilute_the_frozen_action_floor(tmp_path: Path) 
         ).execute(run_id="m1-too-short", actions_per_task=499)
 
 
+def test_source_inventory_ignores_only_repository_relative_tmp_parts(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / ".tmp" / "clean-checkout"
+    source = project_root / "apps" / "example" / "runtime.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    runtime = SealedLongHorizonRuntime(
+        project_root,
+        artifact_root=tmp_path / "artifacts",
+    )
+
+    paths = runtime._paths(("apps",), runtime._CODE_EXTENSIONS)
+
+    assert paths == [source]
+
+
 def test_causal_scc_analysis_is_iterative_for_more_than_two_thousand_transitions() -> None:
     graph = CausalEvidenceGraph()
     previous = ""

@@ -485,7 +485,7 @@ def request(
     input_snapshot: PolicyInputSnapshot,
     current_graph,
     catalog: ARGRoleCatalog,
-    purpose: ResolutionPurpose = ResolutionPurpose.VALIDATION,
+    purpose: ResolutionPurpose = ResolutionPurpose.NORMAL,
     trigger_kind: str = "task_ready",
 ) -> DefaultTopologyPolicyRequest:
     observations, replacements, hysteresis = communication_inputs(

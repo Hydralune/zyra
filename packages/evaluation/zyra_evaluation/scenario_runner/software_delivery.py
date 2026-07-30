@@ -353,13 +353,17 @@ class SourceInventoryBuilder:
                     "Software inventory root is outside the project.",
                     phase="software-discovery",
                     detail={"path": str(selected)},
-                )
+            )
             candidates = (selected,) if selected.is_file() else selected.rglob("*")
             for path in candidates:
+                relative = path.relative_to(self.project_root)
                 if (
                     path.is_file()
                     and path.suffix.casefold() in _SOURCE_SUFFIXES
-                    and not any(part in _IGNORED_PARTS for part in path.parts)
+                    and not any(
+                        part in _IGNORED_PARTS
+                        for part in relative.parts
+                    )
                     and 0 < path.stat().st_size <= self.maximum_file_bytes
                     and path_within(path.resolve(strict=False), self.project_root)
                 ):
