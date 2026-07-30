@@ -139,7 +139,12 @@ class SealedLongRunRunner:
             )
         manifest_commit = _git(self.project_root, "rev-parse", "HEAD")
         status_before = _git(self.project_root, "status", "--porcelain")
-        if status_before:
+        unexpected_before = [
+            line
+            for line in status_before.splitlines()
+            if line.strip() and not self._status_entry_is_evidence(line)
+        ]
+        if unexpected_before:
             raise SealedLongRunError(
                 "formal sealed run requires a clean candidate worktree"
             )
