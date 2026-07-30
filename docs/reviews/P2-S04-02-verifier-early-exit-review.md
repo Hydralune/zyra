@@ -4,7 +4,7 @@
 - Verdict: `PASS`
 - Base commit: `b575d40f877a5b3511c3fd2ac7cb0a78c7f12d7e`
 - Implementation commit: `ec501cbd107724069628a259049d5488879cf8d2`
-- Evidence commit: `RECORDED_BY_FOLLOWUP_COMMIT`
+- Evidence commit: `b14528c1502682595985da84518322f930de8059`
 - Mechanism version: `maas_verifier_early_exit_v1`
 - Gate configuration digest: `fe8cb61afa5f3c0c7c2ebcc31f590ff1df929df532b2e77f09f190aeeef59739`
 - Readiness report digest: `90dfe7d6344e46634c75fcffd4befb27cf93fba327df63fa2720cbee83e37b23`
