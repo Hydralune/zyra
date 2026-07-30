@@ -34,6 +34,7 @@ from zyra_evaluation.scenario_runner import (
     build_configuration,
 )
 from zyra_evaluation.scenario_runner.canonical import utc_now
+from zyra_evaluation.scenario_runner.live_models import FaultKind
 
 
 SEALED_MANIFEST_SCHEMA = "zyra.phase2-sealed-long-run-manifest/v1"
@@ -734,6 +735,7 @@ class SealedLongRunRunner:
             raise SealedLongRunError(
                 "sealed manifest requires exactly two cross-domain runs"
             )
+        self._validate_fault_schedules(runs)
         if value.get("human_intervention_count") != 0:
             raise SealedLongRunError(
                 "sealed manifest must freeze zero human intervention"
@@ -796,6 +798,24 @@ class SealedLongRunRunner:
                 raise SealedLongRunError(
                     f"frozen file digest mismatch: {relative}"
                 )
+
+    @staticmethod
+    def _validate_fault_schedules(
+        runs: Sequence[Mapping[str, Any]],
+    ) -> None:
+        for run in runs:
+            for fault in _sequence(run.get("failure_schedule")):
+                if not isinstance(fault, Mapping):
+                    raise SealedLongRunError(
+                        "sealed fault schedule entry must be an object"
+                    )
+                kind = str(fault.get("kind") or "")
+                try:
+                    FaultKind(kind)
+                except ValueError as error:
+                    raise SealedLongRunError(
+                        f"sealed fault schedule kind is invalid: {kind}"
+                    ) from error
 
     def _assert_frozen(self) -> None:
         if self.manifest_path.read_bytes() != self.manifest_bytes:

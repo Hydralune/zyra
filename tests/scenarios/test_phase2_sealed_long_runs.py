@@ -16,6 +16,7 @@ from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
     SealedMechanismEvidenceRuntime,
 )
 from zyra_evaluation.policy_benchmark.sealed_long_run import (
+    SealedLongRunError,
     SealedLongRunRunner,
 )
 from zyra_evaluation.policy_benchmark.sealed_physical import (
@@ -382,6 +383,24 @@ def test_worktree_guard_accepts_git_collapsed_evidence_parent() -> None:
     assert not runner._status_entry_is_evidence(
         " M packages/evaluation/unsafe.py"
     )
+
+
+def test_sealed_manifest_preflight_rejects_noncanonical_fault_kind() -> None:
+    runner = object.__new__(SealedLongRunRunner)
+    with pytest.raises(
+        SealedLongRunError,
+        match="sealed fault schedule kind is invalid: worker_loss",
+    ):
+        runner._validate_fault_schedules(
+            (
+                {
+                    "failure_schedule": (
+                        {"kind": "requirement_change"},
+                        {"kind": "worker_loss"},
+                    )
+                },
+            )
+        )
 
 
 def test_actual_mechanisms_cover_restart_attacks_and_disable_paths(
