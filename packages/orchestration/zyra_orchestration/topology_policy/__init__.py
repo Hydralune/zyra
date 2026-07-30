@@ -50,6 +50,23 @@ from .continuity import (
     MemoryContinuityError,
     MemoryContinuityVerifier,
 )
+from .composer import (
+    COMPOSER_MECHANISM_ID,
+    TOPOLOGY_COMPOSER_CONFIG_SCHEMA,
+    LayerCompositionRecord,
+    TopologyComposerConfig,
+    TopologyCompositionError,
+    TopologyCompositionResult,
+    TopologyLayerSwitches,
+    TopologyPolicyComposer,
+)
+from .default_policy import (
+    DefaultTopologyPolicy,
+    DefaultTopologyPolicyRequest,
+    DefaultTopologyPolicyResult,
+    TopologyPolicyRequestBuilder,
+    TopologyPolicyTriggerAdapter,
+)
 from .delta_builder import PolicyDeltaBuilder
 from .evidence import PolicyEvidencePublisher, PublishedPolicyEvidence
 from .projector import PolicyProjectionResult, TopologyConstraintProjector
@@ -79,11 +96,14 @@ from .runtime import (
     PolicyRuntimeError,
     PolicyRuntimeResult,
     TopologyPolicyRuntime,
+    TopologyComposerRuntime,
+    TopologyComposerRuntimeResult,
 )
 from .snapshot import EnvironmentSnapshotBuilder, PolicyInputSnapshotBuilder
 
 __all__ = [
     "ContractHeader",
+    "COMPOSER_MECHANISM_ID",
     "CanonicalMemoryFabricPort",
     "ActivationDecision",
     "ActivationEvidence",
@@ -147,10 +167,24 @@ __all__ = [
     "ContinuityTransitionKind",
     "DiagnosticMutationError",
     "DiagnosticReceipt",
+    "DefaultTopologyPolicy",
+    "DefaultTopologyPolicyRequest",
+    "DefaultTopologyPolicyResult",
     "DownstreamMemoryUsage",
     "MemoryContinuityError",
     "MemoryContinuityVerifier",
     "StrongestProfileActivationGate",
+    "TOPOLOGY_COMPOSER_CONFIG_SCHEMA",
+    "LayerCompositionRecord",
+    "TopologyComposerConfig",
+    "TopologyComposerRuntime",
+    "TopologyComposerRuntimeResult",
+    "TopologyCompositionError",
+    "TopologyCompositionResult",
+    "TopologyLayerSwitches",
+    "TopologyPolicyComposer",
+    "TopologyPolicyRequestBuilder",
+    "TopologyPolicyTriggerAdapter",
     "canonical_digest",
     "canonical_json",
     "parse_policy_contract",

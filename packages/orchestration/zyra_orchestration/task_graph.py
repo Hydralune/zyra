@@ -42,6 +42,13 @@ class GraphExecutionContext:
     workspace_runtime_resolver: (
         Callable[[TaskState, PlanNode, str], tuple[Path, Mapping[str, Any]]] | None
     ) = None
+    topology_policy_trigger: (
+        Callable[
+            [TaskState, PlanNode | None, EventRecord | None],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = None
 
     @classmethod
     def from_paths(
@@ -54,6 +61,13 @@ class GraphExecutionContext:
         workspace_runtime_resolver: (
             Callable[[TaskState, PlanNode, str], tuple[Path, Mapping[str, Any]]] | None
         ) = None,
+        topology_policy_trigger: (
+            Callable[
+                [TaskState, PlanNode | None, EventRecord | None],
+                Mapping[str, Any],
+            ]
+            | None
+        ) = None,
     ) -> "GraphExecutionContext":
         return cls(
             project_root=Path(project_root).resolve(),
@@ -61,6 +75,7 @@ class GraphExecutionContext:
             artifact_root=Path(artifact_root).resolve(),
             permission_store_path=None if permission_store_path is None else Path(permission_store_path).resolve(),
             workspace_runtime_resolver=workspace_runtime_resolver,
+            topology_policy_trigger=topology_policy_trigger,
         )
 
 
@@ -175,7 +190,7 @@ def run_task_graph(
     events.extend(_complete_root_if_needed(state))
 
     stage_results = {spec.stage: spec.result_summary for spec in DEFAULT_STAGE_SPECS}
-    keeper, router = _symbolic_runtime()
+    keeper, router = _symbolic_runtime(execution_context)
     for node_id in list(state.metadata.get("stage_order", [])):
         node = state.plan_nodes.get(str(node_id))
         if node is None or node.status in {PlanNodeStatus.COMPLETED, PlanNodeStatus.SUPERSEDED}:
@@ -1074,7 +1089,15 @@ def _compact_text(text: str, budget: int) -> str:
     return f"{text[: max(0, budget - 32)]}\n[truncated by M3 message budget]"
 
 
-def _symbolic_runtime() -> tuple[Any, Any]:
+def _symbolic_runtime(
+    execution_context: GraphExecutionContext | None = None,
+) -> tuple[Any, Any]:
     from zyra_symbolic import ConstraintKeeper, TopologyRouter
 
-    return ConstraintKeeper(), TopologyRouter()
+    return ConstraintKeeper(), TopologyRouter(
+        topology_policy_trigger=(
+            None
+            if execution_context is None
+            else execution_context.topology_policy_trigger
+        )
+    )

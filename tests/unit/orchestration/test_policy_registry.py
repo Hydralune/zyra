@@ -150,36 +150,34 @@ def _activation_evidence(
     )
 
 
-def test_production_registry_loads_frozen_baseline_and_blocks_unready_profiles() -> None:
+def test_production_registry_exposes_validated_topology_only_by_explicit_purpose() -> None:
     registry = MechanismRegistry.load(ROOT)
 
     assert registry.resolve(FAMILY).profile_id == "phase1_deterministic_baseline"
     strongest = registry.get(FAMILY, "phase2_strongest_v1")
     assert strongest.lifecycle is MechanismLifecycle.VALIDATION
-    assert strongest.activation_state == "blocked_pending_readiness"
+    assert strongest.activation_state == "validation_ready"
     assert all(
-        item.status is ReadinessStatus.UNAVAILABLE
+        item.status is ReadinessStatus.DETERMINISTIC_READY
         for item in strongest.readiness
     )
-    with pytest.raises(
-        PolicyRegistryError,
-        match="has not entered validation",
-    ):
+    assert (
         registry.resolve(
             FAMILY,
             purpose=ResolutionPurpose.VALIDATION,
             version=strongest.version,
             validation_manifest=_manifest(),
-        )
-    with pytest.raises(
-        PolicyRegistryError,
-        match="Unavailable mechanisms must use baseline",
-    ):
+        ).profile_id
+        == "phase2_strongest_v1"
+    )
+    assert (
         registry.resolve(
             FAMILY,
             purpose=ResolutionPurpose.DIAGNOSTIC,
             version="phase2_diagnostic_v1",
-        )
+        ).profile_id
+        == "phase2_diagnostic_v1"
+    )
 
 
 def test_duplicate_family_version_is_rejected_for_same_or_different_digest() -> None:

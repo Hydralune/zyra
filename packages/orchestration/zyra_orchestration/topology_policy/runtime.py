@@ -1,20 +1,40 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 from typing import Any
 
 from zyra_core import EventRecord, EventType
 
+from ..graph_custody import (
+    GraphCommitStatus,
+    GraphConflictStrategy,
+    GraphStateSnapshot,
+)
+from .arg import ARGTopologyRuntimeResult
+from .composer import (
+    TopologyCompositionResult,
+    TopologyLayerSwitches,
+    TopologyPolicyComposer,
+)
+from .condition import CARDTopologyRuntimeResult
 from .contracts import (
+    ContractHeader,
+    ConstraintResult,
     FrozenDict,
+    PolicyDecisionDisposition,
     PolicyInputSnapshot,
+    PolicyOutcome,
     canonical_digest,
     freeze_json,
     thaw_json,
 )
+from .evidence import PolicyEvidencePublisher, PublishedPolicyEvidence
+from .projector import PolicyProjectionResult, TopologyConstraintProjector
+from .pruning import AgentPruneRuntimeResult
 from .registry import (
     MechanismLifecycle,
     MechanismRegistration,
@@ -212,6 +232,69 @@ class PolicyRuntimeResult:
     execution_receipt: MechanismExecutionReceipt
     diagnostic_receipt: DiagnosticReceipt | None
     events: tuple[EventRecord, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TopologyComposerRuntimeResult:
+    mode: str
+    trigger_kind: str
+    composition: TopologyCompositionResult
+    projection: PolicyProjectionResult | None
+    outcome: PolicyOutcome | None
+    published_evidence: tuple[PublishedPolicyEvidence, ...]
+    scheduler_causal_refs: tuple[str, ...]
+    memory_causal_refs: tuple[str, ...]
+    recovery_causal_refs: tuple[str, ...]
+    permission_result: str
+    graph_revision_before: int
+    graph_revision_after: int
+    degraded: bool
+    degraded_reason: str
+    events: tuple[EventRecord, ...]
+
+    @property
+    def committed(self) -> bool:
+        return (
+            self.projection is not None
+            and self.projection.commit is not None
+            and self.projection.commit.receipt.status
+            in {
+                GraphCommitStatus.COMMITTED,
+                GraphCommitStatus.REBASED,
+                GraphCommitStatus.REPLAYED,
+            }
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "trigger_kind": self.trigger_kind,
+            "composition": self.composition.to_dict(),
+            "decision_receipt": (
+                self.projection.receipt.to_dict()
+                if self.projection is not None
+                else None
+            ),
+            "outcome": (
+                self.outcome.to_dict()
+                if self.outcome is not None
+                else None
+            ),
+            "published_artifact_ids": [
+                item.artifact.artifact_id
+                for item in self.published_evidence
+            ],
+            "scheduler_causal_refs": list(self.scheduler_causal_refs),
+            "memory_causal_refs": list(self.memory_causal_refs),
+            "recovery_causal_refs": list(self.recovery_causal_refs),
+            "permission_result": self.permission_result,
+            "graph_revision_before": self.graph_revision_before,
+            "graph_revision_after": self.graph_revision_after,
+            "committed": self.committed,
+            "degraded": self.degraded,
+            "degraded_reason": self.degraded_reason,
+            "event_ids": [item.event_id for item in self.events],
+        }
 
 
 BaselineExecutor = Callable[[Any], Mapping[str, Any]]
@@ -806,6 +889,506 @@ class TopologyPolicyRuntime:
         events.append(event)
 
 
+class TopologyComposerRuntime:
+    """Runs the unified proposal through the sole projector/custody path."""
+
+    def __init__(
+        self,
+        *,
+        composer: TopologyPolicyComposer,
+        projector: TopologyConstraintProjector,
+        evidence_publisher: PolicyEvidencePublisher | None = None,
+        admit_event: EventSink | None = None,
+    ) -> None:
+        self.composer = composer
+        self.projector = projector
+        self.evidence_publisher = evidence_publisher
+        self.admit_event = admit_event or (lambda event: None)
+        self._committed_signatures: dict[
+            str,
+            list[tuple[str, str, str]],
+        ] = {}
+
+    def execute(
+        self,
+        *,
+        mode: str,
+        trigger_kind: str,
+        policy_input: PolicyInputSnapshot,
+        current_graph: GraphStateSnapshot,
+        arg_result: ARGTopologyRuntimeResult,
+        card_result: CARDTopologyRuntimeResult,
+        pruning_result: AgentPruneRuntimeResult,
+        switches: TopologyLayerSwitches | None = None,
+        conflict_strategy: GraphConflictStrategy = GraphConflictStrategy.REPLAN,
+        scheduler_causal_refs: tuple[str, ...] = (),
+        recovery_causal_refs: tuple[str, ...] = (),
+        verification_ref: str = "GraphStateCustody.validate_graph",
+    ) -> TopologyComposerRuntimeResult:
+        if mode not in {"validation", "default", "diagnostic"}:
+            raise PolicyRuntimeError(
+                "composer_mode_invalid",
+                "topology composer runtime mode is unsupported",
+            )
+        events: list[EventRecord] = []
+        composition = self.composer.compose(
+            policy_input=policy_input,
+            current_graph=current_graph,
+            arg_result=arg_result,
+            card_result=card_result,
+            pruning_result=pruning_result,
+            switches=switches,
+        )
+        self._emit_many(composition.events, events)
+        memory_refs = tuple(item.ref_id for item in policy_input.memory_refs)
+        if composition.degraded or composition.proposal is None:
+            return TopologyComposerRuntimeResult(
+                mode=mode,
+                trigger_kind=trigger_kind,
+                composition=composition,
+                projection=None,
+                outcome=None,
+                published_evidence=(),
+                scheduler_causal_refs=scheduler_causal_refs,
+                memory_causal_refs=memory_refs,
+                recovery_causal_refs=recovery_causal_refs,
+                permission_result="not_evaluated_baseline_required",
+                graph_revision_before=current_graph.revision,
+                graph_revision_after=self.projector.custody.current(
+                    current_graph.graph_id
+                ).revision,
+                degraded=True,
+                degraded_reason=composition.degraded_reason,
+                events=tuple(events),
+            )
+        if mode == "diagnostic":
+            degraded = replace(
+                composition,
+                proposal=None,
+                degraded=True,
+                degraded_reason="diagnostic_canonical_mutation_forbidden",
+            )
+            event = self._degraded_event(
+                policy_input=policy_input,
+                trigger_kind=trigger_kind,
+                reason=degraded.degraded_reason,
+                graph_revision=current_graph.revision,
+            )
+            self._emit_many((event,), events)
+            return TopologyComposerRuntimeResult(
+                mode=mode,
+                trigger_kind=trigger_kind,
+                composition=degraded,
+                projection=None,
+                outcome=None,
+                published_evidence=(),
+                scheduler_causal_refs=scheduler_causal_refs,
+                memory_causal_refs=memory_refs,
+                recovery_causal_refs=recovery_causal_refs,
+                permission_result="diagnostic_no_effect",
+                graph_revision_before=current_graph.revision,
+                graph_revision_after=current_graph.revision,
+                degraded=False,
+                degraded_reason="",
+                events=tuple(events),
+            )
+
+        proposal = composition.proposal
+        decision_id = "decision_topology_composer_" + proposal.digest[:24]
+        projection = self.projector.execute(
+            policy_input,
+            proposal,
+            decision_id=decision_id,
+            strategy=conflict_strategy,
+            execution_mode=mode,
+            commit_guard=lambda before, after, delta: self._commit_guard(
+                policy_input=policy_input,
+                before_signature=before.signature,
+                after_signature=after.signature,
+            ),
+        )
+        decision_event = EventRecord(
+            run_id=policy_input.run_id,
+            task_id=policy_input.task_id,
+            event_id="event_topology_decision_" + projection.receipt.digest[:24],
+            event_type=EventType.CONSTRAINT_CHECK,
+            payload={
+                "schema": "zyra.topology-composer-decision/v1",
+                "trigger_kind": trigger_kind,
+                "proposal_id": proposal.proposal_id,
+                "proposal_digest": proposal.digest,
+                "decision_receipt": projection.receipt.to_dict(),
+                "decision_receipt_digest": projection.receipt.digest,
+                "graph_commit": dict(projection.receipt.graph_commit),
+                "scheduler_causal_refs": list(scheduler_causal_refs),
+                "memory_causal_refs": list(memory_refs),
+                "recovery_causal_refs": list(recovery_causal_refs),
+                "permission_constraint": next(
+                    (
+                        item.to_dict()
+                        for item in projection.receipt.constraint_results
+                        if item.constraint_id
+                        == "permission_privacy_placement"
+                    ),
+                    {},
+                ),
+                "silent_fallback": False,
+            },
+        )
+        self._emit_many((decision_event,), events)
+        published: list[PublishedPolicyEvidence] = []
+        if self.evidence_publisher is not None:
+            published.append(
+                self.evidence_publisher.publish(
+                    proposal,
+                    run_id=policy_input.run_id,
+                    task_id=policy_input.task_id,
+                )
+            )
+            published.append(
+                self.evidence_publisher.publish(
+                    projection.receipt,
+                    run_id=policy_input.run_id,
+                    task_id=policy_input.task_id,
+                )
+            )
+
+        permission_result = self._permission_result(projection)
+        after = self.projector.custody.current(current_graph.graph_id)
+        outcome = self._outcome(
+            policy_input=policy_input,
+            trigger_kind=trigger_kind,
+            proposal_ref=proposal.proposal_id,
+            decision_ref=projection.receipt.decision_id,
+            projection=projection,
+            published=published,
+            permission_result=permission_result,
+            scheduler_causal_refs=scheduler_causal_refs,
+            memory_causal_refs=memory_refs,
+            recovery_causal_refs=recovery_causal_refs,
+            verification_ref=verification_ref,
+            graph_revision_before=current_graph.revision,
+            graph_revision_after=after.revision,
+        )
+        if self.evidence_publisher is not None:
+            published.append(
+                self.evidence_publisher.publish(
+                    outcome,
+                    run_id=policy_input.run_id,
+                    task_id=policy_input.task_id,
+                )
+            )
+        accepted = projection.receipt.disposition in {
+            PolicyDecisionDisposition.ACCEPT,
+            PolicyDecisionDisposition.REBASE,
+            PolicyDecisionDisposition.REPLAY,
+        }
+        degraded_reason = (
+            ""
+            if accepted
+            else (
+                projection.receipt.fallback_reason
+                or projection.receipt.disposition.value
+            )
+        )
+        if degraded_reason:
+            self._emit_many(
+                (
+                    self._degraded_event(
+                        policy_input=policy_input,
+                        trigger_kind=trigger_kind,
+                        reason=degraded_reason,
+                        graph_revision=after.revision,
+                    ),
+                ),
+                events,
+            )
+        if (
+            projection.commit is not None
+            and projection.commit.receipt.status
+            in {
+                GraphCommitStatus.COMMITTED,
+                GraphCommitStatus.REBASED,
+            }
+        ):
+            history = self._committed_signatures.setdefault(
+                policy_input.run_id,
+                [],
+            )
+            history.append(
+                (
+                    policy_input.header.created_at,
+                    current_graph.signature,
+                    projection.commit.snapshot.signature,
+                )
+            )
+            del history[
+                : max(
+                    0,
+                    len(history)
+                    - self.composer.config.maximum_commits_per_window,
+                )
+            ]
+        return TopologyComposerRuntimeResult(
+            mode=mode,
+            trigger_kind=trigger_kind,
+            composition=composition,
+            projection=projection,
+            outcome=outcome,
+            published_evidence=tuple(published),
+            scheduler_causal_refs=scheduler_causal_refs,
+            memory_causal_refs=memory_refs,
+            recovery_causal_refs=recovery_causal_refs,
+            permission_result=permission_result,
+            graph_revision_before=current_graph.revision,
+            graph_revision_after=after.revision,
+            degraded=bool(degraded_reason),
+            degraded_reason=degraded_reason,
+            events=tuple(events),
+        )
+
+    @staticmethod
+    def _permission_result(
+        projection: PolicyProjectionResult,
+    ) -> str:
+        result = next(
+            (
+                item
+                for item in projection.receipt.constraint_results
+                if item.constraint_id == "permission_privacy_placement"
+            ),
+            None,
+        )
+        if result is None:
+            return "permission_constraint_missing"
+        return result.reason_code
+
+    @staticmethod
+    def _outcome(
+        *,
+        policy_input: PolicyInputSnapshot,
+        trigger_kind: str,
+        proposal_ref: str,
+        decision_ref: str,
+        projection: PolicyProjectionResult,
+        published: list[PublishedPolicyEvidence],
+        permission_result: str,
+        scheduler_causal_refs: tuple[str, ...],
+        memory_causal_refs: tuple[str, ...],
+        recovery_causal_refs: tuple[str, ...],
+        verification_ref: str,
+        graph_revision_before: int,
+        graph_revision_after: int,
+    ) -> PolicyOutcome:
+        commit = projection.receipt.graph_commit
+        commit_ref = str(
+            commit.get("commit_id")
+            or commit.get("delta_id")
+            or projection.receipt.delta_id
+            or "no_commit"
+        )
+        accepted = projection.receipt.accepted
+        flattened_refs = [
+            policy_input.header.causation_id,
+            policy_input.header.source_event_id,
+            *scheduler_causal_refs,
+            *memory_causal_refs,
+            *recovery_causal_refs,
+            verification_ref,
+        ]
+        for item in projection.receipt.constraint_results:
+            flattened_refs.extend(item.evidence_refs)
+        header = ContractHeader(
+            contract_id="outcome_topology_" + projection.receipt.digest[:24],
+            created_at=projection.receipt.header.created_at,
+            source_event_id=policy_input.header.source_event_id,
+            correlation_id=policy_input.header.correlation_id,
+            causation_id=projection.receipt.decision_id,
+            mechanism_id=projection.receipt.header.mechanism_id,
+            mechanism_version=projection.receipt.header.mechanism_version,
+            input_version=PolicyInputSnapshot.SCHEMA_VERSION,
+            idempotency_key=(
+                f"outcome:{projection.receipt.header.idempotency_key}"
+            ),
+            configuration_digest=(
+                projection.receipt.header.configuration_digest
+            ),
+        )
+        return PolicyOutcome(
+            header=header,
+            proposal_ref=proposal_ref,
+            decision_ref=decision_ref,
+            commit_ref=commit_ref,
+            verifier_result=(
+                "graph_commit_verified"
+                if accepted
+                else "no_commit_constraint_or_conflict"
+            ),
+            artifact_refs=tuple(item.artifact_ref for item in published),
+            metrics=FrozenDict(
+                {
+                    "trigger_kind": trigger_kind,
+                    "graph_revision_before": graph_revision_before,
+                    "graph_revision_after": graph_revision_after,
+                    "graph_mutated": (
+                        graph_revision_after > graph_revision_before
+                    ),
+                    "operation_count": len(
+                        projection.receipt.projected_operations
+                    ),
+                    "constraint_pass_count": sum(
+                        item.passed
+                        for item in projection.receipt.constraint_results
+                    ),
+                    "constraint_failure_count": sum(
+                        not item.passed
+                        for item in projection.receipt.constraint_results
+                    ),
+                    "fallback_profile": (
+                        projection.receipt.fallback_profile
+                    ),
+                    "fallback_reason": (
+                        projection.receipt.fallback_reason
+                    ),
+                    "verification_ref": verification_ref,
+                }
+            ),
+            permission_result=permission_result,
+            recovery_result=(
+                "recovery_causation_bound"
+                if recovery_causal_refs
+                else "not_a_recovery_trigger"
+            ),
+            causal_refs=tuple(sorted(set(flattened_refs))),
+        )
+
+    def _commit_guard(
+        self,
+        *,
+        policy_input: PolicyInputSnapshot,
+        before_signature: str,
+        after_signature: str,
+    ) -> ConstraintResult | None:
+        observed_at = datetime.fromisoformat(
+            policy_input.header.created_at.replace("Z", "+00:00")
+        ).astimezone(UTC)
+        history = self._committed_signatures.get(policy_input.run_id, [])
+        within_window = [
+            item
+            for item in history
+            if (
+                observed_at
+                - datetime.fromisoformat(
+                    item[0].replace("Z", "+00:00")
+                ).astimezone(UTC)
+            ).total_seconds()
+            <= self.composer.config.churn_window_seconds
+        ]
+        self._committed_signatures[policy_input.run_id] = within_window
+        if len(within_window) >= (
+            self.composer.config.maximum_commits_per_window
+        ):
+            return ConstraintResult(
+                constraint_id="composer_run_churn_window",
+                passed=False,
+                reason_code="composer_churn_window_limit",
+                message=(
+                    "run-level topology commit count exceeded the "
+                    "configured stability window"
+                ),
+                details=FrozenDict(
+                    {
+                        "commit_count": len(within_window),
+                        "maximum_commits": (
+                            self.composer.config.maximum_commits_per_window
+                        ),
+                        "window_seconds": (
+                            self.composer.config.churn_window_seconds
+                        ),
+                    }
+                ),
+            )
+        prior_signatures = {
+            signature
+            for _, previous, selected in within_window
+            for signature in (previous, selected)
+        }
+        if (
+            after_signature != before_signature
+            and after_signature in prior_signatures
+            and (
+                not within_window
+                or after_signature != within_window[-1][2]
+            )
+        ):
+            return ConstraintResult(
+                constraint_id="composer_run_oscillation",
+                passed=False,
+                reason_code="topology_oscillation_detected",
+                message=(
+                    "the projected topology would return to a recent "
+                    "run-level signature"
+                ),
+                details=FrozenDict(
+                    {
+                        "before_signature": before_signature,
+                        "after_signature": after_signature,
+                        "window_seconds": (
+                            self.composer.config.churn_window_seconds
+                        ),
+                    }
+                ),
+            )
+        return ConstraintResult(
+            constraint_id="composer_run_stability",
+            passed=True,
+            reason_code="run_stability_guard_passed",
+            message="run-level churn and oscillation guards allow the commit",
+            details=FrozenDict(
+                {
+                    "commit_count": len(within_window),
+                    "before_signature": before_signature,
+                    "after_signature": after_signature,
+                }
+            ),
+        )
+
+    @staticmethod
+    def _degraded_event(
+        *,
+        policy_input: PolicyInputSnapshot,
+        trigger_kind: str,
+        reason: str,
+        graph_revision: int,
+    ) -> EventRecord:
+        payload = {
+            "schema": "zyra.topology-composer-runtime-degraded/v1",
+            "trigger_kind": trigger_kind,
+            "reason": reason,
+            "fallback_profile": "phase1_deterministic_baseline",
+            "silent_fallback": False,
+            "strongest_success_eligible": False,
+            "graph_revision": graph_revision,
+        }
+        return EventRecord(
+            run_id=policy_input.run_id,
+            task_id=policy_input.task_id,
+            event_id="event_topology_runtime_degraded_"
+            + canonical_digest(payload)[:24],
+            event_type=EventType.RECOVERY_PLANNED,
+            payload=payload,
+        )
+
+    def _emit_many(
+        self,
+        selected: tuple[EventRecord, ...],
+        events: list[EventRecord],
+    ) -> None:
+        for event in selected:
+            self.admit_event(event)
+            events.append(event)
+
+
 def _freeze_input(
     input_snapshot: PolicyInputSnapshot | Mapping[str, Any],
 ) -> tuple[Any, str]:
@@ -898,4 +1481,6 @@ __all__ = [
     "PolicyRuntimeError",
     "PolicyRuntimeResult",
     "TopologyPolicyRuntime",
+    "TopologyComposerRuntime",
+    "TopologyComposerRuntimeResult",
 ]

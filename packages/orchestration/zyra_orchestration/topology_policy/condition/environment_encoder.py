@@ -376,6 +376,81 @@ class CARDEnvironmentEncoder:
                 "card_arg_base_edges_missing",
                 "CARD cannot invent a topology when ARG produced no persisted base edge",
             )
+        selected_node_ids = {item.node_id for item in nodes}
+        canonical_nodes = {
+            item.node_id: item for item in policy_input.nodes
+        }
+        referenced_node_ids = {
+            endpoint
+            for edge in edges
+            for endpoint in (edge.source_node_id, edge.target_node_id)
+        }
+        for node_id in sorted(referenced_node_ids - selected_node_ids):
+            canonical = canonical_nodes.get(node_id)
+            if canonical is None:
+                raise CARDEnvironmentError(
+                    "card_arg_predecessor_snapshot_missing",
+                    "ARG persisted edge endpoints must exist in either its "
+                    "joint steps or the immutable canonical snapshot",
+                )
+            binding_id = str(
+                canonical.metadata.get("arg_binding_id") or ""
+            )
+            worker_id = str(
+                canonical.metadata.get("worker_id") or ""
+            )
+            if not worker_id and binding_id.startswith("worker:"):
+                parts = binding_id.split(":", 2)
+                worker_id = parts[1] if len(parts) == 3 else ""
+            if not worker_id:
+                raise CARDEnvironmentError(
+                    "card_arg_predecessor_binding_missing",
+                    f"canonical ARG predecessor {node_id} has no worker binding",
+                )
+            primary = by_identity.get(("worker", worker_id))
+            if primary is None:
+                raise CARDEnvironmentError(
+                    "card_worker_observation_missing",
+                    f"CARD has no decision-time worker telemetry for {worker_id}",
+                )
+            if primary.missing_required:
+                raise CARDEnvironmentError(
+                    "card_required_feature_missing",
+                    f"CARD worker {worker_id} is missing required features: "
+                    + ", ".join(primary.missing_required),
+                )
+            linked = []
+            for resource_id in primary.linked_resource_ids:
+                linked.extend(by_resource.get(resource_id, ()))
+            observations = tuple(
+                [primary]
+                + sorted(
+                    {
+                        item.observation_id: item
+                        for item in linked
+                        if item.observation_id
+                        != primary.observation_id
+                    }.values(),
+                    key=lambda item: (
+                        item.category,
+                        item.resource_id,
+                        item.observation_id,
+                    ),
+                )
+            )
+            nodes.append(
+                CARDNodeFeature(
+                    node_id=node_id,
+                    role_id=canonical.role,
+                    worker_id=worker_id,
+                    capabilities=canonical.capabilities,
+                    requested_placement=primary.location,
+                    observation_ids=tuple(
+                        item.observation_id for item in observations
+                    ),
+                    observations=observations,
+                )
+            )
         node_ids = {item.node_id for item in nodes}
         candidates = tuple(
             sorted(

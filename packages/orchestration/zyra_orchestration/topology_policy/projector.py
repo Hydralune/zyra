@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
@@ -27,7 +27,6 @@ from .contracts import (
     TelemetryObservation,
     TopologyOperationKind,
     TopologyProposalArtifact,
-    canonical_digest,
 )
 from .delta_builder import PolicyDeltaBuilder, _PROJECTOR_AUTHORIZATION
 
@@ -69,8 +68,15 @@ class TopologyConstraintProjector:
         decision_id: str,
         evaluated_at: str | None = None,
         strategy: GraphConflictStrategy = GraphConflictStrategy.SERIALIZE,
+        execution_mode: str = "default",
+        commit_guard: (
+            Callable[[Any, Any, BranchGraphDelta], ConstraintResult | None]
+            | None
+        ) = None,
     ) -> PolicyProjectionResult:
         evaluated_at = evaluated_at or now_iso()
+        if execution_mode not in {"default", "validation", "diagnostic"}:
+            raise ValueError("unsupported policy projection execution_mode")
         if not self.enabled:
             disabled = ConstraintResult(
                 constraint_id="policy_projector",
@@ -172,7 +178,15 @@ class TopologyConstraintProjector:
                 commit=resumed,
             )
 
-        checks = list(self._constraint_checks(policy_input, proposal, current, evaluated_at))
+        checks = list(
+            self._constraint_checks(
+                policy_input,
+                proposal,
+                current,
+                evaluated_at,
+                execution_mode=execution_mode,
+            )
+        )
         if any(not item.passed for item in checks):
             return PolicyProjectionResult(
                 receipt=self._receipt(
@@ -260,6 +274,24 @@ class TopologyConstraintProjector:
                 delta=None,
                 commit=None,
             )
+        if commit_guard is not None:
+            guard_result = commit_guard(current, preview, delta)
+            if guard_result is not None:
+                checks.append(guard_result)
+                if not guard_result.passed:
+                    return PolicyProjectionResult(
+                        receipt=self._receipt(
+                            policy_input,
+                            proposal,
+                            decision_id,
+                            evaluated_at,
+                            PolicyDecisionDisposition.REJECT,
+                            checks,
+                            fallback_reason=guard_result.reason_code,
+                        ),
+                        delta=None,
+                        commit=None,
+                    )
 
         projected = self._receipt(
             policy_input,
@@ -317,6 +349,8 @@ class TopologyConstraintProjector:
         proposal: TopologyProposalArtifact,
         current,
         evaluated_at: str,
+        *,
+        execution_mode: str,
     ) -> Iterable[ConstraintResult]:
         def result(
             identifier: str,
@@ -365,15 +399,85 @@ class TopologyConstraintProjector:
             for item in policy_input.readiness_refs
         }
         readiness_value = readiness.get(proposal.header.mechanism_id)
-        readiness_ok = readiness_value == ("activation_ready", "deterministic_ready")
+        required_stage = "activation_ready"
+        readiness_details: Any = readiness_value or ("missing", "missing")
+        if proposal.header.mechanism_id == "phase2_topology_composer":
+            layer_values = proposal.expected_outcome.get("layer_readiness") or ()
+            declared = {
+                str(item.get("mechanism_id") or ""): (
+                    str(item.get("readiness_stage") or ""),
+                    str(item.get("readiness_status") or ""),
+                    str(item.get("readiness_report_digest") or ""),
+                    bool(item.get("affected_commit", False)),
+                )
+                for item in layer_values
+                if isinstance(item, Mapping)
+            }
+            required_layers = ("arg_designer", "card", "agentprune")
+            permitted_stages = (
+                {"implementation_validated", "activation_ready"}
+                if execution_mode == "validation"
+                else {"activation_ready"}
+            )
+            layer_failures = []
+            for mechanism_id in required_layers:
+                declared_value = declared.get(mechanism_id)
+                snapshot_ref = next(
+                    (
+                        item
+                        for item in policy_input.readiness_refs
+                        if item.header.mechanism_id == mechanism_id
+                    ),
+                    None,
+                )
+                if (
+                    declared_value is None
+                    or snapshot_ref is None
+                    or declared_value[0] not in permitted_stages
+                    or declared_value[1] != "deterministic_ready"
+                    or declared_value[2] != snapshot_ref.report_digest
+                    or declared_value[0] != snapshot_ref.readiness_stage
+                    or declared_value[1] != snapshot_ref.status
+                    or declared_value[3] is not True
+                ):
+                    layer_failures.append(mechanism_id)
+            readiness_ok = (
+                execution_mode != "diagnostic"
+                and not layer_failures
+                and set(declared) == set(required_layers)
+            )
+            required_stage = (
+                "implementation_validated_or_activation_ready"
+                if execution_mode == "validation"
+                else "activation_ready"
+            )
+            readiness_details = {
+                "execution_mode": execution_mode,
+                "declared_layers": declared,
+                "layer_failures": layer_failures,
+            }
+        else:
+            readiness_ok = (
+                execution_mode == "default"
+                and readiness_value
+                == ("activation_ready", "deterministic_ready")
+            )
         yield result(
             "mechanism_readiness",
             readiness_ok,
             "mechanism_deterministic_ready",
-            "mechanism_not_activation_ready",
-            "only deterministic-ready mechanisms may enter the canonical path",
+            (
+                "mechanism_not_validation_ready"
+                if execution_mode == "validation"
+                else "mechanism_not_activation_ready"
+            ),
+            (
+                "only explicitly validated deterministic mechanisms may commit "
+                "in validation; normal default commits require activation_ready"
+            ),
             mechanism_id=proposal.header.mechanism_id,
-            readiness=readiness_value or ("missing", "missing"),
+            required_stage=required_stage,
+            readiness=readiness_details,
         )
 
         roles, capabilities = self._requested_registry_values(proposal)
@@ -632,7 +736,15 @@ class TopologyConstraintProjector:
             disposition=disposition,
             constraint_results=tuple(checks),
             projected_operations=proposal.operations if delta is not None else (),
-            projection_differences=(),
+            projection_differences=tuple(
+                str(item)
+                for item in (
+                    proposal.expected_outcome.get(
+                        "projection_differences"
+                    )
+                    or ()
+                )
+            ),
             delta_id=delta.delta_id if delta else "",
             delta_digest=delta.content_digest if delta else "",
             graph_commit=FrozenDict(graph_commit),

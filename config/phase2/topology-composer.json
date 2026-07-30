@@ -1,0 +1,26 @@
+{
+  "schema": "zyra.topology-composer-config/v1",
+  "slice_id": "P2-S03-04",
+  "mechanism_id": "phase2_topology_composer",
+  "mechanism_version": "topology_composer_v1",
+  "profile_id": "phase2_strongest_v1",
+  "fallback_profile": "phase1_deterministic_baseline",
+  "required_layers": [
+    "arg_designer",
+    "card",
+    "agentprune"
+  ],
+  "proposal_ttl_seconds": 300,
+  "maximum_operations": 64,
+  "maximum_commits_per_window": 4,
+  "churn_window_seconds": 300,
+  "minimum_dwell_seconds": 30,
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "policy_gradient": false,
+    "mutable_learned_parameters": [],
+    "datasets": [],
+    "checkpoints": []
+  }
+}

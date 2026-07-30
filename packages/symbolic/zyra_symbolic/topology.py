@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
@@ -20,9 +21,21 @@ class RouteCandidate:
 class TopologyRouter:
     """Sparse symbolic router over heterogeneous workers and current graph state."""
 
-    def __init__(self, worker_descriptors: list[Any] | None = None, resource_scheduler: Any | None = None) -> None:
+    def __init__(
+        self,
+        worker_descriptors: list[Any] | None = None,
+        resource_scheduler: Any | None = None,
+        topology_policy_trigger: (
+            Callable[
+                [TaskState, PlanNode | None, EventRecord | None],
+                Mapping[str, Any],
+            ]
+            | None
+        ) = None,
+    ) -> None:
         self.worker_descriptors = worker_descriptors if worker_descriptors is not None else self._default_workers()
         self.resource_scheduler = resource_scheduler if resource_scheduler is not None else self._default_resource_scheduler()
+        self.topology_policy_trigger = topology_policy_trigger
 
     def route(
         self,
@@ -33,6 +46,30 @@ class TopologyRouter:
         cause_event: EventRecord | None = None,
         route_type: str = "topology_route",
     ) -> tuple[DecisionRecord, EventRecord]:
+        topology_policy: Mapping[str, Any] = {}
+        if self.topology_policy_trigger is not None:
+            try:
+                topology_policy = dict(
+                    self.topology_policy_trigger(
+                        state,
+                        node,
+                        cause_event,
+                    )
+                )
+            except Exception as error:  # noqa: BLE001 - baseline route remains explicit and available.
+                topology_policy = {
+                    "used_baseline": True,
+                    "committed": False,
+                    "degraded": True,
+                    "degraded_reason": (
+                        f"topology_policy_trigger:{type(error).__name__}"
+                    ),
+                    "fallback_profile": "phase1_deterministic_baseline",
+                    "silent_fallback": False,
+                }
+                state.metadata["topology_policy_error"] = (
+                    f"{type(error).__name__}: {error}"
+                )
         resource_decision = None
         candidates: list[RouteCandidate]
         if self.resource_scheduler is not None:
@@ -102,6 +139,16 @@ class TopologyRouter:
                 "router": "m5-resource-aware-topology-router" if resource_decision is not None else "m3-symbolic-topology-router",
                 "top_k": str(top_k),
                 "cause_event_id": "" if cause_event is None else cause_event.event_id,
+                "topology_policy_profile": str(
+                    (
+                        topology_policy.get("execution_receipt")
+                        or {}
+                    ).get("actual_profile_id")
+                    or "phase1_deterministic_baseline"
+                ),
+                "topology_policy_committed": str(
+                    bool(topology_policy.get("committed", False))
+                ).lower(),
             },
         )
         if resource_decision is not None:
@@ -113,6 +160,7 @@ class TopologyRouter:
             "node_id": decision.node_id,
             "route_type": route_type,
             "resource_decision_id": "" if resource_decision is None else resource_decision.decision_id,
+            "topology_policy": dict(topology_policy),
         }
         event = EventRecord(
             run_id=state.run_id,
@@ -125,6 +173,7 @@ class TopologyRouter:
                 "candidate_count": len(candidates),
                 "route_type": route_type,
                 "resource_decision": None if resource_decision is None else to_jsonable(resource_decision),
+                "topology_policy": dict(topology_policy),
             },
         )
         return decision, event
