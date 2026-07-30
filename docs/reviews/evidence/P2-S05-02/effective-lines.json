@@ -1,0 +1,78 @@
+{
+  "schema_version": "zyra.p2-s05-02-effective-lines/v1",
+  "slice_id": "P2-S05-02",
+  "slice_base_commit": "ac99ecbfadbf9605040918039dd054cab7568627",
+  "implementation_commit": "4eb7db194721ce8be9d72e12cf3ba46f68dccf6d",
+  "method": "Git added lines from base to implementation commit; effective lines exclude blank and comment-only additions. Buckets are disjoint. Docs, JSON and PNG evidence are not implementation.",
+  "buckets": {
+    "production_core": {
+      "added_lines": 1879,
+      "effective_nonblank_noncomment_lines": 1739,
+      "files": [
+        "apps/api/zyra_api/policy_api.py",
+        "apps/web/src/components/tasks/task-detail.tsx",
+        "apps/web/src/features/experiments/policy/index.ts",
+        "apps/web/src/features/experiments/policy/view.tsx",
+        "apps/web/src/features/topology/policy/index.ts",
+        "apps/web/src/features/topology/policy/runtime.ts",
+        "apps/web/src/features/topology/policy/store.ts",
+        "apps/web/src/features/topology/policy/view.tsx",
+        "apps/web/src/styles.css"
+      ]
+    },
+    "adapter_only": {
+      "added_lines": 537,
+      "effective_nonblank_noncomment_lines": 514,
+      "files": [
+        "apps/api/zyra_api/main.py",
+        "apps/web/src/api/index.ts",
+        "apps/web/src/api/policy-api.ts",
+        "apps/web/src/app/runtime.ts",
+        "apps/web/src/features/experiments/index.ts",
+        "apps/web/src/features/experiments/runtime.ts",
+        "apps/web/src/features/experiments/view/experiment-workbench.tsx",
+        "apps/web/src/features/topology/view/topology-workbench.tsx",
+        "packages/core/typed-api-client/src/constants.ts",
+        "packages/core/typed-api-client/src/normalizers.ts",
+        "packages/core/typed-api-client/src/protocol.ts"
+      ]
+    },
+    "test": {
+      "added_lines": 644,
+      "effective_nonblank_noncomment_lines": 607,
+      "files": [
+        "apps/web/test/policy-evidence-workbench.test.tsx",
+        "tests/integration/test_policy_evidence_api.py"
+      ]
+    },
+    "data_docs": {
+      "counted_as_implementation": false,
+      "files": [
+        "docs/reviews/P2-S05-02-evidence-visualization-review.md",
+        "docs/reviews/evidence/P2-S05-02/browser-policy-evidence.png",
+        "docs/reviews/evidence/P2-S05-02/browser-proposal-inspector.png",
+        "docs/reviews/evidence/P2-S05-02/browser-validation.json",
+        "docs/reviews/evidence/P2-S05-02/effective-lines.json",
+        "docs/reviews/evidence/P2-S05-02/evidence-manifest.json",
+        "docs/reviews/evidence/P2-S05-02/verification-summary.json"
+      ]
+    },
+    "runtime_assets_vendor_like": {
+      "added_lines": 0,
+      "files": []
+    },
+    "generated_source": {
+      "added_lines": 0,
+      "files": []
+    },
+    "external_data_or_models": {
+      "added_lines": 0,
+      "files": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "detail": "Tests create immutable canonical contracts and real event/artifact stores; no mock or fixture output is accepted as formal runtime evidence."
+    }
+  }
+}
+

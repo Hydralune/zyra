@@ -1,0 +1,59 @@
+{
+  "schema_version": "zyra.p2-s05-02-browser-validation/v1",
+  "slice_id": "P2-S05-02",
+  "implementation_commit": "4eb7db194721ce8be9d72e12cf3ba46f68dccf6d",
+  "validation_mode": "real_in_app_browser_against_local_production_bundle_and_http_api",
+  "canonical_sources": [
+    "RuntimeEventSpineBridge",
+    "RuntimeEventApiFacade",
+    "LocalArtifactStore",
+    "PolicyEvidencePublisher",
+    "FilesystemPolicyMetricReportProvider"
+  ],
+  "identity": {
+    "task_id": "task_7634cfdbf9c8",
+    "run_id": "run_d84597e07636",
+    "proposal_id": "proposal-browser-evidence",
+    "real_dispatch_receipt_id": "dispatch-browser-real",
+    "simulated_dispatch_receipt_id": "dispatch-browser-simulated",
+    "loopx_ack_event_id": "event-loopx-browser-ack"
+  },
+  "observations": {
+    "typed_cross_origin_response_headers_readable": true,
+    "task_detail_loaded_without_fatal_boundary": true,
+    "policy_evidence_view_mounted_in_topology_workbench": true,
+    "proposal_row_clickable": true,
+    "proposal_graph_diff_visible": true,
+    "commit_graph_event_refs_clickable": true,
+    "physical_placement_lease_attempt_artifact_verifier_permission_refs_clickable": true,
+    "unmounted_target_remains_linked_without_fabricated_navigation": true,
+    "real_and_simulated_badges_distinct": true,
+    "snapshot_digest_visible": true,
+    "high_watermark_visible": true,
+    "page_evidence_digest_count_increments": true
+  },
+  "screenshots": [
+    {
+      "path": "docs/reviews/evidence/P2-S05-02/browser-policy-evidence.png",
+      "sha256": "2c1a138c16c9f267360d71d4e0b258d750e79de2fa9802d07a5fa6b036b6df51",
+      "shows": [
+        "real dispatch badge",
+        "simulated dispatch badge",
+        "placement/lease/attempt/artifact/verifier/permission/event references"
+      ]
+    },
+    {
+      "path": "docs/reviews/evidence/P2-S05-02/browser-proposal-inspector.png",
+      "sha256": "f9e82586fa3dc539d62c45dd2f564b4d31fcc24428d19982904be3b683b3c3fc",
+      "shows": [
+        "snapshot and high watermark",
+        "evidence digest page count",
+        "proposal/commit/graph/event references",
+        "real dispatch chain"
+      ]
+    }
+  ],
+  "canonical_write_allowed": false,
+  "simulated_evidence_counted_as_real": false
+}
+

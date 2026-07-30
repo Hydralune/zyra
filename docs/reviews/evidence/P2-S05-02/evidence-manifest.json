@@ -1,0 +1,36 @@
+{
+  "schema_version": "zyra.p2-s05-02-evidence-manifest/v1",
+  "slice_id": "P2-S05-02",
+  "slice_base_commit": "ac99ecbfadbf9605040918039dd054cab7568627",
+  "implementation_commit": "4eb7db194721ce8be9d72e12cf3ba46f68dccf6d",
+  "generated_at": "2026-07-30T11:23:30.377Z",
+  "parent_unit": "P2-05",
+  "parent_cumulative_status": "passed",
+  "files": {
+    "review": {
+      "path": "docs/reviews/P2-S05-02-evidence-visualization-review.md",
+      "sha256": "99093675279a6ed08ba38d204fcaf03d64254841f0c9506210c847a9c7000699"
+    },
+    "verification_summary": {
+      "path": "docs/reviews/evidence/P2-S05-02/verification-summary.json",
+      "sha256": "6e1ab4adfaac38792edbbe26b93496bdf7c60e8e5cba587a9d1f09d1668db123"
+    },
+    "browser_validation": {
+      "path": "docs/reviews/evidence/P2-S05-02/browser-validation.json",
+      "sha256": "ed5d4d0ca35ad0d1f53fe89eefc15f6e5c9bae0313c0421a02fdd954f1ce02d0"
+    },
+    "effective_lines": {
+      "path": "docs/reviews/evidence/P2-S05-02/effective-lines.json",
+      "sha256": "d79586deb176c336a809da0b291a8ef0872f70442a28dd0473270bdd6a9ec0e4"
+    },
+    "browser_policy_evidence": {
+      "path": "docs/reviews/evidence/P2-S05-02/browser-policy-evidence.png",
+      "sha256": "2c1a138c16c9f267360d71d4e0b258d750e79de2fa9802d07a5fa6b036b6df51"
+    },
+    "browser_proposal_inspector": {
+      "path": "docs/reviews/evidence/P2-S05-02/browser-proposal-inspector.png",
+      "sha256": "f9e82586fa3dc539d62c45dd2f564b4d31fcc24428d19982904be3b683b3c3fc"
+    }
+  },
+  "digest": "4ae42dedb3bc413c2c3492fa50c2eadcd44bdd6f437b3c6253550cf6b6fb9868"
+}

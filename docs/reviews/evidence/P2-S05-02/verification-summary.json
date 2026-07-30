@@ -1,0 +1,100 @@
+{
+  "schema_version": "zyra.p2-s05-02-verification-summary/v1",
+  "slice_id": "P2-S05-02",
+  "slice_base_commit": "ac99ecbfadbf9605040918039dd054cab7568627",
+  "implementation_commit": "4eb7db194721ce8be9d72e12cf3ba46f68dccf6d",
+  "overall_status": "passed",
+  "generated_at": "2026-07-30T11:23:30.377Z",
+  "target_commands": [
+    {
+      "scope": "policy evidence API",
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests\\integration\\test_policy_evidence_api.py --basetemp .tmp\\pytest-p2-s05-02-policy-final",
+      "result": "4 passed in 45.58s",
+      "status": "passed"
+    },
+    {
+      "scope": "topology, experiment and policy UI",
+      "command": ".\\node_modules\\.bin\\bun.exe test .\\apps\\web\\test\\policy-evidence-workbench.test.tsx .\\apps\\web\\test\\experiment-evidence-workbench.test.ts .\\apps\\web\\test\\topology-interaction.test.ts .\\apps\\web\\test\\topology-projection.test.ts",
+      "result": "21 passed, 0 failed",
+      "status": "passed"
+    }
+  ],
+  "parent_cumulative_regression": {
+    "scope": "P2-05 metrics plus continuity, symbolic, physical dispatch, LoopX and visualization",
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests\\unit\\evaluation\\test_phase2_metrics.py tests\\integration\\test_policy_metrics_from_receipts.py tests\\integration\\test_metrics_anti_gaming.py tests\\integration\\test_policy_evidence_api.py tests\\integration\\test_memory_continuity_policy_runtime.py tests\\integration\\test_neuro_symbolic_projector.py tests\\integration\\test_physical_dispatch_receipts.py tests\\integration\\test_loopx_control_commands.py --basetemp .tmp\\pytest-p2-s05-02-parent3",
+    "result": "35 passed in 92.87s",
+    "status": "passed"
+  },
+  "static_and_policy_checks": [
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run typecheck:web",
+      "status": "passed"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run build:web",
+      "result": "382 modules bundled",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests\\unit\\evaluation\\test_mechanism_evidence_readiness.py",
+      "result": "9 passed",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_phase2_policy_contracts.py",
+      "result": "valid=true",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\verify_internalization_ledger.py",
+      "result": "audit_ok=true; errors=0; blockers=0",
+      "status": "passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m py_compile apps\\api\\zyra_api\\main.py apps\\api\\zyra_api\\policy_api.py tests\\integration\\test_policy_evidence_api.py",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "acceptance_checks": {
+    "existing_topology_and_experiment_views_reused": true,
+    "canonical_event_artifact_metric_read_model": true,
+    "read_only_no_canonical_ui_mutation": true,
+    "run_task_mechanism_receipt_report_filters": true,
+    "proposal_constraint_graph_diff_commit_chain": true,
+    "operator_placement_lease_attempt_artifact_verifier_chain": true,
+    "memory_and_loopx_receipt_projection": true,
+    "lifecycle_readiness_execution_integrity_labels": true,
+    "real_simulated_degraded_separated": true,
+    "cursor_bound_to_scope_snapshot_and_high_watermark": true,
+    "cross_task_cursor_terminates": true,
+    "artifact_and_report_digest_reverified": true,
+    "two_thousand_plus_incremental": true,
+    "virtual_window_bounded": true,
+    "digest_preserving_export": true,
+    "disconnect_cursor_schema_permission_errors_explicit": true,
+    "real_browser_visual_validation": true,
+    "parent_p2_05_cumulative_closure": true
+  },
+  "negative_case_tests": [
+    "test_tamper_and_adapter_disconnect_are_not_rendered_as_success",
+    "test_task_drilldown_cursor_terminates_across_unrelated_global_events",
+    "policy evidence admission rejects incompatible lifecycle and ownership",
+    "adapter and permission-style failures become degraded, never empty success",
+    "simulated dispatch stays visibly simulated with clickable causal refs",
+    "runtime exports original page and snapshot digests"
+  ],
+  "broader_non_slice_observation": {
+    "command": ".\\node_modules\\.bin\\bun.exe test .\\packages\\core\\typed-api-client\\test .\\apps\\web\\test .\\apps\\web\\src\\features\\long-horizon\\loopx",
+    "result": "279 passed, 2 failed",
+    "status": "not_counted_as_slice_pass",
+    "failure_scope": "unchanged MCP elicitation absolute-time fixture",
+    "fixture_expiry": "2026-07-25T13:00:00.000Z",
+    "execution_date": "2026-07-30",
+    "unchanged_from_base_proof": "git diff --exit-code ac99ecbfadbf9605040918039dd054cab7568627 -- apps/web/test/mcp-panel-integration.test.ts apps/web/src/features/mcp/projection.ts apps/web/src/features/mcp/elicitation.ts"
+  }
+}
+
