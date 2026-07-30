@@ -33,7 +33,7 @@ from zyra_evaluation.scenario_runner import (
     ScenarioRegistry,
     build_configuration,
 )
-from zyra_evaluation.scenario_runner.canonical import utc_now
+from zyra_evaluation.scenario_runner.canonical import canonicalize, utc_now
 from zyra_evaluation.scenario_runner.live_models import FaultKind
 
 
@@ -47,7 +47,13 @@ class SealedLongRunError(RuntimeError):
 def _json(path: Path, value: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        json.dumps(
+            canonicalize(value),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
 

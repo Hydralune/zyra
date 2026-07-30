@@ -18,6 +18,7 @@ from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
 from zyra_evaluation.policy_benchmark.sealed_long_run import (
     SealedLongRunError,
     SealedLongRunRunner,
+    _json,
 )
 from zyra_evaluation.policy_benchmark.sealed_physical import (
     SealedPhysicalDispatchError,
@@ -428,3 +429,7 @@ def test_actual_mechanisms_cover_restart_attacks_and_disable_paths(
         value["disabled_changed_outcome"] is True
         for value in bundle["disable_evidence"].values()
     )
+    mechanism_path = tmp_path / "mechanism-bundle.json"
+    _json(mechanism_path, bundle)
+    persisted = json.loads(mechanism_path.read_text(encoding="utf-8"))
+    assert persisted["topology_operator"]["canonical_custody_commit"] is True
