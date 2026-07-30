@@ -1,0 +1,136 @@
+{
+  "schema": "zyra.phase2-aggregate-command-results/v1",
+  "target_commit": "1d81143a9e9ab2a3f27ca1051e0bacb33f98a721",
+  "results": [
+    {
+      "id": "initial-core-discovery",
+      "status": "failed_before_fix",
+      "result": "142 passed, 1 failed, 6 errors",
+      "finding": "Frozen evidence readiness indexed descendant worktree bytes."
+    },
+    {
+      "id": "initial-baseline-verifier",
+      "status": "failed_before_fix",
+      "result": "valid=false with 4 package/pyproject digest and size blockers"
+    },
+    {
+      "id": "phase2-baseline-final",
+      "command": ".venv/Scripts/python.exe scripts/release/verify_phase2_baseline.py --manifest docs/release/phase2-baseline-manifest.json",
+      "status": "passed",
+      "result": "valid=true; reference_count=24; finding_count=0; verification_digest=bf6e279208b7bd1a3f1d48d4da42d9ce99af8d081af97a95d01fd8470de31ec8"
+    },
+    {
+      "id": "phase2-policy-final",
+      "command": ".venv/Scripts/python.exe scripts/verify_phase2_policy_contracts.py",
+      "status": "passed",
+      "result": "valid=true; strongest_profile_requested=false; target_commit=1d81143a9e9ab2a3f27ca1051e0bacb33f98a721"
+    },
+    {
+      "id": "unit-contract-group",
+      "status": "passed",
+      "result": "69 passed",
+      "scope": "owner registry, policy registry, ARG, CARD, AgentPrune and phase2 policy/readiness unit contracts"
+    },
+    {
+      "id": "readiness-registry-group",
+      "status": "passed",
+      "result": "24 passed",
+      "scope": "baseline reconciliation, descendant replay, readiness enforcement and activation/rollback"
+    },
+    {
+      "id": "topology-final-group",
+      "status": "passed",
+      "result": "41 passed",
+      "scope": "CRLF readiness, ARG, CARD, memory, neuro-symbolic, default path, composer, projection and fault scenarios"
+    },
+    {
+      "id": "loopx-source-integrity",
+      "status": "passed",
+      "result": "3 passed"
+    },
+    {
+      "id": "loopx-embedded-source",
+      "status": "passed",
+      "result": "2 passed"
+    },
+    {
+      "id": "loopx-bridge",
+      "status": "passed",
+      "result": "13 passed"
+    },
+    {
+      "id": "loopx-api-restart",
+      "status": "passed",
+      "result": "1 passed"
+    },
+    {
+      "id": "loopx-control",
+      "status": "passed",
+      "result": "3 passed in 67.54s"
+    },
+    {
+      "id": "loopx-release-doctor",
+      "status": "passed",
+      "result": "2 passed in 109.65s"
+    },
+    {
+      "id": "legacy-retirement-final",
+      "command": ".venv/Scripts/python.exe scripts/audit/verify_legacy_source_retirement.py --target HEAD",
+      "status": "passed",
+      "result": "valid=true; current_legacy_target_count=0; finding_count=0"
+    },
+    {
+      "id": "legacy-retirement-tests",
+      "status": "passed",
+      "result": "7 passed"
+    },
+    {
+      "id": "clean-source-topology",
+      "status": "passed",
+      "result": "24 passed; zyra_orchestration and zyra_productization imports verified under independent detached worktree"
+    },
+    {
+      "id": "clean-source-retirement",
+      "status": "passed",
+      "result": "7 passed"
+    },
+    {
+      "id": "web-loopx",
+      "command": "node_modules/.bin/bun.exe test apps/web/src/features/long-horizon/loopx",
+      "status": "passed",
+      "result": "3 passed; 0 failed"
+    },
+    {
+      "id": "web-typecheck",
+      "command": "node_modules/.bin/bun.exe run typecheck:web",
+      "status": "passed"
+    },
+    {
+      "id": "web-production-build",
+      "command": "node_modules/.bin/bun.exe run build:web",
+      "status": "passed",
+      "result": "375 modules bundled"
+    },
+    {
+      "id": "ledger-audit",
+      "command": ".venv/Scripts/python.exe scripts/zyra_integration_ledger.py audit",
+      "status": "passed_with_warnings",
+      "result": "ok=true; disposition=warning; findings=982; errors=0; blockers=0"
+    },
+    {
+      "id": "python-compile",
+      "status": "passed",
+      "result": "Changed Python modules and new regression tests compiled successfully."
+    },
+    {
+      "id": "diff-check",
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "non_claims": [
+    "No full repository pytest PASS is claimed.",
+    "No full 13-gate release CI PASS is claimed.",
+    "The first combined aggregate pytest attempts timed out and are not counted as test failures or passes."
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schema": "zyra.phase2-aggregate-slice-gate-matrix/v1",
+  "target_commit": "1d81143a9e9ab2a3f27ca1051e0bacb33f98a721",
+  "slice_count": 15,
+  "gates": [
+    {
+      "slice_id": "P2-S00-01",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S00-01-freeze-reconciliation-review.md",
+      "aggregate_note": "Frozen reference replay is now descendant-worktree independent."
+    },
+    {
+      "slice_id": "P2-S00-02",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S00-02-source-role-adr-metrics-review.md",
+      "aggregate_note": "Source roles, ADRs, owners and metric contracts validate."
+    },
+    {
+      "slice_id": "P2-S00-03",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S00-03-algorithm-data-feasibility-review.md",
+      "aggregate_note": "Input-precheck remains fail closed and frozen evidence indexing is replayable."
+    },
+    {
+      "slice_id": "P2-S01-01",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S01-01-loopx-pinned-install-release-review.md",
+      "aggregate_note": "Pinned offline release runtime and integrity gates pass."
+    },
+    {
+      "slice_id": "P2-S01-02",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S01-02-loopx-state-bridge-review.md",
+      "aggregate_note": "Durable bridge, outbox, single-writer and restart boundaries pass."
+    },
+    {
+      "slice_id": "P2-S01-03",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S01-03-loopx-control-restart-review.md",
+      "aggregate_note": "Control/restart, API and focused Web gates pass."
+    },
+    {
+      "slice_id": "P2-S01-04",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S01-04-loopx-v0213-embedded-source-cutover-review.md",
+      "aggregate_note": "Embedded source, deep doctor and cross-version boundaries pass."
+    },
+    {
+      "slice_id": "P2-S02-01",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S02-01-policy-contracts-review.md",
+      "aggregate_note": "Fixed policy contracts validate and strongest remains inactive."
+    },
+    {
+      "slice_id": "P2-S02-02",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S02-02-policy-registry-shadow-review.md",
+      "aggregate_note": "Registry validation path remains; strongest activation now requires the exact five-mechanism set."
+    },
+    {
+      "slice_id": "P2-S02-03",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S02-03-memory-neuro-symbolic-review.md",
+      "aggregate_note": "Continuity and symbolic evidence paths pass; handoff slice id corrected."
+    },
+    {
+      "slice_id": "P2-S02A-01",
+      "result": "PASS",
+      "review": "docs/reviews/P2-S02A-01-legacy-vendor-retirement-review.md",
+      "aggregate_note": "Current legacy target count is zero and clean-source retirement tests pass."
+    },
+    {
+      "slice_id": "P2-S03-01",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S03-01-arg-role-topology-review.md",
+      "aggregate_note": "ARG proposal behavior passes in normal and CRLF clean checkout."
+    },
+    {
+      "slice_id": "P2-S03-02",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S03-02-card-directional-edges-review.md",
+      "aggregate_note": "CARD residual behavior passes in normal and CRLF clean checkout."
+    },
+    {
+      "slice_id": "P2-S03-03",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S03-03-agentprune-pruning-review.md",
+      "aggregate_note": "AgentPrune behavior passes in normal and CRLF clean checkout."
+    },
+    {
+      "slice_id": "P2-S03-04",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S03-04-topology-composer-default-review.md",
+      "aggregate_note": "Composer, failure paths, custody and clean source pass; parent base binding corrected."
+    }
+  ]
+}

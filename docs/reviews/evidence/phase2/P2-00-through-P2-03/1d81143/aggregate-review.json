@@ -1,0 +1,89 @@
+{
+  "schema": "zyra.phase2-digital-stage-aggregate-review/v1",
+  "review_id": "P2-00-through-P2-03-first-aggregate-review",
+  "date": "2026-07-30",
+  "scope": {
+    "digital_stages": [
+      "P2-00",
+      "P2-01",
+      "P2-02",
+      "P2-02A",
+      "P2-03"
+    ],
+    "slice_count": 15,
+    "first_use_of_general_review_taskbook": true
+  },
+  "commits": {
+    "aggregate_base": "57c0def91a69c851c941e7d4df80519cf881a8c7",
+    "aggregate_base_tree": "7985a02d0de8f53649ec57ce5b9184454eb24d58",
+    "target_before_review": "a8bc199a7d08fa981eef9cb3b1ac5c609b514266",
+    "target_after_fixes": "1d81143a9e9ab2a3f27ca1051e0bacb33f98a721",
+    "target_after_fixes_tree": "2493ed736bbdc38347e9fe46bb2c71e65f435676",
+    "fix_commits": [
+      "845a715c25e6f17485107058e3a8d34ad1965ae5",
+      "1d81143a9e9ab2a3f27ca1051e0bacb33f98a721"
+    ],
+    "evidence_commit": "SELF"
+  },
+  "verdict": "PASS_AFTER_FIX",
+  "severity_counts": {
+    "p0_open": 0,
+    "p1_found": 4,
+    "p1_open": 0,
+    "p2_open": 2
+  },
+  "fixed_findings": [
+    {
+      "id": "P1-01",
+      "title": "Frozen baseline replay depended on descendant worktree bytes",
+      "resolution": "Replay project references and source archives from the committed freeze snapshot while preserving P2 base identity and exact CRLF digest proof."
+    },
+    {
+      "id": "P1-02",
+      "title": "Topology-only validation registry could under-specify strongest activation",
+      "resolution": "Require the exact fixed LoopX/ARG/CARD/AgentPrune/MaAS set at the StrongestProfileActivationGate."
+    },
+    {
+      "id": "P1-03",
+      "title": "P2-03 parent evidence referenced a nonexistent base commit",
+      "resolution": "Bind the parent review and summary to 2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60 and normalize the P2-S02A-01 handoff id."
+    },
+    {
+      "id": "P1-04",
+      "title": "Topology readiness digests failed on Windows CRLF clean checkout",
+      "resolution": "Normalize CRLF to canonical LF in ARG, CARD, and AgentPrune readiness contract digests and add a three-layer regression."
+    }
+  ],
+  "hard_gate_results": {
+    "phase2_baseline_valid": true,
+    "phase2_policy_contracts_valid": true,
+    "strongest_default_activation_allowed": false,
+    "normal_default_profile": "phase1_deterministic_baseline",
+    "legacy_source_retirement_valid": true,
+    "current_legacy_target_count": 0,
+    "clean_source_imports_verified": true,
+    "clean_source_topology_passed": true,
+    "canonical_owner_duplicate_found": false,
+    "openclaw_changed_file_count": 0
+  },
+  "next_stage_recommendation": "USER_DECISION_REQUIRED",
+  "next_stage_authorized": false,
+  "residuals": [
+    {
+      "severity": "P2",
+      "id": "broad-suite-not-claimed",
+      "detail": "No full repository pytest or full 13-gate release CI PASS is claimed; directly affected, adjacent, clean-source, retirement, LoopX release, and Web product gates passed."
+    },
+    {
+      "severity": "P2",
+      "id": "root-execution-state-stale",
+      "detail": "G:/agent-zoo/docs/milestones/execution-state.yaml remains at d0afb45 and P2-S03-03; the review taskbook forbids automatic state advancement, so user authorization and a separate sync are required."
+    }
+  ],
+  "evidence_refs": [
+    "docs/reviews/phase2/P2-00-through-P2-03-first-aggregate-review.md",
+    "docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/gate-matrix.json",
+    "docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/bucket-summary.json",
+    "docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/commands.json"
+  ]
+}

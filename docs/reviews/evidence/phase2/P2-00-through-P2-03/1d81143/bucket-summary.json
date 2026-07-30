@@ -1,0 +1,91 @@
+{
+  "schema": "zyra.phase2-aggregate-line-buckets/v1",
+  "base_commit": "57c0def91a69c851c941e7d4df80519cf881a8c7",
+  "target_commit": "1d81143a9e9ab2a3f27ca1051e0bacb33f98a721",
+  "algorithm": "git diff --numstat --no-renames; path-first mutually exclusive buckets; binary rows count as files with zero textual lines",
+  "totals": {
+    "files": 5886,
+    "added": 845932,
+    "deleted": 773939,
+    "binary_files": 19
+  },
+  "rename_aware_shortstat": {
+    "files": 5882,
+    "added": 845911,
+    "deleted": 773918,
+    "note": "Git skipped exhaustive rename detection for the large retirement set; no-renames totals are used for bucket reconciliation."
+  },
+  "buckets": [
+    {
+      "bucket": "production_and_config",
+      "files": 106,
+      "added": 34455,
+      "deleted": 1536,
+      "binary_files": 0,
+      "counting_rule": "packages/**, apps/** and config/** after excluding runtime-assets, tests and generated/data paths",
+      "implementation_claim": "candidate Zyra production/config changed lines; not all lines are claimed as deep implementation"
+    },
+    {
+      "bucket": "tests",
+      "files": 45,
+      "added": 13501,
+      "deleted": 509,
+      "binary_files": 0,
+      "implementation_claim": "behavior and regression tests; excluded from production implementation"
+    },
+    {
+      "bucket": "runtime_assets_vendor_like",
+      "files": 1926,
+      "added": 720835,
+      "deleted": 0,
+      "binary_files": 12,
+      "counting_rule": "packages/integrations/loopx_runtime/**",
+      "implementation_claim": "complete pinned LoopX source asset; excluded from Zyra implementation"
+    },
+    {
+      "bucket": "retired_runtime_assets",
+      "files": 3684,
+      "added": 0,
+      "deleted": 771117,
+      "binary_files": 7,
+      "counting_rule": "vendor/** and vendor-runtimes/**",
+      "implementation_claim": "retirement deletion; excluded from Zyra implementation"
+    },
+    {
+      "bucket": "docs_and_evidence",
+      "files": 103,
+      "added": 62750,
+      "deleted": 0,
+      "binary_files": 0,
+      "implementation_claim": "reviews, receipts and provenance; excluded from production implementation"
+    },
+    {
+      "bucket": "generated_data_manifests",
+      "files": 5,
+      "added": 12276,
+      "deleted": 0,
+      "binary_files": 0,
+      "implementation_claim": "generated source manifest, package locks and data; excluded from production implementation"
+    },
+    {
+      "bucket": "scripts",
+      "files": 13,
+      "added": 2044,
+      "deleted": 768,
+      "binary_files": 0,
+      "implementation_claim": "audit/release tooling; reported separately"
+    },
+    {
+      "bucket": "project_metadata",
+      "files": 4,
+      "added": 71,
+      "deleted": 9,
+      "binary_files": 0,
+      "implementation_claim": "root package/build/instruction metadata; reported separately"
+    }
+  ],
+  "protected_source_counts": {
+    "loopx_changed_file_count_outside_declared_runtime_asset_and_zyra_adapter": 0,
+    "openclaw_changed_file_count": 0
+  }
+}
