@@ -44,7 +44,13 @@ class ResourceScheduler:
         events: Sequence[Mapping[str, Any]] | None = None,
         memory_records: Sequence[Any] | None = None,
         avoid_workers: Sequence[str] | None = None,
+        operator_input: Any | None = None,
     ) -> ResourceDecision:
+        operator_contract = _operator_selection_input(
+            operator_input,
+            run_id=state.run_id,
+            task_id=state.task_id,
+        )
         event_dict = _event_dict(cause_event) if cause_event is not None else None
         signals = self._signals(
             state,
@@ -54,6 +60,12 @@ class ResourceScheduler:
             memory_records=memory_records or [],
             avoid_workers=avoid_workers or [],
         )
+        if operator_contract is not None:
+            signals.metadata["operator_selection_input"] = operator_contract
+            signals.metadata["operator_candidate_contract_consumed"] = True
+            signals.metadata["operator_candidate_contract_effect"] = (
+                "selection_input_only_pending_P2-S04-03"
+            )
         health = {item.worker_id: item for item in self.worker_pool.health_snapshot(state=state, events=events or [])}
         scored = [
             self._score_manifest(manifest, signals, state=state, node=node, health=health.get(manifest.worker_id))
@@ -101,6 +113,17 @@ class ResourceScheduler:
                 "selected_gateway": selected.manifest.gateway,
                 "selected_privacy": selected.manifest.privacy_level,
                 "manifest_source_modules": selected.manifest.source_modules,
+                "operator_selection_input": operator_contract,
+                "operator_candidate_contract_consumed": (
+                    operator_contract is not None
+                ),
+                "operator_candidate_contract_effect": (
+                    "selection_input_only_pending_P2-S04-03"
+                    if operator_contract is not None
+                    else "phase1_scheduler_input"
+                ),
+                "placement_owner": "ResourceScheduler",
+                "lease_owner": "WorkerPoolFoundationRuntime",
             },
         )
 
@@ -360,6 +383,51 @@ def _event_dict(event: EventRecord | Mapping[str, Any]) -> dict[str, Any]:
             "node_id": event.node_id,
         }
     return dict(event)
+
+
+def _operator_selection_input(
+    value: Any | None,
+    *,
+    run_id: str,
+    task_id: str,
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    to_dict = getattr(value, "to_dict", None)
+    raw = to_dict() if callable(to_dict) else value
+    if not isinstance(raw, Mapping):
+        raise ValueError("operator_input must be a mapping or typed scheduler input")
+    data = dict(raw)
+    if data.get("schema_version") != "zyra.operator-scheduler-input/v1":
+        raise ValueError("operator_input schema is unsupported")
+    if data.get("diagnostic_only") is True:
+        raise ValueError("diagnostic operator ranking cannot enter ResourceScheduler")
+    if data.get("placement_owner") != "ResourceScheduler":
+        raise ValueError("operator_input cannot replace ResourceScheduler ownership")
+    if data.get("run_id") != run_id or data.get("task_id") != task_id:
+        raise ValueError("operator_input belongs to another run or task")
+    if not str(data.get("proposal_id") or "").strip():
+        raise ValueError("operator_input proposal_id is required")
+    proposal_digest = str(data.get("proposal_digest") or "")
+    catalog_digest = str(data.get("catalog_digest") or "")
+    graph_signature = str(data.get("committed_graph_signature") or "")
+    if any(
+        len(item) != 64
+        or any(character not in "0123456789abcdef" for character in item.lower())
+        for item in (proposal_digest, catalog_digest, graph_signature)
+    ):
+        raise ValueError("operator_input digests and graph signature must be SHA-256")
+    candidates = data.get("candidate_references")
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("operator_input requires concrete candidate references")
+    for candidate in candidates:
+        if (
+            not isinstance(candidate, Mapping)
+            or not str(candidate.get("operator_id") or "").strip()
+            or not str(candidate.get("version") or "").strip()
+        ):
+            raise ValueError("operator_input candidate reference is invalid")
+    return data
 
 
 def _task_text(

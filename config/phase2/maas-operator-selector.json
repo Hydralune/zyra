@@ -1,0 +1,40 @@
+{
+  "schema": "zyra.maas-operator-selector-config/v1",
+  "slice_id": "P2-S04-01",
+  "mechanism_id": "maas",
+  "mechanism_version": "maas_operator_selector_v1",
+  "catalog_schema_version": "zyra.operator-catalog/v1",
+  "proposal_schema_version": "zyra.operator-selection-proposal/v1",
+  "scheduler_input_schema_version": "zyra.operator-scheduler-input/v1",
+  "fallback_profile": "phase1_resource_scheduler_baseline",
+  "input_precheck_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "proposal_ttl_seconds": 300,
+  "candidate_cap": 24,
+  "maximum_breadth": 4,
+  "maximum_depth": 4,
+  "medium_budget_tokens": 4096,
+  "high_budget_tokens": 16384,
+  "medium_budget_time_ms": 30000,
+  "high_budget_time_ms": 120000,
+  "cold_start_confidence": 0.55,
+  "established_confidence": 1.0,
+  "cold_start_token_reserve_ratio": 0.25,
+  "score_weights": {
+    "capability_obligation_coverage": 4.0,
+    "permission": 4.0,
+    "health": 2.0,
+    "cost": 1.5,
+    "latency": 1.5,
+    "verifier_necessity": 2.5,
+    "semantic_match": 2.0,
+    "confidence": 1.0
+  },
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "pretrained_model_used": false,
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": []
+  }
+}
