@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,13 @@ from zyra_evaluation.policy_benchmark import preflight as preflight_module
 
 ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / "config" / "phase2" / "strongest-preflight.json"
-IMPLEMENTATION_COMMIT = "1" * 40
+IMPLEMENTATION_COMMIT = subprocess.run(
+    ["git", "rev-parse", "HEAD"],
+    cwd=ROOT,
+    capture_output=True,
+    check=True,
+    text=True,
+).stdout.strip()
 
 
 def _command_result(
@@ -60,7 +67,7 @@ def test_frozen_manifest_has_one_profile_two_domains_and_stable_id() -> None:
     manifest = FrozenPreflightManifest.load(ROOT, MANIFEST)
 
     assert manifest.profile_version == "phase2_strongest_v1"
-    assert manifest.preflight_id == "preflight_a26163647ae31a5ef2b9b282"
+    assert manifest.preflight_id == "preflight_deafc65877387ab74bbef93c"
     assert set(manifest.evidence_bindings) == {
         "arg_designer",
         "card",
@@ -105,6 +112,20 @@ def test_readiness_enforcement_disconnect_is_rejected(tmp_path: Path) -> None:
         match="not implementation_validated deterministic_ready",
     ):
         FrozenPreflightManifest.load(ROOT, path)
+
+
+def test_implementation_commit_mismatch_fails_closed() -> None:
+    runner = StrongestPreflightRunner.from_manifest(
+        ROOT,
+        MANIFEST,
+        command_probe_runner=_command_result,
+    )
+
+    with pytest.raises(
+        StrongestPreflightError,
+        match="must equal the current Git HEAD",
+    ):
+        runner.run(implementation_commit="2" * 40)
 
 
 def test_determinism_check_disconnect_is_rejected(tmp_path: Path) -> None:

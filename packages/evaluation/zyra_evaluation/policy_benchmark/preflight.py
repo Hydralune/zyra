@@ -513,10 +513,25 @@ class StrongestPreflightRunner:
         implementation_commit: str,
         output_directory: Path | None = None,
     ) -> StrongestPreflightResult:
-        if len(implementation_commit) != 40:
+        if (
+            len(implementation_commit) != 40
+            or any(item not in "0123456789abcdef" for item in implementation_commit)
+        ):
             raise StrongestPreflightError(
                 "preflight-implementation-commit-invalid",
                 "The preflight must bind a full implementation commit.",
+            )
+        observed_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.repository_root,
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.strip()
+        if implementation_commit != observed_head:
+            raise StrongestPreflightError(
+                "preflight-implementation-commit-mismatch",
+                "The preflight implementation commit must equal the current Git HEAD.",
             )
         registry = MechanismRegistry.load(self.repository_root)
         normal_before = registry.resolve(

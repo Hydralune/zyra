@@ -2,9 +2,10 @@
   "schema": "zyra.strongest-preflight-manifest/v1",
   "slice_id": "P2-S06-01",
   "frozen_at": "2026-07-30T00:00:00+08:00",
-  "preflight_id": "preflight_a26163647ae31a5ef2b9b282",
+  "preflight_id": "preflight_deafc65877387ab74bbef93c",
   "frozen_inputs": {
     "p2_eval_base_commit": "ff460ab7c3c138ad021b64edc303fc282effb995",
+    "runner_contract_version": "strongest_preflight_v1.1",
     "profile": {
       "family": "topology_policy",
       "version": "phase2_strongest_v1",
@@ -265,5 +266,5 @@
     "baseline_rewrite": true,
     "result_overwrite": true
   },
-  "manifest_digest": "e863ec319f2577415366132bbb3568ba3c459081c6584d4e679332cb2f0f6c1e"
+  "manifest_digest": "602a7c9bc3be65ac8557848350c2ed22a97ef28f44e2df7293bf06210a033ce1"
 }
