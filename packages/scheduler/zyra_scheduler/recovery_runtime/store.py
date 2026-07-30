@@ -823,6 +823,30 @@ class RecoveryPlanStore:
             ).fetchone()
         return SideEffectFence.from_dict(self._loads(row["payload_json"])) if row else None
 
+    def side_effect_fences(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+    ) -> tuple[SideEffectFence, ...]:
+        """Project every canonical side-effect fence in one task scope."""
+
+        self.initialize()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM recovery_side_effect_fences
+                WHERE run_id = ? AND task_id = ?
+                ORDER BY updated_at, fence_key
+                """,
+                (run_id, task_id),
+            ).fetchall()
+        return tuple(
+            SideEffectFence.from_dict(self._loads(row["payload_json"]))
+            for row in rows
+        )
+
     def transition_side_effect(
         self,
         fence_key: str,

@@ -1,0 +1,24 @@
+{
+  "schema": "zyra.maas-early-exit-config/v1",
+  "slice_id": "P2-S04-02",
+  "mechanism_id": "maas_early_exit",
+  "mechanism_version": "maas_verifier_early_exit_v1",
+  "snapshot_schema_version": "zyra.exit-eligibility-snapshot/v1",
+  "decision_schema_version": "zyra.early-exit-decision-receipt/v1",
+  "freshness_ttl_seconds": 300,
+  "final_verifier_ttl_seconds": 300,
+  "minimum_confidence": 0.75,
+  "minimum_avoided_operator_count": 1,
+  "minimum_avoided_tokens": 1,
+  "minimum_avoided_cost_usd": 0.0,
+  "require_artifact": true,
+  "fallback_profile": "continue_operator_execution",
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "pretrained_model_used": false,
+    "datasets": [],
+    "checkpoints": [],
+    "mutable_learned_parameters": []
+  }
+}
