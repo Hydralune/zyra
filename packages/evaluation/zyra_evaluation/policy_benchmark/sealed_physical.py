@@ -120,6 +120,23 @@ def _read_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+def _receipt_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Flatten a policy-contract envelope without losing its audit digest."""
+
+    if "physical_identity" in value:
+        return dict(value)
+    payload = _mapping(value.get("payload"))
+    if not payload:
+        raise SealedPhysicalDispatchError(
+            "physical dispatch receipt contract payload is missing"
+        )
+    result = dict(payload)
+    result["digest"] = str(value.get("digest") or "")
+    result["contract_id"] = str(value.get("contract_id") or "")
+    result["created_at"] = str(value.get("created_at") or "")
+    return result
+
+
 @dataclass(frozen=True, slots=True)
 class SealedPhysicalEvidence:
     tiers: tuple[dict[str, Any], ...]
@@ -432,7 +449,10 @@ class SealedPhysicalDispatchRuntime:
                         "fence_token_persisted": False,
                     }
                 )
-            receipts = tuple(item.to_dict() for item in call_port.receipts)
+            receipts = tuple(
+                _receipt_evidence(item.to_dict())
+                for item in call_port.receipts
+            )
             validations = tuple(
                 item.to_dict() for item in call_port.validation_reports
             )

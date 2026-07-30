@@ -18,6 +18,10 @@ from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
 from zyra_evaluation.policy_benchmark.sealed_long_run import (
     SealedLongRunRunner,
 )
+from zyra_evaluation.policy_benchmark.sealed_physical import (
+    SealedPhysicalDispatchError,
+    _receipt_evidence,
+)
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
 from zyra_evaluation.scenario_runner.errors import ScenarioRunnerError
 
@@ -310,6 +314,30 @@ def test_loopback_remote_lane_requires_real_physical_boundary() -> None:
     ).validate()
     with pytest.raises(ScenarioRunnerError, match="loopback"):
         TierObservation(**base, metadata={}).validate()
+
+
+def test_physical_receipt_contract_envelope_is_flattened_for_evidence() -> None:
+    flattened = _receipt_evidence(
+        {
+            "contract_id": "physical-dispatch:test",
+            "created_at": "2026-07-30T00:00:00Z",
+            "digest": "a" * 64,
+            "payload": {
+                "physical_attempt_id": "attempt-test",
+                "physical_identity": {"location": "local"},
+                "simulated": False,
+                "semantic_only": False,
+            },
+        }
+    )
+    assert flattened["physical_identity"]["location"] == "local"
+    assert flattened["digest"] == "a" * 64
+    assert flattened["contract_id"] == "physical-dispatch:test"
+    with pytest.raises(
+        SealedPhysicalDispatchError,
+        match="contract payload is missing",
+    ):
+        _receipt_evidence({"digest": "b" * 64})
 
 
 def test_worktree_guard_accepts_git_collapsed_evidence_parent() -> None:
