@@ -1,0 +1,34 @@
+{
+  "schema": "zyra.source-language-custody-evidence/v1",
+  "slice_id": "P2-S03-03",
+  "source_decisions": [
+    {
+      "source_repo": "AgentPrune",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "AgentPrune",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_migration",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/contracts.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/outcome_stats.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/optimizer.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/runtime.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 3000
+      },
+      "cross_language_exception": false
+    }
+  ]
+}

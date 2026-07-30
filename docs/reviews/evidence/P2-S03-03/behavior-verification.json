@@ -1,0 +1,150 @@
+{
+  "schema": "zyra.p2-s03-03-agentprune-behavior-evidence/v1",
+  "slice_id": "P2-S03-03",
+  "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400",
+  "mechanism_version": "agentprune_spatiotemporal_v1",
+  "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+  "schemas": {
+    "outcome": "zyra.agentprune-communication-outcome/v1",
+    "stats": "zyra.agentprune-edge-contribution/v1",
+    "mask": "zyra.agentprune-deterministic-mask/v1",
+    "delivery": "zyra.agentprune-delivery-receipt/v1"
+  },
+  "classification": {
+    "spatial_edges": [
+      "edge-critical",
+      "edge-noise",
+      "edge-malicious"
+    ],
+    "temporal_edges": [
+      "edge-temporal"
+    ],
+    "spatial_round": 1,
+    "temporal_round": 3,
+    "temporal_relation": "temporal_checkpoint_restore",
+    "temporal_misclassified_as_spatial": false
+  },
+  "prior_outcome_window": {
+    "candidate_digest": "c0985edcc48402a9b4d97dbd3849fa5ac78ce0a678ba4bf88a5dfac15c2874c6",
+    "stats_digest": "66c9c422d3effda2f88f0127bcb03a01c5963e4787d4e1abf1fe8b66b77763a0",
+    "baseline_totals": {
+      "messages": 5,
+      "bytes": 480,
+      "tokens": 84,
+      "cost_usd": 0.041
+    },
+    "retained_totals": {
+      "messages": 2,
+      "bytes": 180,
+      "tokens": 35,
+      "cost_usd": 0.015
+    },
+    "expected_savings": {
+      "messages": 3,
+      "bytes": 300,
+      "tokens": 49,
+      "cost_usd": 0.026,
+      "classification": "counterfactual_only_until_paired_execution"
+    }
+  },
+  "mask": {
+    "mechanism_epoch": "epoch-normal-1",
+    "input_digest": "bc460ece3d3c3c5eaee7c5f3a83be3c6855ccdb7d8e9ab429679363efaee7a97",
+    "mask_digest": "4e5c3cc838cc0bf7029c99191cbca6f699327fc819e32a4a7f198d90356ba82a",
+    "proposal_digest": "68ca14d68cfecc0e44bfe9753872b000ac91cfcb4a33c494bd7af9c7c6049df9",
+    "kept_edges": [
+      "edge-critical",
+      "edge-temporal"
+    ],
+    "dropped_edges": [
+      "edge-noise",
+      "edge-malicious"
+    ],
+    "edge_scores": {
+      "edge-critical": 0.43828512,
+      "edge-noise": -0.02377705,
+      "edge-malicious": -0.34257137,
+      "edge-temporal": 0.44122119
+    }
+  },
+  "hard_protection": {
+    "edge-critical": [
+      "critical_path",
+      "unique_evidence_source",
+      "verifier_required"
+    ],
+    "edge-temporal": [
+      "continuity_edge",
+      "recovery_edge",
+      "unresolved_obligation"
+    ],
+    "protected_edge_drop_count": 0,
+    "malicious_source_isolated": true,
+    "duplicate_low_value_edge_dropped": true
+  },
+  "actual_paired_delivery": {
+    "same_payloads_and_delivery_owner": true,
+    "enabled": {
+      "delivered_messages": 2,
+      "delivered_bytes": 43,
+      "delivered_tokens": 30,
+      "delivered_cost_usd": 0.01,
+      "verifier_passed": true,
+      "artifact_complete": true,
+      "effective_edge_ids": [
+        "edge-critical",
+        "edge-temporal"
+      ]
+    },
+    "disabled": {
+      "delivered_messages": 4,
+      "delivered_bytes": 81,
+      "delivered_tokens": 60,
+      "delivered_cost_usd": 0.02,
+      "verifier_passed": true,
+      "artifact_complete": true,
+      "effective_edge_ids": [
+        "edge-critical",
+        "edge-noise",
+        "edge-malicious",
+        "edge-temporal"
+      ]
+    },
+    "actual_reduction": {
+      "delivered_messages": 2,
+      "delivered_bytes": 38,
+      "delivered_tokens": 30,
+      "delivered_cost_usd": 0.01
+    },
+    "task_failure_used_as_efficiency": false,
+    "forced_failed_verifier_efficiency_gain_valid": false
+  },
+  "epoch_determinism": {
+    "same_epoch_same_input_reuses_mask": true,
+    "same_epoch_changed_budget": "fail_closed_agentprune_epoch_mask_drift",
+    "pre_fault_mask_digest": "4f22802bda5f9e7d0f48f4e039b8dc68709687ada6f551d69193e5e92ba69817",
+    "new_fault_recovery_epoch": "epoch-recovery-2",
+    "post_fault_mask_digest": "84f7ddcf0e26a0f697674001bdb02916ab712886143e92596ee95df93fd3eb55",
+    "random_resampling": false
+  },
+  "readiness_branches": {
+    "implementation_validated_deterministic_ready": "validation_with_real_delivery_mask",
+    "evidence_only": "diagnostic_would_prune_all_messages_still_delivered",
+    "unavailable": "phase1_targeted_communication_baseline",
+    "disabled": "phase1_targeted_communication_baseline"
+  },
+  "counterfactual_boundary": {
+    "dropped_edge_expected_savings_label": "counterfactual_only",
+    "actual_savings_source": "paired enabled and disabled delivery receipts",
+    "unexecuted_result_claimed_as_causal_gain": false
+  },
+  "owner_boundary": {
+    "keep_drop_mask_owner": "AgentPrune",
+    "communication_delivery_owner": "injected existing communication runtime",
+    "event_owner": "existing event sink",
+    "canonical_graph_owner": "GraphStateCustody",
+    "canonical_mutation_attempted": false,
+    "graph_revision_before": 0,
+    "graph_revision_after": 0
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "zyra.p2-s03-03-no-policy-training-audit/v1",
+  "slice_id": "P2-S03-03",
+  "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400",
+  "passed": true,
+  "training_sample_count": 0,
+  "runtime_entry_points": [],
+  "training_datasets": [],
+  "training_checkpoints": [],
+  "mutable_learned_parameters": [],
+  "random_sampling_entry_points": [],
+  "trainable_spatial_logits": [],
+  "trainable_temporal_logits": [],
+  "machine_learning_dependencies_added": [],
+  "scan_roots": [
+    "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+    "config/phase2/agentprune-pruning.json"
+  ],
+  "rejected_source_dependencies": [
+    "torch",
+    "numpy",
+    "shortuuid",
+    "AgentRegistry"
+  ],
+  "rejected_source_controls": [
+    "policy-gradient log probabilities",
+    "trainable spatial logits",
+    "trainable temporal logits",
+    "torch.rand edge sampling",
+    "per-round random mask reconstruction",
+    "source graph and Agent executor",
+    "provider and decision-node runtime"
+  ],
+  "deterministic_replacements": [
+    "fixed versioned utility weights",
+    "stable edge ordering",
+    "hard critical/obligation/evidence/recovery/continuity constraints",
+    "mechanism epoch plus input digest mask freeze",
+    "explicit targeted communication fallback"
+  ],
+  "finding_count": 0
+}

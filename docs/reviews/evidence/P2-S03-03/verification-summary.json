@@ -1,0 +1,96 @@
+{
+  "schema": "zyra.p2-s03-03-verification-summary/v1",
+  "slice_id": "P2-S03-03",
+  "verdict": "PASS",
+  "base_commit": "321e1f7e5fbd65c6994c7e0ca9d7976fff3853d1",
+  "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400",
+  "mechanism_version": "agentprune_spatiotemporal_v1",
+  "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+  "readiness_report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc",
+  "tests": [
+    {
+      "scope": "focused_agentprune",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_agentprune_optimizer.py tests\\integration\\test_spatial_temporal_pruning.py -q --basetemp .tmp\\pytest-agentprune-focused",
+      "result": "8 passed in 0.78s",
+      "passed": true
+    },
+    {
+      "scope": "agentprune_arg_card_projector_adjacent",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_agentprune_optimizer.py tests\\integration\\test_spatial_temporal_pruning.py tests\\unit\\orchestration\\test_card_residual_corrector.py tests\\integration\\test_environment_conditioned_topology_residual.py tests\\unit\\orchestration\\test_arg_joint_topology_builder.py tests\\integration\\test_arg_joint_topology_runtime.py tests\\unit\\orchestration\\test_policy_contracts.py tests\\unit\\evaluation\\test_phase2_policy_contracts.py tests\\integration\\test_policy_contract_replay.py tests\\integration\\test_neuro_symbolic_projector.py -q --basetemp .tmp\\pytest-agentprune-adjacent",
+      "result": "57 passed in 5.05s",
+      "passed": true
+    },
+    {
+      "scope": "owner_registry_policy_registry_diagnostic_rollback",
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\orchestration\\test_phase2_owner_registry.py tests\\unit\\orchestration\\test_policy_registry.py tests\\integration\\test_mechanism_diagnostic_activation_rollback.py -q --basetemp .tmp\\pytest-agentprune-registry",
+      "result": "41 passed in 1.11s",
+      "passed": true
+    }
+  ],
+  "static_checks": {
+    "compileall": "passed",
+    "release_path_policy": "passed",
+    "diff_check": "passed",
+    "ruff": "not_installed"
+  },
+  "source_language_custody": {
+    "passed": true,
+    "production_language": "python",
+    "added_production_lines": 3090,
+    "violations": []
+  },
+  "no_policy_training": {
+    "passed": true,
+    "training_sample_count": 0,
+    "runtime_training_entry_points": [],
+    "random_sampling_entry_points": []
+  },
+  "behavior": {
+    "spatial_temporal_separated": true,
+    "protected_edge_drop_count": 0,
+    "same_epoch_replay_stable": true,
+    "same_epoch_input_drift_failed_closed": true,
+    "canonical_mutation_attempted": false,
+    "actual_delivery": {
+      "enabled": {
+        "messages": 2,
+        "bytes": 43,
+        "tokens": 30,
+        "cost_usd": 0.01,
+        "verifier_passed": true,
+        "artifact_complete": true
+      },
+      "disabled": {
+        "messages": 4,
+        "bytes": 81,
+        "tokens": 60,
+        "cost_usd": 0.02,
+        "verifier_passed": true,
+        "artifact_complete": true
+      },
+      "reduction": {
+        "messages": 2,
+        "bytes": 38,
+        "tokens": 30,
+        "cost_usd": 0.01
+      }
+    },
+    "failed_verifier_efficiency_gain_valid": false
+  },
+  "readiness": {
+    "stage": "implementation_validated",
+    "status": "deterministic_ready",
+    "mode": "validation",
+    "activation_allowed": false,
+    "canonical_mutation_allowed": false,
+    "delivery_mask_allowed": true,
+    "evidence_only_behavior": "diagnostic_would_prune_with_all_messages_delivered",
+    "unavailable_fallback": "phase1_targeted_communication_baseline"
+  },
+  "environment_notes": [
+    "The initial focused invocation reached an inaccessible user-level pytest temp directory and stopped four tests at setup; the identical suite passed with a workspace-local basetemp.",
+    "Ruff is not installed in the repository virtual environment."
+  ],
+  "next_slice_candidate": "P2-S03-04",
+  "next_slice_authorized": false
+}

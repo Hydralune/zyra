@@ -1,0 +1,133 @@
+{
+  "schema": "zyra.p2-s03-03-source-symbol-map/v1",
+  "slice_id": "P2-S03-03",
+  "sources": [
+    {
+      "repository": "AgentPrune",
+      "path": "long-horizon-systems/AgentPrune/AgentPrune/graph/graph.py",
+      "source_role": "supplementary_implementation",
+      "source_language": "python"
+    },
+    {
+      "repository": "AgentPrune",
+      "path": "long-horizon-systems/AgentPrune/AgentPrune/graph/node.py",
+      "source_role": "supplementary_implementation",
+      "source_language": "python"
+    }
+  ],
+  "target": {
+    "path": "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+    "target_language": "python",
+    "migration_mode": "cropped_same_language_migration",
+    "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400"
+  },
+  "symbol_decisions": [
+    {
+      "source_symbols": [
+        "Graph.init_potential_edges",
+        "Graph.potential_spatial_edges",
+        "Graph.potential_temporal_edges"
+      ],
+      "decision": "typed_candidate_structure_preserved",
+      "target_symbols": [
+        "CommunicationEdgeCandidate",
+        "CommunicationEdgeType",
+        "AgentPruneRuntime._candidates"
+      ],
+      "reason": "Preserves distinct spatial and temporal candidate sets after the CARD residual, while binding every edge to immutable source/target, relation, upstream proposal and real contribution receipts."
+    },
+    {
+      "source_symbols": [
+        "Node.get_spatial_info",
+        "Node.get_temporal_info",
+        "Node.update_memory"
+      ],
+      "decision": "spatial_temporal_context_boundary_preserved",
+      "target_symbols": [
+        "CommunicationOutcomeObservation.round_index",
+        "CommunicationOutcomeAggregator.aggregate",
+        "EdgeContributionStats.first_round",
+        "EdgeContributionStats.last_round"
+      ],
+      "reason": "Same-round delivery remains spatial; cross-round checkpoint, handoff and history delivery remains temporal. Temporal receipts are never relabelled as same-round communication."
+    },
+    {
+      "source_symbols": [
+        "Graph.update_masks",
+        "Graph.spatial_masks",
+        "Graph.temporal_masks"
+      ],
+      "decision": "one_shot_mask_control_preserved_and_determinized",
+      "target_symbols": [
+        "DeterministicCommunicationOptimizer.optimize",
+        "PruningMask",
+        "AgentPruneRuntime._frozen_masks"
+      ],
+      "reason": "One-shot keep/drop masks and separate spatial/temporal outputs are retained, but trained logits are replaced with fixed auditable utility terms, hard constraints, communication budgets and a run/epoch input digest. An epoch cannot resample or rebind."
+    },
+    {
+      "source_symbols": [
+        "Graph.construct_spatial_connection",
+        "Graph.construct_temporal_connection"
+      ],
+      "decision": "delivery_gate_preserved_owner_corrected",
+      "target_symbols": [
+        "AgentPruneRuntime.deliver",
+        "DeliveryAttemptReceipt",
+        "PrunedCommunicationDeliveryReceipt"
+      ],
+      "reason": "The mask gates real calls into the existing communication owner and records exact delivered message, byte, token and cost receipts. It does not rebuild Node connections or own the event store."
+    },
+    {
+      "source_symbols": [
+        "spatial_logits",
+        "temporal_logits",
+        "torch.nn.Parameter",
+        "torch.sigmoid",
+        "torch.rand",
+        "run log_probs"
+      ],
+      "decision": "rejected_and_replaced",
+      "target_symbols": [
+        "PruningScoreComponents",
+        "ProtectedEdgeConstraint",
+        "CommunicationBudget"
+      ],
+      "reason": "Policy-gradient logits and random Bernoulli sampling are prohibited. Fixed delivery, evidence-use, artifact, verifier, redundancy, failure, retry, malicious-source and resource terms produce an exactly replayable ordering."
+    },
+    {
+      "source_symbols": [
+        "Graph.clear_spatial_connection",
+        "Graph.clear_temporal_connection",
+        "Node.add_successor",
+        "Node.remove_successor"
+      ],
+      "decision": "direct_graph_mutation_rejected",
+      "target_symbols": [
+        "DeterministicCommunicationOptimizer.build_proposal",
+        "TopologyProposalArtifact",
+        "TopologyOperationKind.REMOVE_EDGE"
+      ],
+      "reason": "AgentPrune emits removal proposals with mask, epoch, constraint and risk evidence. It never mutates the shared graph; the unified projector and GraphStateCustody retain final authority."
+    },
+    {
+      "source_symbols": [
+        "Graph.run",
+        "Graph.arun",
+        "AgentRegistry",
+        "decision_node",
+        "LLM node execution",
+        "retry executor"
+      ],
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "The source Agent graph executor, provider/LLM runtime, Agent registry, decision node and retry loop would duplicate Zyra owners and are not migrated."
+    }
+  ],
+  "full_source_copy": false,
+  "external_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "random_sampling_migrated": false,
+  "graph_executor_migrated": false,
+  "openclaw_used": false
+}

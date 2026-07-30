@@ -1,0 +1,116 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S03-03",
+  "readiness_stage": "implementation_validated",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400",
+  "generated_at": "2026-07-30T09:58:30+08:00",
+  "generation_clock": "implementation commit time",
+  "valid": true,
+  "activation_allowed": false,
+  "activation_reason": "P2-S03-03 validates AgentPrune as a non-committing spatial/temporal mask and isolated real delivery gate; activation_ready remains closed until the P2-S03-04 composer is complete.",
+  "supersedes_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "prior_implementation_report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244",
+  "contract": {
+    "path": "config/phase2/mechanism-readiness.json",
+    "sha256": "18ebbfa669911371e05678cb53ad1d641bda6d0e484d48c7adc31f7978af7af2"
+  },
+  "baseline_manifest": {
+    "path": "docs/release/phase2-baseline-manifest.json",
+    "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+    "sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e"
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "runtime_entry_points": [],
+    "training_datasets": [],
+    "training_checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "scan_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+      "config/phase2/agentprune-pruning.json"
+    ],
+    "evidence_ref": "docs/reviews/evidence/P2-S03-03/no-policy-training-audit.json"
+  },
+  "mechanism_statuses": {
+    "arg_designer": "deterministic_ready",
+    "card": "deterministic_ready",
+    "agentprune": "deterministic_ready",
+    "maas": "unavailable"
+  },
+  "mechanisms": {
+    "arg_designer": {
+      "mechanism_id": "arg_designer",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "reason": "P2-S03-01 ARG implementation readiness is carried forward without changing its mechanism version, configuration or owner boundary.",
+      "carried_forward_from": {
+        "slice_id": "P2-S03-01",
+        "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+        "mechanism_version": "arg_joint_v1",
+        "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92"
+      }
+    },
+    "card": {
+      "mechanism_id": "card",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "reason": "P2-S03-02 CARD implementation readiness is carried forward without changing its residual version, configuration or owner boundary.",
+      "carried_forward_from": {
+        "slice_id": "P2-S03-02",
+        "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244",
+        "mechanism_version": "card_directional_residual_v1",
+        "configuration_digest": "fc0d699fead07217b6b24c557b183c5d6a0542d4dab2d590b20c0b2e3d3c815e"
+      }
+    },
+    "agentprune": {
+      "mechanism_id": "agentprune",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "reason": "Typed prior delivery/token/cost/evidence/artifact/verifier outcomes, separate spatial/temporal aggregation, deterministic protected budget masks, fixed epochs, readiness enforcement and paired real delivery behavior pass the slice gates.",
+      "implementation_validation": {
+        "passed": true,
+        "mechanism_version": "agentprune_spatiotemporal_v1",
+        "configuration_digest": "7af6228f24f738360f329cc6487b7bdb83a7dfb4d322195edf4e3afacd0a9e28",
+        "outcome_schema_version": "zyra.agentprune-communication-outcome/v1",
+        "stats_schema_version": "zyra.agentprune-edge-contribution/v1",
+        "mask_schema_version": "zyra.agentprune-deterministic-mask/v1",
+        "canonical_mutation_attempted": false,
+        "training_sample_count": 0,
+        "determinism_replay_match": true,
+        "same_epoch_resampling_rejected": true,
+        "spatial_temporal_separated": true,
+        "protected_edge_drop_count": 0,
+        "actual_delivery_reduced": true,
+        "actual_bytes_reduced": true,
+        "actual_tokens_reduced": true,
+        "actual_cost_reduced": true,
+        "enabled_verifier_passed": true,
+        "disabled_verifier_passed": true,
+        "failed_verifier_efficiency_gain_valid": false,
+        "source_custody_ok": true,
+        "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-03/behavior-verification.json"
+      }
+    },
+    "maas": {
+      "mechanism_id": "maas",
+      "readiness_stage": "implementation_validated",
+      "status": "unavailable",
+      "reason": "P2-S04-01 is not implemented by this slice."
+    }
+  },
+  "resolver_policy": {
+    "unknown_status": "unavailable",
+    "missing_report": "unavailable",
+    "corrupt_report": "unavailable",
+    "digest_mismatch": "unavailable",
+    "deterministic_ready_at_implementation_validated": "validation",
+    "evidence_only": "diagnostic_would_prune_with_all_messages_delivered",
+    "unavailable": "phase1_targeted_communication_baseline",
+    "fallback_profile": "phase1_targeted_communication_baseline"
+  },
+  "training_sample_count": 0,
+  "report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc"
+}

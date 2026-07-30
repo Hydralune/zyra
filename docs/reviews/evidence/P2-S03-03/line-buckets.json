@@ -1,0 +1,65 @@
+{
+  "schema": "zyra.p2-s03-03-line-buckets/v1",
+  "slice_id": "P2-S03-03",
+  "base_commit": "321e1f7e5fbd65c6994c7e0ca9d7976fff3853d1",
+  "implementation_commit": "21b13bb33906a2c56c074421cf7423834808c400",
+  "buckets": {
+    "production": {
+      "added_lines": 3090,
+      "paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/contracts.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/outcome_stats.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/optimizer.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/pruning/runtime.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1501,
+      "paths": [
+        "tests/unit/orchestration/test_agentprune_optimizer.py",
+        "tests/integration/test_spatial_temporal_pruning.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 36,
+      "paths": [
+        "config/phase2/agentprune-pruning.json"
+      ]
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "source_pool": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "mock_fixture": {
+      "added_lines": 0,
+      "paths": [],
+      "note": "Typed prior outcomes and the real inbox/event sink are controlled tests, not production or evidence-volume buckets."
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S03-03",
+        "docs/reviews/P2-S03-03-agentprune-pruning-review.md"
+      ],
+      "note": "Committed after the frozen implementation target and excluded from production totals."
+    }
+  },
+  "total_implementation_added_lines": 4627,
+  "production_share": 0.66781932,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}
