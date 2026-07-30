@@ -23,9 +23,23 @@ class M0M3InternalizationAuditTests(unittest.TestCase):
 
         self.assertEqual(report["status"], "pass_with_debt")
         self.assertGreater(report["line_counts"]["tracked_total"], 0)
-        self.assertGreater(report["line_counts"]["tracked_vendor"], 0)
+        self.assertEqual(report["line_counts"]["tracked_vendor"], 0)
         self.assertGreater(report["line_counts"]["tracked_non_vendor"], 0)
         self.assertFalse(report["fatal"])
+        retirement = report["legacy_source_retirement"]
+        self.assertTrue(retirement["valid"], retirement["findings"])
+        self.assertEqual(retirement["retired_file_count"], 3684)
+        self.assertEqual(retirement["current_legacy_target_count"], 0)
+        self.assertEqual(
+            set(report["required_path_checks"]["m2"]["retired"]),
+            {
+                "vendor/claude-code-best/src/QueryEngine.ts",
+                "vendor/claude-code-best/src/query.ts",
+                "vendor/browser-use/browser_use/agent",
+                "vendor/browser-use/browser_use/browser",
+                "packages/integrations/zyra_integrations/vendor_manifest.py",
+            },
+        )
         self.assertEqual(
             report["scope"],
             "historical_pre_reset_m0_0_to_m0_3",

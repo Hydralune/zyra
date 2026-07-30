@@ -118,6 +118,85 @@ class EvidenceLinkResolver:
             "references": sorted(receipts, key=lambda item: item["reference_id"]),
         }
 
+    def verify_frozen_resolution(
+        self,
+        reference: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Verify the resolution receipt sealed into a historical index.
+
+        External targets are resolved while an index is built.  A materialized
+        freeze output must instead verify the resolution receipt protected by
+        the index digest and evidence archive; consulting the mutable current
+        checkout would make historical evidence depend on later source edits.
+        """
+
+        selected = require_mapping(reference, "frozen evidence reference")
+        reference_id = require_identity(
+            selected.get("reference_id"),
+            "reference id",
+        )
+        kind = require_text(selected.get("kind"), "reference kind", maximum=64)
+        relative = safe_relative_path(selected.get("path"), "reference path")
+        expected = require_digest(selected.get("sha256"), "reference sha256")
+        if selected.get("resolved") is not True:
+            raise fail(
+                "evidence-frozen-resolution-not-attested",
+                "Frozen evidence reference is not marked resolved.",
+                phase="link",
+                detail={"reference_id": reference_id, "path": relative},
+            )
+        receipt = require_mapping(
+            selected.get("resolution"),
+            "frozen evidence resolution",
+        )
+        expected_fields: dict[str, Any] = {
+            "reference_id": reference_id,
+            "kind": kind,
+            "path": relative,
+            "sha256": expected,
+        }
+        if selected.get("selector"):
+            expected_fields["selector"] = require_text(
+                selected.get("selector"),
+                "reference selector",
+                maximum=2048,
+            )
+        if selected.get("commit"):
+            expected_fields["commit"] = require_commit(
+                selected.get("commit"),
+                "reference commit",
+            )
+        mismatches = {
+            field: {
+                "reference": value,
+                "resolution": receipt.get(field),
+            }
+            for field, value in expected_fields.items()
+            if receipt.get(field) != value
+        }
+        target_type = require_text(
+            receipt.get("target_type"),
+            "frozen resolution target type",
+            maximum=32,
+        )
+        if target_type not in {"file", "directory"}:
+            mismatches["target_type"] = {
+                "reference": "file-or-directory",
+                "resolution": target_type,
+            }
+        if mismatches:
+            raise fail(
+                "evidence-frozen-resolution-mismatch",
+                "Frozen evidence resolution disagrees with its reference.",
+                phase="link",
+                detail={
+                    "reference_id": reference_id,
+                    "path": relative,
+                    "mismatches": mismatches,
+                },
+            )
+        return dict(receipt)
+
     def graph(
         self,
         score_entries: Mapping[str, Mapping[str, Any]],

@@ -134,6 +134,9 @@ PROVENANCE_TERMS = frozenset(
         "provenance",
     }
 )
+VENDOR_LIKE_RUNTIME_ROOTS = (
+    "packages/integrations/loopx_runtime",
+)
 
 
 class PathScope(StrEnum):
@@ -1192,10 +1195,17 @@ class RepositoryBoundaryInspector:
             if not root.exists():
                 continue
             for current_root, directories, files in os.walk(root):
-                directories[:] = [
-                    name for name in directories if name not in ignored
-                ]
                 current = Path(current_root)
+                directories[:] = [
+                    name
+                    for name in directories
+                    if name not in ignored
+                    and not is_vendor_like_runtime_path(
+                        (current / name)
+                        .relative_to(self.project_root)
+                        .as_posix()
+                    )
+                ]
                 for filename in files:
                     path = current / filename
                     if (
@@ -1210,6 +1220,8 @@ def classify_scope(path: str) -> PathScope:
     parts = PurePosixPath(normalized).parts
     lower = tuple(item.casefold() for item in parts)
     filename = lower[-1]
+    if is_vendor_like_runtime_path(normalized):
+        return PathScope.VENDOR
     if lower[0] in {"vendor", "vendor-runtimes", "third_party", "runtime-sources"}:
         return PathScope.VENDOR
     if "generated" in lower or filename.endswith((".generated.ts", ".generated.py")):
@@ -1257,6 +1269,15 @@ def classify_scope(path: str) -> PathScope:
             return PathScope.AUDIT_TOOL
         return PathScope.PRODUCTION
     return PathScope.UNKNOWN
+
+
+def is_vendor_like_runtime_path(path: str) -> bool:
+    normalized = normalize_repo_path(path).casefold()
+    return any(
+        normalized == root.casefold()
+        or normalized.startswith(f"{root.casefold()}/")
+        for root in VENDOR_LIKE_RUNTIME_ROOTS
+    )
 
 
 def split_command(command: str) -> list[str]:

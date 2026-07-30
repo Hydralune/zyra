@@ -9,6 +9,7 @@ import pytest
 from zyra_evaluation.policy_benchmark import (
     ContractViolation,
     Phase2PolicyContractBundle,
+    compute_frozen_gate_digest,
     validate_source_role_registry,
     validate_state_owner_registry,
 )
@@ -145,8 +146,18 @@ def test_openclaw_cannot_reenter_role_table() -> None:
     assert failure.value.code == "openclaw-forward-role-forbidden"
 
 
-def test_strongest_activation_api_fails_closed_until_readiness_audit() -> None:
+def test_strongest_activation_api_admits_ready_profile_and_rejects_downgrade() -> None:
+    report = Phase2PolicyContractBundle.load(ROOT).require_strongest_activation()
+
+    assert report.activation_gates["strongest_activation_eligible"] is True
+
+    bundle = Phase2PolicyContractBundle.load(ROOT)
+    downgraded = copy.deepcopy(bundle.activation_gates)
+    downgraded["readiness"]["mechanisms"][0]["status"] = "evidence_only"
+    downgraded["frozen_gate_digest"] = compute_frozen_gate_digest(downgraded)
+    bundle.activation_gates = downgraded
+
     with pytest.raises(ContractViolation) as failure:
-        Phase2PolicyContractBundle.load(ROOT).require_strongest_activation()
+        bundle.require_strongest_activation()
 
     assert failure.value.code == "strongest-profile-readiness-failed"

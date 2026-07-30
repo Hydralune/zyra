@@ -23,6 +23,11 @@ def test_root_pyproject_is_the_authoritative_python_workspace() -> None:
         "packages/core",
         "packages/evaluation",
         "packages/integrations",
+        "packages/integrations/loopx_runtime",
+        (
+            "packages/integrations/loopx_runtime/packages/"
+            "loopx-finance-value-discovery/src"
+        ),
         "packages/memory",
         "packages/orchestration",
         "packages/productization",
@@ -35,10 +40,15 @@ def test_root_pyproject_is_the_authoritative_python_workspace() -> None:
     }
     discovery = project["tool"]["setuptools"]["packages"]["find"]
     assert set(discovery["where"]) == expected_roots
-    assert discovery["include"] == ["zyra_*"]
-    assert discovery["namespaces"] is False
+    assert discovery["include"] == [
+        "zyra_*",
+        "loopx*",
+        "loopx_finance_*",
+    ]
+    assert discovery["namespaces"] is True
     assert project["tool"]["setuptools"]["package-data"]["zyra_integrations"] == [
-        "data/*.json"
+        "data/*.json",
+        "loopx/runtime/*.json",
     ]
 
 

@@ -74,6 +74,14 @@ REQUIRED_PATHS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+FORMALLY_RETIRED_PATHS = {
+    "vendor/claude-code-best/src/QueryEngine.ts",
+    "vendor/claude-code-best/src/query.ts",
+    "vendor/browser-use/browser_use/agent",
+    "vendor/browser-use/browser_use/browser",
+    "packages/integrations/zyra_integrations/vendor_manifest.py",
+}
+
 
 DEEP_INTERNALIZATION_DEBTS = (
     {
@@ -126,7 +134,16 @@ def main() -> None:
 def build_report(root: Path) -> dict[str, Any]:
     files = tracked_files(root)
     counts = count_lines(root, files)
-    milestone_checks = {milestone: check_paths(root, paths) for milestone, paths in REQUIRED_PATHS.items()}
+    retirement = verify_legacy_source_retirement(root)
+    retirement_valid = retirement["valid"] is True
+    milestone_checks = {
+        milestone: check_paths(
+            root,
+            paths,
+            retirement_valid=retirement_valid,
+        )
+        for milestone, paths in REQUIRED_PATHS.items()
+    }
     fatal = {
         milestone: check["missing"]
         for milestone, check in milestone_checks.items()
@@ -145,6 +162,7 @@ def build_report(root: Path) -> dict[str, Any]:
         "scope": "historical_pre_reset_m0_0_to_m0_3",
         "current_authority": "docs/milestones/execution-state.yaml",
         "root": str(root),
+        "legacy_source_retirement": retirement,
         "line_counts": {
             "tracked_total": counts.tracked_total,
             "tracked_vendor": counts.tracked_vendor,
@@ -230,16 +248,75 @@ def count_lines(root: Path, files: list[str]) -> LineCounts:
     )
 
 
-def check_paths(root: Path, paths: tuple[str, ...]) -> dict[str, Any]:
+def check_paths(
+    root: Path,
+    paths: tuple[str, ...],
+    *,
+    retirement_valid: bool,
+) -> dict[str, Any]:
     present: list[str] = []
     missing: list[str] = []
+    retired: list[str] = []
     for relative in paths:
         target = root / relative
         if target.exists():
             present.append(relative)
+        elif retirement_valid and relative in FORMALLY_RETIRED_PATHS:
+            retired.append(relative)
         else:
             missing.append(relative)
-    return {"present": present, "missing": missing}
+    return {
+        "present": present,
+        "retired": retired,
+        "missing": missing,
+    }
+
+
+def verify_legacy_source_retirement(root: Path) -> dict[str, Any]:
+    for package_root in (
+        root / "packages" / "core",
+        root / "packages" / "integrations",
+    ):
+        if str(package_root) not in sys.path:
+            sys.path.insert(0, str(package_root))
+    from zyra_integrations.legacy_source_retirement import (
+        load_retirement_manifest,
+        verify_retirement_manifest,
+    )
+
+    manifest_path = (
+        root
+        / "docs"
+        / "reviews"
+        / "evidence"
+        / "P2-S02A-01"
+        / "legacy-source-pool-retirement-manifest.json"
+    )
+    try:
+        verification = verify_retirement_manifest(
+            root,
+            load_retirement_manifest(manifest_path),
+            target_revision="HEAD",
+            check_worktree=True,
+        )
+    except Exception as error:
+        return {
+            "valid": False,
+            "manifest": manifest_path.relative_to(root).as_posix(),
+            "error": str(error),
+        }
+    report = verification.to_dict()
+    return {
+        "valid": report["valid"],
+        "manifest": manifest_path.relative_to(root).as_posix(),
+        "base_commit": report["base_commit"],
+        "target_revision": report["target_revision"],
+        "retired_file_count": report["root_file_count"],
+        "retired_total_bytes": report["root_total_bytes"],
+        "historical_target_count": report["historical_target_count"],
+        "current_legacy_target_count": report["current_legacy_target_count"],
+        "findings": report["findings"],
+    }
 
 
 def should_skip(relative: str) -> bool:

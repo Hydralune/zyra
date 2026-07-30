@@ -238,6 +238,10 @@ def verify_live_benchmark_freeze_admission() -> None:
             f"M3 formal live benchmark pointer is missing: {pointer_path}"
         )
     pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    if pointer.get("schema") != "zyra.m3-s02a02-formal-evidence-pointer/v1":
+        raise AssertionError(
+            "M3 formal live benchmark pointer schema is invalid"
+        )
     projection = dict(pointer)
     declared = str(projection.pop("pointer_digest", "") or "")
     if declared != digest(projection):
@@ -252,9 +256,12 @@ def verify_live_benchmark_freeze_admission() -> None:
         raise AssertionError(
             "M3 formal live benchmark pointer lacks an exact implementation commit"
         )
-    if pointer.get("no_new_provider_call") is not True:
+    if (
+        pointer.get("no_new_provider_call") is not False
+        or pointer.get("external_model_request_made") is not True
+    ):
         raise AssertionError(
-            "M3 formal live benchmark changed the no-new-provider-call boundary"
+            "M3 formal live benchmark lacks current-provider request evidence"
         )
     receipt = LiveBenchmarkFreezeGate().verify(
         evidence_root,
@@ -282,10 +289,18 @@ def verify_live_benchmark_freeze_admission() -> None:
         "score",
         "human_intervention_count",
         "operator_intervention_count",
+        "current_campaign_evidence_digest",
     )
     if any(stored.get(key) != receipt.get(key) for key in stable_fields):
         raise AssertionError(
             "M3 formal live benchmark repeat verification changed stable fields"
+        )
+    if (
+        receipt.get("current_campaign_evidence_digest")
+        != pointer.get("current_campaign_evidence_digest")
+    ):
+        raise AssertionError(
+            "M3 current-provider evidence digest differs from its pointer"
         )
 
 

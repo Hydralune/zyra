@@ -32,7 +32,9 @@ from zyra_runtime.productization.defaults import (
 )
 from zyra_runtime.productization.source_boundary import (
     BoundaryDecision,
+    PathScope,
     RepositoryBoundaryInspector,
+    classify_scope,
 )
 
 
@@ -344,6 +346,50 @@ def test_source_boundary_blocks_parent_path_used_by_process(
     assert evidence.resolved is False
     assert evidence.decision is BoundaryDecision.BLOCKED_PARENT_SOURCE
     assert any(item.production_effect for item in evidence.parent_source_uses)
+
+
+def test_source_boundary_excludes_embedded_loopx_vendor_like_runtime(
+    tmp_path: Path,
+) -> None:
+    upstream = (
+        tmp_path
+        / "packages"
+        / "integrations"
+        / "loopx_runtime"
+        / "examples"
+    )
+    upstream.mkdir(parents=True)
+    (upstream / "install_probe.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(['pip', 'install', 'mutable-package'], check=True)\n",
+        encoding="utf-8",
+    )
+    zyra_owned = (
+        tmp_path
+        / "packages"
+        / "integrations"
+        / "zyra_integrations"
+        / "loopx"
+    )
+    zyra_owned.mkdir(parents=True)
+    (zyra_owned / "bridge.py").write_text(
+        "BRIDGE_OWNER = 'Zyra'\n",
+        encoding="utf-8",
+    )
+
+    report = RepositoryBoundaryInspector(
+        tmp_path,
+        revision="f" * 40,
+    ).audit(())
+
+    assert classify_scope(
+        "packages/integrations/loopx_runtime/loopx/cli.py"
+    ) is PathScope.VENDOR
+    assert classify_scope(
+        "packages/integrations/zyra_integrations/loopx/bridge.py"
+    ) is PathScope.PRODUCTION
+    assert report.ready is True
+    assert report.dynamic_install_hits == ()
 
 
 def test_parent_queue_is_checksum_bound_and_absorption_closes_all_blockers() -> None:

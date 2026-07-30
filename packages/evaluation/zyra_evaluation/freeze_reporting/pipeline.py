@@ -769,7 +769,10 @@ class FreezeOutputVerifier:
                 lambda value: FreezeEvidenceIndexBuilder(
                     inputs,
                     target_commit=target_commit,
-                ).verify(value),
+                ).verify(
+                    value,
+                    reverify_external_links=False,
+                ),
             ),
             (
                 "internalization_ledger",

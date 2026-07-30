@@ -145,7 +145,12 @@ class FreezeEvidenceIndexBuilder:
         ScoreMatrixVerifier().verify(index)
         return index
 
-    def verify(self, index: Mapping[str, Any]) -> dict[str, Any]:
+    def verify(
+        self,
+        index: Mapping[str, Any],
+        *,
+        reverify_external_links: bool = True,
+    ) -> dict[str, Any]:
         score_receipt = ScoreMatrixVerifier().verify(index)
         selected = require_mapping(index, "freeze evidence index")
         requirements = require_mapping(
@@ -162,12 +167,22 @@ class FreezeEvidenceIndexBuilder:
                 selected_reference = require_mapping(reference, "evidence reference")
                 all_references.append(selected_reference)
                 try:
-                    self.resolver.resolve(selected_reference)
+                    if reverify_external_links:
+                        self.resolver.resolve(selected_reference)
+                    else:
+                        self.resolver.verify_frozen_resolution(selected_reference)
                 except Exception as error:
                     findings.append(
                         blocker(
                             "freeze-index-link-broken",
-                            "Stored freeze evidence link no longer resolves.",
+                            (
+                                "Stored freeze evidence link no longer resolves."
+                                if reverify_external_links
+                                else (
+                                    "Stored freeze evidence resolution is "
+                                    "internally inconsistent."
+                                )
+                            ),
                             requirement_id=requirement_id,
                             reference_id=selected_reference.get("reference_id"),
                             error=(

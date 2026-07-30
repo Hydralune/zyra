@@ -153,6 +153,31 @@ def test_evidence_index_fails_on_broken_direct_link(
     assert captured.value.phase in {"score", "link", "index"}
 
 
+def test_evidence_index_frozen_resolution_rejects_attestation_drift(
+    admitted_inputs: FreezeInputSet,
+) -> None:
+    builder = FreezeEvidenceIndexBuilder(
+        admitted_inputs,
+        target_commit=head_commit(),
+    )
+    invalid = copy.deepcopy(builder.build())
+    entry = next(iter(invalid["requirements"].values()))
+    reference = entry["references"][0]
+    reference["resolution"]["sha256"] = "0" * 64
+    projection = dict(invalid)
+    projection.pop("index_digest")
+    invalid["index_digest"] = digest(projection)
+
+    with pytest.raises(FreezeEvidenceError) as captured:
+        builder.verify(invalid, reverify_external_links=False)
+
+    assert captured.value.code == "freeze-index-links-invalid"
+    assert any(
+        item["code"] == "freeze-index-link-broken"
+        for item in captured.value.blockers
+    )
+
+
 def test_formal_pointer_schema_is_fail_closed(
     admitted_inputs: FreezeInputSet,
 ) -> None:

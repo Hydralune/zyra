@@ -61,6 +61,27 @@ def test_digest_bound_contracts_have_canonical_lf_checkout_bytes() -> None:
     paths.append(
         str(state_owners["frozen_owner_evidence_catalog"]["path"])  # type: ignore[index]
     )
+    preflight = _load("strongest-preflight.json")
+    paths.extend(
+        str(item["report_ref"])
+        for item in preflight["evidence_bindings"]  # type: ignore[index]
+    )
+    paths.extend(
+        str(item["path"])
+        for item in preflight["supporting_evidence"]  # type: ignore[index]
+        if "file_sha256" in item
+    )
+    paths.append(
+        str(preflight["frozen_inputs"]["policy_registry"]["path"])  # type: ignore[index]
+    )
+    readiness = json.loads(
+        (ROOT / "docs" / "release" / "phase2" / "activation-readiness.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    paths.append(str(readiness["contract"]["path"]))
+    paths.extend(str(item["path"]) for item in readiness["evidence_files"])
+    paths = list(dict.fromkeys(paths))
 
     completed = subprocess.run(
         ["git", "check-attr", "eol", "--", *paths],
