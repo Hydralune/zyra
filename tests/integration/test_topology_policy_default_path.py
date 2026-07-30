@@ -84,6 +84,12 @@ def test_isolated_validation_runs_full_composer_and_custody_commit(tmp_path):
     assert all(layer.affected_commit for layer in topology.composition.layers)
     assert topology.outcome is not None
     assert topology.outcome.causal_refs
+    assert topology.memory_causal_refs == ("memory-continuity-r1",)
+    assert len(topology.scheduler_causal_refs) == 4
+    assert "memory-continuity-r1" in topology.outcome.causal_refs
+    assert "GraphStateCustody.validate_graph" in (
+        topology.outcome.causal_refs
+    )
     assert topology.outcome.verifier_result == "graph_commit_verified"
     assert graph_custody.current(current.graph_id).revision == 1
     assert any(

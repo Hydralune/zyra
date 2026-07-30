@@ -1117,7 +1117,7 @@ class TopologyComposerRuntime:
             )
             history.append(
                 (
-                    policy_input.header.created_at,
+                    projection.commit.snapshot.created_at,
                     current_graph.signature,
                     projection.commit.snapshot.signature,
                 )
@@ -1269,14 +1269,54 @@ class TopologyComposerRuntime:
         before_signature: str,
         after_signature: str,
     ) -> ConstraintResult | None:
-        observed_at = datetime.fromisoformat(
-            policy_input.header.created_at.replace("Z", "+00:00")
-        ).astimezone(UTC)
-        history = self._committed_signatures.get(policy_input.run_id, [])
+        observed_at = datetime.now(UTC)
+        history = list(
+            self._committed_signatures.get(policy_input.run_id, [])
+        )
+        try:
+            snapshots = self.projector.custody.store.list_snapshots(
+                policy_input.graph.graph_id
+            )
+        except Exception as exc:  # noqa: BLE001 - stability history is a hard gate.
+            return ConstraintResult(
+                constraint_id="composer_run_stability_history",
+                passed=False,
+                reason_code="composer_stability_history_unavailable",
+                message=(
+                    "durable graph history is required for run-level "
+                    "stability enforcement"
+                ),
+                details=FrozenDict(
+                    {"error_type": type(exc).__name__}
+                ),
+            )
+        history.extend(
+            (
+                selected.created_at,
+                previous.signature,
+                selected.signature,
+            )
+            for previous, selected in zip(
+                snapshots,
+                snapshots[1:],
+                strict=False,
+            )
+        )
+        history = list(
+            {
+                (created_at, previous, selected): (
+                    created_at,
+                    previous,
+                    selected,
+                )
+                for created_at, previous, selected in history
+            }.values()
+        )
         within_window = [
             item
             for item in history
-            if (
+            if 0
+            <= (
                 observed_at
                 - datetime.fromisoformat(
                     item[0].replace("Z", "+00:00")
@@ -1284,6 +1324,11 @@ class TopologyComposerRuntime:
             ).total_seconds()
             <= self.composer.config.churn_window_seconds
         ]
+        within_window.sort(
+            key=lambda item: datetime.fromisoformat(
+                item[0].replace("Z", "+00:00")
+            ).astimezone(UTC)
+        )
         self._committed_signatures[policy_input.run_id] = within_window
         if len(within_window) >= (
             self.composer.config.maximum_commits_per_window
@@ -1339,6 +1384,31 @@ class TopologyComposerRuntime:
                     }
                 ),
             )
+        if within_window:
+            dwell_seconds = (
+                observed_at
+                - datetime.fromisoformat(
+                    within_window[-1][0].replace("Z", "+00:00")
+                ).astimezone(UTC)
+            ).total_seconds()
+            if dwell_seconds < self.composer.config.minimum_dwell_seconds:
+                return ConstraintResult(
+                    constraint_id="composer_run_minimum_dwell",
+                    passed=False,
+                    reason_code="composer_minimum_dwell_not_met",
+                    message=(
+                        "the durable run-level topology commit has not "
+                        "satisfied the configured minimum dwell"
+                    ),
+                    details=FrozenDict(
+                        {
+                            "dwell_seconds": round(dwell_seconds, 6),
+                            "minimum_dwell_seconds": (
+                                self.composer.config.minimum_dwell_seconds
+                            ),
+                        }
+                    ),
+                )
         return ConstraintResult(
             constraint_id="composer_run_stability",
             passed=True,

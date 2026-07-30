@@ -16,6 +16,7 @@ from zyra_orchestration.topology_policy import (
     PolicyBudget,
     PolicyInputSnapshot,
     PolicyNodeSnapshot,
+    StableArtifactRef,
     TelemetryObservation,
     canonical_digest,
 )
@@ -248,6 +249,8 @@ def policy_input(
     unresolved_obligations: tuple[str, ...] | None = None,
     allowed_permissions: tuple[str, ...] = ("graph.write",),
     max_topology_churn: int = 32,
+    max_communication_bytes: int = 16_384,
+    max_fan_out: int = 4,
 ) -> PolicyInputSnapshot:
     digests = readiness_digests()
     return PolicyInputSnapshot(
@@ -301,7 +304,18 @@ def policy_input(
             }
         ),
         environment=environment,
-        memory_refs=(),
+        memory_refs=(
+            StableArtifactRef(
+                ref_id="memory-continuity-r1",
+                uri="urn:zyra:memory:continuity-r1",
+                digest=canonical_digest(
+                    ("continuity-r1", requirement_revision)
+                ),
+                media_type=(
+                    "application/vnd.zyra.memory-continuity+json"
+                ),
+            ),
+        ),
         readiness_refs=tuple(
             MechanismEvidenceReadinessReportRef(
                 header=header(
@@ -319,8 +333,8 @@ def policy_input(
             remaining_tokens=10_000,
             remaining_cost_usd=10,
             remaining_time_ms=120_000,
-            max_communication_bytes=16_384,
-            max_fan_out=4,
+            max_communication_bytes=max_communication_bytes,
+            max_fan_out=max_fan_out,
             max_topology_churn=max_topology_churn,
             minimum_dwell_seconds=0,
         ),

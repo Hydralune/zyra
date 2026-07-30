@@ -32,11 +32,11 @@ from tests.support.topology_composer import (
         ),
         (
             TopologyLayerSwitches(card_enabled=False),
-            "strongest_required_layer_not_ready",
+            "card_disabled",
         ),
         (
             TopologyLayerSwitches(agentprune_enabled=False),
-            "strongest_required_layer_not_ready",
+            "agentprune_disabled",
         ),
         (
             TopologyLayerSwitches(policy_enabled=False),
@@ -138,6 +138,171 @@ def test_permission_rejection_cannot_commit_and_is_not_silent(tmp_path):
     assert receipt.fallback_reason == permission.reason_code
     assert receipt.fallback_profile == "phase1_deterministic_baseline"
     assert projection.commit is None
+    assert graph_custody.current(current.graph_id).revision == 0
+
+
+def test_unknown_capability_is_rejected_by_composite_registry_gate(tmp_path):
+    graph_custody = custody(tmp_path, suffix="unknown-capability")
+    current = graph_custody.current("graph-unknown-capability")
+    environment, catalog = environment_and_catalog()
+    input_snapshot = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+    )
+    policy_value = policy(graph_custody=graph_custody)
+    request_value = request(
+        policy_value=policy_value,
+        input_snapshot=input_snapshot,
+        current_graph=current,
+        catalog=catalog,
+    )
+    arg_result, card_result, pruning_result = layer_results(
+        policy_value=policy_value,
+        request_value=request_value,
+    )
+    composition = policy_value.composer_runtime.composer.compose(
+        policy_input=input_snapshot,
+        current_graph=current,
+        arg_result=arg_result,
+        card_result=card_result,
+        pruning_result=pruning_result,
+    )
+    proposal = composition.proposal
+    node_index = next(
+        index
+        for index, item in enumerate(proposal.operations)
+        if item.kind is TopologyOperationKind.ADD_NODE
+    )
+    operations = list(proposal.operations)
+    node = operations[node_index]
+    operations[node_index] = replace(
+        node,
+        value={
+            **dict(node.value),
+            "capabilities": ["unknown-privileged-capability"],
+        },
+    )
+    mutated = replace(proposal, operations=tuple(operations))
+
+    projection = policy_value.composer_runtime.projector.execute(
+        input_snapshot,
+        mutated,
+        decision_id="decision-unknown-capability",
+        execution_mode="validation",
+    )
+
+    registry = next(
+        item
+        for item in projection.receipt.constraint_results
+        if item.constraint_id == "registry"
+    )
+    assert registry.passed is False
+    assert registry.reason_code == "unknown_role_or_capability"
+    assert projection.commit is None
+
+
+def test_mixed_layer_snapshot_is_rejected_before_projection(tmp_path):
+    graph_custody = custody(tmp_path, suffix="mixed-snapshot")
+    current = graph_custody.current("graph-mixed-snapshot")
+    environment, catalog = environment_and_catalog()
+    input_snapshot = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+    )
+    policy_value = policy(graph_custody=graph_custody)
+    request_value = request(
+        policy_value=policy_value,
+        input_snapshot=input_snapshot,
+        current_graph=current,
+        catalog=catalog,
+    )
+    arg_result, card_result, pruning_result = layer_results(
+        policy_value=policy_value,
+        request_value=request_value,
+    )
+    card_result = replace(
+        card_result,
+        correction_proposal=replace(
+            card_result.correction_proposal,
+            input_snapshot_digest="0" * 64,
+        ),
+    )
+
+    composition = policy_value.composer_runtime.composer.compose(
+        policy_input=input_snapshot,
+        current_graph=current,
+        arg_result=arg_result,
+        card_result=card_result,
+        pruning_result=pruning_result,
+    )
+
+    assert composition.degraded is True
+    assert composition.degraded_reason == "composer_mixed_snapshot"
+    assert composition.replan_required is True
+
+
+def test_agentprune_budget_overrun_forces_explicit_baseline(tmp_path):
+    graph_custody = custody(tmp_path, suffix="budget-overrun")
+    current = graph_custody.current("graph-budget-overrun")
+    environment, catalog = environment_and_catalog()
+    input_snapshot = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+        max_communication_bytes=100,
+    )
+    policy_value = policy(graph_custody=graph_custody)
+
+    result = policy_value.execute(
+        request(
+            policy_value=policy_value,
+            input_snapshot=input_snapshot,
+            current_graph=current,
+            catalog=catalog,
+        )
+    )
+
+    assert result.used_baseline is True
+    assert result.policy_result.execution_receipt.degraded_reason == (
+        "agentprune_budget_exceeds_policy_input"
+    )
+    assert graph_custody.current(current.graph_id).revision == 0
+
+
+def test_composite_fanout_overrun_is_rejected_by_projector(tmp_path):
+    graph_custody = custody(tmp_path, suffix="fanout-overrun")
+    current = graph_custody.current("graph-fanout-overrun")
+    environment, catalog = environment_and_catalog()
+    input_snapshot = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+        max_fan_out=1,
+    )
+    policy_value = policy(graph_custody=graph_custody)
+
+    result = policy_value.execute(
+        request(
+            policy_value=policy_value,
+            input_snapshot=input_snapshot,
+            current_graph=current,
+            catalog=catalog,
+        )
+    )
+
+    assert result.used_baseline is True
+    assert result.topology_result is not None
+    fanout = next(
+        item
+        for item in (
+            result.topology_result.projection.receipt.constraint_results
+        )
+        if item.constraint_id == "fanout"
+    )
+    assert fanout.passed is False
+    assert fanout.reason_code == "fanout_exceeded"
     assert graph_custody.current(current.graph_id).revision == 0
 
 
@@ -388,6 +553,44 @@ def test_run_level_oscillation_guard_rejects_recent_signature(tmp_path):
         policy_input=input_snapshot,
         before_signature="signature-c",
         after_signature="signature-a",
+    )
+
+    assert result is not None
+    assert result.passed is False
+    assert result.reason_code == "topology_oscillation_detected"
+
+
+def test_oscillation_history_survives_composer_runtime_restart(tmp_path):
+    graph_custody = custody(tmp_path, suffix="oscillation-restart")
+    initial = graph_custody.current("graph-oscillation-restart")
+    environment, catalog = environment_and_catalog()
+    initial_input = policy_input(
+        graph=initial,
+        environment=environment,
+        catalog=catalog,
+    )
+    first_policy = policy(graph_custody=graph_custody)
+    assert first_policy.execute(
+        request(
+            policy_value=first_policy,
+            input_snapshot=initial_input,
+            current_graph=initial,
+            catalog=catalog,
+        )
+    ).committed is True
+    current = graph_custody.current(initial.graph_id)
+    restarted_policy = policy(graph_custody=graph_custody)
+    current_input = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+        requirement_revision="requirement-r2",
+    )
+
+    result = restarted_policy.composer_runtime._commit_guard(
+        policy_input=current_input,
+        before_signature=current.signature,
+        after_signature=initial.signature,
     )
 
     assert result is not None

@@ -264,7 +264,7 @@ class TopologyPolicyComposer:
                 switches=selected_switches,
             )
             blockers = tuple(
-                item.mechanism_id
+                item
                 for item in records
                 if (
                     not item.enabled
@@ -275,10 +275,24 @@ class TopologyPolicyComposer:
                 )
             )
             if blockers:
+                blocker_reason = next(
+                    (
+                        item.reason
+                        for item in blockers
+                        if item.reason
+                        not in {
+                            "eligible",
+                            "required_layer_disabled",
+                            "diagnostic_or_degraded_output_does_not_affect_commit",
+                        }
+                    ),
+                    "",
+                )
                 raise TopologyCompositionError(
-                    "strongest_required_layer_not_ready",
+                    blocker_reason
+                    or "strongest_required_layer_not_ready",
                     "required topology layers cannot influence the commit: "
-                    + ", ".join(blockers),
+                    + ", ".join(item.mechanism_id for item in blockers),
                 )
             if (
                 arg_result.proposal is None
@@ -812,6 +826,7 @@ class TopologyPolicyComposer:
                 arg_result.readiness,
                 arg_result.proposal,
                 not arg_result.degraded,
+                arg_result.degraded_reason,
             ),
             (
                 "card",
@@ -819,6 +834,7 @@ class TopologyPolicyComposer:
                 card_result.readiness,
                 card_result.correction_proposal,
                 card_result.composer_residual_eligible,
+                card_result.degraded_reason,
             ),
             (
                 "agentprune",
@@ -826,6 +842,7 @@ class TopologyPolicyComposer:
                 pruning_result.readiness,
                 pruning_result.pruning_proposal,
                 pruning_result.composer_pruning_eligible,
+                pruning_result.degraded_reason,
             ),
         )
         return tuple(
@@ -846,12 +863,26 @@ class TopologyPolicyComposer:
                     in {"implementation_validated", "activation_ready"}
                 ),
                 reason=(
-                    "eligible"
-                    if eligible
-                    else "diagnostic_or_degraded_output_does_not_affect_commit"
+                    (
+                        degraded_reason
+                        or (
+                            "required_layer_disabled"
+                            if not switches.enabled(mechanism_id)
+                            else "diagnostic_or_degraded_output_does_not_affect_commit"
+                        )
+                    )
+                    if not eligible
+                    else "eligible"
                 ),
             )
-            for mechanism_id, mode, readiness, proposal, eligible in values
+            for (
+                mechanism_id,
+                mode,
+                readiness,
+                proposal,
+                eligible,
+                degraded_reason,
+            ) in values
         )
 
     def _degraded(
