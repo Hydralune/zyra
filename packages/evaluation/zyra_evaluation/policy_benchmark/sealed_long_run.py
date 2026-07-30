@@ -158,9 +158,14 @@ class SealedLongRunRunner:
                 continue
             run_spec = dict(run_spec_value)
             run_key = str(run_spec.get("run_key") or "")
+            run_prefix = (
+                "sw"
+                if str(run_spec.get("domain") or "") == "software_delivery"
+                else "rs"
+            )
             attempt_id = (
-                f"sealed-{run_key}-{self.manifest_digest[:10]}-"
-                f"{uuid4().hex[:12]}"
+                f"{run_prefix}-{self.manifest_digest[:8]}-"
+                f"{uuid4().hex[:8]}"
             )
             run_root = self.evidence_root / "runs" / attempt_id
             run_root.mkdir(parents=True, exist_ok=False)
@@ -249,8 +254,18 @@ class SealedLongRunRunner:
         manifest_commit: str,
     ) -> dict[str, Any]:
         self._assert_frozen()
-        api_state = run_root / "runtime-state"
+        api_state = run_root / "s"
         self._configure_api_state(api_state)
+        proxy_cidrs = tuple(
+            str(item)
+            for item in _sequence(
+                _mapping(self.manifest.get("network_profile")).get(
+                    "live_public_proxy_cidrs"
+                )
+            )
+            if str(item).strip()
+        )
+        os.environ["ZYRA_LIVE_PUBLIC_PROXY_CIDRS"] = ",".join(proxy_cidrs)
         api_main = self._fresh_api_main()
         from apps.api.zyra_api.live_scenario_owners import (
             CanonicalLiveScenarioOwners,
@@ -259,9 +274,7 @@ class SealedLongRunRunner:
         owner = CanonicalLiveScenarioOwners(
             project_root=self.project_root,
             artifact_root=api_main.artifact_root_path(),
-            scratch_root=api_main.sqlite_path().with_name(
-                "live-scenario-scratch"
-            ),
+            scratch_root=api_state / "scratch",
         )
         physical_holder: list[SealedPhysicalEvidence] = []
         credential_file = self.manifest.get("credential_env_file")
@@ -286,9 +299,7 @@ class SealedLongRunRunner:
         executor = DualDomainScenarioExecutor(
             project_root=self.project_root,
             artifact_root=api_main.artifact_root_path(),
-            scratch_root=api_main.sqlite_path().with_name(
-                "live-scenario-scratch"
-            ),
+            scratch_root=api_state / "scratch",
             bindings=DualDomainOwnerBindings(
                 task=owner,
                 artifact=owner,
@@ -730,6 +741,7 @@ class SealedLongRunRunner:
         for name in (
             "provider_profile",
             "hardware_profile",
+            "network_profile",
             "verifier",
             "policy",
         ):
@@ -737,6 +749,17 @@ class SealedLongRunRunner:
                 raise SealedLongRunError(
                     f"sealed manifest does not freeze {name}"
                 )
+        proxy_cidrs = _sequence(
+            _mapping(value.get("network_profile")).get(
+                "live_public_proxy_cidrs"
+            )
+        )
+        if not proxy_cidrs or any(
+            not str(item).strip() for item in proxy_cidrs
+        ):
+            raise SealedLongRunError(
+                "sealed manifest must freeze bounded public proxy CIDRs"
+            )
         current = _git(self.project_root, "rev-parse", "HEAD")
         ancestor = subprocess.run(
             [

@@ -286,6 +286,7 @@ class LiveHttpSourceAcquirer:
         maximum_redirects: int = 5,
         timeout_seconds: float = 45.0,
         maximum_attempts: int = 3,
+        allowed_hostnames: Sequence[str] = (),
     ) -> None:
         self.artifact_root = Path(artifact_root).resolve(strict=False)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
@@ -293,6 +294,11 @@ class LiveHttpSourceAcquirer:
         self.maximum_redirects = maximum_redirects
         self.timeout_seconds = timeout_seconds
         self.maximum_attempts = max(1, min(5, int(maximum_attempts)))
+        self.allowed_hostnames = frozenset(
+            str(item).strip().casefold()
+            for item in allowed_hostnames
+            if str(item).strip()
+        )
         self._opener = build_opener(_NoAutomaticRedirect())
 
     def acquire_all(
@@ -556,6 +562,17 @@ class LiveHttpSourceAcquirer:
                 "research_url_userinfo_forbidden",
                 "Research URL cannot contain credentials.",
                 phase="research-acquisition",
+            )
+        hostname = parsed.hostname.casefold()
+        if (
+            self.allowed_hostnames
+            and hostname not in self.allowed_hostnames
+        ):
+            raise invalid(
+                "research_host_not_allowed",
+                "Research source host is outside the frozen allowlist.",
+                phase="research-acquisition",
+                detail={"host": hostname},
             )
         if parsed.port not in {None, 80, 443}:
             raise invalid(
@@ -1273,7 +1290,11 @@ class ResearchDeliveryRuntime:
         source_root = self.artifact_root / "sources"
         source_root.mkdir()
         acquisitions = LiveHttpSourceAcquirer(
-            artifact_root=source_root
+            artifact_root=source_root,
+            allowed_hostnames=tuple(
+                urlparse(value).hostname or ""
+                for value in domain_input.source_urls
+            ),
         ).acquire_all(
             domain_input.source_urls,
             cancel_requested=cancel_requested,

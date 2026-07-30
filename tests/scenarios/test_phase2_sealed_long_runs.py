@@ -24,6 +24,9 @@ from zyra_evaluation.policy_benchmark.sealed_physical import (
 )
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
 from zyra_evaluation.scenario_runner.errors import ScenarioRunnerError
+from zyra_evaluation.scenario_runner.research_delivery import (
+    LiveHttpSourceAcquirer,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -338,6 +341,28 @@ def test_physical_receipt_contract_envelope_is_flattened_for_evidence() -> None:
         match="contract payload is missing",
     ):
         _receipt_evidence({"digest": "b" * 64})
+
+
+def test_live_research_redirects_stay_inside_frozen_host_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    acquirer = LiveHttpSourceAcquirer(
+        artifact_root=tmp_path / "sources",
+        allowed_hostnames=("www.rfc-editor.org",),
+    )
+    monkeypatch.setattr(
+        acquirer,
+        "_resolve_addresses",
+        lambda host: ["93.184.216.34"],
+    )
+    assert (
+        acquirer._validated_url("https://www.rfc-editor.org/rfc/rfc9110.txt")
+        == "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    )
+    with pytest.raises(ScenarioRunnerError) as blocked:
+        acquirer._validated_url("https://redirect.example/rfc9110.txt")
+    assert blocked.value.code == "research_host_not_allowed"
 
 
 def test_worktree_guard_accepts_git_collapsed_evidence_parent() -> None:
