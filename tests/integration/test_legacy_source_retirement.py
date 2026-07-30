@@ -113,6 +113,12 @@ class LegacySourceRetirementTests(unittest.TestCase):
                 size=1,
             ),
             GitFile(
+                path="docs/evidence/phase2/run/command.stdout.txt",
+                mode="100644",
+                blob_id=legacy_blob,
+                size=1,
+            ),
+            GitFile(
                 path="third_party/NOTICE.md",
                 mode="100644",
                 blob_id=retained_notice_blob,
@@ -134,6 +140,13 @@ class LegacySourceRetirementTests(unittest.TestCase):
         self.assertFalse(
             any(
                 finding.path == "third_party/NOTICE.md"
+                for finding in findings
+            )
+        )
+        self.assertFalse(
+            any(
+                finding.path
+                == "docs/evidence/phase2/run/command.stdout.txt"
                 for finding in findings
             )
         )

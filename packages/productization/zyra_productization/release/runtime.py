@@ -801,6 +801,92 @@ class ReleaseRuntime:
         def source_custody(context: GateContext) -> Mapping[str, Any]:
             receipt_path = evidence_root / "source-custody-receipt.json"
             queue_path = evidence_root / "source-custody-work-queue.json"
+            phase2_input = (
+                self.project_root
+                / "docs"
+                / "release"
+                / "phase2"
+                / "source-language-custody-input.json"
+            )
+            if phase2_input.is_file():
+                try:
+                    phase2_evidence = json.loads(
+                        phase2_input.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError) as error:
+                    return {
+                        "ready": False,
+                        "command": [],
+                        "returncode": 2,
+                        "summary": {
+                            "ok": False,
+                            "error": f"invalid Phase 2 custody input: {error}",
+                        },
+                        "stderr": "",
+                    }
+                base_commit = str(
+                    phase2_evidence.get("p2_base_commit") or ""
+                )
+                command = [
+                    sys.executable,
+                    "scripts/verify_source_language_custody.py",
+                    "--evidence",
+                    str(phase2_input),
+                    "--base",
+                    base_commit,
+                    "--target",
+                    expected_commit,
+                ]
+                completed = subprocess.run(
+                    command,
+                    cwd=self.project_root,
+                    env=dict(context.environment),
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=900,
+                )
+                try:
+                    summary = json.loads(completed.stdout)
+                except json.JSONDecodeError:
+                    summary = {
+                        "ok": False,
+                        "stdout_digest": stable_digest(completed.stdout),
+                    }
+                ready = (
+                    completed.returncode == 0
+                    and isinstance(summary, Mapping)
+                    and summary.get("ok") is True
+                    and summary.get("target") == expected_commit
+                    and summary.get("violations") == []
+                    and bool(base_commit)
+                )
+                receipt = {
+                    **dict(summary),
+                    "release_ready": ready,
+                    "source_commit": expected_commit,
+                    "audit_mode": "phase2_source_language_custody",
+                }
+                queue = {
+                    "schema": (
+                        "zyra.phase2-source-language-custody-work-queue/v1"
+                    ),
+                    "ready": ready,
+                    "source_commit": expected_commit,
+                    "blockers": [] if ready else ["source_language_custody"],
+                    "receipt_digest": stable_digest(receipt),
+                }
+                self._write_json(receipt_path, receipt)
+                self._write_json(queue_path, queue)
+                return {
+                    "ready": ready,
+                    "command": command,
+                    "returncode": completed.returncode,
+                    "summary": receipt,
+                    "stderr": completed.stderr[-16_384:],
+                }
             command = [
                 sys.executable,
                 "scripts/audit_source_custody.py",

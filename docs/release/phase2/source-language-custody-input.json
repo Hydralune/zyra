@@ -1,6 +1,7 @@
 {
   "schema": "zyra.source-language-custody-evidence/v1",
   "slice_id": "P2-S06-03",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "source_decisions": [
     {
       "source_repo": "LoopX",

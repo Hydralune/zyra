@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_ROOT))
 
 from zyra_productization.release.phase2_freeze import inspect_release_archive
 
