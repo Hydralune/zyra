@@ -15,6 +15,9 @@ from zyra_evaluation.policy_benchmark.long_run_validator import (
 from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
     SealedMechanismEvidenceRuntime,
 )
+from zyra_evaluation.policy_benchmark.sealed_long_run import (
+    SealedLongRunRunner,
+)
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
 from zyra_evaluation.scenario_runner.errors import ScenarioRunnerError
 
@@ -307,6 +310,25 @@ def test_loopback_remote_lane_requires_real_physical_boundary() -> None:
     ).validate()
     with pytest.raises(ScenarioRunnerError, match="loopback"):
         TierObservation(**base, metadata={}).validate()
+
+
+def test_worktree_guard_accepts_git_collapsed_evidence_parent() -> None:
+    runner = object.__new__(SealedLongRunRunner)
+    runner.project_root = ROOT
+    runner.evidence_root = (
+        ROOT
+        / "docs"
+        / "evidence"
+        / "phase2"
+        / "sealed"
+        / "P2-S06-02-attempt-02"
+    )
+    assert runner._status_entry_is_evidence(
+        "?? docs/evidence/phase2/sealed/"
+    )
+    assert not runner._status_entry_is_evidence(
+        " M packages/evaluation/unsafe.py"
+    )
 
 
 def test_actual_mechanisms_cover_restart_attacks_and_disable_paths(

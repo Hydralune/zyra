@@ -802,8 +802,15 @@ class SealedLongRunRunner:
             ).as_posix()
         except ValueError:
             return False
-        return path == evidence_relative or path.startswith(
-            evidence_relative.rstrip("/") + "/"
+        normalized_path = path.rstrip("/")
+        normalized_evidence = evidence_relative.rstrip("/")
+        return (
+            normalized_path == normalized_evidence
+            or normalized_path.startswith(normalized_evidence + "/")
+            or (
+                status_line.startswith("?? ")
+                and normalized_evidence.startswith(normalized_path + "/")
+            )
         )
 
     @staticmethod
