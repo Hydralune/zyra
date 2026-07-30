@@ -1,0 +1,118 @@
+{
+  "schema": "zyra.p2-s03-01-source-symbol-map/v1",
+  "slice_id": "P2-S03-01",
+  "source": {
+    "repository": "ARG-Designer",
+    "path": "long-horizon-systems/ARG-Designer/experiment/model.py",
+    "source_role": "primary_implementation",
+    "source_language": "python"
+  },
+  "target": {
+    "path": "packages/orchestration/zyra_orchestration/topology_policy/arg",
+    "target_language": "python",
+    "migration_mode": "cropped_same_language_migration",
+    "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795"
+  },
+  "symbol_decisions": [
+    {
+      "source_symbols": [
+        "ARGDesigner.forward"
+      ],
+      "source_lines": "409-567",
+      "decision": "preserved_and_corrected",
+      "target_symbols": [
+        "ARGJointBuilder.build",
+        "ARGJointBuilder._expand_step",
+        "ARGJointBuilder._end_hypothesis"
+      ],
+      "reason": "Retains stepwise role-node-edge joint state and explicit END, replacing learned logits with bounded deterministic scoring and stable tie-breaks."
+    },
+    {
+      "source_symbols": [
+        "Graph_to_Adj_Matrix._process_edges",
+        "BFS_Graph_to_Adj_Matrix._process_edges_binary"
+      ],
+      "source_lines": "85-122,205-239",
+      "decision": "concept_preserved_control_corrected",
+      "target_symbols": [
+        "ARGJointBuilder._incident_edges",
+        "ARGJointBuilder._predecessor_nodes",
+        "ARGJointBuilder._predecessor_score"
+      ],
+      "reason": "Incident-edge coupling is retained, while random BFS and fixed recent-node windows are replaced with dependency/capability/budget scoring across canonical and branch-local candidates."
+    },
+    {
+      "source_symbols": [
+        "ARGDesigner.get_role_id"
+      ],
+      "source_lines": "401-408",
+      "decision": "replaced",
+      "target_symbols": [
+        "ARGRoleCatalogBuilder.build",
+        "ARGRoleCatalog.profile"
+      ],
+      "reason": "Static role IDs are replaced by versioned capability-manifest-bound profiles sourced from worker/tool/skill/model registry projections."
+    },
+    {
+      "source_symbols": [
+        "START_TOKEN",
+        "END_TOKEN"
+      ],
+      "source_lines": "297-300",
+      "decision": "preserved_and_versioned",
+      "target_symbols": [
+        "ARGJointBuilderConfig.start_token",
+        "ARGJointBuilderConfig.end_token"
+      ],
+      "reason": "Explicit sequence boundaries are retained as configuration-bound versioned tokens."
+    },
+    {
+      "source_symbols": [
+        "ARGDesigner.sample"
+      ],
+      "source_lines": "568-778",
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "Random sampling, generator-style execution and experiment visualization are outside the deterministic proposal boundary."
+    },
+    {
+      "source_symbols": [
+        "node_gru",
+        "edge_gru",
+        "prev_nodes_aggregator",
+        "MLP_Basic",
+        "MLP_Softmax"
+      ],
+      "source_lines": "242-399",
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "GRU/MLP training and learned policy parameters are prohibited; no torch dependency, dataset or checkpoint is migrated."
+    },
+    {
+      "source_symbols": [
+        "random.choice role fallback",
+        "random.choice BFS start"
+      ],
+      "source_lines": "68-70,130-141,188-191",
+      "decision": "rejected",
+      "target_symbols": [],
+      "reason": "Random fallback would violate fixed snapshot/version/config determinism and capability fail-closed behavior."
+    },
+    {
+      "source_symbols": [
+        "precompute_role_embeddings"
+      ],
+      "source_lines": "282-290",
+      "decision": "rejected",
+      "target_symbols": [
+        "ARGModelObservation",
+        "ARGInputEncoder.model_observation_input_digest"
+      ],
+      "reason": "No embedding is required. The target only exposes an optional immutable, digest-bound observation port and rejects mismatched observations."
+    }
+  ],
+  "full_source_copy": false,
+  "external_runtime_dependency": false,
+  "training_assets_migrated": false,
+  "openclaw_used": false
+}

@@ -1,0 +1,325 @@
+{
+  "catalog": {
+    "catalog_digest": "50d6b8df16a05e6b1318e82e7afd072c70a630d4c33074917bfda77c376fede0",
+    "catalog_version": "arg-role-catalog-v1:50d6b8df16a05e6b1318",
+    "roles": [
+      {
+        "binding_ids": [
+          "worker:worker-execution:caf0a61fb508971f"
+        ],
+        "capabilities": [
+          "artifact_production",
+          "coding",
+          "execution"
+        ],
+        "manifest_digests": [
+          "caf0a61fb508971f27a7e6aea28649c965428aa7ca1d87249491ea7f992ad391"
+        ],
+        "role_id": "execution_role",
+        "worker_ids": [
+          "worker-execution"
+        ]
+      },
+      {
+        "binding_ids": [
+          "worker:worker-planning:5f6935270d693d24"
+        ],
+        "capabilities": [
+          "decomposition",
+          "planning",
+          "research"
+        ],
+        "manifest_digests": [
+          "5f6935270d693d2462bff3fd84a10217478da33edac1f92f37aa2695d80abfc7"
+        ],
+        "role_id": "planning_role",
+        "worker_ids": [
+          "worker-planning"
+        ]
+      },
+      {
+        "binding_ids": [
+          "worker:worker-recovery:22b058ea6ef55b1c"
+        ],
+        "capabilities": [
+          "checkpoint_restore",
+          "fault_diagnosis",
+          "recovery"
+        ],
+        "manifest_digests": [
+          "22b058ea6ef55b1c8e6f86cbe31e44d8a350632dadaf9f6a2048f67768abc41f"
+        ],
+        "role_id": "recovery_role",
+        "worker_ids": [
+          "worker-recovery"
+        ]
+      },
+      {
+        "binding_ids": [
+          "worker:worker-verification:27e065e6a20e5a9b"
+        ],
+        "capabilities": [
+          "review",
+          "testing",
+          "verification"
+        ],
+        "manifest_digests": [
+          "27e065e6a20e5a9bf9a5b283e5611f9f81278dcf7db521cd2af5165d8377bfec"
+        ],
+        "role_id": "verification_role",
+        "worker_ids": [
+          "worker-verification"
+        ]
+      }
+    ]
+  },
+  "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+  "determinism": {
+    "proposal_digest": "4cbaa981fc436e27f6a5a25b108a5a24ad5620e3671b5b8e3b7b81fdbe32db88",
+    "same_hypothesis": true,
+    "same_proposal_digest": true
+  },
+  "disconnect_effect": {
+    "disabled_baseline_profile": "phase1_deterministic_baseline",
+    "disabled_has_joint_proposal": false,
+    "disabled_mode": "baseline",
+    "disabled_reason": "arg_disabled",
+    "enabled_has_joint_proposal": true,
+    "semantic_difference": true
+  },
+  "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "mechanism_version": "arg_joint_v1",
+  "owner_boundary": {
+    "canonical_mutation_attempted": false,
+    "canonical_owner": "GraphStateCustody",
+    "graph_revision_after": 0,
+    "graph_revision_before": 0
+  },
+  "phase_and_requirement_scenarios": {
+    "execution": {
+      "canonical_graph_unchanged": true,
+      "end_reason": "bounded_best_hypothesis_selected",
+      "hypothesis_id": "arg_hypothesis_62cb51486e76a5409cf6",
+      "incident_edge_sources": [
+        [
+          "ARG_START_V1"
+        ],
+        [
+          "arg_node_a6c8243a904d5b3e486e"
+        ]
+      ],
+      "nodes": [
+        "arg_node_a6c8243a904d5b3e486e",
+        "arg_node_518fd62dc7d808e6933d"
+      ],
+      "operation_kinds": [
+        "add_edge",
+        "add_node",
+        "add_node"
+      ],
+      "proposal_digest": "4cbaa981fc436e27f6a5a25b108a5a24ad5620e3671b5b8e3b7b81fdbe32db88",
+      "proposal_id": "arg_proposal_92e9673ea1311f3453a4",
+      "requirement_revision": "requirement-r1",
+      "roles": [
+        "execution_role",
+        "verification_role"
+      ],
+      "score_components": [
+        {
+          "capability_fit": 0.6,
+          "communication_cost": 0.0,
+          "critical_path": 1.0,
+          "dependency_reachability": 0.5,
+          "obligation_coverage": 0.5,
+          "recovery_value": 0.0,
+          "role_id": "execution_role",
+          "switch_cost": 1.0,
+          "total": 5.3
+        },
+        {
+          "capability_fit": 0.0,
+          "communication_cost": 0.33333333,
+          "critical_path": 1.0,
+          "dependency_reachability": 1.0,
+          "obligation_coverage": 0.0,
+          "recovery_value": 0.0,
+          "role_id": "verification_role",
+          "switch_cost": 1.0,
+          "total": 2.08333333
+        }
+      ]
+    },
+    "planning": {
+      "canonical_graph_unchanged": true,
+      "end_reason": "bounded_best_hypothesis_selected",
+      "hypothesis_id": "arg_hypothesis_2de0e4647138f61b4cac",
+      "incident_edge_sources": [
+        [
+          "ARG_START_V1"
+        ],
+        [
+          "arg_node_45026653898f47a143fa"
+        ]
+      ],
+      "nodes": [
+        "arg_node_45026653898f47a143fa",
+        "arg_node_a6c8243a904d5b3e486e"
+      ],
+      "operation_kinds": [
+        "add_edge",
+        "add_node",
+        "add_node"
+      ],
+      "proposal_digest": "ec291957f5cee7033fb561197a67b439d60bf381eb9e4aae4c8f221ce0cdbde0",
+      "proposal_id": "arg_proposal_0553b56ee9a74af805b6",
+      "requirement_revision": "requirement-r1",
+      "roles": [
+        "planning_role",
+        "execution_role"
+      ],
+      "score_components": [
+        {
+          "capability_fit": 0.6,
+          "communication_cost": 0.0,
+          "critical_path": 0.0,
+          "dependency_reachability": 0.5,
+          "obligation_coverage": 0.5,
+          "recovery_value": 0.0,
+          "role_id": "planning_role",
+          "switch_cost": 1.0,
+          "total": 3.3
+        },
+        {
+          "capability_fit": 0.0,
+          "communication_cost": 0.33333333,
+          "critical_path": 1.0,
+          "dependency_reachability": 1.0,
+          "obligation_coverage": 0.0,
+          "recovery_value": 0.0,
+          "role_id": "execution_role",
+          "switch_cost": 1.0,
+          "total": 2.08333333
+        }
+      ]
+    },
+    "recovery": {
+      "canonical_graph_unchanged": true,
+      "end_reason": "bounded_best_hypothesis_selected",
+      "hypothesis_id": "arg_hypothesis_6e23e73281be4200a55e",
+      "incident_edge_sources": [
+        [
+          "ARG_START_V1"
+        ],
+        [
+          "arg_node_7635df26e69b75850ef1"
+        ]
+      ],
+      "nodes": [
+        "arg_node_7635df26e69b75850ef1",
+        "arg_node_a6c8243a904d5b3e486e"
+      ],
+      "operation_kinds": [
+        "add_edge",
+        "add_node",
+        "add_node"
+      ],
+      "proposal_digest": "f36f247e857a8041691caaa8c24235fc0b1f564183b317cfcc40f40afed636bb",
+      "proposal_id": "arg_proposal_293a2e839ec6204898ca",
+      "requirement_revision": "requirement-r2",
+      "roles": [
+        "recovery_role",
+        "execution_role"
+      ],
+      "score_components": [
+        {
+          "capability_fit": 0.6,
+          "communication_cost": 0.0,
+          "critical_path": 0.0,
+          "dependency_reachability": 0.5,
+          "obligation_coverage": 0.5,
+          "recovery_value": 1.0,
+          "role_id": "recovery_role",
+          "switch_cost": 1.0,
+          "total": 5.8
+        },
+        {
+          "capability_fit": 0.0,
+          "communication_cost": 0.33333333,
+          "critical_path": 1.0,
+          "dependency_reachability": 1.0,
+          "obligation_coverage": 0.0,
+          "recovery_value": 0.6,
+          "role_id": "execution_role",
+          "switch_cost": 1.0,
+          "total": 3.58333333
+        }
+      ]
+    },
+    "verification": {
+      "canonical_graph_unchanged": true,
+      "end_reason": "bounded_best_hypothesis_selected",
+      "hypothesis_id": "arg_hypothesis_b798a5201ddcb3cc4eea",
+      "incident_edge_sources": [
+        [
+          "ARG_START_V1"
+        ],
+        [
+          "arg_node_518fd62dc7d808e6933d"
+        ]
+      ],
+      "nodes": [
+        "arg_node_518fd62dc7d808e6933d",
+        "arg_node_a6c8243a904d5b3e486e"
+      ],
+      "operation_kinds": [
+        "add_edge",
+        "add_node",
+        "add_node"
+      ],
+      "proposal_digest": "aac583bbe6835c3ef72f7dc2be485f8562bf73be5c90765f2d164de17ca02e57",
+      "proposal_id": "arg_proposal_926dd54ebe9e95123bfe",
+      "requirement_revision": "requirement-r1",
+      "roles": [
+        "verification_role",
+        "execution_role"
+      ],
+      "score_components": [
+        {
+          "capability_fit": 0.6,
+          "communication_cost": 0.0,
+          "critical_path": 1.0,
+          "dependency_reachability": 0.5,
+          "obligation_coverage": 0.5,
+          "recovery_value": 0.0,
+          "role_id": "verification_role",
+          "switch_cost": 1.0,
+          "total": 5.3
+        },
+        {
+          "capability_fit": 0.0,
+          "communication_cost": 0.33333333,
+          "critical_path": 1.0,
+          "dependency_reachability": 1.0,
+          "obligation_coverage": 0.0,
+          "recovery_value": 0.0,
+          "role_id": "execution_role",
+          "switch_cost": 1.0,
+          "total": 2.08333333
+        }
+      ]
+    }
+  },
+  "readiness_report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+  "readiness_resolution": {
+    "canonical_mutation_allowed": false,
+    "fallback_profile": "phase1_deterministic_baseline",
+    "mechanism_id": "arg_designer",
+    "mode": "validation",
+    "reason": "deterministic_ready ARG runs in isolated validation until activation_ready",
+    "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+    "stage": "implementation_validated",
+    "status": "deterministic_ready"
+  },
+  "schema": "zyra.p2-s03-01-arg-behavior-evidence/v1",
+  "slice_id": "P2-S03-01"
+}

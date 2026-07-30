@@ -1,0 +1,92 @@
+{
+  "schema": "zyra.mechanism-evidence-readiness-report/v1",
+  "slice_id": "P2-S03-01",
+  "readiness_stage": "implementation_validated",
+  "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
+  "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "generated_at": "2026-07-30T08:58:52+08:00",
+  "generation_clock": "implementation commit time",
+  "valid": true,
+  "activation_allowed": false,
+  "activation_reason": "P2-S03-01 validates ARG in an isolated non-committing composer; activation_ready remains closed until the parent topology unit is complete.",
+  "supersedes_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "contract": {
+    "path": "config/phase2/mechanism-readiness.json",
+    "sha256": "18ebbfa669911371e05678cb53ad1d641bda6d0e484d48c7adc31f7978af7af2"
+  },
+  "baseline_manifest": {
+    "path": "docs/release/phase2-baseline-manifest.json",
+    "manifest_digest": "85fa3a4a05d3ce7906e7af8507b3e413b26a5c53042bf0073d8f3039b9e5db37",
+    "sha256": "85eee659632105f73719cd99cc898804c8e6e4903695beffc4fd206b9d5bb74e"
+  },
+  "no_policy_training_audit": {
+    "passed": true,
+    "training_sample_count": 0,
+    "runtime_entry_points": [],
+    "training_datasets": [],
+    "training_checkpoints": [],
+    "mutable_learned_parameters": [],
+    "random_sampling_entry_points": [],
+    "scan_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "config/phase2/arg-joint-topology.json"
+    ],
+    "evidence_ref": "docs/reviews/evidence/P2-S03-01/no-policy-training-audit.json"
+  },
+  "mechanism_statuses": {
+    "arg_designer": "deterministic_ready",
+    "card": "unavailable",
+    "agentprune": "unavailable",
+    "maas": "unavailable"
+  },
+  "mechanisms": {
+    "arg_designer": {
+      "mechanism_id": "arg_designer",
+      "readiness_stage": "implementation_validated",
+      "status": "deterministic_ready",
+      "reason": "The versioned catalog, immutable encoder, deterministic joint role-node-edge expansion, readiness runtime, failure paths, and non-commit behavior pass slice tests.",
+      "implementation_validation": {
+        "passed": true,
+        "mechanism_version": "arg_joint_v1",
+        "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+        "catalog_schema_version": "zyra.arg-role-catalog/v1",
+        "input_schema_version": "zyra.arg-input/v1",
+        "canonical_mutation_attempted": false,
+        "training_sample_count": 0,
+        "determinism_replay_match": true,
+        "source_custody_ok": true,
+        "behavior_evidence_ref": "docs/reviews/evidence/P2-S03-01/behavior-verification.json"
+      }
+    },
+    "card": {
+      "mechanism_id": "card",
+      "readiness_stage": "implementation_validated",
+      "status": "unavailable",
+      "reason": "P2-S03-02 is not implemented by this slice."
+    },
+    "agentprune": {
+      "mechanism_id": "agentprune",
+      "readiness_stage": "implementation_validated",
+      "status": "unavailable",
+      "reason": "P2-S03-03 is not implemented by this slice."
+    },
+    "maas": {
+      "mechanism_id": "maas",
+      "readiness_stage": "implementation_validated",
+      "status": "unavailable",
+      "reason": "P2-S04-01 is not implemented by this slice."
+    }
+  },
+  "resolver_policy": {
+    "unknown_status": "unavailable",
+    "missing_report": "unavailable",
+    "corrupt_report": "unavailable",
+    "digest_mismatch": "unavailable",
+    "deterministic_ready_at_implementation_validated": "validation",
+    "evidence_only": "diagnostic",
+    "unavailable": "baseline",
+    "fallback_profile": "phase1_deterministic_baseline"
+  },
+  "training_sample_count": 0,
+  "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28"
+}

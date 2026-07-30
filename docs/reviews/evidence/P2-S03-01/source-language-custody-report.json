@@ -1,0 +1,30 @@
+{
+  "base": "2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60",
+  "ok": true,
+  "roles": [
+    {
+      "actual_production_languages": [
+        "python"
+      ],
+      "added_production_lines": {
+        "python": 3034
+      },
+      "expected_production_languages": [
+        "python"
+      ],
+      "migration_mode": "cropped_same_language_migration",
+      "production_paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/catalog.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/joint_builder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/runtime.py"
+      ],
+      "source_repo": "ARG-Designer",
+      "source_role": "primary_implementation"
+    }
+  ],
+  "schema": "zyra.source-language-custody-report/v1",
+  "target": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "violations": []
+}

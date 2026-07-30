@@ -1,0 +1,46 @@
+{
+  "schema": "zyra.p2-s03-01-no-policy-training-audit/v1",
+  "slice_id": "P2-S03-01",
+  "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "audit": {
+    "checked_roots": [
+      "packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "packages/orchestration/zyra_orchestration/topology_policy/condition",
+      "packages/orchestration/zyra_orchestration/topology_policy/pruning",
+      "packages/scheduler/zyra_scheduler/operator_policy",
+      "scripts/phase2-validation"
+    ],
+    "declared_dependencies": [
+      "browser-use[core]==0.13.3",
+      "psutil>=7,<8"
+    ],
+    "findings": [],
+    "mutable_learned_parameter_count": 0,
+    "passed": true,
+    "runtime_entry_point_count": 0,
+    "scanned_file_count": 10,
+    "training_checkpoint_count": 0,
+    "training_dataset_count": 0,
+    "training_sample_count": 0
+  },
+  "configuration_declaration": {
+    "path": "config/phase2/arg-joint-topology.json",
+    "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "mutable_learned_parameters": [],
+    "datasets": [],
+    "checkpoints": []
+  },
+  "source_features_rejected": [
+    "torch modules",
+    "GRU node and edge decoders",
+    "curriculum learning",
+    "training dataset and runner",
+    "random BFS start",
+    "random role fallback",
+    "sampling loop",
+    "precomputed trainable role embeddings"
+  ],
+  "passed": true
+}

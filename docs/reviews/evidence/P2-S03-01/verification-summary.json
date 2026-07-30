@@ -1,0 +1,89 @@
+{
+  "schema": "zyra.p2-s03-01-verification-summary/v1",
+  "slice_id": "P2-S03-01",
+  "verdict": "pass",
+  "base_commit": "2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60",
+  "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "mechanism_version": "arg_joint_v1",
+  "configuration_digest": "6af122c68fbdb7e9bb4be6101bcac805f668c3c18b2476eb219af76a560edf92",
+  "readiness_report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28",
+  "checks": [
+    {
+      "id": "slice-unit",
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=.tmp/pytest-arg-slice-unit tests/unit/orchestration/test_arg_joint_topology_builder.py",
+      "result": "pass",
+      "summary": "6 passed"
+    },
+    {
+      "id": "slice-integration",
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=.tmp/pytest-arg-slice-integration tests/integration/test_arg_joint_topology_runtime.py",
+      "result": "pass",
+      "summary": "4 passed"
+    },
+    {
+      "id": "adjacent-regression",
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=.tmp/pytest-arg-final-code tests/unit/orchestration/test_policy_contracts.py tests/unit/orchestration/test_policy_registry.py tests/unit/evaluation/test_phase2_policy_contracts.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_policy_contract_replay.py tests/integration/test_policy_projector_graph_custody.py tests/integration/test_memory_continuity_policy_runtime.py tests/unit/orchestration/test_arg_joint_topology_builder.py tests/integration/test_arg_joint_topology_runtime.py",
+      "result": "pass",
+      "summary": "68 passed"
+    },
+    {
+      "id": "compileall",
+      "command": ".venv/Scripts/python.exe -m compileall -q packages/orchestration/zyra_orchestration/topology_policy/arg",
+      "result": "pass"
+    },
+    {
+      "id": "readiness-contract",
+      "command": "validate_readiness_report(docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json)",
+      "result": "pass",
+      "summary": "implementation_validated/deterministic_ready; activation closed"
+    },
+    {
+      "id": "default-runtime-replay",
+      "command": ".venv/Scripts/python.exe .tmp/generate_p2_s03_01_behavior.py",
+      "result": "pass",
+      "summary": "four phase proposals differ; fixed execution replay matches; disabled ARG falls back; graph revision remains zero"
+    },
+    {
+      "id": "source-language-custody",
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/P2-S03-01/source-language-custody-input.json --base 2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60 --target 2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+      "result": "pass",
+      "summary": "3034 Python production lines; zero violations"
+    },
+    {
+      "id": "no-policy-training",
+      "command": "run_no_training_audit(repository_root, MechanismReadinessConfig.load(repository_root))",
+      "result": "pass",
+      "summary": "zero findings, entry points, datasets, checkpoints, samples and mutable learned parameters"
+    },
+    {
+      "id": "diff-check",
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_claims": {
+    "joint_role_node_incident_edge_and_end": true,
+    "phase_conditioned_difference": true,
+    "requirement_revision_difference_and_old_rejection": true,
+    "capability_permission_health_placement_binding": true,
+    "branch_local_delta_participates_without_commit": true,
+    "fixed_input_determinism": true,
+    "evidence_only_non_committing": true,
+    "unavailable_explicit_baseline": true,
+    "corrupt_drift_and_model_anomaly_degraded": true,
+    "disabled_semantic_difference": true,
+    "canonical_graph_owner_preserved": true
+  },
+  "evidence": [
+    "docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json",
+    "docs/reviews/evidence/P2-S03-01/behavior-verification.json",
+    "docs/reviews/evidence/P2-S03-01/source-symbol-map.json",
+    "docs/reviews/evidence/P2-S03-01/source-language-custody-input.json",
+    "docs/reviews/evidence/P2-S03-01/source-language-custody-report.json",
+    "docs/reviews/evidence/P2-S03-01/no-policy-training-audit.json",
+    "docs/reviews/evidence/P2-S03-01/line-buckets.json",
+    "docs/reviews/P2-S03-01-arg-role-topology-review.md"
+  ],
+  "activation_allowed": false,
+  "next_slice": "P2-S03-02"
+}

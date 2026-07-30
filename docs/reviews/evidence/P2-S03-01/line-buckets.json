@@ -1,0 +1,60 @@
+{
+  "schema": "zyra.p2-s03-01-line-buckets/v1",
+  "slice_id": "P2-S03-01",
+  "base_commit": "2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60",
+  "implementation_commit": "2f84c9fcc62f85e9837fbeb58b82c6bdd8c22795",
+  "buckets": {
+    "production": {
+      "added_lines": 3034,
+      "paths": [
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/__init__.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/catalog.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/encoder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/joint_builder.py",
+        "packages/orchestration/zyra_orchestration/topology_policy/arg/runtime.py"
+      ]
+    },
+    "test": {
+      "added_lines": 1206,
+      "paths": [
+        "tests/unit/orchestration/test_arg_joint_topology_builder.py",
+        "tests/integration/test_arg_joint_topology_runtime.py"
+      ]
+    },
+    "data_config": {
+      "added_lines": 81,
+      "paths": [
+        "config/phase2/arg-joint-topology.json"
+      ]
+    },
+    "adapter_only": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "runtime_assets": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "source_pool": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "generated": {
+      "added_lines": 0,
+      "paths": []
+    },
+    "docs_evidence": {
+      "added_lines": null,
+      "paths": [
+        "docs/reviews/evidence/P2-S03-01",
+        "docs/reviews/P2-S03-01-arg-role-topology-review.md"
+      ],
+      "note": "Committed after the frozen implementation target and excluded from production totals."
+    }
+  },
+  "total_implementation_added_lines": 4321,
+  "production_share": 0.70215228,
+  "source_material_counted_as_production": false,
+  "tests_counted_as_production": false,
+  "configuration_counted_as_production": false
+}
