@@ -26,7 +26,7 @@
       "continuity and neuro-symbolic hard-gate evaluation summaries"
     ],
     "not_implemented": [
-      "P2-S02-02A policy benchmark framework",
+      "P2-S02A-01 policy benchmark framework",
       "P2-S03 long-horizon controller integration",
       "default activation of phase2_strongest_v1",
       "policy training, reinforcement learning, fine-tuning or an additional neural network"

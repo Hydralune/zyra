@@ -49,12 +49,19 @@ def _record(
         "version": version,
         "training_allowed": False,
     }
+    mechanism_ids = (
+        "loopx",
+        "arg_designer",
+        "card",
+        "agentprune",
+        "maas",
+    )
     readiness = (
         []
         if baseline
         else [
             {
-                "mechanism_id": "arg_designer",
+                "mechanism_id": mechanism_id,
                 "stage": stage,
                 "status": status,
                 "report_ref": (
@@ -66,6 +73,7 @@ def _record(
                     "" if status == "unavailable" else "1" * 64
                 ),
             }
+            for mechanism_id in mechanism_ids
         ]
     )
     return MechanismRegistration.from_mapping(
@@ -82,7 +90,7 @@ def _record(
             "config_digest": canonical_digest(configuration),
             "implementation_commit": "4" * 40,
             "evidence_commit": "5" * 40,
-            "required_mechanisms": [] if baseline else ["arg_designer"],
+            "required_mechanisms": [] if baseline else list(mechanism_ids),
             "readiness": readiness,
             "rollback_family": FAMILY,
             "rollback_version": "baseline-v1",

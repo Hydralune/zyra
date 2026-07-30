@@ -2,7 +2,7 @@
   "schema": "zyra.p2-03-parent-verification-summary/v1",
   "unit_id": "P2-03",
   "verdict": "PASS",
-  "base_commit": "7d2658635460163478d88848e79f7ecc650a9274",
+  "base_commit": "2ab79c0a6cd862b9ddfd650d6bccd1fe610b4d60",
   "target_before_evidence": "cf2857c3d9144d818ebed741b8f66af5ec5deafa",
   "completed_slices": [
     "P2-S03-01",

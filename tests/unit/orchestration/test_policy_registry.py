@@ -41,12 +41,19 @@ def _record_mapping(
         "version": version,
         "training_allowed": False,
     }
+    mechanism_ids = (
+        "loopx",
+        "arg_designer",
+        "card",
+        "agentprune",
+        "maas",
+    )
     readiness = (
         []
         if baseline
         else [
             {
-                "mechanism_id": "arg_designer",
+                "mechanism_id": mechanism_id,
                 "stage": stage,
                 "status": status,
                 "report_ref": (
@@ -58,6 +65,7 @@ def _record_mapping(
                     "" if status == "unavailable" else "1" * 64
                 ),
             }
+            for mechanism_id in mechanism_ids
         ]
     )
     return {
@@ -73,7 +81,7 @@ def _record_mapping(
         "config_digest": canonical_digest(configuration),
         "implementation_commit": "4" * 40,
         "evidence_commit": "5" * 40,
-        "required_mechanisms": [] if baseline else ["arg_designer"],
+        "required_mechanisms": [] if baseline else list(mechanism_ids),
         "readiness": readiness,
         "rollback_family": FAMILY,
         "rollback_version": "baseline-v1",
@@ -178,6 +186,17 @@ def test_production_registry_exposes_validated_topology_only_by_explicit_purpose
         ).profile_id
         == "phase2_diagnostic_v1"
     )
+    decision = StrongestProfileActivationGate().evaluate(
+        registry,
+        family=FAMILY,
+        version=strongest.version,
+        evidence=_activation_evidence(strongest),
+    )
+    assert decision.eligible is False
+    assert {
+        "required_mechanism_missing:loopx",
+        "required_mechanism_missing:maas",
+    }.issubset(decision.blockers)
 
 
 def test_duplicate_family_version_is_rejected_for_same_or_different_digest() -> None:

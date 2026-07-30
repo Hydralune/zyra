@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import subprocess
 import zipfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -52,14 +54,6 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _load_json(path: Path, label: str) -> Mapping[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -74,6 +68,29 @@ def _load_json(path: Path, label: str) -> Mapping[str, Any]:
             "evidence-object-required",
             f"{label} must be a JSON object.",
             path=str(path),
+        )
+    return value
+
+
+def _load_json_bytes(
+    payload: bytes,
+    label: str,
+    *,
+    path: str,
+) -> Mapping[str, Any]:
+    try:
+        value = json.loads(payload.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise EvidenceIndexError(
+            "evidence-json-invalid",
+            f"{label} is not readable JSON.",
+            path=path,
+        ) from exc
+    if not isinstance(value, Mapping):
+        raise EvidenceIndexError(
+            "evidence-object-required",
+            f"{label} must be a JSON object.",
+            path=path,
         )
     return value
 
@@ -369,6 +386,7 @@ class FrozenEvidenceIndexer:
             self.repository_root / "docs" / "release" / "phase2-baseline-manifest.json"
         )
         self.baseline_manifest = selected_manifest.resolve()
+        self._snapshot_commit = ""
 
     def build(self) -> ReadOnlyEvidenceIndex:
         manifest = self._validate_manifest()
@@ -436,7 +454,10 @@ class FrozenEvidenceIndexer:
                 )
             current_cases_by_source[source_id] = case
 
-        archive_by_digest = self._discover_archives(source_runs_value)
+        archive_by_digest = self._discover_archives(
+            source_runs_value,
+            manifest=manifest,
+        )
         source_records: list[SourceRunEvidence] = []
         seen_source_ids: set[str] = set()
         for item in _sequence(
@@ -605,28 +626,27 @@ class FrozenEvidenceIndexer:
                 reference.get("path"),
                 f"{reference_id}.path",
             )
-            if not target.is_file():
-                raise EvidenceIndexError(
-                    "baseline-reference-missing",
-                    f"Baseline reference is missing: {reference_id}.",
-                    path=str(target),
-                )
+            relative = target.relative_to(self.repository_root).as_posix()
             expected_digest = _text(reference.get("sha256"), f"{reference_id}.sha256")
-            actual_digest = _sha256_file(target)
+            expected_size = int(reference.get("size_bytes", -1))
+            payload = self._read_frozen_blob(
+                relative,
+                expected_digest=expected_digest,
+                expected_size=expected_size,
+            )
+            actual_digest = _sha256_bytes(payload)
             if actual_digest != expected_digest:
                 raise EvidenceIndexError(
                     "baseline-reference-digest-mismatch",
                     f"Baseline reference changed: {reference_id}.",
                     path=str(target),
                 )
-            expected_size = int(reference.get("size_bytes", -1))
-            if target.stat().st_size != expected_size:
+            if len(payload) != expected_size:
                 raise EvidenceIndexError(
                     "baseline-reference-size-mismatch",
                     f"Baseline reference size changed: {reference_id}.",
                     path=str(target),
                 )
-            relative = target.relative_to(self.repository_root).as_posix()
             indexed = IndexedEvidenceReference(
                 reference_id=reference_id,
                 kind=_text(reference.get("kind"), f"{reference_id}.kind"),
@@ -637,7 +657,11 @@ class FrozenEvidenceIndexer:
             )
             references.append(indexed)
             if reference_id in REQUIRED_REFERENCE_IDS:
-                values[reference_id] = _load_json(target, reference_id)
+                values[reference_id] = _load_json_bytes(
+                    payload,
+                    reference_id,
+                    path=f"{self._reference_snapshot_commit()}:{relative}",
+                )
 
         missing = sorted(REQUIRED_REFERENCE_IDS - set(values))
         if missing:
@@ -651,15 +675,15 @@ class FrozenEvidenceIndexer:
     def _discover_archives(
         self,
         source_runs: Mapping[str, Any],
-    ) -> dict[str, Path]:
+        *,
+        manifest: Mapping[str, Any],
+    ) -> dict[str, tuple[str, bytes]]:
+        snapshot_commit = self._reference_snapshot_commit()
         source_reference = next(
             (
                 item
                 for item in _sequence(
-                    _load_json(
-                        self.baseline_manifest,
-                        "Phase 2 baseline manifest",
-                    ).get("references"),
+                    manifest.get("references"),
                     "baseline references",
                 )
                 if isinstance(item, Mapping)
@@ -678,23 +702,29 @@ class FrozenEvidenceIndexer:
             source_reference.get("path"),
             "benchmark-source-runs.path",
         )
-        archive_root = source_run_path.parent / "source-archives"
-        if not archive_root.is_dir():
+        archive_root = (
+            source_run_path.parent / "source-archives"
+        ).relative_to(self.repository_root).as_posix()
+        archive_paths = self._list_frozen_paths(archive_root)
+        if not archive_paths:
             raise EvidenceIndexError(
                 "source-archive-directory-missing",
                 "The frozen source archive directory is missing.",
-                path=str(archive_root),
+                path=f"{snapshot_commit}:{archive_root}",
             )
-        archive_by_digest: dict[str, Path] = {}
-        for archive in sorted(archive_root.glob("*.zip")):
+        archive_by_digest: dict[str, tuple[str, bytes]] = {}
+        for archive_path in sorted(
+            path for path in archive_paths if path.casefold().endswith(".zip")
+        ):
+            payload = self._read_frozen_blob(archive_path)
             try:
-                with zipfile.ZipFile(archive, "r") as bundle:
+                with zipfile.ZipFile(io.BytesIO(payload), "r") as bundle:
                     manifest = json.loads(bundle.read("manifest.json"))
             except (OSError, KeyError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
                 raise EvidenceIndexError(
                     "source-archive-container-invalid",
                     "A frozen source archive cannot be read.",
-                    path=str(archive),
+                    path=f"{snapshot_commit}:{archive_path}",
                 ) from exc
             digest = _text(
                 _mapping(manifest, "source archive manifest").get(
@@ -706,9 +736,9 @@ class FrozenEvidenceIndexer:
                 raise EvidenceIndexError(
                     "source-archive-digest-duplicate",
                     f"Two archives share digest {digest}.",
-                    path=str(archive_root),
+                    path=f"{snapshot_commit}:{archive_root}",
                 )
-            archive_by_digest[digest] = archive
+            archive_by_digest[digest] = (archive_path, payload)
         declared = {
             str(_mapping(item, "source run").get("source", {}).get("archive_digest", ""))
             for item in _sequence(source_runs.get("sources"), "source runs")
@@ -719,13 +749,13 @@ class FrozenEvidenceIndexer:
                 "source-archive-unindexed",
                 "The source archive directory contains evidence not declared by "
                 "the frozen source-run index.",
-                path=str(archive_root),
+                path=f"{snapshot_commit}:{archive_root}",
             )
         return archive_by_digest
 
     def _read_source_archive(
         self,
-        archive: Path,
+        archive: tuple[str, bytes],
         *,
         source_item: Mapping[str, Any],
         source: Mapping[str, Any],
@@ -733,6 +763,8 @@ class FrozenEvidenceIndexer:
         raw_samples: Iterable[Mapping[str, Any]],
         current_case: Mapping[str, Any],
     ) -> SourceRunEvidence:
+        archive_path, archive_payload = archive
+        source_path = f"{self._reference_snapshot_commit()}:{archive_path}"
         expected_member_digests = {
             str(key): str(value)
             for key, value in _mapping(
@@ -740,14 +772,14 @@ class FrozenEvidenceIndexer:
                 "source member_digests",
             ).items()
         }
-        with zipfile.ZipFile(archive, "r") as bundle:
+        with zipfile.ZipFile(io.BytesIO(archive_payload), "r") as bundle:
             member_names = set(bundle.namelist())
             missing_members = sorted(REQUIRED_ARCHIVE_MEMBERS - member_names)
             if missing_members:
                 raise EvidenceIndexError(
                     "source-archive-member-missing",
                     f"Source archive lacks: {', '.join(missing_members)}.",
-                    path=str(archive),
+                    path=source_path,
                 )
             member_payloads: dict[str, bytes] = {}
             for name in sorted(REQUIRED_ARCHIVE_MEMBERS):
@@ -758,7 +790,7 @@ class FrozenEvidenceIndexer:
                     raise EvidenceIndexError(
                         "source-archive-member-digest-mismatch",
                         f"Source archive member changed: {name}.",
-                        path=str(archive),
+                        path=source_path,
                     )
 
         def json_member(name: str) -> Mapping[str, Any]:
@@ -768,7 +800,7 @@ class FrozenEvidenceIndexer:
                 raise EvidenceIndexError(
                     "source-archive-json-invalid",
                     f"Source archive member is not valid JSON: {name}.",
-                    path=str(archive),
+                    path=source_path,
                 ) from exc
             return _mapping(value, name)
 
@@ -783,7 +815,7 @@ class FrozenEvidenceIndexer:
                 raise EvidenceIndexError(
                     "canonical-event-invalid",
                     f"Invalid canonical event at line {line_number}.",
-                    path=str(archive),
+                    path=source_path,
                 ) from exc
             events.append(EvidenceEvent.from_dict(_mapping(raw_event, "canonical event")))
         event_ids = [event.event_id for event in events]
@@ -791,21 +823,21 @@ class FrozenEvidenceIndexer:
             raise EvidenceIndexError(
                 "canonical-event-id-duplicate",
                 "A source archive contains duplicate canonical event IDs.",
-                path=str(archive),
+                path=source_path,
             )
         sequences = [event.sequence for event in events]
         if sequences != sorted(sequences) or len(sequences) != len(set(sequences)):
             raise EvidenceIndexError(
                 "canonical-event-order-invalid",
                 "Canonical events are not in a stable unique sequence order.",
-                path=str(archive),
+                path=source_path,
             )
         expected_event_count = int(source.get("event_count", -1))
         if len(events) != expected_event_count:
             raise EvidenceIndexError(
                 "canonical-event-count-mismatch",
                 "The archive event count differs from the source-run index.",
-                path=str(archive),
+                path=source_path,
             )
 
         environment = json_member("environment.json")
@@ -821,13 +853,13 @@ class FrozenEvidenceIndexer:
             raise EvidenceIndexError(
                 "canonical-event-owner-mismatch",
                 "Canonical events do not share the frozen run/task owner.",
-                path=str(archive),
+                path=source_path,
             )
         if domain_verification.get("valid") is not True:
             raise EvidenceIndexError(
                 "source-domain-verification-invalid",
                 "A frozen source run has an invalid domain verifier receipt.",
-                path=str(archive),
+                path=source_path,
             )
 
         case_provider_values = current_case.get("provider_observations", ())
@@ -840,19 +872,18 @@ class FrozenEvidenceIndexer:
             _mapping(item, "tier observation")
             for item in _sequence(case_tier_values, "tier observations")
         )
-        relative_archive = archive.relative_to(self.repository_root).as_posix()
         return SourceRunEvidence(
             source_run_id=source_id,
             owner_run_id=owner_run_id,
             task_id=task_id,
             domain=_text(source_item.get("domain"), "source domain"),
             repetition=int(source_item.get("repetition", 0)),
-            archive_path=relative_archive,
+            archive_path=archive_path,
             archive_digest=_text(
                 source.get("archive_digest"),
                 "source archive_digest",
             ),
-            archive_container_sha256=_sha256_file(archive),
+            archive_container_sha256=_sha256_bytes(archive_payload),
             archive_member_digests=MappingProxyType(expected_member_digests),
             events=tuple(events),
             environment=MappingProxyType(dict(environment)),
@@ -865,6 +896,137 @@ class FrozenEvidenceIndexer:
             provider_observations=providers,
             tier_observations=tiers,
         )
+
+    def _read_frozen_blob(
+        self,
+        relative: str,
+        *,
+        expected_digest: str = "",
+        expected_size: int = -1,
+    ) -> bytes:
+        snapshot_commit = self._reference_snapshot_commit()
+        try:
+            completed = subprocess.run(
+                ["git", "cat-file", "blob", f"{snapshot_commit}:{relative}"],
+                cwd=self.repository_root,
+                check=False,
+                capture_output=True,
+                timeout=20,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise EvidenceIndexError(
+                "baseline-reference-read-failed",
+                "The frozen Git object could not be read.",
+                path=f"{snapshot_commit}:{relative}",
+            ) from exc
+        if completed.returncode != 0:
+            raise EvidenceIndexError(
+                "baseline-reference-missing",
+                "The frozen Git object is missing.",
+                path=f"{snapshot_commit}:{relative}",
+            )
+        payload = completed.stdout
+        if (
+            expected_digest
+            and (
+                _sha256_bytes(payload) != expected_digest
+                or len(payload) != expected_size
+            )
+            and b"\r\n" not in payload
+        ):
+            checkout_payload = payload.replace(b"\n", b"\r\n")
+            if (
+                _sha256_bytes(checkout_payload) == expected_digest
+                and len(checkout_payload) == expected_size
+            ):
+                return checkout_payload
+        return payload
+
+    def _list_frozen_paths(self, relative_root: str) -> tuple[str, ...]:
+        snapshot_commit = self._reference_snapshot_commit()
+        try:
+            completed = subprocess.run(
+                [
+                    "git",
+                    "ls-tree",
+                    "-r",
+                    "--name-only",
+                    snapshot_commit,
+                    "--",
+                    relative_root,
+                ],
+                cwd=self.repository_root,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise EvidenceIndexError(
+                "source-archive-list-failed",
+                "The frozen source archive tree could not be listed.",
+                path=f"{snapshot_commit}:{relative_root}",
+            ) from exc
+        if completed.returncode != 0:
+            raise EvidenceIndexError(
+                "source-archive-list-failed",
+                "The frozen source archive tree could not be listed.",
+                path=f"{snapshot_commit}:{relative_root}",
+            )
+        return tuple(
+            line.strip()
+            for line in completed.stdout.splitlines()
+            if line.strip()
+        )
+
+    def _reference_snapshot_commit(self) -> str:
+        if self._snapshot_commit:
+            return self._snapshot_commit
+        try:
+            relative = self.baseline_manifest.relative_to(
+                self.repository_root
+            ).as_posix()
+        except ValueError as exc:
+            raise EvidenceIndexError(
+                "baseline-manifest-outside-repository",
+                "The baseline manifest must be inside the Zyra repository.",
+                path=str(self.baseline_manifest),
+            ) from exc
+        try:
+            completed = subprocess.run(
+                [
+                    "git",
+                    "log",
+                    "--diff-filter=A",
+                    "--format=%H",
+                    "--",
+                    relative,
+                ],
+                cwd=self.repository_root,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise EvidenceIndexError(
+                "baseline-reference-snapshot-lookup-failed",
+                "The frozen evidence snapshot commit could not be resolved.",
+                path=relative,
+            ) from exc
+        commits = [
+            line.strip()
+            for line in completed.stdout.splitlines()
+            if line.strip()
+        ]
+        if completed.returncode != 0 or not commits:
+            raise EvidenceIndexError(
+                "baseline-reference-snapshot-missing",
+                "The baseline manifest has no committed freeze snapshot.",
+                path=relative,
+            )
+        self._snapshot_commit = commits[-1]
+        return self._snapshot_commit
 
 
 def build_read_only_evidence_index(

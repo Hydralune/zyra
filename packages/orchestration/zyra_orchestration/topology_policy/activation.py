@@ -46,6 +46,9 @@ _FORBIDDEN_FILE_NAMES = {
     "trainer.py",
     "training.py",
 }
+_PHASE2_STRONGEST_REQUIRED_MECHANISMS = frozenset(
+    {"loopx", "arg_designer", "card", "agentprune", "maas"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,6 +286,24 @@ class StrongestProfileActivationGate:
             blockers.append("validation_state")
         else:
             passed.append("validation_state")
+
+        registered_mechanisms = set(record.required_mechanisms)
+        missing_mechanisms = sorted(
+            _PHASE2_STRONGEST_REQUIRED_MECHANISMS - registered_mechanisms
+        )
+        unexpected_mechanisms = sorted(
+            registered_mechanisms - _PHASE2_STRONGEST_REQUIRED_MECHANISMS
+        )
+        blockers.extend(
+            f"required_mechanism_missing:{item}"
+            for item in missing_mechanisms
+        )
+        blockers.extend(
+            f"required_mechanism_unexpected:{item}"
+            for item in unexpected_mechanisms
+        )
+        if not missing_mechanisms and not unexpected_mechanisms:
+            passed.append("required_mechanism_set")
 
         expected_values = {
             "family": record.family,

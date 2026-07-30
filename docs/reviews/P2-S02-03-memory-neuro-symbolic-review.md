@@ -232,7 +232,7 @@ case 揭示了原先词典序会把 `ADD_EDGE` 放在新 endpoint 的 `ADD_NODE`
 - baseline 默认路径与 strongest readiness gate 均未改变。
 
 因此 `P2-02 Policy Foundation` 的三个已授权 slice 已形成可交接基础。后续
-`P2-S02-02A` benchmark framework 或 `P2-03` 长程控制仍需用户明确选择，不在本
+`P2-S02A-01` benchmark framework 或 `P2-03` 长程控制仍需用户明确选择，不在本
 slice 中提前实现。
 
 ## 8. 证据索引

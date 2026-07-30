@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -8,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import IntegrityViolation
-from .integrity import sha256_file, stable_digest
+from .integrity import stable_digest
 
 
 BASELINE_SCHEMA = "zyra.phase2-baseline-manifest/v1"
@@ -89,6 +90,17 @@ class Phase2BaselineVerifier:
             findings,
         )
         self._verify_policy(manifest, findings)
+        current_head = self._git(
+            "rev-parse",
+            "HEAD",
+            findings=findings,
+            code="baseline_current_head_unresolvable",
+        )
+        reference_snapshot_commit = self._reference_snapshot_commit(
+            manifest_path,
+            p2_base_commit=p2_base_commit,
+            findings=findings,
+        )
 
         references = manifest.get("references")
         reference_count = 0
@@ -108,6 +120,8 @@ class Phase2BaselineVerifier:
                     raw_reference,
                     index=index,
                     p2_base_commit=p2_base_commit,
+                    current_head=current_head or "",
+                    reference_snapshot_commit=reference_snapshot_commit,
                     seen=reference_ids,
                     findings=findings,
                 )
@@ -290,6 +304,8 @@ class Phase2BaselineVerifier:
         *,
         index: int,
         p2_base_commit: str,
+        current_head: str,
+        reference_snapshot_commit: str,
         seen: set[str],
         findings: list[dict[str, Any]],
     ) -> None:
@@ -331,16 +347,43 @@ class Phase2BaselineVerifier:
         )
         if path is None:
             return
-        if not path.is_file() or path.is_symlink():
-            self._finding(
-                findings,
-                "baseline_reference_file_missing",
-                id=reference_id,
-                path=relative,
+        payload: bytes | None
+        source_label: str
+        if scope == "project" and current_head != p2_base_commit:
+            payload = self._git_blob(
+                reference_snapshot_commit,
+                relative,
+                reference_id=reference_id,
+                expected_sha=str(raw.get("sha256") or ""),
+                expected_size=raw.get("size_bytes"),
+                findings=findings,
             )
+            source_label = f"{reference_snapshot_commit}:{relative}"
+        else:
+            source_label = str(path)
+            if not path.is_file() or path.is_symlink():
+                self._finding(
+                    findings,
+                    "baseline_reference_file_missing",
+                    id=reference_id,
+                    path=relative,
+                )
+                return
+            try:
+                payload = path.read_bytes()
+            except OSError as error:
+                self._finding(
+                    findings,
+                    "baseline_reference_file_unreadable",
+                    id=reference_id,
+                    path=relative,
+                    error=str(error),
+                )
+                return
+        if payload is None:
             return
         expected_sha = str(raw.get("sha256") or "")
-        actual_sha = sha256_file(path)
+        actual_sha = hashlib.sha256(payload).hexdigest()
         self._expect(
             _DIGEST.fullmatch(expected_sha) is not None
             and expected_sha == actual_sha,
@@ -355,12 +398,12 @@ class Phase2BaselineVerifier:
         self._expect(
             isinstance(expected_size, int)
             and expected_size >= 0
-            and expected_size == path.stat().st_size,
+            and expected_size == len(payload),
             findings,
             "baseline_reference_size_mismatch",
             id=reference_id,
             expected=expected_size,
-            actual=path.stat().st_size,
+            actual=len(payload),
         )
         source_commit = str(raw.get("source_commit") or "")
         if source_commit:
@@ -382,22 +425,40 @@ class Phase2BaselineVerifier:
         bindings = raw.get("json_bindings", [])
         if bindings:
             self._verify_json_bindings(
-                path,
+                payload,
                 bindings,
                 reference_id=reference_id,
+                source_label=source_label,
                 findings=findings,
             )
 
     def _verify_json_bindings(
         self,
-        path: Path,
+        payload: bytes,
         bindings: Any,
         *,
         reference_id: str,
+        source_label: str,
         findings: list[dict[str, Any]],
     ) -> None:
-        value = self._load_mapping(path, findings, reference_id=reference_id)
-        if value is None:
+        try:
+            value = json.loads(payload.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError) as error:
+            self._finding(
+                findings,
+                "baseline_json_unreadable",
+                id=reference_id,
+                path=source_label,
+                error=str(error),
+            )
+            return
+        if not isinstance(value, Mapping):
+            self._finding(
+                findings,
+                "baseline_json_root_invalid",
+                id=reference_id,
+                path=source_label,
+            )
             return
         if not isinstance(bindings, Sequence) or isinstance(
             bindings, (str, bytes)
@@ -438,6 +499,117 @@ class Phase2BaselineVerifier:
                 expected=expected,
                 actual=actual,
             )
+
+    def _git_blob(
+        self,
+        commit: str,
+        relative: str,
+        *,
+        reference_id: str,
+        expected_sha: str,
+        expected_size: Any,
+        findings: list[dict[str, Any]],
+    ) -> bytes | None:
+        tree_entry = self._git(
+            "ls-tree",
+            commit,
+            "--",
+            relative,
+            findings=findings,
+            code="baseline_reference_commit_lookup_failed",
+        )
+        if not tree_entry:
+            self._finding(
+                findings,
+                "baseline_reference_file_missing",
+                id=reference_id,
+                path=relative,
+                commit=commit,
+            )
+            return None
+        mode = tree_entry.split(maxsplit=1)[0]
+        if mode == "120000":
+            self._finding(
+                findings,
+                "baseline_reference_file_missing",
+                id=reference_id,
+                path=relative,
+                commit=commit,
+                reason="symlink_not_allowed",
+            )
+            return None
+        try:
+            completed = subprocess.run(
+                ["git", "cat-file", "blob", f"{commit}:{relative}"],
+                cwd=self.project_root,
+                check=False,
+                capture_output=True,
+                timeout=20,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            self._finding(
+                findings,
+                "baseline_reference_commit_read_failed",
+                id=reference_id,
+                path=relative,
+                commit=commit,
+                error=str(error),
+            )
+            return None
+        if completed.returncode != 0:
+            self._finding(
+                findings,
+                "baseline_reference_commit_read_failed",
+                id=reference_id,
+                path=relative,
+                commit=commit,
+                returncode=completed.returncode,
+                stderr=completed.stderr.decode("utf-8", errors="replace").strip(),
+            )
+            return None
+        payload = completed.stdout
+        if (
+            hashlib.sha256(payload).hexdigest() == expected_sha
+            and len(payload) == expected_size
+        ):
+            return payload
+        # The original Windows reconciliation captured one text manifest with
+        # CRLF worktree bytes while Git stores its canonical LF blob.  Accept
+        # that deterministic checkout representation only when both frozen
+        # size and digest prove an exact match.
+        if b"\r\n" not in payload:
+            checkout_payload = payload.replace(b"\n", b"\r\n")
+            if (
+                hashlib.sha256(checkout_payload).hexdigest() == expected_sha
+                and len(checkout_payload) == expected_size
+            ):
+                return checkout_payload
+        return payload
+
+    def _reference_snapshot_commit(
+        self,
+        manifest_path: Path,
+        *,
+        p2_base_commit: str,
+        findings: list[dict[str, Any]],
+    ) -> str:
+        try:
+            relative = manifest_path.relative_to(self.project_root).as_posix()
+        except ValueError:
+            return p2_base_commit
+        snapshot = self._git(
+            "log",
+            "--diff-filter=A",
+            "--format=%H",
+            "--",
+            relative,
+            findings=findings,
+            code="baseline_reference_snapshot_lookup_failed",
+        )
+        if not snapshot:
+            return p2_base_commit
+        commits = [line.strip() for line in snapshot.splitlines() if line.strip()]
+        return commits[-1] if commits else p2_base_commit
 
     def _verify_inventory(
         self,
