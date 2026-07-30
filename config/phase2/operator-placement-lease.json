@@ -1,0 +1,15 @@
+{
+  "schema": "zyra.operator-placement-lease-config/v1",
+  "mechanism_id": "maas_operator_placement_lease",
+  "mechanism_version": "maas_operator_placement_lease_v1",
+  "candidate_set_schema": "zyra.operator-candidate-set/v1",
+  "placement_receipt_schema": "zyra.operator-placement-decision/v1",
+  "attempt_receipt_schema": "zyra.operator-attempt-receipt/v1",
+  "lease_ttl_seconds": 30.0,
+  "maximum_recovery_attempts": 1,
+  "maximum_layer_concurrency": 4,
+  "fallback_profile": "phase1_resource_scheduler_baseline",
+  "require_permission_recheck": true,
+  "require_catalog_recheck": true,
+  "require_execution_fence": true
+}

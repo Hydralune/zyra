@@ -143,6 +143,7 @@ class WorkerLeaseManager:
             acquired_at=acquired_at,
             idempotency_key=key,
             metadata={
+                **dict(metadata or {}),
                 "manifest_digest": manifest.digest,
                 "worker_generation": worker.generation,
                 "requirement": requirement.to_dict(),

@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from zyra_core import DecisionRecord, EventRecord, EventType, PlanNode, TaskState, to_jsonable
+from zyra_orchestration.topology_policy.contracts import canonical_digest
 
 from .models import ResourceDecision, SchedulerSignals, WorkerManifest
 from .pool import WorkerPool
@@ -64,20 +65,105 @@ class ResourceScheduler:
             signals.metadata["operator_selection_input"] = operator_contract
             signals.metadata["operator_candidate_contract_consumed"] = True
             signals.metadata["operator_candidate_contract_effect"] = (
-                "selection_input_only_pending_P2-S04-03"
+                "scheduler_joint_operator_placement_v1"
+                if operator_contract.get("schema_version")
+                == "zyra.operator-candidate-set/v1"
+                else "selection_input_only_pending_P2-S04-03"
             )
         health = {item.worker_id: item for item in self.worker_pool.health_snapshot(state=state, events=events or [])}
-        scored = [
-            self._score_manifest(manifest, signals, state=state, node=node, health=health.get(manifest.worker_id))
-            for manifest in self.worker_pool.manifests()
-        ]
+        scored: list[_ScoredManifest] = []
+        operator_plans: dict[str, dict[str, Any]] = {}
+        operator_constrained = bool(
+            operator_contract is not None
+            and operator_contract.get("schema_version")
+            == "zyra.operator-candidate-set/v1"
+        )
+        for manifest in self.worker_pool.manifests():
+            base = self._score_manifest(
+                manifest,
+                signals,
+                state=state,
+                node=node,
+                health=health.get(manifest.worker_id),
+            )
+            if not operator_constrained:
+                scored.append(base)
+                continue
+            plan = self._operator_plan(
+                manifest,
+                signals,
+                operator_contract,
+            )
+            operator_plans[manifest.worker_id] = plan
+            if plan["selected_operator_refs"]:
+                scored.append(
+                    _ScoredManifest(
+                        manifest=manifest,
+                        score=base.score + float(plan["score_adjustment"]),
+                        reasons=[
+                            *base.reasons,
+                            "operator candidate set constrained placement and execution order",
+                            *list(plan["selection_reasons"]),
+                        ],
+                    )
+                )
+            else:
+                scored.append(
+                    _ScoredManifest(
+                        manifest=manifest,
+                        score=-999.0,
+                        reasons=[
+                            *base.reasons,
+                            "no operator candidate is executable on this placement",
+                        ],
+                    )
+                )
         viable = [item for item in scored if item.score > -100]
+        degraded_operator_route = False
+        if (
+            operator_constrained
+            and not viable
+            and operator_contract.get("allow_explicit_baseline") is True
+        ):
+            degraded_operator_route = True
+            scored = [
+                self._score_manifest(
+                    manifest,
+                    signals,
+                    state=state,
+                    node=node,
+                    health=health.get(manifest.worker_id),
+                )
+                for manifest in self.worker_pool.manifests()
+            ]
+            viable = [item for item in scored if item.score > -100]
         viable.sort(key=lambda item: item.score, reverse=True)
         selected = viable[0] if viable else _ScoredManifest(
             self.worker_pool.manifests()[0],
             0.0,
             ["fallback to first enabled worker manifest"],
         )
+        selected_operator_plan: dict[str, Any] | None = None
+        if operator_constrained:
+            selected_operator_plan = dict(
+                operator_plans.get(selected.manifest.worker_id) or {}
+            )
+            if degraded_operator_route:
+                selected_operator_plan.update(
+                    {
+                        "selected_operator_refs": [],
+                        "execution_order": [],
+                        "maximum_concurrency": 1,
+                        "physical_worker_id": selected.manifest.worker_id,
+                        "route_mode": "degraded_baseline",
+                        "degraded_reason": (
+                            "all MaAS operator candidates were rejected by "
+                            "ResourceScheduler placement constraints"
+                        ),
+                        "placement_owner": "ResourceScheduler",
+                        "lease_owner": "WorkerPoolFoundationRuntime",
+                    }
+                )
         alternatives = [
             {
                 "worker_id": item.manifest.worker_id,
@@ -91,6 +177,17 @@ class ResourceScheduler:
             for item in viable[1:4]
         ]
         model_split = self._model_split(selected.manifest, signals, alternatives)
+        if selected_operator_plan is not None:
+            selected_models = [
+                item
+                for item in selected_operator_plan.get("selected_candidates", [])
+                if item.get("operator_type") == "model"
+            ]
+            if selected_models:
+                model_split["selected_operator_models"] = [
+                    item["operator_ref"] for item in selected_models
+                ]
+                model_split["strategy"] = "operator_constrained_model_split"
         return ResourceDecision(
             run_id=state.run_id,
             task_id=state.task_id,
@@ -118,10 +215,13 @@ class ResourceScheduler:
                     operator_contract is not None
                 ),
                 "operator_candidate_contract_effect": (
-                    "selection_input_only_pending_P2-S04-03"
+                    "scheduler_joint_operator_placement_v1"
+                    if operator_constrained
+                    else "selection_input_only_pending_P2-S04-03"
                     if operator_contract is not None
                     else "phase1_scheduler_input"
                 ),
+                "operator_placement": selected_operator_plan,
                 "placement_owner": "ResourceScheduler",
                 "lease_owner": "WorkerPoolFoundationRuntime",
             },
@@ -373,6 +473,217 @@ class ResourceScheduler:
             split["strategy"] = "local_execute_cloud_verify_candidate"
         return split
 
+    def _operator_plan(
+        self,
+        manifest: WorkerManifest,
+        signals: SchedulerSignals,
+        contract: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        accepted: list[dict[str, Any]] = []
+        rejected: list[dict[str, Any]] = []
+        allowed_permissions = {
+            str(item).lower()
+            for item in contract.get("allowed_permissions") or ()
+        }
+        candidates = contract.get("candidates")
+        for raw in candidates if isinstance(candidates, list) else []:
+            if not isinstance(raw, Mapping):
+                continue
+            candidate = dict(raw)
+            reasons = self._candidate_rejections(
+                manifest,
+                signals,
+                candidate,
+                allowed_permissions=allowed_permissions,
+            )
+            if reasons:
+                rejected.append(
+                    {
+                        "operator_ref": str(candidate.get("operator_ref") or ""),
+                        "manifest_id": manifest.worker_id,
+                        "reasons": reasons,
+                    }
+                )
+            else:
+                accepted.append(candidate)
+        accepted.sort(
+            key=lambda item: (
+                int(item.get("layer_index") or 0),
+                int(item.get("layer_rank") or 0),
+                -float(item.get("proposal_score") or 0),
+                str(item.get("operator_ref") or ""),
+            )
+        )
+        maximum = max(
+            1,
+            int(contract.get("expected_breadth") or 1)
+            * int(contract.get("expected_depth") or 1),
+        )
+        remaining_tokens = max(0, int(contract.get("remaining_tokens") or 0))
+        remaining_cost = max(
+            0.0, float(contract.get("remaining_cost_usd") or 0)
+        )
+        remaining_time = max(0, int(contract.get("remaining_time_ms") or 0))
+        selected: list[dict[str, Any]] = []
+        tokens = 0
+        cost = 0.0
+        latency = 0
+        for candidate in accepted:
+            next_tokens = tokens + int(candidate.get("estimated_tokens") or 0)
+            next_cost = cost + float(candidate.get("estimated_cost_usd") or 0)
+            next_latency = latency + int(
+                candidate.get("estimated_latency_ms") or 0
+            )
+            if (
+                len(selected) >= maximum
+                or next_tokens > remaining_tokens
+                or next_cost > remaining_cost
+                or next_latency > remaining_time
+            ):
+                rejected.append(
+                    {
+                        "operator_ref": str(
+                            candidate.get("operator_ref") or ""
+                        ),
+                        "manifest_id": manifest.worker_id,
+                        "reasons": [
+                            "cumulative breadth/depth or execution budget exceeded"
+                        ],
+                    }
+                )
+                continue
+            selected.append(candidate)
+            tokens = next_tokens
+            cost = next_cost
+            latency = next_latency
+        refs = [str(item.get("operator_ref") or "") for item in selected]
+        maximum_concurrency = min(
+            max(1, int(contract.get("expected_breadth") or 1)),
+            max(1, manifest.max_concurrency - manifest.current_load),
+            min(
+                (
+                    max(1, int(item.get("available_capacity") or 1))
+                    for item in selected
+                ),
+                default=1,
+            ),
+        )
+        physical_worker = next(
+            (
+                str(item.get("operator_id") or "").split(":", 1)[-1]
+                for item in selected
+                if item.get("operator_type") == "worker"
+                and str(item.get("operator_id") or "").split(":", 1)[-1]
+                in {
+                    manifest.worker_id,
+                    manifest.runtime_worker,
+                }
+            ),
+            manifest.worker_id,
+        )
+        score_adjustment = (
+            sum(float(item.get("proposal_score") or 0) for item in selected)
+            / max(1, len(selected))
+            / 500
+        )
+        return {
+            "candidate_set_digest": str(
+                contract.get("candidate_set_digest") or ""
+            ),
+            "proposal_id": str(contract.get("proposal_id") or ""),
+            "proposal_digest": str(contract.get("proposal_digest") or ""),
+            "selected_operator_refs": refs,
+            "selected_candidates": selected,
+            "rejected_candidates": rejected,
+            "execution_order": refs,
+            "maximum_concurrency": maximum_concurrency,
+            "physical_worker_id": physical_worker,
+            "score_adjustment": round(score_adjustment, 6),
+            "selection_reasons": [
+                f"{len(selected)} operator candidates fit this placement",
+                (
+                    f"execution order is stable by layer/rank; concurrency "
+                    f"bounded at {maximum_concurrency}"
+                ),
+            ],
+            "route_mode": "operator_constrained",
+            "degraded_reason": "",
+            "placement_owner": "ResourceScheduler",
+            "lease_owner": "WorkerPoolFoundationRuntime",
+        }
+
+    @staticmethod
+    def _candidate_rejections(
+        manifest: WorkerManifest,
+        signals: SchedulerSignals,
+        candidate: Mapping[str, Any],
+        *,
+        allowed_permissions: set[str],
+    ) -> list[str]:
+        reasons: list[str] = []
+        locations = {
+            str(item).lower()
+            for item in candidate.get("allowed_locations") or ()
+        }
+        privacy = {
+            str(item).lower()
+            for item in candidate.get("allowed_privacy_classes") or ()
+        }
+        permissions = {
+            str(item).lower()
+            for item in candidate.get("required_permissions") or ()
+        }
+        capabilities = {
+            str(item).lower()
+            for item in candidate.get("capabilities") or ()
+        }
+        manifest_capabilities = {
+            *(str(item).lower() for item in manifest.capabilities),
+            *(str(item).lower() for item in manifest.tools),
+        }
+        operator_type = str(candidate.get("operator_type") or "")
+        source_ref = str(candidate.get("source_ref") or "")
+        operator_id = str(candidate.get("operator_id") or "")
+        if manifest.location.value not in locations:
+            reasons.append("operator location is incompatible with placement")
+        if (
+            signals.privacy_mode not in privacy
+            and "*" not in privacy
+        ):
+            reasons.append("operator privacy contract is incompatible")
+        if not permissions.issubset(allowed_permissions):
+            reasons.append("operator permission is no longer allowed")
+        if str(candidate.get("health_status") or "").lower() not in {
+            "healthy",
+            "degraded",
+        }:
+            reasons.append("operator health is unavailable")
+        if int(candidate.get("available_capacity") or 0) < 1:
+            reasons.append("operator capacity is exhausted")
+        if operator_type == "worker":
+            worker_id = operator_id.split(":", 1)[-1]
+            if worker_id not in {manifest.worker_id, manifest.runtime_worker}:
+                reasons.append("worker operator belongs to another manifest")
+        elif operator_type == "model":
+            model_id = operator_id.split(":", 1)[-1]
+            if not manifest.models or not any(
+                item in {source_ref, model_id}
+                or item.endswith(model_id)
+                or model_id.endswith(item)
+                for item in manifest.models
+            ):
+                reasons.append("model operator is absent from worker manifest")
+        elif operator_type == "tool":
+            tool_id = operator_id.split(":", 1)[-1]
+            if (
+                source_ref not in manifest.tools
+                and tool_id not in manifest.tools
+            ):
+                reasons.append("tool operator is unsupported by worker")
+        if not capabilities.issubset(manifest_capabilities):
+            reasons.append("operator capabilities do not match worker")
+        return reasons
+
 
 def _event_dict(event: EventRecord | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(event, EventRecord):
@@ -398,7 +709,11 @@ def _operator_selection_input(
     if not isinstance(raw, Mapping):
         raise ValueError("operator_input must be a mapping or typed scheduler input")
     data = dict(raw)
-    if data.get("schema_version") != "zyra.operator-scheduler-input/v1":
+    schema = data.get("schema_version")
+    if schema not in {
+        "zyra.operator-scheduler-input/v1",
+        "zyra.operator-candidate-set/v1",
+    }:
         raise ValueError("operator_input schema is unsupported")
     if data.get("diagnostic_only") is True:
         raise ValueError("diagnostic operator ranking cannot enter ResourceScheduler")
@@ -417,17 +732,64 @@ def _operator_selection_input(
         for item in (proposal_digest, catalog_digest, graph_signature)
     ):
         raise ValueError("operator_input digests and graph signature must be SHA-256")
-    candidates = data.get("candidate_references")
+    if schema == "zyra.operator-scheduler-input/v1":
+        candidates = data.get("candidate_references")
+        if not isinstance(candidates, list) or not candidates:
+            raise ValueError("operator_input requires concrete candidate references")
+        for candidate in candidates:
+            if (
+                not isinstance(candidate, Mapping)
+                or not str(candidate.get("operator_id") or "").strip()
+                or not str(candidate.get("version") or "").strip()
+            ):
+                raise ValueError("operator_input candidate reference is invalid")
+        return data
+    candidates = data.get("candidates")
     if not isinstance(candidates, list) or not candidates:
-        raise ValueError("operator_input requires concrete candidate references")
+        raise ValueError("operator candidate set requires resolved candidates")
+    supplied_digest = str(data.get("candidate_set_digest") or "")
+    unsigned = dict(data)
+    unsigned.pop("candidate_set_digest", None)
+    if not _valid_digest(supplied_digest) or supplied_digest != canonical_digest(
+        unsigned
+    ):
+        raise ValueError("operator candidate-set digest is invalid")
+    required = {
+        "operator_id",
+        "operator_ref",
+        "operator_type",
+        "version",
+        "profile_digest",
+        "layer_index",
+        "required_permissions",
+        "allowed_locations",
+        "allowed_privacy_classes",
+        "health_status",
+        "available_capacity",
+    }
     for candidate in candidates:
         if (
             not isinstance(candidate, Mapping)
+            or not required.issubset(candidate)
+            or not _valid_digest(str(candidate.get("profile_digest") or ""))
             or not str(candidate.get("operator_id") or "").strip()
+            or not str(candidate.get("operator_ref") or "").strip()
+            or not str(candidate.get("operator_type") or "").strip()
             or not str(candidate.get("version") or "").strip()
         ):
-            raise ValueError("operator_input candidate reference is invalid")
+            raise ValueError("operator candidate-set entry is invalid")
+    if (
+        data.get("lease_owner") != "WorkerPoolFoundationRuntime"
+        or data.get("mode") not in {"validation", "default"}
+    ):
+        raise ValueError("operator candidate set cannot affect scheduler ownership")
     return data
+
+
+def _valid_digest(value: str) -> bool:
+    return len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value.lower()
+    )
 
 
 def _task_text(

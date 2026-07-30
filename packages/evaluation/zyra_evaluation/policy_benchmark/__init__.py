@@ -63,12 +63,24 @@ from .neuro_symbolic import (
     load_adversarial_proposal_corpus,
     summarize_neuro_symbolic_bundles,
 )
+from .operator_outcome import (
+    OPERATOR_CAUSAL_CHAIN_SCHEMA,
+    OPERATOR_OUTCOME_ASSESSMENT_SCHEMA,
+    OperatorCausalChainReceipt,
+    OperatorOutcomeAssessment,
+    OperatorOutcomeError,
+    evaluate_operator_outcome,
+    implementation_validated_readiness_revision,
+)
 
 __all__ = [
     "ContractViolation",
     "ContinuityEvidenceError",
     "ContinuityEvidenceReport",
     "OutcomeAttributionError",
+    "OperatorCausalChainReceipt",
+    "OperatorOutcomeAssessment",
+    "OperatorOutcomeError",
     "BASELINE_MANIFEST_DIGEST",
     "CAUSAL_LINKS",
     "EvidenceEvent",
@@ -96,6 +108,8 @@ __all__ = [
     "READINESS_CONFIG_SCHEMA",
     "READINESS_REPORT_SCHEMA",
     "READINESS_STAGE",
+    "OPERATOR_CAUSAL_CHAIN_SCHEMA",
+    "OPERATOR_OUTCOME_ASSESSMENT_SCHEMA",
     "ReadOnlyEvidenceIndex",
     "SourceRunEvidence",
     "build_mechanism_readiness_report",
@@ -106,6 +120,8 @@ __all__ = [
     "canonical_digest",
     "compute_frozen_gate_digest",
     "evaluate_mechanism",
+    "evaluate_operator_outcome",
+    "implementation_validated_readiness_revision",
     "load_adversarial_proposal_corpus",
     "parse_mechanism_status",
     "run_no_training_audit",

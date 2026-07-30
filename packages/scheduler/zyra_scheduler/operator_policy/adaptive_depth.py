@@ -293,6 +293,7 @@ class AdaptiveDepthRuntime:
         self,
         *,
         proposal: OperatorSelectionProposal,
+        execution_layers: Sequence[OperatorLayerProposal] | None = None,
         execution_port: OperatorLayerExecutionPort,
         eligibility_port: EligibilityCapturePort,
         early_exit_enabled: bool = True,
@@ -303,17 +304,27 @@ class AdaptiveDepthRuntime:
                 "adaptive_depth_proposal_empty",
                 "adaptive depth requires a non-empty operator proposal",
             )
-        minimum_operators, minimum_verification = minimum_operator_path(proposal)
+        layers = (
+            tuple(execution_layers)
+            if execution_layers is not None
+            else proposal.layers
+        )
+        self._validate_execution_layers(proposal, layers)
+        minimum_operators, minimum_verification = (
+            self._minimum_operator_path(layers)
+        )
         executed: list[LayerExecutionReceipt] = []
         snapshots: list[ExitEligibilitySnapshot] = []
         decisions: list[ExitDecisionReceipt] = []
         events: list[EventRecord] = []
-        all_candidates = tuple(proposal.candidates)
+        all_candidates = tuple(
+            item for layer in layers for item in layer.candidates
+        )
         candidate_refs = {
             self._candidate_ref(item): item for item in all_candidates
         }
         executed_refs: set[str] = set()
-        for layer in proposal.layers:
+        for layer in layers:
             receipt = execution_port.execute_layer(
                 proposal=proposal,
                 layer=layer,
@@ -357,7 +368,7 @@ class AdaptiveDepthRuntime:
                 receipt=receipt,
                 snapshot=snapshot,
                 decision=decision,
-                proposed_depth=len(proposal.layers),
+                proposed_depth=len(layers),
             )
             self.admit_event(event)
             events.append(event)
@@ -404,7 +415,7 @@ class AdaptiveDepthRuntime:
             proposal_id=proposal.proposal_id,
             proposal_digest=proposal.digest,
             decision_ref=decisions[-1].decision_id,
-            proposed_depth=len(proposal.layers),
+            proposed_depth=len(layers),
             executed_depth=len(executed),
             proposed_operator_count=len(all_candidates),
             executed_operator_count=len(executed_refs),
@@ -431,6 +442,8 @@ class AdaptiveDepthRuntime:
         )
         outcome = self._policy_outcome(
             proposal=proposal,
+            planned_layers=layers,
+            planned_candidates=all_candidates,
             final_snapshot=snapshots[-1],
             final_decision=decisions[-1],
             executed=tuple(executed),
@@ -443,6 +456,8 @@ class AdaptiveDepthRuntime:
         cost = replace(provisional_cost, decision_ref=finalized.decision_id)
         outcome = self._policy_outcome(
             proposal=proposal,
+            planned_layers=layers,
+            planned_candidates=all_candidates,
             final_snapshot=snapshots[-1],
             final_decision=finalized,
             executed=tuple(executed),
@@ -506,10 +521,68 @@ class AdaptiveDepthRuntime:
                 "incomplete execution cannot advance adaptive depth",
             )
 
+    @staticmethod
+    def _validate_execution_layers(
+        proposal: OperatorSelectionProposal,
+        layers: Sequence[OperatorLayerProposal],
+    ) -> None:
+        if not layers or any(not item.candidates for item in layers):
+            raise EarlyExitError(
+                "adaptive_depth_execution_plan_empty",
+                "ResourceScheduler execution plan must contain non-empty layers",
+            )
+        proposal_refs = {
+            f"{item.operator_id}@{item.version}" for item in proposal.candidates
+        }
+        scheduled_refs = [
+            f"{item.operator_id}@{item.version}"
+            for layer in layers
+            for item in layer.candidates
+        ]
+        if (
+            not set(scheduled_refs).issubset(proposal_refs)
+            or len(scheduled_refs) != len(set(scheduled_refs))
+        ):
+            raise EarlyExitError(
+                "adaptive_depth_execution_plan_invalid",
+                "scheduler execution plan must be a unique subset of MaAS candidates",
+            )
+        indexes = [item.layer_index for item in layers]
+        if indexes != sorted(indexes) or len(indexes) != len(set(indexes)):
+            raise EarlyExitError(
+                "adaptive_depth_execution_plan_order_invalid",
+                "scheduler execution layers must have stable unique ordering",
+            )
+
+    @staticmethod
+    def _minimum_operator_path(
+        layers: Sequence[OperatorLayerProposal],
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        required = [
+            f"{layers[0].candidates[0].operator_id}@"
+            f"{layers[0].candidates[0].version}"
+        ]
+        verifier_candidate = next(
+            (
+                item
+                for layer in layers
+                for item in layer.candidates
+                if item.score_components.verifier_necessity >= 10_000
+            ),
+            None,
+        )
+        if verifier_candidate is not None:
+            required.append(
+                f"{verifier_candidate.operator_id}@{verifier_candidate.version}"
+            )
+        return tuple(sorted(set(required))), ("final_verifier",)
+
     def _policy_outcome(
         self,
         *,
         proposal: OperatorSelectionProposal,
+        planned_layers: Sequence[OperatorLayerProposal],
+        planned_candidates: Sequence[OperatorCandidate],
         final_snapshot: ExitEligibilitySnapshot,
         final_decision: ExitDecisionReceipt,
         executed: tuple[LayerExecutionReceipt, ...],
@@ -557,9 +630,9 @@ class AdaptiveDepthRuntime:
                     "decision": final_decision.decision.value,
                     "exited": exited,
                     "posterior_result": final_decision.posterior_result.value,
-                    "proposed_depth": len(proposal.layers),
+                    "proposed_depth": len(planned_layers),
                     "executed_depth": len(executed),
-                    "proposed_operator_count": len(proposal.candidates),
+                    "proposed_operator_count": len(planned_candidates),
                     "executed_operator_count": sum(
                         len(item.operator_refs) for item in executed
                     ),
