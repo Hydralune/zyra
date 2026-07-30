@@ -152,4 +152,3 @@ P2-S03-01 一致的真实父级 base
 - `docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/gate-matrix.json`
 - `docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/bucket-summary.json`
 - `docs/reviews/evidence/phase2/P2-00-through-P2-03/1d81143/commands.json`
-
