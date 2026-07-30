@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -515,3 +516,90 @@ def test_config_declares_no_training_sampling_or_pretrained_signal() -> None:
     assert config.no_policy_training["pretrained_model_used"] is False
     assert config.no_policy_training["datasets"] == ()
     assert config.no_policy_training["checkpoints"] == ()
+
+
+def test_repository_runtime_verifies_readiness_report_before_validation(
+    tmp_path: Path,
+) -> None:
+    config = OperatorSelectorConfig.load(
+        ROOT / "config" / "phase2" / "maas-operator-selector.json"
+    )
+    report = {
+        "schema": "zyra.mechanism-evidence-readiness-report/v1",
+        "generated_at": NOW,
+        "readiness_stage": "input_precheck",
+        "supersedes_report_digest": config.input_precheck_report_digest,
+        "mechanism_statuses": {"maas": "deterministic_ready"},
+        "mechanisms": {
+            "maas": {
+                "readiness_stage": "input_precheck",
+                "status": "deterministic_ready",
+                "selector_validation": {
+                    "passed": True,
+                    "mechanism_version": config.mechanism_version,
+                    "configuration_digest": config.digest,
+                    "catalog_schema_version": config.catalog_schema_version,
+                    "proposal_schema_version": config.proposal_schema_version,
+                    "scheduler_input_schema_version": (
+                        config.scheduler_input_schema_version
+                    ),
+                    "placement_change_allowed": False,
+                    "lease_created": False,
+                    "physical_attempt_created": False,
+                },
+            }
+        },
+        "no_policy_training_audit": {
+            "passed": True,
+            "training_sample_count": 0,
+        },
+    }
+    report_digest = canonical_digest(report)
+    report["report_digest"] = report_digest
+    report_path = tmp_path / "MechanismEvidenceReadinessReport.json"
+    report_path.write_text(
+        json.dumps(report, sort_keys=True),
+        encoding="utf-8",
+    )
+    policy_input = _policy_input()
+    trusted_ref = replace(
+        policy_input.readiness_refs[0],
+        report_ref=report_path.as_posix(),
+        report_digest=report_digest,
+    )
+    trusted_input = replace(policy_input, readiness_refs=(trusted_ref,))
+    runtime = MaasOperatorPolicyRuntime.from_repository(
+        ROOT,
+        report_path=report_path,
+    )
+
+    trusted = runtime.execute(
+        policy_input=trusted_input,
+        query="Code change artifact",
+        catalog=_catalog((_profile("worker:valid"),)),
+        explicit_validation=True,
+    )
+    forged_input = replace(
+        policy_input,
+        readiness_refs=(
+            replace(
+                trusted_ref,
+                report_digest=canonical_digest("forged-maas-report"),
+            ),
+        ),
+    )
+    forged = runtime.execute(
+        policy_input=forged_input,
+        query="Code change artifact",
+        catalog=_catalog((_profile("worker:valid"),)),
+        explicit_validation=True,
+    )
+
+    assert trusted.mode == "validation"
+    assert trusted.scheduler_input is not None
+    assert forged.mode == "baseline"
+    assert forged.proposal is None
+    assert (
+        forged.readiness.reason
+        == "policy input readiness does not match the verified MaAS report"
+    )

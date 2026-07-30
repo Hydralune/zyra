@@ -8,6 +8,7 @@ from typing import Any
 
 from zyra_core import EventRecord, EventType
 from zyra_orchestration.topology_policy.contracts import (
+    ContractHeader,
     MechanismEvidenceReadinessReportRef,
     PolicyInputSnapshot,
     canonical_digest,
