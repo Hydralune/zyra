@@ -176,6 +176,10 @@ CACHE_PARTS = {
     "build",
 }
 
+VENDOR_LIKE_PATH_PREFIXES = (
+    ("packages", "integrations", "loopx_runtime"),
+)
+
 MATERIALIZED_LIFECYCLES = {
     LedgerLifecycle.ACTIVE,
     LedgerLifecycle.INTERNALIZED,
@@ -395,7 +399,10 @@ def classify_path(path: str) -> PathClassification:
     )
     is_notice = root == "third_party" or "NOTICE" in name.upper()
     is_test_like = root == "tests" or name.startswith("test_") or name.endswith(".test.ts") or name.endswith(".spec.ts")
-    is_vendor_runtime = root == "vendor-runtimes"
+    is_vendor_runtime = root == "vendor-runtimes" or any(
+        parts[: len(prefix)] == prefix
+        for prefix in VENDOR_LIKE_PATH_PREFIXES
+    )
     is_source_like = suffix in SOURCE_SUFFIXES and not is_generated_data and not is_documentation
     is_runtime_like = root in {"apps", "packages", "scripts", "vendor-runtimes", "skills"} and is_source_like
     surface = LedgerSurface.UNKNOWN
@@ -417,6 +424,8 @@ def classify_path(path: str) -> PathClassification:
         surface = LedgerSurface.TEMPORARY
     if is_cache:
         surface = LedgerSurface.CACHE
+    elif is_vendor_runtime:
+        surface = LedgerSurface.VENDOR_RUNTIME
     elif is_documentation:
         surface = LedgerSurface.DOCUMENTATION
     elif is_generated_data and not is_notice:
@@ -427,6 +436,9 @@ def classify_path(path: str) -> PathClassification:
     elif is_cache:
         verdict = CountVerdict.EXCLUDED
         reason = "cache/build output is excluded"
+    elif is_vendor_runtime:
+        verdict = CountVerdict.REVIEW
+        reason = "vendor-runtime files require Zyra-owned adapter/launcher/protocol evidence before counting"
     elif is_documentation:
         verdict = CountVerdict.EXCLUDED
         reason = "documentation is excluded from effective code"
@@ -436,9 +448,6 @@ def classify_path(path: str) -> PathClassification:
     elif root not in COUNTED_ROOTS:
         verdict = CountVerdict.EXCLUDED
         reason = "target root is not part of counted source surfaces"
-    elif is_vendor_runtime:
-        verdict = CountVerdict.REVIEW
-        reason = "vendor-runtime files require Zyra-owned adapter/launcher/protocol evidence before counting"
     elif is_source_like or is_test_like:
         verdict = CountVerdict.EFFECTIVE
         reason = "source/test/runtime file may count when connected and verified"

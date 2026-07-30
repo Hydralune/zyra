@@ -158,6 +158,17 @@ DEFAULT_BUCKET_RULES = [
         patterns=["/__pycache__/", "/.pytest_cache/", "/.mypy_cache/", "/.ruff_cache/", "/node_modules/", "/dist/", "/build/"],
     ),
     BucketRule(
+        bucket=LineBucket.VENDOR_LIKE,
+        risk=BucketRisk.WARNING,
+        reason="vendor-runtime lines count only for Zyra-owned adapter/bridge code",
+        roots=["vendor-runtimes"],
+        patterns=[
+            "packages/integrations/loopx_runtime/",
+            "vendor/",
+            "third_party/",
+        ],
+    ),
+    BucketRule(
         bucket=LineBucket.DATA,
         risk=BucketRisk.WARNING,
         reason="seed/inventory/source-map/data cannot count as implementation",
@@ -182,13 +193,6 @@ DEFAULT_BUCKET_RULES = [
         risk=BucketRisk.BLOCKER,
         reason="source pools and raw upstream mirrors cannot count",
         patterns=["source_pool", "source-pool", "runtime-sources", "third_party/source", "upstream_mirror"],
-    ),
-    BucketRule(
-        bucket=LineBucket.VENDOR_LIKE,
-        risk=BucketRisk.WARNING,
-        reason="vendor-runtime lines count only for Zyra-owned adapter/bridge code",
-        roots=["vendor-runtimes"],
-        patterns=["vendor/", "third_party/"],
     ),
     BucketRule(
         bucket=LineBucket.ADAPTER_ONLY,

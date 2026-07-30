@@ -112,7 +112,7 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
 
             completed = subprocess.run(
                 [
-                    str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                    sys.executable,
                     "scripts/zyra_integration_ledger.py",
                     "gate",
                     "--owner-unit",
@@ -134,7 +134,7 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
     def test_cli_linecount_reports_seed_exclusion_and_shortfall(self) -> None:
         completed = subprocess.run(
             [
-                str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                sys.executable,
                 "scripts/zyra_integration_ledger.py",
                 "linecount",
                 "--base",
@@ -158,7 +158,7 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
     def test_cli_buckets_reports_vendor_like_separately(self) -> None:
         completed = subprocess.run(
             [
-                str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                sys.executable,
                 "scripts/zyra_integration_ledger.py",
                 "buckets",
                 "--base",
@@ -188,7 +188,7 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
 
             completed = subprocess.run(
                 [
-                    str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                    sys.executable,
                     "scripts/zyra_integration_ledger.py",
                     "advance",
                     "missing",
@@ -212,7 +212,7 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
 
 def _run(args: list[str], env: dict[str, str]) -> dict:
     completed = subprocess.run(
-        [str(ROOT / ".venv" / "Scripts" / "python.exe"), "scripts/zyra_integration_ledger.py", *args],
+        [sys.executable, "scripts/zyra_integration_ledger.py", *args],
         cwd=ROOT,
         env=env,
         check=True,

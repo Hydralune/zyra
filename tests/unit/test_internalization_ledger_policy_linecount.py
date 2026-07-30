@@ -31,7 +31,12 @@ from zyra_integrations import (
     validate_entry_policy,
 )
 from zyra_integrations.ledger_linecount import assert_effective_line_count, parse_numstat
-from zyra_integrations.ledger_policy import CountVerdict, LedgerPolicyCode, UNIT_BUDGETS
+from zyra_integrations.ledger_policy import (
+    CountVerdict,
+    LedgerPolicyCode,
+    LedgerSurface,
+    UNIT_BUDGETS,
+)
 
 
 class LedgerPolicyLineCountTests(unittest.TestCase):
@@ -53,12 +58,38 @@ class LedgerPolicyLineCountTests(unittest.TestCase):
         self.assertEqual(classification.surface, "data")
         self.assertIn("seed/inventory/data", classification.reason)
 
-    def test_reference_crosswalk_json_is_excluded_under_vendor_runtime(self) -> None:
+    def test_reference_crosswalk_json_is_vendor_like_under_vendor_runtime(
+        self,
+    ) -> None:
         classification = classify_path("vendor-runtimes/claude-code-runtime/metadata/reference_crosswalk.json")
 
-        self.assertEqual(classification.verdict, CountVerdict.EXCLUDED)
-        self.assertEqual(classification.surface, "data")
+        self.assertEqual(classification.verdict, CountVerdict.REVIEW)
+        self.assertEqual(classification.surface, LedgerSurface.VENDOR_RUNTIME)
         self.assertTrue(classification.is_generated_data)
+
+    def test_embedded_loopx_is_vendor_like_but_zyra_bridge_is_production(
+        self,
+    ) -> None:
+        upstream = classify_path(
+            "packages/integrations/loopx_runtime/loopx/runtime.py"
+        )
+        upstream_data = classify_path(
+            "packages/integrations/loopx_runtime/runtime.json"
+        )
+        bridge = classify_path(
+            "packages/integrations/zyra_integrations/loopx/runtime.py"
+        )
+
+        for classification in (upstream, upstream_data):
+            self.assertEqual(classification.verdict, CountVerdict.REVIEW)
+            self.assertEqual(
+                classification.surface,
+                LedgerSurface.VENDOR_RUNTIME,
+            )
+            self.assertTrue(classification.is_vendor_runtime)
+        self.assertEqual(bridge.verdict, CountVerdict.EFFECTIVE)
+        self.assertEqual(bridge.surface, LedgerSurface.PACKAGE)
+        self.assertFalse(bridge.is_vendor_runtime)
 
     def test_parent_source_reference_is_excluded_and_flagged(self) -> None:
         classification = classify_path("../claude-code-best/src/QueryEngine.ts")

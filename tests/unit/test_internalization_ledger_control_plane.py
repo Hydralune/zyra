@@ -101,11 +101,15 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
             _write(root / "tests/unit/test_boundary.py", "def test_f():\n    assert True\n")
             _write(root / "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json", "{}\n")
             _write(root / "vendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts", "export const x = 1;\n")
+            _write(root / "packages/integrations/loopx_runtime/loopx/runtime.py", "UPSTREAM = True\n")
+            _write(root / "packages/integrations/zyra_integrations/loopx/runtime.py", "ZYRA = True\n")
             files = parse_numstat(
                 "2\t0\tpackages/integrations/zyra_integrations/ledger_boundary.py\n"
                 "2\t0\ttests/unit/test_boundary.py\n"
                 "1\t0\tpackages/integrations/zyra_integrations/data/internalization_ledger_seed.json\n"
-                "1\t0\tvendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts\n",
+                "1\t0\tvendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts\n"
+                "1\t0\tpackages/integrations/loopx_runtime/loopx/runtime.py\n"
+                "1\t0\tpackages/integrations/zyra_integrations/loopx/runtime.py\n",
                 project_root=root,
             )
             effective = [item for item in files if item.effective_added]
@@ -135,8 +139,10 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
         self.assertEqual(buckets["tests/unit/test_boundary.py"], LineBucket.TEST)
         self.assertEqual(buckets["packages/integrations/zyra_integrations/data/internalization_ledger_seed.json"], LineBucket.DATA)
         self.assertEqual(buckets["vendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts"], LineBucket.VENDOR_LIKE)
-        self.assertEqual(bucketed.bucket_effective_added, 4)
-        self.assertEqual(bucketed.vendor_like_added, 1)
+        self.assertEqual(buckets["packages/integrations/loopx_runtime/loopx/runtime.py"], LineBucket.VENDOR_LIKE)
+        self.assertEqual(buckets["packages/integrations/zyra_integrations/loopx/runtime.py"], LineBucket.PRODUCTION)
+        self.assertEqual(bucketed.bucket_effective_added, 5)
+        self.assertEqual(bucketed.vendor_like_added, 2)
         self.assertEqual(bucketed.data_added, 1)
 
     def test_boundary_scan_flags_parent_source_dependency(self) -> None:
