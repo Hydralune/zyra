@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_role_aware_coverage_and_custody_catalog_resolve_real_entries() -> None:
-    catalog = M1CapabilityCatalog(ROOT, source_workspace=ROOT.parent)
-    coverage = SourceToTargetCoverageReport(ROOT, source_workspace=ROOT.parent).evaluate(
+    catalog = M1CapabilityCatalog(ROOT, source_workspace=ROOT)
+    coverage = SourceToTargetCoverageReport(ROOT, source_workspace=ROOT).evaluate(
         catalog.items(),
         required_capabilities=catalog.required_capabilities(),
         known_scenarios=(
@@ -39,8 +39,19 @@ def test_role_aware_coverage_and_custody_catalog_resolve_real_entries() -> None:
     assert coverage.error_count == 0
     assert coverage.metrics["capability_count"] >= 18
     omp = [item for item in coverage.metrics["items"] if item["source_repository"] == "oh-my-pi"]
-    assert len(omp) >= 15
-    assert any(item["role"] == "deferred" for item in omp)
+    assert {
+        item["capability_id"]
+        for item in omp
+        if item["role"] in {"primary", "supplementary"}
+    } == {
+        "memory-curator",
+        "memory-retrieval",
+        "provider-control",
+        "subagent-runtime",
+        "worker-pool",
+        "workspace-gateway",
+    }
+    assert all(not item["capability_id"].startswith("omp-decision-") for item in omp)
 
     custody_catalog = M1CustodyCatalog()
     custody = M1StateCustodyMap(ROOT).evaluate(
