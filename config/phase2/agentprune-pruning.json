@@ -1,0 +1,36 @@
+{
+  "schema": "zyra.agentprune-pruning-config/v1",
+  "slice_id": "P2-S03-03",
+  "mechanism_id": "agentprune",
+  "mechanism_version": "agentprune_spatiotemporal_v1",
+  "outcome_schema_version": "zyra.agentprune-communication-outcome/v1",
+  "stats_schema_version": "zyra.agentprune-edge-contribution/v1",
+  "mask_schema_version": "zyra.agentprune-deterministic-mask/v1",
+  "fallback_profile": "phase1_targeted_communication_baseline",
+  "input_precheck_report_digest": "82ad9a84a55506223fce2133168b7df2f0ae487aa7288fe5ede5c58869c1bbde",
+  "proposal_ttl_seconds": 300,
+  "maximum_outcome_age_seconds": 3600,
+  "score_weights": {
+    "delivery": 1.0,
+    "evidence_utilization": 2.5,
+    "artifact_contribution": 2.0,
+    "verifier": 3.0,
+    "redundancy": 2.5,
+    "failure": 2.5,
+    "retry": 0.75,
+    "malicious": 4.0,
+    "resource": 0.75
+  },
+  "low_value_threshold": 0.05,
+  "malicious_isolation_ratio": 0.5,
+  "failure_isolation_ratio": 0.6,
+  "maximum_verifier_risk": 0.65,
+  "no_policy_training": {
+    "training_allowed": false,
+    "sampling_allowed": false,
+    "policy_gradient": false,
+    "mutable_learned_parameters": [],
+    "datasets": [],
+    "checkpoints": []
+  }
+}
