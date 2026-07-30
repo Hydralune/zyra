@@ -2,7 +2,7 @@
   "schema": "zyra.phase2-sealed-long-run-manifest/v1",
   "slice": "P2-S06-02",
   "manifest_id": "p2-s06-02-final-candidate-v1",
-  "candidate_commit": "53a83f0cdd4fa8a3a5031e404d6a8b26752e2b81",
+  "candidate_commit": "1ea8737d829606a6408114edf6cd5cf6191dcf8e",
   "base_commit": "3d766628caee0fcff9bffb5789b27a756d037593",
   "phase2_profile": "phase2_strongest_v1",
   "minimum_valid_transitions_per_run": 2000,
@@ -95,7 +95,7 @@
   },
   "frozen_files": {
     "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py": "3b44a61ee25e91ce626af46a3cd41c8d252c72ff46b8f35455c802c366d58af9",
-    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_long_run.py": "6ed2b59bf0233ee2fcc72fdc53bd591796ae2be9f77c48ae9a88b894bc222caf",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_long_run.py": "bd299c2420ddfc19b56ea3d92c4f95ed5ff1227c415fec4e357555a1e72e8fdc",
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_mechanisms.py": "462ee6a67c2100d0c58d655a0dacf2315b49c579943e9ab2c60a35e1d9a8860d",
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py": "47b1b1334961910df836d6544b3120d900cdb73488fd03e42ba6efefeec7dd8a",
     "packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py": "4a311f0bca6239d734142f9f042f39ad19a52a3f2b46572b218db3b5961ddfb6",
@@ -146,7 +146,7 @@
         {
           "injection_id": "software-worker-loss",
           "stage": "test",
-          "kind": "worker_loss",
+          "kind": "worker_unavailable",
           "after_effective_step": 720,
           "target": "software-worker-primary",
           "payload": {
@@ -227,7 +227,7 @@
         {
           "injection_id": "research-node-loss",
           "stage": "claim-extraction",
-          "kind": "node_loss",
+          "kind": "node_lost",
           "after_effective_step": 660,
           "target": "researcher-primary",
           "payload": {
