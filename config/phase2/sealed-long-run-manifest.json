@@ -2,7 +2,7 @@
   "schema": "zyra.phase2-sealed-long-run-manifest/v1",
   "slice": "P2-S06-02",
   "manifest_id": "p2-s06-02-final-candidate-v1",
-  "candidate_commit": "3d766628caee0fcff9bffb5789b27a756d037593",
+  "candidate_commit": "58f2aea6bf1d7af75183b62394a21364429c3ce9",
   "base_commit": "3d766628caee0fcff9bffb5789b27a756d037593",
   "phase2_profile": "phase2_strongest_v1",
   "minimum_valid_transitions_per_run": 2000,
