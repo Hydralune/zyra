@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import sqlite3
 import threading
 import time
@@ -29,6 +30,7 @@ from .models import (
     new_id,
     now_iso,
 )
+from .provider_dispatch import LiveProviderDispatchRuntime
 from .resource_control import process_environment_snapshot
 
 
@@ -42,6 +44,7 @@ _ALLOWED_OPERATIONS = {
     "verify-checksum",
     "resource-probe",
     "provider-capability",
+    "physical-dispatch-proof",
 }
 
 
@@ -409,6 +412,7 @@ class DeploymentNodeRuntime:
         self._lock = threading.RLock()
         self._active_dispatches = 0
         self._heartbeat_sequence = 0
+        self._provider_runtime: LiveProviderDispatchRuntime | None = None
         self._faults: dict[str, Any] = {
             "network_down": False,
             "provider_failure": False,
@@ -424,7 +428,15 @@ class DeploymentNodeRuntime:
             faults = dict(self._faults)
             active = self._active_dispatches
         process = psutil.Process(os.getpid())
+        parent = process.parent()
         memory = process.memory_info()
+        process_create_time = process.create_time()
+        try:
+            supervisor_create_time = (
+                parent.create_time() if parent is not None else 0.0
+            )
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            supervisor_create_time = 0.0
         counts = self.journal.counts()
         credential_ready = (
             any(self.credential_presence.values())
@@ -466,6 +478,38 @@ class DeploymentNodeRuntime:
                 "latency_budget_ms": self.policy.latency_budget_ms,
                 "network_down": bool(faults["network_down"]),
                 "in_process": False,
+                "endpoint": f"http://{self.policy.host}:{self.policy.port}",
+                "namespace": (
+                    f"host-loopback:{self.policy.port}"
+                    if self.policy.host in {"127.0.0.1", "::1", "localhost"}
+                    else f"host-network:{self.policy.host}:{self.policy.port}"
+                ),
+            },
+            "runtime_identity": {
+                "runtime_kind": "isolated_process",
+                "hostname": socket.gethostname(),
+                "pid": os.getpid(),
+                "process_create_time": process_create_time,
+                "supervisor_pid": os.getppid(),
+                "supervisor_create_time": supervisor_create_time,
+                "generation_id": self.generation_id,
+                "failure_boundary_id": (
+                    f"process:{os.getpid()}:{self.generation_id}"
+                ),
+                "independent_process": True,
+                "terminal_id": digest(
+                    {
+                        "supervisor_pid": os.getppid(),
+                        "supervisor_create_time": supervisor_create_time,
+                        "session": str(
+                            os.environ.get("WT_SESSION")
+                            or os.environ.get("TERM_SESSION_ID")
+                            or os.environ.get("TERM")
+                            or "supervisor-process-chain"
+                        ),
+                    }
+                ),
+                "terminal_source": "supervisor_process_chain",
             },
             "credential_presence": dict(self.credential_presence),
             "credential_values_exposed": False,
@@ -953,6 +997,59 @@ class DeploymentNodeRuntime:
                 "provider_called": False,
                 "capability_only": True,
             }
+        if operation == "physical-dispatch-proof":
+            payload_digest = digest(payload)
+            marker = (
+                "ZYRA_PHYSICAL_"
+                + hashlib.sha256(payload_digest.encode("utf-8")).hexdigest()[:20].upper()
+            )
+            provider_call: Mapping[str, Any] = {}
+            if self.policy.profile is DeploymentProfile.CLOUD:
+                runtime = self._provider_runtime
+                if runtime is None:
+                    runtime = LiveProviderDispatchRuntime(
+                        project_root=Path.cwd(),
+                        state_root=self.data_root / "provider-control-plane",
+                    )
+                    self._provider_runtime = runtime
+                provider_call = runtime.dispatch_marker(
+                    run_id=workload.run_id,
+                    task_id=workload.task_id,
+                    node_id=self.node_id,
+                    marker=marker,
+                    provider_id=str(
+                        payload.get("provider")
+                        or workload.preferred_provider
+                        or "deepseek"
+                    ),
+                    model_id=str(
+                        payload.get("model")
+                        or workload.preferred_model
+                        or "deepseek-v4-pro"
+                    ),
+                    idempotency_key=(
+                        workload.idempotency_key
+                        or f"physical:{workload.workload_id}"
+                    ),
+                    payload_digest=payload_digest,
+                ).to_dict()
+            return {
+                "task_payload_digest": payload_digest,
+                "verification_marker_digest": digest(marker),
+                "marker_verified": (
+                    bool(provider_call.get("marker_verified"))
+                    if provider_call
+                    else True
+                ),
+                "profile": self.policy.profile.value,
+                "node_id": self.node_id,
+                "generation_id": self.generation_id,
+                "pid": os.getpid(),
+                "provider_call": dict(provider_call),
+                "provider_called": bool(provider_call),
+                "semantic_only": False,
+                "simulated": False,
+            }
         raise DispatchRejected(
             "node_operation_unimplemented",
             "node operation has no implementation",
@@ -962,6 +1059,11 @@ class DeploymentNodeRuntime:
 
     def _operation_capability_available(self, operation: str) -> bool:
         if operation == "provider-capability":
+            return "provider-dispatch" in self.policy.capabilities
+        if (
+            operation == "physical-dispatch-proof"
+            and self.policy.profile is DeploymentProfile.CLOUD
+        ):
             return "provider-dispatch" in self.policy.capabilities
         return "deterministic-transform" in self.policy.capabilities
 

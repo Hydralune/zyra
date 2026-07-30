@@ -59,6 +59,22 @@ class LocalWorkerRegistration:
 
 
 @dataclass(frozen=True, slots=True)
+class PhysicalWorkerRegistration:
+    worker: WorkerInstance
+    manifest: WorkerCapabilityManifest
+    process_identity: str
+    endpoint: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "worker": self.worker.to_dict(),
+            "manifest": self.manifest.to_dict(),
+            "process_identity": self.process_identity,
+            "endpoint": self.endpoint,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class StartupRecoveryReport:
     expired_lease_ids: tuple[str, ...]
     recovered_inbox_ids: tuple[str, ...]
@@ -182,30 +198,85 @@ class WorkerPoolFoundationRuntime:
         replace_generation: bool = False,
         metadata: Mapping[str, Any] | None = None,
     ) -> LocalWorkerRegistration:
+        registration = self.register_physical_worker(
+            worker_id=worker_id,
+            worker_kind=worker_kind,
+            location=WorkerLocation.LOCAL,
+            backend=backend,
+            capabilities=capabilities,
+            tool_ids=tool_ids,
+            resources=resources,
+            process_identity=f"local-pid-{os.getpid()}",
+            endpoint=f"local://pid/{os.getpid()}/{worker_id}",
+            agent_constraints=agent_constraints,
+            owner_session_id=owner_session_id,
+            replace_generation=replace_generation,
+            metadata={
+                **dict(metadata or {}),
+                "local_worker": True,
+                "pid": os.getpid(),
+            },
+        )
+        return LocalWorkerRegistration(
+            worker=registration.worker,
+            manifest=registration.manifest,
+            process_identity=registration.process_identity,
+        )
+
+    def register_physical_worker(
+        self,
+        *,
+        worker_id: str,
+        worker_kind: str,
+        location: WorkerLocation,
+        backend: BackendCapability,
+        capabilities: Sequence[str],
+        tool_ids: Sequence[str],
+        resources: ResourceVector,
+        process_identity: str,
+        endpoint: str,
+        agent_constraints: AgentToolConstraints | None = None,
+        owner_session_id: str = "",
+        replace_generation: bool = False,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> PhysicalWorkerRegistration:
+        if not process_identity or not endpoint:
+            raise ValueError(
+                "physical worker registration requires process identity and endpoint"
+            )
         composition = self.composer.compose(
             NativeWorkerCapabilities(
                 worker_id=worker_id,
                 worker_kind=worker_kind,
-                location=WorkerLocation.LOCAL,
+                location=location,
                 capabilities=tuple(capabilities),
                 tool_ids=tuple(tool_ids),
                 resources=resources,
-                labels={"transport": "in-process-port", "host_pid": str(os.getpid())},
+                labels={
+                    "transport": (
+                        "in-process-port"
+                        if location is WorkerLocation.LOCAL
+                        else "authenticated-node-http"
+                    ),
+                    "physical_identity": process_identity,
+                },
             ),
             backends=(backend,),
             agent_constraints=agent_constraints,
         )
         manifest = composition.manifest
-        process_identity = f"local-pid-{os.getpid()}"
         challenge = self.attestor.challenge()
         attestation = self.attestor.issue(
             worker_id=worker_id,
             process_identity=process_identity,
             manifest_digest=manifest.digest,
             challenge_nonce=challenge,
-            endpoint=f"local://pid/{os.getpid()}/{worker_id}",
+            endpoint=endpoint,
             protocol_version=manifest.protocol_version,
-            metadata={"location": "local", "pid": os.getpid()},
+            metadata={
+                "location": location.value,
+                **dict(metadata or {}),
+            },
         )
         worker = self.lifecycle.register(
             manifest,
@@ -214,14 +285,19 @@ class WorkerPoolFoundationRuntime:
             expected_challenge=challenge,
             backend_id=backend.backend_id,
             owner_session_id=owner_session_id,
-            metadata={**dict(metadata or {}), "local_worker": True},
+            metadata={
+                **dict(metadata or {}),
+                "physical_worker": True,
+                "location": location.value,
+            },
             replace_generation=replace_generation,
         )
         worker = self.lifecycle.start(worker.worker_id)
-        return LocalWorkerRegistration(
+        return PhysicalWorkerRegistration(
             worker=worker,
             manifest=manifest,
             process_identity=process_identity,
+            endpoint=endpoint,
         )
 
     def heartbeat_local_worker(
@@ -239,7 +315,7 @@ class WorkerPoolFoundationRuntime:
         worker = self.store.require_worker(worker_id)
         manifest = self.store.latest_manifest(worker_id)
         if manifest is None:
-            raise RuntimeError("local worker has no manifest")
+            raise RuntimeError("physical worker has no manifest")
         leases = self.store.list_leases(worker_id=worker_id, states=(LeaseState.ACTIVE, LeaseState.DRAINING))
         allocated = self.leases.allocated_resources(worker_id)
         telemetry = WorkerTelemetry(
@@ -252,7 +328,10 @@ class WorkerPoolFoundationRuntime:
             queue_depth=queue_depth,
             process_uptime_ms=process_uptime_ms,
             load_average=load_average,
-            metadata={"location": "local"},
+            metadata={
+                "location": worker.location.value,
+                "physical_worker": True,
+            },
         )
         heartbeat = WorkerHeartbeat(
             worker_id=worker_id,

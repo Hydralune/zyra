@@ -136,6 +136,7 @@ class DeploymentProcessManager:
         store: DeploymentStateStore,
         port_inspector: PortInspector | None = None,
         resource_controller: ResourceController | None = None,
+        environment: Mapping[str, str] | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.state_root = Path(state_root).resolve()
@@ -145,6 +146,11 @@ class DeploymentProcessManager:
         self.node_root = self.state_root / "nodes"
         self.node_root.mkdir(parents=True, exist_ok=True)
         self.store = store
+        self.environment = dict(os.environ)
+        if environment is not None:
+            self.environment.update(
+                {str(key): str(value) for key, value in environment.items()}
+            )
         self.ports = port_inspector or PortInspector()
         self.resources = resource_controller or ResourceController()
         self.secrets = SupervisorSecretStore(self.state_root / "supervisor.key")
@@ -159,7 +165,7 @@ class DeploymentProcessManager:
         return 0
 
     def _base_environment(self) -> dict[str, str]:
-        environment = dict(os.environ)
+        environment = dict(self.environment)
         environment.update(
             {
                 "PYTHONUNBUFFERED": "1",
@@ -184,7 +190,7 @@ class DeploymentProcessManager:
         self._node_secrets[policy.profile] = secret
         public_policy = policy.public_dict(
             credential_presence={
-                name: bool(str(os.environ.get(name) or "").strip())
+                name: bool(str(self.environment.get(name) or "").strip())
                 for name in policy.credential_environment
             }
         )
@@ -206,9 +212,9 @@ class DeploymentProcessManager:
         environment = {
             "ZYRA_DEPLOY_NODE_SECRET_B64": base64.b64encode(secret).decode("ascii"),
             **{
-                name: str(os.environ.get(name) or "")
+                name: str(self.environment.get(name) or "")
                 for name in policy.credential_environment
-                if str(os.environ.get(name) or "").strip()
+                if str(self.environment.get(name) or "").strip()
             },
         }
         endpoint = f"http://{policy.host}:{policy.port}"

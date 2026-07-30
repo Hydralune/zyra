@@ -1236,9 +1236,18 @@ class PhysicalDispatchReceipt(PolicyContract):
     allowed_placements: tuple[str, ...]
     permission_ref: str
     simulated: bool = False
+    semantic_only: bool = False
+    placement_reason: str = ""
+    privacy_evidence: FrozenDict = field(default_factory=FrozenDict)
+    runtime_evidence: FrozenDict = field(default_factory=FrozenDict)
+    provider_evidence: FrozenDict = field(default_factory=FrozenDict)
+    recovery_evidence: tuple[FrozenDict, ...] = ()
 
-    SCHEMA_VERSION = "zyra.physical-dispatch-receipt/v1"
-    LEGACY_SCHEMA_VERSIONS = ("zyra.physical-dispatch-receipt/v0",)
+    SCHEMA_VERSION = "zyra.physical-dispatch-receipt/v2"
+    LEGACY_SCHEMA_VERSIONS = (
+        "zyra.physical-dispatch-receipt/v1",
+        "zyra.physical-dispatch-receipt/v0",
+    )
     CONTRACT_KIND = "physical_dispatch_receipt"
 
     def __post_init__(self) -> None:
@@ -1248,6 +1257,34 @@ class PhysicalDispatchReceipt(PolicyContract):
         object.__setattr__(self, "input_signals", FrozenDict(self.input_signals))
         object.__setattr__(self, "physical_identity", FrozenDict(self.physical_identity))
         object.__setattr__(self, "allowed_placements", normalized_tokens(self.allowed_placements))
+        object.__setattr__(
+            self,
+            "placement_reason",
+            required_text(
+                self.placement_reason or "resource_scheduler_physical_dispatch",
+                "placement_reason",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "privacy_evidence",
+            FrozenDict(self.privacy_evidence),
+        )
+        object.__setattr__(
+            self,
+            "runtime_evidence",
+            FrozenDict(self.runtime_evidence),
+        )
+        object.__setattr__(
+            self,
+            "provider_evidence",
+            FrozenDict(self.provider_evidence),
+        )
+        object.__setattr__(
+            self,
+            "recovery_evidence",
+            tuple(FrozenDict(item) for item in self.recovery_evidence),
+        )
         object.__setattr__(
             self,
             "privacy_class",
@@ -1275,6 +1312,14 @@ class PhysicalDispatchReceipt(PolicyContract):
             "allowed_placements": list(self.allowed_placements),
             "permission_ref": self.permission_ref,
             "simulated": self.simulated,
+            "semantic_only": self.semantic_only,
+            "placement_reason": self.placement_reason,
+            "privacy_evidence": thaw_json(self.privacy_evidence),
+            "runtime_evidence": thaw_json(self.runtime_evidence),
+            "provider_evidence": thaw_json(self.provider_evidence),
+            "recovery_evidence": [
+                thaw_json(item) for item in self.recovery_evidence
+            ],
         }
 
     @classmethod
@@ -1298,6 +1343,21 @@ class PhysicalDispatchReceipt(PolicyContract):
             allowed_placements=tuple(_sequence(payload.get("allowed_placements"))),
             permission_ref=str(payload.get("permission_ref") or ""),
             simulated=bool(payload.get("simulated", False)),
+            semantic_only=bool(payload.get("semantic_only", False)),
+            placement_reason=str(payload.get("placement_reason") or ""),
+            privacy_evidence=FrozenDict(
+                _mapping(payload.get("privacy_evidence"))
+            ),
+            runtime_evidence=FrozenDict(
+                _mapping(payload.get("runtime_evidence"))
+            ),
+            provider_evidence=FrozenDict(
+                _mapping(payload.get("provider_evidence"))
+            ),
+            recovery_evidence=tuple(
+                FrozenDict(_mapping(item))
+                for item in _sequence(payload.get("recovery_evidence"))
+            ),
         )
         result._verify_supplied_digest(supplied)
         return result

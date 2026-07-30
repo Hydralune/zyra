@@ -12,6 +12,7 @@ from .orchestrator import DeploymentOrchestrator
 from .placement import PlacementContext, PlacementPolicyRuntime
 from .ports import PortInspector, PortObservation, PortReservation
 from .process_manager import DeploymentProcessManager, ProcessSpec
+from .provider_dispatch import LiveProviderDispatchEvidence, LiveProviderDispatchRuntime
 from .profiles import PROFILE_POLICY_VERSION, ProfileCatalog
 from .recovery import DeploymentRecoveryRuntime, RecoveryOutcome
 from .resource_control import ResourceController, ResourceObservation
@@ -35,6 +36,8 @@ __all__ = [
     "DeploymentStateStore",
     "DoctorCheck",
     "HandoffReceipt",
+    "LiveProviderDispatchEvidence",
+    "LiveProviderDispatchRuntime",
     "NodeJournal",
     "PROFILE_POLICY_VERSION",
     "PathFingerprint",

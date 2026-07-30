@@ -1,5 +1,6 @@
 from .application import (
     LocalWorkerRegistration,
+    PhysicalWorkerRegistration,
     StartupRecoveryReport,
     SubagentWorkerLeaseAdapter,
     WorkerPoolEventProjector,
@@ -168,6 +169,7 @@ __all__ = [
     "LeaseFenced",
     "LeaseState",
     "LocalWorkerRegistration",
+    "PhysicalWorkerRegistration",
     "LogicalTaskCancellationPort",
     "NativeWorkerCapabilities",
     "PoolJournalRecord",

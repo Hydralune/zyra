@@ -72,9 +72,16 @@ from .operator_outcome import (
     evaluate_operator_outcome,
     implementation_validated_readiness_revision,
 )
+from .dispatch import (
+    DispatchLaneEvidence,
+    PhysicalDispatchGateReport,
+    build_redacted_dispatch_evidence_index,
+    evaluate_physical_dispatch_gate,
+)
 
 __all__ = [
     "ContractViolation",
+    "DispatchLaneEvidence",
     "ContinuityEvidenceError",
     "ContinuityEvidenceReport",
     "OutcomeAttributionError",
@@ -104,6 +111,7 @@ __all__ = [
     "Phase2PolicyContractPaths",
     "PolicyContractValidationReport",
     "PolicyOutcomeAttribution",
+    "PhysicalDispatchGateReport",
     "PretrainedModelObservation",
     "READINESS_CONFIG_SCHEMA",
     "READINESS_REPORT_SCHEMA",
@@ -113,6 +121,7 @@ __all__ = [
     "ReadOnlyEvidenceIndex",
     "SourceRunEvidence",
     "build_mechanism_readiness_report",
+    "build_redacted_dispatch_evidence_index",
     "build_continuity_evidence_report",
     "build_mechanism_samples",
     "build_read_only_evidence_index",
@@ -120,6 +129,7 @@ __all__ = [
     "canonical_digest",
     "compute_frozen_gate_digest",
     "evaluate_mechanism",
+    "evaluate_physical_dispatch_gate",
     "evaluate_operator_outcome",
     "implementation_validated_readiness_revision",
     "load_adversarial_proposal_corpus",

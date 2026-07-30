@@ -24,8 +24,7 @@ def redact(value: Any, *, depth: int = 0) -> Any:
         return {
             str(key): (
                 "<redacted>"
-                if str(key).casefold() in _SECRET_KEYS
-                or any(marker in str(key).casefold() for marker in ("secret", "token", "password"))
+                if _secret_key(str(key))
                 else redact(child, depth=depth + 1)
             )
             for key, child in value.items()
@@ -42,6 +41,17 @@ def redact(value: Any, *, depth: int = 0) -> Any:
     ):
         return "<redacted>"
     return value
+
+
+def _secret_key(key: str) -> bool:
+    normalized = key.casefold()
+    if normalized in _SECRET_KEYS:
+        return True
+    if "secret" in normalized or "password" in normalized:
+        return True
+    # Usage counters such as prompt_tokens/total_tokens are evidence, not
+    # credentials. Keep singular token-bearing credential fields redacted.
+    return "token" in normalized and "tokens" not in normalized
 
 
 class DeploymentError(RuntimeError):

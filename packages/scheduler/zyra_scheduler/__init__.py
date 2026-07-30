@@ -15,6 +15,16 @@ from .models import (
 )
 from .pool import WorkerPool, default_worker_manifests
 from .recovery import RecoveryPlanner
+from .dispatch_evidence import (
+    PhysicalDispatchCallPort,
+    PhysicalDispatchEvidenceStore,
+    PhysicalDispatchFailureReceipt,
+    PhysicalDispatchReceiptBuilder,
+    PhysicalDispatchReceiptValidator,
+    PhysicalDispatchTask,
+    PhysicalDispatchValidationReport,
+    PhysicalRerouteValidationReport,
+)
 from .scheduler import ResourceScheduler
 from .watchdog import RuntimeWatchdog
 from .worker_pool import (
@@ -115,6 +125,14 @@ from .operator_policy import (
 
 __all__ = [
     "DispatchEnvelope",
+    "PhysicalDispatchCallPort",
+    "PhysicalDispatchEvidenceStore",
+    "PhysicalDispatchFailureReceipt",
+    "PhysicalDispatchReceiptBuilder",
+    "PhysicalDispatchReceiptValidator",
+    "PhysicalDispatchTask",
+    "PhysicalDispatchValidationReport",
+    "PhysicalRerouteValidationReport",
     "BackendControlAction",
     "BackendControlRuntime",
     "BackendDefinition",

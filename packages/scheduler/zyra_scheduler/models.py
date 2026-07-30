@@ -15,6 +15,7 @@ class ResourceLocation(StrEnum):
 
 class WorkerBackendKind(StrEnum):
     LOCAL_PROCESS = "local_process"
+    ISOLATED_PROCESS = "isolated_process"
     SIMULATED_EDGE = "simulated_edge"
     DOCKER_SANDBOX = "docker_sandbox"
     CLOUD_MODEL = "cloud_model"

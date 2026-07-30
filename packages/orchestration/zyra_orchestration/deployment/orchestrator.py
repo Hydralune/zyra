@@ -92,6 +92,7 @@ class DeploymentOrchestrator:
             project_root=self.project_root,
             state_root=self.state_root,
             store=self.store,
+            environment=self.environment,
         )
         self.placement = PlacementPolicyRuntime(
             self.catalog,

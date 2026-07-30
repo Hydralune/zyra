@@ -760,6 +760,8 @@ class OperatorAttemptReceipt:
     outcome: str
     operator_idempotency_key: str
     recovery_plan_refs: tuple[str, ...] = ()
+    physical_dispatch_receipt_ref: str = ""
+    physical_dispatch_receipt_digest: str = ""
     replayed: bool = False
     schema_version: str = OPERATOR_ATTEMPT_RECEIPT_SCHEMA
 
@@ -795,6 +797,10 @@ class OperatorAttemptReceipt:
             "outcome": self.outcome,
             "operator_idempotency_key": self.operator_idempotency_key,
             "recovery_plan_refs": list(self.recovery_plan_refs),
+            "physical_dispatch_receipt_ref": self.physical_dispatch_receipt_ref,
+            "physical_dispatch_receipt_digest": (
+                self.physical_dispatch_receipt_digest
+            ),
             "replayed": self.replayed,
         }
         if include_digest:
@@ -1103,6 +1109,30 @@ class _OperatorExecutionSession:
                         "actual_cost_usd": call_result.actual_cost_usd,
                         "actual_latency_ms": call_result.actual_latency_ms,
                         "mechanism_version": self.runtime.config.mechanism_version,
+                        "physical_dispatch_receipt_ref": str(
+                            call_result.metadata.get(
+                                "physical_dispatch_receipt_ref"
+                            )
+                            or ""
+                        ),
+                        "physical_dispatch_receipt_digest": str(
+                            call_result.metadata.get(
+                                "physical_dispatch_receipt_digest"
+                            )
+                            or ""
+                        ),
+                        "physical_attempt_id": str(
+                            call_result.metadata.get("physical_attempt_id")
+                            or attempt.attempt_id
+                        ),
+                        "physical_location": str(
+                            call_result.metadata.get("physical_location")
+                            or context.placement_location
+                        ),
+                        "provider_request_id": str(
+                            call_result.metadata.get("provider_request_id")
+                            or ""
+                        ),
                     },
                 )
                 execution_decision = build_operator_execution_decision(
@@ -1150,6 +1180,18 @@ class _OperatorExecutionSession:
                     outcome=completed.outcome.value,
                     operator_idempotency_key=idempotency_key,
                     recovery_plan_refs=tuple(recovery_refs),
+                    physical_dispatch_receipt_ref=str(
+                        call_result.metadata.get(
+                            "physical_dispatch_receipt_ref"
+                        )
+                        or ""
+                    ),
+                    physical_dispatch_receipt_digest=str(
+                        call_result.metadata.get(
+                            "physical_dispatch_receipt_digest"
+                        )
+                        or ""
+                    ),
                 )
                 self.attempt_receipts.append(receipt)
                 event = self.runtime._attempt_event(receipt)
@@ -1158,7 +1200,13 @@ class _OperatorExecutionSession:
                 return receipt
             except Exception as exc:  # noqa: BLE001 - recovery is owner-routed.
                 recovery_exc: Exception = exc
-                if call_entered:
+                retry_safe_physical_failure = (
+                    isinstance(exc, OperatorPlacementError)
+                    and exc.retryable
+                    and exc.metadata.get("side_effect_started") is False
+                    and bool(exc.metadata.get("physical_attempt_id"))
+                )
+                if call_entered and not retry_safe_physical_failure:
                     recovery_exc = OperatorPlacementError(
                         "operator_call_outcome_unknown",
                         "operator call entered an external side-effect boundary "
@@ -2022,6 +2070,12 @@ class OperatorPlacementLeaseRuntime:
                 actual_latency_ms=int(metadata.get("actual_latency_ms") or 0),
                 outcome=receipt.outcome.value,
                 operator_idempotency_key=operator_idempotency_key,
+                physical_dispatch_receipt_ref=str(
+                    metadata.get("physical_dispatch_receipt_ref") or ""
+                ),
+                physical_dispatch_receipt_digest=str(
+                    metadata.get("physical_dispatch_receipt_digest") or ""
+                ),
                 replayed=True,
             )
         return None
