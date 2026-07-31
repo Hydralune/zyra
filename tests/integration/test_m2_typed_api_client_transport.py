@@ -32,9 +32,39 @@ def _fresh_api_handler() -> type[BaseHTTPRequestHandler]:
 
 def _shutdown_api_product_bootstrap() -> None:
     module = sys.modules.get("apps.api.zyra_api.main")
-    reset = getattr(module, "reset_api_product_bootstrap", None)
-    if callable(reset):
-        reset(shutdown=True)
+    if module is None:
+        return
+    for name in (
+        "reset_api_product_bootstrap",
+        "reset_worker_pool_api",
+        "reset_runtime_event_spine_bridge",
+        "reset_fault_runtime_api",
+        "reset_recovery_runtime_api",
+        "reset_runtime_owner_composition",
+    ):
+        reset = getattr(module, name, None)
+        if callable(reset):
+            reset()
+
+
+def _configure_runtime_environment(root: Path, *, auth_token: str) -> None:
+    workspace = root / "workspace"
+    paths = {
+        "ZYRA_SQLITE_PATH": root / "api.sqlite3",
+        "ZYRA_EVENT_LOG": root / "events.jsonl",
+        "ZYRA_TOOL_WORKSPACE": workspace,
+        "ZYRA_ARTIFACT_ROOT": root / "artifacts",
+        "ZYRA_PERMISSION_STATE": root / "permission-state.json",
+        "ZYRA_WORKER_POOL_STORE": root / "worker-pool.sqlite3",
+        "ZYRA_GRAPH_STATE_STORE": root / "graph.sqlite3",
+        "ZYRA_FAULT_RUNTIME_STORE": root / "fault.sqlite3",
+        "ZYRA_RECOVERY_RUNTIME_STORE": root / "recovery.sqlite3",
+        "ZYRA_MCP_STATE": root / "mcp",
+        "ZYRA_TERMINAL_STATE": root / "terminal",
+        "ZYRA_CONTROL_STATE": root / "control",
+    }
+    os.environ.update({name: str(path) for name, path in paths.items()})
+    os.environ["ZYRA_API_AUTH_TOKEN"] = auth_token
 
 
 def _request(
@@ -100,14 +130,11 @@ class M2TypedApiClientTransportTests(unittest.TestCase):
     def test_embedded_real_store_lifecycle_idempotency_and_disable_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            workspace = root / "workspace"
+            _configure_runtime_environment(
+                root,
+                auth_token="embedded-transport-secret",
+            )
             sqlite_path = root / "api.sqlite3"
-            os.environ["ZYRA_SQLITE_PATH"] = str(sqlite_path)
-            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
-            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
-            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
-            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
-            os.environ["ZYRA_API_AUTH_TOKEN"] = "embedded-transport-secret"
 
             handler = _fresh_api_handler()
             server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -138,7 +165,10 @@ class M2TypedApiClientTransportTests(unittest.TestCase):
 
                 self.assertEqual(result["health"]["status"], "ok")
                 self.assertEqual(result["health"]["apiVersion"], "1.0")
-                self.assertTrue(result["readiness"]["ready"])
+                self.assertTrue(
+                    result["readiness"]["ready"],
+                    msg=json.dumps(result["readiness"], sort_keys=True),
+                )
                 self.assertTrue(result["readiness"]["owners"]["typed_transport"])
                 self.assertTrue(result["create"]["replayed"])
                 self.assertTrue(result["create"]["pageContainsTask"])
@@ -188,12 +218,7 @@ class M2TypedApiClientTransportTests(unittest.TestCase):
     def test_real_server_rejects_auth_and_version_mismatch_with_correlation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
-            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
-            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
-            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
-            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
-            os.environ["ZYRA_API_AUTH_TOKEN"] = "server-secret"
+            _configure_runtime_environment(root, auth_token="server-secret")
             handler = _fresh_api_handler()
             server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)

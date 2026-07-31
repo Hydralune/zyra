@@ -853,21 +853,47 @@ class DeploymentOrchestrator:
         run_id: str,
         checkpoint_ref: str,
     ) -> dict[str, Any]:
-        try:
-            task = self.api.get(f"/tasks/{task_id}")
-        except DeploymentError:
-            return {
-                "ready": False,
-                "task_id": task_id,
-                "run_id": run_id,
-                "checkpoint_ref": checkpoint_ref,
-            }
-        value = task.get("task")
-        ready = (
-            isinstance(value, Mapping)
-            and str(value.get("run_id") or "") == run_id
-            and str(value.get("task_id") or "") == task_id
-        )
+        attempts: list[dict[str, Any]] = []
+        ready = False
+        for attempt in range(1, 6):
+            try:
+                task = self.api.get(f"/tasks/{task_id}")
+            except DeploymentError as error:
+                attempts.append(
+                    {
+                        "attempt": attempt,
+                        "ready": False,
+                        "error": error.code,
+                    }
+                )
+            else:
+                value = task.get("task")
+                observed_task_id = (
+                    str(value.get("task_id") or "")
+                    if isinstance(value, Mapping)
+                    else ""
+                )
+                observed_run_id = (
+                    str(value.get("run_id") or "")
+                    if isinstance(value, Mapping)
+                    else ""
+                )
+                ready = (
+                    observed_task_id == task_id
+                    and observed_run_id == run_id
+                )
+                attempts.append(
+                    {
+                        "attempt": attempt,
+                        "ready": ready,
+                        "observed_task_id": observed_task_id,
+                        "observed_run_id": observed_run_id,
+                    }
+                )
+                if ready:
+                    break
+            if attempt < 5:
+                time.sleep(0.05 * attempt)
         return {
             "ready": ready,
             "task_id": task_id,
@@ -875,6 +901,7 @@ class DeploymentOrchestrator:
             "checkpoint_ref": checkpoint_ref,
             "owner": "SQLiteStore/CheckpointRecoveryRuntime",
             "deployment_is_canonical_owner": False,
+            "attempts": attempts,
         }
 
     def _exercise_workloads(

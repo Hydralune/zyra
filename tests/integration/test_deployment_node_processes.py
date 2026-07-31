@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import socket
 import tempfile
 import time
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import psutil
 
@@ -249,6 +251,46 @@ def test_three_real_profiles_dispatch_recover_and_restart(tmp_path: Path) -> Non
     assert all(not psutil.pid_exists(pid) for pid in original_pids)
 
 
+def test_canonical_checkpoint_owner_retries_transient_projection_visibility() -> None:
+    class EventuallyConsistentApi:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get(self, _path: str) -> dict[str, object]:
+            self.calls += 1
+            if self.calls < 3:
+                return {
+                    "task": {
+                        "task_id": "task-stale",
+                        "run_id": "run-stale",
+                    }
+                }
+            return {
+                "task": {
+                    "task_id": "task-canonical",
+                    "run_id": "run-canonical",
+                }
+            }
+
+    api = EventuallyConsistentApi()
+    owner = SimpleNamespace(api=api)
+
+    receipt = DeploymentOrchestrator._canonical_checkpoint_ready(
+        owner,
+        task_id="task-canonical",
+        run_id="run-canonical",
+        checkpoint_ref="checkpoint-canonical",
+    )
+
+    assert receipt["ready"] is True
+    assert api.calls == 3
+    assert [attempt["ready"] for attempt in receipt["attempts"]] == [
+        False,
+        False,
+        True,
+    ]
+
+
 def test_product_supervisor_api_web_and_control_surface_start_from_clean_state() -> None:
     (PROJECT_ROOT / ".tmp").mkdir(exist_ok=True)
     base_port = _free_port_block(5)
@@ -351,18 +393,23 @@ def test_product_supervisor_api_web_and_control_surface_start_from_clean_state()
             short_observation = short_probe.get("observations") or {}
             short_details = short_observation.get("details") or {}
             short_receipt = short_details.get("receipt") or {}
-            assert semantic["ready"] is True, {
-                "blockers": semantic.get("blockers"),
-                "warnings": semantic.get("warnings"),
-                "short_task_failed_assertions": short_details.get(
-                    "failed_assertions"
-                ),
-                "short_task_rejections": [
-                    assertion
-                    for assertion in short_receipt.get("assertions") or ()
-                    if assertion.get("accepted") is not True
-                ],
-            }
+            assert semantic["ready"] is True, json.dumps(
+                {
+                    "blockers": semantic.get("blockers"),
+                    "warnings": semantic.get("warnings"),
+                    "short_task_failed_assertions": short_details.get(
+                        "failed_assertions"
+                    ),
+                    "short_task_rejections": [
+                        assertion
+                        for assertion in short_receipt.get("assertions") or ()
+                        if assertion.get("accepted") is not True
+                    ],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
             assert semantic["status"] in {"ready", "degraded"}
             assert semantic["short_task_included"] is True
             assert semantic["target_commit"]
