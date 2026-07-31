@@ -1,0 +1,61 @@
+{
+  "schema": "zyra.phase2.user-authorized-completion/v1",
+  "slice_id": "P2-S06-03",
+  "recorded_at": "2026-08-01T00:17:33+08:00",
+  "status": "completed_after_user_authorized_override",
+  "completion_basis": "explicit_user_instruction",
+  "user_instruction": "现在请立刻停止你在跑的那个东西，然后把06-03直接收尾，并标记为人为授权的完成",
+  "target": {
+    "commit": "b63093e41b5b54be97eb6f60152a5bf2fe0af605",
+    "clean_at_release": true,
+    "clean_at_termination": true
+  },
+  "formal_release": {
+    "status": "passed",
+    "attempt": "release-pipeline-P2-S06-03-b63093e41b5b-attempt-03",
+    "ready": true,
+    "mandatory_gate_count": 14,
+    "passed_gate_count": 14,
+    "failed_gate_count": 0,
+    "blocked_gate_count": 0,
+    "missing_gate_count": 0,
+    "byte_identical_rebuilds": true,
+    "archive_sha256": "98fa5f2fed14bcae05d9535a676475e92759f5dd67359b32724e50e387277a20",
+    "archive_size": 29966649,
+    "pipeline_report_sha256": "b0c1bf573e7e593d10e8759c154bb9c40b3bc882959e2c37d5caf2087b0c5994",
+    "ci_report_sha256": "a2b37e91c6caba94f071000b0d1cbc982acb4980d93eb522675a06d327bd15a0",
+    "release_admission_sha256": "f72d9f12345f9b6fd43fca1df7eeff2b610d195ce79160777af6aa8a1cef7900",
+    "workspace_relative_output": ".tmp/p2-s06-03-target-b63093e41b5b-a01/dist/release-pipeline-P2-S06-03-b63093e41b5b-attempt-03"
+  },
+  "independent_final_regression": {
+    "status": "terminated_by_explicit_user_instruction",
+    "started_at": "2026-07-31T23:48:34+08:00",
+    "terminated_at": "2026-08-01T00:15:00+08:00",
+    "final_report_present": false,
+    "partial_file_count_at_inventory": 1023,
+    "partial_output_preserved": true,
+    "workspace_relative_output": ".tmp/p2-s06-03-target-b63093e41b5b-a01/dist/phase2-final-regression-P2-S06-03-b63093e41b5b-attempt-01"
+  },
+  "unfinished_technical_gates": [
+    "independent final-regression completion and report verification",
+    "P2-S06-03 target-bound sealed long-run rerun",
+    "P2-S06-03 target-bound strongest-profile preflight rerun",
+    "full production/test/runtime-assets/generated/data/docs/adapter-only exit audit",
+    "independent critical review and review-fix rerun",
+    "technical evidence freeze proving every P2-S06-03 hard gate"
+  ],
+  "technical_verdict": {
+    "formal_release_passed": true,
+    "all_slice_hard_gates_passed": false,
+    "independent_review_passed": false,
+    "technical_exit_pass_established": false,
+    "phase2_completed": false
+  },
+  "preservation": {
+    "prior_failed_attempts_retained": true,
+    "partial_regression_output_retained": true,
+    "untracked_P2_S06_02_evidence_modified": false,
+    "temporary_directories_deleted": false
+  },
+  "interpretation": "This record closes P2-S06-03 only by explicit human authorization. It must not be represented as an independent PASS, as proof that every hard gate passed, or as Phase 2 completion."
+}
