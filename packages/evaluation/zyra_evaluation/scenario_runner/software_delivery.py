@@ -910,11 +910,23 @@ class SoftwareDeliveryRuntime:
         runner = BoundedCommandRunner(
             workspace_root=workspace.root,
             evidence_root=workspace.evidence,
+            environment={
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": os.devnull,
+            },
         )
         commands: list[CommandReceipt] = []
         commands.append(
             runner.execute(
-                ("git", "init", "--quiet"),
+                (
+                    "git",
+                    "-c",
+                    "core.longpaths=true",
+                    "-c",
+                    "core.autocrlf=true",
+                    "init",
+                    "--quiet",
+                ),
                 cwd=workspace.project,
                 timeout_seconds=30,
                 purpose="git-init",
@@ -922,7 +934,15 @@ class SoftwareDeliveryRuntime:
         )
         commands.append(
             runner.execute(
-                ("git", "add", "."),
+                (
+                    "git",
+                    "-c",
+                    "core.longpaths=true",
+                    "-c",
+                    "core.autocrlf=true",
+                    "add",
+                    ".",
+                ),
                 cwd=workspace.project,
                 timeout_seconds=30,
                 purpose="git-stage-before",
@@ -932,6 +952,10 @@ class SoftwareDeliveryRuntime:
             runner.execute(
                 (
                     "git",
+                    "-c",
+                    "core.longpaths=true",
+                    "-c",
+                    "core.autocrlf=true",
                     "-c",
                     "user.name=Zyra Scenario",
                     "-c",
@@ -970,7 +994,15 @@ class SoftwareDeliveryRuntime:
         )
         commands.append(
             runner.execute(
-                ("git", "diff", "--check"),
+                (
+                    "git",
+                    "-c",
+                    "core.longpaths=true",
+                    "-c",
+                    "core.autocrlf=true",
+                    "diff",
+                    "--check",
+                ),
                 cwd=workspace.project,
                 timeout_seconds=30,
                 purpose="verification",
@@ -978,7 +1010,16 @@ class SoftwareDeliveryRuntime:
         )
         commands.append(
             runner.execute(
-                ("git", "diff", "--no-ext-diff", "--binary"),
+                (
+                    "git",
+                    "-c",
+                    "core.longpaths=true",
+                    "-c",
+                    "core.autocrlf=true",
+                    "diff",
+                    "--no-ext-diff",
+                    "--binary",
+                ),
                 cwd=workspace.project,
                 timeout_seconds=30,
                 purpose="git-diff",

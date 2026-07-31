@@ -248,7 +248,9 @@ def test_live_software_scenario_reaches_canonical_api_owners(
         "execute_providers",
         reject_external_probe,
     )
-    with scenario_api(tmp_path) as base:
+    deep_root = tmp_path / ("cleanroom-0-" + ("x" * 48))
+    deep_root.mkdir(parents=True)
+    with scenario_api(deep_root) as base:
         registry_status, registry = request(base, "GET", "/scenarios/registry")
         assert registry_status == 200, registry
         policy = registry["policies"][0]

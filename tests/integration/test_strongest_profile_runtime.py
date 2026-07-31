@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from zyra_evaluation.policy_benchmark import evaluate_operator_outcome
 from zyra_orchestration.topology_policy import (
     PolicyDecisionDisposition,
@@ -11,6 +13,7 @@ from tests.integration.operator_placement_harness import (
     build_harness,
     execute_harness,
 )
+from tests.support import topology_composer
 from tests.support.topology_composer import (
     custody,
     environment_and_catalog,
@@ -50,7 +53,13 @@ def _topology_layer_digests(tmp_path):
 
 def test_identical_snapshot_produces_identical_arg_card_agentprune_digests(
     tmp_path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setattr(
+        topology_composer,
+        "_REFERENCE_AT",
+        datetime.now(UTC) - timedelta(minutes=6),
+    )
     first = _topology_layer_digests(tmp_path / "first")
     second = _topology_layer_digests(tmp_path / "second")
 

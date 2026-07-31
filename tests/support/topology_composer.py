@@ -46,6 +46,8 @@ from zyra_scheduler.worker_pool import (
 
 ROOT = Path(__file__).resolve().parents[2]
 _IMPORTED_AT = datetime.now(UTC)
+_REFERENCE_AT = _IMPORTED_AT
+_REFERENCE_MAX_AGE = timedelta(minutes=4)
 NOW = _IMPORTED_AT.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 COMPLETED = (_IMPORTED_AT - timedelta(minutes=5)).isoformat(
     timespec="milliseconds"
@@ -75,6 +77,16 @@ REPORT_PATHS = {
 }
 
 
+def _timestamp(offset: timedelta = timedelta()) -> str:
+    global _REFERENCE_AT
+    observed_at = datetime.now(UTC)
+    if observed_at - _REFERENCE_AT > _REFERENCE_MAX_AGE:
+        _REFERENCE_AT = observed_at
+    return (_REFERENCE_AT + offset).isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
+
+
 def header(
     contract_id: str,
     mechanism_id: str,
@@ -84,7 +96,7 @@ def header(
 ) -> ContractHeader:
     return ContractHeader(
         contract_id=contract_id,
-        created_at=NOW,
+        created_at=_timestamp(),
         source_event_id=source_event_id,
         correlation_id="correlation-topology-composer",
         causation_id=causation_id,
@@ -141,6 +153,8 @@ def environment_and_catalog(
     faulted_worker_id: str = "",
     requirement_change: bool = False,
 ) -> tuple[EnvironmentSnapshot, ARGRoleCatalog]:
+    observed_at = _timestamp()
+    fresh_until = _timestamp(timedelta(minutes=10))
     workers = (
         _worker(
             "worker-planning",
@@ -171,8 +185,8 @@ def environment_and_catalog(
                 observation_id=f"observation-{worker.worker_id}",
                 resource_id=worker.worker_id,
                 category="worker",
-                observed_at=NOW,
-                fresh_until=FRESH_UNTIL,
+                observed_at=observed_at,
+                fresh_until=fresh_until,
                 confidence=1.0,
                 observation_source=(
                     "ResourceScheduler.worker_pool_api_projection"
@@ -211,7 +225,7 @@ def environment_and_catalog(
         )
     environment = EnvironmentSnapshot(
         header=header("environment-topology-composer", "ResourceScheduler"),
-        observed_at=NOW,
+        observed_at=observed_at,
         observations=tuple(observations),
         required_categories=("worker",),
     )
@@ -339,7 +353,7 @@ def policy_input(
         allowed_permissions=allowed_permissions,
         allowed_placements=("local",),
         privacy_class="internal",
-        last_topology_change_at=LAST_TOPOLOGY_CHANGE,
+        last_topology_change_at=_timestamp(timedelta(hours=-1)),
     )
 
 
@@ -418,7 +432,7 @@ def communication_inputs(
         temporal_edge_id: CARDEdgeHysteresisState(
             edge_id=temporal_edge_id,
             active=False,
-            last_changed_at=LAST_TOPOLOGY_CHANGE,
+            last_changed_at=_timestamp(timedelta(hours=-1)),
             last_score=0,
             pending_action="add",
             confirmations=1,
@@ -451,7 +465,7 @@ def communication_inputs(
                 run_id=input_snapshot.run_id,
                 task_id=input_snapshot.task_id,
                 window_id="window-before-composition",
-                completed_at=COMPLETED,
+                completed_at=_timestamp(timedelta(minutes=-5)),
                 edge_id=decision.edge_id,
                 source_node_id=decision.source_node_id,
                 target_node_id=decision.target_node_id,
