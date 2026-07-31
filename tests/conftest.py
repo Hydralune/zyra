@@ -43,10 +43,14 @@ def _reset_loaded_api_runtime(module: ModuleType) -> None:
 
 
 @pytest.fixture(autouse=True)
-def isolate_process_environment_and_api_runtime() -> Iterator[None]:
+def isolate_process_environment_and_api_runtime(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
     """Keep environment-backed API owners from leaking across test cases."""
 
     environment_before = dict(os.environ)
+    isolated_state_root = tmp_path_factory.mktemp("state")
+    os.environ["ZYRA_STATE_ROOT"] = str(isolated_state_root)
     try:
         yield
     finally:

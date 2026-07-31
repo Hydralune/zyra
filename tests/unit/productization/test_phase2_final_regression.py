@@ -30,7 +30,22 @@ def test_final_python_regression_is_scoped_to_zyra_tests(
         if command_id == "python-full-regression"
     )
 
-    assert python_full[-1] == str(ROOT / "tests")
+    assert python_full[-2:] == (
+        str(ROOT / "tests" / "unit"),
+        str(ROOT / "tests" / "integration"),
+    )
+    policy = MODULE._python_test_policy()
+    assert policy["debt_owner"] == "M3-03"
+    assert all(
+        f"--ignore={ROOT / relative}" in python_full
+        for relative in policy["ignore_files"]
+    )
+    typescript = next(
+        command
+        for command_id, command, _timeout in commands
+        if command_id == "typescript-runtime-regression"
+    )
+    assert tuple(typescript[2:]) == MODULE.TYPESCRIPT_RUNTIME_TEST_ROOTS
     ledger = next(
         command
         for command_id, command, _timeout in commands

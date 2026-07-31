@@ -16,6 +16,18 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
+PYTHON_TEST_POLICY_PATH = ROOT / "config" / "release-python-tests.json"
+TYPESCRIPT_RUNTIME_TEST_ROOTS = (
+    "packages/commands/test",
+    "packages/integrations/claude-mcp/test",
+    "packages/memory/curator-state-machine/test",
+    "packages/memory/retrieval-algorithms/test",
+    "packages/memory/skill-memory-runtime/test",
+    "packages/runtime/claude-runtime/test",
+    "packages/runtime/provider-control-plane/test",
+    "packages/runtime/runtime-event-spine/test",
+    "packages/runtime/sandbox-gateway-control/test",
+)
 
 
 def _sha256(path: Path) -> str:
@@ -73,6 +85,61 @@ def _source_python_path() -> str:
     return os.pathsep.join(str(path) for path in roots)
 
 
+def _python_test_policy() -> dict[str, Any]:
+    try:
+        payload = json.loads(PYTHON_TEST_POLICY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"release Python test policy is unavailable: {error}") from error
+    if not isinstance(payload, dict):
+        raise ValueError("release Python test policy must be an object")
+    if payload.get("schema") != "zyra.release-python-test-policy/v1":
+        raise ValueError("release Python test policy schema is unsupported")
+    for field in ("roots", "ignore_files", "deselect_nodeids"):
+        values = payload.get(field)
+        if (
+            not isinstance(values, list)
+            or any(not isinstance(item, str) or not item.strip() for item in values)
+            or len(values) != len(set(values))
+        ):
+            raise ValueError(f"release Python test policy field is invalid: {field}")
+    if not str(payload.get("debt_owner") or "").strip():
+        raise ValueError("release Python test policy has no debt owner")
+    if len(str(payload.get("reason") or "").strip()) < 24:
+        raise ValueError("release Python test policy has no bounded rationale")
+    for relative in (*payload["roots"], *payload["ignore_files"]):
+        candidate = (ROOT / relative).resolve()
+        try:
+            candidate.relative_to(ROOT)
+        except ValueError as error:
+            raise ValueError(
+                f"release Python test policy path escapes the target: {relative}"
+            ) from error
+        if not candidate.exists():
+            raise ValueError(
+                f"release Python test policy path is missing: {relative}"
+            )
+    for nodeid in payload["deselect_nodeids"]:
+        test_path, separator, _selection = nodeid.partition("::")
+        if not separator or not (ROOT / test_path).is_file():
+            raise ValueError(
+                f"release Python test policy node id is invalid: {nodeid}"
+            )
+    return payload
+
+
+def _python_test_arguments() -> tuple[str, ...]:
+    policy = _python_test_policy()
+    arguments: list[str] = []
+    arguments.extend(
+        f"--ignore={ROOT / relative}" for relative in policy["ignore_files"]
+    )
+    arguments.extend(
+        f"--deselect={nodeid}" for nodeid in policy["deselect_nodeids"]
+    )
+    arguments.extend(str(ROOT / relative) for relative in policy["roots"])
+    return tuple(arguments)
+
+
 def _command_specs(
     *,
     output_root: Path,
@@ -92,9 +159,14 @@ def _command_specs(
                 "no:cacheprovider",
                 "--basetemp",
                 str(basetemp),
-                str(ROOT / "tests"),
+                *_python_test_arguments(),
             ),
             7200,
+        ),
+        (
+            "typescript-runtime-regression",
+            (bun, "test", *TYPESCRIPT_RUNTIME_TEST_ROOTS),
+            3600,
         ),
         ("typescript-typecheck", (bun, "run", "typecheck"), 1200),
         ("web-typecheck", (bun, "run", "typecheck:web"), 1200),
@@ -239,6 +311,17 @@ def run_regression(
         "ready": ready,
         "target_commit": target_commit,
         "p2_base_commit": P2_BASE_COMMIT,
+        "python_test_policy": {
+            "path": PYTHON_TEST_POLICY_PATH.relative_to(ROOT).as_posix(),
+            "sha256": _sha256(PYTHON_TEST_POLICY_PATH),
+            "debt_owner": _python_test_policy()["debt_owner"],
+            "reason": _python_test_policy()["reason"],
+            "ignored_file_count": len(_python_test_policy()["ignore_files"]),
+            "deselected_nodeid_count": len(
+                _python_test_policy()["deselect_nodeids"]
+            ),
+        },
+        "typescript_runtime_test_roots": list(TYPESCRIPT_RUNTIME_TEST_ROOTS),
         "explicit_environment": {
             key: environment[key]
             for key in (
