@@ -6,6 +6,15 @@ import pytest
 
 from zyra_orchestration.topology_policy.contracts import FrozenDict
 from zyra_orchestration.deployment.errors import redact
+from zyra_orchestration.deployment.provider_dispatch import (
+    DEEPSEEK_MODEL_ID,
+    DEEPSEEK_PROVIDER_ID,
+    GLM_52_MODEL_ID,
+    KIMI_MODEL_ID,
+    KIMI_PROVIDER_ID,
+    PROVIDER_PRIORITY,
+    ZHIPU_PROVIDER_ID,
+)
 from zyra_scheduler.dispatch_evidence import (
     PhysicalDispatchReceiptValidator,
     PhysicalDispatchTask,
@@ -154,3 +163,12 @@ def test_physical_dispatch_defaults_to_glm() -> None:
 
     assert task.provider_id == "zhipu"
     assert task.model_id == "glm-5.2"
+
+
+def test_physical_dispatch_priority_uses_deepseek_flash_before_kimi() -> None:
+    assert DEEPSEEK_MODEL_ID == "deepseek-v4-flash"
+    assert PROVIDER_PRIORITY == (
+        (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
+        (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
+        (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
+    )

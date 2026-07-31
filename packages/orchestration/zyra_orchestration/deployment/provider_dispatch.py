@@ -59,13 +59,13 @@ KIMI_PROVIDER_ID = "kimi-platform"
 KIMI_MODEL_ID = "kimi-k2.7-code"
 KIMI_API_KEY_ENV = "KIMI_API_KEY"
 DEEPSEEK_PROVIDER_ID = "deepseek"
-DEEPSEEK_MODEL_ID = "deepseek-v4-pro"
+DEEPSEEK_MODEL_ID = "deepseek-v4-flash"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 
 PROVIDER_PRIORITY = (
     (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
-    (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
     (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
+    (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
 )
 
 _LIVE_PROFILES = {
@@ -122,7 +122,7 @@ _LIVE_PROFILES = {
         credential_id="deepseek-physical-dispatch",
         api_key_env=DEEPSEEK_API_KEY_ENV,
         provider_display_name="DeepSeek",
-        model_display_name="DeepSeek V4 Pro",
+        model_display_name="DeepSeek V4 Flash",
         family="deepseek-v4",
         base_url="https://api.deepseek.com",
         endpoint_host="api.deepseek.com",
@@ -130,17 +130,17 @@ _LIVE_PROFILES = {
         released_at_ms=1_776_988_800_000,
         context_window=1_000_000,
         maximum_output_tokens=384_000,
-        input_per_million=0.435,
-        cached_input_per_million=0.003625,
-        output_per_million=0.87,
+        input_per_million=0.14,
+        cached_input_per_million=0.0028,
+        output_per_million=0.28,
         pricing_currency="USD",
         pricing_source=(
             "https://api-docs.deepseek.com/quick_start/pricing/"
             "?article_id=article_1779470751466_8"
         ),
-        normalized_input_usd_per_million=0.435,
-        normalized_cached_input_usd_per_million=0.003625,
-        normalized_output_usd_per_million=0.87,
+        normalized_input_usd_per_million=0.14,
+        normalized_cached_input_usd_per_million=0.0028,
+        normalized_output_usd_per_million=0.28,
         normalized_pricing_source=(
             "https://api-docs.deepseek.com/quick_start/pricing/"
             "?article_id=article_1779470751466_8"

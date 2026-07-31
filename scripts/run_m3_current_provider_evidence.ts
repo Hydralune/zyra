@@ -11,13 +11,13 @@ import { fileURLToPath } from "node:url";
 
 import {
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_PRO_MODEL_ID,
+  DEEPSEEK_V4_FLASH_MODEL_ID,
   GLM_52_MODEL_ID,
   KIMI_K27_CODE_MODEL_ID,
   KIMI_PLATFORM_PROVIDER_ID,
   ProviderControlPlane,
   ZHIPU_PROVIDER_ID,
-  installDeepSeekV4ProProfile,
+  installDeepSeekV4FlashProfile,
   installGlm52Profile,
   installKimiK27CodeProfile,
 } from "../packages/runtime/provider-control-plane/src/index.ts";
@@ -82,7 +82,7 @@ const controlPlane = new ProviderControlPlane({
 });
 
 try {
-  const deepseek = installDeepSeekV4ProProfile(controlPlane);
+  const deepseek = installDeepSeekV4FlashProfile(controlPlane);
   const kimi = installKimiK27CodeProfile(controlPlane);
   const glm = installGlm52Profile(controlPlane);
   const providers = new Map<string, ProviderSpec>([
@@ -97,7 +97,7 @@ try {
     }],
     [DEEPSEEK_PROVIDER_ID, {
       providerId: DEEPSEEK_PROVIDER_ID,
-      modelId: DEEPSEEK_V4_PRO_MODEL_ID,
+      modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
       credential: deepseek.credential,
       maximumOutputTokens: 96,
       temperature: 0,

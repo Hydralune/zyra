@@ -54,7 +54,7 @@ export function kimiK27CodeProfile(): KimiK27CodeProfile {
       billing_mode: "pay-as-you-go",
       key_source: "platform.kimi.com",
       preserve_client_identity: true,
-      routing_priority: 200,
+      routing_priority: 100,
     },
   };
   const model: ModelDefinition = {
