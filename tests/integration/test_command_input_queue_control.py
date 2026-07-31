@@ -7,6 +7,7 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.integration.test_api_control_commands import (
     _get,
@@ -16,6 +17,13 @@ from tests.integration.test_api_control_commands import (
 
 
 class CommandInputQueueControlIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._environment_patcher = patch.dict(os.environ, {}, clear=False)
+        self._environment_patcher.start()
+
+    def tearDown(self) -> None:
+        self._environment_patcher.stop()
+
     def test_busy_command_queue_restore_cancel_retry_and_event_identity(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

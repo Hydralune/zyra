@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -48,7 +49,18 @@ class WorkspaceGitDirtyBoundaryTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        self.temporary.cleanup()
+        for attempt in range(10):
+            try:
+                self.temporary.cleanup()
+                return
+            except PermissionError as error:
+                transient_windows_lock = (
+                    sys.platform == "win32"
+                    and getattr(error, "winerror", None) in {5, 32}
+                )
+                if not transient_windows_lock or attempt == 9:
+                    raise
+                time.sleep(0.04 * (attempt + 1))
 
     def test_read_only_boundary_preserves_head_index_and_worktree(self) -> None:
         boundary = WorkspaceGitBoundary(self.repository)
