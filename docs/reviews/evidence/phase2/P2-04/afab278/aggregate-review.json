@@ -1,0 +1,84 @@
+{
+  "schema": "zyra.phase2-digital-stage-aggregate-review/v1",
+  "review_id": "P2-04-audit-and-fix",
+  "date": "2026-08-01",
+  "scope": {
+    "digital_stages": ["P2-04"],
+    "slice_count": 4,
+    "mode": "audit_and_fix"
+  },
+  "commits": {
+    "aggregate_base": "ab02cb0fded584a799cfbecce996b837f99ebf8c",
+    "original_evidence_head": "6b81f660822b1f8d5c30206d38f7d4d9d998f0fc",
+    "target_before_review": "8c1a49464870a399b3cf0e3828ce43e5517bd231",
+    "target_after_fixes": "afab2781fdf25787ff89814504c862501856d63d",
+    "fix_commits": ["afab2781fdf25787ff89814504c862501856d63d"],
+    "evidence_commit": "SELF"
+  },
+  "verdict": "PASS_AFTER_FIX",
+  "severity_counts": {
+    "p0_open": 0,
+    "p1_found": 6,
+    "p1_open": 0,
+    "p2_open": 0
+  },
+  "fixed_findings": [
+    {
+      "id": "P2-04-P1-01",
+      "title": "P2-04 mechanisms were not one production execution chain",
+      "resolution": "Added the Phase2StrongestProductionBridge to the API composition root and made physical operator execution the task-graph execution path."
+    },
+    {
+      "id": "P2-04-P1-02",
+      "title": "AgentPrune and reroute could consume current synthetic communication",
+      "resolution": "Consume only completed prior windows and use a distinct causal event for reroute."
+    },
+    {
+      "id": "P2-04-P1-03",
+      "title": "Adaptive depth and completion lacked independent final verification",
+      "resolution": "Execute every remaining layer when required and gate completion on an independent canonical verifier."
+    },
+    {
+      "id": "P2-04-P1-04",
+      "title": "Physical operator results were metadata-oriented and not exactly lease-bound",
+      "resolution": "Execute audited code, memory and tool adapters in the selected deployment process and validate process, endpoint, node and generation bindings."
+    },
+    {
+      "id": "P2-04-P1-05",
+      "title": "Execution digests and failure boundaries were insufficiently closed",
+      "resolution": "Recompute four digest families, add four mutation lanes and terminalize every prepare/execute/validation/commit failure."
+    },
+    {
+      "id": "P2-04-P1-06",
+      "title": "MemoryFabric mutation happened after success finalization",
+      "resolution": "Commit and read back the MemoryFabric owner mutation before success finalize, bind its receipt, and terminalize owner failure."
+    }
+  ],
+  "hard_gate_results": {
+    "production_strongest_chain_reachable": true,
+    "physical_operator_domain_effect_verified": true,
+    "scheduler_lease_process_binding_exact": true,
+    "adaptive_depth_multi_layer_verified": true,
+    "independent_final_verifier_required": true,
+    "memory_owner_commit_precedes_success": true,
+    "four_digest_mutation_lanes_fail_closed": true,
+    "phase2_policy_contracts_valid": true,
+    "strongest_activation_eligible": true,
+    "independent_review_passed": true,
+    "openclaw_changed_file_count": 0
+  },
+  "heavy_validation": {
+    "full_regression": "deferred_to_single_final_run_after_P2-06",
+    "cleanroom": "deferred_to_single_final_run_after_P2-06",
+    "sealed_preflight": "deferred_to_single_final_run_after_P2-06"
+  },
+  "next_stage_recommendation": "P2-05_AUDIT_AND_FIX",
+  "next_stage_authorized": true,
+  "residuals": [],
+  "evidence_refs": [
+    "docs/reviews/phase2/P2-04-aggregate-review.md",
+    "docs/reviews/evidence/phase2/P2-04/afab278/gate-matrix.json",
+    "docs/reviews/evidence/phase2/P2-04/afab278/bucket-summary.json",
+    "docs/reviews/evidence/phase2/P2-04/afab278/commands.json"
+  ]
+}

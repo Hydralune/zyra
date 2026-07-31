@@ -1,0 +1,81 @@
+{
+  "schema": "zyra.phase2-aggregate-line-buckets/v1",
+  "scope": "P2-04 original stage plus P2-04 aggregate audit fix; excludes intervening P2-05/P2-06 commits",
+  "ranges": [
+    {
+      "range": "ab02cb0fded584a799cfbecce996b837f99ebf8c..6b81f660822b1f8d5c30206d38f7d4d9d998f0fc",
+      "role": "original_P2-04",
+      "files": 73,
+      "added": 17781,
+      "deleted": 22,
+      "binary_files": 0
+    },
+    {
+      "range": "8c1a49464870a399b3cf0e3828ce43e5517bd231..afab2781fdf25787ff89814504c862501856d63d",
+      "role": "aggregate_audit_fix",
+      "files": 24,
+      "added": 6457,
+      "deleted": 75,
+      "binary_files": 0
+    }
+  ],
+  "algorithm": "git diff --numstat --no-renames over two non-overlapping commit ranges; path-first mutually exclusive buckets",
+  "totals": {
+    "changed_file_observations": 97,
+    "added": 24238,
+    "deleted": 97,
+    "binary_files": 0
+  },
+  "buckets": [
+    {
+      "bucket": "production",
+      "files": 39,
+      "added": 16228,
+      "deleted": 66,
+      "implementation_claim": "candidate Zyra production code; changed lines are not automatically deep implementation"
+    },
+    {
+      "bucket": "tests",
+      "files": 21,
+      "added": 5647,
+      "deleted": 17,
+      "implementation_claim": "behavior, failure and mutation tests; excluded from production implementation"
+    },
+    {
+      "bucket": "config",
+      "files": 6,
+      "added": 92,
+      "deleted": 13,
+      "implementation_claim": "activation and policy contracts; reported separately"
+    },
+    {
+      "bucket": "docs_and_evidence",
+      "files": 31,
+      "added": 2271,
+      "deleted": 1,
+      "implementation_claim": "reviews and evidence; excluded from production implementation"
+    },
+    {
+      "bucket": "runtime_assets_vendor_like",
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    {
+      "bucket": "adapter_only",
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    },
+    {
+      "bucket": "mock_fixture",
+      "files": 0,
+      "added": 0,
+      "deleted": 0
+    }
+  ],
+  "protected_source_counts": {
+    "openclaw_changed_file_count": 0,
+    "loopx_runtime_asset_changed_file_count": 0
+  }
+}

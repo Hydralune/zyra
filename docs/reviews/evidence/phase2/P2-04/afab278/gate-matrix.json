@@ -1,0 +1,31 @@
+{
+  "schema": "zyra.phase2-aggregate-slice-gate-matrix/v1",
+  "target_commit": "afab2781fdf25787ff89814504c862501856d63d",
+  "slice_count": 4,
+  "gates": [
+    {
+      "slice_id": "P2-S04-01",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S04-01-maas-operator-selector-review.md",
+      "aggregate_note": "MaAS candidates enter the production bridge and explicit heterogeneous physical adapters."
+    },
+    {
+      "slice_id": "P2-S04-02",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S04-02-verifier-early-exit-review.md",
+      "aggregate_note": "Adaptive-depth continuation and independent final verification now gate completion."
+    },
+    {
+      "slice_id": "P2-S04-03",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S04-03-operator-placement-lease-review.md",
+      "aggregate_note": "Scheduler decisions, lease/attempt and deployment process identity are exactly bound; failures terminalize."
+    },
+    {
+      "slice_id": "P2-S04-04",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S04-04-physical-dispatch-review.md",
+      "aggregate_note": "Deployment nodes execute domain adapters, recompute receipts and bind MemoryFabric owner commit before success."
+    }
+  ]
+}

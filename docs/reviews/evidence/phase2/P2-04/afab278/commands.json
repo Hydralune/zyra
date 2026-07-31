@@ -1,0 +1,71 @@
+{
+  "schema": "zyra.phase2-aggregate-command-results/v1",
+  "target_commit": "afab2781fdf25787ff89814504c862501856d63d",
+  "results": [
+    {
+      "id": "p2-04-slice-directed-final",
+      "status": "passed",
+      "result": "79 passed in 108.11s",
+      "scope": "P2-S04-01 through P2-S04-04 unit, integration and scenario tests plus the production main path"
+    },
+    {
+      "id": "production-physical-final",
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_phase2_production_policy_main_path.py tests/integration/test_physical_dispatch_receipts.py -q",
+      "status": "passed",
+      "result": "23 passed in 74.57s"
+    },
+    {
+      "id": "four-digest-and-owner-focused",
+      "status": "passed",
+      "result": "8 passed in 51.88s",
+      "scope": "main path, four output mutations, multi-layer memory owner success/failure and direct physical node execution"
+    },
+    {
+      "id": "typescript-api-port",
+      "command": "node_modules/.bin/bun.exe test packages/runtime/claude-runtime/test/e02/api-port-runtime.test.ts",
+      "status": "passed",
+      "result": "15 passed; 0 failed"
+    },
+    {
+      "id": "typescript-runtime-typecheck",
+      "command": "node_modules/.bin/tsc.exe -p packages/runtime/claude-runtime/tsconfig.json --noEmit",
+      "status": "passed"
+    },
+    {
+      "id": "phase2-policy-contracts",
+      "command": ".venv/Scripts/python.exe scripts/verify_phase2_policy_contracts.py --require-strongest-active",
+      "status": "passed",
+      "result": "valid=true; hard_gate_count=23; strongest_activation_eligible=true; strongest_activation_blockers=[]"
+    },
+    {
+      "id": "ledger-audit",
+      "command": ".venv/Scripts/python.exe scripts/zyra_integration_ledger.py audit",
+      "status": "passed_with_warnings",
+      "result": "ok=true; disposition=warning; findings=982; errors=0; blockers=0"
+    },
+    {
+      "id": "python-compile",
+      "status": "passed",
+      "result": "Changed API, orchestration, scheduler, symbolic and related tests compiled successfully."
+    },
+    {
+      "id": "diff-check",
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "id": "independent-review-one",
+      "status": "passed",
+      "result": "P0=0; P1=0; P2=0; focused 7 passed"
+    },
+    {
+      "id": "independent-review-two-final",
+      "status": "passed",
+      "result": "Memory owner ordering P1 closed; focused 2 passed; no remaining blocker"
+    }
+  ],
+  "non_claims": [
+    "No full repository regression PASS is claimed at P2-04.",
+    "No cleanroom, sealed campaign or final preflight PASS is claimed at P2-04; each is reserved for the one final post-P2-06 run."
+  ]
+}
