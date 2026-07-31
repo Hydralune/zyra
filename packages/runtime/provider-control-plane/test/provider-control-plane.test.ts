@@ -115,7 +115,9 @@ test("DeepSeek V4 Flash profile binds an environment reference without persistin
   assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
   assert.equal(profile.provider.metadata.routing_priority, 200);
   assert.equal(profile.model.modelId, "deepseek-v4-flash");
-  assert.equal(profile.model.displayName, "DeepSeek V4 Flash");
+  assert.equal(profile.model.displayName, "DeepSeek V4 Flash 0731");
+  assert.equal(profile.model.releasedAt, Date.UTC(2026, 6, 31));
+  assert.equal(profile.model.metadata.model_version, "DeepSeek-V4-Flash-0731");
   assert.deepEqual(profile.model.pricing, [{
     inputPerMillion: 0.14,
     outputPerMillion: 0.28,

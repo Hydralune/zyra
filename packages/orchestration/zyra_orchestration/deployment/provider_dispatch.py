@@ -50,6 +50,7 @@ class LiveProviderProfile:
     normalized_cached_input_usd_per_million: float | None = None
     normalized_output_usd_per_million: float | None = None
     normalized_pricing_source: str | None = None
+    model_version: str | None = None
 
 
 ZHIPU_PROVIDER_ID = "zhipu"
@@ -122,12 +123,12 @@ _LIVE_PROFILES = {
         credential_id="deepseek-physical-dispatch",
         api_key_env=DEEPSEEK_API_KEY_ENV,
         provider_display_name="DeepSeek",
-        model_display_name="DeepSeek V4 Flash",
+        model_display_name="DeepSeek V4 Flash 0731",
         family="deepseek-v4",
         base_url="https://api.deepseek.com",
         endpoint_host="api.deepseek.com",
         endpoint_path="/chat/completions",
-        released_at_ms=1_776_988_800_000,
+        released_at_ms=1_785_456_000_000,
         context_window=1_000_000,
         maximum_output_tokens=384_000,
         input_per_million=0.14,
@@ -145,6 +146,7 @@ _LIVE_PROFILES = {
             "https://api-docs.deepseek.com/quick_start/pricing/"
             "?article_id=article_1779470751466_8"
         ),
+        model_version="DeepSeek-V4-Flash-0731",
     ),
 }
 
@@ -634,6 +636,11 @@ class LiveProviderDispatchRuntime:
                 metadata={
                     "pricing_checked_at": "2026-07-31",
                     "pricing_reference": profile.pricing_source,
+                    **(
+                        {"model_version": profile.model_version}
+                        if profile.model_version is not None
+                        else {}
+                    ),
                 },
             )
         )

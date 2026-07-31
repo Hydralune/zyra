@@ -62,7 +62,7 @@ LoopX
 
 ## 模型 API 默认顺序
 
-- 已配置模型的默认顺序为 `zhipu/glm-5.2`、`deepseek/deepseek-v4-flash`、`kimi-platform/kimi-k2.7-code`。
+- 已配置模型的默认顺序为 `zhipu/glm-5.2`、`deepseek/deepseek-v4-flash`（服务端版本 `DeepSeek-V4-Flash-0731`）、`kimi-platform/kimi-k2.7-code`。
 - 未显式指定 provider/model 的真实模型调用必须选择 `zhipu/glm-5.2`。
 - DeepSeek 是第二候选，Kimi 是最后候选；不得在 runtime、测试入口或 release 配置中把 DeepSeek 固定成默认值。
 - 显式的当前任务选择可以覆盖默认顺序，但必须保留实际 provider/model 调用结果。

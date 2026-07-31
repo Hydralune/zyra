@@ -106,6 +106,7 @@ try {
     simulated: false,
     provider_id: result.providerId,
     model_id: result.modelId,
+    configured_model_version: installed.model.metadata.model_version,
     protocol: result.protocol,
     endpoint_host: new URL(route.baseUrl).hostname,
     endpoint_path: route.endpointPath,

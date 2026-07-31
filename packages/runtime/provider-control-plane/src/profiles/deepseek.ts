@@ -56,11 +56,11 @@ export function deepSeekV4FlashProfile(): DeepSeekV4FlashProfile {
   const model: ModelDefinition = {
     providerId: DEEPSEEK_PROVIDER_ID,
     modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
-    displayName: "DeepSeek V4 Flash",
+    displayName: "DeepSeek V4 Flash 0731",
     family: "deepseek-v4",
     status: "active",
     enabled: true,
-    releasedAt: Date.UTC(2026, 3, 24),
+    releasedAt: Date.UTC(2026, 6, 31),
     contextWindow: 1_000_000,
     maximumOutputTokens: 384_000,
     capabilities: {
@@ -84,6 +84,7 @@ export function deepSeekV4FlashProfile(): DeepSeekV4FlashProfile {
     },
     tags: ["agent-test", "non-thinking-default", "tool-capable"],
     metadata: {
+      model_version: "DeepSeek-V4-Flash-0731",
       pricing_checked_at: "2026-07-31",
     },
   };
