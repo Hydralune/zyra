@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from zyra_runtime.artifacts import LocalArtifactStore
 from zyra_runtime.productization import (
+    ArtifactManifestMigrationAdapter,
     BootstrapError,
     ConfigurationError,
     CredentialError,
@@ -15,6 +17,7 @@ from zyra_runtime.productization import (
     EnvironmentSecretProvisioner,
     LifecyclePhase,
     LifecycleRecorder,
+    MigrationAdapterError,
     MigrationJournal,
     MigrationJournalError,
     MigrationRuntime,
@@ -483,6 +486,12 @@ def test_product_bootstrap_migrates_all_default_owner_shapes(
     permission = json.loads(permission_path.read_text(encoding="utf-8"))
     assert permission["schema"] == "zyra.permission-state"
     assert runtime.shutdown().clean is True
+    LocalArtifactStore(artifact_root).write_text(
+        run_id="run_restart",
+        task_id="task_restart",
+        content="artifact committed after bootstrap",
+        title="restart evidence",
+    )
 
     restarted = ProductBootstrapRuntime(
         configuration,
@@ -496,6 +505,53 @@ def test_product_bootstrap_migrates_all_default_owner_shapes(
     assert restart_receipt.migration.migrated is False
     assert restarted.readiness()["ready"] is True
     assert restarted.shutdown().clean is True
+
+
+def test_artifact_manifest_allows_append_only_owner_growth(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    original = artifact_root / "legacy.txt"
+    original.write_text("preserved", encoding="utf-8")
+    adapter = ArtifactManifestMigrationAdapter(artifact_root)
+
+    probe = adapter.probe()
+    mutation = adapter.apply(probe)
+    assert adapter.verify(mutation)["verified"] is True
+
+    (artifact_root / "run-new" / "task-new").mkdir(parents=True)
+    (artifact_root / "run-new" / "task-new" / "artifact.txt").write_text(
+        "new immutable artifact",
+        encoding="utf-8",
+    )
+    restart_probe = adapter.probe()
+
+    assert restart_probe.migration_required is False
+    assert restart_probe.details["appended_artifact_count"] == 1
+
+
+@pytest.mark.parametrize("operation", ["change", "delete"])
+def test_artifact_manifest_rejects_drift_of_recorded_bytes(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    original = artifact_root / "legacy.txt"
+    original.write_text("preserved", encoding="utf-8")
+    adapter = ArtifactManifestMigrationAdapter(artifact_root)
+    adapter.apply(adapter.probe())
+
+    if operation == "change":
+        original.write_text("tampered", encoding="utf-8")
+    else:
+        original.unlink()
+
+    with pytest.raises(MigrationAdapterError) as raised:
+        adapter.probe()
+
+    assert raised.value.code == "migration_artifact_inventory_drift"
 
 
 def test_disabling_required_migration_fails_closed_without_owner_fallback(

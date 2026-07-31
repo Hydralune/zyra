@@ -776,13 +776,19 @@ class WorkerDispatchRouter:
     @staticmethod
     def _interruptible_delay(seconds: float, cancellation: Any) -> None:
         deadline = time.monotonic() + max(0.0, seconds)
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
             cancellation.throw_if_cancelled()
-            time.sleep(min(0.02, deadline - time.monotonic()))
+            time.sleep(min(0.02, remaining))
 
     def _session_delay(self, seconds: float, session_id: str) -> None:
         deadline = time.monotonic() + max(0.0, seconds)
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
             session = self.store.get_dispatch_session(session_id)
             if session is None or session.phase in {
                 BackendDispatchPhase.CANCELLING,
@@ -796,7 +802,7 @@ class WorkerDispatchRouter:
                     recovery_intent=BackendRecoveryIntent.STOP,
                     detail={"session_id": session_id},
                 )
-            time.sleep(min(0.02, deadline - time.monotonic()))
+            time.sleep(min(0.02, remaining))
 
     @staticmethod
     def _event(

@@ -181,9 +181,9 @@ def _run_browser_use_with_hard_deadline(
 
     timer = threading.Timer(max(float(timeout_seconds), 0.01), stop_at_deadline)
     timer.daemon = True
+    asyncio.set_event_loop(loop)
     task = loop.create_task(coroutine)
     timer.start()
-    asyncio.set_event_loop(loop)
     try:
         try:
             loop.run_until_complete(task)
@@ -201,11 +201,27 @@ def _run_browser_use_with_hard_deadline(
         for item in pending:
             item.cancel()
         if pending:
-            # Give cancellation/finally blocks one bounded loop turn.  Do not
-            # gather vendor observers: that is the unbounded shutdown path this
-            # runtime boundary is designed to contain.
-            loop.call_soon(loop.stop)
-            loop.run_forever()
+            async def drain_cancelled_tasks() -> set[asyncio.Task[Any]]:
+                done, still_pending = await asyncio.wait(
+                    pending,
+                    timeout=1.0,
+                )
+                for item in done:
+                    if not item.cancelled():
+                        item.exception()
+                return still_pending
+
+            still_pending = loop.run_until_complete(drain_cancelled_tasks())
+            for item in still_pending:
+                item.cancel()
+            if still_pending:
+                loop.run_until_complete(asyncio.sleep(0))
+        try:
+            loop.run_until_complete(
+                asyncio.wait_for(loop.shutdown_asyncgens(), timeout=0.5)
+            )
+        except TimeoutError:
+            pass
         loop.close()
         asyncio.set_event_loop(None)
 
@@ -3539,6 +3555,7 @@ async def _browser_use_live_navigate(
     event = session.event_bus.dispatch(
         NavigateToUrlEvent(
             url=url,
+            wait_until="commit",
             timeout_ms=navigation_timeout * 1000,
             event_timeout=float(event_timeout),
         )

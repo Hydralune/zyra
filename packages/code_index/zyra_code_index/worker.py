@@ -112,8 +112,12 @@ class CodeIndexWorkerRuntime:
         )
         thread.start()
         try:
-            self._phase("leased", lease)
-            job = self.queue.start_build(lease)
+            heartbeat.lease = self.queue.renew(
+                heartbeat.lease,
+                lease_ttl_seconds=self.lease_ttl_seconds,
+            )
+            self._phase("leased", heartbeat.lease)
+            job = self.queue.start_build(heartbeat.lease)
             self._guard_source(job)
             self._phase("building", heartbeat.lease)
             runtime = self.runtime_factory(job)

@@ -126,11 +126,16 @@ def _preauthorize_browser_session(
 
 
 class BrowserWorkerTests(unittest.TestCase):
-    def test_browser_use_event_loop_hard_deadline_returns_without_gathering(
+    def test_browser_use_event_loop_hard_deadline_drains_cancelled_tasks(
         self,
     ) -> None:
+        finalized = threading.Event()
+
         async def waits_forever() -> None:
-            await asyncio.Event().wait()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                finalized.set()
 
         started = time.monotonic()
         with self.assertRaises(TimeoutError):
@@ -139,6 +144,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 timeout_seconds=0.05,
             )
         self.assertLess(time.monotonic() - started, 2)
+        self.assertTrue(finalized.is_set())
 
     def test_browser_use_process_deadline_force_terminates_exact_process(
         self,

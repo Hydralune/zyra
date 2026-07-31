@@ -1002,18 +1002,29 @@ class ArtifactManifestMigrationAdapter:
                 "artifact root is not a directory",
             )
         inventory = self._inventory()
+        appended_artifact_count = 0
         if self.path.exists():
             manifest = self._read_manifest()
             version = int(manifest.get("schema_version") or 0)
             recorded = str(manifest.get("inventory_digest") or "")
             if version == self.target_version and recorded != inventory["digest"]:
-                raise self._error(
-                    "migration_artifact_inventory_drift",
-                    "artifact manifest does not match immutable artifact bytes",
-                    details={
-                        "recorded": recorded,
-                        "actual": inventory["digest"],
-                    },
+                drift = self._recorded_inventory_drift(
+                    manifest.get("inventory_entries"),
+                    inventory["entries"],
+                )
+                if drift:
+                    raise self._error(
+                        "migration_artifact_inventory_drift",
+                        "artifact manifest does not match immutable artifact bytes",
+                        details={
+                            "recorded": recorded,
+                            "actual": inventory["digest"],
+                            "drift": drift,
+                        },
+                    )
+                appended_artifact_count = (
+                    len(inventory["entries"])
+                    - len(manifest["inventory_entries"])
                 )
         else:
             version = 0
@@ -1037,6 +1048,7 @@ class ArtifactManifestMigrationAdapter:
                 "artifact_count": inventory["count"],
                 "artifact_bytes": inventory["bytes"],
                 "inventory_digest": inventory["digest"],
+                "appended_artifact_count": appended_artifact_count,
             },
         )
 
@@ -1112,6 +1124,7 @@ class ArtifactManifestMigrationAdapter:
             "inventory_digest": inventory["digest"],
             "artifact_count": inventory["count"],
             "artifact_bytes": inventory["bytes"],
+            "inventory_entries": inventory["entries"],
             "created_at_ns": time.time_ns(),
             "source_version": probe.source_version,
         }
@@ -1153,15 +1166,25 @@ class ArtifactManifestMigrationAdapter:
             )
         inventory = self._inventory()
         if manifest.get("inventory_digest") != inventory["digest"]:
-            raise self._error(
-                "migration_artifact_verify_failed",
-                "artifact inventory changed during migration",
+            drift = self._recorded_inventory_drift(
+                manifest.get("inventory_entries"),
+                inventory["entries"],
             )
+            if drift:
+                raise self._error(
+                    "migration_artifact_verify_failed",
+                    "artifact inventory changed during migration",
+                    details={"drift": drift},
+                )
         return {
             "verified": True,
             "target_version": self.target_version,
             "inventory_digest": inventory["digest"],
             "artifact_count": inventory["count"],
+            "appended_artifact_count": (
+                len(inventory["entries"])
+                - len(manifest.get("inventory_entries") or {})
+            ),
             "state_digest": digest_path(self.root),
         }
 
@@ -1198,11 +1221,13 @@ class ArtifactManifestMigrationAdapter:
         digest = hashlib.sha256()
         count = 0
         size = 0
+        entries: dict[str, dict[str, Any]] = {}
         if not self.root.exists():
             return {
                 "count": 0,
                 "bytes": 0,
                 "digest": "sha256:" + digest.hexdigest(),
+                "entries": entries,
             }
         for path in sorted(self.root.rglob("*"), key=lambda item: item.as_posix()):
             if path == self.path or not path.is_file():
@@ -1227,13 +1252,51 @@ class ArtifactManifestMigrationAdapter:
             digest.update(b"\0")
             digest.update(file_checksum.encode("ascii"))
             digest.update(b"\n")
+            entries[relative] = {
+                "bytes": file_size,
+                "sha256": file_checksum,
+            }
             count += 1
             size += file_size
         return {
             "count": count,
             "bytes": size,
             "digest": "sha256:" + digest.hexdigest(),
+            "entries": entries,
         }
+
+    @staticmethod
+    def _recorded_inventory_drift(
+        recorded: Any,
+        actual: Mapping[str, Mapping[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not isinstance(recorded, Mapping):
+            return [{"reason": "inventory_entries_missing"}]
+        drift: list[dict[str, Any]] = []
+        for relative, expected in recorded.items():
+            if not isinstance(relative, str) or not isinstance(expected, Mapping):
+                drift.append(
+                    {
+                        "path": str(relative),
+                        "reason": "inventory_entry_invalid",
+                    }
+                )
+                continue
+            observed = actual.get(relative)
+            if observed is None:
+                drift.append({"path": relative, "reason": "artifact_missing"})
+                continue
+            try:
+                expected_bytes = int(expected.get("bytes"))
+            except (TypeError, ValueError):
+                expected_bytes = -1
+            expected_sha256 = str(expected.get("sha256") or "")
+            if (
+                expected_bytes != int(observed.get("bytes") or 0)
+                or expected_sha256 != str(observed.get("sha256") or "")
+            ):
+                drift.append({"path": relative, "reason": "artifact_changed"})
+        return drift
 
     def _read_manifest(self) -> dict[str, Any]:
         try:
