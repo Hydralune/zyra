@@ -21,11 +21,25 @@ if str(ROOT) not in sys.path:
 
 class CodeWorkerSessionFoundationApiTests(unittest.TestCase):
     def test_session_foundation_endpoint_returns_typescript_contract(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
-            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
-            os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
-            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+        environment_keys = (
+            "ZYRA_SQLITE_PATH",
+            "ZYRA_EVENT_LOG",
+            "ZYRA_TOOL_WORKSPACE",
+            "ZYRA_ARTIFACT_ROOT",
+        )
+        environment_before = {
+            key: os.environ.get(key) for key in environment_keys
+        }
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(
+            os.environ,
+            {
+                "ZYRA_SQLITE_PATH": str(Path(tmpdir) / "api.sqlite3"),
+                "ZYRA_EVENT_LOG": str(Path(tmpdir) / "events.jsonl"),
+                "ZYRA_TOOL_WORKSPACE": str(Path(tmpdir) / "workspace"),
+                "ZYRA_ARTIFACT_ROOT": str(Path(tmpdir) / "artifacts"),
+            },
+            clear=False,
+        ):
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -58,11 +72,24 @@ class CodeWorkerSessionFoundationApiTests(unittest.TestCase):
                 reset_experiment_api(wait=True)
                 reset_api_product_bootstrap()
                 gc.collect()
+        self.assertEqual(
+            {key: os.environ.get(key) for key in environment_keys},
+            environment_before,
+        )
 
     def test_inventory_fails_closed_when_typescript_runtime_is_unavailable(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
-            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+        environment_keys = ("ZYRA_SQLITE_PATH", "ZYRA_EVENT_LOG")
+        environment_before = {
+            key: os.environ.get(key) for key in environment_keys
+        }
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(
+            os.environ,
+            {
+                "ZYRA_SQLITE_PATH": str(Path(tmpdir) / "api.sqlite3"),
+                "ZYRA_EVENT_LOG": str(Path(tmpdir) / "events.jsonl"),
+            },
+            clear=False,
+        ):
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -93,6 +120,10 @@ class CodeWorkerSessionFoundationApiTests(unittest.TestCase):
                 reset_experiment_api(wait=True)
                 reset_api_product_bootstrap()
                 gc.collect()
+        self.assertEqual(
+            {key: os.environ.get(key) for key in environment_keys},
+            environment_before,
+        )
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:

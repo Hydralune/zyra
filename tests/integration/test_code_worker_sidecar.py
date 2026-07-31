@@ -202,7 +202,11 @@ class CodeWorkerTypeScriptRuntimeTests(unittest.TestCase):
             )
 
             self.assertFalse(run.worker_result.ok)
-            self.assertEqual(run.worker_result.error, "max_turns_exceeded")
+            self.assertEqual(
+                run.worker_result.error,
+                "max_turns_exceeded",
+                run.worker_result.metadata,
+            )
             self.assertEqual(run.worker_result.metadata["canonical_runtime_owner"], "typescript")
 
 
