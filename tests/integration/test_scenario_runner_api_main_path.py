@@ -248,7 +248,12 @@ def test_live_software_scenario_reaches_canonical_api_owners(
         "execute_providers",
         reject_external_probe,
     )
-    deep_root = tmp_path / ("cleanroom-0-" + ("x" * 48))
+    root_prefix = "cleanroom-"
+    path_padding = max(
+        1,
+        140 - len(str(tmp_path)) - 1 - len(root_prefix),
+    )
+    deep_root = tmp_path / (root_prefix + ("x" * path_padding))
     deep_root.mkdir(parents=True)
     with scenario_api(deep_root) as base:
         registry_status, registry = request(base, "GET", "/scenarios/registry")
