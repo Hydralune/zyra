@@ -84,7 +84,7 @@ def test_real_cloud_provider_request_closes_receipt_gate(tmp_path) -> None:
         harness.close()
 
 
-def test_cloud_fallback_prefers_kimi_before_deepseek(tmp_path) -> None:
+def test_cloud_fallback_prefers_deepseek_before_kimi(tmp_path) -> None:
     environment = _lower_priority_cloud_environment()
     harness = build_physical_harness(
         tmp_path,
@@ -95,9 +95,9 @@ def test_cloud_fallback_prefers_kimi_before_deepseek(tmp_path) -> None:
         harness.execute()
         provider = dict(harness.physical_port.receipts[0].provider_evidence)
 
-        assert provider["provider_id"] == "kimi-platform"
-        assert provider["model_id"] == "kimi-k2.7-code"
-        assert provider["credential_ref"] == "env://KIMI_API_KEY"
+        assert provider["provider_id"] == "deepseek"
+        assert provider["model_id"] == "deepseek-v4-flash"
+        assert provider["credential_ref"] == "env://DEEPSEEK_API_KEY"
         assert provider["credential_material_persisted"] is False
         assert provider["marker_verified"] is True
     finally:

@@ -346,6 +346,66 @@ test("external permission transport binds approval and one-use permit to the phy
   }
 });
 
+test("managed Phase 2 control permission denies any expanded scope", async () => {
+  const port = await openPort("phase2-strongest-permission");
+  const base: JsonObject = {
+    run_id: "phase2-run",
+    task_id: "phase2-task",
+    session_id: "phase2-session",
+    session_revision: 0,
+    worker_request_id: "phase2-worker-request",
+    tool_call_id: "phase2-tool-call",
+    tool_name: "phase2.strongest-control",
+    namespace: "builtin",
+    server_id: "",
+    operation: "phase2.strongest.activate",
+    workspace_root: port.initialization.workspace_root,
+    arguments: {
+      requested_permissions: ["graph.write", "worker.dispatch"],
+    },
+    metadata: {
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: true,
+      },
+    },
+    await_approval_delivery: false,
+  };
+  try {
+    const exact = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      base,
+      "phase2-scope-exact",
+    )));
+    assert.equal(exact.canonical_owner, "typescript.PermissionCoordinator");
+    assert.equal(exact.allowed, true);
+    assert.equal(object(exact.decision as JsonValue).effect, "allow");
+
+    await assert.rejects(
+      () => port.runtime.dispatch(request("permission.enforce", {
+        ...base,
+        tool_call_id: "phase2-tool-call-expanded",
+        arguments: {
+          requested_permissions: [
+            "graph.write",
+            "worker.dispatch",
+            "workspace.admin",
+          ],
+        },
+      }, "phase2-scope-expanded")),
+      (error: unknown) => (
+        error instanceof Error
+        && (error as Error & { code?: string }).code
+          === "phase2_strongest_permission_scope_invalid"
+      ),
+    );
+  } finally {
+    await disposePort(port);
+  }
+});
+
 test("restart revokes an unconsumed ordinary host permit", async () => {
   const port = await openPort("ordinary-permit-restart");
   const executionPayload: JsonObject = {
@@ -540,9 +600,13 @@ test("default API coordinator executes a live projected MCP tool and journals on
   let runtime: E02ApiPortRuntime | null = null;
   try {
     runtime = await E02ApiPortRuntime.open(initialization);
+    const policyRevision = Number(
+      runtime.coordinator.permission.evaluator.rules.snapshot().revision,
+    );
+    assert.equal(policyRevision, 1);
     const policy = object(await runtime.dispatch(request("permission.policy", {
       action: "replace_rules",
-      expected_revision: 0,
+      expected_revision: policyRevision,
       actor_id: "behavior-test",
       rules: [{
         ruleId: "allow-live-mcp-effect",

@@ -473,6 +473,19 @@ class AgentPruneRuntime:
             events=tuple(events),
         )
 
+    def communication_candidates(
+        self,
+        *,
+        card_result: CARDTopologyRuntimeResult,
+        upstream_proposal: TopologyProposalArtifact,
+    ) -> tuple[CommunicationEdgeCandidate, ...]:
+        """Expose the typed read-only candidate projection for receipt lookup."""
+
+        return self._candidates(
+            card_result=card_result,
+            upstream_proposal=upstream_proposal,
+        )
+
     def deliver(
         self,
         *,

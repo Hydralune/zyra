@@ -110,6 +110,19 @@ def free_port_block(count: int = 3) -> int:
     raise RuntimeError("could not reserve a deployment port block")
 
 
+class VerifierOwner:
+    def __init__(self) -> None:
+        self.receipts: dict[str, dict[str, Any]] = {}
+
+    def record(self, decision: Any) -> None:
+        self.receipts[str(decision.metadata["verifier_receipt_ref"])] = dict(
+            decision.metadata
+        )
+
+    def resolve_final_verifier_receipt(self, receipt_ref: str):
+        return self.receipts.get(receipt_ref)
+
+
 class CompletingPhysicalCallPort:
     """Test-only canonical task/artifact projection around the real call port."""
 
@@ -121,12 +134,14 @@ class CompletingPhysicalCallPort:
         policy: Any,
         artifacts: LocalArtifactStore,
         pool: WorkerPoolFoundationRuntime,
+        verifier_owner: VerifierOwner,
     ) -> None:
         self.delegate = delegate
         self.task = task
         self.policy = policy
         self.artifacts = artifacts
         self.pool = pool
+        self.verifier_owner = verifier_owner
 
     def prepare(self, context: Any) -> None:
         self.delegate.prepare(context)
@@ -169,8 +184,7 @@ class CompletingPhysicalCallPort:
             ),
         )
         verifier_ref = "verifier://physical-dispatch/final"
-        self.task.decisions.append(
-            build_final_verifier_decision(
+        final_verifier = build_final_verifier_decision(
                 task=self.task,
                 requirement_revision=self.policy.requirement_revision,
                 expected_obligation_ids=self.policy.unresolved_obligations,
@@ -181,7 +195,8 @@ class CompletingPhysicalCallPort:
                 verified_at=now_iso(),
                 fresh_until=_iso_after(300),
             )
-        )
+        self.verifier_owner.record(final_verifier)
+        self.task.decisions.append(final_verifier)
         return replace(
             result,
             artifact_refs=(*result.artifact_refs, projection),
@@ -234,6 +249,8 @@ def build_physical_harness(
     logical_manifest_overrides: Mapping[str, Mapping[str, Any]] | None = None,
     condition: str = "normal",
     condition_signals: Mapping[str, Any] | None = None,
+    operation: str = "physical-dispatch-proof",
+    dispatch_payload: Mapping[str, Any] | None = None,
 ) -> PhysicalHarness:
     worker_id = _WORKER_BY_LOCATION[location]
     active_locations = tuple(dict.fromkeys((location, *fallback_locations)))
@@ -429,25 +446,45 @@ def build_physical_harness(
     gate_config = EarlyExitGateConfig.load(
         ROOT / "config" / "phase2" / "maas-early-exit.json"
     )
+    verifier_owner = VerifierOwner()
     eligibility_builder = CanonicalExitSnapshotBuilder(
         config=gate_config,
         artifact_store=artifacts,
         permission_queue=permission_queue,
         side_effect_store=recovery_store,
+        final_verifier_owner=verifier_owner,
     )
+    physical_payload = dict(
+        dispatch_payload
+        or {
+            "kind": "same-minimal-dispatch-task",
+            "input": ["alpha", "beta", "gamma"],
+        }
+    )
+    if operation == "phase2-operator-execution":
+        selected_worker = pool.store.require_worker(worker_id)
+        selected_manifest = pool.store.latest_manifest(worker_id)
+        assert selected_manifest is not None
+        selected_health = clients[location].health()
+        selected_identity = dict(selected_health["runtime_identity"])
+        physical_payload["physical_worker_binding"] = {
+            "worker_id": selected_worker.worker_id,
+            "backend_id": selected_worker.backend_id,
+            "manifest_digest": selected_manifest.digest,
+            "process_identity": selected_worker.process_identity,
+            "endpoint": selected_worker.endpoint,
+            "node_id": selected_health["node_id"],
+            "generation_id": selected_identity["generation_id"],
+        }
     physical_port = PhysicalDispatchCallPort(
         task=PhysicalDispatchTask(
             run_id=task.run_id,
             task_id=task.task_id,
-            payload=FrozenDict(
-                {
-                    "kind": "same-minimal-dispatch-task",
-                    "input": ["alpha", "beta", "gamma"],
-                }
-            ),
+            payload=FrozenDict(physical_payload),
             privacy_class=privacy_class,
             allowed_placements=allowed_placements,
             permission_ref="permission://physical-dispatch/allowed",
+            operation=operation,
             condition=condition,
             condition_signals=FrozenDict(condition_signals or {}),
         ),
@@ -464,6 +501,7 @@ def build_physical_harness(
         policy=policy,
         artifacts=artifacts,
         pool=pool,
+        verifier_owner=verifier_owner,
     )
     runtime = OperatorPlacementLeaseRuntime(
         config=OperatorPlacementLeaseConfig.load(

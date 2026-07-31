@@ -400,6 +400,12 @@ class WorkerPoolApiService:
             idempotency_key=f"bootstrap:{state.task_id}",
         )
         node_ids = set(state.plan_nodes)
+        default_worker = self.pool.store.get_worker("local-code-worker")
+        default_manifest = (
+            self.pool.store.latest_manifest(default_worker.worker_id)
+            if default_worker is not None
+            else None
+        )
         for node in state.plan_nodes.values():
             builder.add_node(
                 GraphNode(
@@ -411,7 +417,22 @@ class WorkerPoolApiService:
                     logical_task_id=state.task_id,
                     workspace_ref=str(state.metadata.get("workspace_ref") or ""),
                     artifact_refs=tuple(item.artifact_id for item in node.artifact_refs),
-                    metadata={"plan_node_projection": True, "stage": str(node.metadata.get("stage") or "")},
+                    metadata={
+                        "plan_node_projection": True,
+                        "stage": str(node.metadata.get("stage") or ""),
+                        "worker_id": (
+                            default_worker.worker_id
+                            if default_worker is not None
+                            else ""
+                        ),
+                        "arg_binding_id": (
+                            f"worker:{default_worker.worker_id}:"
+                            f"{default_manifest.digest[:16]}"
+                            if default_worker is not None
+                            and default_manifest is not None
+                            else ""
+                        ),
+                    },
                 )
             )
         for node in state.plan_nodes.values():
@@ -457,6 +478,28 @@ class WorkerPoolApiService:
                 else {"process_slots": 1, "memory_mb": 64}
             ),
         )
+        causal_binding = (
+            dict(options.get("causal_binding") or {})
+            if isinstance(options.get("causal_binding"), Mapping)
+            else {}
+        )
+        required_causal_fields = {
+            "permission_receipt_id",
+            "permission_receipt_digest",
+            "resource_decision_id",
+            "operator_candidate_set_digest",
+            "topology_commit_id",
+        }
+        if causal_binding and (
+            not required_causal_fields.issubset(causal_binding)
+            or any(
+                not str(causal_binding.get(item) or "")
+                for item in required_causal_fields
+            )
+        ):
+            raise ValueError(
+                "operator placement causal binding is incomplete"
+            )
         latest_attempt = self.pool.store.latest_attempt(state.task_id)
         replay_attempt = latest_attempt is not None and not latest_attempt.terminal
         attempt_number = (
@@ -476,7 +519,11 @@ class WorkerPoolApiService:
             idempotency_key=str(
                 options.get("idempotency_key") or f"task-lease:{state.task_id}:{attempt_number}"
             ),
-            metadata={"api_task_flow": True, "dynamic_graph_id": graph_id_value},
+            metadata={
+                "api_task_flow": True,
+                "dynamic_graph_id": graph_id_value,
+                "operator_placement_causality": causal_binding,
+            },
         )
         execute_node_id = next(
             (
@@ -503,6 +550,7 @@ class WorkerPoolApiService:
             "backend_id": acquisition.lease.backend_id,
             "graph_ref": self.topology.version_ref(graph_id_value).to_dict(),
             "graph_commit": bound.receipt.to_dict(),
+            "operator_placement_causality": causal_binding,
         }
         return acquisition
 
@@ -532,7 +580,16 @@ class WorkerPoolApiService:
             return None
         return self.acquire_for_task(state, payload=payload)
 
-    def finalize_task(self, state: TaskState, *, success: bool, summary: str) -> Mapping[str, Any] | None:
+    def finalize_task(
+        self,
+        state: TaskState,
+        *,
+        success: bool,
+        summary: str,
+        event_refs: tuple[str, ...] = (),
+        gateway_receipt_ref: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
         projection = state.metadata.get("worker_pool")
         if not isinstance(projection, Mapping):
             return None
@@ -554,9 +611,14 @@ class WorkerPoolApiService:
             outcome=ExecutionOutcome.SUCCEEDED if success else ExecutionOutcome.FAILED,
             summary=summary,
             artifact_refs=tuple(item.artifact_id for item in state.artifacts),
-            event_refs=(),
-            gateway_receipt_ref=f"task-graph:{state.task_id}",
-            metadata={"default_task_graph": True},
+            event_refs=tuple(str(item) for item in event_refs if str(item)),
+            gateway_receipt_ref=(
+                gateway_receipt_ref or f"task-graph:{state.task_id}"
+            ),
+            metadata={
+                "default_task_graph": True,
+                **dict(metadata or {}),
+            },
         )
         state.metadata["worker_pool_receipt"] = receipt.to_dict()
         return receipt.to_dict()

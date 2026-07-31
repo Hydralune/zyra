@@ -31,6 +31,7 @@ from zyra_orchestration.topology_policy.contracts import (
     PhysicalDispatchReceipt,
     StableArtifactRef,
     canonical_digest,
+    thaw_json,
 )
 
 from .operator_policy.integration import (
@@ -44,6 +45,7 @@ PHYSICAL_DISPATCH_MECHANISM_ID = "zyra_physical_dispatch"
 PHYSICAL_DISPATCH_MECHANISM_VERSION = "physical_dispatch_v1"
 PHYSICAL_DISPATCH_VALIDATION_SCHEMA = "zyra.physical-dispatch-validation/v1"
 PHYSICAL_REROUTE_VALIDATION_SCHEMA = "zyra.physical-reroute-validation/v1"
+PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v6"
 
 _LOCATION_TO_PROFILE = {
     "local": DeploymentProfile.DEVICE,
@@ -68,6 +70,7 @@ class PhysicalDispatchTask:
     privacy_class: str
     allowed_placements: tuple[str, ...]
     permission_ref: str
+    operation: str = "physical-dispatch-proof"
     provider_id: str = "zhipu"
     model_id: str = "glm-5.2"
     latency_sla_ms: int = 120_000
@@ -90,6 +93,7 @@ class PhysicalDispatchTask:
             not self.run_id
             or not self.task_id
             or not self.permission_ref
+            or not self.operation.strip()
             or not placements
             or any(item not in _LOCATION_TO_PROFILE for item in placements)
         ):
@@ -100,6 +104,7 @@ class PhysicalDispatchTask:
         if privacy in {"restricted", "local-only"} and placements != ("local",):
             raise ValueError("restricted/local-only dispatch must be local-only")
         object.__setattr__(self, "privacy_class", privacy)
+        object.__setattr__(self, "operation", self.operation.strip().casefold())
         object.__setattr__(self, "allowed_placements", placements)
         object.__setattr__(self, "payload", FrozenDict(self.payload))
         object.__setattr__(
@@ -330,6 +335,49 @@ class PhysicalDispatchReceiptBuilder:
             "latency_sla_ms": task.latency_sla_ms,
             "condition": task.condition,
             "condition_signals": dict(task.condition_signals),
+            "workload_operation": prepared.workload.operation,
+            "task_payload_digest": task.payload_digest,
+            "operator_ref": str(output.get("operator_ref") or ""),
+            "layer_index": int(output.get("layer_index") or 0),
+            "operator_execution_digest": str(
+                output.get("operator_execution_digest") or ""
+            ),
+            "operator_adapter_id": str(output.get("operator_adapter_id") or ""),
+            "operator_execution_body": _mapping(
+                output.get("operator_execution_body")
+            ),
+            "contract_outputs": _mapping(output.get("contract_outputs")),
+            "domain_artifact": _mapping(output.get("domain_artifact")),
+            "output_contract_fulfilled": (
+                output.get("output_contract_fulfilled") is True
+            ),
+            "domain_effect_performed": (
+                output.get("domain_effect_performed") is True
+            ),
+            "leased_worker_process_identity": str(
+                _mapping(task.payload.get("physical_worker_binding")).get(
+                    "process_identity"
+                )
+                or ""
+            ),
+            "leased_worker_endpoint": str(
+                _mapping(task.payload.get("physical_worker_binding")).get(
+                    "endpoint"
+                )
+                or ""
+            ),
+            "leased_worker_node_id": str(
+                _mapping(task.payload.get("physical_worker_binding")).get(
+                    "node_id"
+                )
+                or ""
+            ),
+            "leased_worker_generation_id": str(
+                _mapping(task.payload.get("physical_worker_binding")).get(
+                    "generation_id"
+                )
+                or ""
+            ),
         }
         runtime_evidence = {
             "health_status": health.get("status"),
@@ -460,7 +508,104 @@ class PhysicalDispatchReceiptValidator:
                 and bool(identity.get("generation_id"))
             ),
             "runtime_health_ready": runtime.get("health_status") == "ready",
+            "workload_operation_present": bool(
+                receipt.input_signals.get("workload_operation")
+            ),
+            "task_payload_bound": bool(
+                receipt.input_signals.get("task_payload_digest")
+                and receipt.input_signals.get("task_payload_digest")
+                == privacy.get("payload_digest")
+            ),
         }
+        if (
+            receipt.input_signals.get("workload_operation")
+            == "phase2-operator-execution"
+        ):
+            execution_body = _mapping(
+                receipt.input_signals.get("operator_execution_body")
+            )
+            contract_outputs = _mapping(
+                receipt.input_signals.get("contract_outputs")
+            )
+            domain_artifact = _mapping(
+                receipt.input_signals.get("domain_artifact")
+            )
+            execution_digest = str(
+                receipt.input_signals.get("operator_execution_digest") or ""
+            ).removeprefix("sha256:")
+            contract_digest = str(
+                execution_body.get("contract_outputs_digest") or ""
+            ).removeprefix("sha256:")
+            artifact_digest = str(
+                domain_artifact.get("content_digest") or ""
+            ).removeprefix("sha256:")
+            checks.update(
+                {
+                    "operator_ref_bound": bool(
+                        receipt.input_signals.get("operator_ref")
+                    ),
+                    "operator_layer_bound": (
+                        int(receipt.input_signals.get("layer_index") or 0) > 0
+                    ),
+                    "operator_execution_digest_valid": bool(
+                        execution_body
+                        and execution_digest == canonical_digest(execution_body)
+                    ),
+                    "operator_adapter_bound": bool(
+                        receipt.input_signals.get("operator_adapter_id")
+                        and receipt.input_signals.get("operator_adapter_id")
+                        == execution_body.get("operator_adapter_id")
+                    ),
+                    "operator_contract_outputs_valid": bool(
+                        contract_outputs
+                        and contract_digest == canonical_digest(contract_outputs)
+                        and sorted(execution_body.get("output_contract") or ())
+                        == sorted(
+                            execution_body.get("fulfilled_output_contract") or ()
+                        )
+                        == sorted(contract_outputs)
+                    ),
+                    "operator_domain_artifact_valid": bool(
+                        domain_artifact.get("content")
+                        and artifact_digest
+                        == canonical_digest(domain_artifact.get("content"))
+                        and str(execution_body.get("domain_artifact_digest") or "")
+                        .removeprefix("sha256:")
+                        == artifact_digest
+                    ),
+                    "operator_domain_effect_performed": (
+                        receipt.input_signals.get("domain_effect_performed") is True
+                        and receipt.input_signals.get(
+                            "output_contract_fulfilled"
+                        )
+                        is True
+                    ),
+                    "leased_process_identity_exact": bool(
+                        receipt.input_signals.get(
+                            "leased_worker_process_identity"
+                        )
+                        and receipt.input_signals.get(
+                            "leased_worker_process_identity"
+                        )
+                        == identity.get("failure_boundary_id")
+                        == runtime.get("failure_boundary_id")
+                    ),
+                    "leased_endpoint_exact": bool(
+                        receipt.input_signals.get("leased_worker_endpoint")
+                        and receipt.input_signals.get("leased_worker_endpoint")
+                        == identity.get("endpoint")
+                        == runtime.get("network_endpoint")
+                    ),
+                    "leased_node_generation_exact": bool(
+                        receipt.input_signals.get("leased_worker_node_id")
+                        == identity.get("node_id")
+                        and receipt.input_signals.get(
+                            "leased_worker_generation_id"
+                        )
+                        == identity.get("generation_id")
+                    ),
+                }
+            )
         if receipt.privacy_class in {"restricted", "local-only"}:
             checks["sensitive_local_only"] = (
                 receipt.allowed_placements == ("local",) and location == "local"
@@ -638,6 +783,7 @@ class PhysicalDispatchCallPort:
                 "profiles": catalog.profile_digest,
                 "privacy_class": task.privacy_class,
                 "allowed_placements": list(task.allowed_placements),
+                "operation": task.operation,
                 "provider_id": task.provider_id,
                 "model_id": task.model_id,
                 "condition": task.condition,
@@ -717,6 +863,43 @@ class PhysicalDispatchCallPort:
                 self.catalog.policy(profile)
             )
             health = dict(health)
+            semantic = dict(client.semantic_readiness())
+            operations = tuple(
+                str(item) for item in semantic.get("operations") or ()
+            )
+            runtime_current = (
+                self.task.operation != "phase2-operator-execution"
+                or semantic.get("runtime_implementation_version")
+                == PHASE2_OPERATOR_RUNTIME_VERSION
+            )
+            if self.task.operation not in operations or not runtime_current:
+                # A managed node may predate the active release.  Restart that
+                # exact profile once so the operation catalog is loaded from
+                # the current immutable source before any side effect begins.
+                process, client, health = self.process_manager.start_node(
+                    self.catalog.policy(profile),
+                    restart=True,
+                )
+                health = dict(health)
+                semantic = dict(client.semantic_readiness())
+                operations = tuple(
+                    str(item) for item in semantic.get("operations") or ()
+                )
+                runtime_current = (
+                    self.task.operation != "phase2-operator-execution"
+                    or semantic.get("runtime_implementation_version")
+                    == PHASE2_OPERATOR_RUNTIME_VERSION
+                )
+            if self.task.operation not in operations or not runtime_current:
+                raise OperatorPlacementError(
+                    "physical_dispatch_operation_unavailable",
+                    "the selected deployment node does not expose the requested operator operation",
+                    retryable=True,
+                    metadata={
+                        "operation": self.task.operation,
+                        "side_effect_started": False,
+                    },
+                )
             blockers = tuple(str(item) for item in health.get("blockers") or ())
             if blockers:
                 raise OperatorPlacementError(
@@ -770,12 +953,8 @@ class PhysicalDispatchCallPort:
             workload_id=f"physical-workload:{context.operator_idempotency_key}:{location}",
             task_id=self.task.task_id,
             run_id=self.task.run_id,
-            operation="physical-dispatch-proof",
-            payload={
-                **dict(self.task.payload),
-                "provider": self.task.provider_id,
-                "model": self.task.model_id,
-            },
+            operation=self.task.operation,
+            payload=thaw_json(self.task.payload),
             sensitivity=sensitivity,
             complexity=1,
             latency_sla_ms=self.task.latency_sla_ms,
@@ -917,10 +1096,20 @@ class PhysicalDispatchCallPort:
                 metadata={
                     "side_effect_started": not retry_safe,
                     "physical_attempt_id": failure.physical_attempt_id,
+                    "node_error": dict(dispatch.result),
                 },
             )
         output = _mapping(dispatch.result.get("output"))
-        marker_verified = output.get("marker_verified") is True
+        if self.task.operation == "phase2-operator-execution":
+            marker_verified = bool(
+                output.get("domain_effect_performed") is True
+                and output.get("output_contract_fulfilled") is True
+                and output.get("operator_execution_body")
+                and output.get("operator_execution_digest")
+                and output.get("domain_artifact")
+            )
+        else:
+            marker_verified = output.get("marker_verified") is True
         if not marker_verified:
             raise OperatorPlacementError(
                 "physical_dispatch_verifier_failed",
@@ -938,6 +1127,13 @@ class PhysicalDispatchCallPort:
             "verification_marker_digest": output.get(
                 "verification_marker_digest"
             ),
+            "operator_execution_digest": output.get(
+                "operator_execution_digest"
+            ),
+            "operator_adapter_id": output.get("operator_adapter_id"),
+            "domain_artifact_digest": _mapping(
+                output.get("domain_artifact")
+            ).get("content_digest"),
             "passed": marker_verified,
             "verified_at": dispatch.completed_at,
         }
@@ -999,6 +1195,14 @@ class PhysicalDispatchCallPort:
                     "provider_request_id": provider.get("request_id", ""),
                     "simulated": False,
                     "semantic_only": False,
+                    "workload_operation": self.task.operation,
+                    "task_payload_digest": output.get(
+                        "task_payload_digest", ""
+                    ),
+                    "operator_execution_digest": output.get(
+                        "operator_execution_digest", ""
+                    ),
+                    "execution_output": output,
                 }
             ),
         )

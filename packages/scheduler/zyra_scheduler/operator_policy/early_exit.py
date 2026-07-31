@@ -1516,11 +1516,13 @@ class CanonicalExitSnapshotBuilder:
         artifact_store: Any,
         permission_queue: Any,
         side_effect_store: Any,
+        final_verifier_owner: Any | None = None,
     ) -> None:
         self.config = config
         self.artifact_store = artifact_store
         self.permission_queue = permission_queue
         self.side_effect_store = side_effect_store
+        self.final_verifier_owner = final_verifier_owner
 
     def capture(
         self,
@@ -1558,16 +1560,28 @@ class CanonicalExitSnapshotBuilder:
             )
         expected_obligations = _strings(policy_input.unresolved_obligations)
         observed_obligations = _task_obligation_scope(task)
-        task_complete = task.status is PlanNodeStatus.COMPLETED and all(
-            item.status
+        cancelled_obligations = _strings(
+            obligation
+            for item in task.plan_nodes.values()
+            if item.status
             in {
-                PlanNodeStatus.COMPLETED,
                 PlanNodeStatus.CANCELLED,
                 PlanNodeStatus.SUPERSEDED,
             }
+            for obligation in (
+                *item.constraints.requirements,
+                *item.completion_criteria,
+            )
+        )
+        task_complete = task.status is PlanNodeStatus.COMPLETED and all(
+            item.status is PlanNodeStatus.COMPLETED
             for item in task.plan_nodes.values()
         )
-        unresolved = () if task_complete else expected_obligations
+        unresolved = (
+            ()
+            if task_complete
+            else _strings((*expected_obligations, *cancelled_obligations))
+        )
         obligation_projection = {
             "run_id": task.run_id,
             "task_id": task.task_id,
@@ -1615,6 +1629,7 @@ class CanonicalExitSnapshotBuilder:
             requirement_revision=policy_input.requirement_revision,
             expected_obligation_ids=expected_obligations,
             verified_artifact_refs=verified_refs,
+            verifier_owner=self.final_verifier_owner,
         )
         continuity_obligations = thaw_json(continuity_receipt.obligation_results)
         consumed_ids = set(continuity_obligations.get("consumed_ids") or ())
@@ -1932,6 +1947,7 @@ def _final_verifier_projection(
     requirement_revision: str,
     expected_obligation_ids: Iterable[str],
     verified_artifact_refs: Sequence[StableArtifactRef],
+    verifier_owner: Any | None,
 ) -> tuple[str, str, bool, str]:
     selected = next(
         (
@@ -1970,6 +1986,35 @@ def _final_verifier_projection(
         )
     except (TypeError, ValueError):
         artifact_refs = ()
+    verifier_ref = str(payload.get("verifier_receipt_ref") or "")
+    owner_payload: Mapping[str, Any] | None = None
+    if verifier_owner is not None and verifier_ref:
+        for method_name in (
+            "resolve_final_verifier_receipt",
+            "get_receipt",
+            "resolve",
+        ):
+            method = getattr(verifier_owner, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                resolved = method(verifier_ref)
+            except Exception:  # noqa: BLE001 - owner uncertainty forbids exit.
+                resolved = None
+            if isinstance(resolved, Mapping):
+                owner_payload = resolved
+            break
+    owner_matches = False
+    if owner_payload is not None:
+        canonical_owner_payload = dict(owner_payload)
+        owner_supplied = str(
+            canonical_owner_payload.pop("receipt_digest", "")
+        )
+        owner_matches = bool(
+            owner_supplied == canonical_digest(canonical_owner_payload)
+            and owner_supplied == supplied
+            and canonical_owner_payload == payload
+        )
     valid = bool(
         payload.get("run_id") == task.run_id
         and payload.get("task_id") == task.task_id
@@ -1981,11 +2026,12 @@ def _final_verifier_projection(
         and payload.get("input_digest") == expected_input
         and payload.get("passed") is True
         and payload.get("verifier_version")
-        and payload.get("verifier_receipt_ref")
+        and verifier_ref
         and payload.get("fresh_until")
+        and owner_matches
     )
     return (
-        str(payload.get("verifier_receipt_ref") or f"task-decision://{selected.decision_id}"),
+        verifier_ref or f"task-decision://{selected.decision_id}",
         supplied,
         valid,
         str(payload.get("fresh_until") or ""),

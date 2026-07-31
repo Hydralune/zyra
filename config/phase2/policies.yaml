@@ -89,35 +89,35 @@
           "stage": "activation_ready",
           "status": "deterministic_ready",
           "report_ref": "docs/release/phase2/activation-readiness.json",
-          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "arg_designer",
           "stage": "activation_ready",
           "status": "deterministic_ready",
           "report_ref": "docs/release/phase2/activation-readiness.json",
-          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "card",
           "stage": "activation_ready",
           "status": "deterministic_ready",
           "report_ref": "docs/release/phase2/activation-readiness.json",
-          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "agentprune",
           "stage": "activation_ready",
           "status": "deterministic_ready",
           "report_ref": "docs/release/phase2/activation-readiness.json",
-          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "maas",
           "stage": "activation_ready",
           "status": "deterministic_ready",
           "report_ref": "docs/release/phase2/activation-readiness.json",
-          "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         }
       ],
       "rollback_family": "topology_policy",
@@ -226,5 +226,5 @@
       "audit_gate_ids": []
     }
   ],
-  "registry_digest": "054b4335ed7e0a18d60e13fbb6f3d476bab159826122ae5ab879659130094f13"
+  "registry_digest": "7defec9aa3159c653aea37dd0363fa5d877ce0309e033435368425276c823740"
 }

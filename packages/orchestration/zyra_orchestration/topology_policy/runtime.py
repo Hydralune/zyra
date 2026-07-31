@@ -1301,6 +1301,9 @@ class TopologyComposerRuntime:
                 snapshots[1:],
                 strict=False,
             )
+            if str(selected.metadata.get("last_branch_id") or "").startswith(
+                "policy:"
+            )
         )
         history = list(
             {

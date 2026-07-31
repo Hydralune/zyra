@@ -1,0 +1,1077 @@
+from __future__ import annotations
+
+from dataclasses import replace
+
+import pytest
+
+from apps.api.zyra_api import main as api
+from zyra_core import EventType
+from zyra_orchestration import ensure_default_graph, run_task_graph
+from zyra_orchestration.topology_policy.contracts import (
+    FrozenDict,
+    canonical_digest,
+)
+from zyra_symbolic import TopologyRouter
+from zyra_scheduler import OperatorLayerProposal
+
+
+def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None:
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"production-main:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    events = run_task_graph(state, execution_context=context)
+    route_events = [
+        item
+        for item in events
+        if item.event_type is EventType.TOPOLOGY_ROUTE
+        and "used_baseline" in (item.payload.get("topology_policy") or {})
+    ]
+    assert route_events, [
+        {
+            "type": str(item.event_type),
+            "keys": sorted(item.payload),
+            "schema": item.payload.get("schema"),
+            "status": item.payload.get("status"),
+            "message": item.payload.get("message"),
+            "policy_keys": sorted(
+                (item.payload.get("topology_policy") or {}).keys()
+            ),
+        }
+        for item in events
+        if str(item.event_type) in {"topology_route", "system_notice"}
+    ]
+    event = route_events[-1]
+    decision = [
+        item
+        for item in state.decisions
+        if item.decision_type == "worker_route"
+    ][-1]
+
+    policy = event.payload["topology_policy"]
+    assert "physical_placement" in policy, {
+        "topology_error": state.metadata.get("topology_policy_error"),
+        "candidate_types": [
+            item.get("edge_type")
+            for item in policy.get("communication_candidate_edges") or ()
+        ],
+        "outcome_types": [
+            item.get("edge_type")
+            for item in api._phase2_communication_outcomes(state)
+        ],
+        "scheduler_error": state.metadata.get("resource_scheduler_error"),
+        "policy": policy,
+        "degraded_reason": policy.get("execution_receipt", {}).get(
+            "degraded_reason"
+        ),
+        "topology_degraded_reason": policy.get("topology_result", {}).get(
+            "degraded_reason"
+        ),
+    }
+    binding = policy["physical_placement"]
+    assert route_events[0].payload["topology_policy"]["used_baseline"] is True
+    assert route_events[0].payload["topology_policy"]["reroute_required"] is True
+    assert policy["used_baseline"] is False, repr(
+        {
+            "degraded_reason": policy.get("degraded_reason"),
+            "execution_degraded_reason": (
+                policy.get("execution_receipt") or {}
+            ).get("degraded_reason"),
+            "topology_degraded_reason": (
+                policy.get("topology_result") or {}
+            ).get("degraded_reason"),
+            "topology_result": policy.get("topology_result"),
+            "outcome_count": policy.get("communication_outcome_count"),
+            "topology_error": state.metadata.get("topology_policy_error"),
+            "candidate_types": [
+                item.get("edge_type")
+                for item in policy.get("communication_candidate_edges") or ()
+            ],
+            "outcome_types": [
+                item.get("edge_type")
+                for item in api._phase2_communication_outcomes(state)
+            ],
+            "graph_metadata": dict(
+                api.get_worker_pool_api().graph_custody.current(
+                    str(state.metadata.get("dynamic_graph_id"))
+                ).metadata
+            ),
+        }
+    )
+    assert policy["committed"] is True
+    prior_outcomes = api._phase2_communication_outcomes(state)
+    current_policy_source = policy["topology_result"]["scheduler_causal_refs"][0]
+    current_policy_created_at = policy["topology_result"]["decision_receipt"][
+        "created_at"
+    ]
+    assert prior_outcomes
+    assert all(
+        item["window_id"] != f"topology-route:{current_policy_source}"
+        and item["completed_at"] < current_policy_created_at
+        for item in prior_outcomes
+    )
+    assert policy["operator_selection"]["mode"] == "default", {
+        "degraded": policy["operator_selection"].get("degraded"),
+        "degraded_reason": policy["operator_selection"].get(
+            "degraded_reason"
+        ),
+        "readiness": policy["operator_selection"].get("readiness"),
+    }
+    assert policy["operator_candidate_set"]["candidate_set_digest"]
+    assert decision.metadata["operator_candidate_contract_consumed"] == "true"
+    assert decision.metadata["physical_lease_ref"] == binding["lease_id"]
+    assert binding["resource_decision_id"] == (
+        event.payload["resource_decision"]["decision_id"]
+    )
+    assert binding["topology_commit_id"]
+    assert binding["physical_binding_commit_id"]
+    assert binding["topology_commit_id"] != binding[
+        "physical_binding_commit_id"
+    ]
+    assert binding["causation_order"] == [
+        "operator_candidate_set",
+        "resource_decision",
+        "worker_lease",
+        "physical_attempt",
+    ]
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        binding["lease_id"]
+    )
+    assert lease.task_id == state.task_id
+    assert lease.run_id == state.run_id
+    assert lease.terminal is True, [
+        {
+            "type": str(item.event_type),
+            "error": item.payload.get("error"),
+            "message": item.payload.get("message"),
+            "error_code": item.payload.get("error_code"),
+            "node_details": (
+                (item.payload.get("error_metadata") or {})
+                .get("node_error", {})
+                .get("details", {})
+            ),
+        }
+        for item in events
+        if item.event_type in {EventType.SYSTEM_NOTICE, EventType.NODE_FAILED}
+    ]
+    assert "worker_pool_receipt" in state.metadata, repr([
+        {
+            "type": str(item.event_type),
+            "error": item.payload.get("error"),
+            "error_code": item.payload.get("error_code"),
+            "failed_execution_checks": (
+                item.payload.get("error_metadata") or {}
+            ).get("failed_execution_checks"),
+            "failure_outcome": (
+                (item.payload.get("error_metadata") or {}).get(
+                    "physical_execution_failure_receipt"
+                )
+                or {}
+            ).get("outcome"),
+            "physical_dispatch_error": (
+                item.payload.get("error_metadata") or {}
+            ).get("physical_dispatch_error"),
+        }
+        for item in events
+        if item.event_type in {EventType.SYSTEM_NOTICE, EventType.NODE_FAILED}
+    ])
+    physical_receipt = state.metadata["worker_pool_receipt"]
+    assert physical_receipt["outcome"] == "succeeded"
+    assert physical_receipt["receipt_id"]
+    dispatch_receipt = physical_receipt["physical_dispatch_receipt"]
+    dispatch_validation = physical_receipt["physical_dispatch_validation"]
+    dispatch_payload = dispatch_receipt["payload"]
+    dispatch_signals = dispatch_payload["input_signals"]
+    assert dispatch_receipt["schema_version"] == (
+        "zyra.physical-dispatch-receipt/v2"
+    )
+    assert dispatch_receipt["payload"]["simulated"] is False
+    assert dispatch_receipt["payload"]["semantic_only"] is False
+    assert dispatch_receipt["payload"]["physical_identity"]["location"] == "local"
+    assert dispatch_signals["workload_operation"] == "phase2-operator-execution"
+    assert dispatch_signals["operator_ref"]
+    assert dispatch_signals["layer_index"] == 1
+    assert dispatch_payload["placement_decision_id"] == binding[
+        "resource_decision_id"
+    ]
+    assert dispatch_payload["lease_id"] == binding["lease_id"]
+    assert dispatch_payload["physical_attempt_id"] == binding["attempt_id"]
+    assert dispatch_signals["worker_id"] == binding["worker_id"]
+    assert dispatch_signals["leased_worker_process_identity"] == (
+        binding["worker_process_identity"]
+    )
+    assert dispatch_payload["physical_identity"]["failure_boundary_id"] == (
+        binding["worker_process_identity"]
+    )
+    assert dispatch_signals["domain_effect_performed"] is True
+    assert dispatch_signals["output_contract_fulfilled"] is True
+    assert dispatch_signals["operator_adapter_id"] == (
+        "worker.local-code-worker.code-delivery"
+    )
+    execution_body = dispatch_signals["operator_execution_body"]
+    assert sorted(execution_body["output_contract"]) == sorted(
+        dispatch_signals["contract_outputs"]
+    )
+    assert str(dispatch_signals["operator_execution_digest"]).removeprefix(
+        "sha256:"
+    ) == canonical_digest(execution_body)
+    assert physical_receipt["metadata"][
+        "physical_dispatch_receipt_digest"
+    ] == dispatch_receipt["digest"]
+    assert dispatch_validation["real_gate_closed"] is True
+    assert not dispatch_validation["blockers"]
+    assert str(state.status) == "completed", {
+        "nodes": {
+            item.metadata.get("stage"): {
+                "status": str(item.status),
+                "error": item.metadata.get("worker_error"),
+                "summary": item.metadata.get("result_summary"),
+            }
+            for item in state.plan_nodes.values()
+        }
+    }
+    assert state.artifacts
+    assert state.artifacts[0].kind.value == "code"
+    assert state.artifacts[0].metadata["domain_result_kind"] == "code_delivery"
+    assert state.artifacts[0].metadata[
+        "operator_output_contract_fulfilled"
+    ] is True
+    assert all(
+        item.metadata.get("physical_call_ref")
+        and item.metadata.get("physical_receipt_digest")
+        == dispatch_receipt["digest"]
+        and "execution-summary.md" not in item.uri
+        for item in state.artifacts
+    )
+    physical_operator_events = [
+        item
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-physical-operator-executed/v1"
+    ]
+    assert len(physical_operator_events) == 1
+    assert physical_operator_events[0].payload["operator_ref"] == (
+        dispatch_signals["operator_ref"]
+    )
+    layers = state.metadata["phase2_operator_execution_layers"]
+    assert len(layers) == 1
+    assert layers[0]["operator_ref"] == dispatch_signals["operator_ref"]
+    assert layers[0]["operator_adapter_id"] == dispatch_signals[
+        "operator_adapter_id"
+    ]
+    assert layers[0]["domain_result_kind"] == "code_delivery"
+    assert layers[0]["physical_dispatch_receipt_digest"] == (
+        dispatch_receipt["digest"]
+    )
+    assert any(
+        item.payload.get("schema")
+        == "zyra.production-execution-placement-gate/v1"
+        for item in events
+    )
+    completion_gate = next(
+        item.payload
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-adaptive-depth-completion-gate/v1"
+    )
+    assert completion_gate["failed_conditions"] == [
+        "confidence_and_cost_benefit"
+    ]
+    assert completion_gate["decision"] == "continue"
+    assert completion_gate["remaining_operator_count"] == 0
+    assert completion_gate["early_exit_enabled"] is True
+    assert completion_gate["final_verifier_receipt_ref"].startswith(
+        "final-verifier://"
+    )
+    assert completion_gate["physical_execution_receipt_ref"] == (
+        physical_receipt["receipt_id"]
+    )
+    assert any(
+        item.decision_type == "operator_execution"
+        for item in state.decisions
+    )
+    assert any(
+        item.decision_type == "final_verifier"
+        for item in state.decisions
+    )
+    outcomes = api._phase2_communication_outcomes(state)
+    assert outcomes
+    assert all(item["delivered"] is True for item in outcomes)
+    assert all(not item["utilized_evidence_refs"] for item in outcomes)
+    assert all(item["verifier_result"] == "not_run" for item in outcomes)
+
+
+def test_api_composition_root_missing_outcome_mutation_is_explicit_baseline() -> None:
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    route_node = next(
+        item
+        for item in state.plan_nodes.values()
+        if item.metadata.get("stage") == "route"
+    )
+
+    _, event = TopologyRouter(
+        resource_scheduler=context.resource_scheduler,
+        topology_policy_trigger=bridge,
+    ).route(state, node=route_node, cause_event=created)
+
+    policy = event.payload["topology_policy"]
+    assert policy["used_baseline"] is True
+    assert policy["committed"] is False
+    assert policy["operator_candidate_set"] is None
+    assert policy["physical_placement"]["candidate_set_digest"] == ""
+
+
+def test_scheduler_failure_after_maas_candidate_set_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+
+    def fail_scheduler(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise RuntimeError("controlled scheduler outage")
+
+    monkeypatch.setattr(context.resource_scheduler, "decide", fail_scheduler)
+    with pytest.raises(
+        RuntimeError,
+        match="ResourceScheduler failed after a MaAS candidate set",
+    ):
+        run_task_graph(state, execution_context=context)
+
+    assert "operator_placement_binding" not in state.metadata
+    assert not state.metadata.get("worker_pool")
+
+
+def test_acquired_fallback_worker_cannot_impersonate_scheduler_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    pool_api = api.get_worker_pool_api()
+    original_acquire = pool_api.acquire_for_task
+
+    def return_mismatched_worker(*args: object, **kwargs: object) -> object:
+        acquisition = original_acquire(*args, **kwargs)
+        return replace(
+            acquisition,
+            worker=replace(
+                acquisition.worker,
+                worker_id="controlled-fallback-worker",
+            ),
+        )
+
+    monkeypatch.setattr(pool_api, "acquire_for_task", return_mismatched_worker)
+    with pytest.raises(
+        RuntimeError,
+        match="acquired lease does not exactly match",
+    ):
+        run_task_graph(state, execution_context=context)
+
+    projection = state.metadata["worker_pool"]
+    rejected_lease = pool_api.pool.store.require_lease(projection["lease_id"])
+    assert rejected_lease.terminal is True
+    assert "operator_placement_binding" not in state.metadata
+    assert not state.metadata.get("physical_dispatch_receipts")
+
+
+def test_physical_execution_rejects_tampered_attempt_worker_backend_binding() -> None:
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"production-binding-mutation:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    original_runner = context.physical_execution_runner
+    assert original_runner is not None
+
+    def tampered_runner(task, node):
+        binding = dict(task.metadata["operator_placement_binding"])
+        binding.update(
+            {
+                "attempt_id": "attempt-controlled-tamper",
+                "worker_id": "worker-controlled-tamper",
+                "backend_id": "backend-controlled-tamper",
+            }
+        )
+        unsigned = dict(binding)
+        unsigned.pop("binding_digest", None)
+        binding["binding_digest"] = canonical_digest(unsigned)
+        task.metadata["operator_placement_binding"] = binding
+        return original_runner(task, node)
+
+    events = run_task_graph(
+        state,
+        execution_context=replace(
+            context,
+            physical_execution_runner=tampered_runner,
+        ),
+    )
+    failure = next(
+        item.payload
+        for item in events
+        if item.payload.get("summary")
+        == "Worker runtime raised an exception."
+    )
+    assert failure["error_code"] == "phase2_physical_placement_rejected"
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] == "rejected"
+    assert failure_receipt["side_effect_started"] is False
+    assert failure_receipt["terminal"] is True
+    assert not state.metadata.get("physical_dispatch_receipts")
+
+    lease_id = state.metadata["worker_pool"]["lease_id"]
+    lease = api.get_worker_pool_api().pool.store.require_lease(lease_id)
+    assert lease.terminal is True
+
+
+def test_physical_preflight_failure_closes_started_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+
+    class RejectingPreflightPort:
+        receipts: list[object] = []
+        validation_reports: list[object] = []
+
+        def prepare(self, execution_context: object) -> None:
+            del execution_context
+            raise RuntimeError("controlled physical preflight rejection")
+
+    monkeypatch.setattr(
+        bridge,
+        "physical_dispatch_factory",
+        lambda *args, **kwargs: RejectingPreflightPort(),
+    )
+    events = run_task_graph(state, execution_context=context)
+
+    failures = [
+        item.payload
+        for item in events
+        if item.payload.get("error_code")
+    ]
+    assert failures, [
+        {
+            "type": str(item.event_type),
+            "schema": item.payload.get("schema"),
+            "summary": item.payload.get("summary"),
+            "message": item.payload.get("message"),
+        }
+        for item in events
+    ]
+    failure = failures[-1]
+    assert failure["error_code"] == "phase2_physical_operator_preflight_failed"
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] == "rejected"
+    assert failure_receipt["metadata"]["side_effect_started"] is False
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        state.metadata["worker_pool"]["lease_id"]
+    )
+    attempt = api.get_worker_pool_api().pool.store.require_attempt(
+        state.metadata["worker_pool"]["attempt_id"]
+    )
+    assert lease.terminal is True
+    assert attempt.terminal is True
+    assert not state.artifacts
+
+
+def test_disabled_physical_operator_adapter_fails_closed_with_terminal_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_DISABLE_PHASE2_OPERATOR_ADAPTER", "1")
+    state, _ = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+
+    failures = [
+        item.payload for item in events if item.payload.get("error_code")
+    ]
+    assert failures, [
+        {
+            "type": str(item.event_type),
+            "schema": item.payload.get("schema"),
+            "summary": item.payload.get("summary"),
+            "message": item.payload.get("message"),
+        }
+        for item in events
+    ]
+    failure = failures[-1]
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] in {"failed", "rejected"}
+    assert failure_receipt["metadata"][
+        "automatic_execution_retry_allowed"
+    ] is (failure_receipt["outcome"] == "rejected")
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        state.metadata["worker_pool"]["lease_id"]
+    )
+    attempt = api.get_worker_pool_api().pool.store.require_attempt(
+        state.metadata["worker_pool"]["attempt_id"]
+    )
+    assert lease.terminal is True
+    assert attempt.terminal is True
+    assert not state.artifacts
+
+
+@pytest.mark.parametrize(
+    ("mutation", "failed_check"),
+    (
+        ("payload_digest", "payload_digest_exact"),
+        ("execution_digest", "execution_digest_valid"),
+        ("contract_outputs", "contract_outputs_valid"),
+        ("domain_artifact", "domain_artifact_valid"),
+    ),
+)
+def test_tampered_operator_output_fails_closed_after_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    failed_check: str,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    original_factory = bridge.physical_dispatch_factory
+
+    class TamperingPort:
+        def __init__(self, delegate: object) -> None:
+            self.delegate = delegate
+
+        @property
+        def receipts(self) -> tuple[object, ...]:
+            return self.delegate.receipts
+
+        @property
+        def validation_reports(self) -> tuple[object, ...]:
+            return self.delegate.validation_reports
+
+        def prepare(self, execution_context: object) -> None:
+            self.delegate.prepare(execution_context)
+
+        def execute(self, execution_context: object) -> object:
+            result = self.delegate.execute(execution_context)
+            metadata = dict(result.metadata)
+            execution_output = dict(metadata["execution_output"])
+            if mutation == "payload_digest":
+                execution_output["task_payload_digest"] = "0" * 64
+            elif mutation == "execution_digest":
+                execution_output["operator_execution_digest"] = (
+                    "sha256:" + ("0" * 64)
+                )
+            elif mutation == "contract_outputs":
+                contract_outputs = dict(execution_output["contract_outputs"])
+                first_key = sorted(contract_outputs)[0]
+                contract_outputs[first_key] = {"tampered": True}
+                execution_output["contract_outputs"] = contract_outputs
+            elif mutation == "domain_artifact":
+                domain_artifact = dict(execution_output["domain_artifact"])
+                domain_artifact["content"] = (
+                    str(domain_artifact["content"]) + "\n# tampered"
+                )
+                execution_output["domain_artifact"] = domain_artifact
+            else:  # pragma: no cover - parametrization is closed above.
+                raise AssertionError(mutation)
+            metadata["execution_output"] = execution_output
+            return replace(result, metadata=FrozenDict(metadata))
+
+    monkeypatch.setattr(
+        bridge,
+        "physical_dispatch_factory",
+        lambda *args, **kwargs: TamperingPort(
+            original_factory(*args, **kwargs)
+        ),
+    )
+    events = run_task_graph(state, execution_context=context)
+
+    failures = [
+        item.payload for item in events if item.payload.get("error_code")
+    ]
+    assert failures
+    failure = failures[-1]
+    assert (
+        failure["error_code"]
+        == "phase2_physical_operator_output_binding_failed"
+    )
+    assert failed_check in failure["error_metadata"][
+        "failed_execution_checks"
+    ]
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] == "failed"
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        state.metadata["worker_pool"]["lease_id"]
+    )
+    attempt = api.get_worker_pool_api().pool.store.require_attempt(
+        state.metadata["worker_pool"]["attempt_id"]
+    )
+    assert lease.terminal is True
+    assert attempt.terminal is True
+    assert not state.artifacts
+
+
+def test_production_early_exit_disable_is_visible_and_deterministic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_DISABLE_PHASE2_EARLY_EXIT", "1")
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"production-main-disabled:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+    gate = next((
+        item.payload
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-adaptive-depth-completion-gate/v1"
+    ), None)
+    assert gate is not None, {
+        "status": str(state.status),
+        "nodes": {
+            item.metadata.get("stage"): {
+                "status": str(item.status),
+                "error": item.metadata.get("worker_error"),
+            }
+            for item in state.plan_nodes.values()
+        },
+        "schemas": [item.payload.get("schema") for item in events],
+        "diagnostics": [
+            dict(item.payload)
+            for item in events
+            if item.payload.get("schema")
+            in {
+                "zyra.production-independent-final-verifier/v2",
+                "zyra.production-completion-gate-error/v1",
+                "zyra.production-completion-gate-blocked/v1",
+            }
+        ],
+        "routes": [
+            {
+                "baseline": (item.payload.get("topology_policy") or {}).get("used_baseline"),
+                "reroute": (item.payload.get("topology_policy") or {}).get("reroute_required"),
+                "reason": ((item.payload.get("topology_policy") or {}).get("topology_result") or {}).get("degraded_reason"),
+                "candidates": len((item.payload.get("topology_policy") or {}).get("communication_candidate_edges") or ()),
+                "outcomes": (item.payload.get("topology_policy") or {}).get("communication_outcome_count"),
+            }
+            for item in events
+            if item.event_type is EventType.TOPOLOGY_ROUTE
+        ],
+        "nodes": {
+            item.metadata.get("stage"): {
+                "status": str(item.status),
+                "error": item.metadata.get("worker_error"),
+            }
+            for item in state.plan_nodes.values()
+        },
+    }
+
+    assert gate["early_exit_enabled"] is False
+    assert gate["decision"] == "continue"
+    assert "early_exit_enabled" in gate["failed_conditions"]
+    assert gate["remaining_operator_count"] == 0
+    assert str(state.status) == "completed", {
+        "gate": {
+            "failed": gate["failed_conditions"],
+            "hard": gate.get("hard_conditions_passed"),
+            "remaining": gate["remaining_operator_count"],
+        },
+        "verifiers": [
+            dict(item.payload)
+            for item in events
+            if item.payload.get("schema")
+            == "zyra.production-independent-final-verifier/v2"
+        ],
+    }
+
+
+def test_independent_final_verifier_failure_blocks_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"production-verifier-mutation:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    verifier_owner = context.final_verifier.__self__
+
+    def fail_artifact_verification(artifact: object) -> object:
+        del artifact
+        raise ValueError("controlled artifact digest mutation")
+
+    monkeypatch.setattr(
+        verifier_owner.artifact_store,
+        "verify",
+        fail_artifact_verification,
+    )
+    events = run_task_graph(state, execution_context=context)
+    verifier = next(
+        item.payload
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-independent-final-verifier/v2"
+    )
+    gate = next(
+        item.payload
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-adaptive-depth-completion-gate/v1"
+    )
+
+    assert verifier["passed"] is False
+    assert verifier["checks"]["artifact_owner_verified"] is False
+    assert "final_verifier_passed" in gate["failed_conditions"]
+    assert gate["hard_conditions_passed"] is False
+    assert str(state.status) == "blocked"
+
+
+def test_early_exit_disabled_executes_every_available_maas_layer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_DISABLE_PHASE2_EARLY_EXIT", "1")
+    api.get_worker_pool_api().ensure_default_local_worker(
+        worker_id="local-memory-curator"
+    )
+    state, created = api.make_task_created_event(
+        "Implement a code artifact, preserve memory, and verify the result."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"production-full-depth:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    original_execute = bridge.operator_policy.execute
+
+    def expose_second_executable_layer(*args: object, **kwargs: object) -> object:
+        result = original_execute(*args, **kwargs)
+        proposal = result.proposal
+        assert proposal is not None
+        candidates = proposal.candidates
+        assert len(candidates) >= 2
+        expanded = replace(
+            proposal,
+            layers=(
+                OperatorLayerProposal(
+                    layer_index=1,
+                    candidates=(candidates[0],),
+                    reason="controlled production first layer",
+                ),
+                OperatorLayerProposal(
+                    layer_index=2,
+                    candidates=(candidates[1],),
+                    reason="controlled production full-depth exposure",
+                ),
+            ),
+            alternatives=tuple(candidates[2:]),
+            expected_depth=2,
+            expected_breadth=1,
+        )
+        return replace(
+            result,
+            proposal=expanded,
+            scheduler_input=expanded.scheduler_input().bind_task(
+                run_id=kwargs["policy_input"].run_id,
+                task_id=kwargs["policy_input"].task_id,
+            ),
+        )
+
+    monkeypatch.setattr(
+        bridge.operator_policy,
+        "execute",
+        expose_second_executable_layer,
+    )
+    events = run_task_graph(
+        state,
+        execution_context=context,
+    )
+    gates = [
+        item.payload
+        for item in events
+        if item.payload.get("schema")
+        == "zyra.production-adaptive-depth-completion-gate/v1"
+    ]
+    execution_refs = [
+        tuple(item.metadata.get("operator_refs") or ())
+        for item in state.decisions
+        if item.decision_type == "operator_execution"
+    ]
+
+    assert len(gates) >= 2, {
+        "gates": [
+            {
+                "remaining": item["remaining_operator_count"],
+                "executed": item["executed_operator_refs"],
+                "failed": item["failed_conditions"],
+            }
+            for item in gates
+        ],
+        "status": str(state.status),
+        "execution_node": [
+            {
+                "status": str(item.status),
+                "error": item.metadata.get("worker_error"),
+                "summary": item.metadata.get("result_summary"),
+            }
+            for item in state.plan_nodes.values()
+            if item.metadata.get("stage") == "execute"
+        ],
+        "candidate_sets": [
+            (item.payload.get("topology_policy") or {}).get(
+                "operator_candidate_set"
+            )
+            for item in events
+            if item.event_type is EventType.TOPOLOGY_ROUTE
+        ],
+    }
+    assert gates[0]["remaining_operator_count"] >= 1
+    assert gates[-1]["remaining_operator_count"] == 0
+    assert all(item["decision"] == "continue" for item in gates)
+    assert all(item["early_exit_enabled"] is False for item in gates)
+    assert any(
+        item.payload.get("schema")
+        == "zyra.production-adaptive-depth-continuation/v1"
+        for item in events
+    )
+    flattened = [ref for group in execution_refs for ref in group]
+    assert len(flattened) >= 2
+    assert len(flattened) == len(set(flattened))
+    layers = state.metadata["phase2_operator_execution_layers"]
+    physical_receipts = state.metadata["physical_dispatch_receipts"]
+    assert len(layers) == len(physical_receipts) == len(flattened)
+    for layer, receipt in zip(layers, physical_receipts, strict=True):
+        payload = receipt["payload"]
+        signals = payload["input_signals"]
+        assert signals["workload_operation"] == "phase2-operator-execution"
+        assert signals["operator_ref"] == layer["operator_ref"]
+        assert signals["layer_index"] == layer["layer_index"]
+        assert payload["placement_decision_id"] == layer[
+            "resource_decision_id"
+        ]
+        assert payload["lease_id"] == layer["lease_id"]
+        assert payload["physical_attempt_id"] == layer["attempt_id"]
+        assert signals["worker_id"] == layer["worker_id"]
+        assert receipt["digest"] == layer[
+            "physical_dispatch_receipt_digest"
+        ]
+    for key in (
+        "operator_ref",
+        "operator_idempotency_key",
+        "resource_decision_id",
+        "lease_id",
+        "attempt_id",
+        "physical_call_ref",
+        "physical_dispatch_receipt_digest",
+        "physical_node_artifact_ref",
+        "worker_pool_receipt_id",
+        "layer_digest",
+        "operator_adapter_id",
+        "domain_result_kind",
+        "domain_output_digest",
+    ):
+        values = [item[key] for item in layers]
+        assert len(values) == len(set(values)), {key: values}
+    artifact_ids = [
+        artifact_id
+        for item in layers
+        for artifact_id in item["canonical_artifact_ids"]
+    ]
+    assert len(artifact_ids) == len(set(artifact_ids))
+    assert {item["operator_adapter_id"] for item in layers} == {
+        "worker.local-code-worker.code-delivery",
+        "worker.local-memory-curator.continuity",
+    }
+    assert {item["domain_result_kind"] for item in layers} == {
+        "code_delivery",
+        "memory_continuity",
+    }
+    memory_layer = next(
+        item for item in layers if item["domain_result_kind"] == "memory_continuity"
+    )
+    assert memory_layer["memory_record_ids"]
+    memory_receipt = memory_layer["memory_mutation_receipt"]
+    assert memory_receipt["owner"] == "MemoryFabric"
+    assert memory_receipt["committed"] is True
+    assert memory_receipt["readback_verified"] is True
+    assert memory_receipt["committed_record_ids"] == memory_layer[
+        "memory_record_ids"
+    ]
+    receipt_unsigned = dict(memory_receipt)
+    receipt_digest = receipt_unsigned.pop("receipt_digest")
+    assert receipt_digest == canonical_digest(receipt_unsigned)
+    assert all(item["output_contract_fulfilled"] is True for item in layers)
+    assert str(state.status) == "completed"
+
+
+def test_memory_owner_failure_precedes_success_finalization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api.get_worker_pool_api().ensure_default_local_worker(
+        worker_id="local-memory-curator"
+    )
+    state, _ = api.make_task_created_event(
+        "Preserve durable task memory and verify continuity."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    original_execute = bridge.operator_policy.execute
+
+    def select_memory_operator(*args: object, **kwargs: object) -> object:
+        result = original_execute(*args, **kwargs)
+        proposal = result.proposal
+        assert proposal is not None
+        memory_candidate = next(
+            item
+            for item in proposal.candidates
+            if item.operator_id == "worker:local-memory-curator"
+        )
+        expanded = replace(
+            proposal,
+            layers=(
+                OperatorLayerProposal(
+                    layer_index=1,
+                    candidates=(memory_candidate,),
+                    reason="controlled memory owner failure path",
+                ),
+            ),
+            alternatives=(),
+            expected_depth=1,
+            expected_breadth=1,
+        )
+        return replace(
+            result,
+            proposal=expanded,
+            scheduler_input=expanded.scheduler_input().bind_task(
+                run_id=kwargs["policy_input"].run_id,
+                task_id=kwargs["policy_input"].task_id,
+            ),
+        )
+
+    monkeypatch.setattr(
+        bridge.operator_policy,
+        "execute",
+        select_memory_operator,
+    )
+
+    def reject_memory_commit(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise RuntimeError("controlled MemoryFabric owner commit failure")
+
+    monkeypatch.setattr(
+        bridge.memory_fabric,
+        "refresh_task_memory",
+        reject_memory_commit,
+    )
+    events = run_task_graph(state, execution_context=context)
+
+    failures = [
+        item.payload
+        for item in events
+        if item.payload.get("error_code")
+    ]
+    failure = next(
+        (
+            item
+            for item in reversed(failures)
+            if item.get("error_code")
+            == "phase2_memory_owner_commit_failed"
+        ),
+        None,
+    )
+    assert failure is not None, repr([
+        {
+            "error_code": item.get("error_code"),
+            "error": item.get("error"),
+            "metadata": item.get("error_metadata"),
+        }
+        for item in failures
+    ])
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] == "failed"
+    binding = state.metadata["operator_placement_binding"]
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        binding["lease_id"]
+    )
+    attempt = api.get_worker_pool_api().pool.store.require_attempt(
+        binding["attempt_id"]
+    )
+    assert lease.terminal is True
+    assert attempt.terminal is True
+    assert not state.metadata.get("phase2_operator_execution_layers")
+    assert not state.metadata.get("worker_pool_receipt")
+    assert failure["error_metadata"]["reconcile_before_retry"] is True

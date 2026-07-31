@@ -83,7 +83,10 @@ class EnvironmentSnapshotBuilder:
             available = state in {"idle", "busy"} and health in {"healthy", "degraded"}
             healthy = health == "healthy"
             accepting = available and state in {"idle", "busy"}
-            capacity_vector = _mapping(telemetry.get("capacity"))
+            capacity_vector = _mapping(
+                telemetry.get("capacity")
+                or manifest.get("resource_capacity")
+            )
             allocated_vector = _mapping(telemetry.get("allocated"))
             capacity = max(
                 0.0,
@@ -101,7 +104,7 @@ class EnvironmentSnapshotBuilder:
                     or 0
                 ),
             )
-            if not telemetry:
+            if not telemetry and not capacity_vector:
                 missing_fields.append("telemetry")
             if not health_projection:
                 missing_fields.append("health")

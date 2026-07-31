@@ -492,6 +492,81 @@ class AdaptiveDepthRuntime:
             exited_early=exited,
         )
 
+    def evaluate_executed_prefix(
+        self,
+        *,
+        proposal: OperatorSelectionProposal,
+        execution_layers: Sequence[OperatorLayerProposal],
+        executed_receipts: Sequence[LayerExecutionReceipt],
+        eligibility_port: EligibilityCapturePort,
+        early_exit_enabled: bool = True,
+        evaluated_at: str | None = None,
+    ) -> tuple[ExitEligibilitySnapshot, ExitDecisionReceipt, EventRecord]:
+        """Evaluate a canonical prefix executed by an existing physical owner.
+
+        The production task graph owns the physical call, lease, artifacts and
+        task mutation.  This method admits those already-completed receipts at
+        the safe point without replaying a tool/provider side effect.  A
+        disabled gate or an incomplete hard condition therefore returns
+        ``CONTINUE`` and leaves the remaining scheduler plan unexecuted.
+        """
+
+        layers = tuple(execution_layers)
+        receipts = tuple(executed_receipts)
+        self._validate_execution_layers(proposal, layers)
+        if not receipts or len(receipts) > len(layers):
+            raise EarlyExitError(
+                "adaptive_depth_executed_prefix_invalid",
+                "executed prefix must contain one receipt per completed leading layer",
+            )
+        executed_refs: set[str] = set()
+        for layer, receipt in zip(layers, receipts, strict=False):
+            self._validate_layer_receipt(layer, receipt)
+            if executed_refs.intersection(receipt.operator_refs):
+                raise EarlyExitError(
+                    "adaptive_depth_operator_replayed",
+                    "operator execution repeated across the canonical prefix",
+                )
+            executed_refs.update(receipt.operator_refs)
+        all_candidates = tuple(
+            item for layer in layers for item in layer.candidates
+        )
+        remaining = tuple(
+            item
+            for item in all_candidates
+            if self._candidate_ref(item) not in executed_refs
+        )
+        minimum_operators, minimum_verification = self._minimum_operator_path(
+            layers
+        )
+        snapshot = eligibility_port.capture(
+            remaining_candidates=remaining,
+            minimum_operator_refs=minimum_operators,
+            minimum_verification_refs=minimum_verification,
+        )
+        if (
+            snapshot.proposal_id != proposal.proposal_id
+            or snapshot.proposal_digest != proposal.digest
+        ):
+            raise EarlyExitError(
+                "adaptive_depth_snapshot_proposal_mismatch",
+                "eligibility snapshot belongs to another operator proposal",
+            )
+        decision = self.gate.evaluate(
+            snapshot,
+            enabled=early_exit_enabled,
+            evaluated_at=evaluated_at,
+        )
+        event = self._decision_event(
+            proposal=proposal,
+            receipt=receipts[-1],
+            snapshot=snapshot,
+            decision=decision,
+            proposed_depth=len(layers),
+        )
+        self.admit_event(event)
+        return snapshot, decision, event
+
     @staticmethod
     def _candidate_ref(candidate: OperatorCandidate) -> str:
         return f"{candidate.operator_id}@{candidate.version}"

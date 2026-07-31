@@ -10,11 +10,12 @@ import threading
 import sys
 import time
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import parse_qs, urlparse
 
 from .typed_transport import (
@@ -226,11 +227,20 @@ from zyra_code_index import (
     CodeIndexWorkerProcessSupervisor,
 )
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
-from zyra_symbolic import apply_failure_injection, apply_requirement_change
+from zyra_orchestration.deployment import DeploymentProfile
+from zyra_orchestration.topology_policy.production import (
+    Phase2StrongestProductionBridge,
+)
+from zyra_orchestration.topology_policy import StableArtifactRef, canonical_digest
+from zyra_symbolic import ConstraintKeeper, apply_failure_injection, apply_requirement_change
 from zyra_scheduler import (
+    PhysicalDispatchCallPort,
+    PhysicalDispatchEvidenceStore,
+    PhysicalDispatchTask,
     ResourceScheduler,
     WorkerPool,
     backend_registry_path,
+    build_final_verifier_decision,
     cancel_pending_dispatches,
     source_to_target_ledger,
 )
@@ -4597,14 +4607,917 @@ def runtime_readiness_probes(
     return legacy, details
 
 
+class _TypeScriptPermissionQueueProjection:
+    """Read-only pending projection from the canonical TypeScript owner."""
+
+    def __init__(self, state: Any) -> None:
+        self.state = state
+        self.session_id = str(
+            state.metadata.get("query_session_id") or f"task:{state.task_id}"
+        )
+
+    def pending(self) -> tuple[SimpleNamespace, ...]:
+        projection = get_mcp_runtime().permission_get(
+            view="requests",
+            status="",
+            limit=1000,
+        )
+        rows = projection.get("requests") or ()
+        pending = []
+        for item in rows:
+            if not isinstance(item, Mapping):
+                continue
+            status = str(item.get("status") or "").casefold()
+            if status not in {
+                "pending",
+                "created",
+                "delivered",
+                "awaiting_response",
+            }:
+                continue
+            task_id = str(item.get("task_id") or item.get("taskId") or "")
+            run_id = str(item.get("run_id") or item.get("runId") or "")
+            session_id = str(
+                item.get("session_id") or item.get("sessionId") or ""
+            )
+            if task_id and task_id != self.state.task_id:
+                continue
+            if run_id and run_id != self.state.run_id:
+                continue
+            if session_id and session_id != self.session_id:
+                continue
+            pending.append(
+                SimpleNamespace(
+                    request_id=str(
+                        item.get("request_id") or item.get("requestId") or ""
+                    ),
+                    status=status,
+                    revision=int(item.get("revision") or 0),
+                    session_id=session_id or self.session_id,
+                )
+            )
+        return tuple(pending)
+
+
+class _CanonicalFinalVerifierOwner:
+    """Independently verify canonical task state, then persist the verdict."""
+
+    def __init__(self, store: SQLiteStore, artifact_store: LocalArtifactStore) -> None:
+        self.store = store
+        self.artifact_store = artifact_store
+
+    def verify_final_state(
+        self,
+        state: Any,
+        events: Sequence[EventRecord],
+    ) -> Mapping[str, Any]:
+        scope = dict(state.metadata.get("phase2_final_verifier_scope") or {})
+        receipt = dict(state.metadata.get("worker_pool_receipt") or {})
+        physical_receipt = dict(
+            receipt.get("physical_dispatch_receipt") or {}
+        )
+        physical_payload = dict(physical_receipt.get("payload") or {})
+        physical_signals = dict(
+            physical_payload.get("input_signals") or {}
+        )
+        operator_execution_body = dict(
+            physical_signals.get("operator_execution_body") or {}
+        )
+        operator_contract_outputs = dict(
+            physical_signals.get("contract_outputs") or {}
+        )
+        operator_domain_artifact = dict(
+            physical_signals.get("domain_artifact") or {}
+        )
+        memory_mutation_receipt = dict(
+            receipt.get("memory_mutation_receipt")
+            or (receipt.get("metadata") or {}).get(
+                "memory_mutation_receipt"
+            )
+            or {}
+        )
+        memory_receipt_unsigned = dict(memory_mutation_receipt)
+        memory_receipt_digest = str(
+            memory_receipt_unsigned.pop("receipt_digest", "")
+        )
+        memory_owner_commit_required = (
+            physical_signals.get("operator_adapter_id")
+            == "worker.local-memory-curator.continuity"
+        )
+        binding = dict(state.metadata.get("operator_placement_binding") or {})
+        binding_unsigned = dict(binding)
+        binding_digest = str(binding_unsigned.pop("binding_digest", ""))
+        verified_artifacts: list[StableArtifactRef] = []
+        invalid_artifact_ids: list[str] = []
+        for artifact in state.artifacts:
+            try:
+                observed = self.artifact_store.verify(artifact)
+            except Exception:  # noqa: BLE001 - verifier records a failed verdict.
+                invalid_artifact_ids.append(str(artifact.artifact_id or ""))
+                continue
+            verified_artifacts.append(
+                StableArtifactRef(
+                    ref_id=str(artifact.artifact_id),
+                    uri=str(artifact.uri),
+                    digest=str(observed.sha256),
+                    media_type=str(
+                        artifact.metadata.get("content_type")
+                        or "application/octet-stream"
+                    ),
+                )
+            )
+        stage_nodes = tuple(
+            item
+            for item in state.plan_nodes.values()
+            if str(item.metadata.get("stage") or "")
+        )
+        keeper = ConstraintKeeper()
+        constraint_results = keeper.check_task_state(
+            state,
+            node=state.plan_nodes.get(state.root_node_id),
+            transition="inspect",
+        )
+        checks = {
+            "requirement_scope_bound": bool(
+                scope.get("requirement_revision")
+                and isinstance(scope.get("expected_obligation_ids"), list)
+            ),
+            "stage_graph_completed": bool(
+                stage_nodes
+                and all(item.status is PlanNodeStatus.COMPLETED for item in stage_nodes)
+            ),
+            "constraint_keeper_passed": not keeper.has_blocking_failure(
+                constraint_results
+            ),
+            "artifact_owner_verified": bool(verified_artifacts)
+            and not invalid_artifact_ids
+            and len(verified_artifacts) == len(state.artifacts),
+            "physical_outcome_succeeded": bool(
+                receipt.get("receipt_id")
+                and receipt.get("outcome") == "succeeded"
+                and receipt.get("run_id") == state.run_id
+                and receipt.get("task_id") == state.task_id
+            ),
+            "physical_operator_call_bound": bool(
+                physical_receipt.get("schema_version")
+                == "zyra.physical-dispatch-receipt/v2"
+                and physical_signals.get("workload_operation")
+                == "phase2-operator-execution"
+                and physical_payload.get("placement_decision_id")
+                == binding.get("resource_decision_id")
+                and physical_payload.get("lease_id")
+                == binding.get("lease_id")
+                and physical_payload.get("physical_attempt_id")
+                == binding.get("attempt_id")
+                and physical_signals.get("worker_id")
+                == binding.get("worker_id")
+                and receipt.get("metadata", {}).get(
+                    "physical_dispatch_receipt_digest"
+                )
+                == physical_receipt.get("digest")
+            ),
+            "physical_worker_process_bound": bool(
+                binding.get("worker_process_identity")
+                == physical_signals.get("leased_worker_process_identity")
+                == physical_payload.get("physical_identity", {}).get(
+                    "failure_boundary_id"
+                )
+                == physical_payload.get("runtime_evidence", {}).get(
+                    "failure_boundary_id"
+                )
+                and binding.get("worker_endpoint")
+                == physical_signals.get("leased_worker_endpoint")
+                == physical_payload.get("physical_identity", {}).get(
+                    "endpoint"
+                )
+                == physical_payload.get("runtime_evidence", {}).get(
+                    "network_endpoint"
+                )
+            ),
+            "physical_operator_execution_digest_valid": bool(
+                operator_execution_body
+                and str(
+                    physical_signals.get("operator_execution_digest") or ""
+                ).removeprefix("sha256:")
+                == canonical_digest(operator_execution_body)
+            ),
+            "physical_operator_contract_fulfilled": bool(
+                operator_contract_outputs
+                and physical_signals.get("output_contract_fulfilled") is True
+                and physical_signals.get("domain_effect_performed") is True
+                and sorted(operator_contract_outputs)
+                == sorted(operator_execution_body.get("output_contract") or ())
+                == sorted(
+                    operator_execution_body.get(
+                        "fulfilled_output_contract"
+                    )
+                    or ()
+                )
+                and str(
+                    operator_execution_body.get("contract_outputs_digest")
+                    or ""
+                ).removeprefix("sha256:")
+                == canonical_digest(operator_contract_outputs)
+            ),
+            "physical_domain_artifact_committed": bool(
+                operator_domain_artifact.get("content")
+                and str(
+                    operator_domain_artifact.get("content_digest") or ""
+                ).removeprefix("sha256:")
+                == canonical_digest(operator_domain_artifact.get("content"))
+                and any(
+                    artifact.metadata.get("operator_ref")
+                    == physical_signals.get("operator_ref")
+                    and artifact.metadata.get(
+                        "operator_output_contract_fulfilled"
+                    )
+                    is True
+                    and artifact.metadata.get("domain_output_digest")
+                    == str(
+                        operator_domain_artifact.get("content_digest") or ""
+                    ).removeprefix("sha256:")
+                    for artifact in state.artifacts
+                )
+            ),
+            "memory_owner_commit_bound": bool(
+                not memory_owner_commit_required
+                or (
+                    memory_mutation_receipt.get("owner") == "MemoryFabric"
+                    and memory_mutation_receipt.get("run_id") == state.run_id
+                    and memory_mutation_receipt.get("task_id") == state.task_id
+                    and memory_mutation_receipt.get("committed") is True
+                    and memory_mutation_receipt.get("readback_verified") is True
+                    and bool(
+                        memory_mutation_receipt.get("committed_record_ids")
+                    )
+                    and memory_mutation_receipt.get(
+                        "physical_dispatch_receipt_digest"
+                    )
+                    == physical_receipt.get("digest")
+                    and memory_mutation_receipt.get(
+                        "operator_execution_digest"
+                    )
+                    == physical_signals.get("operator_execution_digest")
+                    and memory_receipt_digest
+                    == canonical_digest(memory_receipt_unsigned)
+                )
+            ),
+            "physical_artifacts_exact": bool(
+                set(str(item) for item in receipt.get("artifact_refs") or ())
+                == {str(item.artifact_id) for item in state.artifacts}
+            ),
+            "placement_binding_digest_valid": bool(
+                binding_digest
+                and binding_digest == canonical_digest(binding_unsigned)
+            ),
+            "physical_event_causality_present": bool(
+                set(str(item) for item in receipt.get("event_refs") or ())
+                .intersection(
+                    str(item.event_id) for item in events if item.event_id
+                )
+            ),
+        }
+        passed = all(checks.values())
+        verified_artifacts.sort(key=lambda item: item.ref_id)
+        verified_at = now_iso()
+        verifier_ref = "final-verifier://" + state.task_id + "/" + canonical_digest(
+            {
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "scope": scope,
+                "checks": checks,
+                "artifacts": [item.to_dict() for item in verified_artifacts],
+                "physical_receipt_id": receipt.get("receipt_id"),
+            }
+        )[:32]
+        decision = build_final_verifier_decision(
+            task=state,
+            requirement_revision=str(scope.get("requirement_revision") or ""),
+            expected_obligation_ids=tuple(
+                str(item) for item in scope.get("expected_obligation_ids") or ()
+            ),
+            verified_artifact_refs=tuple(verified_artifacts),
+            passed=passed,
+            verifier_version="phase2-independent-final-verifier-v2",
+            verifier_receipt_ref=verifier_ref,
+            verified_at=verified_at,
+            fresh_until=(
+                datetime.now(UTC) + timedelta(seconds=300)
+            ).isoformat().replace("+00:00", "Z"),
+            verification_refs=(
+                "final_verifier",
+                *(f"final-verifier-check:{name}" for name in sorted(checks)),
+            ),
+        )
+        decision.checks = [
+            {"condition": name, "passed": value}
+            for name, value in sorted(checks.items())
+        ]
+        self.record_final_verifier_receipt(decision)
+        state.decisions.append(decision)
+        return {
+            "schema": "zyra.production-independent-final-verifier/v2",
+            "passed": passed,
+            "checks": checks,
+            "decision_id": decision.decision_id,
+            "verifier_receipt_ref": verifier_ref,
+            "invalid_artifact_ids": sorted(invalid_artifact_ids),
+            "canonical_owner_bypass": False,
+        }
+
+    def record_final_verifier_receipt(self, decision: Any) -> None:
+        metadata = dict(decision.metadata)
+        receipt_ref = str(metadata.get("verifier_receipt_ref") or "")
+        event = EventRecord(
+            event_id=(
+                "event_final_verifier_owner_"
+                + canonical_digest((receipt_ref, metadata))[:24]
+            ),
+            run_id=decision.run_id,
+            task_id=decision.task_id,
+            node_id=(
+                decision.affected_node_ids[0]
+                if decision.affected_node_ids
+                else None
+            ),
+            event_type=EventType.EVALUATION,
+            payload={
+                "schema": "zyra.final-verifier-owner-receipt/v1",
+                "canonical_owner": "SQLiteStore.EventRecord",
+                "verifier_receipt_ref": receipt_ref,
+                "decision_id": decision.decision_id,
+                "decision_metadata": metadata,
+            },
+        )
+        persist_events(self.store, [event])
+
+    def resolve_final_verifier_receipt(
+        self,
+        receipt_ref: str,
+    ) -> Mapping[str, Any] | None:
+        # SQLiteStore has no global receipt index; restrict the scan to the
+        # task encoded by the canonical verifier URI.
+        parts = str(receipt_ref).split("/")
+        task_id = parts[-2] if len(parts) >= 2 else ""
+        if not task_id:
+            return None
+        for event in reversed(self.store.task_events(task_id)):
+            payload = (
+                dict(event.get("payload") or {})
+                if isinstance(event, Mapping)
+                else dict(event.payload)
+            )
+            if (
+                payload.get("schema")
+                == "zyra.final-verifier-owner-receipt/v1"
+                and payload.get("verifier_receipt_ref") == receipt_ref
+                and isinstance(payload.get("decision_metadata"), Mapping)
+            ):
+                return dict(payload["decision_metadata"])
+        return None
+
+
 def graph_execution_context() -> GraphExecutionContext:
+    pool_api = get_worker_pool_api()
+    _ensure_phase2_production_workers(pool_api)
+    physical_worker_ids = {
+        str(item.get("worker_id") or "")
+        for item in pool_api.pool.api_projection().get("workers") or ()
+        if isinstance(item, Mapping)
+    }
+    executable_manifests = tuple(
+        item
+        for item in WorkerPool().manifests()
+        if item.worker_id in physical_worker_ids
+    )
+    if not executable_manifests:
+        raise RuntimeError(
+            "ResourceScheduler has no registered physical worker manifest"
+        )
+    scheduler = ResourceScheduler(WorkerPool(executable_manifests))
+    artifact_store = LocalArtifactStore(artifact_root_path())
+    final_verifier = _CanonicalFinalVerifierOwner(get_store(), artifact_store)
+    topology_policy = Phase2StrongestProductionBridge(
+        PROJECT_ROOT,
+        worker_pool_api=pool_api,
+        memory_fabric=_memory_fabric(get_store()),
+        resource_scheduler=scheduler,
+        communication_outcome_provider=_phase2_communication_outcomes,
+        communication_outcome_recorder=(
+            _record_phase2_communication_outcomes
+        ),
+        permission_decision_provider=_phase2_permission_decision,
+        artifact_store=artifact_store,
+        permission_queue_provider=_TypeScriptPermissionQueueProjection,
+        recovery_store=get_recovery_runtime_api().application.store,
+        final_verifier_owner=final_verifier,
+        physical_dispatch_factory=_production_physical_dispatch_port,
+        early_exit_enabled=lambda: not _truthy(
+            os.environ.get("ZYRA_DISABLE_PHASE2_EARLY_EXIT"),
+            default=False,
+        ),
+    )
     return GraphExecutionContext.from_paths(
         project_root=PROJECT_ROOT,
         workspace_root=tool_workspace_path(),
         artifact_root=artifact_root_path(),
         permission_store_path=permission_store_path(),
         workspace_runtime_resolver=_graph_workspace_runtime_binding,
+        topology_policy_trigger=topology_policy,
+        resource_scheduler=scheduler,
+        execution_placement_validator=(
+            topology_policy.validate_execution_placement
+        ),
+        physical_execution_runner=topology_policy.execute_physical_operator,
+        execution_outcome_recorder=topology_policy.record_execution_outcome,
+        final_verifier=final_verifier.verify_final_state,
+        completion_gate=topology_policy.evaluate_completion,
     )
+
+
+def _ensure_phase2_production_workers(
+    pool_api: WorkerPoolApiService,
+) -> None:
+    """Bind schedulable local workers to the actual deployment-node process.
+
+    The WorkerPool lease identity and the deployment receipt must describe the
+    same process boundary.  A stale API-process registration is replaced only
+    when it has no live lease; otherwise production composition fails closed.
+    """
+
+    orchestrator = get_deployment_api().orchestrator
+    policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
+    process, client, health = orchestrator.processes.start_node(policy)
+    semantic = dict(client.semantic_readiness())
+    if (
+        "phase2-operator-execution"
+        not in tuple(str(item) for item in semantic.get("operations") or ())
+        or semantic.get("runtime_implementation_version")
+        != "phase2-operator-execution-v6"
+    ):
+        process, client, health = orchestrator.processes.start_node(
+            policy,
+            restart=True,
+        )
+        semantic = dict(client.semantic_readiness())
+    if (
+        "phase2-operator-execution"
+        not in tuple(str(item) for item in semantic.get("operations") or ())
+        or semantic.get("runtime_implementation_version")
+        != "phase2-operator-execution-v6"
+    ):
+        raise RuntimeError(
+            "the production deployment node does not expose the current "
+            "Phase 2 operator runtime"
+        )
+
+    identity = dict(health.get("runtime_identity") or {})
+    failure_boundary_id = str(identity.get("failure_boundary_id") or "")
+    node_id = str(health.get("node_id") or "")
+    generation_id = str(identity.get("generation_id") or "")
+    if not failure_boundary_id or not node_id or not generation_id:
+        raise RuntimeError("deployment node physical identity is incomplete")
+
+    local_manifests = tuple(
+        item
+        for item in WorkerPool().manifests()
+        if item.worker_id in {"local-code-worker", "local-memory-curator"}
+    )
+    for logical in local_manifests:
+        worker_id = logical.worker_id
+        if (
+            worker_id == "local-memory-curator"
+            and pool_api.pool.store.get_worker(worker_id) is None
+        ):
+            continue
+        backend_id = f"phase2-device:{worker_id}"
+        existing = pool_api.pool.store.get_worker(worker_id)
+        exact_existing = bool(
+            existing is not None
+            and existing.accepting_leases
+            and existing.process_identity == failure_boundary_id
+            and existing.endpoint == process.endpoint
+            and existing.backend_id == backend_id
+            and str(existing.metadata.get("deployment_node_id") or "")
+            == node_id
+            and str(existing.metadata.get("deployment_generation_id") or "")
+            == generation_id
+        )
+        if not exact_existing:
+            active = tuple(
+                item
+                for item in pool_api.pool.store.list_leases(worker_id=worker_id)
+                if not item.terminal
+            )
+            if active:
+                raise RuntimeError(
+                    "cannot replace a stale physical worker registration while "
+                    f"live leases exist: {worker_id}"
+                )
+            pool_api.pool.register_physical_worker(
+                worker_id=worker_id,
+                worker_kind=(
+                    "code-worker"
+                    if worker_id == "local-code-worker"
+                    else "memory-curator-worker"
+                ),
+                location=PhysicalWorkerLocation.LOCAL,
+                backend=PhysicalBackendCapability(
+                    backend_id=backend_id,
+                    backend_kind="local_process",
+                    enabled=True,
+                    healthy=True,
+                    capabilities=tuple(
+                        dict.fromkeys(("agent_task", *logical.capabilities))
+                    ),
+                    tool_ids=tuple(logical.tools),
+                    constraints={
+                        "gateway_owner": "DeploymentNodeRuntime",
+                        "physical_operator_runtime": True,
+                    },
+                    labels={"dispatch_location": "local"},
+                ),
+                capabilities=tuple(
+                    dict.fromkeys(("agent_task", *logical.capabilities))
+                ),
+                tool_ids=tuple(logical.tools),
+                resources=PhysicalResourceVector(
+                    cpu_cores=1.0,
+                    memory_mb=1024,
+                    disk_mb=2048,
+                    network_mbps=100,
+                    process_slots=4,
+                ),
+                process_identity=failure_boundary_id,
+                endpoint=process.endpoint,
+                replace_generation=existing is not None,
+                metadata={
+                    "phase2_production_worker": True,
+                    "deployment_node_id": node_id,
+                    "deployment_generation_id": generation_id,
+                    "deployment_profile": policy.profile.value,
+                    "deployment_pid": int(identity.get("pid") or process.pid),
+                    "canonical_runtime_owner": "DeploymentNodeRuntime",
+                },
+            )
+        latest = pool_api.pool.store.latest_heartbeat(worker_id)
+        pool_api.pool.heartbeat_local_worker(
+            worker_id,
+            sequence=1 if latest is None else latest.sequence + 1,
+            process_uptime_ms=1,
+        )
+
+
+def _production_physical_dispatch_port(
+    state: Any,
+    binding: Mapping[str, Any],
+    operator_task: Mapping[str, Any],
+) -> PhysicalDispatchCallPort:
+    """Build the real deployment-node port for the selected operator task."""
+
+    location = str(binding.get("selected_location") or "local").casefold()
+    permission = dict(
+        state.metadata.get("phase2_policy_permission_receipt") or {}
+    )
+    orchestrator = get_deployment_api().orchestrator
+    payload = dict(operator_task)
+    task = PhysicalDispatchTask(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        payload=payload,
+        privacy_class="internal",
+        allowed_placements=(location,),
+        permission_ref=str(permission.get("decision_id") or ""),
+        operation="phase2-operator-execution",
+        provider_id="zhipu",
+        model_id="glm-5.2",
+    )
+    return PhysicalDispatchCallPort(
+        task=task,
+        catalog=orchestrator.catalog,
+        process_manager=orchestrator.processes,
+        state_store=orchestrator.store,
+        evidence_store=PhysicalDispatchEvidenceStore(
+            artifact_root_path() / "physical-dispatch"
+        ),
+    )
+def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
+    """Project only canonical event-log communication outcome receipts."""
+
+    output: list[Mapping[str, Any]] = []
+    for event in get_store().task_events(state.task_id):
+        event_run_id = str(
+            event.get("run_id") if isinstance(event, Mapping) else event.run_id
+        )
+        if event_run_id != state.run_id:
+            continue
+        event_payload = (
+            event.get("payload") if isinstance(event, Mapping) else event.payload
+        )
+        payload = event_payload if isinstance(event_payload, Mapping) else {}
+        event_id = str(
+            event.get("event_id")
+            if isinstance(event, Mapping)
+            else event.event_id
+        )
+        raw = (
+            payload.get("communication_outcome")
+            if isinstance(payload.get("communication_outcome"), Mapping)
+            else payload
+        )
+        if raw.get("schema_version") != (
+            "zyra.agentprune-communication-outcome/v1"
+        ):
+            continue
+        selected = dict(raw)
+        selected["delivery_receipt_ref"] = str(
+            selected.get("delivery_receipt_ref") or event_id
+        )
+        if (
+            int(selected.get("prompt_tokens") or 0) > 0
+            or int(selected.get("completion_tokens") or 0) > 0
+            or float(selected.get("cost_usd") or 0) > 0
+        ):
+            selected["usage_receipt_ref"] = str(
+                selected.get("usage_receipt_ref") or event_id
+            )
+        selected["causal_refs"] = sorted(
+            {
+                *(str(item) for item in selected.get("causal_refs") or ()),
+                event_id,
+            }
+        )
+        output.append(selected)
+    return tuple(output)
+
+
+def _record_phase2_communication_outcomes(
+    state: Any,
+    candidates: Sequence[Any],
+    cause_event: EventRecord | None,
+) -> tuple[Mapping[str, Any], ...]:
+    """Deliver typed topology coordination messages through the event owner."""
+
+    if (
+        cause_event is None
+        or cause_event.payload.get("schema")
+        != "zyra.phase2-temporal-handoff-receipt/v1"
+        or cause_event.payload.get("acknowledged") is not True
+    ):
+        return ()
+    store = get_store()
+    persist_events(store, [cause_event])
+    existing = _phase2_communication_outcomes(state)
+    existing_edge_ids = {
+        str(item.get("edge_id") or "") for item in existing
+    }
+    permission = dict(
+        state.metadata.get("phase2_policy_permission_receipt") or {}
+    )
+    permission_ref = str(permission.get("decision_id") or "")
+    new_outcomes: list[EventRecord] = []
+    for index, candidate in enumerate(candidates):
+        source = str(getattr(candidate, "source_node_id", "") or "")
+        target = str(getattr(candidate, "target_node_id", "") or "")
+        edge_type = str(
+            getattr(getattr(candidate, "edge_type", ""), "value", "")
+            or getattr(candidate, "edge_type", "")
+            or ""
+        )
+        edge_id = str(getattr(candidate, "edge_id", "") or "")
+        if edge_id in existing_edge_ids:
+            continue
+        message_payload = {
+            "schema": "zyra.phase2-topology-coordination-message/v1",
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "edge_id": edge_id,
+            "source_node_id": source,
+            "target_node_id": target,
+            "edge_type": edge_type,
+            "intent": "topology_coordination",
+            "state_delta": {
+                "handoff_ref": cause_event.event_id,
+                "candidate_edge_id": edge_id,
+            },
+            "evidence_refs": [cause_event.event_id],
+            "artifact_refs": [],
+        }
+        message_digest = canonical_digest(message_payload)
+        message_id = "event_phase2_message_" + canonical_digest(
+            (state.run_id, edge_id, cause_event.event_id)
+        )[:24]
+        message_event = EventRecord(
+            event_id=message_id,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            event_type=EventType.AGENT_MESSAGE,
+            payload={**message_payload, "payload_digest": message_digest},
+        )
+        persist_events(store, [message_event])
+        stored = {
+            str(item.get("event_id") or ""): item
+            for item in store.task_events(state.task_id)
+            if str(item.get("run_id") or "") == state.run_id
+        }.get(message_id)
+        stored_payload = (
+            dict(stored.get("payload") or {})
+            if isinstance(stored, Mapping)
+            else {}
+        )
+        delivered = bool(
+            stored_payload.get("payload_digest") == message_digest
+            and source
+            and target
+            and edge_type
+        )
+        outcome_id = "event_agentprune_outcome_" + canonical_digest(
+            (message_id, message_digest, delivered)
+        )[:24]
+        message_bytes = len(
+            json.dumps(
+                message_payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
+        evidence_refs = [cause_event.event_id, message_id]
+        outcome = {
+            "schema_version": "zyra.agentprune-communication-outcome/v1",
+            "observation_id": "observation:" + outcome_id,
+            "window_id": "topology-route:" + cause_event.event_id,
+            "completed_at": now_iso(),
+            "edge_id": edge_id,
+            "source_node_id": source,
+            "target_node_id": target,
+            "edge_type": edge_type,
+            "round_index": index,
+            "message_id": message_id,
+            "payload_digest": message_digest,
+            "delivered": delivered,
+            "delivery_receipt_ref": message_id,
+            "usage_receipt_ref": "",
+            "message_bytes": message_bytes,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cost_usd": 0.0,
+            "evidence_refs": evidence_refs,
+            "utilized_evidence_refs": [],
+            "artifact_refs": [],
+            "verifier_result": "not_run",
+            "failure_count": 0 if delivered else 1,
+            "retry_count": 0,
+            "permission_result": (
+                "allowed"
+                if permission.get("effect") == "allow"
+                else "denied"
+            ),
+            "malicious": False,
+            "causal_refs": [
+                cause_event.event_id,
+                message_id,
+                *([permission_ref] if permission_ref else []),
+            ],
+        }
+        new_outcomes.append(
+            EventRecord(
+                event_id=outcome_id,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.RESOURCE_DECISION,
+                payload=outcome,
+            )
+        )
+    if new_outcomes:
+        persist_events(store, new_outcomes)
+    return _phase2_communication_outcomes(state)
+
+
+def _phase2_permission_decision(
+    state: Any,
+    requested: Sequence[str],
+    cause_event: EventRecord | None,
+) -> Mapping[str, Any]:
+    """Resolve strongest-path permissions through the TypeScript owner."""
+
+    request_id = "phase2-permission-" + canonical_digest(
+        (state.run_id, state.task_id, tuple(sorted(requested)), (
+            cause_event.event_id if cause_event is not None else ""
+        ))
+    )[:24]
+    material = {
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "session_id": str(
+            state.metadata.get("query_session_id") or f"task:{state.task_id}"
+        ),
+        "session_revision": 0,
+        "worker_request_id": request_id,
+        "tool_call_id": request_id,
+        "tool_name": "phase2.strongest-control",
+        "namespace": "builtin",
+        "server_id": "",
+        "operation": "phase2.strongest.activate",
+        "workspace_root": str(tool_workspace_path().resolve()),
+        "arguments": {"requested_permissions": sorted(requested)},
+        "metadata": {
+            "canonical_permission_owner": "typescript.PermissionCoordinator",
+            "python_decision_fallback": False,
+            "cause_event_id": (
+                cause_event.event_id if cause_event is not None else ""
+            ),
+            "annotations": {
+                "readOnlyHint": False,
+                "destructiveHint": False,
+                "openWorldHint": False,
+                "idempotentHint": True,
+            },
+        },
+        "await_approval_delivery": False,
+    }
+    port = get_mcp_runtime()
+    claimed = dict(port.permission_claim(material))
+    response = (
+        claimed
+        if claimed.get("claimed") is True
+        else dict(port.permission_enforce(material))
+    )
+    decision = (
+        dict(response.get("decision") or {})
+        if isinstance(response.get("decision"), Mapping)
+        else {}
+    )
+    owner = str(
+        response.get("canonical_owner")
+        or response.get("canonicalOwner")
+        or decision.get("canonical_owner")
+        or decision.get("canonicalOwner")
+        or ""
+    )
+    effect = str(
+        decision.get("effect") or response.get("effect") or "deny"
+    ).casefold()
+    receipt = {
+        "schema": "zyra.phase2-policy-permission-receipt/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "request_id": str(
+            decision.get("request_id")
+            or decision.get("requestId")
+            or response.get("request_id")
+            or request_id
+        ),
+        "decision_id": str(
+            decision.get("decision_id")
+            or decision.get("decisionId")
+            or response.get("decision_id")
+            or request_id
+        ),
+        "canonical_owner": owner,
+        "effect": effect,
+        "reason_code": str(
+            decision.get("reason_code")
+            or decision.get("reasonCode")
+            or response.get("reason_code")
+            or ""
+        ),
+        "matched_rule_ids": sorted(
+            {
+                str(
+                    item.get("rule_id")
+                    or item.get("ruleId")
+                    or ""
+                )
+                for item in decision.get("matched_rules")
+                or decision.get("matchedRules")
+                or ()
+                if isinstance(item, Mapping)
+            }
+            - {""}
+        ),
+        "request_binding": dict(
+            decision.get("request_binding")
+            or decision.get("requestBinding")
+            or {}
+        ),
+        "allowed_permissions": (
+            sorted({str(item) for item in requested})
+            if effect == "allow" and "typescript" in owner.casefold()
+            else []
+        ),
+        "cause_event_id": (
+            cause_event.event_id if cause_event is not None else ""
+        ),
+        "owner_response_digest": canonical_digest(response),
+        "decided_at": now_iso(),
+        "valid_until": (
+            datetime.now(UTC) + timedelta(minutes=5)
+        ).isoformat().replace("+00:00", "Z"),
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    state.metadata["phase2_policy_permission_receipt"] = dict(receipt)
+    return receipt
 
 
 def _graph_workspace_runtime_binding(
@@ -4891,12 +5804,23 @@ def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
     # appended only after canonical admission so a failed canonical append can
     # never manufacture a competing fact.
     bridge = get_runtime_event_spine_bridge()
+    known_by_task: dict[str, set[str]] = {}
     for event in events:
+        known = known_by_task.setdefault(
+            event.task_id,
+            {
+                str(item.get("event_id") or "")
+                for item in store.task_events(event.task_id)
+            },
+        )
+        if event.event_id in known:
+            continue
         # Legacy EventLog batches were never atomic.  Project each successful
         # canonical commit immediately so a later rejected item cannot leave
         # an already-committed fact missing from the compatibility trajectory.
         bridge.append_legacy_events([event])
         append_jsonl_event(event, event_log_path())
+        known.add(event.event_id)
 
 
 class JsonRequestError(ValueError):
@@ -8097,20 +9021,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_journal = pool_api.pool.store.journal(limit=10000)
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
             try:
-                pool_api.acquire_for_task(
-                    state,
-                    payload=(
-                        payload.get("worker_pool")
-                        if isinstance(payload.get("worker_pool"), dict)
-                        else {}
-                    ),
-                )
+                pool_api.ensure_default_local_worker()
+                pool_api.ensure_task_graph(state)
             except Exception as error:
                 self._typed_receipts().abandon(receipt_reservation)
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {
-                        "error": "worker_pool_acquisition_failed",
+                        "error": "worker_pool_initialization_failed",
                         "message": str(error),
                         "task_id": state.task_id,
                         "fallback": False,
@@ -8172,7 +9090,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_api = get_worker_pool_api()
             pool_journal = pool_api.pool.store.journal(limit=10000)
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
-            pool_api.ensure_task_lease(state, payload={})
+            pool_api.ensure_default_local_worker()
+            pool_api.ensure_task_graph(state)
             events = run_task_graph(state, execution_context=graph_execution_context())
             pool_api.finalize_task(
                 state,

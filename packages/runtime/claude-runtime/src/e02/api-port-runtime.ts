@@ -434,6 +434,22 @@ export class E02ApiPortRuntime {
   }
 
   private async permissionEnforce(payload: JsonObject): Promise<JsonObject> {
+    if (asString(payload.tool_name ?? payload.tool) === "phase2.strongest-control") {
+      const requested = asObject(payload.arguments).requested_permissions;
+      if (
+        asString(payload.namespace) !== "builtin"
+        || asString(payload.operation) !== "phase2.strongest.activate"
+        || !Array.isArray(requested)
+        || requested.length !== 2
+        || requested[0] !== "graph.write"
+        || requested[1] !== "worker.dispatch"
+      ) {
+        throw apiError(
+          "phase2_strongest_permission_scope_invalid",
+          "The managed Phase 2 allowlist accepts only graph.write and worker.dispatch in canonical order",
+        );
+      }
+    }
     const input = permissionInput(payload, this.coordinator.workspaceRoot);
     const enforcement = await this.coordinator.permission.enforce(input);
     const requestId = enforcement.decision.continuationRequestId;
@@ -926,7 +942,26 @@ function runtimeInput(
         version: "zyra.e02-api-permission-policy/v1",
         canonical_owner: "typescript",
         mode: initialization.permission_mode || (initialization.sealed_autonomous ? "sealed" : "default"),
-        rules: [],
+        rules: [{
+          rule_id: "managed-phase2-strongest-control",
+          effect: "allow",
+          source: "managed",
+          tool_pattern: "phase2.strongest-control",
+          namespace_pattern: "builtin",
+          operation_pattern: "phase2.strongest.activate",
+          argument_pattern: "*",
+          priority: 1000,
+          enabled: true,
+          max_uses: null,
+          use_count: 0,
+          scope: { workspace_root: initialization.workspace_root },
+          reason: "managed low-risk allowlist for the deterministic Phase 2 control path",
+          metadata: {
+            canonical_owner: "typescript.PermissionCoordinator",
+            low_risk_allowlist: true,
+            extra_permissions_denied: true,
+          },
+        }],
         python_policy_fallback: false,
       },
     },

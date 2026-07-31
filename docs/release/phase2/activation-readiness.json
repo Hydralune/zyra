@@ -128,6 +128,25 @@
       "input_coverage": 1.0,
       "causal_link_completeness": 1.0,
       "deterministic_replay_match": true,
+      "selector_validation": {
+        "passed": true,
+        "mechanism_version": "maas_operator_selector_v1",
+        "configuration_digest": "0cd8bca03e57b77a773038c864f4f5b185c1bc308003c7b66524fe496481dfdf",
+        "catalog_schema_version": "zyra.operator-catalog/v1",
+        "proposal_schema_version": "zyra.operator-selection-proposal/v1",
+        "scheduler_input_schema_version": "zyra.operator-scheduler-input/v1",
+        "fixed_input_proposal_match": true,
+        "dynamic_registry_registration_passed": true,
+        "hard_filter_passed": true,
+        "breadth_depth_conditioning_passed": true,
+        "catalog_invalidation_passed": true,
+        "cold_start_budget_passed": true,
+        "evidence_only_no_effect_passed": true,
+        "disable_baseline_passed": true,
+        "placement_change_allowed": false,
+        "lease_created": false,
+        "physical_attempt_created": false
+      },
       "evidence_refs": [
         "docs/evidence/phase2/preflight/preflight_deafc65877387ab74bbef93c/MechanismEvidenceReadinessReport.json",
         "docs/evidence/phase2/sealed/P2-S06-02-attempt-08/independent-validation.json"
@@ -159,5 +178,5 @@
     "no_policy_training": true,
     "rollback_profile": "phase1_deterministic_baseline"
   },
-  "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9"
+  "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
 }

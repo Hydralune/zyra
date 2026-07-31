@@ -59,7 +59,7 @@
     {
       "config_id": "activation_gates",
       "path": "config/phase2/activation-gates.yaml",
-      "sha256": "2b464af75e21a57e2bdd9c12973c0da0d412db0e6795f1f55a03a97459484da6"
+      "sha256": "4bf2f043cf228cb918d160321f52007fdb202f619642164707137e8e33b01dd3"
     }
   ]
 }

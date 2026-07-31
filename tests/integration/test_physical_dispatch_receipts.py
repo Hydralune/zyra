@@ -122,6 +122,67 @@ def test_simulated_or_label_only_receipt_cannot_close_gate(tmp_path) -> None:
         harness.close()
 
 
+def test_phase2_operator_workload_executes_on_selected_physical_node(
+    tmp_path,
+) -> None:
+    operator_ref = "tool:produce-tool@1"
+    payload = {
+        "schema": "zyra.production-physical-operator-task/v1",
+        "run_id": "run-physical-operator",
+        "task_id": "task-physical-operator",
+        "goal": "Produce and verify a deterministic artifact.",
+        "requirement_revision": "requirement-revision-1",
+        "operator_ref": operator_ref,
+        "operator": {
+            "operator_ref": operator_ref,
+            "operator_type": "tool",
+            "profile_digest": "operator-profile-digest",
+            "capabilities": ["artifact-production", "verification"],
+            "input_contract": ["goal"],
+            "output_contract": ["artifact", "verification"],
+        },
+        "layer_index": 1,
+        "candidate_set_digest": "candidate-set-digest",
+        "policy_input_digest": "policy-input-digest",
+        "operator_idempotency_key": "physical-operator-layer-1",
+    }
+    harness = build_physical_harness(
+        tmp_path,
+        location="local",
+        operation="phase2-operator-execution",
+        dispatch_payload=payload,
+    )
+    try:
+        harness.execute()
+        receipt = harness.physical_port.receipts[0]
+        validation = harness.physical_port.validation_reports[0]
+        signals = dict(receipt.input_signals)
+
+        assert validation.real_gate_closed is True
+        assert signals["workload_operation"] == "phase2-operator-execution"
+        assert signals["operator_ref"] == operator_ref
+        assert signals["layer_index"] == 1
+        assert signals["task_payload_digest"] == receipt.privacy_evidence[
+            "payload_digest"
+        ]
+        assert signals["operator_execution_digest"]
+        assert signals["operator_adapter_id"] == (
+            "tool.produce-tool.deterministic"
+        )
+        assert signals["domain_effect_performed"] is True
+        assert signals["output_contract_fulfilled"] is True
+        assert str(signals["operator_execution_digest"]).removeprefix(
+            "sha256:"
+        )
+        assert signals["leased_worker_process_identity"] == receipt.physical_identity[
+            "failure_boundary_id"
+        ]
+        assert receipt.simulated is False
+        assert receipt.semantic_only is False
+    finally:
+        harness.close()
+
+
 def test_local_only_privacy_never_starts_cloud_runtime(tmp_path) -> None:
     harness = build_physical_harness(
         tmp_path,

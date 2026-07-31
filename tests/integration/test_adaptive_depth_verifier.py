@@ -302,10 +302,24 @@ def _checkpoint(
 
 
 @dataclass
+class _VerifierOwner:
+    receipts: dict[str, dict]
+
+    def record(self, decision) -> None:
+        self.receipts[str(decision.metadata["verifier_receipt_ref"])] = dict(
+            decision.metadata
+        )
+
+    def resolve_final_verifier_receipt(self, receipt_ref: str):
+        return self.receipts.get(receipt_ref)
+
+
+@dataclass
 class _ExecutionPort:
     task: TaskState
     artifacts: LocalArtifactStore
     policy_input: PolicyInputSnapshot
+    verifier_owner: _VerifierOwner
 
     def execute_layer(
         self,
@@ -372,6 +386,7 @@ class _ExecutionPort:
                 verified_at=NOW,
                 fresh_until=FRESH_UNTIL,
             )
+            self.verifier_owner.record(final_verifier)
             self.task.decisions.append(final_verifier)
             verification_refs = ("verifier://final/receipt-r1",)
         return LayerExecutionReceipt(
@@ -429,6 +444,7 @@ class _Harness:
     permission_queue: PermissionRequestQueue
     gate: DeterministicEarlyExitGate
     builder: CanonicalExitSnapshotBuilder
+    verifier_owner: _VerifierOwner
 
 
 def _harness(tmp_path: Path) -> _Harness:
@@ -447,11 +463,13 @@ def _harness(tmp_path: Path) -> _Harness:
         ROOT / "config" / "phase2" / "maas-early-exit.json"
     )
     gate = DeterministicEarlyExitGate(config)
+    verifier_owner = _VerifierOwner({})
     builder = CanonicalExitSnapshotBuilder(
         config=config,
         artifact_store=artifacts,
         permission_queue=permission_queue,
         side_effect_store=recovery_store,
+        final_verifier_owner=verifier_owner,
     )
     return _Harness(
         task=task,
@@ -464,6 +482,7 @@ def _harness(tmp_path: Path) -> _Harness:
         permission_queue=permission_queue,
         gate=gate,
         builder=builder,
+        verifier_owner=verifier_owner,
     )
 
 
@@ -474,6 +493,7 @@ def _execute(harness: _Harness, *, enabled: bool):
             harness.task,
             harness.artifacts,
             harness.policy_input,
+            harness.verifier_owner,
         ),
         eligibility_port=_EligibilityPort(
             harness.builder,
@@ -512,6 +532,75 @@ def test_verifier_gate_exits_only_after_real_owner_evidence(tmp_path: Path) -> N
     assert result.policy_outcome.recovery_result == "not_required"
     assert len(result.policy_outcome.artifact_refs) == 1
     assert result.events[-1].payload["posterior_result"] == "true_exit"
+
+
+def test_self_signed_final_verifier_without_owner_receipt_forces_continue(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+    completed = _execute(harness, enabled=True)
+    harness.verifier_owner.receipts.clear()
+    minimum_operators, minimum_verification = minimum_operator_path(
+        harness.proposal
+    )
+
+    snapshot = harness.builder.capture(
+        task=harness.task,
+        policy_input=harness.policy_input,
+        proposal=harness.proposal,
+        checkpoint=harness.checkpoint,
+        continuity_receipt=harness.continuity,
+        required_artifact_ids=("deliverable",),
+        minimum_operator_refs=minimum_operators,
+        minimum_verification_refs=minimum_verification,
+        remaining_candidates=harness.proposal.candidates[2:],
+        observed_at=NOW,
+    )
+    decision = harness.gate.evaluate(snapshot, evaluated_at=NOW)
+
+    assert completed.final_decision.decision is ExitDecision.EXIT
+    assert snapshot.final_verifier_passed is False
+    assert decision.decision is ExitDecision.CONTINUE
+    assert "final_verifier_passed" in decision.failed_conditions
+
+
+def test_cancelled_node_critical_obligation_forces_continue(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+    cancelled_obligation = OBLIGATIONS[1]
+    harness.task.plan_nodes[harness.task.root_node_id].completion_criteria = [
+        cancelled_obligation
+    ]
+    completed = _execute(harness, enabled=True)
+    harness.task.plan_nodes[
+        harness.task.root_node_id
+    ].status = PlanNodeStatus.CANCELLED
+    minimum_operators, minimum_verification = minimum_operator_path(
+        harness.proposal
+    )
+
+    snapshot = harness.builder.capture(
+        task=harness.task,
+        policy_input=harness.policy_input,
+        proposal=harness.proposal,
+        checkpoint=harness.checkpoint,
+        continuity_receipt=harness.continuity,
+        required_artifact_ids=("deliverable",),
+        minimum_operator_refs=minimum_operators,
+        minimum_verification_refs=minimum_verification,
+        remaining_candidates=harness.proposal.candidates[2:],
+        observed_at=NOW,
+    )
+    decision = harness.gate.evaluate(snapshot, evaluated_at=NOW)
+
+    assert completed.final_decision.decision is ExitDecision.EXIT
+    assert set(snapshot.unresolved_critical_obligation_ids) == set(
+        OBLIGATIONS
+    )
+    assert cancelled_obligation in snapshot.unresolved_critical_obligation_ids
+    assert decision.decision is ExitDecision.CONTINUE
+    assert "critical_obligations_resolved" in decision.failed_conditions
 
 
 def test_disabled_gate_executes_full_depth_with_same_completed_outcome(

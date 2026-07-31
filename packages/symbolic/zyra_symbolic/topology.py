@@ -57,6 +57,10 @@ class TopologyRouter:
                     )
                 )
             except Exception as error:  # noqa: BLE001 - baseline route remains explicit and available.
+                if bool(getattr(self.topology_policy_trigger, "fail_closed", False)):
+                    raise RuntimeError(
+                        "required production topology policy failed closed"
+                    ) from error
                 topology_policy = {
                     "used_baseline": True,
                     "committed": False,
@@ -72,12 +76,23 @@ class TopologyRouter:
                 )
         resource_decision = None
         candidates: list[RouteCandidate]
-        if self.resource_scheduler is not None:
+        if topology_policy.get("reroute_required") is True:
+            # The first policy window may only establish actual communication
+            # outcomes.  Do not mutate placement/lease/graph state until a
+            # later route consumes that prior window.
+            candidates = self.rank_candidates(
+                state,
+                node=node,
+                cause_event=cause_event,
+            )
+        elif self.resource_scheduler is not None:
             try:
+                operator_input = topology_policy.get("operator_candidate_set")
                 resource_decision = self.resource_scheduler.decide(
                     state,
                     node=node,
                     cause_event=cause_event,
+                    operator_input=operator_input,
                 )
                 self.resource_scheduler.attach_decision_to_state(state, resource_decision, node=node)
                 candidates = [
@@ -110,10 +125,35 @@ class TopologyRouter:
                     ],
                 ]
             except Exception as error:  # noqa: BLE001 - keep symbolic fallback usable if scheduler package is absent/broken.
+                resource_decision = None
                 state.metadata["resource_scheduler_error"] = f"{type(error).__name__}: {error}"
+                if topology_policy.get("operator_candidate_set") is not None:
+                    raise RuntimeError(
+                        "ResourceScheduler failed after a MaAS candidate set "
+                        "was committed; symbolic fallback would bypass the "
+                        "placement contract"
+                    ) from error
                 candidates = self.rank_candidates(state, node=node, cause_event=cause_event)
         else:
             candidates = self.rank_candidates(state, node=node, cause_event=cause_event)
+
+        placement_binder = getattr(
+            self.topology_policy_trigger,
+            "bind_resource_decision",
+            None,
+        )
+        if resource_decision is not None and callable(placement_binder):
+            topology_policy = {
+                **dict(topology_policy),
+                "physical_placement": dict(
+                    placement_binder(
+                        state,
+                        node,
+                        resource_decision,
+                        topology_policy,
+                    )
+                ),
+            }
 
         selected = candidates[0] if candidates else RouteCandidate("ChiefPlanner", 0.0, ["fallback route"])
         if node is not None and selected.worker_name not in {"ChiefPlanner", "ConstraintKeeper"}:
@@ -149,6 +189,22 @@ class TopologyRouter:
                 "topology_policy_committed": str(
                     bool(topology_policy.get("committed", False))
                 ).lower(),
+                "operator_candidate_contract_consumed": str(
+                    bool(
+                        resource_decision is not None
+                        and resource_decision.signals.metadata.get(
+                            "operator_candidate_contract_consumed",
+                            False,
+                        )
+                    )
+                ).lower(),
+                "physical_lease_ref": str(
+                    (
+                        topology_policy.get("physical_placement")
+                        or {}
+                    ).get("lease_id")
+                    or ""
+                ),
             },
         )
         if resource_decision is not None:

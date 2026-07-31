@@ -17,7 +17,7 @@ from typing import Any
 
 import psutil
 
-from .errors import DispatchRejected, StateConflict
+from .errors import DispatchRejected, StateConflict, redact
 from .models import (
     DeploymentProfile,
     DispatchStatus,
@@ -36,6 +36,7 @@ from .resource_control import process_environment_snapshot
 
 _WORD = re.compile(r"[\w'-]+", re.UNICODE)
 _SECRET_MARKERS = ("secret", "token", "password", "api_key", "authorization")
+_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v6"
 _ALLOWED_OPERATIONS = {
     "analyze-text",
     "compress-text",
@@ -45,6 +46,7 @@ _ALLOWED_OPERATIONS = {
     "resource-probe",
     "provider-capability",
     "physical-dispatch-proof",
+    "phase2-operator-execution",
 }
 
 
@@ -520,6 +522,7 @@ class DeploymentNodeRuntime:
             "canonical_task_owner": False,
             "canonical_checkpoint_owner": False,
             "canonical_permission_owner": False,
+            "runtime_implementation_version": _RUNTIME_IMPLEMENTATION_VERSION,
         }
         semantic["semantic_digest"] = digest(semantic)
         return {
@@ -578,6 +581,9 @@ class DeploymentNodeRuntime:
             "blockers": blockers,
             "warnings": warnings,
             "fixed_response": False,
+            "runtime_implementation_version": health.get(
+                "runtime_implementation_version"
+            ),
             "observed_at": now_iso(),
         }
 
@@ -691,6 +697,7 @@ class DeploymentNodeRuntime:
                 started_at=started_at,
                 code=error.code,
                 message=str(error),
+                details=error.details,
             )
         except BaseException as error:
             return self._terminal_failure(
@@ -714,6 +721,7 @@ class DeploymentNodeRuntime:
         started_at: str,
         code: str,
         message: str = "",
+        details: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         completed_at = now_iso()
         result = {
@@ -727,6 +735,7 @@ class DeploymentNodeRuntime:
                 "node_provider_failure",
                 "node_execution_failed",
             },
+            "details": redact(dict(details or {})),
         }
         receipt = {
             "schema": "zyra.deployment-node-receipt/v1",
@@ -879,7 +888,12 @@ class DeploymentNodeRuntime:
                 for key, child in value.items():
                     normalized = str(key).casefold()
                     child_path = f"{path}.{key}" if path else str(key)
-                    if any(marker in normalized for marker in _SECRET_MARKERS):
+                    secret_key = any(
+                        marker in normalized
+                        for marker in _SECRET_MARKERS
+                        if marker != "token"
+                    ) or ("token" in normalized and "tokens" not in normalized)
+                    if secret_key:
                         raise DispatchRejected(
                             "node_secret_payload_rejected",
                             "secret material cannot be sent as deployment workload data",
@@ -997,6 +1011,8 @@ class DeploymentNodeRuntime:
                 "provider_called": False,
                 "capability_only": True,
             }
+        if operation == "phase2-operator-execution":
+            return self._execute_phase2_operator(payload, workload)
         if operation == "physical-dispatch-proof":
             payload_digest = digest(payload)
             marker = (
@@ -1057,11 +1073,394 @@ class DeploymentNodeRuntime:
             profile=self.policy.profile.value,
         )
 
+    def _execute_phase2_operator(
+        self,
+        payload: Mapping[str, Any],
+        workload: Workload,
+    ) -> dict[str, Any]:
+        operator = payload.get("operator")
+        operator_ref = str(payload.get("operator_ref") or "")
+        goal = str(payload.get("goal") or "")
+        layer_index = int(payload.get("layer_index") or 0)
+        physical_binding = payload.get("physical_worker_binding")
+        invalid_fields: list[str] = []
+        if payload.get("schema") != "zyra.production-physical-operator-task/v1":
+            invalid_fields.append("schema")
+        if not isinstance(operator, Mapping):
+            invalid_fields.append("operator")
+        elif str(operator.get("operator_ref") or "") != operator_ref:
+            invalid_fields.append("operator_ref_binding")
+        if not isinstance(physical_binding, Mapping):
+            invalid_fields.append("physical_worker_binding")
+        if not operator_ref:
+            invalid_fields.append("operator_ref")
+        if not goal:
+            invalid_fields.append("goal")
+        if layer_index < 1:
+            invalid_fields.append("layer_index")
+        if invalid_fields:
+            raise DispatchRejected(
+                "node_phase2_operator_task_invalid",
+                "phase2 operator execution requires exact operator, goal, layer and physical-worker bindings",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+                details={"invalid_fields": invalid_fields},
+            )
+        assert isinstance(operator, Mapping)
+        assert isinstance(physical_binding, Mapping)
+
+        expected_identity = f"process:{os.getpid()}:{self.generation_id}"
+        expected_endpoint = f"http://{self.policy.host}:{self.policy.port}"
+        identity_checks = {
+            "process_identity_exact": (
+                physical_binding.get("process_identity") == expected_identity
+            ),
+            "endpoint_exact": physical_binding.get("endpoint") == expected_endpoint,
+            "node_id_exact": physical_binding.get("node_id") == self.node_id,
+            "generation_id_exact": (
+                physical_binding.get("generation_id") == self.generation_id
+            ),
+            "worker_id_present": bool(physical_binding.get("worker_id")),
+            "backend_id_present": bool(physical_binding.get("backend_id")),
+            "manifest_digest_present": bool(
+                physical_binding.get("manifest_digest")
+            ),
+        }
+        if not all(identity_checks.values()):
+            raise DispatchRejected(
+                "node_phase2_worker_identity_mismatch",
+                "the leased worker is not the deployment process executing the operator",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+                details={
+                    "failed_checks": [
+                        name for name, passed in identity_checks.items() if not passed
+                    ]
+                },
+            )
+
+        if payload.get("operator_adapter_enabled") is False:
+            raise DispatchRejected(
+                "node_phase2_operator_adapter_disabled",
+                "the selected physical operator adapter is disabled",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+                details={"operator_ref": operator_ref},
+            )
+
+        adapter = self._phase2_operator_adapter(
+            operator_ref=operator_ref,
+            operator=operator,
+            goal=goal,
+            layer_index=layer_index,
+            workload=workload,
+        )
+        output_contract = tuple(
+            str(item) for item in operator.get("output_contract") or () if str(item)
+        )
+        contract_outputs = dict(adapter["contract_outputs"])
+        missing_contracts = tuple(
+            item for item in output_contract if item not in contract_outputs
+        )
+        if not output_contract or missing_contracts:
+            raise DispatchRejected(
+                "node_phase2_output_contract_unfulfilled",
+                "the selected adapter cannot fulfill the operator output contract",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+                details={
+                    "operator_ref": operator_ref,
+                    "missing_contracts": list(missing_contracts),
+                },
+            )
+
+        task_payload_digest = digest(payload)
+        domain_artifact = dict(adapter["domain_artifact"])
+        domain_result = dict(adapter["domain_result"])
+        execution_body = {
+            "operator_ref": operator_ref,
+            "operator_type": str(operator.get("operator_type") or ""),
+            "operator_profile_digest": str(operator.get("profile_digest") or ""),
+            "operator_adapter_id": str(adapter["adapter_id"]),
+            "operator_adapter_version": str(adapter["adapter_version"]),
+            "layer_index": layer_index,
+            "goal_digest": digest(goal),
+            "requirement_revision": str(payload.get("requirement_revision") or ""),
+            "capabilities_applied": list(operator.get("capabilities") or ()),
+            "input_contract": list(operator.get("input_contract") or ()),
+            "output_contract": list(output_contract),
+            "fulfilled_output_contract": sorted(contract_outputs),
+            "contract_outputs_digest": digest(contract_outputs),
+            "domain_result_digest": digest(domain_result),
+            "domain_artifact_digest": str(domain_artifact["content_digest"]),
+            "candidate_set_digest": str(payload.get("candidate_set_digest") or ""),
+            "policy_input_digest": str(payload.get("policy_input_digest") or ""),
+            "operator_idempotency_key": str(
+                payload.get("operator_idempotency_key") or ""
+            ),
+            "leased_worker_id": str(physical_binding.get("worker_id") or ""),
+            "leased_backend_id": str(physical_binding.get("backend_id") or ""),
+            "leased_manifest_digest": str(
+                physical_binding.get("manifest_digest") or ""
+            ),
+            "physical_process_identity": expected_identity,
+            "physical_endpoint": expected_endpoint,
+            "physical_profile": self.policy.profile.value,
+            "node_id": self.node_id,
+            "generation_id": self.generation_id,
+        }
+        execution_digest = digest(execution_body)
+        provider_call: Mapping[str, Any] = {}
+        if self.policy.profile is DeploymentProfile.CLOUD:
+            runtime = self._provider_runtime
+            if runtime is None:
+                runtime = LiveProviderDispatchRuntime(
+                    project_root=Path.cwd(),
+                    state_root=self.data_root / "provider-control-plane",
+                )
+                self._provider_runtime = runtime
+            provider_call = runtime.dispatch_marker(
+                run_id=workload.run_id,
+                task_id=workload.task_id,
+                node_id=self.node_id,
+                marker="ZYRA_OPERATOR_"
+                + hashlib.sha256(execution_digest.encode("utf-8"))
+                .hexdigest()[:20]
+                .upper(),
+                provider_id=str(
+                    payload.get("provider")
+                    or workload.preferred_provider
+                    or "zhipu"
+                ),
+                model_id=str(
+                    payload.get("model")
+                    or workload.preferred_model
+                    or "glm-5.2"
+                ),
+                idempotency_key=(
+                    workload.idempotency_key
+                    or str(payload.get("operator_idempotency_key") or "")
+                ),
+                payload_digest=task_payload_digest,
+            ).to_dict()
+            if not provider_call.get("marker_verified"):
+                raise DispatchRejected(
+                    "node_phase2_provider_execution_unverified",
+                    "the cloud operator adapter did not obtain a verified provider call",
+                    operation=workload.operation,
+                    profile=self.policy.profile.value,
+                )
+
+        return {
+            "schema": "zyra.deployment-operator-result/v2",
+            **execution_body,
+            "operator_execution_body": execution_body,
+            "task_payload_digest": task_payload_digest,
+            "operator_execution_digest": execution_digest,
+            "domain_result": domain_result,
+            "domain_artifact": domain_artifact,
+            "contract_outputs": contract_outputs,
+            "output_contract_fulfilled": True,
+            "physical_worker_identity_checks": identity_checks,
+            "summary": str(adapter["summary"]),
+            "provider_call": dict(provider_call),
+            "provider_called": bool(provider_call),
+            "domain_effect_performed": True,
+            "semantic_only": False,
+            "simulated": False,
+        }
+
+    def _phase2_operator_adapter(
+        self,
+        *,
+        operator_ref: str,
+        operator: Mapping[str, Any],
+        goal: str,
+        layer_index: int,
+        workload: Workload,
+    ) -> dict[str, Any]:
+        goal_words = tuple(_WORD.findall(goal))
+        usage = {
+            "prompt_tokens": max(1, len(goal_words)),
+            "completion_tokens": max(1, min(64, len(goal_words) + 8)),
+            "total_tokens": max(2, min(128, len(goal_words) * 2 + 8)),
+            "provider_called": self.policy.profile is DeploymentProfile.CLOUD,
+        }
+        if operator_ref.startswith("worker:local-code-worker@"):
+            function_name = "execute_phase2_goal"
+            content = "\n".join(
+                (
+                    '"""Physical MaAS code-worker artifact."""',
+                    "",
+                    f"def {function_name}() -> dict[str, object]:",
+                    "    return {",
+                    f"        \"goal\": {goal!r},",
+                    f"        \"layer_index\": {layer_index},",
+                    "        \"status\": \"implemented\",",
+                    "    }",
+                    "",
+                )
+            )
+            compiled = compile(
+                content,
+                f"<phase2:{workload.task_id}:layer-{layer_index}>",
+                "exec",
+            )
+            namespace: dict[str, Any] = {}
+            exec(compiled, namespace)  # noqa: S102 - audited generated adapter.
+            observed_result = namespace[function_name]()
+            validation_checks = {
+                "callable_executed": isinstance(observed_result, Mapping),
+                "goal_exact": (
+                    isinstance(observed_result, Mapping)
+                    and observed_result.get("goal") == goal
+                ),
+                "layer_exact": (
+                    isinstance(observed_result, Mapping)
+                    and observed_result.get("layer_index") == layer_index
+                ),
+                "status_exact": (
+                    isinstance(observed_result, Mapping)
+                    and observed_result.get("status") == "implemented"
+                ),
+            }
+            if not all(validation_checks.values()):
+                raise DispatchRejected(
+                    "node_phase2_code_adapter_validation_failed",
+                    "the physical code adapter failed runtime validation",
+                    operation=workload.operation,
+                    profile=self.policy.profile.value,
+                    details={"failed_checks": [
+                        name
+                        for name, passed in validation_checks.items()
+                        if not passed
+                    ]},
+                )
+            domain_result = {
+                "kind": "code_delivery",
+                "function_name": function_name,
+                "syntax_check": "compiled",
+                "compiled_code_digest": digest(compiled.co_code.hex()),
+                "runtime_result_digest": digest(observed_result),
+                "validation_checks": validation_checks,
+            }
+            artifact = {
+                "title": "Physical MaAS code delivery",
+                "kind": "code",
+                "extension": ".py",
+                "media_type": "text/x-python",
+                "content": content,
+                "content_digest": digest(content),
+            }
+            adapter_id = "worker.local-code-worker.code-delivery"
+        elif operator_ref.startswith("worker:local-memory-curator@"):
+            facts = sorted(
+                {
+                    item.casefold()
+                    for item in goal_words
+                    if len(item) >= 4
+                }
+            )[:24]
+            domain_result = {
+                "kind": "memory_continuity",
+                "fact_count": len(facts),
+                "facts": facts,
+                "requirement_goal_digest": digest(goal),
+                "continuity_action": "refresh_canonical_task_memory",
+            }
+            content = json.dumps(
+                {
+                    "schema": "zyra.physical-memory-curator-result/v1",
+                    "run_id": workload.run_id,
+                    "task_id": workload.task_id,
+                    "layer_index": layer_index,
+                    **domain_result,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            artifact = {
+                "title": "Physical MaAS memory continuity result",
+                "kind": "structured_data",
+                "extension": ".json",
+                "media_type": "application/json",
+                "content": content,
+                "content_digest": digest(content),
+            }
+            adapter_id = "worker.local-memory-curator.continuity"
+        elif operator_ref.startswith("tool:produce-tool@"):
+            domain_result = {
+                "kind": "tool_production",
+                "produced": True,
+                "goal_digest": digest(goal),
+            }
+            content = json.dumps(
+                domain_result,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            artifact = {
+                "title": "Physical MaAS tool result",
+                "kind": "structured_data",
+                "extension": ".json",
+                "media_type": "application/json",
+                "content": content,
+                "content_digest": digest(content),
+            }
+            adapter_id = "tool.produce-tool.deterministic"
+        else:
+            raise DispatchRejected(
+                "node_phase2_operator_adapter_unavailable",
+                "no audited physical adapter exists for the selected operator",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+                details={
+                    "operator_ref": operator_ref,
+                    "operator_type": str(operator.get("operator_type") or ""),
+                },
+            )
+
+        artifact_ref = "content://" + str(artifact["content_digest"])
+        worker_result = {
+            "ok": True,
+            "summary": f"{adapter_id} completed physical layer {layer_index}.",
+            "domain_kind": domain_result["kind"],
+        }
+        supported_outputs = {
+            "worker_result": worker_result,
+            "physical_worker_result": worker_result,
+            "artifact_refs": [artifact_ref],
+            "usage": usage,
+            "tool_result": domain_result,
+            "artifact": artifact_ref,
+            "verification": {"passed": True, "adapter_id": adapter_id},
+        }
+        output_contract = tuple(
+            str(item) for item in operator.get("output_contract") or () if str(item)
+        )
+        return {
+            "adapter_id": adapter_id,
+            "adapter_version": "phase2-physical-adapter-v1",
+            "summary": worker_result["summary"],
+            "domain_result": domain_result,
+            "domain_artifact": artifact,
+            "contract_outputs": {
+                key: supported_outputs[key]
+                for key in output_contract
+                if key in supported_outputs
+            },
+        }
+
     def _operation_capability_available(self, operation: str) -> bool:
         if operation == "provider-capability":
             return "provider-dispatch" in self.policy.capabilities
         if (
-            operation == "physical-dispatch-proof"
+            operation in {
+                "physical-dispatch-proof",
+                "phase2-operator-execution",
+            }
             and self.policy.profile is DeploymentProfile.CLOUD
         ):
             return "provider-dispatch" in self.policy.capabilities

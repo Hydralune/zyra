@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, replace
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
@@ -49,6 +50,26 @@ class GraphExecutionContext:
         ]
         | None
     ) = None
+    resource_scheduler: Any | None = None
+    execution_placement_validator: (
+        Callable[[TaskState, PlanNode | None], Mapping[str, Any]] | None
+    ) = None
+    physical_execution_runner: (
+        Callable[[TaskState, PlanNode], tuple[Any, str]] | None
+    ) = None
+    execution_outcome_recorder: (
+        Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
+    ) = None
+    final_verifier: (
+        Callable[[TaskState, Sequence[EventRecord]], Mapping[str, Any]] | None
+    ) = None
+    completion_gate: (
+        Callable[
+            [TaskState, Sequence[EventRecord]],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = None
 
     @classmethod
     def from_paths(
@@ -68,6 +89,26 @@ class GraphExecutionContext:
             ]
             | None
         ) = None,
+        resource_scheduler: Any | None = None,
+        execution_placement_validator: (
+            Callable[[TaskState, PlanNode | None], Mapping[str, Any]] | None
+        ) = None,
+        physical_execution_runner: (
+            Callable[[TaskState, PlanNode], tuple[Any, str]] | None
+        ) = None,
+        execution_outcome_recorder: (
+            Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
+        ) = None,
+        final_verifier: (
+            Callable[[TaskState, Sequence[EventRecord]], Mapping[str, Any]] | None
+        ) = None,
+        completion_gate: (
+            Callable[
+                [TaskState, Sequence[EventRecord]],
+                Mapping[str, Any],
+            ]
+            | None
+        ) = None,
     ) -> "GraphExecutionContext":
         return cls(
             project_root=Path(project_root).resolve(),
@@ -76,6 +117,12 @@ class GraphExecutionContext:
             permission_store_path=None if permission_store_path is None else Path(permission_store_path).resolve(),
             workspace_runtime_resolver=workspace_runtime_resolver,
             topology_policy_trigger=topology_policy_trigger,
+            resource_scheduler=resource_scheduler,
+            execution_placement_validator=execution_placement_validator,
+            physical_execution_runner=physical_execution_runner,
+            execution_outcome_recorder=execution_outcome_recorder,
+            final_verifier=final_verifier,
+            completion_gate=completion_gate,
         )
 
 
@@ -219,7 +266,17 @@ def run_task_graph(
         if stage == "execute" and execution_context is not None:
             events.extend(_run_execute_node(state, node, execution_context))
         elif stage == "route":
-            events.extend(_run_route_node(state, node, router, start_checks))
+            handoff = _temporal_handoff_event(state, node, events)
+            events.append(handoff)
+            events.extend(
+                _run_route_node(
+                    state,
+                    node,
+                    router,
+                    start_checks,
+                    cause_event=handoff,
+                )
+            )
         elif stage == "verify":
             events.extend(_run_verify_node(state, node, keeper))
         else:
@@ -228,6 +285,104 @@ def run_task_graph(
     if _all_stage_nodes_completed(state):
         state.status = PlanNodeStatus.COMPLETED
         state.updated_at = now_iso()
+        if execution_context is not None and execution_context.final_verifier is not None:
+            verifier = dict(execution_context.final_verifier(state, tuple(events)))
+            events.append(
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    event_type=EventType.EVALUATION,
+                    node_id=state.root_node_id,
+                    payload=verifier,
+                )
+            )
+        if execution_context is not None and execution_context.completion_gate is not None:
+            try:
+                gate = dict(
+                    execution_context.completion_gate(state, tuple(events))
+                )
+            except Exception as error:  # noqa: BLE001 - post-side-effect uncertainty is terminal for this pass.
+                state.status = PlanNodeStatus.BLOCKED
+                state.updated_at = now_iso()
+                events.append(
+                    EventRecord(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        event_type=EventType.SYSTEM_NOTICE,
+                        node_id=state.root_node_id,
+                        payload={
+                            "schema": "zyra.production-completion-gate-error/v1",
+                            "summary": (
+                                "Physical execution completed, but canonical "
+                                "completion evidence could not be closed."
+                            ),
+                            "error": type(error).__name__,
+                            "message": str(error),
+                            "automatic_execution_retry_allowed": False,
+                            "recovery": "repair_evidence_then_revalidate",
+                        },
+                    )
+                )
+                return events
+            decision = str(gate.get("decision") or "").casefold()
+            remaining = int(gate.get("remaining_operator_count") or 0)
+            hard_conditions_passed = gate.get("hard_conditions_passed") is True
+            gate_allows_completion = hard_conditions_passed and (
+                decision == "exit" or remaining == 0
+            )
+            events.append(
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    event_type=EventType.EVALUATION,
+                    node_id=state.root_node_id,
+                    payload=gate,
+                )
+            )
+            if decision == "continue" and remaining > 0:
+                _prepare_adaptive_depth_continuation(state)
+                events.append(
+                    EventRecord(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        event_type=EventType.SYSTEM_NOTICE,
+                        node_id=state.root_node_id,
+                        payload={
+                            "schema": "zyra.production-adaptive-depth-continuation/v1",
+                            "summary": "The next MaAS layer will execute through a new route and lease.",
+                            "early_exit_decision_id": str(gate.get("decision_id") or ""),
+                            "remaining_operator_count": remaining,
+                            "executed_operator_refs": list(
+                                gate.get("executed_operator_refs") or ()
+                            ),
+                        },
+                    )
+                )
+                events.extend(run_task_graph(state, execution_context=execution_context))
+                return events
+            if not gate_allows_completion:
+                state.status = PlanNodeStatus.BLOCKED
+                state.updated_at = now_iso()
+                events.append(
+                    EventRecord(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        event_type=EventType.SYSTEM_NOTICE,
+                        node_id=state.root_node_id,
+                        payload={
+                            "schema": "zyra.production-completion-gate-blocked/v1",
+                            "summary": (
+                                "Task completion is blocked until the remaining "
+                                "MaAS depth executes or early-exit hard conditions pass."
+                            ),
+                            "early_exit_decision_id": str(
+                                gate.get("decision_id") or ""
+                            ),
+                            "remaining_operator_count": remaining,
+                        },
+                    )
+                )
+                return events
         events.append(
             EventRecord(
                 run_id=state.run_id,
@@ -243,6 +398,22 @@ def run_task_graph(
         )
 
     return events
+
+
+def _prepare_adaptive_depth_continuation(state: TaskState) -> None:
+    count = int(state.metadata.get("phase2_adaptive_depth_pass") or 0) + 1
+    if count > 64:
+        raise RuntimeError("adaptive depth exceeded the bounded production pass limit")
+    state.metadata["phase2_adaptive_depth_pass"] = count
+    state.status = PlanNodeStatus.PENDING
+    state.updated_at = now_iso()
+    for node in state.plan_nodes.values():
+        stage = str(node.metadata.get("stage") or "")
+        if stage not in {"route", "execute", "verify", "finalize"}:
+            continue
+        node.status = PlanNodeStatus.PENDING
+        node.assigned_worker_id = None
+        node.updated_at = state.updated_at
 
 
 def cancel_task_graph(state: TaskState, reason: str = "") -> list[EventRecord]:
@@ -301,20 +472,77 @@ def _run_node(state: TaskState, node: PlanNode, result_summary: str) -> list[Eve
     return events
 
 
-def _run_route_node(state: TaskState, node: PlanNode, router: Any, route_checks: list[Any]) -> list[EventRecord]:
+def _run_route_node(
+    state: TaskState,
+    node: PlanNode,
+    router: Any,
+    route_checks: list[Any],
+    *,
+    cause_event: EventRecord,
+) -> list[EventRecord]:
     events: list[EventRecord] = []
     node.status = PlanNodeStatus.RUNNING
     node.updated_at = now_iso()
     events.append(_node_event(state, node, "running", "Topology routing started."))
 
     target = _first_stage_node(state, "execute") or node
-    decision, route_event = router.route(state, node=target, route_type="worker_route")
+    decision, route_event = router.route(
+        state,
+        node=target,
+        route_type="worker_route",
+        cause_event=cause_event,
+    )
     decision.checks = [to_jsonable(result) for result in route_checks]
     route_event.payload["decision"] = to_jsonable(decision)
     events.append(route_event)
     resource_event = _resource_decision_event_from_route(route_event)
     if resource_event is not None:
         events.append(resource_event)
+
+    topology_policy = route_event.payload.get("topology_policy")
+    if (
+        isinstance(topology_policy, Mapping)
+        and topology_policy.get("reroute_required") is True
+    ):
+        reroute_cause = _policy_reroute_cause_event(state, node, events)
+        events.append(reroute_cause)
+        decision, route_event = router.route(
+            state,
+            node=target,
+            route_type="worker_route",
+            # The handoff is a new immutable observation window.  Its
+            # causation points at the completed message window emitted by the
+            # first invocation, so AgentPrune can only consume prior data.
+            cause_event=reroute_cause,
+        )
+        decision.checks = [to_jsonable(result) for result in route_checks]
+        route_event.payload["decision"] = to_jsonable(decision)
+        events.append(route_event)
+        resource_event = _resource_decision_event_from_route(route_event)
+        if resource_event is not None:
+            events.append(resource_event)
+        final_policy = route_event.payload.get("topology_policy")
+        if (
+            isinstance(final_policy, Mapping)
+            and final_policy.get("reroute_required") is True
+            ):
+                raise RuntimeError(
+                    "production topology reroute did not consume the prior actual communication window: "
+                    + json.dumps(
+                        {
+                            "degraded_reason": (
+                                final_policy.get("topology_result") or {}
+                            ).get("degraded_reason"),
+                            "candidate_count": len(
+                                final_policy.get("communication_candidate_edges") or ()
+                            ),
+                            "outcome_count": final_policy.get(
+                                "communication_outcome_count"
+                            ),
+                        },
+                        sort_keys=True,
+                    )
+                )
 
     node.status = PlanNodeStatus.COMPLETED
     node.updated_at = now_iso()
@@ -352,6 +580,20 @@ def _run_execute_node(
     execution_context: GraphExecutionContext,
 ) -> list[EventRecord]:
     events: list[EventRecord] = []
+    if execution_context.execution_placement_validator is not None:
+        placement_gate = execution_context.execution_placement_validator(
+            state,
+            node,
+        )
+        events.append(
+            EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.CONSTRAINT_CHECK,
+                node_id=node.node_id,
+                payload=dict(placement_gate),
+            )
+        )
     node.status = PlanNodeStatus.RUNNING
     node.updated_at = now_iso()
     events.append(_node_event(state, node, "running", "Worker runtime execution started."))
@@ -397,7 +639,17 @@ def _run_execute_node(
         return events
 
     try:
-        worker_run, worker_name = _run_selected_worker(state, node, execution_context)
+        if execution_context.physical_execution_runner is not None:
+            worker_run, worker_name = execution_context.physical_execution_runner(
+                state,
+                node,
+            )
+        else:
+            worker_run, worker_name = _run_selected_worker(
+                state,
+                node,
+                execution_context,
+            )
     except Exception as error:  # noqa: BLE001 - worker failures must stay in the trace.
         node.status = PlanNodeStatus.FAILED
         node.updated_at = now_iso()
@@ -415,7 +667,11 @@ def _run_execute_node(
                 payload={
                     "summary": "Worker runtime raised an exception.",
                     "error": type(error).__name__,
+                    "error_code": str(getattr(error, "code", "") or ""),
                     "message": str(error),
+                    "error_metadata": to_jsonable(
+                        getattr(error, "metadata", {}) or {}
+                    ),
                 },
             )
         )
@@ -434,6 +690,59 @@ def _run_execute_node(
         events.extend(_plan_runtime_recovery(state, node, worker_result=worker_run.worker_result))
     node.metadata["result_summary"] = worker_run.worker_result.summary
     node.metadata["worker_result"] = to_jsonable(worker_run.worker_result)
+    if execution_context.execution_outcome_recorder is not None:
+        try:
+            physical_receipt = dict(
+                execution_context.execution_outcome_recorder(
+                    state,
+                    node,
+                    worker_run,
+                )
+            )
+        except Exception as error:  # noqa: BLE001 - do not replay an entered physical side effect.
+            node.status = PlanNodeStatus.BLOCKED
+            node.updated_at = now_iso()
+            state.status = PlanNodeStatus.BLOCKED
+            state.updated_at = node.updated_at
+            events.append(
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    event_type=EventType.SYSTEM_NOTICE,
+                    node_id=node.node_id,
+                    payload={
+                        "schema": "zyra.production-physical-receipt-error/v1",
+                        "summary": (
+                            "Worker call returned, but the physical attempt "
+                            "owner did not close a canonical receipt."
+                        ),
+                        "error": type(error).__name__,
+                        "error_code": str(
+                            getattr(error, "code", "") or ""
+                        ),
+                        "message": str(error),
+                        "error_metadata": to_jsonable(
+                            getattr(error, "metadata", {}) or {}
+                        ),
+                        "automatic_execution_retry_allowed": False,
+                        "recovery": "reconcile_attempt_before_retry",
+                    },
+                )
+            )
+            events.extend(_plan_runtime_recovery(state, node, error=error))
+            return events
+        events.append(
+            EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.RESOURCE_DECISION,
+                node_id=node.node_id,
+                payload={
+                    "schema": "zyra.production-physical-execution-receipt/v1",
+                    "physical_execution_receipt": physical_receipt,
+                },
+            )
+        )
     transition = "completed" if worker_run.worker_result.ok else "failed"
     events.append(_node_event(state, node, transition, worker_run.worker_result.summary))
     return events
@@ -525,7 +834,11 @@ def _run_selected_worker(
         task_id=state.task_id,
         node_id=node.node_id,
         worker_name="CodeWorkerRuntime",
-        constraints=_code_constraints(state, hints),
+        constraints=_code_constraints_with_session(
+            state,
+            hints,
+            execution_context,
+        ),
         metadata=request_metadata,
     )
     runtime = CodeWorkerRuntime(
@@ -577,7 +890,10 @@ def _dispatch_selected_worker_callable(
     turn_id = str(
         request.metadata.get("turn_id")
         or state.metadata.get("provider_turn_id")
-        or f"{node.node_id}:worker-turn"
+        or (
+            f"{node.node_id}:worker-turn:"
+            f"{int(state.metadata.get('phase2_adaptive_depth_pass') or 0)}"
+        )
     )
     provider_session_id = str(
         request.metadata.get("provider_session_id")
@@ -962,6 +1278,42 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
     return constraints
 
 
+def _code_constraints_with_session(
+    state: TaskState,
+    hints: dict[str, Any],
+    execution_context: GraphExecutionContext,
+) -> dict[str, Any]:
+    constraints = _code_constraints(state, hints)
+    adaptive_pass = int(
+        state.metadata.get("phase2_adaptive_depth_pass") or 0
+    )
+    if adaptive_pass > 0:
+        # Distinct MaAS operators own distinct query sessions even when they
+        # share one canonical task and execute node.  Memory/graph continuity
+        # is carried by their owners, not by replaying another operator's
+        # private permission-session token.
+        constraints["session_id"] = (
+            f"task:{state.task_id}:maas-layer:{adaptive_pass + 1}"
+        )
+        constraints.pop("session_custody_token", None)
+        constraints.pop("permission_session_custody_token", None)
+        return constraints
+    provider = getattr(
+        execution_context.topology_policy_trigger,
+        "worker_session_envelope",
+        None,
+    )
+    if callable(provider):
+        envelope = provider(state)
+        if isinstance(envelope, Mapping):
+            session_id = str(envelope.get("session_id") or "")
+            custody_token = str(envelope.get("session_custody_token") or "")
+            if session_id and custody_token:
+                constraints["session_id"] = session_id
+                constraints["session_custody_token"] = custody_token
+    return constraints
+
+
 def _browser_constraints(
     state: TaskState,
     hints: dict[str, Any],
@@ -1052,6 +1404,75 @@ def _structured_message_event(state: TaskState, node: PlanNode, stage: str) -> E
     )
 
 
+def _temporal_handoff_event(
+    state: TaskState,
+    route_node: PlanNode,
+    events: list[EventRecord],
+) -> EventRecord:
+    source = _first_stage_node(state, "plan")
+    source_refs = tuple(
+        item.event_id
+        for item in events
+        if item.node_id == (source.node_id if source is not None else None)
+        and item.event_type in {EventType.AGENT_MESSAGE, EventType.NODE_UPDATED}
+    )
+    return EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.RESOURCE_DECISION,
+        node_id=route_node.node_id,
+        payload={
+            "schema": "zyra.phase2-temporal-handoff-receipt/v1",
+            "checkpoint_ref": (
+                source_refs[-1]
+                if source_refs
+                else f"task-state:{state.task_id}:plan"
+            ),
+            "source_stage": "plan",
+            "target_stage": "route",
+            "source_event_refs": list(source_refs),
+            "acknowledged": bool(
+                source is not None
+                and source.status is PlanNodeStatus.COMPLETED
+                and route_node.status is PlanNodeStatus.PENDING
+            ),
+            "canonical_owner": "TaskGraphRuntime/EventRecord",
+        },
+    )
+
+
+def _policy_reroute_cause_event(
+    state: TaskState,
+    route_node: PlanNode,
+    events: list[EventRecord],
+) -> EventRecord:
+    prior_route_refs = tuple(
+        item.event_id
+        for item in events
+        if item.event_type is EventType.TOPOLOGY_ROUTE and item.event_id
+    )
+    return EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.SYSTEM_NOTICE,
+        node_id=route_node.node_id,
+        payload={
+            "schema": "zyra.phase2-temporal-handoff-receipt/v1",
+            "checkpoint_ref": (
+                prior_route_refs[-1]
+                if prior_route_refs
+                else f"task-state:{state.task_id}:route-observation"
+            ),
+            "source_stage": "route_observation",
+            "target_stage": "route",
+            "source_event_refs": list(prior_route_refs),
+            "acknowledged": True,
+            "reason": "consume_completed_communication_window",
+            "canonical_owner": "TaskGraphRuntime/EventRecord",
+        },
+    )
+
+
 def _dependencies_completed(state: TaskState, node: PlanNode) -> bool:
     for dependency_id in node.depends_on:
         dependency = state.plan_nodes.get(dependency_id)
@@ -1095,6 +1516,11 @@ def _symbolic_runtime(
     from zyra_symbolic import ConstraintKeeper, TopologyRouter
 
     return ConstraintKeeper(), TopologyRouter(
+        resource_scheduler=(
+            None
+            if execution_context is None
+            else execution_context.resource_scheduler
+        ),
         topology_policy_trigger=(
             None
             if execution_context is None

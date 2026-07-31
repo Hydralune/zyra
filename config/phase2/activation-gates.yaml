@@ -4,7 +4,7 @@
   "p2_base_commit": "e207b46ca690171139a718b8b85d808cb5a79c1e",
   "frozen": true,
   "gate_revision": 2,
-  "frozen_gate_digest": "6df6c08c67cb4698c374c77eda8583f1b11d6c44916e32b0f999bb5e50c0c1ab",
+  "frozen_gate_digest": "054ff399be8dcf7485706e82f1557a1e73fe9f7dde31ea1fbfa464c672b1920d",
   "supersession": {
     "supersedes_gate_digest": "c87b351fdd7bf76011bcd9285667772327eff073928c6090c2ecc8c649f1f238",
     "superseding_adr": "docs/architecture/phase2/adr/P2-ADR-008.md"
@@ -26,7 +26,7 @@
         "status": "deterministic_ready",
         "stage": "activation_ready",
         "report_ref": "docs/release/phase2/activation-readiness.json",
-        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
+        "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -35,7 +35,7 @@
         "status": "deterministic_ready",
         "stage": "activation_ready",
         "report_ref": "docs/release/phase2/activation-readiness.json",
-        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
+        "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -44,7 +44,7 @@
         "status": "deterministic_ready",
         "stage": "activation_ready",
         "report_ref": "docs/release/phase2/activation-readiness.json",
-        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
+        "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -53,7 +53,7 @@
         "status": "deterministic_ready",
         "stage": "activation_ready",
         "report_ref": "docs/release/phase2/activation-readiness.json",
-        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
+        "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       },
@@ -62,7 +62,7 @@
         "status": "deterministic_ready",
         "stage": "activation_ready",
         "report_ref": "docs/release/phase2/activation-readiness.json",
-        "report_digest": "95b1fef0721f3bef6621fe5388fce2176a0961e0c066923ef09d8197264f82f9",
+        "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
         "required_for_strongest": true,
         "fallback_profile": "phase1_deterministic_baseline"
       }

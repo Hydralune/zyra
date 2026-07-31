@@ -523,6 +523,19 @@ class EligibilityPort:
         )
 
 
+class VerifierOwner:
+    def __init__(self) -> None:
+        self.receipts: dict[str, dict[str, Any]] = {}
+
+    def record(self, decision: Any) -> None:
+        self.receipts[str(decision.metadata["verifier_receipt_ref"])] = dict(
+            decision.metadata
+        )
+
+    def resolve_final_verifier_receipt(self, receipt_ref: str):
+        return self.receipts.get(receipt_ref)
+
+
 class ArtifactCallPort:
     def __init__(
         self,
@@ -532,6 +545,7 @@ class ArtifactCallPort:
         artifacts: LocalArtifactStore,
         complete_layer: int,
         pool: WorkerPoolFoundationRuntime,
+        verifier_owner: VerifierOwner,
         revoke_in_prepare: bool = False,
         fail_first_worker: str = "",
         fail_after_side_effect: bool = False,
@@ -541,6 +555,7 @@ class ArtifactCallPort:
         self.artifacts = artifacts
         self.complete_layer = complete_layer
         self.pool = pool
+        self.verifier_owner = verifier_owner
         self.revoke_in_prepare = revoke_in_prepare
         self.fail_first_worker = fail_first_worker
         self.fail_after_side_effect = fail_after_side_effect
@@ -610,8 +625,7 @@ class ArtifactCallPort:
                 ),
             )
             verifier_ref = "verifier://operator/final"
-            self.task.decisions.append(
-                build_final_verifier_decision(
+            final_verifier = build_final_verifier_decision(
                     task=self.task,
                     requirement_revision=self.policy.requirement_revision,
                     expected_obligation_ids=self.policy.unresolved_obligations,
@@ -622,7 +636,8 @@ class ArtifactCallPort:
                     verified_at=now_iso(),
                     fresh_until=_iso_after(300),
                 )
-            )
+            self.verifier_owner.record(final_verifier)
+            self.task.decisions.append(final_verifier)
             verification = (verifier_ref,)
         finished = now_iso()
         return OperatorCallResult(
@@ -694,11 +709,13 @@ def build_harness(
     gate_config = EarlyExitGateConfig.load(
         ROOT / "config" / "phase2" / "maas-early-exit.json"
     )
+    verifier_owner = VerifierOwner()
     builder = CanonicalExitSnapshotBuilder(
         config=gate_config,
         artifact_store=artifacts,
         permission_queue=permission_queue,
         side_effect_store=recovery_store,
+        final_verifier_owner=verifier_owner,
     )
     call_port = ArtifactCallPort(
         task=task,
@@ -706,6 +723,7 @@ def build_harness(
         artifacts=artifacts,
         complete_layer=1 if single_layer else 2,
         pool=pool,
+        verifier_owner=verifier_owner,
         revoke_in_prepare=revoke_in_prepare,
         fail_first_worker=fail_first_worker,
         fail_after_side_effect=fail_after_side_effect,
