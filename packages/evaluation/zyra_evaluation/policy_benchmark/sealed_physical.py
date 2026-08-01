@@ -59,6 +59,16 @@ _BACKEND = {
     "edge": WorkerBackendKind.ISOLATED_PROCESS,
     "cloud": WorkerBackendKind.CLOUD_MODEL,
 }
+_DEFAULT_CLOUD_MODELS = (
+    ("zhipu", "glm-5.2"),
+    ("deepseek", "deepseek-v4-flash"),
+    ("kimi-platform", "kimi-k2.7-code"),
+)
+_PROVIDER_CREDENTIAL = {
+    "zhipu": "ZAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "kimi-platform": "KIMI_API_KEY",
+}
 
 
 class SealedPhysicalDispatchError(RuntimeError):
@@ -143,6 +153,7 @@ class SealedPhysicalEvidence:
     providers: tuple[dict[str, Any], ...]
     degradation: dict[str, Any]
     receipts: tuple[dict[str, Any], ...]
+    receipt_envelopes: tuple[dict[str, Any], ...]
     validations: tuple[dict[str, Any], ...]
     scheduler_decisions: tuple[dict[str, Any], ...]
     lease_receipts: tuple[dict[str, Any], ...]
@@ -154,6 +165,7 @@ class SealedPhysicalEvidence:
             "providers": list(self.providers),
             "degradation": self.degradation,
             "receipts": list(self.receipts),
+            "receipt_envelopes": list(self.receipt_envelopes),
             "validations": list(self.validations),
             "scheduler_decisions": list(self.scheduler_decisions),
             "lease_receipts": list(self.lease_receipts),
@@ -169,6 +181,8 @@ class SealedPhysicalDispatchRuntime:
         project_root: str | Path,
         state_root: str | Path,
         credential_env_file: str | Path | None = None,
+        credential_env_files: Sequence[str | Path] = (),
+        cloud_models: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.state_root = Path(state_root).resolve()
@@ -176,7 +190,24 @@ class SealedPhysicalDispatchRuntime:
         environment = dict(os.environ)
         if credential_env_file is not None:
             environment.update(_read_env_file(Path(credential_env_file).resolve()))
+        for path in credential_env_files:
+            environment.update(_read_env_file(Path(path).resolve()))
         self.environment = environment
+        self.cloud_models = tuple(
+            (
+                str(item.get("provider_id") or ""),
+                str(item.get("model_id") or ""),
+            )
+            for item in cloud_models
+        ) or _DEFAULT_CLOUD_MODELS
+        if (
+            len(self.cloud_models) < 2
+            or len(self.cloud_models) != len(set(self.cloud_models))
+            or self.cloud_models[:1] != _DEFAULT_CLOUD_MODELS[:1]
+        ):
+            raise SealedPhysicalDispatchError(
+                "sealed model capabilities must be distinct and start with zhipu/glm-5.2"
+            )
 
     def execute(
         self,
@@ -188,18 +219,15 @@ class SealedPhysicalDispatchRuntime:
         maximum_cost_usd: float,
         maximum_latency_ms: int,
     ) -> SealedPhysicalEvidence:
-        missing_credential = not any(
-            bool(self.environment.get(name))
-            for name in (
-                "ZAI_API_KEY",
-                "KIMI_API_KEY",
-                "DEEPSEEK_API_KEY",
-            )
-        )
-        if missing_credential:
+        missing_credentials = [
+            _PROVIDER_CREDENTIAL.get(provider_id, "")
+            for provider_id, _model_id in self.cloud_models
+            if not _PROVIDER_CREDENTIAL.get(provider_id)
+            or not self.environment.get(_PROVIDER_CREDENTIAL[provider_id])
+        ]
+        if missing_credentials:
             raise SealedPhysicalDispatchError(
-                "a GLM, Kimi, or DeepSeek credential is required for "
-                "the sealed cloud lane"
+                "every sealed live-model capability requires its configured credential"
             )
         deployment_root = self.state_root / "deployment"
         catalog = ProfileCatalog.defaults(
@@ -224,35 +252,70 @@ class SealedPhysicalDispatchRuntime:
             ).digest(),
             default_lease_ttl_seconds=180,
         )
-        task = PhysicalDispatchTask(
-            run_id=scenario_run_id,
-            task_id=task_id,
-            payload=FrozenDict(dict(payload)),
-            privacy_class=privacy_class,
-            allowed_placements=("local", "edge", "cloud"),
-            permission_ref=f"permission://sealed/{scenario_run_id}/allowed",
-            maximum_cost_usd=maximum_cost_usd,
-            latency_sla_ms=maximum_latency_ms,
+        evidence_store = PhysicalDispatchEvidenceStore(
+            self.state_root / "physical-evidence"
         )
-        call_port = PhysicalDispatchCallPort(
-            task=task,
-            catalog=catalog,
-            process_manager=manager,
-            state_store=deployment_store,
-            evidence_store=PhysicalDispatchEvidenceStore(
-                self.state_root / "physical-evidence"
-            ),
-        )
+        call_ports: list[PhysicalDispatchCallPort] = []
         scheduler_receipts: list[dict[str, Any]] = []
         lease_receipts: list[dict[str, Any]] = []
         try:
-            for sequence, location in enumerate(("local", "edge", "cloud"), start=1):
+            dispatch_specs = (
+                ("local", "local", "zyra-local", "local-deterministic"),
+                ("edge", "edge", "zyra-edge", "edge-deterministic"),
+                *(
+                    (
+                        f"cloud-{provider_id}",
+                        "cloud",
+                        provider_id,
+                        model_id,
+                    )
+                    for provider_id, model_id in self.cloud_models
+                ),
+            )
+            for sequence, (
+                lane_key,
+                location,
+                provider_id,
+                model_id,
+            ) in enumerate(dispatch_specs, start=1):
                 profile = _PROFILE[location]
+                task = PhysicalDispatchTask(
+                    run_id=scenario_run_id,
+                    task_id=task_id,
+                    payload=FrozenDict(
+                        {
+                            **dict(payload),
+                            "sealed_provider_id": provider_id,
+                            "sealed_model_id": model_id,
+                        }
+                    ),
+                    privacy_class=privacy_class,
+                    allowed_placements=(location,),
+                    permission_ref=(
+                        f"permission://sealed/{scenario_run_id}/allowed"
+                    ),
+                    maximum_cost_usd=(
+                        maximum_cost_usd / len(self.cloud_models)
+                        if location == "cloud"
+                        else maximum_cost_usd
+                    ),
+                    latency_sla_ms=maximum_latency_ms,
+                    provider_id=(provider_id if location == "cloud" else ""),
+                    model_id=(model_id if location == "cloud" else ""),
+                )
+                call_port = PhysicalDispatchCallPort(
+                    task=task,
+                    catalog=catalog,
+                    process_manager=manager,
+                    state_store=deployment_store,
+                    evidence_store=evidence_store,
+                )
+                call_ports.append(call_port)
                 process, _client, health = manager.start_node(
                     catalog.policy(profile)
                 )
                 runtime_identity = dict(health.get("runtime_identity") or {})
-                worker_id = f"sealed-{scenario_run_id}-{location}"
+                worker_id = f"sealed-{scenario_run_id}-{lane_key}"
                 capabilities = (
                     "artifact-production",
                     "verification",
@@ -320,9 +383,7 @@ class SealedPhysicalDispatchRuntime:
                     capabilities=list(capabilities),
                     tools=["physical-dispatch-proof"],
                     models=[
-                        "glm-5.2"
-                        if location == "cloud"
-                        else "local-deterministic"
+                        model_id
                     ],
                     privacy_level=(
                         "public_only" if location == "cloud" else "sensitive_ok"
@@ -364,7 +425,7 @@ class SealedPhysicalDispatchRuntime:
                     attempt_number=sequence,
                     preferred_worker_ids=(worker_id,),
                     idempotency_key=(
-                        f"sealed:{scenario_run_id}:{task_id}:{location}"
+                        f"sealed:{scenario_run_id}:{task_id}:{lane_key}"
                     ),
                     metadata={
                         "scheduler_decision_id": decision.decision_id,
@@ -377,12 +438,12 @@ class SealedPhysicalDispatchRuntime:
                     worker_id=worker_id,
                     fence_token=lease.fence_token,
                     fence_epoch=lease.fence_epoch,
-                    backend_dispatch_id=f"sealed-{location}-{sequence}",
+                    backend_dispatch_id=f"sealed-{lane_key}-{sequence}",
                 )
                 context = OperatorLeaseExecutionContext(
                     run_id=scenario_run_id,
                     task_id=task_id,
-                    operator_ref=f"tool:physical-dispatch:{location}",
+                    operator_ref=f"tool:physical-dispatch:{lane_key}",
                     operator_type=(
                         "model" if location == "cloud" else "tool"
                     ),
@@ -407,7 +468,9 @@ class SealedPhysicalDispatchRuntime:
                     graph_signature=_digest(
                         {
                             "scenario_run_id": scenario_run_id,
-                            "lane": location,
+                            "lane": lane_key,
+                            "provider_id": provider_id,
+                            "model_id": model_id,
                         }
                     ),
                     catalog_version="sealed-physical-v1",
@@ -415,7 +478,7 @@ class SealedPhysicalDispatchRuntime:
                     mechanism_version="phase2_strongest_v1",
                     permission_digest=_digest(task.permission_ref),
                     operator_idempotency_key=(
-                        f"sealed:{scenario_run_id}:{task_id}:{location}"
+                        f"sealed:{scenario_run_id}:{task_id}:{lane_key}"
                     ),
                     attempt_id=attempt.attempt_id,
                     lease_id=lease.lease_id,
@@ -457,29 +520,59 @@ class SealedPhysicalDispatchRuntime:
                         "fence_token_persisted": False,
                     }
                 )
+            receipt_envelopes = tuple(
+                receipt.to_dict()
+                for port in call_ports
+                for receipt in port.receipts
+            )
             receipts = tuple(
-                _receipt_evidence(item.to_dict())
-                for item in call_port.receipts
+                _receipt_evidence(receipt) for receipt in receipt_envelopes
             )
             validations = tuple(
-                item.to_dict() for item in call_port.validation_reports
+                validation.to_dict()
+                for port in call_ports
+                for validation in port.validation_reports
             )
-            if len(receipts) != 3 or any(
+            if len(receipts) != len(dispatch_specs) or any(
                 item.get("real_gate_closed") is not True
                 for item in validations
             ):
                 raise SealedPhysicalDispatchError(
                     "physical dispatch did not close all three real-execution gates"
                 )
-            tiers = tuple(
-                self._tier(receipt, validation)
-                for receipt, validation in zip(
-                    receipts,
-                    validations,
-                    strict=True,
+            tier_pairs: dict[str, tuple[Mapping[str, Any], Mapping[str, Any]]] = {}
+            for receipt, validation in zip(receipts, validations, strict=True):
+                location = str(
+                    _mapping(receipt.get("physical_identity")).get("location")
+                    or ""
                 )
+                tier_pairs.setdefault(location, (receipt, validation))
+            tiers = tuple(
+                self._tier(*tier_pairs[location])
+                for location in ("local", "edge", "cloud")
             )
             providers = self._providers(receipts, validations)
+            external_models = tuple(
+                (str(item.get("provider_id") or ""), str(item.get("model_id") or ""))
+                for item in providers
+                if item.get("provider_id") != "zyra-local"
+            )
+            if (
+                external_models != self.cloud_models
+                or any(
+                    item.get("authenticated") is not True
+                    or not 200 <= int(item.get("response_status") or 0) < 300
+                    or _mapping(item.get("metadata")).get("simulated") is not False
+                    or _mapping(item.get("metadata")).get("semantic_only") is not False
+                    for item in providers
+                    if item.get("provider_id") != "zyra-local"
+                )
+                or sum(float(item.get("cost_usd") or 0) for item in providers)
+                > maximum_cost_usd
+            ):
+                raise SealedPhysicalDispatchError(
+                    "ordered live external model evidence did not close its budgeted gate"
+                )
             edge = next(
                 item
                 for item in receipts
@@ -534,12 +627,14 @@ class SealedPhysicalDispatchRuntime:
                 providers=providers,
                 degradation=degradation,
                 receipts=receipts,
+                receipt_envelopes=receipt_envelopes,
                 validations=validations,
                 scheduler_decisions=tuple(scheduler_receipts),
                 lease_receipts=tuple(lease_receipts),
             )
         finally:
-            call_port.close()
+            for call_port in call_ports:
+                call_port.close()
 
     @staticmethod
     def _tier(
@@ -606,24 +701,23 @@ class SealedPhysicalDispatchRuntime:
         receipts: Sequence[Mapping[str, Any]],
         validations: Sequence[Mapping[str, Any]],
     ) -> tuple[dict[str, Any], ...]:
-        by_location = {
-            str(_mapping(item.get("physical_identity")).get("location") or ""): item
+        del validations
+        local = next(
+            item
             for item in receipts
-        }
-        local = by_location["local"]
-        cloud = by_location["cloud"]
+            if str(_mapping(item.get("physical_identity")).get("location") or "")
+            == "local"
+        )
+        clouds = tuple(
+            item
+            for item in receipts
+            if str(_mapping(item.get("physical_identity")).get("location") or "")
+            == "cloud"
+        )
         local_call = _mapping(local.get("call_receipt"))
         local_attempt = str(local.get("physical_attempt_id") or "")
         local_signal = _mapping(local.get("input_signals"))
-        cloud_provider = _mapping(cloud.get("provider_evidence"))
-        cloud_call = _mapping(cloud.get("call_receipt"))
-        cloud_attempt = str(cloud.get("physical_attempt_id") or "")
-        cloud_usage = _mapping(cloud_provider.get("usage"))
-        cloud_endpoint = str(
-            cloud_provider.get("endpoint")
-            or "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        )
-        return (
+        providers: list[dict[str, Any]] = [
             {
                 "observation_id": f"provider-local-{local_attempt}",
                 "provider_id": "zyra-local",
@@ -657,12 +751,20 @@ class SealedPhysicalDispatchRuntime:
                     "capability_kind": "local-model-capability",
                     "simulated": False,
                 },
-            },
-            {
-                "observation_id": f"provider-cloud-{cloud_attempt}",
-                "provider_id": str(cloud_provider.get("provider_id") or ""),
-                "model_id": str(cloud_provider.get("model_id") or ""),
-                "endpoint": cloud_endpoint,
+            }
+        ]
+        for cloud in clouds:
+            cloud_provider = _mapping(cloud.get("provider_evidence"))
+            cloud_call = _mapping(cloud.get("call_receipt"))
+            cloud_attempt = str(cloud.get("physical_attempt_id") or "")
+            cloud_usage = _mapping(cloud_provider.get("usage"))
+            cloud_endpoint = str(cloud_provider.get("endpoint") or "")
+            providers.append(
+                {
+                    "observation_id": f"provider-cloud-{cloud_attempt}",
+                    "provider_id": str(cloud_provider.get("provider_id") or ""),
+                    "model_id": str(cloud_provider.get("model_id") or ""),
+                    "endpoint": cloud_endpoint,
                 "request_id": str(cloud_provider.get("request_id") or ""),
                 "attempt_id": str(
                     cloud_provider.get("provider_attempt_id")
@@ -692,17 +794,18 @@ class SealedPhysicalDispatchRuntime:
                 "completed_at": str(cloud.get("completed_at") or now_iso()),
                 "cost_usd": float(cloud_provider.get("cost_usd") or 0),
                 "latency_ms": int(cloud_provider.get("latency_ms") or 0),
-                "metadata": {
-                    "physical_dispatch_receipt_digest": cloud.get("digest"),
-                    "provider_usage": cloud_usage,
-                    "credential_material_persisted": cloud_provider.get(
-                        "credential_material_persisted"
-                    ),
-                    "simulated": cloud_provider.get("simulated"),
-                    "semantic_only": cloud_provider.get("semantic_only"),
-                },
-            },
-        )
+                    "metadata": {
+                        "physical_dispatch_receipt_digest": cloud.get("digest"),
+                        "provider_usage": cloud_usage,
+                        "credential_material_persisted": cloud_provider.get(
+                            "credential_material_persisted"
+                        ),
+                        "simulated": cloud_provider.get("simulated"),
+                        "semantic_only": cloud_provider.get("semantic_only"),
+                    },
+                }
+            )
+        return tuple(providers)
 
 
 class SealedPlacementOwner:

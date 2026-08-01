@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from zyra_productization.release.worktree import require_worktree_boundary
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,8 +55,7 @@ def prepare_manifest(
             "final sealed manifest must be prepared from the checked-out target: "
             f"head={head}, target={resolved_target}"
         )
-    if _git("status", "--porcelain"):
-        raise RuntimeError("final sealed manifest requires a clean target worktree")
+    require_worktree_boundary(ROOT, expected_head=resolved_target)
 
     manifest = _load_json(template_path)
     if manifest.get("schema") != "zyra.phase2-sealed-long-run-manifest/v1":
@@ -77,6 +78,11 @@ def prepare_manifest(
         for relative in sorted(str(item) for item in frozen)
     }
 
+    output_relative = output_path.resolve().relative_to(ROOT.resolve()).as_posix()
+    if not output_relative.startswith((".tmp/", "docs/evidence/")):
+        raise ValueError("final sealed manifest output must be generated evidence")
+    if output_path.exists():
+        raise FileExistsError(f"refusing to overwrite final manifest: {output_path}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

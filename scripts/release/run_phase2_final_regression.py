@@ -13,6 +13,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from zyra_productization.release.worktree import (
+    WorktreeBoundaryError,
+    inspect_worktree,
+    require_worktree_boundary,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
@@ -235,6 +241,10 @@ def run_regression(
         raise ValueError(
             f"target commit mismatch: expected {target_commit}, observed {observed}"
         )
+    boundary_before = require_worktree_boundary(
+        ROOT,
+        expected_head=target_commit,
+    )
     output_root = output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=False)
     logs = output_root / "logs"
@@ -294,6 +304,7 @@ def run_regression(
         )
         if completed.returncode:
             break
+    boundary_after = inspect_worktree(ROOT, expected_head=target_commit)
     ready = (
         len(commands)
         == len(
@@ -304,6 +315,7 @@ def run_regression(
             )
         )
         and all(item["ready"] for item in commands)
+        and boundary_after["ready"]
     )
     value: dict[str, Any] = {
         "schema": "zyra.phase2-final-regression/v1",
@@ -336,6 +348,8 @@ def run_regression(
             )
         },
         "commands": commands,
+        "worktree_boundary_before": boundary_before,
+        "worktree_boundary_after": boundary_after,
         "passed_count": sum(item["ready"] for item in commands),
         "failed_count": sum(not item["ready"] for item in commands),
     }
@@ -371,7 +385,12 @@ def run(argv: Sequence[str] | None = None) -> int:
             target_commit=arguments.target_commit,
             output_root=ROOT / arguments.output_root,
         )
-    except (OSError, subprocess.SubprocessError, ValueError) as error:
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        ValueError,
+        WorktreeBoundaryError,
+    ) as error:
         print(
             json.dumps(
                 {

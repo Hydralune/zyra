@@ -6,11 +6,8 @@ from pathlib import Path
 import pytest
 
 from zyra_evaluation.policy_benchmark.long_run_validator import (
-    EVIDENCE_INDEX_SCHEMA,
     IndependentTransitionValidator,
-    SealedLongRunValidator,
     canonical_digest,
-    file_digest,
 )
 from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
     SealedMechanismEvidenceRuntime,
@@ -27,263 +24,207 @@ from zyra_evaluation.policy_benchmark.sealed_physical import (
 )
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
 from zyra_evaluation.scenario_runner.errors import ScenarioRunnerError
+from zyra_evaluation.scenario_runner.dual_domain import CanonicalEventBuilder
 from zyra_evaluation.scenario_runner.research_delivery import (
     LiveHttpSourceAcquirer,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
-EFFECTS = (
-    "state_mutation",
-    "route",
-    "placement",
-    "tool",
-    "verification",
-    "permission",
-    "compact_restore",
-    "fault",
-    "recovery",
-    "artifact",
-    "delivery",
-    "topology",
-    "memory",
-)
 
 
-def _write_json(path: Path, value: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
+def _analysis_receipt(
+    unit_id: str,
+    *,
+    byte_start: int,
+    byte_end: int,
+    source_locator: str = "source.py",
+) -> dict:
+    receipt = {
+        "schema": "zyra.analysis-unit-owner-receipt/v1",
+        "owner": "SQLiteStore.MemoryRecord",
+        "run_id": "run-analysis",
+        "task_id": "task-analysis",
+        "work_unit_id": unit_id,
+        "memory_id": f"memory-{unit_id}",
+        "kind": "source-analysis",
+        "input_digest": "a" * 64,
+        "output_digest": "b" * 64,
+        "byte_start": byte_start,
+        "byte_end": byte_end,
+        "analysis_index": 1,
+        "source_locator": source_locator,
+        "content_digest": "c" * 64,
+        "committed": True,
+        "readback_verified": True,
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    return receipt
+
+
+def _owner_bound_event(sequence: int, previous: str) -> tuple[dict, dict]:
+    event_id = f"event-{sequence}"
+    source = {
+        "event_id": event_id,
+        "event_type": "canonical_state_mutation",
+        "run_id": "run-owner",
+        "task_id": "task-owner",
+        "sequence": sequence,
+        "causation_id": previous,
+        "payload": {
+            "semantic_effect": "state_mutation",
+            "mutation": {"revision": sequence, "state": f"v{sequence}"},
+            "causation_id": previous,
+        },
+        "metadata": {"stage": "owner-test"},
+    }
+    persisted = {
+        "event_id": event_id,
+        "event_type": "task.updated",
+        "run_id": "run-owner",
+        "task_id": "task-owner",
+        "payload": {"canonical_revision": sequence},
+    }
+    receipt = {
+        "schema": "zyra.canonical-event-owner-receipt/v1",
+        "owner": "SQLiteStore.EventRecord",
+        "run_id": "run-owner",
+        "task_id": "task-owner",
+        "event_id": event_id,
+        "source_event_type": source["event_type"],
+        "persisted_event_type": persisted["event_type"],
+        "source_event_digest": canonical_digest(source),
+        "persisted_event_digest": canonical_digest(persisted),
+        "persisted_payload_digest": canonical_digest(persisted["payload"]),
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    source["owner_receipt"] = receipt
+    return source, persisted
+
+
+def test_independent_validator_rejects_two_thousand_unowned_claims() -> None:
+    events = []
+    previous = ""
+    for sequence in range(1, 2_001):
+        event = _owner_bound_event(sequence, previous)[0]
+        event.pop("owner_receipt")
+        events.append(event)
+        previous = event["event_id"]
+    result = IndependentTransitionValidator().validate(
+        events,
+        run_id="run-owner",
+        task_id="task-owner",
     )
-
-
-def _write_jsonl(path: Path, values: list[dict]) -> None:
-    path.write_text(
-        "".join(
-            json.dumps(item, sort_keys=True, separators=(",", ":")) + "\n"
-            for item in values
-        ),
-        encoding="utf-8",
-    )
-
-
-def _hard_gates() -> dict:
-    return {
-        "schema": "zyra.phase2-sealed-hard-gates/v1",
-        "human_intervention_count": 0,
-        "early_exit_false_positive": 0,
-        "critical_fact_recall": 1.0,
-        "obligation_retention": 1.0,
-        "superseded_requirement_execution": 0,
-        "critical_retrieval_without_provenance": 0,
-        "duplicate_completed_work": 0,
-        "duplicate_commit": 0,
-        "duplicate_claim": 0,
-        "duplicate_spend": 0,
-        "duplicate_lease": 0,
-        "duplicate_side_effect": 0,
-        "privacy_permission_violation": 0,
-        "unsafe_commit": 0,
-        "adversarial_proposals": {
-            "total": 3,
-            "rejected_or_projected": 3,
-        },
-        "physical_dispatch": {
-            "lanes": [
-                {
-                    "lane": lane,
-                    "receipt_digest": canonical_digest(lane),
-                    "real_gate_closed": True,
-                    "simulated": False,
-                    "semantic_only": False,
-                }
-                for lane in ("local", "edge", "cloud")
-            ],
-            "condition_change_effect": "safe_fail_closed_recovery",
-            "artifact_continuity": True,
-        },
-        "continuity": {
-            "verified_transitions": [
-                "compact_restore",
-                "process_restart",
-                "handoff",
-                "requirement_revision",
-            ],
-            "poisoned_rejected": True,
-            "stale_rejected": True,
-            "conflicting_rejected": True,
-        },
-        "loopx": {
-            "restart_recovered": True,
-            "claim_conflict_rejected": True,
-            "quota_exhaustion_fail_closed": True,
-            "worker_lease_owner_preserved": True,
-            "execution_budget_owner_preserved": True,
-        },
-        "topology_operator": {
-            "role_added": True,
-            "role_removed": True,
-            "operator_added": True,
-            "operator_removed": True,
-            "canonical_custody_commit": True,
-        },
-        "permission_recovery": {
-            "denial_observed": True,
-            "autonomous_recovery": True,
-        },
-        "disable_evidence": {
-            name: {"disabled_changed_outcome": True}
-            for name in (
-                "memory_continuity",
-                "symbolic_projector",
-                "loopx",
-                "dynamic_topology",
-                "operator_selection",
-                "physical_dispatch",
-            )
-        },
-        "production_bypass_reachable": False,
-    }
-
-
-def _build_bundle(tmp_path: Path) -> Path:
-    manifest = {
-        "schema": "zyra.phase2-sealed-long-run-manifest/v1",
-        "slice": "P2-S06-02",
-        "candidate_commit": "a" * 40,
-        "minimum_valid_transitions_per_run": 2_000,
-        "runs": [
-            {"run_key": "software", "domain": "software_delivery"},
-            {"run_key": "research", "domain": "cross_source_research"},
-        ],
-    }
-    manifest_path = tmp_path / "sealed-manifest.json"
-    _write_json(manifest_path, manifest)
-    runs = []
-    for run_key, domain in (
-        ("software", "software_delivery"),
-        ("research", "cross_source_research"),
-    ):
-        root = tmp_path / "runs" / run_key
-        root.mkdir(parents=True)
-        run_id = f"run-{run_key}"
-        task_id = f"task-{run_key}"
-        events = []
-        previous = ""
-        for sequence in range(1, 2_001):
-            effect = EFFECTS[(sequence - 1) % len(EFFECTS)]
-            event_id = f"event-{run_key}-{sequence:06d}"
-            events.append(
-                {
-                    "event_id": event_id,
-                    "event_type": f"canonical_{effect}",
-                    "run_id": run_id,
-                    "task_id": task_id,
-                    "sequence": sequence,
-                    "causation_id": previous,
-                    "created_at": "2026-07-30T00:00:00Z",
-                    "payload": {
-                        "semantic_effect": effect,
-                        "mutation": {
-                            "revision": sequence,
-                            "state": f"settled-{sequence}",
-                        },
-                        "causation_id": previous,
-                    },
-                    "metadata": {
-                        "semantic_effect": effect,
-                        "stage": effect,
-                    },
-                }
-            )
-            previous = event_id
-        raw = root / "raw.jsonl"
-        _write_jsonl(raw, events)
-        transition = IndependentTransitionValidator().validate(
-            events,
-            run_id=run_id,
-            task_id=task_id,
-        ).index(run_id=run_id, task_id=task_id)
-        transition_path = root / "transitions.json"
-        _write_json(transition_path, transition)
-        gates = root / "hard-gates.json"
-        _write_json(gates, _hard_gates())
-        artifact = root / "artifact.txt"
-        artifact.write_text(f"verified {domain}\n", encoding="utf-8")
-        verifier = root / "verifier.json"
-        _write_json(
-            verifier,
-            {
-                "schema": "zyra.phase2-sealed-final-verifier/v1",
-                "run_id": run_id,
-                "task_id": task_id,
-                "passed": True,
-                "artifact_digest": file_digest(artifact),
-            },
-        )
-        runs.append(
-            {
-                "run_key": run_key,
-                "run_id": run_id,
-                "task_id": task_id,
-                "domain": domain,
-                "candidate_commit": "a" * 40,
-                "raw_events": raw.relative_to(tmp_path).as_posix(),
-                "raw_events_digest": file_digest(raw),
-                "transition_index": transition_path.relative_to(
-                    tmp_path
-                ).as_posix(),
-                "hard_gate_bundle": gates.relative_to(tmp_path).as_posix(),
-                "hard_gate_bundle_digest": file_digest(gates),
-                "final_artifact": artifact.relative_to(tmp_path).as_posix(),
-                "final_verifier": verifier.relative_to(tmp_path).as_posix(),
-            }
-        )
-    index = {
-        "schema": EVIDENCE_INDEX_SCHEMA,
-        "sealed_manifest": manifest_path.name,
-        "sealed_manifest_digest": file_digest(manifest_path),
-        "runs": runs,
-    }
-    index_path = tmp_path / "sealed-evidence-index.json"
-    _write_json(index_path, index)
-    return index_path
-
-
-def test_independent_validator_recomputes_two_thousand_transitions_per_domain(
-    tmp_path: Path,
-) -> None:
-    report = SealedLongRunValidator().validate(_build_bundle(tmp_path))
-    assert report["valid"] is True
-    assert {item["domain"] for item in report["runs"]} == {
-        "software_delivery",
-        "cross_source_research",
-    }
+    assert result.valid_count == 0
+    assert len(result.invalid) == 2_000
     assert all(
-        item["valid_transition_count"] == 2_000
-        and item["invalid_transition_count"] == 0
-        for item in report["runs"]
+        "owner_receipt_missing" in item["reason_codes"]
+        for item in result.invalid
     )
 
 
-def test_independent_validator_rejects_runner_count_and_duplicate_semantics(
-    tmp_path: Path,
-) -> None:
-    index_path = _build_bundle(tmp_path)
-    index = json.loads(index_path.read_text(encoding="utf-8"))
-    first = index["runs"][0]
-    transition_path = tmp_path / first["transition_index"]
-    claimed = json.loads(transition_path.read_text(encoding="utf-8"))
-    claimed["valid_transition_count"] = 9_999
-    _write_json(transition_path, claimed)
-    report = SealedLongRunValidator().validate(index_path)
-    first_report = next(
-        item for item in report["runs"] if item["run_key"] == "software"
+def test_independent_validator_recomputes_owner_snapshot_and_rejects_tamper() -> None:
+    first, persisted_first = _owner_bound_event(1, "")
+    second, persisted_second = _owner_bound_event(2, first["event_id"])
+    valid = IndependentTransitionValidator().validate(
+        (first, second),
+        run_id="run-owner",
+        task_id="task-owner",
+        owner_events=(persisted_first, persisted_second),
     )
-    assert report["valid"] is False
-    assert first_report["valid_transition_count"] == 2_000
-    assert "transition_index_recompute_mismatch" in first_report["blockers"]
+    assert valid.valid_count == 2
+    persisted_second["payload"]["canonical_revision"] = 99
+    invalid = IndependentTransitionValidator().validate(
+        (first, second),
+        run_id="run-owner",
+        task_id="task-owner",
+        owner_events=(persisted_first, persisted_second),
+    )
+    assert invalid.valid_count == 1
+    assert "owner_event_digest" in invalid.invalid[0]["reason_codes"]
+
+
+def test_work_units_reject_overlapping_owner_backed_source_ranges() -> None:
+    builder = CanonicalEventBuilder(
+        run_id="run-analysis",
+        task_id="task-analysis",
+    )
+    with pytest.raises(ScenarioRunnerError) as blocked:
+        builder.work_units(
+            (
+                _analysis_receipt("unit-1", byte_start=0, byte_end=100),
+                _analysis_receipt("unit-2", byte_start=50, byte_end=150),
+            ),
+            worker_id="worker-analysis",
+            provider_id="zyra-local",
+            stage="source-index",
+        )
+    assert blocked.value.code == "live_work_unit_not_distinct"
+
+
+def test_validator_binds_analysis_range_to_persisted_memory_content() -> None:
+    persisted_content = {
+        "work_unit_id": "unit-1",
+        "input_digest": "a" * 64,
+        "output_digest": "b" * 64,
+        "byte_start": 0,
+        "byte_end": 100,
+        "source_locator": "persisted.py",
+    }
+    memory = {
+        "memory_id": "memory-unit-1",
+        "run_id": "run-analysis",
+        "task_id": "task-analysis",
+        "source_id": "unit-1",
+        "content": persisted_content,
+    }
+    unit = _analysis_receipt(
+        "unit-1",
+        byte_start=0,
+        byte_end=100,
+        source_locator="claimed.py",
+    )
+    unit["content_digest"] = canonical_digest(persisted_content)
+    unsigned_unit = dict(unit)
+    unsigned_unit.pop("receipt_digest")
+    unit["receipt_digest"] = canonical_digest(unsigned_unit)
+    event = {
+        "event_id": "event-analysis-1",
+        "event_type": "analysis_unit_indexed",
+        "run_id": "run-analysis",
+        "task_id": "task-analysis",
+        "sequence": 1,
+        "causation_id": "",
+        "payload": {
+            "semantic_effect": "memory",
+            "mutation": {"owner_receipt": unit, "state": "owner-indexed"},
+            "causation_id": "",
+        },
+        "metadata": {"stage": "source-index"},
+    }
+    owner_receipt = {
+        "schema": "zyra.canonical-analysis-event-owner-receipt/v1",
+        "owner": "SQLiteStore.MemoryRecord",
+        "run_id": "run-analysis",
+        "task_id": "task-analysis",
+        "event_id": event["event_id"],
+        "source_event_type": event["event_type"],
+        "source_event_digest": canonical_digest(event),
+        "memory_id": memory["memory_id"],
+        "analysis_receipt_digest": unit["receipt_digest"],
+        "persisted_memory_digest": canonical_digest(memory),
+        "persisted_content_digest": canonical_digest(persisted_content),
+    }
+    owner_receipt["receipt_digest"] = canonical_digest(owner_receipt)
+    event["owner_receipt"] = owner_receipt
+    result = IndependentTransitionValidator().validate(
+        (event,),
+        run_id="run-analysis",
+        task_id="task-analysis",
+        owner_analysis_records=(memory,),
+    )
+    assert result.valid_count == 0
+    assert "analysis_memory_content_binding" in result.invalid[0]["reason_codes"]
 
 
 def test_loopback_remote_lane_requires_real_physical_boundary() -> None:
@@ -366,25 +307,6 @@ def test_live_research_redirects_stay_inside_frozen_host_allowlist(
     with pytest.raises(ScenarioRunnerError) as blocked:
         acquirer._validated_url("https://redirect.example/rfc9110.txt")
     assert blocked.value.code == "research_host_not_allowed"
-
-
-def test_worktree_guard_accepts_git_collapsed_evidence_parent() -> None:
-    runner = object.__new__(SealedLongRunRunner)
-    runner.project_root = ROOT
-    runner.evidence_root = (
-        ROOT
-        / "docs"
-        / "evidence"
-        / "phase2"
-        / "sealed"
-        / "P2-S06-02-attempt-02"
-    )
-    assert runner._status_entry_is_evidence(
-        "?? docs/evidence/phase2/sealed/"
-    )
-    assert not runner._status_entry_is_evidence(
-        " M packages/evaluation/unsafe.py"
-    )
 
 
 def test_sealed_manifest_preflight_rejects_noncanonical_fault_kind() -> None:

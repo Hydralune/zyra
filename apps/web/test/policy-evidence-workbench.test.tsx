@@ -6,6 +6,7 @@ import type {
 } from "../src/api/policy-api.ts"
 import {
   admitPolicyEvidencePage,
+  PolicyApi,
 } from "../src/api/policy-api.ts"
 import {
   PolicyEvidenceRuntime,
@@ -224,6 +225,54 @@ describe("policy evidence admission and incremental projection", () => {
     expect(snapshot.evidenceDigests).toHaveLength(11)
     expect(snapshot.transitions[0]?.sequence).toBe(1)
     expect(snapshot.transitions.at(-1)?.sequence).toBe(2_105)
+  })
+
+  test("2105 admitted API transitions survive store and complete export", async () => {
+    const pages: PolicyEvidencePage[] = []
+    for (let start = 1; start <= 2_105; start += 200) {
+      const count = Math.min(200, 2_106 - start)
+      pages.push(await sealPage(page(start, count, {
+        hasMore: start + count <= 2_105,
+      })))
+    }
+    const client = {
+      async endpoint() {
+        const selected = pages.shift()
+        if (!selected) throw new Error("unexpected extra page")
+        return { data: selected }
+      },
+    }
+    const runtime = new PolicyEvidenceRuntime({
+      api: new PolicyApi(client as never),
+      query: { taskId: "task-policy", reportId: "report-real" },
+      pageLimit: 200,
+      maximumTransitions: 5_000,
+    })
+    await runtime.open()
+    while (runtime.getSnapshot().hasMore) await runtime.loadNext()
+
+    const exported = JSON.parse(runtime.exportLoaded())
+    expect(exported.complete).toBeTrue()
+    expect(exported.truncated).toBeFalse()
+    expect(exported.dropped_transitions).toBe(0)
+    expect(exported.retained_transition_count).toBe(2_105)
+    expect(exported.transitions).toHaveLength(2_105)
+    expect(exported.evidence_digests).toHaveLength(11)
+  })
+
+  test("export never claims completeness after local transition eviction", () => {
+    const runtime = new PolicyEvidenceRuntime({
+      api: {} as never,
+      query: { taskId: "task-policy" },
+      maximumTransitions: 200,
+    })
+    runtime.store.append(page(1, 201, { hasMore: false }))
+
+    const exported = JSON.parse(runtime.exportLoaded())
+    expect(exported.complete).toBeFalse()
+    expect(exported.truncated).toBeTrue()
+    expect(exported.dropped_transitions).toBe(1)
+    expect(exported.transitions).toHaveLength(200)
   })
 
   test("runtime exports original page and snapshot digests", async () => {

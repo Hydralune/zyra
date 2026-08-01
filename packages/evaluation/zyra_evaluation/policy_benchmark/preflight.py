@@ -9,6 +9,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from zyra_productization.release.worktree import (
+    WorktreeBoundaryError,
+    inspect_worktree,
+    require_worktree_boundary,
+)
+
 from zyra_orchestration.topology_policy.registry import (
     MechanismRegistry,
     ResolutionPurpose,
@@ -70,6 +76,7 @@ PROHIBITED_OPERATIONS = (
 )
 HARD_GATE_ORDER = (
     "success_and_safety",
+    "target_source_boundary",
     "manifest_integrity",
     "registry_default_baseline",
     "validation_profile_explicit",
@@ -240,6 +247,14 @@ class FrozenPreflightManifest:
             raise StrongestPreflightError(
                 "preflight-base-commit-invalid",
                 "P2_EVAL_BASE_COMMIT must be a full commit.",
+            )
+        implementation_target = str(
+            frozen_inputs.get("implementation_target_commit") or ""
+        )
+        if implementation_target and len(implementation_target) != 40:
+            raise StrongestPreflightError(
+                "preflight-target-commit-invalid",
+                "The frozen implementation target must be a full commit.",
             )
         profile = _mapping(frozen_inputs.get("profile"), "frozen_inputs.profile")
         if profile.get("family") != "topology_policy":
@@ -547,6 +562,28 @@ class StrongestPreflightRunner:
                 "preflight-implementation-commit-mismatch",
                 "The preflight implementation commit must equal the current Git HEAD.",
             )
+        frozen_target = str(
+            _mapping(
+                self.manifest.value.get("frozen_inputs"),
+                "frozen_inputs",
+            ).get("implementation_target_commit")
+            or ""
+        )
+        if frozen_target != implementation_commit:
+            raise StrongestPreflightError(
+                "preflight-frozen-target-mismatch",
+                "The final preflight manifest is not bound to the implementation target.",
+            )
+        try:
+            boundary_before = require_worktree_boundary(
+                self.repository_root,
+                expected_head=implementation_commit,
+            )
+        except WorktreeBoundaryError as exc:
+            raise StrongestPreflightError(
+                "preflight-target-source-boundary",
+                "The final preflight source boundary is dirty or mismatched.",
+            ) from exc
         registry = MechanismRegistry.load(self.repository_root)
         normal_before = registry.resolve(
             self.manifest.profile_family,
@@ -591,6 +628,19 @@ class StrongestPreflightRunner:
             )
             for probe in self.manifest.command_probes
         )
+        boundary_after = inspect_worktree(
+            self.repository_root,
+            expected_head=implementation_commit,
+        )
+        boundary_receipt = {
+            "schema": "zyra.strongest-preflight-source-boundary/v1",
+            "receipt_id": "receipt_target_source_boundary",
+            "status": "passed" if boundary_after["ready"] else "failed",
+            "retained": True,
+            "before": boundary_before,
+            "after": boundary_after,
+        }
+        boundary_receipt["receipt_digest"] = canonical_digest(boundary_receipt)
         all_receipts = (
             *deterministic_receipts,
             *fail_closed_receipts,
@@ -598,6 +648,7 @@ class StrongestPreflightRunner:
             replay_receipt,
             no_training_receipt,
             *command_receipts,
+            boundary_receipt,
         )
         receipt_set = {
             "schema": STRONGEST_PREFLIGHT_RECEIPT_SET_SCHEMA,
@@ -676,6 +727,7 @@ class StrongestPreflightRunner:
                 == self.manifest.profile_config_digest
             )
         base_gates = {
+            "target_source_boundary": boundary_after["ready"] is True,
             "manifest_integrity": True,
             "registry_default_baseline": registry_default,
             "validation_profile_explicit": validation_explicit,
@@ -704,6 +756,7 @@ class StrongestPreflightRunner:
             base_gates[item]
             for item in (
                 "manifest_integrity",
+                "target_source_boundary",
                 "registry_default_baseline",
                 "validation_profile_explicit",
                 "readiness_enforcement",

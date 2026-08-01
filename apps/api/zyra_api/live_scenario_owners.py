@@ -36,6 +36,7 @@ from zyra_evaluation.scenario_runner.models import (
     ScenarioConfiguration,
 )
 from zyra_runtime import LocalArtifactStore
+from zyra_memory import MemoryLayer, MemoryRecord
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
 
 
@@ -51,8 +52,9 @@ _LIVE_EVENT_TYPE_MAP: dict[str, EventType] = {
     "edge_disconnected": EventType.WORKER_HEALTH,
     "memory_retrieved": EventType.NODE_UPDATED,
     "task_updated": EventType.NODE_UPDATED,
-    "tool_call": EventType.MCP_TOOL_RESULT,
-    "artifact_committed": EventType.ARTIFACT_WRITTEN,
+    "analysis_unit_indexed": EventType.NODE_UPDATED,
+    "analysis_unit_verified": EventType.EVALUATION,
+    "policy_control_committed": EventType.TOPOLOGY_ROUTE,
     "compact_committed": EventType.RECOVERY_PLANNED,
     "fault_observed": EventType.FAILURE_INJECTED,
     "requirement_change": EventType.REQUIREMENT_CHANGE,
@@ -123,6 +125,7 @@ def execute_live_owner_chain(
         placement=owner,
         fault=owner,
         source_commit=_source_commit(api_main.PROJECT_ROOT),
+        analysis=owner,
     )
     return DualDomainScenarioExecutor(
         project_root=api_main.PROJECT_ROOT,
@@ -169,6 +172,8 @@ class CanonicalLiveScenarioOwners:
         self._fault_events: list[dict[str, Any]] = []
         self._worker_cursor = 0
         self._domain_input: DomainInput | None = None
+        self._canonical_event_snapshot: tuple[dict[str, Any], ...] = ()
+        self._canonical_analysis_snapshot: tuple[dict[str, Any], ...] = ()
 
     # ------------------------------------------------------------------
     # Canonical task/event owner port
@@ -283,6 +288,9 @@ class CanonicalLiveScenarioOwners:
                 raise LiveOwnerIntegrationError(
                     f"live event type has no canonical projection: {original_type}"
                 )
+            if original_type in {"analysis_unit_indexed", "analysis_unit_verified"}:
+                previous = event_id
+                continue
             records.append(
                 EventRecord(
                     run_id=state.run_id,
@@ -316,11 +324,236 @@ class CanonicalLiveScenarioOwners:
             raise LiveOwnerIntegrationError(
                 f"canonical event owner did not persist events: {missing[:3]}"
             )
-        state.metadata["live_canonical_event_count"] = len(records)
+        analysis_by_id = {
+            str(item.get("memory_id") or ""): dict(item)
+            for item in self._canonical_analysis_snapshot
+        }
+        committed_events: list[dict[str, Any]] = []
+        snapshot_events: list[dict[str, Any]] = []
+        for event in events:
+            source = dict(event)
+            if source.get("event_type") in {
+                "analysis_unit_indexed",
+                "analysis_unit_verified",
+            }:
+                unit = dict(
+                    (source.get("payload") or {}).get("mutation", {}).get(
+                        "owner_receipt"
+                    )
+                    or {}
+                )
+                selected_memory = analysis_by_id.get(str(unit.get("memory_id") or ""))
+                if selected_memory is None:
+                    raise LiveOwnerIntegrationError(
+                        "analysis event has no canonical memory owner snapshot"
+                    )
+                receipt = {
+                    "schema": "zyra.canonical-analysis-event-owner-receipt/v1",
+                    "owner": "SQLiteStore.MemoryRecord",
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                    "event_id": source["event_id"],
+                    "source_event_type": source["event_type"],
+                    "source_event_digest": digest(source),
+                    "memory_id": unit.get("memory_id"),
+                    "analysis_receipt_digest": unit.get("receipt_digest"),
+                    "persisted_memory_digest": digest(selected_memory),
+                    "persisted_content_digest": digest(
+                        selected_memory.get("content") or {}
+                    ),
+                }
+            else:
+                selected = stored[str(event["event_id"])]
+                receipt = {
+                    "schema": "zyra.canonical-event-owner-receipt/v1",
+                    "owner": "SQLiteStore.EventRecord",
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                    "event_id": source["event_id"],
+                    "source_event_type": source["event_type"],
+                    "persisted_event_type": selected.get("event_type"),
+                    "source_event_digest": digest(source),
+                    "persisted_event_digest": digest(selected),
+                    "persisted_payload_digest": digest(
+                        selected.get("payload") or {}
+                    ),
+                }
+                snapshot_events.append(dict(selected))
+            receipt["receipt_digest"] = digest(receipt)
+            source["owner_receipt"] = receipt
+            committed_events.append(source)
+        self._canonical_event_snapshot = tuple(snapshot_events)
+        state.metadata["live_canonical_event_count"] = len(events)
+        state.metadata["live_canonical_event_owner_count"] = len(records)
+        state.metadata["live_analysis_owner_count"] = len(analysis_by_id)
         state.metadata["live_causal_root_event_id"] = records[0].event_id
         state.metadata["live_causal_leaf_event_id"] = records[-1].event_id
         api_main.get_store().save_checkpoint(state)
-        return tuple(dict(item) for item in events)
+        return tuple(committed_events)
+
+    def canonical_event_snapshot(self) -> tuple[dict[str, Any], ...]:
+        from . import main as api_main
+
+        if self._state is None:
+            return tuple(dict(item) for item in self._canonical_event_snapshot)
+        return tuple(
+            dict(item)
+            for item in api_main.get_store().task_events(self._state.task_id)
+        )
+
+    def canonical_analysis_snapshot(self) -> tuple[dict[str, Any], ...]:
+        return tuple(dict(item) for item in self._canonical_analysis_snapshot)
+
+    def commit_analysis_units(
+        self,
+        *,
+        owner_context: Mapping[str, Any],
+        values: Sequence[Mapping[str, Any]],
+        stage: str,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Persist distinct source-range analysis facts in the existing memory owner."""
+
+        from . import main as api_main
+
+        state = self._require_state(owner_context)
+        records: list[MemoryRecord] = []
+        normalized: list[dict[str, Any]] = []
+        seen_units: set[str] = set()
+        seen_ranges: set[tuple[str, int, int]] = set()
+        seen_intervals: dict[str, list[tuple[int, int]]] = {}
+        for index, raw in enumerate(values, start=1):
+            value = dict(raw)
+            unit_id = str(value.get("work_unit_id") or "")
+            input_digest = str(value.get("input_digest") or "")
+            output_digest = str(value.get("output_digest") or "")
+            byte_start = int(value.get("byte_start") or 0)
+            byte_end = int(value.get("byte_end") or 0)
+            source_locator = str(
+                value.get("source_id") or value.get("relative_path") or ""
+            )
+            source_range = (source_locator, byte_start, byte_end)
+            overlaps_existing = any(
+                byte_start < existing_end and byte_end > existing_start
+                for existing_start, existing_end in seen_intervals.get(
+                    source_locator,
+                    (),
+                )
+            )
+            if (
+                not unit_id
+                or unit_id in seen_units
+                or not source_locator
+                or source_range in seen_ranges
+                or overlaps_existing
+                or len(input_digest) != 64
+                or len(output_digest) != 64
+                or byte_end <= byte_start
+            ):
+                raise LiveOwnerIntegrationError(
+                    "analysis unit is not a distinct source byte range"
+                )
+            seen_units.add(unit_id)
+            seen_ranges.add(source_range)
+            seen_intervals.setdefault(source_locator, []).append(
+                (byte_start, byte_end)
+            )
+            content = {
+                "work_unit_id": unit_id,
+                "kind": str(value.get("kind") or "analysis"),
+                "input_digest": input_digest,
+                "output_digest": output_digest,
+                "byte_start": byte_start,
+                "byte_end": byte_end,
+                "analysis_index": int(value.get("analysis_index") or index),
+                "semantic_mutation": dict(value.get("semantic_mutation") or {}),
+                "relative_path": str(value.get("relative_path") or ""),
+                "source_id": str(value.get("source_id") or ""),
+                "fragment_id": str(value.get("fragment_id") or ""),
+                "source_locator": source_locator,
+                "stage": stage,
+            }
+            content_digest = digest(content)
+            memory_id = f"analysis-unit:{content_digest}"
+            records.append(
+                MemoryRecord(
+                    memory_id=memory_id,
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    layer=MemoryLayer.EPISODIC,
+                    source_type="distinct_source_range",
+                    source_id=unit_id,
+                    node_id=state.root_node_id,
+                    summary=(
+                        f"Verified {stage} source range {byte_start}:{byte_end}"
+                    ),
+                    content=content,
+                    evidence_ids=[unit_id],
+                    score=1.0,
+                    metadata={
+                        "content_digest": content_digest,
+                        "owner": "SQLiteStore.MemoryRecord",
+                        "formal_long_run": True,
+                    },
+                )
+            )
+            normalized.append(
+                {
+                    **content,
+                    "memory_id": memory_id,
+                    "content_digest": content_digest,
+                }
+            )
+        api_main.get_store().save_memory_records(records)
+        stored = {
+            item.memory_id: item
+            for item in api_main.get_store().task_memory_records(
+                state.task_id,
+                MemoryLayer.EPISODIC,
+            )
+        }
+        self._canonical_analysis_snapshot = tuple(
+            to_jsonable(stored[item["memory_id"]])
+            for item in normalized
+            if item["memory_id"] in stored
+        )
+        receipts: list[dict[str, Any]] = []
+        for value in normalized:
+            record = stored.get(str(value["memory_id"]))
+            readback_verified = bool(
+                record is not None
+                and record.run_id == state.run_id
+                and record.task_id == state.task_id
+                and digest(record.content) == value["content_digest"]
+                and record.source_id == value["work_unit_id"]
+            )
+            receipt = {
+                "schema": "zyra.analysis-unit-owner-receipt/v1",
+                "owner": "SQLiteStore.MemoryRecord",
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "work_unit_id": value["work_unit_id"],
+                "memory_id": value["memory_id"],
+                "kind": value["kind"],
+                "input_digest": value["input_digest"],
+                "output_digest": value["output_digest"],
+                "byte_start": value["byte_start"],
+                "byte_end": value["byte_end"],
+                "analysis_index": value["analysis_index"],
+                "source_locator": value["source_locator"],
+                "semantic_mutation": value["semantic_mutation"],
+                "content_digest": value["content_digest"],
+                "committed": record is not None,
+                "readback_verified": readback_verified,
+            }
+            receipt["receipt_digest"] = digest(receipt)
+            receipts.append(receipt)
+        if len(receipts) != len(values) or not all(
+            item["committed"] and item["readback_verified"] for item in receipts
+        ):
+            raise LiveOwnerIntegrationError(
+                "analysis-unit owner failed commit/readback verification"
+            )
+        return tuple(receipts)
 
     def curate_memory(
         self,

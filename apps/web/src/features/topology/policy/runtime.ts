@@ -83,7 +83,8 @@ export class PolicyEvidenceRuntime {
     return JSON.stringify(
       {
         schema_version: "zyra.policy-evidence-export/v1",
-        complete: !snapshot.hasMore,
+        complete: !snapshot.hasMore && snapshot.droppedTransitions === 0,
+        truncated: snapshot.droppedTransitions > 0,
         filters: snapshot.query,
         filter_digest: snapshot.filterDigest,
         snapshot_digest: snapshot.snapshotDigest,
@@ -93,6 +94,7 @@ export class PolicyEvidenceRuntime {
         issues: snapshot.issues,
         metric_report: snapshot.metricReport,
         dropped_transitions: snapshot.droppedTransitions,
+        retained_transition_count: snapshot.transitions.length,
         canonical_write_allowed: false,
       },
       null,

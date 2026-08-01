@@ -714,8 +714,17 @@ class SourceFragmenter:
                 "Live sources contain no admissible text fragments.",
                 phase="research-analysis",
             )
-        expanded = self._expand(values, minimum_work_units)
-        return tuple(expanded[: max(minimum_work_units, len(expanded))])
+        if len(values) < minimum_work_units:
+            raise unavailable(
+                "research_fragments_insufficient",
+                "Live sources have too few distinct byte ranges for the formal long run.",
+                phase="research-analysis",
+                detail={
+                    "distinct_work_units": len(values),
+                    "minimum_work_units": minimum_work_units,
+                },
+            )
+        return tuple(values)
 
     @staticmethod
     def _spans(text: str) -> list[tuple[int, int, str]]:
@@ -737,7 +746,7 @@ class SourceFragmenter:
         start: int,
         end: int,
         *,
-        maximum_characters: int = 1_200,
+        maximum_characters: int = 384,
     ) -> list[tuple[int, int, str]]:
         output: list[tuple[int, int, str]] = []
         selected = full[start:end]
@@ -763,61 +772,6 @@ class SourceFragmenter:
                 )
             local = max(limit, local + 1)
         return output
-
-    @staticmethod
-    def _expand(
-        values: Sequence[TextFragment],
-        minimum_work_units: int,
-    ) -> list[TextFragment]:
-        if len(values) >= minimum_work_units:
-            return list(values)
-        output = list(values)
-        sequence = 0
-        while len(output) < minimum_work_units:
-            original = values[sequence % len(values)]
-            sequence += 1
-            dimension = (
-                "entities",
-                "dates",
-                "numbers",
-                "normative_terms",
-                "definitions",
-                "exceptions",
-                "scope",
-                "causality",
-            )[sequence % 8]
-            semantic_digest = digest(
-                {
-                    "source_digest": original.text_digest,
-                    "dimension": dimension,
-                    "sequence": sequence,
-                }
-            )
-            output.append(
-                TextFragment(
-                    fragment_id=(
-                        f"analysis:{original.source_id}:{sequence:05d}:"
-                        f"{semantic_digest[:12]}"
-                    ),
-                    source_id=original.source_id,
-                    text=original.text,
-                    normalized_text=original.normalized_text,
-                    byte_start=original.byte_start,
-                    byte_end=original.byte_end,
-                    text_digest=semantic_digest,
-                    tokens=tuple(
-                        sorted(
-                            {
-                                *original.tokens,
-                                f"analysis-dimension:{dimension}",
-                            }
-                        )
-                    ),
-                    ordinal=original.ordinal,
-                )
-            )
-        return output
-
 
 class ResearchPlanBuilder:
     def build(
@@ -1392,6 +1346,8 @@ class ResearchDeliveryRuntime:
                 ),
                 "source_id": item.source_id,
                 "fragment_id": item.fragment_id,
+                "byte_start": item.byte_start,
+                "byte_end": item.byte_end,
                 "analysis_index": index,
                 "semantic_mutation": {
                     "research_index_revision": index,
@@ -1440,6 +1396,11 @@ class ResearchDeliveryRuntime:
                 "authority_count": len({item.authority for item in acquisitions}),
                 "source_count": len(acquisitions),
                 "human_intervention_count": 0,
+                "inline_policy_receipt_digest": (
+                    dict(route.get("phase2_policy_binding") or {}).get(
+                        "receipt_digest"
+                    )
+                ),
             },
         )
 

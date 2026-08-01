@@ -104,6 +104,26 @@ class ArtifactOwnerPort(Protocol):
     ) -> Sequence[Mapping[str, Any]]: ...
 
 
+class PreExecutionPolicyPort(Protocol):
+    def execute(
+        self,
+        *,
+        owner_context: Mapping[str, Any],
+        configuration: ScenarioConfiguration,
+        goal: str,
+    ) -> Mapping[str, Any]: ...
+
+
+class AnalysisUnitOwnerPort(Protocol):
+    def commit_analysis_units(
+        self,
+        *,
+        owner_context: Mapping[str, Any],
+        values: Sequence[Mapping[str, Any]],
+        stage: str,
+    ) -> Sequence[Mapping[str, Any]]: ...
+
+
 class CallbackTaskOwnerPort:
     def __init__(
         self,
@@ -215,6 +235,8 @@ class DualDomainOwnerBindings:
     placement: PlacementOwnerPort
     fault: FaultOwnerPort
     source_commit: str
+    pre_execution_policy: PreExecutionPolicyPort | None = None
+    analysis: AnalysisUnitOwnerPort | None = None
 
 
 class CanonicalEventBuilder:
@@ -326,41 +348,116 @@ class CanonicalEventBuilder:
         provider_id: str,
         stage: str,
     ) -> None:
+        seen_units: set[str] = set()
+        seen_ranges: set[tuple[str, int, int]] = set()
+        seen_intervals: dict[str, list[tuple[int, int]]] = {}
         for index, value in enumerate(values, start=1):
             unit_id = str(value.get("work_unit_id") or f"unit-{index:06d}")
-            call = self.emit(
-                event_type="tool_call",
-                effect="tool",
-                stage=stage,
-                worker_id=worker_id,
-                provider_id=provider_id,
-                mutation={
-                    "work_unit_id": unit_id,
-                    "operation": str(value.get("kind") or "analyze"),
-                    "input_digest": str(value.get("input_digest") or ""),
-                    "analysis_index": int(value.get("analysis_index") or index),
-                    "state": "executing",
-                },
-                metadata={"work_unit_id": unit_id},
+            if value.get("schema") != "zyra.analysis-unit-owner-receipt/v1":
+                raise conflict(
+                    "live_work_unit_owner_receipt_missing",
+                    "Long-run work units require an existing owner receipt.",
+                    phase="dual-domain-events",
+                    detail={"work_unit_id": unit_id, "analysis_index": index},
+                )
+            unsigned = dict(value)
+            receipt_digest = str(unsigned.pop("receipt_digest", ""))
+            if (
+                receipt_digest != digest(unsigned)
+                or value.get("owner") != "SQLiteStore.MemoryRecord"
+                or value.get("committed") is not True
+                or value.get("readback_verified") is not True
+            ):
+                raise conflict(
+                    "live_work_unit_owner_receipt_invalid",
+                    "Long-run work-unit owner receipt failed integrity or readback.",
+                    phase="dual-domain-events",
+                    detail={"work_unit_id": unit_id, "analysis_index": index},
+                )
+            input_digest = str(value.get("input_digest") or "")
+            output_digest = str(value.get("output_digest") or "")
+            byte_start = int(value.get("byte_start") or 0)
+            byte_end = int(value.get("byte_end") or 0)
+            source_locator = str(value.get("source_locator") or "")
+            source_range = (source_locator, byte_start, byte_end)
+            overlaps_existing = any(
+                byte_start < existing_end and byte_end > existing_start
+                for existing_start, existing_end in seen_intervals.get(
+                    source_locator,
+                    (),
+                )
             )
-            self.emit(
-                event_type="artifact_committed",
-                effect="artifact",
+            if (
+                not unit_id
+                or unit_id in seen_units
+                or not source_locator
+                or source_range in seen_ranges
+                or overlaps_existing
+                or len(input_digest) != 64
+                or len(output_digest) != 64
+                or byte_end <= byte_start
+            ):
+                raise conflict(
+                    "live_work_unit_not_distinct",
+                    "Long-run work units must bind distinct, non-empty source byte ranges.",
+                    phase="dual-domain-events",
+                    detail={"work_unit_id": unit_id, "analysis_index": index},
+                )
+            seen_units.add(unit_id)
+            seen_ranges.add(source_range)
+            seen_intervals.setdefault(source_locator, []).append(
+                (byte_start, byte_end)
+            )
+            indexed = self.emit(
+                event_type="analysis_unit_indexed",
+                effect="memory",
                 stage=stage,
                 worker_id=worker_id,
                 provider_id=provider_id,
                 mutation={
                     "work_unit_id": unit_id,
                     "operation": str(value.get("kind") or "analyze"),
-                    "output_digest": str(value.get("output_digest") or ""),
+                    "input_digest": input_digest,
+                    "byte_start": byte_start,
+                    "byte_end": byte_end,
+                    "source_locator": source_locator,
+                    "analysis_index": int(value.get("analysis_index") or index),
                     "semantic_mutation": canonicalize(
                         value.get("semantic_mutation") or {}
                     ),
-                    "index_revision": int(value.get("analysis_index") or index),
-                    "caused_by": call["event_id"],
-                    "state": "committed",
+                    "owner_receipt": canonicalize(value),
+                    "state": "owner-indexed",
                 },
-                metadata={"work_unit_id": unit_id},
+                metadata={
+                    "work_unit_id": unit_id,
+                    "owner_binding_required": True,
+                    "distinct_source_range": True,
+                },
+            )
+            self.emit(
+                event_type="analysis_unit_verified",
+                effect="verification",
+                stage=stage,
+                worker_id=worker_id,
+                provider_id=provider_id,
+                mutation={
+                    "work_unit_id": unit_id,
+                    "operation": str(value.get("kind") or "analyze"),
+                    "input_digest": input_digest,
+                    "output_digest": output_digest,
+                    "byte_start": byte_start,
+                    "byte_end": byte_end,
+                    "source_locator": source_locator,
+                    "index_revision": int(value.get("analysis_index") or index),
+                    "caused_by": indexed["event_id"],
+                    "owner_receipt": canonicalize(value),
+                    "state": "digest-verified",
+                },
+                metadata={
+                    "work_unit_id": unit_id,
+                    "owner_binding_required": True,
+                    "distinct_source_range": True,
+                },
             )
 
 
@@ -414,6 +511,27 @@ class DualDomainScenarioExecutor:
                 phase="dual-domain",
             )
         started_at = str(owner_context.get("started_at") or utc_now())
+        policy_evidence: dict[str, Any] = {}
+        if self.bindings.pre_execution_policy is not None:
+            policy_evidence = dict(
+                self.bindings.pre_execution_policy.execute(
+                    owner_context=owner_context,
+                    configuration=configuration,
+                    goal=goal,
+                )
+            )
+            if (
+                policy_evidence.get("schema")
+                != "zyra.phase2-sealed-inline-policy/v1"
+                or policy_evidence.get("ready") is not True
+                or policy_evidence.get("run_id") != owner_run_id
+                or policy_evidence.get("task_id") != task_id
+            ):
+                raise conflict(
+                    "live_inline_policy_invalid",
+                    "The pre-execution strongest policy did not return a run-bound ready receipt.",
+                    phase="dual-domain-policy",
+                )
         domain_input = self._domain_input(configuration)
         placement_runtime = PlacementEvidenceRuntime(owner=self.bindings.placement)
         placement = placement_runtime.execute(
@@ -423,6 +541,24 @@ class DualDomainScenarioExecutor:
             require_real_providers=options.require_real_providers,
         )
         route = self._domain_route(placement)
+        if policy_evidence:
+            route["phase2_policy_binding"] = canonicalize(
+                {
+                    "policy_profile": policy_evidence.get("policy_profile"),
+                    "decision_id": policy_evidence.get("decision_id"),
+                    "operator_ref": policy_evidence.get("operator_ref"),
+                    "resource_decision_id": policy_evidence.get(
+                        "resource_decision_id"
+                    ),
+                    "lease_id": policy_evidence.get("lease_id"),
+                    "attempt_id": policy_evidence.get("attempt_id"),
+                    "physical_receipt_digest": policy_evidence.get(
+                        "physical_receipt_digest"
+                    ),
+                    "receipt_digest": policy_evidence.get("receipt_digest"),
+                    "consumed_by": "dual-domain-route-and-domain-runtime",
+                }
+            )
         if cancel_requested():
             raise conflict(
                 "live_cancelled_before_domain_execution",
@@ -437,6 +573,14 @@ class DualDomainScenarioExecutor:
             options=options,
             cancel_requested=cancel_requested,
         )
+        if policy_evidence and payload.metadata.get(
+            "inline_policy_receipt_digest"
+        ) != policy_evidence.get("receipt_digest"):
+            raise conflict(
+                "live_inline_policy_not_consumed",
+                "Domain runtime did not bind the strongest policy receipt.",
+                phase="dual-domain-policy",
+            )
         builder = CanonicalEventBuilder(run_id=owner_run_id, task_id=task_id)
         builder.emit(
             event_type="task_created",
@@ -452,6 +596,25 @@ class DualDomainScenarioExecutor:
                 "state": "running",
             },
         )
+        if policy_evidence:
+            builder.emit(
+                event_type="policy_control_committed",
+                effect="topology",
+                stage="pre-execution-policy",
+                node_id=root_node_id,
+                mutation={
+                    "policy_profile": policy_evidence.get("policy_profile"),
+                    "decision_id": policy_evidence.get("decision_id"),
+                    "operator_ref": policy_evidence.get("operator_ref"),
+                    "resource_decision_id": policy_evidence.get(
+                        "resource_decision_id"
+                    ),
+                    "lease_id": policy_evidence.get("lease_id"),
+                    "attempt_id": policy_evidence.get("attempt_id"),
+                    "receipt_digest": policy_evidence.get("receipt_digest"),
+                    "state": "consumed-before-domain-execution",
+                },
+            )
         builder.emit(
             event_type="topology_mutation",
             effect="topology",
@@ -518,8 +681,26 @@ class DualDomainScenarioExecutor:
                     "tier": result.tier.value,
                 },
             )
+        if self.bindings.analysis is None:
+            raise conflict(
+                "live_analysis_owner_unbound",
+                "Formal long-run analysis requires the canonical memory owner.",
+                phase="dual-domain-events",
+            )
+        analysis_receipts = tuple(
+            dict(item)
+            for item in self.bindings.analysis.commit_analysis_units(
+                owner_context=owner_context,
+                values=payload.work_units,
+                stage=(
+                    "code-index"
+                    if domain_input.domain is LiveDomain.SOFTWARE_DELIVERY
+                    else "source-index"
+                ),
+            )
+        )
         builder.work_units(
-            payload.work_units,
+            analysis_receipts,
             worker_id=str(route.get("worker_id") or ""),
             provider_id=str(route.get("provider_id") or ""),
             stage=(
@@ -670,6 +851,9 @@ class DualDomainScenarioExecutor:
                 "require_real_providers": options.require_real_providers,
                 "scenario_run_id": scenario_run_id,
                 "configuration_digest": configuration.configuration_digest,
+                "inline_policy_receipt_digest": policy_evidence.get(
+                    "receipt_digest"
+                ),
             },
         )
         provisional.require_formal()

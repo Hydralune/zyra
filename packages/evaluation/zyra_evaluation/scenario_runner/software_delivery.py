@@ -310,7 +310,7 @@ class SourceInventoryBuilder:
         records: list[SourceRecord] = []
         for path in paths:
             content = path.read_bytes()
-            chunks = self._chunks(content, minimum_work_units, len(paths))
+            chunks = self._chunks(content)
             for start, end in chunks:
                 selected = content[start:end]
                 text = selected.decode("utf-8", errors="replace")
@@ -335,8 +335,16 @@ class SourceInventoryBuilder:
                     )
                 )
         if len(records) < minimum_work_units:
-            records = self._expand_records(records, minimum_work_units)
-        return tuple(records[: max(minimum_work_units, len(records))])
+            raise unavailable(
+                "software_source_inventory_insufficient",
+                "Software source inventory has too few distinct byte ranges for the formal long run.",
+                phase="software-discovery",
+                detail={
+                    "distinct_work_units": len(records),
+                    "minimum_work_units": minimum_work_units,
+                },
+            )
+        return tuple(records)
 
     def _paths(self, source_roots: Sequence[str]) -> list[Path]:
         values: set[Path] = set()
@@ -376,57 +384,14 @@ class SourceInventoryBuilder:
     @staticmethod
     def _chunks(
         content: bytes,
-        minimum_work_units: int,
-        file_count: int,
     ) -> tuple[tuple[int, int], ...]:
-        target_per_file = max(1, (minimum_work_units + max(1, file_count) - 1) // max(1, file_count))
-        chunk_size = max(256, min(16 * 1024, (len(content) + target_per_file - 1) // target_per_file))
+        # Fixed-size, non-overlapping byte ranges keep inventory semantics
+        # independent of the formal transition threshold.
+        chunk_size = 4 * 1024
         return tuple(
             (start, min(len(content), start + chunk_size))
             for start in range(0, len(content), chunk_size)
         )
-
-    @staticmethod
-    def _expand_records(
-        records: Sequence[SourceRecord],
-        minimum_work_units: int,
-    ) -> list[SourceRecord]:
-        if not records:
-            return []
-        expanded = list(records)
-        sequence = 0
-        while len(expanded) < minimum_work_units:
-            original = records[sequence % len(records)]
-            sequence += 1
-            semantic = {
-                "source_id": original.source_id,
-                "dimension": sequence,
-                "symbols": original.symbols,
-                "imports": original.imports,
-                "risk_markers": original.risk_markers,
-            }
-            expanded.append(
-                SourceRecord(
-                    source_id=f"derived:{sequence:05d}:{digest(semantic)[:16]}",
-                    relative_path=original.relative_path,
-                    suffix=original.suffix,
-                    size_bytes=original.size_bytes,
-                    sha256=digest(
-                        {
-                            "content_digest": original.sha256,
-                            "analysis_dimension": sequence,
-                        }
-                    ),
-                    line_count=original.line_count,
-                    language=original.language,
-                    symbols=original.symbols,
-                    imports=original.imports,
-                    risk_markers=original.risk_markers,
-                    byte_start=original.byte_start,
-                    byte_end=original.byte_end,
-                )
-            )
-        return expanded
 
     @staticmethod
     def _symbols(suffix: str, content: str) -> tuple[str, ...]:
@@ -1065,6 +1030,11 @@ class SoftwareDeliveryRuntime:
             "commands_passed": all(item.exit_code == 0 for item in commands),
             "human_intervention_count": 0,
             "route": dict(route),
+            "phase2_policy_receipt_digest": (
+                dict(route.get("phase2_policy_binding") or {}).get(
+                    "receipt_digest"
+                )
+            ),
             "delivery": {
                 "patch": patch_receipt["patch_path"],
                 "source_index": str(inventory_path),
@@ -1091,6 +1061,8 @@ class SoftwareDeliveryRuntime:
                     }
                 ),
                 "relative_path": item.relative_path,
+                "byte_start": item.byte_start,
+                "byte_end": item.byte_end,
                 "analysis_index": index,
                 "semantic_mutation": {
                     "index_revision": index,
@@ -1133,6 +1105,11 @@ class SoftwareDeliveryRuntime:
                 "real_commands": True,
                 "fixture": False,
                 "replay": False,
+                "inline_policy_receipt_digest": (
+                    dict(route.get("phase2_policy_binding") or {}).get(
+                        "receipt_digest"
+                    )
+                ),
             },
         )
 

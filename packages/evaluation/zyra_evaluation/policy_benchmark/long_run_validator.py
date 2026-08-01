@@ -9,10 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from zyra_orchestration.topology_policy.contracts import PhysicalDispatchReceipt
+
 
 EVIDENCE_INDEX_SCHEMA = "zyra.phase2-sealed-evidence-index/v1"
 VALIDATION_SCHEMA = "zyra.phase2-sealed-long-run-validation/v1"
 TRANSITION_INDEX_SCHEMA = "zyra.phase2-canonical-transition-index/v1"
+OWNER_SNAPSHOT_SCHEMA = "zyra.phase2-canonical-owner-snapshot/v1"
 EXCLUDED_EVENT_TYPES = frozenset(
     {
         "heartbeat",
@@ -194,6 +197,115 @@ def _mutation(event: Mapping[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _owner_receipt_blockers(
+    event: Mapping[str, Any],
+    *,
+    owner_events: Mapping[str, Mapping[str, Any]],
+    owner_memories: Mapping[str, Mapping[str, Any]],
+    run_id: str,
+    task_id: str,
+) -> list[str]:
+    receipt = _mapping(event.get("owner_receipt"))
+    event_type = str(event.get("event_type") or "").casefold()
+    if not receipt:
+        return ["owner_receipt_missing"]
+    unsigned = dict(receipt)
+    claimed = str(unsigned.pop("receipt_digest", ""))
+    blockers: list[str] = []
+    if claimed != canonical_digest(unsigned):
+        blockers.append("owner_receipt_digest")
+    if receipt.get("run_id") != run_id or receipt.get("task_id") != task_id:
+        blockers.append("owner_receipt_scope")
+    event_id = str(event.get("event_id") or "")
+    if receipt.get("event_id") != event_id:
+        blockers.append("owner_receipt_event")
+    source = dict(event)
+    source.pop("owner_receipt", None)
+    if receipt.get("source_event_digest") != canonical_digest(source):
+        blockers.append("owner_receipt_source_digest")
+    if event_type in {"tool_call", "artifact_committed"}:
+        blockers.append("unsupported_pseudo_effect_schema")
+    if event_type in {"analysis_unit_indexed", "analysis_unit_verified"}:
+        unit = _mapping(_mutation(event).get("owner_receipt"))
+        unit_unsigned = dict(unit)
+        unit_claimed = str(unit_unsigned.pop("receipt_digest", ""))
+        if (
+            unit.get("schema") != "zyra.analysis-unit-owner-receipt/v1"
+            or unit.get("owner") != "SQLiteStore.MemoryRecord"
+            or unit.get("run_id") != run_id
+            or unit.get("task_id") != task_id
+            or not str(unit.get("source_locator") or "")
+            or int(unit.get("byte_end") or 0)
+            <= int(unit.get("byte_start") or 0)
+            or unit.get("committed") is not True
+            or unit.get("readback_verified") is not True
+            or unit_claimed != canonical_digest(unit_unsigned)
+        ):
+            blockers.append("analysis_owner_receipt_invalid")
+        memory_id = str(unit.get("memory_id") or "")
+        persisted_memory = owner_memories.get(memory_id)
+        if (
+            receipt.get("schema")
+            != "zyra.canonical-analysis-event-owner-receipt/v1"
+            or receipt.get("owner") != "SQLiteStore.MemoryRecord"
+            or receipt.get("memory_id") != memory_id
+            or receipt.get("analysis_receipt_digest")
+            != unit.get("receipt_digest")
+            or persisted_memory is None
+        ):
+            blockers.append("analysis_event_owner_binding")
+        elif (
+            receipt.get("persisted_memory_digest")
+            != canonical_digest(persisted_memory)
+            or receipt.get("persisted_content_digest")
+            != canonical_digest(_mapping(persisted_memory.get("content")))
+            or receipt.get("persisted_content_digest")
+            != unit.get("content_digest")
+            or persisted_memory.get("run_id") != run_id
+            or persisted_memory.get("task_id") != task_id
+            or persisted_memory.get("source_id") != unit.get("work_unit_id")
+        ):
+            blockers.append("analysis_memory_snapshot_binding")
+        else:
+            content = _mapping(persisted_memory.get("content"))
+            if any(
+                content.get(field) != unit.get(field)
+                for field in (
+                    "work_unit_id",
+                    "input_digest",
+                    "output_digest",
+                    "byte_start",
+                    "byte_end",
+                    "source_locator",
+                )
+            ):
+                blockers.append("analysis_memory_content_binding")
+    else:
+        if (
+            receipt.get("schema") != "zyra.canonical-event-owner-receipt/v1"
+            or receipt.get("owner") != "SQLiteStore.EventRecord"
+        ):
+            blockers.append("owner_receipt_owner")
+        persisted = owner_events.get(event_id)
+        if persisted is None:
+            blockers.append("owner_event_unresolved")
+        else:
+            if receipt.get("persisted_event_digest") != canonical_digest(persisted):
+                blockers.append("owner_event_digest")
+            if receipt.get("persisted_payload_digest") != canonical_digest(
+                _mapping(persisted.get("payload"))
+            ):
+                blockers.append("owner_payload_digest")
+            if receipt.get("persisted_event_type") != persisted.get("event_type"):
+                blockers.append("owner_event_type")
+            if (
+                persisted.get("run_id") != run_id
+                or persisted.get("task_id") != task_id
+            ):
+                blockers.append("owner_event_scope")
+    return blockers
+
+
 @dataclass(frozen=True, slots=True)
 class TransitionValidation:
     transitions: tuple[dict[str, Any], ...]
@@ -240,8 +352,20 @@ class IndependentTransitionValidator:
         *,
         run_id: str,
         task_id: str,
+        owner_events: Iterable[Mapping[str, Any]] = (),
+        owner_analysis_records: Iterable[Mapping[str, Any]] = (),
     ) -> TransitionValidation:
         selected = tuple(dict(item) for item in events)
+        owner_event_map = {
+            str(item.get("event_id") or ""): dict(item)
+            for item in owner_events
+            if str(item.get("event_id") or "")
+        }
+        owner_memory_map = {
+            str(item.get("memory_id") or ""): dict(item)
+            for item in owner_analysis_records
+            if str(item.get("memory_id") or "")
+        }
         initial = canonical_digest(
             {
                 "schema": "zyra.phase2-validation-state/v1",
@@ -254,6 +378,9 @@ class IndependentTransitionValidator:
         previous_event_id = ""
         seen_event_ids: set[str] = set()
         seen_semantics: set[str] = set()
+        seen_analysis_ranges: set[tuple[str, int, int]] = set()
+        seen_analysis_intervals: dict[str, list[tuple[int, int]]] = {}
+        indexed_analysis: dict[str, tuple[str, str]] = {}
         transitions: list[dict[str, Any]] = []
         excluded: list[dict[str, Any]] = []
         invalid: list[dict[str, Any]] = []
@@ -272,6 +399,46 @@ class IndependentTransitionValidator:
             effect = _declared_effect(event)
             mutation = _mutation(event)
             reasons: list[str] = []
+            reasons.extend(
+                _owner_receipt_blockers(
+                    event,
+                    owner_events=owner_event_map,
+                    owner_memories=owner_memory_map,
+                    run_id=run_id,
+                    task_id=task_id,
+                )
+            )
+            if event_type in {"analysis_unit_indexed", "analysis_unit_verified"}:
+                unit = _mapping(mutation.get("owner_receipt"))
+                unit_id = str(unit.get("work_unit_id") or "")
+                range_key = (
+                    str(unit.get("source_locator") or ""),
+                    int(unit.get("byte_start") or 0),
+                    int(unit.get("byte_end") or 0),
+                )
+                if event_type == "analysis_unit_indexed":
+                    if unit_id in indexed_analysis:
+                        reasons.append("analysis_unit_duplicate")
+                    if range_key in seen_analysis_ranges:
+                        reasons.append("analysis_source_range_duplicate")
+                    if any(
+                        range_key[1] < existing_end
+                        and range_key[2] > existing_start
+                        for existing_start, existing_end in seen_analysis_intervals.get(
+                            range_key[0],
+                            (),
+                        )
+                    ):
+                        reasons.append("analysis_source_range_overlap")
+                else:
+                    indexed = indexed_analysis.get(unit_id)
+                    if indexed is None:
+                        reasons.append("analysis_unit_not_indexed")
+                    elif (
+                        str(mutation.get("caused_by") or "") != indexed[0]
+                        or str(unit.get("receipt_digest") or "") != indexed[1]
+                    ):
+                        reasons.append("analysis_verification_causality")
             if not event_id:
                 reasons.append("event_id_missing")
             if event_id in seen_event_ids:
@@ -353,6 +520,22 @@ class IndependentTransitionValidator:
                 effects[effect] += 1
                 previous_state = after_state
                 seen_semantics.add(semantic)
+                if event_type == "analysis_unit_indexed":
+                    unit = _mapping(mutation.get("owner_receipt"))
+                    unit_id = str(unit.get("work_unit_id") or "")
+                    range_key = (
+                        str(unit.get("source_locator") or ""),
+                        int(unit.get("byte_start") or 0),
+                        int(unit.get("byte_end") or 0),
+                    )
+                    indexed_analysis[unit_id] = (
+                        event_id,
+                        str(unit.get("receipt_digest") or ""),
+                    )
+                    seen_analysis_ranges.add(range_key)
+                    seen_analysis_intervals.setdefault(range_key[0], []).append(
+                        (range_key[1], range_key[2])
+                    )
             if event_id:
                 seen_event_ids.add(event_id)
                 previous_event_id = event_id
@@ -458,10 +641,48 @@ class SealedLongRunValidator:
         if str(run.get("raw_events_digest") or "") != file_digest(raw_path):
             blockers.append("raw_events_digest")
         raw_events = load_jsonl(raw_path)
+        owner_path = _member(
+            root,
+            run.get("canonical_owner_snapshot"),
+            label=f"{run_key}.canonical_owner_snapshot",
+        )
+        if str(run.get("canonical_owner_snapshot_digest") or "") != file_digest(
+            owner_path
+        ):
+            blockers.append("canonical_owner_snapshot_digest")
+        owner_snapshot = load_json(owner_path)
+        owner_unsigned = dict(owner_snapshot)
+        owner_claimed = str(owner_unsigned.pop("snapshot_digest", ""))
+        owner_events = tuple(
+            dict(item)
+            for item in _sequence(owner_snapshot.get("events"))
+            if isinstance(item, Mapping)
+        )
+        owner_analysis_records = tuple(
+            dict(item)
+            for item in _sequence(owner_snapshot.get("analysis_records"))
+            if isinstance(item, Mapping)
+        )
+        analysis_memory_ids = tuple(
+            str(item.get("memory_id") or "")
+            for item in owner_analysis_records
+        )
+        if (
+            owner_snapshot.get("schema") != OWNER_SNAPSHOT_SCHEMA
+            or owner_snapshot.get("run_id") != run_id
+            or owner_snapshot.get("task_id") != task_id
+            or owner_claimed != canonical_digest(owner_unsigned)
+            or not owner_analysis_records
+            or any(not item for item in analysis_memory_ids)
+            or len(analysis_memory_ids) != len(set(analysis_memory_ids))
+        ):
+            blockers.append("canonical_owner_snapshot_invalid")
         transitions = IndependentTransitionValidator().validate(
             raw_events,
             run_id=run_id,
             task_id=task_id,
+            owner_events=owner_events,
+            owner_analysis_records=owner_analysis_records,
         )
         transition_index = transitions.index(run_id=run_id, task_id=task_id)
         if transitions.invalid:
@@ -470,6 +691,44 @@ class SealedLongRunValidator:
             blockers.append("valid_transition_minimum")
         if REQUIRED_EFFECTS - set(transitions.effect_counts):
             blockers.append("required_effect_coverage")
+        mechanism_path = _member(
+            root,
+            run.get("mechanism_bundle"),
+            label=f"{run_key}.mechanism_bundle",
+        )
+        if str(run.get("mechanism_bundle_digest") or "") != file_digest(
+            mechanism_path
+        ):
+            blockers.append("mechanism_bundle_digest")
+        mechanism = load_json(mechanism_path)
+        mechanism_unsigned = dict(mechanism)
+        mechanism_claimed = str(mechanism_unsigned.pop("bundle_digest", ""))
+        if (
+            mechanism.get("schema") != "zyra.phase2-sealed-mechanism-bundle/v2"
+            or mechanism_claimed != canonical_digest(mechanism_unsigned)
+        ):
+            blockers.append("mechanism_bundle_integrity")
+        control = _mapping(mechanism.get("production_control"))
+        blockers.extend(
+            self._production_control_blockers(
+                control,
+                raw_events=raw_events,
+                owner_events=owner_events,
+                run_id=run_id,
+                task_id=task_id,
+            )
+        )
+        physical_path = _member(
+            root,
+            run.get("physical_dispatch_bundle"),
+            label=f"{run_key}.physical_dispatch_bundle",
+        )
+        if str(run.get("physical_dispatch_bundle_digest") or "") != file_digest(
+            physical_path
+        ):
+            blockers.append("physical_dispatch_bundle_digest")
+        physical = load_json(physical_path)
+        blockers.extend(self._physical_bundle_blockers(physical, run_id, task_id))
         claimed_path = _member(
             root,
             run.get("transition_index"),
@@ -487,6 +746,32 @@ class SealedLongRunValidator:
             blockers.append("hard_gate_bundle_digest")
         gates = load_json(gates_path)
         blockers.extend(self._hard_gate_blockers(gates))
+        gate_physical = _mapping(gates.get("physical_dispatch"))
+        gate_receipts = tuple(
+            str(_mapping(item).get("receipt_digest") or "")
+            for item in _sequence(gate_physical.get("lanes"))
+        )
+        physical_receipts = tuple(
+            str(_mapping(item).get("digest") or "")
+            for item in _sequence(physical.get("receipts"))
+        )
+        gate_models = tuple(
+            str(_mapping(item).get("receipt_digest") or "")
+            for item in _sequence(gate_physical.get("provider_models"))
+        )
+        physical_models = tuple(
+            str(_mapping(_mapping(item).get("metadata")).get(
+                "physical_dispatch_receipt_digest"
+            ) or "")
+            for item in _sequence(physical.get("providers"))
+            if _mapping(item).get("provider_id") != "zyra-local"
+        )
+        if gate_receipts != physical_receipts or gate_models != physical_models:
+            blockers.append("hard_gate_physical_binding")
+        if _mapping(gates.get("production_control")).get(
+            "receipt_digest"
+        ) != control.get("receipt_digest"):
+            blockers.append("hard_gate_production_control_binding")
         artifact_path = _member(
             root,
             run.get("final_artifact"),
@@ -504,6 +789,10 @@ class SealedLongRunValidator:
             blockers.append("final_artifact_binding")
         if str(verifier.get("run_id") or "") != run_id:
             blockers.append("final_verifier_run_binding")
+        if verifier.get("inline_policy_receipt_digest") != control.get(
+            "receipt_digest"
+        ):
+            blockers.append("final_verifier_policy_binding")
         return {
             "run_key": run_key,
             "run_id": run_id,
@@ -517,11 +806,209 @@ class SealedLongRunValidator:
             "initial_state_digest": transitions.initial_state_digest,
             "final_state_digest": transitions.final_state_digest,
             "transition_index_digest": transition_index["index_digest"],
+            "canonical_owner_snapshot_digest": file_digest(owner_path),
+            "mechanism_bundle_digest": file_digest(mechanism_path),
+            "physical_dispatch_bundle_digest": file_digest(physical_path),
             "hard_gate_bundle_digest": file_digest(gates_path),
             "final_artifact_digest": file_digest(artifact_path),
             "final_verifier_digest": file_digest(verifier_path),
             "blockers": sorted(set(blockers)),
         }
+
+    @staticmethod
+    def _physical_bundle_blockers(
+        physical: Mapping[str, Any],
+        run_id: str,
+        task_id: str,
+    ) -> list[str]:
+        blockers: list[str] = []
+        envelopes = tuple(
+            _mapping(item) for item in _sequence(physical.get("receipt_envelopes"))
+        )
+        receipts = tuple(
+            _mapping(item) for item in _sequence(physical.get("receipts"))
+        )
+        validations = tuple(
+            _mapping(item) for item in _sequence(physical.get("validations"))
+        )
+        decisions = tuple(
+            _mapping(item)
+            for item in _sequence(physical.get("scheduler_decisions"))
+        )
+        leases = tuple(
+            _mapping(item) for item in _sequence(physical.get("lease_receipts"))
+        )
+        if (
+            physical.get("schema") != "zyra.phase2-sealed-physical-evidence/v1"
+            or not len(envelopes) == len(receipts) == len(validations)
+            == len(decisions) == len(leases) == 5
+        ):
+            return ["physical_bundle_shape"]
+        locations: list[str] = []
+        for index, (envelope, receipt, validation, decision, lease) in enumerate(
+            zip(envelopes, receipts, validations, decisions, leases, strict=True)
+        ):
+            try:
+                parsed = PhysicalDispatchReceipt.from_dict(envelope)
+            except (TypeError, ValueError):
+                blockers.append(f"physical_receipt_contract:{index}")
+                continue
+            payload = _mapping(envelope.get("payload"))
+            flattened = {
+                **payload,
+                "digest": envelope.get("digest"),
+                "contract_id": envelope.get("contract_id"),
+                "created_at": envelope.get("created_at"),
+            }
+            if receipt != flattened or parsed.digest != receipt.get("digest"):
+                blockers.append(f"physical_receipt_projection:{index}")
+            identity = _mapping(receipt.get("physical_identity"))
+            location = str(identity.get("location") or "")
+            locations.append(location)
+            acquisition = _mapping(lease.get("acquisition"))
+            acquired_lease = _mapping(acquisition.get("lease"))
+            attempt = _mapping(lease.get("attempt"))
+            completion = _mapping(lease.get("completion"))
+            call = _mapping(receipt.get("call_receipt"))
+            if (
+                validation.get("schema")
+                != "zyra.physical-dispatch-validation/v1"
+                or validation.get("receipt_digest") != receipt.get("digest")
+                or validation.get("location") != location
+                or validation.get("real_gate_closed") is not True
+                or validation.get("blockers") != []
+                or not all(
+                    item is True
+                    for item in _mapping(validation.get("checks")).values()
+                )
+                or decision.get("decision_id")
+                != receipt.get("placement_decision_id")
+                or decision.get("run_id") != run_id
+                or decision.get("task_id") != task_id
+                or acquired_lease.get("lease_id") != receipt.get("lease_id")
+                or attempt.get("attempt_id")
+                != receipt.get("physical_attempt_id")
+                or attempt.get("lease_id") != receipt.get("lease_id")
+                or completion.get("lease_id") != receipt.get("lease_id")
+                or completion.get("attempt_id")
+                != receipt.get("physical_attempt_id")
+                or completion.get("outcome") != "succeeded"
+                or completion.get("backend_receipt_ref") != call.get("ref_id")
+                or lease.get("fence_token_persisted") is not False
+            ):
+                blockers.append(f"physical_custody_chain:{index}")
+        if tuple(locations) != ("local", "edge", "cloud", "cloud", "cloud"):
+            blockers.append("physical_location_order")
+        providers = tuple(
+            _mapping(item) for item in _sequence(physical.get("providers"))
+        )
+        external = tuple(
+            item for item in providers if item.get("provider_id") != "zyra-local"
+        )
+        if tuple(
+            (str(item.get("provider_id") or ""), str(item.get("model_id") or ""))
+            for item in external
+        ) != (
+            ("zhipu", "glm-5.2"),
+            ("deepseek", "deepseek-v4-flash"),
+            ("kimi-platform", "kimi-k2.7-code"),
+        ) or any(
+            item.get("authenticated") is not True
+            or not 200 <= int(item.get("response_status") or 0) < 300
+            or not str(item.get("request_id") or "")
+            or _mapping(item.get("metadata")).get("simulated") is not False
+            or _mapping(item.get("metadata")).get("semantic_only") is not False
+            for item in external
+        ):
+            blockers.append("physical_external_models")
+        return blockers
+
+    @staticmethod
+    def _production_control_blockers(
+        control: Mapping[str, Any],
+        *,
+        raw_events: Sequence[Mapping[str, Any]],
+        owner_events: Sequence[Mapping[str, Any]],
+        run_id: str,
+        task_id: str,
+    ) -> list[str]:
+        blockers: list[str] = []
+        unsigned = dict(control)
+        claimed = str(unsigned.pop("receipt_digest", ""))
+        if (
+            control.get("schema") != "zyra.phase2-sealed-inline-policy/v1"
+            or control.get("ready") is not True
+            or control.get("policy_profile") != "phase2_strongest_v1"
+            or control.get("run_id") != run_id
+            or control.get("task_id") != task_id
+            or control.get("consumed_before_domain_execution") is not True
+            or claimed != canonical_digest(unsigned)
+        ):
+            blockers.append("production_control_integrity")
+        checks = _mapping(control.get("checks"))
+        required_checks = {
+            "candidate_set",
+            "resource_decision",
+            "lease",
+            "attempt",
+            "physical_receipt",
+            "real_execution",
+        }
+        if set(checks) != required_checks or not all(
+            checks.get(name) is True for name in required_checks
+        ):
+            blockers.append("production_control_checks")
+        event_ids = tuple(str(item) for item in _sequence(control.get("production_event_ids")))
+        if (
+            not event_ids
+            or len(event_ids) != len(set(event_ids))
+            or int(control.get("production_event_count") or 0) != len(event_ids)
+        ):
+            blockers.append("production_event_identity")
+        owner_map = {
+            str(item.get("event_id") or ""): dict(item)
+            for item in owner_events
+            if str(item.get("event_id") or "")
+        }
+        snapshot = [owner_map[item] for item in event_ids if item in owner_map]
+        if (
+            len(snapshot) != len(event_ids)
+            or control.get("production_event_snapshot_digest")
+            != canonical_digest(snapshot)
+        ):
+            blockers.append("production_owner_snapshot_binding")
+        topology_event_id = str(control.get("topology_policy_event_id") or "")
+        topology_event = owner_map.get(topology_event_id)
+        policy = _mapping(
+            _mapping((topology_event or {}).get("payload")).get("topology_policy")
+        )
+        placement = _mapping(policy.get("physical_placement"))
+        candidate = _mapping(policy.get("operator_candidate_set"))
+        permission = _mapping(policy.get("permission_receipt"))
+        if (
+            topology_event_id not in event_ids
+            or policy.get("used_baseline") is not False
+            or policy.get("committed") is not True
+            or candidate.get("candidate_set_digest")
+            != control.get("candidate_set_digest")
+            or placement.get("resource_decision_id")
+            != control.get("resource_decision_id")
+            or placement.get("lease_id") != control.get("lease_id")
+            or placement.get("attempt_id") != control.get("attempt_id")
+            or permission.get("receipt_digest")
+            != control.get("permission_receipt_digest")
+        ):
+            blockers.append("production_policy_event_binding")
+        policy_events = [
+            item
+            for item in raw_events
+            if str(item.get("event_type") or "").casefold()
+            == "policy_control_committed"
+            and _mapping(_mutation(item)).get("receipt_digest") == claimed
+        ]
+        if len(policy_events) != 1:
+            blockers.append("production_domain_consumption_binding")
+        return blockers
 
     @staticmethod
     def _hard_gate_blockers(gates: Mapping[str, Any]) -> list[str]:
@@ -569,6 +1056,31 @@ class SealedLongRunValidator:
         }
         if lanes != REQUIRED_LANES:
             blockers.append("physical_lane_coverage")
+        model_receipts = tuple(
+            _mapping(item) for item in _sequence(physical.get("provider_models"))
+        )
+        model_order = tuple(
+            (
+                str(item.get("provider_id") or ""),
+                str(item.get("model_id") or ""),
+            )
+            for item in model_receipts
+        )
+        if model_order != (
+            ("zhipu", "glm-5.2"),
+            ("deepseek", "deepseek-v4-flash"),
+            ("kimi-platform", "kimi-k2.7-code"),
+        ) or any(
+            item.get("authenticated") is not True
+            or not 200 <= int(item.get("response_status") or 0) < 300
+            or not str(item.get("request_id") or "")
+            or not str(item.get("attempt_id") or "")
+            or not str(item.get("receipt_digest") or "")
+            or item.get("simulated") is not False
+            or item.get("semantic_only") is not False
+            for item in model_receipts
+        ):
+            blockers.append("live_external_model_coverage")
         if physical.get("condition_change_effect") not in {
             "placement_changed",
             "safe_fail_closed_recovery",
@@ -625,6 +1137,20 @@ class SealedLongRunValidator:
                 blockers.append(f"disable_evidence_{name}")
         if gates.get("production_bypass_reachable") is not False:
             blockers.append("production_bypass")
+        production = _mapping(gates.get("production_control"))
+        if (
+            production.get("ready") is not True
+            or production.get("policy_profile") != "phase2_strongest_v1"
+            or production.get("consumed_before_domain_execution") is not True
+            or int(production.get("production_event_count") or 0) < 1
+            or not str(production.get("production_event_snapshot_digest") or "")
+            or not str(production.get("receipt_digest") or "")
+            or not all(
+                item is True
+                for item in _mapping(production.get("checks")).values()
+            )
+        ):
+            blockers.append("production_control")
         return blockers
 
 

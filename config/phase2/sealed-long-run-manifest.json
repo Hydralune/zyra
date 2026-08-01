@@ -9,6 +9,11 @@
   "human_intervention_count": 0,
   "evidence_root": "docs/evidence/phase2/sealed/P2-S06-02-glm-default",
   "credential_env_file": ".env.glm.local",
+  "credential_env_files": [
+    ".env.glm.local",
+    ".env.deepseek.local",
+    ".env.kimi.local"
+  ],
   "provider_profile": {
     "cloud_provider": "zhipu",
     "cloud_model": "glm-5.2",
@@ -17,7 +22,24 @@
     "credential_material_persisted": false,
     "local_provider": "zyra-local",
     "local_model": "local-deterministic",
-    "multiple_model_capabilities_required": 2,
+    "cloud_models": [
+      {
+        "provider_id": "zhipu",
+        "model_id": "glm-5.2",
+        "credential_ref": "env://ZAI_API_KEY"
+      },
+      {
+        "provider_id": "deepseek",
+        "model_id": "deepseek-v4-flash",
+        "credential_ref": "env://DEEPSEEK_API_KEY"
+      },
+      {
+        "provider_id": "kimi-platform",
+        "model_id": "kimi-k2.7-code",
+        "credential_ref": "env://KIMI_API_KEY"
+      }
+    ],
+    "multiple_model_capabilities_required": 3,
     "live_external_request_required": true
   },
   "hardware_profile": {
@@ -94,6 +116,8 @@
     "unsafe_commit_maximum": 0
   },
   "frozen_files": {
+    "apps/api/zyra_api/live_scenario_owners.py": "0000000000000000000000000000000000000000000000000000000000000000",
+    "apps/api/zyra_api/main.py": "0000000000000000000000000000000000000000000000000000000000000000",
     "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py": "3b44a61ee25e91ce626af46a3cd41c8d252c72ff46b8f35455c802c366d58af9",
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_long_run.py": "12514ff3e7b480adb660fd6a621339698ec24c8d4a99343beea397fb3cdbf93e",
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_mechanisms.py": "462ee6a67c2100d0c58d655a0dacf2315b49c579943e9ab2c60a35e1d9a8860d",
@@ -102,6 +126,8 @@
     "packages/evaluation/zyra_evaluation/scenario_runner/live_models.py": "e7767917855f0c3707bdb9d4b1d43fd602cab4fc8a23e07cdaa25d62ea4b8786",
     "packages/evaluation/zyra_evaluation/scenario_runner/fault_campaign.py": "0a66413fc148360dd9075def084b050253e3d2e5f16a62bc7679431ed72530ff",
     "packages/evaluation/zyra_evaluation/scenario_runner/software_delivery.py": "7414173a97a243523e32a75ebedb1f77dfd3e0aaf97c7662593d25f87fa8fd08",
+    "packages/orchestration/zyra_orchestration/topology_policy/production.py": "0000000000000000000000000000000000000000000000000000000000000000",
+    "packages/productization/zyra_productization/release/worktree.py": "0000000000000000000000000000000000000000000000000000000000000000",
     "packages/evaluation/zyra_evaluation/scenario_runner/research_delivery.py": "542cb4818233fc0f06dfb50dc437451c9123fa661210f9affc02630f3f92f1bc",
     "packages/scheduler/zyra_scheduler/dispatch_evidence.py": "64d99675478620e91aecabed932778295e88125d51049fd88e37a02eeb284ff9",
     "scripts/run_phase2_sealed_scenarios.py": "d94053d3c5f16bdcd588562678e14111c757e6167aed269b3a7ec27ee45c26d6"

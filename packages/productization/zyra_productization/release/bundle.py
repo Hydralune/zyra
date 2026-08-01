@@ -47,6 +47,7 @@ from .inventory import (
 from .models import ChecksumManifest, FileRecord
 from .policy import DEFAULT_RELEASE_POLICY, ReleasePolicy
 from .wheel import DeterministicWheelBuilder
+from .worktree import WorktreeBoundaryError, require_worktree_boundary
 
 
 RELEASE_MANIFEST_SCHEMA = "zyra.release-manifest/v1"
@@ -78,32 +79,27 @@ def source_revision(root: Path) -> str:
 
 
 def assert_clean_git(root: Path) -> dict[str, Any]:
-    result = subprocess.run(
-        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise ReleaseError(
-            "Release Git status cannot be resolved.",
-            code="release_git_status_failed",
-            details={"stderr": result.stderr.strip()},
-        )
-    dirty = [line for line in result.stdout.splitlines() if line.strip()]
-    if dirty:
+    revision = source_revision(root)
+    try:
+        boundary = require_worktree_boundary(root, expected_head=revision)
+    except WorktreeBoundaryError as error:
         raise ReleaseError(
             "Release source worktree is not clean.",
             code="release_worktree_dirty",
-            details={"entries": dirty[:100], "entry_count": len(dirty)},
-        )
+            details={"error": str(error)},
+        ) from error
     return {
         "schema": "zyra.release-git-receipt/v1",
         "ready": True,
-        "revision": source_revision(root),
+        "revision": revision,
         "dirty_entry_count": 0,
+        "ignored_generated_entry_count": boundary[
+            "ignored_generated_entry_count"
+        ],
+        "ignored_generated_paths_digest": boundary[
+            "ignored_generated_paths_digest"
+        ],
+        "worktree_boundary": boundary,
     }
 
 

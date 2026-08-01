@@ -5,6 +5,7 @@ import io
 import json
 import re
 import subprocess
+import sys
 import tarfile
 import tomllib
 import zipfile
@@ -12,6 +13,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+from .worktree import inspect_worktree
 
 
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
@@ -30,6 +33,22 @@ ZERO_HARD_GATES = (
     "critical_retrieval_without_provenance",
     "superseded_requirement_execution",
     "duplicate_completed_work",
+)
+FINAL_REGRESSION_COMMAND_IDS = (
+    "python-full-regression",
+    "typescript-runtime-regression",
+    "typescript-typecheck",
+    "web-typecheck",
+    "web-tests",
+    "web-build",
+    "phase1-m1",
+    "phase1-m2",
+    "phase1-m3",
+    "phase1-final-freeze",
+    "phase2-policy-contracts",
+    "internalization-ledger",
+    "loopx-offline-runtime",
+    "loopx-cross-version-restart",
 )
 
 
@@ -56,6 +75,12 @@ def canonical_digest(value: Any) -> str:
     ).hexdigest()
 
 
+def _embedded_digest_ready(value: Mapping[str, Any], field: str) -> bool:
+    unsigned = dict(value)
+    claimed = str(unsigned.pop(field, ""))
+    return bool(claimed) and claimed == canonical_digest(unsigned)
+
+
 def _load_json(path: Path) -> Mapping[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -64,6 +89,24 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise Phase2FreezeError(f"JSON evidence is not an object: {path}")
     return value
+
+
+def _member(root: Path, value: Any, *, repository_relative: bool = False) -> Path:
+    selected = Path(str(value or ""))
+    base = root.resolve()
+    candidate = (
+        selected.resolve()
+        if selected.is_absolute()
+        else (base / selected).resolve()
+    )
+    try:
+        candidate.relative_to(base)
+    except ValueError as error:
+        label = "repository" if repository_relative else "evidence"
+        raise Phase2FreezeError(f"{label} member escapes its root: {value}") from error
+    if not candidate.is_file():
+        raise Phase2FreezeError(f"evidence member is missing: {candidate}")
+    return candidate
 
 
 def _path_has_banned_root(value: str) -> bool:
@@ -94,6 +137,7 @@ def inspect_release_archive(path: Path) -> dict[str, Any]:
     member_names: list[str] = []
     wheels: list[tuple[str, bytes]] = []
     sboms: list[tuple[str, bytes]] = []
+    release_manifests: list[tuple[str, bytes]] = []
     if tarfile.is_tarfile(path):
         with tarfile.open(path, "r:*") as archive:
             for member in archive.getmembers():
@@ -101,7 +145,11 @@ def inspect_release_archive(path: Path) -> dict[str, Any]:
                 if not member.isfile():
                     continue
                 suffix = Path(member.name).suffix.casefold()
-                if suffix == ".whl" or "sbom" in member.name.casefold():
+                if (
+                    suffix == ".whl"
+                    or "sbom" in member.name.casefold()
+                    or member.name.casefold().endswith("/release/manifest.json")
+                ):
                     stream = archive.extractfile(member)
                     if stream is None:
                         continue
@@ -110,17 +158,25 @@ def inspect_release_archive(path: Path) -> dict[str, Any]:
                         wheels.append((member.name, payload))
                     if "sbom" in member.name.casefold():
                         sboms.append((member.name, payload))
+                    if member.name.casefold().endswith("/release/manifest.json"):
+                        release_manifests.append((member.name, payload))
     elif zipfile.is_zipfile(path):
         with zipfile.ZipFile(path) as archive:
             for name in archive.namelist():
                 member_names.append(name)
                 payload = b""
-                if name.casefold().endswith(".whl") or "sbom" in name.casefold():
+                if (
+                    name.casefold().endswith(".whl")
+                    or "sbom" in name.casefold()
+                    or name.casefold().endswith("/release/manifest.json")
+                ):
                     payload = archive.read(name)
                 if name.casefold().endswith(".whl"):
                     wheels.append((name, payload))
                 if "sbom" in name.casefold():
                     sboms.append((name, payload))
+                if name.casefold().endswith("/release/manifest.json"):
+                    release_manifests.append((name, payload))
     else:
         raise Phase2FreezeError(f"unsupported release archive: {path}")
 
@@ -148,6 +204,25 @@ def inspect_release_archive(path: Path) -> dict[str, Any]:
             raise Phase2FreezeError(f"SBOM is corrupt: {sbom_name}") from error
         if any(_path_has_banned_root(item) for item in _strings(value)):
             sbom_findings.append(sbom_name)
+    manifest_values: list[dict[str, Any]] = []
+    for manifest_name, payload in release_manifests:
+        try:
+            value = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise Phase2FreezeError(
+                f"release manifest is corrupt: {manifest_name}"
+            ) from error
+        if not isinstance(value, Mapping):
+            raise Phase2FreezeError(
+                f"release manifest is not an object: {manifest_name}"
+            )
+        manifest_values.append(dict(value))
+    release_manifest = manifest_values[0] if len(manifest_values) == 1 else {}
+    manifest_ready = (
+        len(manifest_values) == 1
+        and release_manifest.get("schema") == "zyra.release-manifest/v1"
+        and len(str(release_manifest.get("source_commit") or "")) == 40
+    )
     return {
         "archive": str(path),
         "archive_sha256": sha256_file(path),
@@ -161,12 +236,16 @@ def inspect_release_archive(path: Path) -> dict[str, Any]:
         "release_findings": release_findings,
         "wheel_findings": sorted(wheel_findings),
         "sbom_findings": sorted(sbom_findings),
+        "release_manifest_count": len(manifest_values),
+        "release_manifest": release_manifest,
+        "release_manifest_ready": manifest_ready,
         "ready": (
             not release_findings
             and bool(wheels)
             and not wheel_findings
             and bool(sboms)
             and not sbom_findings
+            and manifest_ready
         ),
     }
 
@@ -191,8 +270,89 @@ class Phase2FreezeAuditor:
             )
         return completed.stdout
 
+    def _run_json_command(self, arguments: Sequence[str]) -> Mapping[str, Any]:
+        completed = subprocess.run(
+            [sys.executable, *arguments],
+            cwd=self.root,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900,
+        )
+        try:
+            value = json.loads(completed.stdout)
+        except json.JSONDecodeError as error:
+            raise Phase2FreezeError(
+                f"independent audit command returned invalid JSON: {arguments[0]}"
+            ) from error
+        if completed.returncode or not isinstance(value, Mapping):
+            raise Phase2FreezeError(
+                f"independent audit command failed: {arguments[0]}"
+            )
+        return value
+
+    def _custody_audit(self, path: Path, target: str) -> dict[str, Any]:
+        supplied = _load_json(path)
+        fresh = self._run_json_command(
+            (
+                "scripts/verify_source_language_custody.py",
+                "--evidence",
+                "docs/release/phase2/source-language-custody-input.json",
+                "--base",
+                P2_BASE_COMMIT,
+                "--target",
+                target,
+            )
+        )
+        ready = (
+            supplied == fresh
+            and fresh.get("schema")
+            == "zyra.source-language-custody-report/v1"
+            and fresh.get("ok") is True
+            and fresh.get("base") == P2_BASE_COMMIT
+            and fresh.get("target") == target
+            and fresh.get("violations") == []
+        )
+        return {
+            "ready": ready,
+            "report_sha256": sha256_file(path),
+            "fresh_report_digest": canonical_digest(fresh),
+            "role_count": len(fresh.get("roles") or ()),
+            "violations": list(fresh.get("violations") or ()),
+        }
+
+    def _contract_audit(self, path: Path, target: str) -> dict[str, Any]:
+        supplied = _load_json(path)
+        fresh = self._run_json_command(
+            (
+                "scripts/verify_phase2_policy_contracts.py",
+                "--target-commit",
+                target,
+                "--require-strongest-active",
+            )
+        )
+        ready = (
+            supplied == fresh
+            and fresh.get("schema")
+            == "zyra.phase2-policy-contract-validation/v1"
+            and fresh.get("valid") is True
+            and fresh.get("target_commit") == target
+            and fresh.get("strongest_profile_requested") is True
+        )
+        return {
+            "ready": ready,
+            "report_sha256": sha256_file(path),
+            "fresh_report_digest": canonical_digest(fresh),
+            "valid": fresh.get("valid"),
+            "target_commit": fresh.get("target_commit"),
+        }
+
     def _target_audit(self, target: str) -> dict[str, Any]:
         head = self._git("rev-parse", "HEAD").strip()
+        boundary = inspect_worktree(self.root, expected_head=target)
+        target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
         tree = [
             item
             for item in self._git(
@@ -290,6 +450,9 @@ class Phase2FreezeAuditor:
             "head_commit": head,
             "target_commit": target,
             "target_matches_head": head == target,
+            "target_tree": target_tree,
+            "source_boundary": boundary,
+            "source_boundary_ready": boundary.get("ready") is True,
             "tree_path_count": len(tree),
             "target_tree_vendor_root_count": len(vendor_paths),
             "target_tree_vendor_paths": vendor_paths,
@@ -313,6 +476,7 @@ class Phase2FreezeAuditor:
         target: str,
     ) -> dict[str, Any]:
         pipeline = _load_json(release_root / "pipeline-report.json")
+        pipeline_digest_ready = _embedded_digest_ready(pipeline, "digest")
         archive = Path(str(pipeline.get("archive") or ""))
         if not archive.is_file():
             candidates = tuple(
@@ -328,6 +492,22 @@ class Phase2FreezeAuditor:
                 raise Phase2FreezeError("release archive is not unique")
             archive = candidates[0]
         archive_audit = inspect_release_archive(archive)
+        archive_manifest = archive_audit["release_manifest"]
+        git_receipt = pipeline.get("git")
+        git_receipt = git_receipt if isinstance(git_receipt, Mapping) else {}
+        git_boundary = git_receipt.get("worktree_boundary")
+        git_boundary = git_boundary if isinstance(git_boundary, Mapping) else {}
+        git_ready = (
+            git_receipt.get("ready") is True
+            and git_receipt.get("revision") == target
+            and git_receipt.get("dirty_check_skipped") is not True
+            and int(git_receipt.get("dirty_entry_count") or 0) == 0
+            and git_boundary.get("ready") is True
+            and git_boundary.get("head_commit") == target
+            and git_boundary.get("head_tree")
+            == self._git("rev-parse", f"{target}^{{tree}}").strip()
+            and _embedded_digest_ready(git_boundary, "boundary_digest")
+        )
         clean_install = _load_json(
             release_root / "admission" / "ci" / "clean-install.json"
         )
@@ -378,6 +558,7 @@ class Phase2FreezeAuditor:
         )
         return {
             "pipeline_ready": pipeline.get("ready") is True,
+            "pipeline_digest_ready": pipeline_digest_ready,
             "pipeline_source_commit": pipeline.get("source_commit"),
             "pipeline_target_matches": pipeline.get("source_commit") == target,
             "ci_executed": pipeline.get("ci_executed") is True,
@@ -388,6 +569,11 @@ class Phase2FreezeAuditor:
             "archive_digest_matches": (
                 archive_audit["archive_sha256"]
                 == pipeline.get("archive_sha256")
+            ),
+            "release_git_boundary_ready": git_ready,
+            "archive_source_commit": archive_manifest.get("source_commit"),
+            "archive_source_commit_matches": (
+                archive_manifest.get("source_commit") == target
             ),
             "archive": archive_audit,
             "cleanroom_ready": clean_ready,
@@ -400,8 +586,8 @@ class Phase2FreezeAuditor:
             ),
         }
 
-    @staticmethod
     def _preflight_audit(
+        self,
         preflight_root: Path,
         target: str,
     ) -> dict[str, Any]:
@@ -409,6 +595,59 @@ class Phase2FreezeAuditor:
         readiness = _load_json(
             preflight_root / "MechanismEvidenceReadinessReport.json"
         )
+        activation = _load_json(preflight_root / "activation-report.json")
+        receipts = _load_json(preflight_root / "raw-receipts.json")
+        inventory = _load_json(preflight_root / "inventory.json")
+        blockers: list[str] = []
+        digest_specs = (
+            (report, "report_digest", "preflight_report_digest"),
+            (readiness, "report_digest", "readiness_report_digest"),
+            (activation, "activation_report_digest", "activation_report_digest"),
+            (receipts, "receipt_set_digest", "receipt_set_digest"),
+            (inventory, "inventory_digest", "inventory_digest"),
+        )
+        for value, field, blocker in digest_specs:
+            if not _embedded_digest_ready(value, field):
+                blockers.append(blocker)
+        expected_files = {
+            "raw-receipts.json",
+            "preflight-report.json",
+            "MechanismEvidenceReadinessReport.json",
+            "activation-report.json",
+            "failure-outliers.json",
+        }
+        inventory_names: set[str] = set()
+        for item in inventory.get("files", ()):
+            if not isinstance(item, Mapping):
+                blockers.append("inventory_file_entry")
+                continue
+            try:
+                path = _member(self.root, item.get("path"))
+            except Phase2FreezeError:
+                blockers.append("inventory_file_path")
+                continue
+            inventory_names.add(path.name)
+            if sha256_file(path) != item.get("sha256"):
+                blockers.append(f"inventory_file_digest:{path.name}")
+        if inventory_names != expected_files:
+            blockers.append("inventory_file_set")
+        manifest_path = _member(self.root, inventory.get("manifest"))
+        manifest = _load_json(manifest_path)
+        if (
+            manifest.get("schema") != "zyra.strongest-preflight-manifest/v1"
+            or not _embedded_digest_ready(manifest, "manifest_digest")
+            or manifest.get("manifest_digest") != inventory.get("manifest_digest")
+            or manifest.get("manifest_digest") != report.get("manifest_digest")
+            or (
+                manifest.get("frozen_inputs", {}).get(
+                    "implementation_target_commit"
+                )
+                if isinstance(manifest.get("frozen_inputs"), Mapping)
+                else None
+            )
+            != target
+        ):
+            blockers.append("frozen_manifest_binding")
         mechanisms = readiness.get("mechanisms")
         mechanisms = mechanisms if isinstance(mechanisms, Mapping) else {}
         required = {"arg_designer", "card", "agentprune", "maas"}
@@ -425,6 +664,79 @@ class Phase2FreezeAuditor:
         )
         gates = report.get("hard_gates")
         gates = gates if isinstance(gates, Mapping) else {}
+        raw_receipts = receipts.get("receipts")
+        raw_receipts = (
+            raw_receipts
+            if isinstance(raw_receipts, Sequence)
+            and not isinstance(raw_receipts, (str, bytes))
+            else ()
+        )
+        boundary = next(
+            (
+                item
+                for item in raw_receipts
+                if isinstance(item, Mapping)
+                and item.get("schema")
+                == "zyra.strongest-preflight-source-boundary/v1"
+            ),
+            {},
+        )
+        boundary_before = boundary.get("before")
+        boundary_after = boundary.get("after")
+        boundary_before = (
+            boundary_before if isinstance(boundary_before, Mapping) else {}
+        )
+        boundary_after = (
+            boundary_after if isinstance(boundary_after, Mapping) else {}
+        )
+        source_boundary_ready = (
+            boundary.get("status") == "passed"
+            and _embedded_digest_ready(boundary, "receipt_digest")
+            and boundary_before.get("ready") is True
+            and boundary_after.get("ready") is True
+            and boundary_before.get("head_commit") == target
+            and boundary_after.get("head_commit") == target
+            and boundary_before.get("head_tree") == boundary_after.get("head_tree")
+            and _embedded_digest_ready(boundary_before, "boundary_digest")
+            and _embedded_digest_ready(boundary_after, "boundary_digest")
+        )
+        if not source_boundary_ready:
+            blockers.append("target_source_boundary")
+        if (
+            receipts.get("schema")
+            != "zyra.strongest-preflight-receipt-set/v1"
+            or receipts.get("implementation_commit") != target
+            or int(receipts.get("receipt_count") or 0) != len(raw_receipts)
+            or not raw_receipts
+            or any(
+                not isinstance(item, Mapping) or item.get("retained") is not True
+                for item in raw_receipts
+            )
+        ):
+            blockers.append("raw_receipt_contract")
+        if (
+            activation.get("schema")
+            != "zyra.strongest-preflight-activation-report/v1"
+            or activation.get("preflight_report_digest")
+            != report.get("report_digest")
+            or activation.get("readiness_report_digest")
+            != readiness.get("report_digest")
+            or activation.get("sealed_run_admission_eligible") is not True
+            or activation.get("conclusion")
+            != "phase2_strongest_v1_revalidated"
+            or activation.get("blockers") != []
+        ):
+            blockers.append("activation_binding")
+        if (
+            report.get("schema") != "zyra.strongest-preflight-report/v1"
+            or inventory.get("schema")
+            != "zyra.strongest-preflight-inventory/v1"
+            or inventory.get("implementation_commit") != target
+            or inventory.get("result_status") != report.get("status")
+            or inventory.get("activation_conclusion")
+            != activation.get("conclusion")
+        ):
+            blockers.append("preflight_bundle_contract")
         return {
             "status": report.get("status"),
             "execution_mode": report.get("execution_mode"),
@@ -435,6 +747,8 @@ class Phase2FreezeAuditor:
             "hard_gates_all_passed": bool(gates)
             and all(value is True for value in gates.values()),
             "readiness_ready": readiness_ready,
+            "source_boundary_ready": source_boundary_ready,
+            "blockers": sorted(set(blockers)),
             "ready": (
                 report.get("status") == "completed"
                 and report.get("execution_mode")
@@ -445,128 +759,100 @@ class Phase2FreezeAuditor:
                 and bool(gates)
                 and all(value is True for value in gates.values())
                 and readiness_ready
+                and not blockers
             ),
         }
 
-    @staticmethod
     def _sealed_audit(
+        self,
         sealed_root: Path,
         target: str,
     ) -> dict[str, Any]:
+        from zyra_evaluation.policy_benchmark.long_run_validator import (
+            SealedLongRunValidator,
+        )
+
         validation = _load_json(
             sealed_root / "independent-validation.json"
         )
-        index = _load_json(sealed_root / "sealed-evidence-index.json")
+        index_path = sealed_root / "sealed-evidence-index.json"
+        index = _load_json(index_path)
+        fresh_validation = SealedLongRunValidator().validate(index_path)
         blockers: list[str] = []
-        if validation.get("valid") is not True:
+        manifest = _load_json(sealed_root / "sealed-manifest.json")
+        frozen = manifest.get("frozen_files")
+        frozen = frozen if isinstance(frozen, Mapping) else {}
+        required_frozen = {
+            "apps/api/zyra_api/live_scenario_owners.py",
+            "apps/api/zyra_api/main.py",
+            "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py",
+            "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_long_run.py",
+            "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
+            "packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py",
+            "packages/orchestration/zyra_orchestration/topology_policy/production.py",
+            "packages/productization/zyra_productization/release/worktree.py",
+            "packages/scheduler/zyra_scheduler/dispatch_evidence.py",
+        }
+        frozen_ready = required_frozen.issubset(frozen) and all(
+            sha256_file(_member(self.root, relative)) == expected
+            for relative, expected in frozen.items()
+        )
+        if not frozen_ready:
+            blockers.append("frozen_source_binding")
+        if (
+            validation.get("schema")
+            != "zyra.phase2-sealed-long-run-validation/v1"
+            or not _embedded_digest_ready(validation, "validation_digest")
+            or validation != fresh_validation
+            or fresh_validation.get("valid") is not True
+        ):
             blockers.append("independent_validation")
-        if validation.get("candidate_commit") != target:
+        if fresh_validation.get("candidate_commit") != target:
             blockers.append("validation_target")
+        if (
+            index.get("schema") != "zyra.phase2-sealed-evidence-index/v1"
+            or not _embedded_digest_ready(index, "index_digest")
+            or index.get("failed_runs") not in ([], ())
+        ):
+            blockers.append("evidence_index_integrity")
         if index.get("candidate_commit") != target:
             blockers.append("index_target")
         if index.get("manifest_commit") != target:
             blockers.append("manifest_target")
-        runs = index.get("runs")
-        if not isinstance(runs, Sequence) or isinstance(runs, (str, bytes)):
-            runs = ()
-        if len(runs) != 2:
-            blockers.append("sealed_run_count")
-        summaries: list[dict[str, Any]] = []
-        for run in runs:
-            if not isinstance(run, Mapping):
-                blockers.append("sealed_run_invalid")
-                continue
-            hard_path = sealed_root / str(run.get("hard_gate_bundle") or "")
-            verifier_path = sealed_root / str(run.get("final_verifier") or "")
-            artifact_path = sealed_root / str(run.get("final_artifact") or "")
-            hard = _load_json(hard_path)
-            zero_ready = all(int(hard.get(field) or 0) == 0 for field in ZERO_HARD_GATES)
-            lanes = (
-                hard.get("physical_dispatch", {}).get("lanes", ())
-                if isinstance(hard.get("physical_dispatch"), Mapping)
-                else ()
-            )
-            lane_map = {
-                str(item.get("lane")): item
-                for item in lanes
-                if isinstance(item, Mapping)
-            }
-            lanes_ready = (
-                set(lane_map) == {"local", "edge", "cloud"}
-                and all(
-                    item.get("real_gate_closed") is True
-                    and item.get("simulated") is False
-                    and item.get("semantic_only") is False
-                    for item in lane_map.values()
-                )
-            )
-            continuity = hard.get("continuity")
-            continuity_ready = (
-                isinstance(continuity, Mapping)
-                and continuity.get("stale_rejected") is True
-                and continuity.get("poisoned_rejected") is True
-                and continuity.get("conflicting_rejected") is True
-                and set(continuity.get("verified_transitions", ()))
-                >= {
-                    "compact_restore",
-                    "process_restart",
-                    "handoff",
-                    "requirement_revision",
-                }
-            )
-            disable = hard.get("disable_evidence")
-            disable_ready = (
-                isinstance(disable, Mapping)
-                and bool(disable)
-                and all(
-                    isinstance(item, Mapping)
-                    and item.get("disabled_changed_outcome") is True
-                    for item in disable.values()
-                )
-            )
-            verifier = _load_json(verifier_path)
-            transition_count = int(hard.get("valid_transition_count") or 0)
-            run_ready = (
-                run.get("candidate_commit") == target
-                and run.get("manifest_commit") == target
-                and int(run.get("failed_attempt_count") or 0) == 0
-                and int(run.get("human_intervention_count") or 0) == 0
-                and transition_count >= 2000
-                and zero_ready
-                and hard.get("production_bypass_reachable") is False
-                and lanes_ready
-                and continuity_ready
-                and disable_ready
-                and artifact_path.is_file()
-                and sha256_file(artifact_path)
-                == run.get("final_artifact_digest")
-                and verifier_path.is_file()
-                and sha256_file(verifier_path)
-                == run.get("final_verifier_digest")
-                and verifier.get("passed") is True
-            )
-            if not run_ready:
-                blockers.append(
-                    f"sealed_run:{run.get('run_key') or 'unknown'}"
-                )
-            summaries.append(
-                {
-                    "run_key": run.get("run_key"),
-                    "run_id": run.get("run_id"),
-                    "valid_transition_count": transition_count,
-                    "zero_hard_gates": zero_ready,
-                    "continuity_ready": continuity_ready,
-                    "disable_evidence_ready": disable_ready,
-                    "physical_lanes_ready": lanes_ready,
-                    "final_verifier_ready": verifier.get("passed") is True,
-                    "ready": run_ready,
-                }
-            )
+        boundary = index.get("target_source_boundary")
+        boundary = boundary if isinstance(boundary, Mapping) else {}
+        before = boundary.get("before")
+        after = boundary.get("after")
+        before = before if isinstance(before, Mapping) else {}
+        after = after if isinstance(after, Mapping) else {}
+        source_boundary_ready = (
+            before.get("ready") is True
+            and after.get("ready") is True
+            and before.get("head_commit") == target
+            and after.get("head_commit") == target
+            and before.get("head_tree") == after.get("head_tree")
+            and _embedded_digest_ready(before, "boundary_digest")
+            and _embedded_digest_ready(after, "boundary_digest")
+        )
+        if not source_boundary_ready:
+            blockers.append("target_source_boundary")
+        runs = tuple(
+            item
+            for item in fresh_validation.get("runs", ())
+            if isinstance(item, Mapping)
+        )
+        if len(runs) != 2 or any(item.get("valid") is not True for item in runs):
+            blockers.append("sealed_run_count_or_validity")
         return {
             "candidate_commit": index.get("candidate_commit"),
             "manifest_commit": index.get("manifest_commit"),
             "run_count": len(runs),
-            "runs": summaries,
+            "runs": [dict(item) for item in runs],
+            "fresh_validation_digest": fresh_validation.get(
+                "validation_digest"
+            ),
+            "frozen_source_binding_ready": frozen_ready,
+            "source_boundary_ready": source_boundary_ready,
             "blockers": sorted(set(blockers)),
             "ready": not blockers,
         }
@@ -628,8 +914,7 @@ class Phase2FreezeAuditor:
             "buckets": dict(sorted(values.items())),
         }
 
-    @staticmethod
-    def _receipt_ready(path: Path, target: str) -> dict[str, Any]:
+    def _receipt_ready(self, path: Path, target: str) -> dict[str, Any]:
         value = _load_json(path)
         commands = value.get("commands")
         commands = (
@@ -638,6 +923,63 @@ class Phase2FreezeAuditor:
             and not isinstance(commands, (str, bytes))
             else ()
         )
+        blockers: list[str] = []
+        command_ids = tuple(
+            str(item.get("command_id") or "")
+            for item in commands
+            if isinstance(item, Mapping)
+        )
+        if command_ids != FINAL_REGRESSION_COMMAND_IDS:
+            blockers.append("command_set")
+        for item in commands:
+            if not isinstance(item, Mapping):
+                blockers.append("command_entry")
+                continue
+            for field in ("stdout", "stderr"):
+                try:
+                    log_path = _member(path.parent, item.get(field))
+                except Phase2FreezeError:
+                    blockers.append(f"command_log:{item.get('command_id')}:{field}")
+                    continue
+                if sha256_file(log_path) != item.get(f"{field}_sha256"):
+                    blockers.append(
+                        f"command_log_digest:{item.get('command_id')}:{field}"
+                    )
+            if (
+                item.get("ready") is not True
+                or int(item.get("returncode") or 0) != 0
+                or not item.get("argv")
+            ):
+                blockers.append(f"command_failed:{item.get('command_id')}")
+        policy = value.get("python_test_policy")
+        policy = policy if isinstance(policy, Mapping) else {}
+        policy_path = _member(self.root, policy.get("path"))
+        if sha256_file(policy_path) != policy.get("sha256"):
+            blockers.append("python_test_policy_digest")
+        before = value.get("worktree_boundary_before")
+        after = value.get("worktree_boundary_after")
+        before = before if isinstance(before, Mapping) else {}
+        after = after if isinstance(after, Mapping) else {}
+        source_boundary_ready = (
+            before.get("ready") is True
+            and after.get("ready") is True
+            and before.get("head_commit") == target
+            and after.get("head_commit") == target
+            and before.get("head_tree") == after.get("head_tree")
+            and _embedded_digest_ready(before, "boundary_digest")
+            and _embedded_digest_ready(after, "boundary_digest")
+        )
+        if not source_boundary_ready:
+            blockers.append("target_source_boundary")
+        if (
+            value.get("schema") != "zyra.phase2-final-regression/v1"
+            or not _embedded_digest_ready(value, "receipt_digest")
+            or value.get("target_commit") != target
+            or int(value.get("passed_count") or 0) != len(commands)
+            or int(value.get("failed_count") or 0) != 0
+        ):
+            blockers.append("regression_receipt_integrity")
+        ready = value.get("ready") is True and not blockers
         return {
             "schema": value.get("schema"),
             "target_commit": value.get("target_commit"),
@@ -649,16 +991,9 @@ class Phase2FreezeAuditor:
                 and item.get("ready") is True
                 for item in commands
             ),
-            "ready": (
-                value.get("ready") is True
-                and value.get("target_commit") == target
-                and bool(commands)
-                and all(
-                    isinstance(item, Mapping)
-                    and item.get("ready") is True
-                    for item in commands
-                )
-            ),
+            "source_boundary_ready": source_boundary_ready,
+            "blockers": sorted(set(blockers)),
+            "ready": ready,
         }
 
     def audit(
@@ -692,27 +1027,11 @@ class Phase2FreezeAuditor:
             paths["regression_receipt"],
             target_commit,
         )
-        custody_value = _load_json(paths["custody_report"])
-        custody = {
-            "ready": (
-                custody_value.get("ok") is True
-                and custody_value.get("target") == target_commit
-                and not custody_value.get("violations")
-            ),
-            "role_count": len(custody_value.get("roles") or ()),
-            "violations": list(custody_value.get("violations") or ()),
-        }
-        contract_value = _load_json(paths["contract_report"])
-        contract = {
-            "ready": (
-                contract_value.get("valid") is True
-                and contract_value.get("target_commit") == target_commit
-            ),
-            "valid": contract_value.get("valid"),
-            "target_commit": contract_value.get("target_commit"),
-        }
+        custody = self._custody_audit(paths["custody_report"], target_commit)
+        contract = self._contract_audit(paths["contract_report"], target_commit)
         checks = {
             "target_head": target["target_matches_head"],
+            "target_source_boundary": target["source_boundary_ready"],
             "target_tree_vendor_roots_zero": (
                 target["target_tree_vendor_root_count"] == 0
             ),
@@ -727,10 +1046,13 @@ class Phase2FreezeAuditor:
             ),
             "release_pipeline": (
                 release["pipeline_ready"]
+                and release["pipeline_digest_ready"]
                 and release["pipeline_target_matches"]
                 and release["ci_executed"]
                 and release["ci_ready"]
                 and release["archive_digest_matches"]
+                and release["release_git_boundary_ready"]
+                and release["archive_source_commit_matches"]
             ),
             "release_archive_custody": release["archive"]["ready"],
             "cleanroom_isolation": release["cleanroom_ready"],
