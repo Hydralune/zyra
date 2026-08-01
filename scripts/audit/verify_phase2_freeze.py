@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCTIZATION = ROOT / "packages" / "productization"
 if str(PRODUCTIZATION) not in sys.path:
     sys.path.insert(0, str(PRODUCTIZATION))
+EVALUATION = ROOT / "packages" / "evaluation"
+if str(EVALUATION) not in sys.path:
+    sys.path.insert(0, str(EVALUATION))
 
 from zyra_productization.release.phase2_freeze import (
     Phase2FreezeAuditor,

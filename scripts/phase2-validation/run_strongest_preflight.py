@@ -11,6 +11,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EVALUATION_ROOT = PROJECT_ROOT / "packages" / "evaluation"
 if str(EVALUATION_ROOT) not in sys.path:
     sys.path.insert(0, str(EVALUATION_ROOT))
+PRODUCTIZATION_ROOT = PROJECT_ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_ROOT))
 
 from zyra_evaluation.policy_benchmark.preflight import (  # noqa: E402
     StrongestPreflightError,

@@ -9,6 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_ROOT))
 
 from zyra_evaluation.policy_benchmark.sealed_long_run import (  # noqa: E402
     SealedLongRunError,
