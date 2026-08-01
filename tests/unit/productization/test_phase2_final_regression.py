@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 
@@ -14,6 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+from zyra_productization.release.phase2_freeze import Phase2FreezeAuditor
 
 
 def test_final_python_regression_is_scoped_to_zyra_tests(
@@ -84,3 +87,25 @@ def test_final_regression_python_path_is_bound_to_target_sources() -> None:
     assert all(path.is_relative_to(ROOT) for path in roots)
     assert ROOT / "packages" / "evaluation" in roots
     assert ROOT / "packages" / "productization" in roots
+
+
+def test_first_stage_freeze_command_matches_release_auditor(
+    tmp_path: Path,
+) -> None:
+    python = str(Path(sys.executable).resolve())
+    runner_commands = {
+        command_id: command
+        for command_id, command, _timeout in MODULE._command_specs(
+            output_root=tmp_path,
+            python=python,
+            bun="bun",
+        )
+    }
+    auditor_commands = Phase2FreezeAuditor(ROOT)._expected_regression_commands(
+        output_root=tmp_path,
+        target="a" * 40,
+    )
+
+    assert runner_commands["phase1-final-freeze"] == auditor_commands[
+        "phase1-final-freeze"
+    ]
