@@ -349,6 +349,13 @@ class Phase2StrongestProductionBridge:
         communication_observations = self._communication_observations(
             state=state,
             candidates=preview_candidates,
+            completed_before=policy_input.header.created_at,
+            maximum_age_seconds=(
+                self.topology_policy.pruning_runtime.config
+                .maximum_outcome_age_seconds
+                if self.topology_policy.pruning_runtime.config is not None
+                else 0
+            ),
         )
         recovery_dispatch = any(
             isinstance(item, Mapping)
@@ -2801,42 +2808,74 @@ class Phase2StrongestProductionBridge:
         *,
         state: TaskState,
         candidates: Sequence[Any],
+        completed_before: str,
+        maximum_age_seconds: int,
     ) -> tuple[CommunicationOutcomeObservation, ...]:
         by_id = {item.edge_id: item for item in candidates}
-        by_shape = {
-            (
-                item.source_node_id,
-                item.target_node_id,
-                item.edge_type.value,
-            ): item
-            for item in candidates
-        }
+        by_shape: dict[tuple[str, str, str], list[Any]] = {}
+        for item in candidates:
+            by_shape.setdefault(
+                (
+                    item.source_node_id,
+                    item.target_node_id,
+                    item.edge_type.value,
+                ),
+                [],
+            ).append(item)
         observations = []
         for raw in self.communication_outcome_provider(state):
             if not isinstance(raw, Mapping):
                 continue
-            candidate = by_id.get(str(raw.get("edge_id") or ""))
-            if candidate is None:
-                candidate = by_shape.get(
-                    (
-                        str(raw.get("source_node_id") or ""),
-                        str(raw.get("target_node_id") or ""),
-                        str(raw.get("edge_type") or ""),
-                    )
+            if (
+                str(raw.get("run_id") or "") != state.run_id
+                or str(raw.get("task_id") or "") != state.task_id
+            ):
+                raise Phase2ProductionPolicyError(
+                    "communication outcome scope differs from the current task"
+                )
+            raw_edge_id = str(raw.get("edge_id") or "")
+            raw_shape = (
+                str(raw.get("source_node_id") or ""),
+                str(raw.get("target_node_id") or ""),
+                str(raw.get("edge_type") or ""),
+            )
+            candidate = by_id.get(raw_edge_id)
+            if candidate is not None and raw_shape != (
+                candidate.source_node_id,
+                candidate.target_node_id,
+                candidate.edge_type.value,
+            ):
+                raise Phase2ProductionPolicyError(
+                    "communication outcome edge identity and endpoints differ"
                 )
             if candidate is None:
+                shape_matches = tuple(by_shape.get(raw_shape, ()))
+                if len(shape_matches) > 1:
+                    raise Phase2ProductionPolicyError(
+                        "communication outcome shape maps to multiple candidates"
+                    )
+                candidate = shape_matches[0] if shape_matches else None
+            if candidate is None:
+                continue
+            if not self._communication_outcome_is_prior_and_fresh(
+                completed_at=str(raw.get("completed_at") or ""),
+                completed_before=completed_before,
+                maximum_age_seconds=maximum_age_seconds,
+            ):
                 continue
             observations.append(
                 CommunicationOutcomeObservation(
                     observation_id=str(raw.get("observation_id") or ""),
-                    run_id=state.run_id,
-                    task_id=state.task_id,
+                    run_id=str(raw.get("run_id") or ""),
+                    task_id=str(raw.get("task_id") or ""),
                     window_id=str(raw.get("window_id") or ""),
                     completed_at=str(raw.get("completed_at") or ""),
                     edge_id=candidate.edge_id,
-                    source_node_id=candidate.source_node_id,
-                    target_node_id=candidate.target_node_id,
-                    edge_type=CommunicationEdgeType(candidate.edge_type),
+                    source_node_id=str(raw.get("source_node_id") or ""),
+                    target_node_id=str(raw.get("target_node_id") or ""),
+                    edge_type=CommunicationEdgeType(
+                        str(raw.get("edge_type") or "")
+                    ),
                     round_index=int(raw.get("round_index") or 0),
                     message_id=str(raw.get("message_id") or ""),
                     payload_digest=str(raw.get("payload_digest") or ""),
@@ -2874,6 +2913,36 @@ class Phase2StrongestProductionBridge:
                 )
             )
         return tuple(observations)
+
+    @staticmethod
+    def _communication_outcome_is_prior_and_fresh(
+        *,
+        completed_at: str,
+        completed_before: str,
+        maximum_age_seconds: int,
+    ) -> bool:
+        try:
+            completed_value = datetime.fromisoformat(
+                completed_at.replace("Z", "+00:00")
+            )
+            cutoff_value = datetime.fromisoformat(
+                completed_before.replace("Z", "+00:00")
+            )
+        except (AttributeError, ValueError) as error:
+            raise Phase2ProductionPolicyError(
+                "communication outcome timestamp is invalid"
+            ) from error
+        if completed_value.tzinfo is None or cutoff_value.tzinfo is None:
+            raise Phase2ProductionPolicyError(
+                "communication outcome timestamp requires a timezone"
+            )
+        completed = completed_value.astimezone(UTC)
+        cutoff = cutoff_value.astimezone(UTC)
+        age_seconds = (cutoff - completed).total_seconds()
+        return age_seconds > 0 and (
+            maximum_age_seconds <= 0
+            or age_seconds <= maximum_age_seconds
+        )
 
     @staticmethod
     def _communication_coverage_complete(

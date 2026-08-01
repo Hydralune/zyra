@@ -6013,12 +6013,26 @@ def _production_physical_dispatch_port(
 def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
     """Project only canonical event-log communication outcome receipts."""
 
+    events = tuple(get_store().task_events(state.task_id))
+    events_by_id = {
+        str(
+            event.get("event_id")
+            if isinstance(event, Mapping)
+            else event.event_id
+        ): event
+        for event in events
+    }
     output: list[Mapping[str, Any]] = []
-    for event in get_store().task_events(state.task_id):
+    for event in events:
         event_run_id = str(
             event.get("run_id") if isinstance(event, Mapping) else event.run_id
         )
-        if event_run_id != state.run_id:
+        event_task_id = str(
+            event.get("task_id")
+            if isinstance(event, Mapping)
+            else event.task_id
+        )
+        if event_run_id != state.run_id or event_task_id != state.task_id:
             continue
         event_payload = (
             event.get("payload") if isinstance(event, Mapping) else event.payload
@@ -6052,6 +6066,216 @@ def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
                 "canonical communication outcome digest is missing or invalid: "
                 + event_id
             )
+        body_run_id = str(selected.get("run_id") or "")
+        body_task_id = str(selected.get("task_id") or "")
+        if not body_run_id or not body_task_id:
+            # Pre-binding receipts from an older runtime are not admissible
+            # to AgentPrune.  They remain in the canonical log, but a fresh
+            # scoped communication window must replace them.
+            continue
+        if body_run_id != event_run_id or body_task_id != event_task_id:
+            raise RuntimeError(
+                "canonical communication outcome scope mismatch: " + event_id
+            )
+        completed_at = str(selected.get("completed_at") or "")
+        event_created_at = str(
+            event.get("created_at")
+            if isinstance(event, Mapping)
+            else event.created_at
+        )
+        if not completed_at or completed_at != event_created_at:
+            raise RuntimeError(
+                "canonical communication outcome time binding mismatch: "
+                + event_id
+            )
+        expected_observation_id = "observation:" + event_id
+        if selected.get("observation_id") != expected_observation_id:
+            raise RuntimeError(
+                "canonical communication outcome identity mismatch: "
+                + event_id
+            )
+        message_id = str(selected.get("message_id") or "")
+        if (
+            not message_id
+            or selected.get("delivery_receipt_ref") != message_id
+        ):
+            raise RuntimeError(
+                "canonical communication delivery receipt binding mismatch: "
+                + event_id
+            )
+        message_event = events_by_id.get(message_id)
+        if message_event is None:
+            raise RuntimeError(
+                "canonical communication delivery receipt is missing: "
+                + event_id
+            )
+        message_run_id = str(
+            message_event.get("run_id")
+            if isinstance(message_event, Mapping)
+            else message_event.run_id
+        )
+        message_task_id = str(
+            message_event.get("task_id")
+            if isinstance(message_event, Mapping)
+            else message_event.task_id
+        )
+        message_type = str(
+            message_event.get("event_type")
+            if isinstance(message_event, Mapping)
+            else message_event.event_type
+        )
+        message_payload_value = (
+            message_event.get("payload")
+            if isinstance(message_event, Mapping)
+            else message_event.payload
+        )
+        message_payload = (
+            dict(message_payload_value)
+            if isinstance(message_payload_value, Mapping)
+            else {}
+        )
+        for transport_key in ("taskId", "sessionId", "legacyEventType"):
+            message_payload.pop(transport_key, None)
+        message_digest = str(message_payload.pop("payload_digest", ""))
+        if (
+            message_run_id != event_run_id
+            or message_task_id != event_task_id
+            or message_type != EventType.AGENT_MESSAGE.value
+            or message_payload.get("schema")
+            != "zyra.phase2-topology-coordination-message/v1"
+            or not message_digest
+            or canonical_digest(message_payload) != message_digest
+            or selected.get("payload_digest") != message_digest
+        ):
+            raise RuntimeError(
+                "canonical communication message receipt is invalid: "
+                + event_id
+            )
+        for field in (
+            "run_id",
+            "task_id",
+            "edge_id",
+            "source_node_id",
+            "target_node_id",
+            "edge_type",
+        ):
+            if str(selected.get(field) or "") != str(
+                message_payload.get(field) or ""
+            ):
+                raise RuntimeError(
+                    "canonical communication outcome/message binding mismatch: "
+                    + event_id
+                )
+        expected_message_id = "event_phase2_message_" + canonical_digest(
+            (
+                event_run_id,
+                str(selected.get("edge_id") or ""),
+                str(selected.get("window_id") or "").removeprefix(
+                    "topology-route:"
+                ),
+            )
+        )[:24]
+        expected_outcome_id = "event_agentprune_outcome_" + canonical_digest(
+            (
+                message_id,
+                message_digest,
+                bool(selected.get("delivered")),
+            )
+        )[:24]
+        if message_id != expected_message_id or event_id != expected_outcome_id:
+            raise RuntimeError(
+                "canonical communication deterministic identity mismatch: "
+                + event_id
+            )
+        window_id = str(selected.get("window_id") or "")
+        window_prefix = "topology-route:"
+        window_event_id = (
+            window_id[len(window_prefix) :]
+            if window_id.startswith(window_prefix)
+            else ""
+        )
+        window_event = events_by_id.get(window_event_id)
+        window_payload_value = (
+            window_event.get("payload")
+            if isinstance(window_event, Mapping)
+            else getattr(window_event, "payload", {})
+        )
+        window_payload = (
+            dict(window_payload_value)
+            if isinstance(window_payload_value, Mapping)
+            else {}
+        )
+        window_run_id = str(
+            window_event.get("run_id")
+            if isinstance(window_event, Mapping)
+            else getattr(window_event, "run_id", "")
+        )
+        window_task_id = str(
+            window_event.get("task_id")
+            if isinstance(window_event, Mapping)
+            else getattr(window_event, "task_id", "")
+        )
+        causal_refs = {
+            str(item) for item in selected.get("causal_refs") or () if str(item)
+        }
+        if (
+            window_event is None
+            or window_run_id != event_run_id
+            or window_task_id != event_task_id
+            or window_payload.get("schema")
+            != "zyra.phase2-temporal-handoff-receipt/v1"
+            or window_payload.get("acknowledged") is not True
+            or window_event_id not in causal_refs
+        ):
+            raise RuntimeError(
+                "canonical communication outcome window is invalid: "
+                + event_id
+            )
+        state_delta = message_payload.get("state_delta")
+        if (
+            not isinstance(state_delta, Mapping)
+            or state_delta.get("handoff_ref") != window_event_id
+            or state_delta.get("candidate_edge_id")
+            != selected.get("edge_id")
+            or message_id not in causal_refs
+        ):
+            raise RuntimeError(
+                "canonical communication message causality is invalid: "
+                + event_id
+            )
+        message_created_at = str(
+            message_event.get("created_at")
+            if isinstance(message_event, Mapping)
+            else message_event.created_at
+        )
+        window_created_at = str(
+            window_event.get("created_at")
+            if isinstance(window_event, Mapping)
+            else window_event.created_at
+        )
+        try:
+            window_time = datetime.fromisoformat(
+                window_created_at.replace("Z", "+00:00")
+            )
+            message_time = datetime.fromisoformat(
+                message_created_at.replace("Z", "+00:00")
+            )
+            outcome_time = datetime.fromisoformat(
+                completed_at.replace("Z", "+00:00")
+            )
+        except ValueError as error:
+            raise RuntimeError(
+                "canonical communication event time is invalid: " + event_id
+            ) from error
+        if (
+            window_time.tzinfo is None
+            or message_time.tzinfo is None
+            or outcome_time.tzinfo is None
+            or not window_time <= message_time <= outcome_time
+        ):
+            raise RuntimeError(
+                "canonical communication event order is invalid: " + event_id
+            )
         output.append(selected)
     return tuple(output)
 
@@ -6073,8 +6297,11 @@ def _record_phase2_communication_outcomes(
     store = get_store()
     persist_events(store, [cause_event])
     existing = _phase2_communication_outcomes(state)
+    window_id = "topology-route:" + cause_event.event_id
     existing_edge_ids = {
-        str(item.get("edge_id") or "") for item in existing
+        str(item.get("edge_id") or "")
+        for item in existing
+        if str(item.get("window_id") or "") == window_id
     }
     permission = dict(
         state.metadata.get("phase2_policy_permission_receipt") or {}
@@ -6150,8 +6377,10 @@ def _record_phase2_communication_outcomes(
         evidence_refs = [cause_event.event_id, message_id]
         outcome_body = {
             "schema_version": "zyra.agentprune-communication-outcome/v1",
+            "run_id": state.run_id,
+            "task_id": state.task_id,
             "observation_id": "observation:" + outcome_id,
-            "window_id": "topology-route:" + cause_event.event_id,
+            "window_id": window_id,
             "completed_at": now_iso(),
             "edge_id": edge_id,
             "source_node_id": source,
@@ -6198,6 +6427,7 @@ def _record_phase2_communication_outcomes(
                 run_id=state.run_id,
                 task_id=state.task_id,
                 event_type=EventType.RESOURCE_DECISION,
+                created_at=outcome_body["completed_at"],
                 payload=outcome,
             )
         )

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from apps.api.zyra_api import main as api
-from zyra_core import EventType
+from zyra_core import EventRecord, EventType, now_iso
 from zyra_orchestration import ensure_default_graph, run_task_graph
 from zyra_orchestration.topology_policy.contracts import (
     FrozenDict,
@@ -17,6 +17,9 @@ from zyra_orchestration.topology_policy.contracts import (
 )
 from zyra_orchestration.topology_policy.production import (
     Phase2StrongestProductionBridge,
+)
+from zyra_orchestration.topology_policy.pruning import (
+    CommunicationEdgeType,
 )
 from zyra_symbolic import TopologyRouter
 from zyra_scheduler import (
@@ -218,6 +221,166 @@ def test_partial_communication_outcome_coverage_requires_new_window() -> None:
         candidates=candidates,
         observations=complete,
     ) is True
+
+    assert Phase2StrongestProductionBridge._communication_outcome_is_prior_and_fresh(
+        completed_at="2026-08-01T00:59:59Z",
+        completed_before="2026-08-01T01:00:00Z",
+        maximum_age_seconds=3600,
+    ) is True
+    assert Phase2StrongestProductionBridge._communication_outcome_is_prior_and_fresh(
+        completed_at="2026-07-31T23:59:59Z",
+        completed_before="2026-08-01T01:00:00Z",
+        maximum_age_seconds=3600,
+    ) is False
+    assert Phase2StrongestProductionBridge._communication_outcome_is_prior_and_fresh(
+        completed_at="2026-08-01T01:00:00Z",
+        completed_before="2026-08-01T01:00:00Z",
+        maximum_age_seconds=3600,
+    ) is False
+
+
+def _communication_candidate() -> SimpleNamespace:
+    return SimpleNamespace(
+        edge_id="edge-communication-window",
+        source_node_id="node-source",
+        target_node_id="node-target",
+        edge_type=SimpleNamespace(value="spatial"),
+    )
+
+
+def _communication_window(state, identifier: str) -> EventRecord:
+    return EventRecord(
+        event_id=identifier,
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.RESOURCE_DECISION,
+        payload={
+            "schema": "zyra.phase2-temporal-handoff-receipt/v1",
+            "acknowledged": True,
+            "checkpoint_ref": f"checkpoint:{identifier}",
+        },
+    )
+
+
+def test_communication_outcome_recorder_refreshes_edge_in_new_window() -> None:
+    state, _ = api.make_task_created_event(
+        "Refresh a stable communication edge with a fresh actual window."
+    )
+    candidate = _communication_candidate()
+
+    first = api._record_phase2_communication_outcomes(
+        state,
+        (candidate,),
+        _communication_window(state, "event-window-first"),
+    )
+    second = api._record_phase2_communication_outcomes(
+        state,
+        (candidate,),
+        _communication_window(state, "event-window-second"),
+    )
+
+    assert len(first) == 1
+    assert len(second) == 2
+    assert {item["window_id"] for item in second} == {
+        "topology-route:event-window-first",
+        "topology-route:event-window-second",
+    }
+    assert len({item["message_id"] for item in second}) == 2
+    assert all(item["run_id"] == state.run_id for item in second)
+    assert all(item["task_id"] == state.task_id for item in second)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_error"),
+    (
+        ("foreign_scope", "scope mismatch"),
+        ("missing_delivery", "delivery receipt is missing"),
+        ("edge_binding", "outcome/message binding mismatch"),
+    ),
+)
+def test_communication_outcome_provider_rejects_forged_binding(
+    mutation: str,
+    expected_error: str,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Reject forged communication outcome bindings."
+    )
+    recorded = api._record_phase2_communication_outcomes(
+        state,
+        (_communication_candidate(),),
+        _communication_window(state, "event-window-valid"),
+    )
+    forged = dict(recorded[0])
+    forged["completed_at"] = now_iso()
+    forged_event_id = f"event-forged-{mutation}"
+    forged["observation_id"] = "observation:" + forged_event_id
+    if mutation == "foreign_scope":
+        forged["run_id"] = "run-foreign"
+        forged["task_id"] = "task-foreign"
+    elif mutation == "missing_delivery":
+        forged["message_id"] = "event-message-does-not-exist"
+        forged["delivery_receipt_ref"] = forged["message_id"]
+    else:
+        forged["source_node_id"] = "node-foreign-source"
+    forged.pop("digest", None)
+    forged["digest"] = canonical_digest(forged)
+    api.persist_events(
+        api.get_store(),
+        [
+            EventRecord(
+                event_id=forged_event_id,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.RESOURCE_DECISION,
+                created_at=forged["completed_at"],
+                payload=forged,
+            )
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match=expected_error):
+        api._phase2_communication_outcomes(state)
+
+
+@pytest.mark.parametrize(
+    ("raw_override", "expected_error"),
+    (
+        ({"run_id": "run-foreign"}, "scope differs"),
+        ({"source_node_id": "node-foreign"}, "identity and endpoints differ"),
+    ),
+)
+def test_communication_projection_does_not_launder_receipt_identity(
+    raw_override: dict[str, str],
+    expected_error: str,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Reject communication receipt identity laundering."
+    )
+    candidate = SimpleNamespace(
+        edge_id="edge-bound",
+        source_node_id="node-source",
+        target_node_id="node-target",
+        edge_type=CommunicationEdgeType.SPATIAL,
+    )
+    raw = {
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "edge_id": candidate.edge_id,
+        "source_node_id": candidate.source_node_id,
+        "target_node_id": candidate.target_node_id,
+        "edge_type": candidate.edge_type.value,
+    }
+    raw.update(raw_override)
+    bridge = object.__new__(Phase2StrongestProductionBridge)
+    bridge.communication_outcome_provider = lambda _state: (raw,)
+
+    with pytest.raises(RuntimeError, match=expected_error):
+        bridge._communication_observations(
+            state=state,
+            candidates=(candidate,),
+            completed_before="2026-08-01T01:00:00Z",
+            maximum_age_seconds=3600,
+        )
 
 
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
