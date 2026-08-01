@@ -453,6 +453,24 @@ def test_worker_successor_recovers_committed_lease_before_task_checkpoint(
         assert bound.worker_lease_ref == route["lease_id"]
         assert bound.state.value == "leased"
 
+        worker_api.pool.leases.cancel(
+            route["lease_id"],
+            reason="controlled terminal transition after route checkpoint",
+        )
+        terminal_replay = callback(request)
+        assert terminal_replay["accepted"] is False
+        terminal_state = store.load_task(task["task_id"])
+        assert terminal_state is not None
+        terminal_graph = worker_api.graph_custody.current(
+            terminal_state.metadata["dynamic_graph_id"]
+        )
+        terminal_bound = next(
+            node
+            for node in terminal_graph.nodes
+            if node.physical_attempt_ref == route["attempt_id"]
+        )
+        assert terminal_bound.state.value == "cancelled"
+
 
 def test_worker_successor_reconciles_terminal_precheckpoint_lease_then_reroutes(
     tmp_path: Path,
@@ -583,7 +601,7 @@ def test_worker_successor_reconciles_terminal_precheckpoint_lease_then_reroutes(
                 **request,
                 "plan_id": "plan-after-terminal-checkpoint",
                 "idempotency_key": "successor-after-terminal-checkpoint",
-                "excluded_refs": [successor_lease.worker_id],
+                "excluded_refs": [],
             }
         )
 
@@ -606,6 +624,97 @@ def test_worker_successor_reconciles_terminal_precheckpoint_lease_then_reroutes(
             == rerouted["canonical_ref"]["attempt_id"]
         )
         assert final_node.state.value == "leased"
+
+
+def test_unbound_terminal_successor_route_excludes_failed_boundary_on_new_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _create_task(
+            base_url,
+            "Recover a terminal successor whose graph bind never committed.",
+        )
+        previous_owner = _owner(task)
+        worker_api = api_main.get_worker_pool_api()
+        orchestrator = api_main.get_deployment_api().orchestrator
+        _register_successor_worker(
+            worker_api,
+            orchestrator,
+            worker_id="unbound-terminal-successor",
+            backend_id="unbound-terminal-backend",
+        )
+        request = {
+            "run_id": task["run_id"],
+            "task_id": task["task_id"],
+            "plan_id": "plan-unbound-terminal",
+            "idempotency_key": "successor-unbound-terminal",
+            "excluded_refs": [previous_owner["expected_worker_id"]],
+            "constraints": {
+                "worker": {"required_capabilities": ["agent_task"]}
+            },
+        }
+        callback = api_main._recovery_owner_callbacks(
+            api_main.get_store()
+        ).worker_successor
+        assert callback is not None
+        original_bind = worker_api.topology.bind_physical_attempt
+
+        def reject_graph_bind(*args: Any, **kwargs: Any) -> Any:
+            del args, kwargs
+            raise RuntimeError("controlled successor graph bind failure")
+
+        monkeypatch.setattr(
+            worker_api.topology,
+            "bind_physical_attempt",
+            reject_graph_bind,
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="controlled successor graph bind failure",
+        ):
+            callback(request)
+        monkeypatch.setattr(
+            worker_api.topology,
+            "bind_physical_attempt",
+            original_bind,
+        )
+
+        rejected = callback(request)
+
+        assert rejected["accepted"] is False
+        assert rejected["metadata"]["terminal"] is True
+        assert rejected["after"]["lease_id"] == (
+            previous_owner["expected_lease_id"]
+        )
+        terminal_successor_id = rejected["canonical_ref"]["worker_id"]
+        assert terminal_successor_id == "unbound-terminal-successor"
+        _register_successor_worker(
+            worker_api,
+            orchestrator,
+            worker_id="after-unbound-successor",
+            backend_id="after-unbound-backend",
+        )
+
+        rerouted = callback(
+            {
+                **request,
+                "plan_id": "plan-after-unbound-terminal",
+                "idempotency_key": "successor-after-unbound-terminal",
+                "excluded_refs": [],
+            }
+        )
+
+        assert rerouted["accepted"] is True
+        assert rerouted["canonical_ref"]["worker_id"] == (
+            "after-unbound-successor"
+        )
+        route = api_main.get_store().load_task(task["task_id"])
+        assert route is not None
+        avoided = route.metadata["recovery_worker_route"][
+            "avoided_worker_ids"
+        ]
+        assert terminal_successor_id in avoided
 
 
 def test_sealed_timeline_control_is_denied_once_without_manual_mutation_or_human_wait(
@@ -788,6 +897,57 @@ def _create_task(base_url: str, goal: str) -> dict[str, Any]:
         "/tasks",
         {"goal": goal, "auto_run": False},
     )["task"]
+
+
+def _register_successor_worker(
+    worker_api: Any,
+    orchestrator: Any,
+    *,
+    worker_id: str,
+    backend_id: str,
+) -> None:
+    device_policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
+    process, _, health = orchestrator.processes.start_node(
+        device_policy,
+        restart=True,
+    )
+    identity = dict(health["runtime_identity"])
+    worker_api.pool.register_physical_worker(
+        worker_id=worker_id,
+        worker_kind="code-worker",
+        location=WorkerLocation.LOCAL,
+        backend=BackendCapability(
+            backend_id=backend_id,
+            backend_kind="local_process",
+            enabled=True,
+            healthy=True,
+            capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+            ),
+            tool_ids=("code", "shell", "read", "write", "search"),
+        ),
+        capabilities=(
+            "agent_task",
+            "code_execution",
+            "artifact_return",
+        ),
+        tool_ids=("code", "shell", "read", "write", "search"),
+        resources=ResourceVector(
+            cpu_cores=1.0,
+            memory_mb=512,
+            disk_mb=512,
+            process_slots=2,
+        ),
+        process_identity=str(identity["failure_boundary_id"]),
+        endpoint=process.endpoint,
+        metadata={
+            "unbound_terminal_test_worker": True,
+            "deployment_node_id": health["node_id"],
+            "deployment_generation_id": identity["generation_id"],
+        },
+    )
 
 
 def _owner(task: dict[str, Any]) -> dict[str, Any]:

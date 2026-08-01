@@ -421,6 +421,9 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None
     assert valid_replay["physical_dispatch_receipt"]["digest"] == (
         dispatch_receipt["digest"]
     )
+    assert valid_replay["physical_dispatch_policy_artifact_ref"] == (
+        physical_receipt["physical_dispatch_policy_artifact_ref"]
+    )
 
     wrong_validation = dict(dispatch_validation)
     wrong_validation["real_gate_closed"] = False
@@ -456,6 +459,42 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None
             summary="reject cross-lease physical receipt replay",
         )
     state.metadata["worker_pool_receipt"] = dict(valid_replay)
+    original_binding = dict(state.metadata["operator_placement_binding"])
+    state.metadata["operator_placement_binding"] = {
+        **original_binding,
+        "worker_process_identity": "tampered-process-identity",
+    }
+    with pytest.raises(RuntimeError, match="canonical binding"):
+        pool_api.finalize_task(
+            state,
+            success=True,
+            summary="reject tampered historical placement binding",
+        )
+    state.metadata["operator_placement_binding"] = original_binding
+    state.metadata["worker_pool_receipt"] = dict(valid_replay)
+    worker_store = pool_api.pool.store
+    historical_worker = worker_store.require_worker(binding["worker_id"])
+    worker_store.upsert_worker_generation(
+        replace(
+            historical_worker,
+            generation=historical_worker.generation + 1,
+            version=historical_worker.version + 1,
+            process_identity="replacement-process-identity",
+            endpoint="local://replacement-generation",
+        )
+    )
+    generation_replay = pool_api.finalize_task(
+        state,
+        success=True,
+        summary="accept exact receipt after worker generation replacement",
+    )
+    assert generation_replay is not None
+    assert generation_replay["physical_dispatch_receipt"]["digest"] == (
+        dispatch_receipt["digest"]
+    )
+    assert generation_replay["physical_dispatch_policy_artifact_ref"] == (
+        physical_receipt["physical_dispatch_policy_artifact_ref"]
+    )
     assert str(state.status) == "completed", {
         "nodes": {
             item.metadata.get("stage"): {

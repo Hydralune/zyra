@@ -13,7 +13,11 @@ from zyra_orchestration.graph_custody import (
     GraphStateCustody,
     NodeExecutionState,
 )
-from zyra_orchestration.topology_policy import PhysicalDispatchReceipt
+from zyra_orchestration.topology_policy.contracts import (
+    PhysicalDispatchReceipt,
+    StableArtifactRef,
+    canonical_digest,
+)
 from zyra_scheduler import PhysicalDispatchReceiptValidator
 from zyra_scheduler.worker_pool import (
     AttemptState,
@@ -633,6 +637,7 @@ class WorkerPoolApiService:
         reason: str,
         actor_id: str,
         causation_id: str,
+        outcome_ref: str = "",
     ) -> Mapping[str, Any] | None:
         """Cancel the exact canonical graph binding after its lease closes."""
 
@@ -640,7 +645,7 @@ class WorkerPoolApiService:
             state,
             terminal_state=NodeExecutionState.CANCELLED,
             reason=reason,
-            outcome_ref="",
+            outcome_ref=outcome_ref,
             actor_id=actor_id,
             causation_id=causation_id,
         )
@@ -747,14 +752,7 @@ class WorkerPoolApiService:
             committed_outcome_ref = str(
                 node.metadata.get("physical_attempt_outcome_ref") or ""
             )
-            if (
-                terminal_state
-                in {NodeExecutionState.SUCCEEDED, NodeExecutionState.FAILED}
-                and (
-                    not outcome_ref
-                    or committed_outcome_ref != outcome_ref
-                )
-            ):
+            if committed_outcome_ref != str(outcome_ref or ""):
                 raise RuntimeError(
                     "dynamic graph terminal outcome receipt conflicts with "
                     "the canonical WorkerPool receipt"
@@ -776,6 +774,7 @@ class WorkerPoolApiService:
                 physical_attempt_ref=attempt_id,
                 worker_lease_ref=lease_id,
                 reason=reason,
+                outcome_ref=outcome_ref,
                 actor_id=actor_id,
                 causation_id=causation_id,
             )
@@ -845,6 +844,7 @@ class WorkerPoolApiService:
                     reason=reason,
                     actor_id=actor_id,
                     causation_id=causation_id,
+                    outcome_ref=execution_receipt.receipt_id,
                 )
             return self.complete_task_graph_binding(
                 state,
@@ -1050,10 +1050,13 @@ class WorkerPoolApiService:
         binding = dict(
             state.metadata.get("operator_placement_binding") or {}
         )
-        worker = self.pool.store.require_worker(lease.worker_id)
         identity = dict(dispatch.physical_identity)
         signals = dict(dispatch.input_signals)
         canonical_metadata = dict(execution_receipt.metadata or {})
+        binding_unsigned = dict(binding)
+        binding_digest = str(
+            binding_unsigned.pop("binding_digest", "")
+        )
         checks = {
             "validation_exact": dict(raw_validation) == validation,
             "real_gate_closed": validation.get("real_gate_closed") is True,
@@ -1071,7 +1074,13 @@ class WorkerPoolApiService:
                 dispatch.physical_attempt_id == lease.attempt_id
             ),
             "worker_exact": (
-                str(signals.get("worker_id") or "") == lease.worker_id
+                str(signals.get("worker_id") or "")
+                == str(binding.get("worker_id") or "")
+                == lease.worker_id
+            ),
+            "binding_digest_exact": (
+                bool(binding_digest)
+                and binding_digest == canonical_digest(binding_unsigned)
             ),
             "placement_exact": (
                 dispatch.placement_decision_id
@@ -1086,10 +1095,15 @@ class WorkerPoolApiService:
             ),
             "process_exact": (
                 str(identity.get("failure_boundary_id") or "")
-                == worker.process_identity
+                == str(binding.get("worker_process_identity") or "")
             ),
             "endpoint_exact": (
-                str(identity.get("endpoint") or "") == worker.endpoint
+                str(identity.get("endpoint") or "")
+                == str(binding.get("worker_endpoint") or "")
+            ),
+            "manifest_exact": (
+                dispatch.worker_manifest_ref.digest
+                == str(binding.get("worker_manifest_digest") or "")
             ),
         }
         failed = sorted(name for name, passed in checks.items() if not passed)
@@ -1102,6 +1116,27 @@ class WorkerPoolApiService:
             "physical_dispatch_receipt": dispatch.to_dict(),
             "physical_dispatch_validation": validation,
         }
+        raw_policy_artifact = current.get(
+            "physical_dispatch_policy_artifact_ref"
+        )
+        if raw_policy_artifact is not None:
+            if not isinstance(raw_policy_artifact, Mapping):
+                raise RuntimeError(
+                    "terminal physical dispatch policy artifact ref is invalid"
+                )
+            policy_artifact = StableArtifactRef.from_mapping(
+                raw_policy_artifact
+            )
+            if policy_artifact.digest != canonical_digest(
+                dispatch.to_dict()
+            ):
+                raise RuntimeError(
+                    "terminal physical dispatch policy artifact digest "
+                    "conflicts with the verified receipt"
+                )
+            result["physical_dispatch_policy_artifact_ref"] = (
+                policy_artifact.to_dict()
+            )
         current_memory = current.get("memory_mutation_receipt")
         canonical_memory = canonical_metadata.get(
             "memory_mutation_receipt"

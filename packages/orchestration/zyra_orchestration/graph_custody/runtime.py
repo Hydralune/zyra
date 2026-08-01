@@ -923,6 +923,7 @@ class DynamicTopologyRuntime:
         physical_attempt_ref: str,
         worker_lease_ref: str,
         reason: str,
+        outcome_ref: str = "",
         actor_id: str,
         causation_id: str,
     ) -> GraphCommitResult:
@@ -939,7 +940,7 @@ class DynamicTopologyRuntime:
             worker_lease_ref=worker_lease_ref,
             terminal_state=NodeExecutionState.CANCELLED,
             reason=reason,
-            outcome_ref="",
+            outcome_ref=outcome_ref,
             actor_id=actor_id,
             causation_id=causation_id,
         )

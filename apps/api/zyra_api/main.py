@@ -941,6 +941,19 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             replay_after = dict(route.get("after") or {})
             if not replay_after and before.get("lease_id") == lease.lease_id:
                 replay_after = dict(before)
+            if lease.terminal and before.get("lease_id") == lease.lease_id:
+                worker_api.reconcile_task_graph_binding(
+                    state,
+                    reason=(
+                        "replayed successor lease became terminal after its "
+                        "TaskState checkpoint"
+                    ),
+                    actor_id="recovery-worker-successor",
+                    causation_id=(
+                        f"recovery-successor-terminal-replay:{lease.lease_id}"
+                    ),
+                )
+                store.save_checkpoint(state)
             return {
                 "accepted": not lease.terminal,
                 "changed": False,
@@ -993,6 +1006,25 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             for candidate in worker_api.pool.store.list_workers():
                 if same_failure_boundary(prior_worker, candidate):
                     excluded.add(candidate.worker_id)
+        route_worker_id = str(route.get("preferred_worker_id") or "")
+        route_boundary = dict(route.get("successor_failure_boundary") or {})
+        route_process_identity = str(
+            route_boundary.get("process_identity") or ""
+        )
+        route_endpoint = str(route_boundary.get("endpoint") or "")
+        if route_worker_id:
+            excluded.add(route_worker_id)
+        if route_process_identity or route_endpoint:
+            for candidate in worker_api.pool.store.list_workers():
+                if (
+                    route_process_identity
+                    and candidate.process_identity == route_process_identity
+                ) or (
+                    not route_process_identity
+                    and route_endpoint
+                    and candidate.endpoint == route_endpoint
+                ):
+                    excluded.add(candidate.worker_id)
 
         def persist_successor(
             *,
@@ -1002,6 +1034,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             original_before: Mapping[str, Any],
             after_projection: Mapping[str, Any],
             recovered: bool,
+            projection_applied: bool = True,
         ) -> Mapping[str, Any]:
             if (
                 worker.worker_id in excluded
@@ -1058,6 +1091,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 "recovered_before_task_checkpoint": recovered,
                 "terminal": lease.terminal,
                 "accepted": not lease.terminal,
+                "projection_applied": projection_applied,
             }
             state.metadata["recovery_worker_route"] = route_value
             store.save_checkpoint(state)
@@ -1104,6 +1138,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 original_before=recovered["before"],
                 after_projection=recovered["after"],
                 recovered=True,
+                projection_applied=bool(recovered["projection_applied"]),
             )
         if prior_lease_id:
             if prior is not None and not prior.terminal:
@@ -1157,6 +1192,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             original_before=before,
             after_projection=after,
             recovered=False,
+            projection_applied=True,
         )
 
     def backend_successor(request: Mapping[str, Any]) -> Mapping[str, Any]:

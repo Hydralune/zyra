@@ -13,6 +13,7 @@ from urllib.error import HTTPError
 import pytest
 
 from apps.api.zyra_api import main as api_main
+from zyra_scheduler.worker_pool import ExecutionOutcome
 
 
 def test_task_api_uses_physical_lease_dynamic_graph_projection_and_real_cancel(tmp_path: Path) -> None:
@@ -202,6 +203,73 @@ def test_normal_task_finalize_replays_lease_and_graph_success(
                 actor_id="test-worker-pool",
                 causation_id="mismatched-outcome-ref",
             )
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    (ExecutionOutcome.CANCELLED, ExecutionOutcome.FENCED),
+)
+def test_receipt_backed_cancellation_replays_exact_graph_outcome_ref(
+    tmp_path: Path,
+    outcome: ExecutionOutcome,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Reconcile receipt-backed physical cancellation.",
+                "auto_run": False,
+            },
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        projection = state.metadata["worker_pool"]
+        lease = pool_api.pool.store.require_lease(projection["lease_id"])
+        pool_api.pool.leases.start_attempt(
+            lease.lease_id,
+            worker_id=lease.worker_id,
+            fence_token=lease.fence_token,
+            fence_epoch=lease.fence_epoch,
+            backend_dispatch_id=f"controlled-{outcome.value}",
+        )
+        receipt = pool_api.pool.leases.complete(
+            lease.lease_id,
+            worker_id=lease.worker_id,
+            fence_token=lease.fence_token,
+            fence_epoch=lease.fence_epoch,
+            outcome=outcome,
+            summary=f"controlled {outcome.value} outcome",
+        )
+
+        first = pool_api.reconcile_task_graph_binding(
+            state,
+            reason=f"reconcile {outcome.value}",
+            actor_id="test-worker-pool",
+            causation_id=f"receipt-backed-{outcome.value}",
+        )
+        replayed = pool_api.reconcile_task_graph_binding(
+            state,
+            reason=f"replay {outcome.value}",
+            actor_id="test-worker-pool",
+            causation_id=f"receipt-backed-{outcome.value}",
+        )
+
+        assert first is not None
+        assert replayed is not None
+        graph = pool_api.graph_custody.current(
+            state.metadata["dynamic_graph_id"]
+        )
+        terminal = next(
+            node
+            for node in graph.nodes
+            if node.worker_lease_ref == lease.lease_id
+        )
+        assert terminal.state.value == "cancelled"
+        assert terminal.metadata["physical_attempt_outcome_ref"] == (
+            receipt.receipt_id
+        )
 
 
 def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(
