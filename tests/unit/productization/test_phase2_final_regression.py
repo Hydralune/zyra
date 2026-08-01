@@ -53,6 +53,14 @@ def test_final_python_regression_is_scoped_to_zyra_tests(
     )
     assert "--json" in ledger
     assert "--fail-on-warning" not in ledger
+    first_stage_freeze = next(
+        command
+        for command_id, command, _timeout in commands
+        if command_id == "phase1-final-freeze"
+    )
+    assert first_stage_freeze[-1] == str(MODULE.FIRST_STAGE_FREEZE_ROOT)
+    assert not Path(first_stage_freeze[-1]).is_relative_to(tmp_path)
+    assert (Path(first_stage_freeze[-1]) / "final-freeze-index.json").is_file()
 
 
 def test_bun_resolution_accepts_the_frozen_local_install(

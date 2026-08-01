@@ -1853,7 +1853,14 @@ class Phase2FreezeAuditor:
                     python,
                     "scripts/verify_first_stage.py",
                     "--output",
-                    str(output_root / "first-stage-final-freeze"),
+                    str(
+                        self.root
+                        / "docs"
+                        / "reviews"
+                        / "evidence"
+                        / "M3-S03-02"
+                        / "final-freeze"
+                    ),
                 ),
             ),
             (

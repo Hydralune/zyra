@@ -27,6 +27,9 @@ from zyra_productization.release.worktree import (
 
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
 PYTHON_TEST_POLICY_PATH = ROOT / "config" / "release-python-tests.json"
+FIRST_STAGE_FREEZE_ROOT = (
+    ROOT / "docs" / "reviews" / "evidence" / "M3-S03-02" / "final-freeze"
+)
 TYPESCRIPT_RUNTIME_TEST_ROOTS = (
     "packages/commands/test",
     "packages/integrations/claude-mcp/test",
@@ -191,7 +194,7 @@ def _command_specs(
                 python,
                 "scripts/verify_first_stage.py",
                 "--output",
-                str(output_root / "first-stage-final-freeze"),
+                str(FIRST_STAGE_FREEZE_ROOT),
             ),
             1800,
         ),
