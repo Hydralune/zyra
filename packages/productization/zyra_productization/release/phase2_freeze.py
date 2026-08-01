@@ -2013,6 +2013,21 @@ class Phase2FreezeAuditor:
             "ready": ready,
         }
 
+    def verify_final_regression_receipt(
+        self,
+        path: Path,
+        *,
+        target_commit: str,
+    ) -> dict[str, Any]:
+        """Verify an immutable final-regression receipt for gate reuse."""
+
+        target = self._git("rev-parse", f"{target_commit}^{{commit}}").strip()
+        if target != target_commit:
+            raise Phase2FreezeError(
+                "final regression reuse requires a full target commit"
+            )
+        return self._receipt_ready(path.resolve(), target)
+
     def audit(
         self,
         *,

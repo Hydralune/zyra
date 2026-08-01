@@ -50,6 +50,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-ci", action="store_true")
     parser.add_argument("--maximum-parallel", type=int, default=2)
     parser.add_argument(
+        "--python-regression-receipt",
+        default="",
+        help=(
+            "exact-target Phase 2 final-regression receipt to reuse for the "
+            "release CI Python gate"
+        ),
+    )
+    parser.add_argument(
         "--allow-dirty",
         action="store_true",
         help="development-only; release admission still records the revision",
@@ -76,6 +84,7 @@ class ReleasePipeline:
         run_ci: bool,
         maximum_parallel: int,
         require_clean: bool,
+        python_regression_receipt: Path | None = None,
     ) -> dict[str, Any]:
         started = time.monotonic()
         git_receipt = (
@@ -158,6 +167,7 @@ class ReleasePipeline:
                 archive=promoted,
                 expected_commit=expected_commit,
                 maximum_parallel=maximum_parallel,
+                python_regression_receipt=python_regression_receipt,
             )
         ready = (
             reproducibility.get("ready") is True
@@ -242,6 +252,11 @@ def run(argv: Sequence[str] | None = None) -> int:
             run_ci=not arguments.skip_ci,
             maximum_parallel=arguments.maximum_parallel,
             require_clean=not arguments.allow_dirty,
+            python_regression_receipt=(
+                Path(arguments.python_regression_receipt)
+                if arguments.python_regression_receipt
+                else None
+            ),
         )
     except ReleaseError as error:
         print(

@@ -943,6 +943,91 @@ def test_standard_gate_registry_isolates_pytest_state_outside_project(
     assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
 
 
+def test_standard_gate_registry_can_reuse_verified_python_regression(
+    tmp_path: Path,
+) -> None:
+    from zyra_productization.release.ci import standard_gate_registry
+
+    callables = {
+        gate_id: (lambda _: {"ready": True})
+        for gate_id in (
+            "python-lock",
+            "javascript-lock",
+            "bundle-boundary",
+            "checksums",
+            "sbom-notice",
+            "source-custody",
+            "legacy-source-retirement",
+            "clean-install",
+            "semantic-health",
+            "benchmark-link",
+        )
+    }
+
+    def reuse(_: object) -> dict[str, object]:
+        return {"ready": True, "duplicate_execution_avoided": True}
+
+    registry = standard_gate_registry(
+        python="python",
+        bun="bun",
+        output_root=tmp_path / "output",
+        python_basetemp=tmp_path / "pytest",
+        callable_gates=callables,
+        python_test_callable=reuse,
+    )
+
+    gate = registry.get("python-tests")
+    assert gate.command == ()
+    assert gate.callable is reuse
+    assert gate.dependencies == ("python-lock",)
+
+
+def test_release_ci_python_gate_reuses_only_verified_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zyra_productization.release.phase2_freeze import Phase2FreezeAuditor
+
+    receipt = tmp_path / "final-regression.json"
+    receipt.write_text('{"ready": true}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        Phase2FreezeAuditor,
+        "verify_final_regression_receipt",
+        lambda self, path, *, target_commit: {
+            "ready": path == receipt.resolve(),
+            "target_commit": target_commit,
+            "blockers": [],
+        },
+    )
+    evidence = tmp_path / "release-evidence"
+    runtime = ReleaseRuntime(tmp_path, output_root=tmp_path / "release")
+    gate = runtime._ci_callables(
+        archive=tmp_path / "unused.tar.gz",
+        expected_commit="a" * 40,
+        evidence_root=evidence,
+        python_regression_receipt=receipt,
+    )["python-tests-reuse"]
+
+    result = gate(None)
+
+    assert result["ready"] is True
+    assert result["duplicate_execution_avoided"] is True
+    assert result["source_receipt_sha256"] == sha256_file(receipt)
+    assert (evidence / "python-regression-reuse.json").is_file()
+
+    monkeypatch.setattr(
+        Phase2FreezeAuditor,
+        "verify_final_regression_receipt",
+        lambda self, path, *, target_commit: {
+            "ready": False,
+            "target_commit": target_commit,
+            "blockers": ["command_failed:python-full-regression"],
+        },
+    )
+    with pytest.raises(GateFailure, match="not valid for release CI reuse"):
+        gate(None)
+
+
 def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
     tmp_path: Path,
 ) -> None:

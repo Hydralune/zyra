@@ -680,6 +680,7 @@ class ReleaseRuntime:
         python: str | None = None,
         bun: str | None = None,
         maximum_parallel: int = 2,
+        python_regression_receipt: Path | None = None,
     ) -> dict[str, Any]:
         python = python or sys.executable
         bun = bun or ReleaseDoctor(
@@ -692,6 +693,7 @@ class ReleaseRuntime:
             archive=archive,
             expected_commit=expected_commit,
             evidence_root=evidence_root,
+            python_regression_receipt=python_regression_receipt,
         )
         with tempfile.TemporaryDirectory(
             prefix="zyra-release-pytest-",
@@ -710,6 +712,11 @@ class ReleaseRuntime:
                     self.project_root,
                     self.project_root / "config" / "release-python-tests.json",
                 ).pytest_arguments(),
+                python_test_callable=(
+                    callables["python-tests-reuse"]
+                    if python_regression_receipt is not None
+                    else None
+                ),
             )
             executor = GateExecutor(
                 registry,
@@ -744,7 +751,48 @@ class ReleaseRuntime:
         archive: Path,
         expected_commit: str,
         evidence_root: Path,
+        python_regression_receipt: Path | None = None,
     ) -> dict[str, Any]:
+        def python_tests_reuse(_: GateContext) -> Mapping[str, Any]:
+            if python_regression_receipt is None:
+                raise GateFailure(
+                    "Final regression reuse receipt was not provided.",
+                    code="final_regression_reuse_missing",
+                )
+            from .phase2_freeze import Phase2FreezeAuditor
+
+            receipt_path = python_regression_receipt.resolve()
+            verification = Phase2FreezeAuditor(
+                self.project_root
+            ).verify_final_regression_receipt(
+                receipt_path,
+                target_commit=expected_commit,
+            )
+            if verification.get("ready") is not True:
+                raise GateFailure(
+                    "Final regression receipt is not valid for release CI reuse.",
+                    code="final_regression_reuse_invalid",
+                    details={
+                        "receipt": str(receipt_path),
+                        "verification": verification,
+                    },
+                )
+            value = {
+                "schema": "zyra.release-python-regression-reuse/v1",
+                "ready": True,
+                "source_commit": expected_commit,
+                "source_receipt": str(receipt_path),
+                "source_receipt_sha256": sha256_file(receipt_path),
+                "verification": verification,
+                "duplicate_execution_avoided": True,
+            }
+            value["digest"] = stable_digest(value)
+            self._write_json(
+                evidence_root / "python-regression-reuse.json",
+                value,
+            )
+            return value
+
         def python_lock(_: GateContext) -> Mapping[str, Any]:
             with (self.project_root / "pyproject.toml").open("rb") as stream:
                 pyproject = tomllib.load(stream)
@@ -1085,6 +1133,7 @@ class ReleaseRuntime:
             return value
 
         return {
+            "python-tests-reuse": python_tests_reuse,
             "python-lock": python_lock,
             "javascript-lock": javascript_lock,
             "bundle-boundary": bundle_boundary,

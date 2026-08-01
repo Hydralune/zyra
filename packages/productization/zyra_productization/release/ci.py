@@ -690,7 +690,41 @@ def standard_gate_registry(
     python_basetemp: Path,
     callable_gates: Mapping[str, Callable[[GateContext], Mapping[str, Any]]],
     python_test_arguments: Sequence[str] = ("tests/unit", "tests/integration"),
+    python_test_callable: (
+        Callable[[GateContext], Mapping[str, Any]] | None
+    ) = None,
 ) -> GateRegistry:
+    python_test_gate = (
+        GateSpec(
+            gate_id="python-tests",
+            callable=python_test_callable,
+            dependencies=("python-lock",),
+            timeout_seconds=120,
+            allow_parallel=False,
+        )
+        if python_test_callable is not None
+        else GateSpec(
+            gate_id="python-tests",
+            command=(
+                python,
+                "-m",
+                "pytest",
+                "-p",
+                "no:cacheprovider",
+                "--basetemp",
+                str(python_basetemp.resolve()),
+                "-o",
+                "faulthandler_timeout=300",
+                "-o",
+                "faulthandler_exit_on_timeout=true",
+                "-q",
+                *python_test_arguments,
+            ),
+            dependencies=("python-lock",),
+            timeout_seconds=5400,
+            allow_parallel=False,
+        )
+    )
     specifications = [
         GateSpec(
             gate_id="python-lock",
@@ -722,27 +756,7 @@ def standard_gate_registry(
             timeout_seconds=120,
             artifacts=("sbom-verification.json",),
         ),
-        GateSpec(
-            gate_id="python-tests",
-            command=(
-                python,
-                "-m",
-                "pytest",
-                "-p",
-                "no:cacheprovider",
-                "--basetemp",
-                str(python_basetemp.resolve()),
-                "-o",
-                "faulthandler_timeout=300",
-                "-o",
-                "faulthandler_exit_on_timeout=true",
-                "-q",
-                *python_test_arguments,
-            ),
-            dependencies=("python-lock",),
-            timeout_seconds=5400,
-            allow_parallel=False,
-        ),
+        python_test_gate,
         GateSpec(
             gate_id="typescript-typecheck",
             command=(bun, "run", "typecheck"),

@@ -144,6 +144,14 @@ def build_parser() -> argparse.ArgumentParser:
     ci.add_argument("--python", default="")
     ci.add_argument("--bun", default="")
     ci.add_argument("--maximum-parallel", type=int, default=2)
+    ci.add_argument(
+        "--python-regression-receipt",
+        default="",
+        help=(
+            "reuse an exact-target Phase 2 final-regression receipt instead "
+            "of executing the identical Python suite again"
+        ),
+    )
     return parser
 
 
@@ -293,6 +301,11 @@ def _dispatch(
             python=arguments.python or None,
             bun=arguments.bun or None,
             maximum_parallel=arguments.maximum_parallel,
+            python_regression_receipt=(
+                Path(arguments.python_regression_receipt)
+                if arguments.python_regression_receipt
+                else None
+            ),
         )
     raise AssertionError(f"unhandled release command: {command}")
 
