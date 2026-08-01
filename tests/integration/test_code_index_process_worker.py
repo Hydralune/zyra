@@ -137,8 +137,8 @@ class CodeIndexProcessWorkerTests(unittest.TestCase):
             workspace_state_root=self.config.state_root,
             workspace_data_root=self.config.data_root,
             project_root=Path(__file__).resolve().parents[2],
-            lease_ttl_seconds=0.3,
-            heartbeat_interval_seconds=0.05,
+            lease_ttl_seconds=2.0,
+            heartbeat_interval_seconds=0.2,
             timeout_seconds=30.0,
         )
         integration = CodeIndexIntegrationRuntime(
@@ -169,9 +169,9 @@ class CodeIndexProcessWorkerTests(unittest.TestCase):
             "--worker-id",
             "doomed-code-index-worker",
             "--lease-ttl",
-            "0.3",
+            "2.0",
             "--heartbeat-interval",
-            "0.05",
+            "0.2",
             "--once",
             "--phase-file",
             str(phase_file),
@@ -211,11 +211,11 @@ class CodeIndexProcessWorkerTests(unittest.TestCase):
         process.communicate(timeout=10.0)
         self.assertNotEqual(process.returncode, 0)
 
-        time.sleep(0.4)
+        time.sleep(2.2)
         sweep = supervisor.sweep_once()
         self.assertEqual(sweep.sweep["count"], 1)
         self.assertIn(admitted.job.job_id, sweep.sweep["stale_job_ids"])
-        recovered = supervisor.drain(maximum_jobs=4)
+        recovered = self.supervisor.drain(maximum_jobs=4)
         self.assertTrue(any(outcome["status"] == "ready" for outcome in recovered.outcomes))
         selection = integration.select(
             CodeIndexQuery(
