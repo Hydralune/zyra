@@ -8,7 +8,7 @@ import subprocess
 import sys
 import traceback
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -46,6 +46,18 @@ class SealedLongRunError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class _CausalEventRecord:
+    run_id: str
+    task_id: str
+    event_type: Any
+    event_id: str
+    node_id: str | None
+    created_at: str
+    payload: dict[str, Any]
+    causation_id: str
+
+
 class _SealedInlineProductionPolicy:
     """Run the existing production strongest composition before domain work."""
 
@@ -76,12 +88,65 @@ class _SealedInlineProductionPolicy:
         state = self.owner.state
         if state is None:
             raise SealedLongRunError("inline strongest policy has no canonical task")
-        events = run_task_graph(
-            state,
-            execution_context=self.api_main.graph_execution_context(),
-        )
         canonical_store = self.api_main.get_store()
-        self.api_main.persist_events(canonical_store, list(events))
+        existing_events = tuple(canonical_store.task_events(state.task_id))
+        root_event_id = str(
+            owner_context.get("task_created_event_id")
+            or (
+                existing_events[-1].get("event_id")
+                if existing_events
+                and isinstance(existing_events[-1], Mapping)
+                else ""
+            )
+            or ""
+        )
+        if not root_event_id:
+            raise SealedLongRunError(
+                "inline strongest policy has no canonical root event"
+            )
+        execution_context = self.api_main.graph_execution_context()
+        loopx_pre_control = self._loopx_pre_control(
+            state=state,
+            causation_id=root_event_id,
+        )
+        state.metadata["phase2_loopx_pre_control"] = dict(
+            loopx_pre_control
+        )
+        self.api_main.get_store().save_checkpoint(state)
+        returned_events = run_task_graph(
+            state,
+            execution_context=execution_context,
+        )
+        events: list[Any] = []
+        previous_event_id = root_event_id
+        for event in returned_events:
+            selected = event
+            if not str(getattr(event, "causation_id", "") or "") and all(
+                hasattr(event, field)
+                for field in (
+                    "run_id",
+                    "task_id",
+                    "event_type",
+                    "event_id",
+                    "created_at",
+                    "payload",
+                )
+            ):
+                selected = _CausalEventRecord(
+                    run_id=str(event.run_id),
+                    task_id=str(event.task_id),
+                    event_type=event.event_type,
+                    event_id=str(event.event_id),
+                    node_id=getattr(event, "node_id", None),
+                    created_at=str(event.created_at),
+                    payload=dict(event.payload),
+                    causation_id=previous_event_id,
+                )
+            events.append(selected)
+            previous_event_id = str(
+                getattr(selected, "event_id", "") or previous_event_id
+            )
+        self.api_main.persist_events(canonical_store, events)
         canonical_store.save_checkpoint(state)
         selected_policy: dict[str, Any] | None = None
         selected_policy_event: Any | None = None
@@ -96,8 +161,25 @@ class _SealedInlineProductionPolicy:
                 selected_policy = policy
                 selected_policy_event = event
         if selected_policy is None:
+            observed = [
+                {
+                    "event_id": str(getattr(event, "event_id", "") or ""),
+                    "topology_policy": _mapping(
+                        _mapping(getattr(event, "payload", {})).get(
+                            "topology_policy"
+                        )
+                    ),
+                }
+                for event in events
+                if _mapping(
+                    _mapping(getattr(event, "payload", {})).get(
+                        "topology_policy"
+                    )
+                )
+            ]
             raise SealedLongRunError(
-                "production strongest policy did not commit before domain execution"
+                "production strongest policy did not commit before domain execution: "
+                + json.dumps(observed, ensure_ascii=False, sort_keys=True)[-4096:]
             )
         placement = _mapping(selected_policy.get("physical_placement"))
         candidate = _mapping(selected_policy.get("operator_candidate_set"))
@@ -112,6 +194,9 @@ class _SealedInlineProductionPolicy:
         )
         physical = _mapping(worker_receipt.get("physical_dispatch_receipt"))
         physical_payload = _mapping(physical.get("payload"))
+        loopx_consumption = _mapping(
+            selected_policy.get("loopx_pre_control")
+        )
         if not layers:
             raise SealedLongRunError(
                 "production strongest policy has no executed operator layer"
@@ -150,11 +235,20 @@ class _SealedInlineProductionPolicy:
                 ).get("real_gate_closed")
                 is True
             ),
+            "loopx_pre_control_placement": (
+                loopx_pre_control.get("receipt_digest")
+                == loopx_consumption.get("receipt_digest")
+                == placement_binding.get("loopx_pre_control_digest")
+                and loopx_consumption.get("consumed_before_topology") is True
+            ),
+            "loopx_pre_control_operator": (
+                candidate.get("input_snapshot_digest")
+                == loopx_consumption.get("operator_policy_input_digest")
+                == placement_binding.get(
+                    "loopx_operator_policy_input_digest"
+                )
+            ),
         }
-        if not all(checks.values()):
-            raise SealedLongRunError(
-                f"production strongest receipt chain is inconsistent: {checks}"
-            )
         topology = _mapping(selected_policy.get("topology_result"))
         decision = _mapping(topology.get("decision_receipt"))
         decision_payload = _mapping(decision.get("payload")) or decision
@@ -172,6 +266,17 @@ class _SealedInlineProductionPolicy:
             for item in _sequence(composition.get("layers"))
             if isinstance(item, Mapping)
         )
+        checks["loopx_pre_control_topology"] = (
+            composition.get("policy_input_digest")
+            == loopx_consumption.get("topology_policy_input_digest")
+            == placement_binding.get("loopx_topology_policy_input_digest")
+        )
+        if not all(checks.values()):
+            raise SealedLongRunError(
+                "production strongest receipt chain is inconsistent: "
+                f"checks={checks}, topology_policy_input_digests="
+                f"{(composition.get('policy_input_digest'), loopx_consumption.get('topology_policy_input_digest'), placement_binding.get('loopx_topology_policy_input_digest'))}"
+            )
         completion_event = next(
             (
                 event
@@ -207,6 +312,7 @@ class _SealedInlineProductionPolicy:
             )
         loopx = self._loopx_chain(
             state=state,
+            pre_control=loopx_pre_control,
             graph_commit=graph_commit,
             permission=permission,
             placement=placement,
@@ -231,6 +337,7 @@ class _SealedInlineProductionPolicy:
                 "projection_differences": list(
                     _sequence(composition.get("projection_differences"))
                 ),
+                "loopx_pre_control_consumption": loopx_consumption,
                 "canonical_custody_commit": True,
             },
             "continuity": {
@@ -259,6 +366,15 @@ class _SealedInlineProductionPolicy:
                 ),
                 "lease_id": placement.get("lease_id"),
                 "physical_receipt_digest": physical.get("digest"),
+                "loopx_pre_control_digest": placement_binding.get(
+                    "loopx_pre_control_digest"
+                ),
+                "loopx_topology_policy_input_digest": placement_binding.get(
+                    "loopx_topology_policy_input_digest"
+                ),
+                "loopx_operator_policy_input_digest": placement_binding.get(
+                    "loopx_operator_policy_input_digest"
+                ),
             },
             "loopx": loopx,
         }
@@ -317,6 +433,9 @@ class _SealedInlineProductionPolicy:
             "production_mechanism_chain_digest": mechanism_chain[
                 "chain_digest"
             ],
+            "loopx_pre_control_digest": loopx_pre_control[
+                "receipt_digest"
+            ],
             "consumed_before_domain_execution": True,
         }
         receipt["receipt_digest"] = _evidence_digest(receipt)
@@ -331,10 +450,25 @@ class _SealedInlineProductionPolicy:
         self._bundle["bundle_digest"] = _evidence_digest(unsigned_bundle)
         return receipt
 
+    def _loopx_pre_control(
+        self,
+        *,
+        state: Any,
+        causation_id: str,
+    ) -> dict[str, Any]:
+        """Commit and execute LoopX continuation before topology selection."""
+        return dict(
+            self.api_main.prepare_phase2_loopx_pre_control(
+                state,
+                causation_id=causation_id,
+            )
+        )
+
     def _loopx_chain(
         self,
         *,
         state: Any,
+        pre_control: Mapping[str, Any],
         graph_commit: Mapping[str, Any],
         permission: Mapping[str, Any],
         placement: Mapping[str, Any],
@@ -357,7 +491,14 @@ class _SealedInlineProductionPolicy:
                 placement.get("resource_decision_id") or ""
             ),
         }
-        goal_id = f"goal_sealed_{state.task_id}"
+        goal_id = str(pre_control.get("goal_id") or "")
+        pre_results = _mapping(pre_control.get("results"))
+        connected = _mapping(pre_results.get("connect"))
+        claimed = _mapping(pre_results.get("claim"))
+        if not goal_id or not connected or not claimed:
+            raise SealedLongRunError(
+                "production LoopX chain lost its pre-control receipt"
+            )
         common = {
             "run_id": state.run_id,
             "task_id": state.task_id,
@@ -376,24 +517,6 @@ class _SealedInlineProductionPolicy:
                 **common,
             )
 
-        connected = mutate(
-            "connect",
-            {
-                "todo_id": "todo_sealed_primary",
-                "todo_title": "complete the verified sealed delivery",
-                "objective": str(state.user_goal or "sealed delivery"),
-                "limit_slots": 1,
-                "requirement_revision": str(
-                    state.metadata.get("requirement_revision") or "r1"
-                ),
-            },
-            1,
-        )
-        claimed = mutate(
-            "claim",
-            {"todo_id": "todo_sealed_primary", "claimant": "sealed-controller-a"},
-            2,
-        )
         conflict = mutate(
             "claim",
             {"todo_id": "todo_sealed_primary", "claimant": "sealed-controller-b"},
@@ -417,8 +540,15 @@ class _SealedInlineProductionPolicy:
             task_id=state.task_id,
             goal_id=goal_id,
         )
+        runtime_identity_before = (
+            f"python-runtime:{os.getpid()}:{id(control)}"
+        )
         self.api_main.reset_control_runtime()
-        after_restart = self.api_main.get_loopx_control_runtime().snapshot(
+        restarted_control = self.api_main.get_loopx_control_runtime()
+        runtime_identity_after = (
+            f"python-runtime:{os.getpid()}:{id(restarted_control)}"
+        )
+        after_restart = restarted_control.snapshot(
             run_id=state.run_id,
             task_id=state.task_id,
             goal_id=goal_id,
@@ -448,6 +578,10 @@ class _SealedInlineProductionPolicy:
                 and _mapping(before_restart.get("sync")).get("cursor")
                 == _mapping(after_restart.get("sync")).get("cursor")
             ),
+            "restart_runtime_replaced": (
+                restarted_control is not control
+                and runtime_identity_after != runtime_identity_before
+            ),
             "worker_lease_owner_preserved": (
                 canonical_state.get("worker_lease_owner")
                 == "WorkerLeaseManager"
@@ -466,6 +600,8 @@ class _SealedInlineProductionPolicy:
             )
         value = {
             "schema": "zyra.phase2-production-loopx-chain/v1",
+            "pre_control": dict(pre_control),
+            "pre_control_digest": pre_control.get("receipt_digest"),
             "canonical_commit_id": graph_commit.get("commit_id"),
             "canonical_commit_digest": _evidence_digest(graph_commit),
             "validation": validation,
@@ -478,6 +614,8 @@ class _SealedInlineProductionPolicy:
             },
             "restart_snapshot_before": before_restart,
             "restart_snapshot_after": after_restart,
+            "restart_runtime_identity_before": runtime_identity_before,
+            "restart_runtime_identity_after": runtime_identity_after,
             "checks": checks,
             "duplicate_claim": 0,
             "duplicate_spend": 0,
@@ -1026,6 +1164,11 @@ class SealedLongRunRunner:
         topology = _mapping(production_chain.get("topology"))
         loopx = _mapping(production_chain.get("loopx"))
         loopx_checks = _mapping(loopx.get("checks"))
+        loopx_pre_control = _mapping(loopx.get("pre_control"))
+        loopx_consumption = _mapping(
+            topology.get("loopx_pre_control_consumption")
+        )
+        operator = _mapping(production_chain.get("operator"))
         production_control = _mapping(mechanism.get("production_control"))
         lanes = []
         for receipt, validation in zip(
@@ -1149,7 +1292,37 @@ class SealedLongRunRunner:
                 "receipt_digest": _evidence_digest(continuity_receipt),
             },
             "loopx": {
+                "pre_control_consumed_by_topology": (
+                    loopx_pre_control.get("receipt_digest")
+                    == loopx_consumption.get("receipt_digest")
+                    and loopx_consumption.get("consumed_before_topology")
+                    is True
+                    and bool(
+                        loopx_consumption.get(
+                            "topology_policy_input_digest"
+                        )
+                    )
+                ),
+                "pre_control_bound_to_placement": (
+                    loopx_pre_control.get("receipt_digest")
+                    == operator.get("loopx_pre_control_digest")
+                    and loopx_consumption.get(
+                        "topology_policy_input_digest"
+                    )
+                    == operator.get(
+                        "loopx_topology_policy_input_digest"
+                    )
+                    and loopx_consumption.get(
+                        "operator_policy_input_digest"
+                    )
+                    == operator.get(
+                        "loopx_operator_policy_input_digest"
+                    )
+                ),
                 "restart_recovered": loopx_checks.get("restart_recovered"),
+                "restart_runtime_replaced": loopx_checks.get(
+                    "restart_runtime_replaced"
+                ),
                 "claim_conflict_rejected": loopx_checks.get(
                     "claim_conflict_rejected"
                 ),

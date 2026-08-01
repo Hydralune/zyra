@@ -234,7 +234,9 @@ class CanonicalLiveScenarioOwners:
         )
         state.metadata["workspace_ref"] = workspace.projection.to_dict()
         api_main.ensure_default_graph(state)
-        api_main.get_store().save_checkpoint(state)
+        canonical_store = api_main.get_store()
+        api_main.persist_events(canonical_store, [created_event])
+        canonical_store.save_checkpoint(state)
         self.state = state
         return {
             "schema": "zyra.live-task-owner-context/v1",
@@ -242,6 +244,7 @@ class CanonicalLiveScenarioOwners:
             "run_id": state.run_id,
             "task_id": state.task_id,
             "root_node_id": state.root_node_id,
+            "task_created_event_id": created_event.event_id,
             "session_id": session_id,
             "workspace_ref": state.metadata["workspace_ref"],
             "started_at": now_iso(),

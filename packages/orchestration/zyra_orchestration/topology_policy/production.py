@@ -243,6 +243,7 @@ class Phase2StrongestProductionBridge:
         cause_event: EventRecord | None,
     ) -> Mapping[str, Any]:
         self.worker_pool_api.ensure_default_local_worker()
+        loopx_pre_control = self._loopx_pre_control_input(state)
         graph_id = self.worker_pool_api.ensure_task_graph(state)
         current = self.worker_pool_api.graph_custody.current(graph_id)
         continuation = self._adaptive_depth_continuation_projection(
@@ -303,6 +304,11 @@ class Phase2StrongestProductionBridge:
             readiness_refs=readiness_refs,
             source_event_id=source_event_id,
             allowed_permissions=allowed_permissions,
+            loopx_pre_control=loopx_pre_control,
+        )
+        loopx_consumption = self._loopx_consumption_projection(
+            loopx_pre_control,
+            topology_policy_input_digest=policy_input.digest,
         )
         preview_arg = self.topology_policy.arg_runtime.execute(
             policy_input=policy_input,
@@ -375,6 +381,13 @@ class Phase2StrongestProductionBridge:
             )
         )
         result = topology.to_dict()
+        topology_projection = result.get("topology_result")
+        if isinstance(topology_projection, dict):
+            composition_projection = topology_projection.get("composition")
+            if isinstance(composition_projection, dict):
+                composition_projection["policy_input_digest"] = (
+                    policy_input.digest
+                )
         topology_policy_artifact_refs = {
             str(
                 item.artifact.metadata.get("policy_contract_kind") or ""
@@ -405,6 +418,7 @@ class Phase2StrongestProductionBridge:
                 "operator_candidate_set": None,
                 "readiness_report_digest": readiness_digest,
                 "permission_receipt": dict(permission_receipt),
+                "loopx_pre_control": loopx_consumption,
                 "communication_candidate_edges": [
                     item.to_dict() for item in preview_candidates
                 ],
@@ -439,7 +453,12 @@ class Phase2StrongestProductionBridge:
             readiness_refs=readiness_refs,
             source_event_id=source_event_id,
             allowed_permissions=allowed_permissions,
+            loopx_pre_control=loopx_pre_control,
         )
+        loopx_consumption = {
+            **loopx_consumption,
+            "operator_policy_input_digest": operator_input.digest,
+        }
         scheduler_health = self.resource_scheduler.worker_pool.health_snapshot(
             state=state,
         )
@@ -474,6 +493,7 @@ class Phase2StrongestProductionBridge:
                 "operator_candidate_set": None,
                 "readiness_report_digest": readiness_digest,
                 "permission_receipt": dict(permission_receipt),
+                "loopx_pre_control": loopx_consumption,
             }
         executed_refs = {
             str(item)
@@ -550,6 +570,7 @@ class Phase2StrongestProductionBridge:
             "topology_projection": dict(result),
             "topology_policy_artifact_refs": topology_policy_artifact_refs,
             "permission_receipt": dict(permission_receipt),
+            "loopx_pre_control": loopx_consumption,
             "readiness_report_digest": readiness_digest,
         }
         self._route_contexts[(state.run_id, state.task_id)] = route_context
@@ -559,6 +580,7 @@ class Phase2StrongestProductionBridge:
             "operator_candidate_set": candidate_set.to_dict(),
             "readiness_report_digest": readiness_digest,
             "permission_receipt": dict(permission_receipt),
+            "loopx_pre_control": loopx_consumption,
             "owner_boundary": {
                 "graph": "GraphStateCustody",
                 "placement": "ResourceScheduler",
@@ -665,6 +687,9 @@ class Phase2StrongestProductionBridge:
                 context.get("readiness_report_digest") or ""
             ),
             "permission_receipt": dict(context.get("permission_receipt") or {}),
+            "loopx_pre_control": dict(
+                context.get("loopx_pre_control") or {}
+            ),
             "owner_boundary": {
                 "graph": "GraphStateCustody",
                 "placement": "ResourceScheduler",
@@ -701,6 +726,31 @@ class Phase2StrongestProductionBridge:
         ):
             raise Phase2ProductionPolicyError(
                 "canonical permission receipt is invalid or not allowed"
+            )
+        loopx_consumption = topology_policy.get("loopx_pre_control")
+        loopx_consumption = (
+            loopx_consumption
+            if isinstance(loopx_consumption, Mapping)
+            else {}
+        )
+        loopx_digest = str(loopx_consumption.get("receipt_digest") or "")
+        loopx_required = bool(
+            state.metadata.get("formal_benchmark")
+            or state.metadata.get("sealed_autonomous")
+        )
+        if loopx_required and (
+            not loopx_digest
+            or loopx_consumption.get("continuation_allowed") is not True
+            or loopx_consumption.get("consumed_before_topology") is not True
+            or not str(
+                loopx_consumption.get("topology_policy_input_digest") or ""
+            )
+            or not str(
+                loopx_consumption.get("operator_policy_input_digest") or ""
+            )
+        ):
+            raise Phase2ProductionPolicyError(
+                "ResourceScheduler received no consumed LoopX pre-control input"
             )
         decision_receipt = (
             (topology_policy.get("topology_result") or {}).get(
@@ -772,6 +822,7 @@ class Phase2StrongestProductionBridge:
                     "topology_commit_id": str(
                         canonical_topology_commit_id
                     ),
+                    "loopx_pre_control_digest": loopx_digest,
                 },
             },
         )
@@ -868,10 +919,18 @@ class Phase2StrongestProductionBridge:
                 permission_receipt.get("decision_id") or ""
             ),
             "permission_receipt_digest": permission_digest,
+            "loopx_pre_control_digest": loopx_digest,
+            "loopx_topology_policy_input_digest": str(
+                loopx_consumption.get("topology_policy_input_digest") or ""
+            ),
+            "loopx_operator_policy_input_digest": str(
+                loopx_consumption.get("operator_policy_input_digest") or ""
+            ),
             "placement_owner": "ResourceScheduler",
             "lease_owner": "WorkerPoolFoundationRuntime",
             "acquired_identity_checks": acquired_identity_checks,
             "causation_order": [
+                *(["loopx_pre_control"] if loopx_digest else []),
                 "operator_candidate_set",
                 "resource_decision",
                 "worker_lease",
@@ -951,6 +1010,14 @@ class Phase2StrongestProductionBridge:
             dict(node.metadata.get("resource_decision") or {})
             if node is not None
             else {}
+        )
+        loopx_value = state.metadata.get("phase2_loopx_pre_control")
+        loopx_value = loopx_value if isinstance(loopx_value, Mapping) else {}
+        loopx_unsigned = dict(loopx_value)
+        loopx_digest = str(loopx_unsigned.pop("receipt_digest", ""))
+        loopx_required = bool(
+            state.metadata.get("formal_benchmark")
+            or state.metadata.get("sealed_autonomous")
         )
         checks = {
             "binding_present": bool(binding),
@@ -1050,6 +1117,21 @@ class Phase2StrongestProductionBridge:
             ),
             "lease_causality_exact": bool(
                 lease_causality and lease_causality == causality
+            ),
+            "loopx_pre_control_bound": (
+                not loopx_required
+                or bool(
+                    loopx_digest
+                    and loopx_digest == canonical_digest(loopx_unsigned)
+                    and loopx_digest
+                    == binding.get("loopx_pre_control_digest")
+                    == causality.get("loopx_pre_control_digest")
+                    and next(
+                        iter(binding.get("causation_order") or ()),
+                        None,
+                    )
+                    == "loopx_pre_control"
+                )
             ),
         }
         if not all(checks.values()):
@@ -2828,6 +2910,68 @@ class Phase2StrongestProductionBridge:
             )
         return tuple(refs), supplied
 
+    def _loopx_pre_control_input(
+        self,
+        state: TaskState,
+    ) -> dict[str, Any]:
+        value = state.metadata.get("phase2_loopx_pre_control")
+        formal = bool(
+            state.metadata.get("formal_benchmark")
+            or state.metadata.get("sealed_autonomous")
+        )
+        if not isinstance(value, Mapping):
+            if formal:
+                raise Phase2ProductionPolicyError(
+                    "formal strongest execution has no LoopX pre-control receipt"
+                )
+            return {}
+        selected = dict(value)
+        unsigned = dict(selected)
+        supplied = str(unsigned.pop("receipt_digest", ""))
+        checks = selected.get("checks")
+        checks = checks if isinstance(checks, Mapping) else {}
+        continuation = selected.get("continuation")
+        continuation = (
+            continuation if isinstance(continuation, Mapping) else {}
+        )
+        if (
+            selected.get("schema")
+            != "zyra.phase2-production-loopx-pre-control/v1"
+            or selected.get("run_id") != state.run_id
+            or selected.get("task_id") != state.task_id
+            or not supplied
+            or supplied != canonical_digest(unsigned)
+            or not checks
+            or not all(item is True for item in checks.values())
+            or continuation.get("allowed") is not True
+            or not str(selected.get("canonical_commit_id") or "")
+        ):
+            raise Phase2ProductionPolicyError(
+                "LoopX pre-control receipt is invalid or denies continuation"
+            )
+        return selected
+
+    @staticmethod
+    def _loopx_consumption_projection(
+        value: Mapping[str, Any],
+        *,
+        topology_policy_input_digest: str,
+    ) -> dict[str, Any]:
+        if not value:
+            return {}
+        return {
+            "schema": "zyra.production-loopx-consumption/v1",
+            "receipt_digest": value.get("receipt_digest"),
+            "goal_id": value.get("goal_id"),
+            "continuation_allowed": (
+                (value.get("continuation") or {}).get("allowed") is True
+                if isinstance(value.get("continuation"), Mapping)
+                else False
+            ),
+            "topology_policy_input_digest": topology_policy_input_digest,
+            "consumed_before_topology": True,
+        }
+
     def _policy_input(
         self,
         *,
@@ -2840,6 +2984,7 @@ class Phase2StrongestProductionBridge:
         readiness_refs: tuple[MechanismEvidenceReadinessReportRef, ...],
         source_event_id: str,
         allowed_permissions: tuple[str, ...],
+        loopx_pre_control: Mapping[str, Any],
     ) -> Any:
         budget = self._budget(state)
         verifier = MemoryContinuityVerifier(self.memory_fabric)
@@ -2862,6 +3007,12 @@ class Phase2StrongestProductionBridge:
             registry_versions={
                 "arg_role_catalog": role_catalog.catalog_version,
                 "arg_role_catalog_digest": role_catalog.digest,
+                "loopx_pre_control_digest": str(
+                    loopx_pre_control.get("receipt_digest") or "not-required"
+                ),
+                "loopx_goal_id": str(
+                    loopx_pre_control.get("goal_id") or "not-required"
+                ),
                 **dict(role_catalog.source_versions),
             },
             phase=str(
@@ -2892,7 +3043,10 @@ class Phase2StrongestProductionBridge:
             last_topology_change_at=(
                 "1970-01-01T00:00:00Z"
                 if str(graph.metadata.get("last_branch_id") or "")
-                == "api-task-bootstrap"
+                in {
+                    "api-task-bootstrap",
+                    f"sealed-loopx-pre-control:{state.task_id}",
+                }
                 else graph.created_at
             ),
         )

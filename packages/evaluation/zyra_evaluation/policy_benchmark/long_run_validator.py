@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from zyra_integrations.loopx.bridge.contracts import CanonicalCommitRef
+from zyra_integrations.loopx.bridge.contracts import (
+    BridgeContractError,
+    CanonicalCommitRef,
+)
 from zyra_orchestration.topology_policy.contracts import (
     MemoryContinuityReceipt,
     PhysicalDispatchReceipt,
@@ -1156,14 +1159,25 @@ class SealedLongRunValidator:
         loopx = _mapping(chain.get("loopx"))
         loopx_unsigned = dict(loopx)
         loopx_claimed = str(loopx_unsigned.pop("chain_digest", ""))
+        pre_control = _mapping(loopx.get("pre_control"))
+        pre_unsigned = dict(pre_control)
+        pre_claimed = str(pre_unsigned.pop("receipt_digest", ""))
+        pre_commit = _mapping(pre_control.get("canonical_commit"))
         validation = _mapping(loopx.get("validation"))
         placement = _mapping(policy.get("physical_placement"))
         permission = _mapping(policy.get("permission_receipt"))
         try:
             canonical_ref = CanonicalCommitRef.from_value(graph_commit)
-        except (TypeError, ValueError):
+        except (BridgeContractError, TypeError, ValueError):
             canonical_ref = None
             blockers.append("production_loopx_commit_contract")
+        try:
+            pre_canonical_ref = CanonicalCommitRef.from_value(
+                _mapping(pre_commit.get("receipt"))
+            )
+        except (BridgeContractError, TypeError, ValueError):
+            pre_canonical_ref = None
+            blockers.append("production_loopx_pre_commit_contract")
         expected_checks: dict[str, bool] = {}
         results = _mapping(loopx.get("results"))
         expected_statuses = {
@@ -1200,12 +1214,28 @@ class SealedLongRunValidator:
                 "sequence": int(result.get("sequence") or 0) > 0,
                 "commit_id": name == "conflict"
                 or last_validated.get("canonical_commit_id")
-                == graph_commit.get("commit_id"),
+                == (
+                    pre_control.get("canonical_commit_id")
+                    if name in {"connect", "claim"}
+                    else graph_commit.get("commit_id")
+                ),
                 "commit_digest": (
                     name == "conflict"
-                    or canonical_ref is None
+                    or (
+                        pre_canonical_ref
+                        if name in {"connect", "claim"}
+                        else canonical_ref
+                    )
+                    is None
                     or last_validated.get("canonical_receipt_digest")
-                    == canonical_ref.receipt_digest
+                    == (
+                        pre_canonical_ref.receipt_digest
+                        if name in {"connect", "claim"}
+                        and pre_canonical_ref is not None
+                        else canonical_ref.receipt_digest
+                        if canonical_ref is not None
+                        else ""
+                    )
                 ),
             }
             blockers.extend(
@@ -1230,6 +1260,11 @@ class SealedLongRunValidator:
                 and _mapping(before.get("sync")).get("cursor")
                 == _mapping(after.get("sync")).get("cursor")
             ),
+            "restart_runtime_replaced": (
+                bool(loopx.get("restart_runtime_identity_before"))
+                and loopx.get("restart_runtime_identity_before")
+                != loopx.get("restart_runtime_identity_after")
+            ),
             "worker_lease_owner_preserved": (
                 canonical_state.get("worker_lease_owner") == "WorkerLeaseManager"
                 and canonical_state.get("loopx_claim_is_worker_lease") is False
@@ -1239,6 +1274,48 @@ class SealedLongRunValidator:
                 and canonical_state.get("loopx_quota_is_execution_budget") is False
             ),
         }
+        policy_loopx = _mapping(policy.get("loopx_pre_control"))
+        topology_loopx = _mapping(
+            topology.get("loopx_pre_control_consumption")
+        )
+        operator = _mapping(chain.get("operator"))
+        candidate = _mapping(policy.get("operator_candidate_set"))
+        pre_checks = _mapping(pre_control.get("checks"))
+        pre_results = _mapping(pre_control.get("results"))
+        upstream_bound = bool(
+            pre_claimed
+            and pre_claimed == canonical_digest(pre_unsigned)
+            and pre_control.get("schema")
+            == "zyra.phase2-production-loopx-pre-control/v1"
+            and pre_control.get("run_id") == control.get("run_id")
+            and pre_control.get("task_id") == control.get("task_id")
+            and pre_control.get("canonical_commit_id")
+            == _mapping(_mapping(pre_commit.get("receipt"))).get("commit_id")
+            and pre_control.get("canonical_commit_digest")
+            == canonical_digest(pre_commit)
+            and pre_checks
+            and all(item is True for item in pre_checks.values())
+            and _mapping(pre_results.get("connect"))
+            == _mapping(results.get("connect"))
+            and _mapping(pre_results.get("claim"))
+            == _mapping(results.get("claim"))
+            and loopx.get("pre_control_digest") == pre_claimed
+            and control.get("loopx_pre_control_digest") == pre_claimed
+            and policy_loopx == topology_loopx
+            and policy_loopx.get("receipt_digest") == pre_claimed
+            and policy_loopx.get("consumed_before_topology") is True
+            and composition.get("policy_input_digest")
+            == policy_loopx.get("topology_policy_input_digest")
+            == operator.get("loopx_topology_policy_input_digest")
+            == placement.get("loopx_topology_policy_input_digest")
+            and candidate.get("input_snapshot_digest")
+            == policy_loopx.get("operator_policy_input_digest")
+            == operator.get("loopx_operator_policy_input_digest")
+            == placement.get("loopx_operator_policy_input_digest")
+            and operator.get("loopx_pre_control_digest")
+            == placement.get("loopx_pre_control_digest")
+            == pre_claimed
+        )
         if (
             loopx.get("schema") != "zyra.phase2-production-loopx-chain/v1"
             or loopx_claimed != canonical_digest(loopx_unsigned)
@@ -1252,6 +1329,7 @@ class SealedLongRunValidator:
             != placement.get("resource_decision_id")
             or _mapping(loopx.get("checks")) != expected_checks
             or not all(expected_checks.values())
+            or not upstream_bound
         ):
             blockers.append("production_loopx_chain_binding")
         return blockers
@@ -1362,7 +1440,10 @@ class SealedLongRunValidator:
             blockers.append("continuity_transition_coverage")
         loopx = _mapping(gates.get("loopx"))
         for name in (
+            "pre_control_consumed_by_topology",
+            "pre_control_bound_to_placement",
             "restart_recovered",
+            "restart_runtime_replaced",
             "claim_conflict_rejected",
             "quota_exhaustion_fail_closed",
             "worker_lease_owner_preserved",

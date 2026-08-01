@@ -49,6 +49,7 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
                     "committed": True,
                     "operator_candidate_set": {
                         "candidate_set_digest": "candidate-digest",
+                        "input_snapshot_digest": "operator-policy-digest",
                     },
                     "physical_placement": {
                         "candidate_set_digest": "candidate-digest",
@@ -56,13 +57,24 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
                         "lease_id": "lease-id",
                         "attempt_id": "attempt-id",
                     },
+                    "loopx_pre_control": {
+                        "receipt_digest": "loopx-pre-digest",
+                        "consumed_before_topology": True,
+                        "topology_policy_input_digest": "topology-policy-digest",
+                        "operator_policy_input_digest": "operator-policy-digest",
+                    },
                     "permission_receipt": {
                         "effect": "allow",
                         "receipt_digest": "permission-digest",
                     },
                     "topology_result": {
                         "composition": {
-                            "proposal": {"payload": {"operations": []}},
+                            "policy_input_digest": "topology-policy-digest",
+                            "proposal": {
+                                "payload": {
+                                    "operations": [],
+                                }
+                            },
                             "layers": [],
                             "projection_differences": [],
                         },
@@ -158,6 +170,9 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
             },
             "operator_placement_binding": {
                 "candidate_set_digest": "candidate-digest",
+                "loopx_pre_control_digest": "loopx-pre-digest",
+                "loopx_topology_policy_input_digest": "topology-policy-digest",
+                "loopx_operator_policy_input_digest": "operator-policy-digest",
             },
         },
     )
@@ -169,9 +184,19 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
     )
     fake_loopx = {
         "schema": "zyra.phase2-production-loopx-chain/v1",
+        "pre_control": {"receipt_digest": "loopx-pre-digest"},
         "checks": {},
         "chain_digest": "loopx-digest",
     }
+    fake_pre_control = {
+        "schema": "zyra.phase2-production-loopx-pre-control/v1",
+        "receipt_digest": "loopx-pre-digest",
+    }
+    monkeypatch.setattr(
+        policy,
+        "_loopx_pre_control",
+        lambda **_kwargs: fake_pre_control,
+    )
     monkeypatch.setattr(
         policy,
         "_loopx_chain",
@@ -183,13 +208,23 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
     )
 
     receipt = policy.execute(
-        owner_context={"run_id": "run-inline", "task_id": "task-inline"},
+        owner_context={
+            "run_id": "run-inline",
+            "task_id": "task-inline",
+            "task_created_event_id": "event-root",
+        },
         configuration=None,
         goal="sealed goal",
     )
 
     assert tuple(persisted) == ("event-topology", "event-completion")
-    assert calls[:3] == ["persist", "checkpoint", "readback"]
+    assert calls[:5] == [
+        "readback",
+        "checkpoint",
+        "persist",
+        "checkpoint",
+        "readback",
+    ]
     assert receipt["production_event_count"] == 2
     assert policy.require_bundle()["production_mechanism_chain"]["loopx"] == (
         fake_loopx
@@ -215,6 +250,7 @@ def test_inline_policy_binds_actual_production_mechanisms_and_rejects_tamper(
     )
     state.metadata["workspace_ref"] = workspace.projection.to_dict()
     ensure_default_graph(state)
+    api_main.persist_events(api_main.get_store(), [created])
     policy = _SealedInlineProductionPolicy(
         api_main=api_main,
         owner=SimpleNamespace(state=state),
@@ -222,7 +258,11 @@ def test_inline_policy_binds_actual_production_mechanisms_and_rejects_tamper(
         state_root=tmp_path / "mechanisms",
     )
     policy.execute(
-        owner_context={"run_id": state.run_id, "task_id": state.task_id},
+        owner_context={
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "task_created_event_id": created.event_id,
+        },
         configuration=None,
         goal=state.user_goal,
     )
@@ -243,6 +283,16 @@ def test_inline_policy_binds_actual_production_mechanisms_and_rejects_tamper(
         "add_node",
     }
     assert all(chain["loopx"]["checks"].values())
+    assert chain["loopx"]["pre_control_digest"] == chain["loopx"][
+        "pre_control"
+    ]["receipt_digest"]
+    assert chain["loopx"]["checks"]["restart_runtime_replaced"] is True
+    assert chain["loopx"]["restart_runtime_identity_before"] != chain[
+        "loopx"
+    ]["restart_runtime_identity_after"]
+    assert chain["topology"]["loopx_pre_control_consumption"][
+        "consumed_before_topology"
+    ] is True
 
     tampered = json.loads(json.dumps(chain))
     tampered["loopx"]["checks"]["restart_recovered"] = False

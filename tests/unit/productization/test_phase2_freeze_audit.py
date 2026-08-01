@@ -211,6 +211,61 @@ def test_preflight_command_audit_rejects_manifest_probe_substitution() -> None:
     ]
 
 
+def test_preflight_audit_rejects_coherently_resigned_manifest_probe() -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    target = _git(ROOT, "rev-parse", "HEAD")
+    manifest = auditor._expected_preflight_manifest(
+        target=target,
+        frozen_at="2026-08-01T00:00:00+00:00",
+    )
+    assert auditor._preflight_manifest_binding_blockers(
+        manifest=manifest,
+        target=target,
+    ) == []
+
+    tampered = json.loads(json.dumps(manifest))
+    probe = tampered["command_probes"][0]
+    probe["argv"] = ["-c", "pass"]
+    identity = {
+        key: tampered.get(key)
+        for key in (
+            "frozen_inputs",
+            "evidence_bindings",
+            "supporting_evidence",
+            "required_checks",
+            "command_probes",
+            "prohibited_operations",
+        )
+    }
+    tampered["preflight_id"] = (
+        "preflight_" + canonical_digest(identity)[:24]
+    )
+    tampered.pop("manifest_digest")
+    tampered["manifest_digest"] = canonical_digest(tampered)
+    coherent_receipt = {
+        "probe_id": probe["probe_id"],
+        "receipt_id": f"receipt_command_{probe['probe_id']}",
+        "argv": [sys.executable, *probe["argv"]],
+        "cwd": str(ROOT),
+        "timeout_seconds": probe["timeout_seconds"],
+        "categories": list(probe["categories"]),
+        "required": probe["required"],
+        "isolated": probe["isolated"],
+        "external_cost": probe["external_cost"],
+        "status": "passed",
+        "exit_code": 0,
+        "retained": True,
+    }
+    assert auditor._preflight_command_blockers(
+        (probe,),
+        (coherent_receipt,),
+    ) == []
+    assert auditor._preflight_manifest_binding_blockers(
+        manifest=tampered,
+        target=target,
+    ) == ["tracked_preflight_manifest_binding"]
+
+
 def test_preflight_activation_audit_recomputes_active_semantics() -> None:
     report = {
         "preflight_id": "preflight-test",

@@ -65,6 +65,50 @@ def reset_scenario_runner_api(*, wait: bool = False) -> None:
         selected.service.close(wait=wait)
 
 
+def _run_leased_task_graph(
+    *,
+    api_main: Any,
+    pool_api: Any,
+    state: Any,
+    payload: dict[str, Any],
+    execution_context: Any,
+    cancel_requested: Any,
+) -> tuple[Any, ...]:
+    """Execute one graph while making every acquired lease terminal."""
+
+    lease_acquired = False
+    graph_finished = False
+    try:
+        pool_api.acquire_for_task(state, payload=payload)
+        lease_acquired = True
+        if cancel_requested():
+            raise RuntimeError(
+                "scenario cancellation was requested before graph execution"
+            )
+        events = tuple(
+            api_main.run_task_graph(
+                state,
+                execution_context=execution_context,
+            )
+        )
+        graph_finished = True
+        return events
+    finally:
+        if lease_acquired:
+            pool_api.finalize_task(
+                state,
+                success=(
+                    graph_finished and str(state.status) == "completed"
+                ),
+                summary=(
+                    "scenario owner graph finished with status "
+                    f"{state.status}"
+                    if graph_finished
+                    else "scenario owner graph aborted before completion"
+                ),
+            )
+
+
 def _execute_owner_chain(
     *,
     scenario_run_id: str,
@@ -130,8 +174,8 @@ def _execute_owner_chain(
     )
     state.metadata["workspace_ref"] = workspace.projection.to_dict()
     graph_events = api_main.ensure_default_graph(state)
+    api_main.persist_events(store, [created_event])
     events: list[Any] = [
-        created_event,
         *graph_events,
         *api_main.drain_workspace_events(state.task_id),
     ]
@@ -142,30 +186,28 @@ def _execute_owner_chain(
     # live lease on that stale generation and correctly make replacement fail
     # closed.
     execution_context = api_main.graph_execution_context()
+    if configuration.mode.value == "sealed":
+        api_main.prepare_phase2_loopx_pre_control(
+            state,
+            causation_id=created_event.event_id,
+        )
     pool_journal = pool_api.pool.store.journal(limit=10000)
     pool_sequence = pool_journal[-1].sequence if pool_journal else 0
-    pool_api.acquire_for_task(
-        state,
-        payload={
-            "profile_id": configuration.profile.profile_id,
-            "backend_id": configuration.profile.backend_id,
-            "provider_id": configuration.profile.provider_id,
-            "worker_classes": list(configuration.profile.worker_classes),
-            "scenario_run_id": scenario_run_id,
-        },
-    )
-    if cancel_requested():
-        raise RuntimeError("scenario cancellation was requested before graph execution")
     events.extend(
-        api_main.run_task_graph(
-            state,
+        _run_leased_task_graph(
+            api_main=api_main,
+            pool_api=pool_api,
+            state=state,
+            payload={
+                "profile_id": configuration.profile.profile_id,
+                "backend_id": configuration.profile.backend_id,
+                "provider_id": configuration.profile.provider_id,
+                "worker_classes": list(configuration.profile.worker_classes),
+                "scenario_run_id": scenario_run_id,
+            },
             execution_context=execution_context,
+            cancel_requested=cancel_requested,
         )
-    )
-    pool_api.finalize_task(
-        state,
-        success=str(state.status) == "completed",
-        summary=f"scenario owner graph finished with status {state.status}",
     )
     events.extend(
         event

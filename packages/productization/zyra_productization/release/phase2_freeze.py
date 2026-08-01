@@ -644,6 +644,20 @@ class Phase2FreezeAuditor:
             blockers.append("inventory_file_set")
         manifest_path = _member(self.root, inventory.get("manifest"))
         manifest = _load_json(manifest_path)
+        blockers.extend(
+            self._preflight_manifest_binding_blockers(
+                manifest=manifest,
+                target=target,
+            )
+        )
+        manifest_frozen = manifest.get("frozen_inputs")
+        manifest_frozen = (
+            manifest_frozen if isinstance(manifest_frozen, Mapping) else {}
+        )
+        manifest_profile = manifest_frozen.get("profile")
+        manifest_profile = (
+            manifest_profile if isinstance(manifest_profile, Mapping) else {}
+        )
         try:
             from zyra_evaluation.policy_benchmark.preflight import (
                 FrozenPreflightManifest,
@@ -783,6 +797,11 @@ class Phase2FreezeAuditor:
         )
         if (
             report.get("status") != derived["status"]
+            or report.get("preflight_id") != manifest.get("preflight_id")
+            or report.get("profile_family")
+            != manifest_profile.get("family")
+            or report.get("profile_version")
+            != manifest_profile.get("version")
             or list(report.get("raw_receipt_refs") or ())
             != list(derived["raw_receipt_refs"])
             or list(report.get("failed_receipt_refs") or ())
@@ -799,6 +818,7 @@ class Phase2FreezeAuditor:
             report.get("schema") != "zyra.strongest-preflight-report/v1"
             or inventory.get("schema")
             != "zyra.strongest-preflight-inventory/v1"
+            or inventory.get("preflight_id") != manifest.get("preflight_id")
             or inventory.get("implementation_commit") != target
             or inventory.get("result_status") != report.get("status")
             or inventory.get("activation_conclusion")
@@ -830,6 +850,114 @@ class Phase2FreezeAuditor:
                 and not blockers
             ),
         }
+
+    def _expected_preflight_manifest(
+        self,
+        *,
+        target: str,
+        frozen_at: str,
+    ) -> dict[str, Any]:
+        """Rebuild generated evidence from the tracked target template."""
+
+        from zyra_evaluation.policy_benchmark.preflight import (
+            compute_preflight_id,
+        )
+        from zyra_orchestration.topology_policy import (
+            MechanismRegistry,
+            ResolutionPurpose,
+        )
+
+        template = _load_json(
+            self.root / "config/phase2/strongest-preflight.json"
+        )
+        payload = json.loads(json.dumps(template, ensure_ascii=False))
+        frozen = payload.get("frozen_inputs")
+        if not isinstance(frozen, dict):
+            raise Phase2FreezeError(
+                "tracked preflight template frozen_inputs are missing"
+            )
+        frozen["implementation_target_commit"] = target
+        profile = frozen.get("profile")
+        if not isinstance(profile, dict):
+            raise Phase2FreezeError(
+                "tracked preflight template profile is missing"
+            )
+        registry = MechanismRegistry.load(self.root)
+        resolved = registry.resolve(
+            "topology_policy",
+            purpose=ResolutionPurpose.NORMAL,
+        )
+        if resolved.profile_id != "phase2_strongest_v1":
+            raise Phase2FreezeError(
+                "tracked target does not resolve phase2_strongest_v1"
+            )
+        profile["config_digest"] = resolved.config_digest
+        identity_fields = {
+            "policy_registry": ("registry_digest", "registry_digest"),
+            "activation_gates": ("frozen_gate_digest", "gate_digest"),
+            "phase1_baseline_manifest": (
+                "manifest_digest",
+                "manifest_digest",
+            ),
+        }
+        for label, (document_field, binding_field) in identity_fields.items():
+            binding = frozen.get(label)
+            if not isinstance(binding, dict):
+                raise Phase2FreezeError(
+                    f"tracked preflight binding is missing: {label}"
+                )
+            path = _member(self.root, binding.get("path"))
+            document = _load_json(path)
+            identity = str(document.get(document_field) or "")
+            if len(identity) != 64:
+                raise Phase2FreezeError(
+                    f"tracked preflight identity is invalid: {label}"
+                )
+            binding["file_sha256"] = sha256_file(path)
+            binding[binding_field] = identity
+        for binding in payload.get("evidence_bindings", ()) or ():
+            if not isinstance(binding, dict):
+                raise Phase2FreezeError(
+                    "tracked preflight evidence binding is invalid"
+                )
+            path = _member(self.root, binding.get("report_ref"))
+            report = _load_json(path)
+            binding["file_sha256"] = sha256_file(path)
+            binding["report_digest"] = str(report.get("report_digest") or "")
+        for binding in payload.get("supporting_evidence", ()) or ():
+            if not isinstance(binding, dict):
+                raise Phase2FreezeError(
+                    "tracked preflight supporting binding is invalid"
+                )
+            path = _member(self.root, binding.get("path"))
+            binding["file_sha256"] = sha256_file(path)
+        payload["frozen_at"] = frozen_at
+        payload["preflight_id"] = compute_preflight_id(payload)
+        payload.pop("manifest_digest", None)
+        payload["manifest_digest"] = canonical_digest(payload)
+        return payload
+
+    def _preflight_manifest_binding_blockers(
+        self,
+        *,
+        manifest: Mapping[str, Any],
+        target: str,
+    ) -> list[str]:
+        frozen_at = str(manifest.get("frozen_at") or "")
+        if not frozen_at:
+            return ["tracked_preflight_manifest_binding"]
+        try:
+            expected = self._expected_preflight_manifest(
+                target=target,
+                frozen_at=frozen_at,
+            )
+        except (OSError, ValueError):
+            return ["tracked_preflight_manifest_binding"]
+        return (
+            []
+            if manifest == expected
+            else ["tracked_preflight_manifest_binding"]
+        )
 
     def _recompute_preflight_receipts(
         self,

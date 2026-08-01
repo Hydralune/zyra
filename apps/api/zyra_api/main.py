@@ -3398,6 +3398,127 @@ def get_loopx_control_runtime() -> LoopXControlRuntime:
         return _LOOPX_CONTROL_RUNTIME
 
 
+def prepare_phase2_loopx_pre_control(
+    state: TaskState,
+    *,
+    causation_id: str,
+) -> dict[str, Any]:
+    """Commit and execute the shared LoopX control input before topology."""
+
+    pool_api = get_worker_pool_api()
+    graph_id_value = pool_api.ensure_task_graph(state)
+    branch = pool_api.graph_custody.branch(
+        graph_id_value,
+        branch_id=f"sealed-loopx-pre-control:{state.task_id}",
+        actor_id="LoopXControlRuntime",
+        causation_id=causation_id,
+        idempotency_key=(
+            f"sealed:{state.run_id}:{state.task_id}:loopx:pre-control"
+        ),
+        metadata={
+            "sealed_pre_control": True,
+            "private_payload_excluded": True,
+        },
+    )
+    goal_id = f"goal_sealed_{state.task_id}"
+    branch.set_metadata(
+        "loopx_pre_control",
+        {
+            "schema": "zyra.loopx-pre-control-ref/v1",
+            "goal_id": goal_id,
+            "continuation_required": True,
+            "private_payload_excluded": True,
+        },
+    )
+    committed = pool_api.graph_custody.commit(branch.build())
+    if not committed.receipt.committed:
+        raise RuntimeError("GraphStateCustody rejected LoopX pre-control commit")
+    validation = {
+        "validation_passed": True,
+        "permission_allowed": True,
+        "lease_valid": True,
+        "budget_allowed": True,
+        "validation_receipt_id": committed.receipt.commit_id,
+        "permission_receipt_id": "sealed-pre-control:allowlisted",
+        "lease_receipt_id": "control-plane:no-worker-dispatch",
+        "budget_receipt_id": "loopx-private-quota:not-zyra-budget",
+    }
+    control = get_loopx_control_runtime()
+    common = {
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "canonical_commit": committed,
+        "validation": validation,
+        "causation_id": causation_id,
+    }
+    connected = control.mutate(
+        action="connect",
+        payload={
+            "goal_id": goal_id,
+            "todo_id": "todo_sealed_primary",
+            "todo_title": "complete the verified sealed delivery",
+            "objective": str(state.user_goal or "sealed delivery"),
+            "limit_slots": 1,
+            "requirement_revision": str(
+                state.metadata.get("requirement_revision") or "r1"
+            ),
+        },
+        idempotency_key=(
+            f"sealed:{state.run_id}:{state.task_id}:loopx:connect:1"
+        ),
+        **common,
+    )
+    claimed = control.mutate(
+        action="claim",
+        payload={
+            "goal_id": goal_id,
+            "todo_id": "todo_sealed_primary",
+            "claimant": "sealed-controller-a",
+        },
+        idempotency_key=(
+            f"sealed:{state.run_id}:{state.task_id}:loopx:claim:2"
+        ),
+        **common,
+    )
+    snapshot = control.snapshot(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        goal_id=goal_id,
+    )
+    continuation = dict(snapshot.get("continuation") or {})
+    checks = {
+        "canonical_commit": committed.receipt.committed is True,
+        "connected": dict(connected.get("state") or {}).get("connected")
+        is True,
+        "claim_applied": dict(claimed.get("receipt") or {}).get("status")
+        == "applied",
+        "continuation_allowed": continuation.get("allowed") is True,
+    }
+    if not all(checks.values()):
+        raise RuntimeError(f"LoopX pre-control did not admit production: {checks}")
+    value = {
+        "schema": "zyra.phase2-production-loopx-pre-control/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "goal_id": goal_id,
+        "canonical_commit_id": committed.receipt.commit_id,
+        "canonical_commit": committed.to_dict(),
+        "canonical_commit_digest": canonical_digest(committed.to_dict()),
+        "validation": validation,
+        "continuation": continuation,
+        "sync_cursor": dict(snapshot.get("sync") or {}).get("cursor"),
+        "results": {
+            "connect": connected,
+            "claim": claimed,
+        },
+        "checks": checks,
+    }
+    value["receipt_digest"] = canonical_digest(value)
+    state.metadata["phase2_loopx_pre_control"] = dict(value)
+    get_store().save_checkpoint(state)
+    return value
+
+
 def get_structured_control_hub() -> StructuredControlHub:
     global _STRUCTURED_CONTROL_HUB
     with _CONTROL_RUNTIME_LOCK:

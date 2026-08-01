@@ -54,6 +54,61 @@ def test_canonical_event_snapshot_uses_initialized_state_and_prebegin_cache(
     )
 
 
+@pytest.mark.parametrize("cancelled", (True, False))
+def test_scenario_graph_cancel_or_exception_closes_acquired_lease(
+    cancelled: bool,
+) -> None:
+    from apps.api.zyra_api.scenario_api import _run_leased_task_graph
+
+    class PoolApi:
+        def __init__(self) -> None:
+            self.acquired = False
+            self.finalized: list[dict[str, Any]] = []
+
+        def acquire_for_task(self, state: Any, *, payload: Any) -> None:
+            assert state.task_id == "task-lease-close"
+            assert payload == {"scenario_run_id": "scenario-lease-close"}
+            self.acquired = True
+
+        def finalize_task(self, state: Any, **values: Any) -> None:
+            assert state.task_id == "task-lease-close"
+            self.finalized.append(dict(values))
+
+    class ApiMain:
+        @staticmethod
+        def run_task_graph(state: Any, *, execution_context: Any) -> list[Any]:
+            assert state.task_id == "task-lease-close"
+            assert execution_context == "physical-context"
+            raise RuntimeError("graph failed")
+
+    pool_api = PoolApi()
+    state = SimpleNamespace(task_id="task-lease-close", status="running")
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "scenario cancellation"
+            if cancelled
+            else "graph failed"
+        ),
+    ):
+        _run_leased_task_graph(
+            api_main=ApiMain,
+            pool_api=pool_api,
+            state=state,
+            payload={"scenario_run_id": "scenario-lease-close"},
+            execution_context="physical-context",
+            cancel_requested=lambda: cancelled,
+        )
+
+    assert pool_api.acquired is True
+    assert pool_api.finalized == [
+        {
+            "success": False,
+            "summary": "scenario owner graph aborted before completion",
+        }
+    ]
+
+
 @contextmanager
 def scenario_api(tmp_path: Path) -> Iterator[str]:
     environment = {
