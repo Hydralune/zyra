@@ -262,6 +262,83 @@ def _communication_window(state, identifier: str) -> EventRecord:
     )
 
 
+def _persist_legacy_unscoped_communication_outcome(
+    state,
+    candidate: SimpleNamespace,
+    cause_event: EventRecord,
+) -> str:
+    api.persist_events(api.get_store(), [cause_event])
+    edge_type = candidate.edge_type.value
+    message_payload = {
+        "schema": "zyra.phase2-topology-coordination-message/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "edge_id": candidate.edge_id,
+        "source_node_id": candidate.source_node_id,
+        "target_node_id": candidate.target_node_id,
+        "edge_type": edge_type,
+        "intent": "topology_coordination",
+        "state_delta": {
+            "handoff_ref": cause_event.event_id,
+            "candidate_edge_id": candidate.edge_id,
+        },
+        "evidence_refs": [cause_event.event_id],
+        "artifact_refs": [],
+    }
+    message_digest = canonical_digest(message_payload)
+    message_id = "event_phase2_message_" + canonical_digest(
+        (state.run_id, candidate.edge_id, cause_event.event_id)
+    )[:24]
+    api.persist_events(
+        api.get_store(),
+        [
+            EventRecord(
+                event_id=message_id,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.AGENT_MESSAGE,
+                payload={
+                    **message_payload,
+                    "payload_digest": message_digest,
+                },
+            )
+        ],
+    )
+    outcome_id = "event_agentprune_outcome_" + canonical_digest(
+        (message_id, message_digest, True)
+    )[:24]
+    completed_at = now_iso()
+    legacy = {
+        "schema_version": "zyra.agentprune-communication-outcome/v1",
+        "observation_id": "observation:" + outcome_id,
+        "window_id": "topology-route:" + cause_event.event_id,
+        "completed_at": completed_at,
+        "edge_id": candidate.edge_id,
+        "source_node_id": candidate.source_node_id,
+        "target_node_id": candidate.target_node_id,
+        "edge_type": edge_type,
+        "message_id": message_id,
+        "payload_digest": message_digest,
+        "delivered": True,
+        "delivery_receipt_ref": message_id,
+    }
+    legacy["digest"] = canonical_digest(legacy)
+    api.persist_events(
+        api.get_store(),
+        [
+            EventRecord(
+                event_id=outcome_id,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.RESOURCE_DECISION,
+                created_at=completed_at,
+                payload=legacy,
+            )
+        ],
+    )
+    return outcome_id
+
+
 def test_communication_outcome_recorder_refreshes_edge_in_new_window() -> None:
     state, _ = api.make_task_created_event(
         "Refresh a stable communication edge with a fresh actual window."
@@ -288,6 +365,31 @@ def test_communication_outcome_recorder_refreshes_edge_in_new_window() -> None:
     assert len({item["message_id"] for item in second}) == 2
     assert all(item["run_id"] == state.run_id for item in second)
     assert all(item["task_id"] == state.task_id for item in second)
+
+
+def test_scoped_outcome_replaces_legacy_identity_in_same_window() -> None:
+    state, _ = api.make_task_created_event(
+        "Replace an unscoped legacy communication outcome without collision."
+    )
+    candidate = _communication_candidate()
+    cause_event = _communication_window(state, "event-window-legacy")
+    legacy_id = _persist_legacy_unscoped_communication_outcome(
+        state,
+        candidate,
+        cause_event,
+    )
+    assert api._phase2_communication_outcomes(state) == ()
+
+    refreshed = api._record_phase2_communication_outcomes(
+        state,
+        (candidate,),
+        cause_event,
+    )
+
+    assert len(refreshed) == 1
+    assert refreshed[0]["run_id"] == state.run_id
+    assert refreshed[0]["task_id"] == state.task_id
+    assert refreshed[0]["observation_id"] != "observation:" + legacy_id
 
 
 @pytest.mark.parametrize(
@@ -378,9 +480,65 @@ def test_communication_projection_does_not_launder_receipt_identity(
         bridge._communication_observations(
             state=state,
             candidates=(candidate,),
+            current_window_id="topology-route:event-current-window",
             completed_before="2026-08-01T01:00:00Z",
             maximum_age_seconds=3600,
         )
+
+
+def test_communication_projection_requires_exact_edge_and_prior_window() -> None:
+    state, _ = api.make_task_created_event(
+        "Consume only exact-edge receipts from a completed prior window."
+    )
+    candidate = SimpleNamespace(
+        edge_id="edge-current",
+        source_node_id="node-source",
+        target_node_id="node-target",
+        edge_type=CommunicationEdgeType.SPATIAL,
+    )
+    raw = {
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "edge_id": "edge-old-different-semantics",
+        "source_node_id": candidate.source_node_id,
+        "target_node_id": candidate.target_node_id,
+        "edge_type": candidate.edge_type.value,
+        "window_id": "topology-route:event-prior-window",
+    }
+    bridge = object.__new__(Phase2StrongestProductionBridge)
+    bridge.communication_outcome_provider = lambda _state: (raw,)
+    assert bridge._communication_observations(
+        state=state,
+        candidates=(candidate,),
+        current_window_id="topology-route:event-current-window",
+        completed_before="2026-08-01T01:00:00Z",
+        maximum_age_seconds=3600,
+    ) == ()
+
+    recorded_candidate = _communication_candidate()
+    cause_event = _communication_window(state, "event-same-window")
+    recorded = api._record_phase2_communication_outcomes(
+        state,
+        (recorded_candidate,),
+        cause_event,
+    )
+    bridge.communication_outcome_provider = lambda _state: recorded
+    assert bridge._communication_observations(
+        state=state,
+        candidates=(recorded_candidate,),
+        current_window_id="topology-route:event-same-window",
+        completed_before="2099-01-01T00:00:00Z",
+        maximum_age_seconds=0,
+    ) == ()
+    assert len(
+        bridge._communication_observations(
+            state=state,
+            candidates=(recorded_candidate,),
+            current_window_id="topology-route:event-next-window",
+            completed_before="2099-01-01T00:00:00Z",
+            maximum_age_seconds=0,
+        )
+    ) == 1
 
 
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(

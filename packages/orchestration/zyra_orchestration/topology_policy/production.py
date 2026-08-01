@@ -349,6 +349,7 @@ class Phase2StrongestProductionBridge:
         communication_observations = self._communication_observations(
             state=state,
             candidates=preview_candidates,
+            current_window_id="topology-route:" + source_event_id,
             completed_before=policy_input.header.created_at,
             maximum_age_seconds=(
                 self.topology_policy.pruning_runtime.config
@@ -2808,20 +2809,11 @@ class Phase2StrongestProductionBridge:
         *,
         state: TaskState,
         candidates: Sequence[Any],
+        current_window_id: str,
         completed_before: str,
         maximum_age_seconds: int,
     ) -> tuple[CommunicationOutcomeObservation, ...]:
         by_id = {item.edge_id: item for item in candidates}
-        by_shape: dict[tuple[str, str, str], list[Any]] = {}
-        for item in candidates:
-            by_shape.setdefault(
-                (
-                    item.source_node_id,
-                    item.target_node_id,
-                    item.edge_type.value,
-                ),
-                [],
-            ).append(item)
         observations = []
         for raw in self.communication_outcome_provider(state):
             if not isinstance(raw, Mapping):
@@ -2833,6 +2825,8 @@ class Phase2StrongestProductionBridge:
                 raise Phase2ProductionPolicyError(
                     "communication outcome scope differs from the current task"
                 )
+            if str(raw.get("window_id") or "") == current_window_id:
+                continue
             raw_edge_id = str(raw.get("edge_id") or "")
             raw_shape = (
                 str(raw.get("source_node_id") or ""),
@@ -2848,13 +2842,6 @@ class Phase2StrongestProductionBridge:
                 raise Phase2ProductionPolicyError(
                     "communication outcome edge identity and endpoints differ"
                 )
-            if candidate is None:
-                shape_matches = tuple(by_shape.get(raw_shape, ()))
-                if len(shape_matches) > 1:
-                    raise Phase2ProductionPolicyError(
-                        "communication outcome shape maps to multiple candidates"
-                    )
-                candidate = shape_matches[0] if shape_matches else None
             if candidate is None:
                 continue
             if not self._communication_outcome_is_prior_and_fresh(
@@ -3080,10 +3067,10 @@ class Phase2StrongestProductionBridge:
         source, target = preview_arg.hypothesis.role_steps[:2]
         candidate_id = "card-temporal-" + canonical_digest(
             (
-                cause_event.event_id,
                 source.node_id,
                 target.node_id,
-                payload.get("checkpoint_ref"),
+                "temporal_checkpoint_handoff",
+                "temporal",
             )
         )[:20]
         candidate = CARDReplacementCandidate(

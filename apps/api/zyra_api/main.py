@@ -6177,6 +6177,9 @@ def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
         )[:24]
         expected_outcome_id = "event_agentprune_outcome_" + canonical_digest(
             (
+                "task-scoped-v1",
+                event_run_id,
+                event_task_id,
                 message_id,
                 message_digest,
                 bool(selected.get("delivered")),
@@ -6364,7 +6367,14 @@ def _record_phase2_communication_outcomes(
             and edge_type
         )
         outcome_id = "event_agentprune_outcome_" + canonical_digest(
-            (message_id, message_digest, delivered)
+            (
+                "task-scoped-v1",
+                state.run_id,
+                state.task_id,
+                message_id,
+                message_digest,
+                delivered,
+            )
         )[:24]
         message_bytes = len(
             json.dumps(
