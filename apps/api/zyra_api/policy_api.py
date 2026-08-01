@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import re
+from urllib.parse import quote
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,7 @@ class PolicyEvidenceSource(Protocol):
     def verify_report_admission(
         self,
         report: Mapping[str, Any],
+        report_id: str,
     ) -> None: ...
 
 
@@ -226,6 +228,7 @@ class RuntimePolicyEvidenceSource:
     def verify_report_admission(
         self,
         report: Mapping[str, Any],
+        report_id: str,
     ) -> None:
         """Resolve every report admission ref against the canonical event owner."""
 
@@ -246,6 +249,7 @@ class RuntimePolicyEvidenceSource:
             if not run_id or not task_id or not expected_refs:
                 raise ValueError("metric report source identity is incomplete")
             observed_refs: set[str] = set()
+            admitted_report = False
             after_sequence = 0
             scanned = 0
             while scanned < 5_000:
@@ -274,17 +278,40 @@ class RuntimePolicyEvidenceSource:
                         event_id = str(event.get("eventId") or "")
                         if event_id:
                             observed_refs.add(event_id)
+                        event_payload = _event_payload(event)
+                        if (
+                            event_payload.get("schema")
+                            == "zyra.phase2-metric-report-admission/v1"
+                            and event_payload.get("report_id") == report_id
+                            and event_payload.get("report_digest")
+                            == report.get("digest")
+                            and admission.get("digest")
+                            in event_payload.get("source_admission_digests", ())
+                            and canonical_digest(sorted(expected_refs))
+                            in event_payload.get("source_event_refs_digests", ())
+                            and int(
+                                admission.get("canonical_transition_count") or 0
+                            )
+                            in event_payload.get(
+                                "canonical_transition_counts", ()
+                            )
+                        ):
+                            admitted_report = True
                 if not advanced:
                     break
-            if observed_refs != expected_refs:
+            if not expected_refs.issubset(observed_refs):
                 raise ValueError(
-                    "metric report event admission differs from canonical event owner"
+                    "metric report source events are missing from the canonical owner"
                 )
             if int(admission.get("canonical_transition_count") or -1) != len(
-                observed_refs
+                expected_refs
             ):
                 raise ValueError(
                     "metric report transition count differs from canonical event owner"
+                )
+            if not admitted_report:
+                raise ValueError(
+                    "metric report digest has no canonical evaluation admission event"
                 )
 
 
@@ -355,7 +382,10 @@ class PolicyMetricApi:
                 )
             if self.evidence_source is not None:
                 try:
-                    self.evidence_source.verify_report_admission(report)
+                    self.evidence_source.verify_report_admission(
+                        report,
+                        report_id,
+                    )
                 except Exception as error:
                     return PolicyApiResponse(
                         status=409,
@@ -367,9 +397,20 @@ class PolicyMetricApi:
                         },
                         headers=headers,
                     )
+            report_body = {
+                key: value for key, value in report.items() if key != "digest"
+            }
             return PolicyApiResponse(
                 status=200,
-                body=report,
+                body={
+                    **dict(report),
+                    "digest_payload": json.dumps(
+                        report_body,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                },
                 headers=headers,
             )
         return None
@@ -539,7 +580,16 @@ class PolicyMetricApi:
                 }
             ),
         }
-        body["evidence_digest"] = canonical_digest(body)
+        evidence_digest_payload = json.dumps(
+            body,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        body["evidence_digest_payload"] = evidence_digest_payload
+        body["evidence_digest"] = hashlib.sha256(
+            evidence_digest_payload.encode("utf-8")
+        ).hexdigest()
         return body
 
 
@@ -796,7 +846,7 @@ def _metric_projection(
             "error": report.get("error"),
         }
     try:
-        evidence_source.verify_report_admission(report)
+        evidence_source.verify_report_admission(report, report_id)
     except Exception as error:
         issues.append(
             _issue(
@@ -810,6 +860,9 @@ def _metric_projection(
             "status": "inconsistent",
             "error": "metric_report_source_owner_unresolved",
         }
+    report_body = {
+        key: value for key, value in report.items() if key != "digest"
+    }
     return {
         "report_id": report_id,
         "status": "verified",
@@ -822,6 +875,12 @@ def _metric_projection(
         "mechanism_reports": report.get("mechanism_reports", []),
         "requirement_metrics": report.get("requirement_metrics", {}),
         "anti_gaming": report.get("anti_gaming", {}),
+        "digest_payload": json.dumps(
+            report_body,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
     }
 
 
@@ -887,7 +946,10 @@ def _reference(kind: str, ref_id: Any, route: str = "") -> Mapping[str, Any] | N
     selected = str(ref_id or "").strip()
     if not selected:
         return None
-    return {"kind": kind, "id": selected, "route": route}
+    resolved_route = route or (
+        "/policy/evidence?receipt_id=" + quote(selected, safe="")
+    )
+    return {"kind": kind, "id": selected, "route": resolved_route}
 
 
 def _contract_references(

@@ -252,8 +252,10 @@ def test_policy_artifacts_project_graph_dispatch_metrics_and_cursor(
         assert first is not None
         assert first.status == 200
         assert first.body["has_more"] is True
-        assert first.body["metric_report"]["status"] == "verified"
-        assert first.body["metric_report"]["digest"]
+        assert first.body["metric_report"]["status"] == "inconsistent"
+        assert first.body["metric_report"]["error"] == (
+            "metric_report_source_owner_unresolved"
+        )
         proposal = next(
             item
             for item in first.body["transitions"]

@@ -35,13 +35,23 @@ def _run_production_capture(
     *,
     output_dir: Path,
     implementation_commit: str,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+]:
     # Import after the isolated state owner is selected. This prevents a
     # developer or prior test run from supplying residual canonical receipts.
     os.environ["ZYRA_STATE_ROOT"] = str(output_dir / "runtime-state")
 
     from apps.api.zyra_api import main as api
-    from zyra_core import PlanNodeStatus
+    from apps.api.zyra_api.policy_api import (
+        FilesystemPolicyMetricReportProvider,
+        PolicyMetricApi,
+        RuntimePolicyEvidenceSource,
+    )
+    from zyra_core import EventRecord, EventType, PlanNodeStatus
     from zyra_evaluation.policy_benchmark import (
         CanonicalRuntimeReceiptResolver,
         Phase2MetricReportBuilder,
@@ -50,10 +60,62 @@ def _run_production_capture(
         metric_spec_registry_payload,
         write_phase2_metric_report,
     )
+    from zyra_memory import MemoryLayer, MemoryRecord
     from zyra_orchestration import ensure_default_graph, run_task_graph
 
     state, created = api.make_task_created_event(
-        "Implement a code artifact through phase2_strongest_v1 and verify it."
+        "Use the retained signed release checksum while implementing and verifying a code artifact through phase2_strongest_v1."
+    )
+    obligations = tuple(
+        sorted(
+            {
+                *state.constraints.requirements,
+                *state.constraints.success_criteria,
+            }
+        )
+    )
+    requirement_revision = "requirements:" + canonical_digest(obligations)
+    memory_event = EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_id="event-p2-s05-critical-release-checksum",
+        event_type=EventType.AGENT_MESSAGE,
+        node_id=state.root_node_id,
+        payload={
+            "schema": "zyra.p2-s05-critical-fact/v1",
+            "fact": "signed release checksum",
+            "value": "sha256:release-r1",
+        },
+    )
+    memory_content = {
+        "fact": "signed release checksum",
+        "value": "sha256:release-r1",
+        "requirement_revision": requirement_revision,
+    }
+    api.persist_events(api.get_store(), [created, memory_event])
+    api.get_store().save_memory_records(
+        [
+            MemoryRecord(
+                memory_id="memory-p2-s05-critical-release-checksum",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                layer=MemoryLayer.SEMANTIC,
+                source_type="event_log",
+                source_id=memory_event.event_id,
+                node_id=state.root_node_id,
+                summary="The signed release checksum is sha256:release-r1.",
+                content=memory_content,
+                artifact_ids=[],
+                evidence_ids=[memory_event.event_id],
+                score=1.0,
+                metadata={
+                    "continuity_status": "active",
+                    "continuity_version": f"{requirement_revision}/fact-v1",
+                    "content_digest": canonical_digest(memory_content),
+                    "requirement_revision": requirement_revision,
+                },
+            )
+        ]
     )
     workspace = api.get_workspace_manager().create_for_task(
         run_id=state.run_id,
@@ -69,7 +131,7 @@ def _run_production_capture(
         state,
         execution_context=api.graph_execution_context(),
     )
-    api.persist_events(api.get_store(), [created, *events])
+    api.persist_events(api.get_store(), list(events))
     if state.status is not PlanNodeStatus.COMPLETED:
         raise RuntimeError(
             f"production metric capture did not complete: {state.status}"
@@ -86,11 +148,14 @@ def _run_production_capture(
     resolver = CanonicalRuntimeReceiptResolver(
         run_id=state.run_id,
         task_id=state.task_id,
-        events=(created, *events),
+        events=(created, memory_event, *events),
         canonical_events=tuple(api.get_store().task_events(state.task_id)),
         communication_receipts=api._phase2_communication_outcomes(state),
         physical_dispatch_receipts=tuple(
             state.metadata.get("physical_dispatch_receipts") or ()
+        ),
+        symbolic_bundles=tuple(
+            state.metadata.get("phase2_symbolic_bundles") or ()
         ),
         readiness_report=readiness,
         decision_records=tuple(state.decisions),
@@ -115,9 +180,39 @@ def _run_production_capture(
         report,
         root=PROJECT_ROOT / ".zyra" / "reports" / "policy-metrics",
         report_id=report_id,
+        run_id=state.run_id,
+        task_id=state.task_id,
+        admit_event=lambda event: api.persist_events(
+            api.get_store(),
+            [event],
+        ),
     )
     report_payload = report.to_dict()
     run = report.runs[0]
+    evidence_api = PolicyMetricApi(
+        FilesystemPolicyMetricReportProvider(runtime_report.parent),
+        evidence_source=RuntimePolicyEvidenceSource(
+            api.get_runtime_event_api(),
+            api.artifact_root_path(),
+        ),
+    )
+    evidence_response = evidence_api.route_get(
+        ("policy", "evidence"),
+        {
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "report_id": report_id,
+            "limit": "200",
+        },
+    )
+    if (
+        evidence_response is None
+        or evidence_response.status != 200
+        or evidence_response.body.get("metric_report", {}).get("status")
+        != "verified"
+    ):
+        raise RuntimeError("production policy evidence projection is not verified")
+    evidence_page = dict(evidence_response.body)
     lineage_body = {
         "schema_version": "zyra.phase2-metric-lineage/v2",
         "slice_id": SLICE_ID,
@@ -162,11 +257,22 @@ def _run_production_capture(
             state.metadata.get("physical_dispatch_receipts") or ()
         ),
         "failed_run_count": report.aggregate.failed_run_count,
+        "continuity_critical_fact_recall": run.metrics[
+            "continuity.critical_fact_recall"
+        ].value,
+        "continuity_provenance_coverage": run.metrics[
+            "continuity.provenance_coverage"
+        ].value,
+        "symbolic_bundle_receipt_count": len(
+            run.lineage.get("symbolic_bundles", ())
+        ),
+        "metric_report_admission_event_present": True,
+        "policy_evidence_projection_verified": True,
         "production_runtime_capture": True,
         "fixture_free": True,
     }
     manifest = {**manifest_body, "digest": canonical_digest(manifest_body)}
-    return report_payload, lineage, manifest
+    return report_payload, lineage, manifest, evidence_page
 
 
 def main() -> int:
@@ -177,7 +283,7 @@ def main() -> int:
     output_dir = arguments.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    report, lineage, manifest = _run_production_capture(
+    report, lineage, manifest, evidence_page = _run_production_capture(
         output_dir=output_dir,
         implementation_commit=arguments.implementation_commit,
     )
@@ -187,6 +293,7 @@ def main() -> int:
     _write(output_dir / "metric-report.json", report)
     _write(output_dir / "receipt-metric-lineage.json", lineage)
     _write(output_dir / "evidence-manifest.json", manifest)
+    _write(output_dir / "policy-evidence-page.json", evidence_page)
     print(json.dumps(manifest, sort_keys=True))
     return 0
 

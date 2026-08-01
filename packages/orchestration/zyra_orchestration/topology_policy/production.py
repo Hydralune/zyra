@@ -46,9 +46,13 @@ from .contracts import (
     EnvironmentSnapshot,
     FrozenDict,
     MechanismEvidenceReadinessReportRef,
+    NeuroSymbolicEvidenceBundle,
+    PolicyDecisionReceipt,
     PolicyBudget,
+    StableArtifactRef,
     TelemetryObservation,
     PhysicalDispatchReceipt,
+    TopologyProposalArtifact,
     canonical_digest,
 )
 from .evidence import PolicyEvidencePublisher
@@ -371,6 +375,16 @@ class Phase2StrongestProductionBridge:
             )
         )
         result = topology.to_dict()
+        topology_policy_artifact_refs = {
+            str(
+                item.artifact.metadata.get("policy_contract_kind") or ""
+            ): item.artifact_ref.to_dict()
+            for item in (
+                topology.topology_result.published_evidence
+                if topology.topology_result is not None
+                else ()
+            )
+        }
         if topology.used_baseline or not topology.committed:
             delivered_for_next_window = ()
             if preview_candidates and self.communication_outcome_recorder is not None:
@@ -534,6 +548,7 @@ class Phase2StrongestProductionBridge:
             "prior_executed_operator_refs": tuple(sorted(executed_refs)),
             "operator_selection": selected.to_dict(),
             "topology_projection": dict(result),
+            "topology_policy_artifact_refs": topology_policy_artifact_refs,
             "permission_receipt": dict(permission_receipt),
             "readiness_report_digest": readiness_digest,
         }
@@ -2191,6 +2206,12 @@ class Phase2StrongestProductionBridge:
             published_continuity_ref = (
                 published_continuity.artifact_ref.to_dict()
             )
+        symbolic_bundle_ref = self._publish_symbolic_bundle(
+            state=state,
+            context=context,
+            physical_execution_receipt=physical_receipt,
+            verifier_ref=verifier_ref,
+        )
         builder = CanonicalExitSnapshotBuilder(
             config=self.early_exit_config,
             artifact_store=self.artifact_store,
@@ -2323,6 +2344,7 @@ class Phase2StrongestProductionBridge:
             "checkpoint_binding": binding.to_dict(),
             "continuity_receipt": continuity.receipt.to_dict(),
             "continuity_policy_artifact_ref": published_continuity_ref,
+            "symbolic_bundle_policy_artifact_ref": symbolic_bundle_ref,
             "final_verifier_receipt_ref": verifier_ref,
             "physical_execution_receipt_ref": physical_receipt_id,
             "adaptive_depth_event_id": decision_event.event_id,
@@ -2331,6 +2353,120 @@ class Phase2StrongestProductionBridge:
             "early_exit_enabled": early_exit_enabled,
             "canonical_owner_bypass": False,
         }
+
+    def _publish_symbolic_bundle(
+        self,
+        *,
+        state: TaskState,
+        context: Mapping[str, Any],
+        physical_execution_receipt: Mapping[str, Any],
+        verifier_ref: str,
+    ) -> Mapping[str, Any]:
+        if self.evidence_publisher is None:
+            raise Phase2ProductionPolicyError(
+                "production symbolic bundle publisher is unavailable"
+            )
+        topology = dict(context.get("topology_projection") or {})
+        topology_result = dict(topology.get("topology_result") or {})
+        composition = dict(topology_result.get("composition") or {})
+        proposal_document = dict(composition.get("proposal") or {})
+        decision_document = dict(
+            topology_result.get("decision_receipt") or {}
+        )
+        outcome_document = dict(topology_result.get("outcome") or {})
+        if not proposal_document or not decision_document or not outcome_document:
+            raise Phase2ProductionPolicyError(
+                "production symbolic inputs are incomplete"
+            )
+        proposal = TopologyProposalArtifact.from_dict(proposal_document)
+        decision = PolicyDecisionReceipt.from_dict(decision_document)
+        failed_constraints = tuple(
+            item for item in decision.constraint_results if not item.passed
+        )
+        commit = dict(decision.graph_commit)
+        commit_present = bool(commit)
+        if commit_present and failed_constraints:
+            raise Phase2ProductionPolicyError(
+                "failed symbolic constraint reached canonical commit"
+            )
+        disposition = decision.disposition.value
+        result = (
+            "rejected"
+            if disposition in {"reject", "conflict"}
+            else "repaired"
+            if disposition in {"project", "rebase"}
+            else "accepted"
+        )
+        refs = dict(context.get("topology_policy_artifact_refs") or {})
+        proposal_ref_value = refs.get("topology_proposal_artifact")
+        proposal_ref = (
+            StableArtifactRef.from_mapping(proposal_ref_value)
+            if isinstance(proposal_ref_value, Mapping)
+            else StableArtifactRef(
+                ref_id=proposal.proposal_id,
+                uri=f"policy-contract://{proposal.proposal_id}",
+                digest=proposal.digest,
+            )
+        )
+        physical_contract = dict(
+            physical_execution_receipt.get("physical_dispatch_receipt") or {}
+        )
+        physical_payload = dict(physical_contract.get("payload") or {})
+        physical_verifier = dict(physical_payload.get("verifier_ref") or {})
+        bundle = NeuroSymbolicEvidenceBundle(
+            header=self._header(
+                contract_id=(
+                    "production-symbolic:"
+                    + canonical_digest(
+                        (proposal.digest, decision.digest, physical_contract.get("digest"))
+                    )[:24]
+                ),
+                mechanism_id="phase2_symbolic_projector",
+                source_event_id=str(context.get("source_event_id") or ""),
+                causation_id=decision.header.contract_id,
+            ),
+            proposal_signal_mode="deterministic_only",
+            proposal_ref=proposal_ref,
+            model_observation_refs=(),
+            constraint_results=decision.constraint_results,
+            projected_delta_ref=decision.delta_id or "no-delta",
+            commit_or_no_commit=FrozenDict(
+                {
+                    "result": result,
+                    "decision_disposition": disposition,
+                    "proposal_digest": proposal.digest,
+                    "decision_digest": decision.digest,
+                    "outcome_digest": str(outcome_document.get("digest") or ""),
+                    "physical_dispatch_digest": str(
+                        physical_contract.get("digest") or ""
+                    ),
+                    "canonical_commit_present": commit_present,
+                    "canonical_commit": commit,
+                    "constraint_failure_codes": [
+                        item.reason_code for item in failed_constraints
+                    ],
+                    "unsafe_commit": False,
+                    "projector_bypass_production_reachable": False,
+                    "symbolic_owner_controls_commit": True,
+                }
+            ),
+            permission_ref=str(physical_payload.get("permission_ref") or ""),
+            lease_ref=str(physical_payload.get("lease_id") or ""),
+            verification_ref=str(
+                physical_verifier.get("uri")
+                or physical_verifier.get("ref_id")
+                or verifier_ref
+            ),
+        )
+        published = self.evidence_publisher.publish(
+            bundle,
+            run_id=state.run_id,
+            task_id=state.task_id,
+        )
+        state.metadata.setdefault("phase2_symbolic_bundles", []).append(
+            bundle.to_dict()
+        )
+        return published.artifact_ref.to_dict()
 
     def _environment(
         self,

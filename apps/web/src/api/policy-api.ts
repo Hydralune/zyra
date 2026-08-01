@@ -86,6 +86,7 @@ export interface PolicyEvidencePage {
   readonly issues: readonly PolicyEvidenceIssue[]
   readonly labels: Readonly<Record<string, readonly string[]>>
   readonly snapshot_digest: string
+  readonly evidence_digest_payload: string
   readonly evidence_digest: string
 }
 
@@ -140,6 +141,66 @@ function digest(value: unknown, label: string): string {
     throw new TypeError(`${label} must be a SHA-256 digest.`)
   }
   return selected
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return value
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("Policy digest rejects non-finite numbers.")
+    return Object.is(value, -0) ? 0 : value
+  }
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, canonicalValue(item)]),
+    )
+  }
+  if (value === undefined) return undefined
+  throw new TypeError(`Policy digest cannot encode ${typeof value}.`)
+}
+
+function canonicalJson(value: unknown): string {
+  const encoded = JSON.stringify(canonicalValue(value))
+  if (encoded === undefined) throw new TypeError("Policy digest payload is undefined.")
+  return encoded
+}
+
+async function sha256Text(value: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle
+  if (!subtle) throw new TypeError("Policy SHA-256 verifier is unavailable.")
+  const observed = await subtle.digest("SHA-256", new TextEncoder().encode(value))
+  return [...new Uint8Array(observed)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+async function verifyDigestPayload(
+  payload: unknown,
+  suppliedDigest: unknown,
+  expectedValue: unknown,
+  label: string,
+): Promise<void> {
+  if (typeof payload !== "string" || !payload) {
+    throw new TypeError(`${label} canonical payload is missing.`)
+  }
+  const expectedDigest = digest(suppliedDigest, `${label} digest`)
+  if (await sha256Text(payload) !== expectedDigest) {
+    throw new TypeError(`${label} canonical payload digest is inconsistent.`)
+  }
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(payload)
+  } catch {
+    throw new TypeError(`${label} canonical payload is invalid JSON.`)
+  }
+  if (canonicalJson(decoded) !== canonicalJson(expectedValue)) {
+    throw new TypeError(`${label} canonical payload differs from the projection.`)
+  }
 }
 
 function record(value: unknown, label: string): Readonly<Record<string, unknown>> {
@@ -240,7 +301,7 @@ function transition(value: unknown): PolicyEvidenceTransition {
   })
 }
 
-export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
+export async function admitPolicyEvidencePage(value: unknown): Promise<PolicyEvidencePage> {
   const body = record(value, "Policy evidence response")
   if (
     body.schema_version !== "zyra.policy-evidence-projection/v1"
@@ -296,7 +357,38 @@ export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
       throw new TypeError("Verified policy metric report identity is invalid.")
     }
     digest(metricReport.digest, "Verified policy metric report digest")
+    const projectedReport = { ...metricReport }
+    delete projectedReport.report_id
+    delete projectedReport.status
+    delete projectedReport.digest
+    delete projectedReport.digest_payload
+    await verifyDigestPayload(
+      metricReport.digest_payload,
+      metricReport.digest,
+      projectedReport,
+      "Verified policy metric report",
+    )
   }
+  if (await sha256Text(canonicalJson(body.filters)) !== filterDigest) {
+    throw new TypeError("Policy filter digest is inconsistent.")
+  }
+  if (
+    await sha256Text(canonicalJson({
+      filter_digest: filterDigest,
+      high_watermark: highWatermark,
+    })) !== snapshotDigest
+  ) {
+    throw new TypeError("Policy snapshot digest is inconsistent.")
+  }
+  const evidenceBody = { ...body }
+  delete evidenceBody.evidence_digest
+  delete evidenceBody.evidence_digest_payload
+  await verifyDigestPayload(
+    body.evidence_digest_payload,
+    evidenceDigest,
+    evidenceBody,
+    "Policy evidence",
+  )
   return Object.freeze({
     schema_version: "zyra.policy-evidence-projection/v1",
     projection_owner: "canonical_event_artifact_metric_read_model",
@@ -319,6 +411,7 @@ export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
       ),
     ),
     snapshot_digest: snapshotDigest,
+    evidence_digest_payload: String(body.evidence_digest_payload),
     evidence_digest: evidenceDigest,
   })
 }
@@ -375,7 +468,7 @@ export class PolicyApi {
         latestWins: true,
       },
     )
-    return admitPolicyEvidencePage(response.data)
+    return await admitPolicyEvidencePage(response.data)
   }
 
   async metricSpecs(signal?: AbortSignal): Promise<Readonly<Record<string, unknown>>> {
@@ -401,6 +494,16 @@ export class PolicyApi {
         latestWins: true,
       },
     )
-    return Object.freeze({ ...record(response.data, "Policy metric report") })
+    const report = { ...record(response.data, "Policy metric report") }
+    const projected = { ...report }
+    delete projected.digest
+    delete projected.digest_payload
+    await verifyDigestPayload(
+      report.digest_payload,
+      report.digest,
+      projected,
+      "Policy metric report",
+    )
+    return Object.freeze(report)
   }
 }

@@ -55,6 +55,50 @@ function transition(
   }
 }
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
+async function sha256(value: string): Promise<string> {
+  const result = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  )
+  return [...new Uint8Array(result)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+async function sealPage(value: PolicyEvidencePage): Promise<PolicyEvidencePage> {
+  const selected = structuredClone(value) as unknown as Record<string, unknown>
+  const report = selected.metric_report as Record<string, unknown>
+  const reportBody = { ...report }
+  delete reportBody.report_id
+  delete reportBody.status
+  delete reportBody.digest
+  delete reportBody.digest_payload
+  report.digest_payload = canonicalJson(reportBody)
+  report.digest = await sha256(String(report.digest_payload))
+  selected.filter_digest = await sha256(canonicalJson(selected.filters))
+  selected.snapshot_digest = await sha256(canonicalJson({
+    filter_digest: selected.filter_digest,
+    high_watermark: selected.high_watermark,
+  }))
+  delete selected.evidence_digest
+  delete selected.evidence_digest_payload
+  selected.evidence_digest_payload = canonicalJson(selected)
+  selected.evidence_digest = await sha256(String(selected.evidence_digest_payload))
+  return selected as unknown as PolicyEvidencePage
+}
+
 function page(
   start: number,
   count: number,
@@ -108,6 +152,7 @@ function page(
       anti_gaming: {
         simulated_dispatch_excluded_from_real_numerator: true,
       },
+      digest_payload: "",
     },
     issues: [],
     labels: {
@@ -117,39 +162,48 @@ function page(
       integrity: ["verified", "pending", "missing", "stale", "inconsistent"],
     },
     snapshot_digest: "c".repeat(64),
+    evidence_digest_payload: "",
     evidence_digest: `${start}`.padStart(64, "e").slice(-64),
   }
 }
 
 describe("policy evidence admission and incremental projection", () => {
-  test("strict v1 admission rejects incompatible lifecycle and ownership", () => {
-    const admitted = admitPolicyEvidencePage(page(1, 1))
+  test("strict v1 admission rejects incompatible lifecycle and ownership", async () => {
+    const valid = await sealPage(page(1, 1))
+    const admitted = await admitPolicyEvidencePage(valid)
     expect(admitted.transitions[0]?.mechanism.lifecycle).toBe("validation")
-    expect(() => admitPolicyEvidencePage({
-      ...page(1, 1),
+    await expect(admitPolicyEvidencePage({
+      ...valid,
       canonical_write_allowed: true,
-    })).toThrow("ownership")
-    expect(() => admitPolicyEvidencePage({
-      ...page(1, 1),
+    })).rejects.toThrow("ownership")
+    await expect(admitPolicyEvidencePage({
+      ...valid,
       transitions: [{
-        ...page(1, 1).transitions[0],
+        ...valid.transitions[0],
         mechanism: {
-          ...page(1, 1).transitions[0]!.mechanism,
+          ...valid.transitions[0]!.mechanism,
           lifecycle: "secret_default",
         },
       }],
-    })).toThrow("lifecycle")
-    expect(() => admitPolicyEvidencePage({
-      ...page(1, 1),
+    })).rejects.toThrow("lifecycle")
+    await expect(admitPolicyEvidencePage({
+      ...valid,
       transitions: [{
-        ...page(1, 1).transitions[0]!,
+        ...valid.transitions[0]!,
         schema_version: "bogus/v0",
       }],
-    })).toThrow("contract identity")
-    expect(() => admitPolicyEvidencePage({
-      ...page(1, 1),
+    })).rejects.toThrow("contract identity")
+    await expect(admitPolicyEvidencePage({
+      ...valid,
       evidence_digest: "self-reported",
-    })).toThrow("SHA-256")
+    })).rejects.toThrow("SHA-256")
+    await expect(admitPolicyEvidencePage({
+      ...valid,
+      transitions: [{
+        ...valid.transitions[0]!,
+        disposition: "tampered-but-64hex-digests-preserved",
+      }],
+    })).rejects.toThrow("differs from the projection")
   })
 
   test("2105 transitions append by cursor without a load-all render", () => {

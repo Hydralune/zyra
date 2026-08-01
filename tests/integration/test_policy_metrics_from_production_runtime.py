@@ -11,7 +11,7 @@ from apps.api.zyra_api.policy_api import (
     PolicyMetricApi,
     RuntimePolicyEvidenceSource,
 )
-from zyra_core import PlanNodeStatus
+from zyra_core import EventRecord, EventType, PlanNodeStatus
 from zyra_evaluation.policy_benchmark import (
     PHYSICAL_DISPATCH_RECEIPTS,
     CanonicalRuntimeReceiptResolver,
@@ -23,11 +23,58 @@ from zyra_evaluation.policy_benchmark import (
     write_phase2_metric_report,
 )
 from zyra_orchestration import ensure_default_graph, run_task_graph
+from zyra_memory import MemoryLayer, MemoryRecord
 
 
 def _production_run():
     state, created = api.make_task_created_event(
         "Implement a code artifact through the strongest production path."
+    )
+    obligations = tuple(
+        sorted(
+            {
+                *state.constraints.requirements,
+                *state.constraints.success_criteria,
+            }
+        )
+    )
+    requirement_revision = "requirements:" + canonical_digest(obligations)
+    memory_event = EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_id="event-policy-metrics-critical-fact",
+        event_type=EventType.AGENT_MESSAGE,
+        node_id=state.root_node_id,
+        payload={"fact": "signed release checksum", "value": "sha256:r1"},
+    )
+    memory_content = {
+        "fact": "signed release checksum",
+        "value": "sha256:r1",
+        "requirement_revision": requirement_revision,
+    }
+    api.persist_events(api.get_store(), [created, memory_event])
+    api.get_store().save_memory_records(
+        [
+            MemoryRecord(
+                memory_id="memory-policy-metrics-critical-fact",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                layer=MemoryLayer.SEMANTIC,
+                source_type="event_log",
+                source_id=memory_event.event_id,
+                node_id=state.root_node_id,
+                summary="The signed release checksum is sha256:r1.",
+                content=memory_content,
+                evidence_ids=[memory_event.event_id],
+                score=1.0,
+                metadata={
+                    "continuity_status": "active",
+                    "continuity_version": f"{requirement_revision}/fact-v1",
+                    "content_digest": canonical_digest(memory_content),
+                    "requirement_revision": requirement_revision,
+                },
+            )
+        ]
     )
     workspace = api.get_workspace_manager().create_for_task(
         run_id=state.run_id,
@@ -43,7 +90,7 @@ def _production_run():
         state,
         execution_context=api.graph_execution_context(),
     )
-    api.persist_events(api.get_store(), [created, *events])
+    api.persist_events(api.get_store(), list(events))
     assert state.status is PlanNodeStatus.COMPLETED
     readiness = json.loads(
         (
@@ -54,19 +101,20 @@ def _production_run():
             / "activation-readiness.json"
         ).read_text(encoding="utf-8")
     )
-    return state, created, events, readiness
+    return state, created, memory_event, events, readiness
 
 
-def _resolver(state, created, events, readiness, *, disconnected=()):
+def _resolver(state, created, memory_event, events, readiness, *, disconnected=()):
     return CanonicalRuntimeReceiptResolver(
         run_id=state.run_id,
         task_id=state.task_id,
-        events=(created, *events),
+        events=(created, memory_event, *events),
         canonical_events=tuple(api.get_store().task_events(state.task_id)),
         communication_receipts=api._phase2_communication_outcomes(state),
         physical_dispatch_receipts=tuple(
             state.metadata["physical_dispatch_receipts"]
         ),
+        symbolic_bundles=tuple(state.metadata["phase2_symbolic_bundles"]),
         readiness_report=readiness,
         decision_records=tuple(state.decisions),
         disconnected=disconnected,
@@ -76,8 +124,8 @@ def _resolver(state, created, events, readiness, *, disconnected=()):
 def test_production_receipts_drive_report_and_read_only_evidence_api(
     tmp_path,
 ) -> None:
-    state, created, events, readiness = _production_run()
-    resolver = _resolver(state, created, events, readiness)
+    state, created, memory_event, events, readiness = _production_run()
+    resolver = _resolver(state, created, memory_event, events, readiness)
     report = Phase2MetricReportBuilder().build(
         (
             RunMetricInput(
@@ -103,8 +151,20 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
     assert run.metrics[
         "dispatch.local_real_receipt_completeness"
     ].value == 1.0
+    assert run.metrics[
+        "continuity.critical_fact_recall"
+    ].status is MetricStatus.OBSERVED
+    assert run.metrics["continuity.critical_fact_recall"].value == 1.0
+    assert run.metrics["continuity.provenance_coverage"].value == 1.0
     report_id = "production-runtime-report"
-    write_phase2_metric_report(report, root=tmp_path, report_id=report_id)
+    write_phase2_metric_report(
+        report,
+        root=tmp_path,
+        report_id=report_id,
+        run_id=state.run_id,
+        task_id=state.task_id,
+        admit_event=lambda event: api.persist_events(api.get_store(), [event]),
+    )
     evidence_api = PolicyMetricApi(
         FilesystemPolicyMetricReportProvider(tmp_path),
         evidence_source=RuntimePolicyEvidenceSource(
@@ -131,7 +191,14 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
         "policy_outcome",
         "physical_dispatch_receipt",
         "memory_continuity_receipt",
+        "neuro_symbolic_evidence_bundle",
     }.issubset(kinds)
+    assert all(
+        ref["route"]
+        for item in transitions
+        if item["integrity"] == "verified"
+        for ref in item["causal_refs"]
+    )
     physical = next(
         item
         for item in transitions
@@ -151,11 +218,14 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
     report_path = tmp_path / f"{report_id}.json"
     forged_report = json.loads(report_path.read_text(encoding="utf-8"))
     forged_run = forged_report["run_reports"][0]
-    forged_admission = forged_run["source_admission"]
-    forged_admission["event_refs"][0] = "event-forged-but-self-hashed"
-    unsigned_admission = dict(forged_admission)
-    unsigned_admission.pop("digest", None)
-    forged_admission["digest"] = canonical_digest(unsigned_admission)
+    forged_metric = forged_run["metrics"][
+        "dispatch.local_real_receipt_completeness"
+    ]
+    forged_metric["value"] = 0.123456
+    forged_metric["numerator"] = 123456
+    forged_report["aggregate_report"]["metrics"][
+        "dispatch.local_real_receipt_completeness"
+    ]["value"] = 0.123456
     unsigned_run = dict(forged_run)
     unsigned_run.pop("digest", None)
     forged_run["digest"] = canonical_digest(unsigned_run)
@@ -178,6 +248,7 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
     disconnected = _resolver(
         state,
         created,
+        memory_event,
         events,
         readiness,
         disconnected=(PHYSICAL_DISPATCH_RECEIPTS,),
@@ -212,10 +283,11 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
         CanonicalRuntimeReceiptResolver(
             run_id=state.run_id,
             task_id=state.task_id,
-            events=(created, *events),
+            events=(created, memory_event, *events),
             canonical_events=tuple(api.get_store().task_events(state.task_id)),
             communication_receipts=api._phase2_communication_outcomes(state),
             physical_dispatch_receipts=(mutated,),
+            symbolic_bundles=tuple(state.metadata["phase2_symbolic_bundles"]),
             readiness_report=readiness,
             decision_records=tuple(state.decisions),
         ).resolve(PHYSICAL_DISPATCH_RECEIPTS)
@@ -224,7 +296,13 @@ def test_production_receipts_drive_report_and_read_only_evidence_api(
         "metric_physical_dispatch_gate_open",
     }
 
-    resolver = _resolver(state, created, events, readiness)
+    resolver = _resolver(
+        state,
+        created,
+        memory_event,
+        events,
+        readiness,
+    )
     with pytest.raises(Phase2MetricError) as transition_error:
         Phase2MetricReportBuilder().build(
             (

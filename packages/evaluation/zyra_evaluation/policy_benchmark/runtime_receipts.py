@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from zyra_core import EventRecord, EventType
+
 from zyra_orchestration.topology_policy import (
-    ContractHeader,
-    FrozenDict,
-    NeuroSymbolicEvidenceBundle,
-    PolicyDecisionReceipt,
     PhysicalDispatchReceipt,
-    StableArtifactRef,
-    TopologyProposalArtifact,
 )
 from zyra_scheduler import PhysicalDispatchReceiptValidator
 
@@ -93,91 +90,6 @@ def _validated_readiness(
     return selected
 
 
-def _symbolic_bundle(
-    *,
-    proposal_document: Mapping[str, Any],
-    decision_document: Mapping[str, Any],
-    outcome_document: Mapping[str, Any],
-    physical_document: Mapping[str, Any],
-) -> dict[str, Any]:
-    proposal = TopologyProposalArtifact.from_dict(proposal_document)
-    decision = PolicyDecisionReceipt.from_dict(decision_document)
-    physical_payload = _mapping(physical_document.get("payload"))
-    commit = dict(decision.graph_commit)
-    commit_present = bool(commit) and str(commit.get("status") or "") == "committed"
-    failed_constraints = tuple(
-        item for item in decision.constraint_results if not item.passed
-    )
-    unsafe_commit = commit_present and bool(failed_constraints)
-    if unsafe_commit:
-        raise Phase2MetricError(
-            "metric_symbolic_unsafe_commit",
-            "a failed symbolic constraint reached canonical commit",
-        )
-    result = (
-        "rejected"
-        if decision.disposition.value in {"reject", "conflict"}
-        else "repaired"
-        if decision.disposition.value in {"project", "rebase"}
-        else "accepted"
-    )
-    proposal_ref = StableArtifactRef(
-        ref_id=proposal.proposal_id,
-        uri=f"event-contract://{proposal.header.source_event_id}/{proposal.proposal_id}",
-        digest=proposal.digest,
-    )
-    verifier = _mapping(physical_payload.get("verifier_ref"))
-    outcome_digest = str(
-        outcome_document.get("digest") or canonical_digest(outcome_document)
-    )
-    header = ContractHeader(
-        contract_id=f"runtime-symbolic:{decision.decision_id}",
-        created_at=decision.header.created_at,
-        source_event_id=decision.header.source_event_id,
-        correlation_id=decision.header.correlation_id,
-        causation_id=decision.header.contract_id,
-        mechanism_id="phase2_symbolic_metric_projection",
-        mechanism_version="phase2_strongest_v1",
-        input_version=NeuroSymbolicEvidenceBundle.SCHEMA_VERSION,
-        idempotency_key=f"runtime-symbolic:{decision.digest}",
-        configuration_digest=decision.header.configuration_digest,
-    )
-    bundle = NeuroSymbolicEvidenceBundle(
-        header=header,
-        proposal_signal_mode="deterministic_only",
-        proposal_ref=proposal_ref,
-        model_observation_refs=(),
-        constraint_results=decision.constraint_results,
-        projected_delta_ref=decision.delta_id or "no-delta",
-        commit_or_no_commit=FrozenDict(
-            {
-                "result": result,
-                "decision_disposition": decision.disposition.value,
-                "proposal_digest": proposal.digest,
-                "decision_digest": decision.digest,
-                "canonical_commit_present": commit_present,
-                "canonical_commit": commit,
-                "constraint_failure_codes": [
-                    item.reason_code for item in failed_constraints
-                ],
-                "unsafe_commit": unsafe_commit,
-                "projector_bypass_production_reachable": False,
-                "outcome_digest": outcome_digest,
-                "physical_dispatch_digest": str(
-                    physical_document.get("digest") or ""
-                ),
-                "symbolic_owner_controls_commit": True,
-            }
-        ),
-        permission_ref=str(physical_payload.get("permission_ref") or ""),
-        lease_ref=str(physical_payload.get("lease_id") or ""),
-        verification_ref=str(
-            verifier.get("uri") or verifier.get("ref_id") or ""
-        ),
-    )
-    return bundle.to_dict()
-
-
 class CanonicalRuntimeReceiptResolver:
     """Resolve metrics exclusively from one completed production run.
 
@@ -195,6 +107,7 @@ class CanonicalRuntimeReceiptResolver:
         canonical_events: Sequence[Any],
         communication_receipts: Sequence[Mapping[str, Any]],
         physical_dispatch_receipts: Sequence[Mapping[str, Any]],
+        symbolic_bundles: Sequence[Mapping[str, Any]],
         readiness_report: Mapping[str, Any],
         decision_records: Sequence[Any] = (),
         disconnected: Iterable[str] = (),
@@ -322,6 +235,7 @@ class CanonicalRuntimeReceiptResolver:
                 if _mapping(item.get("adaptive_depth_receipt"))
             ),
             PHYSICAL_DISPATCH_RECEIPTS: physical,
+            SYMBOLIC_BUNDLES: tuple(dict(item) for item in symbolic_bundles),
         }
         decision_ids = {
             str(
@@ -363,23 +277,35 @@ class CanonicalRuntimeReceiptResolver:
                         "metric_continuity_usage_unresolved",
                         "continuity actual-use refs do not resolve in this run",
                     )
-        if topology_sets and physical:
-            proposal, decision, outcome, _ = topology_sets[-1]
-            values[SYMBOLIC_BUNDLES] = (
-                _symbolic_bundle(
-                    proposal_document=proposal,
-                    decision_document=decision,
-                    outcome_document=outcome,
-                    physical_document=physical[-1],
-                ),
-            )
-        else:
-            values[SYMBOLIC_BUNDLES] = ()
+            obligations = _mapping(payload.get("obligation_results"))
+            downstream_refs = {
+                str(item)
+                for item in obligations.get("downstream_event_refs") or ()
+                if str(item)
+            }
+            if not downstream_refs or not downstream_refs.issubset(
+                set(self._event_refs)
+            ):
+                raise Phase2MetricError(
+                    "metric_continuity_obligation_usage_unresolved",
+                    "continuity obligation use does not resolve in this run",
+                )
+            consumed_ids = {
+                str(item)
+                for item in obligations.get("consumed_ids") or ()
+                if str(item)
+            }
+            if not consumed_ids:
+                raise Phase2MetricError(
+                    "metric_continuity_obligation_usage_missing",
+                    "continuity receipt has no consumed obligation identity",
+                )
         owner_bound_contracts = (
             *values[TOPOLOGY_PROPOSALS],
             *values[POLICY_DECISIONS],
             *values[POLICY_OUTCOMES],
             *values[CONTINUITY_RECEIPTS],
+            *values[SYMBOLIC_BUNDLES],
             *values[PHYSICAL_DISPATCH_RECEIPTS],
         )
         missing_owner_digests = sorted(
@@ -454,6 +380,9 @@ def write_phase2_metric_report(
     *,
     root: Path,
     report_id: str,
+    run_id: str = "",
+    task_id: str = "",
+    admit_event: Callable[[EventRecord], None] | None = None,
 ) -> Path:
     """Atomically publish a target-named report for the GET-only API."""
 
@@ -465,11 +394,70 @@ def write_phase2_metric_report(
     if destination.parent != selected_root:
         raise ValueError("Phase 2 metric report path escapes its owner root")
     temporary = destination.with_suffix(".json.tmp")
-    temporary.write_text(
-        json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    report_document = report.to_dict()
+    encoded = (
+        json.dumps(report_document, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    temporary.write_bytes(
+        encoded,
     )
     os.replace(temporary, destination)
+    if admit_event is not None:
+        selected_run = str(run_id)
+        selected_task = str(task_id)
+        matching_runs = [
+            item
+            for item in report_document.get("run_reports") or ()
+            if isinstance(item, Mapping)
+            and str(item.get("run_id") or "") == selected_run
+            and str(item.get("task_id") or "") == selected_task
+        ]
+        if not selected_run or not selected_task or not matching_runs:
+            raise ValueError(
+                "metric report admission requires an exact report run identity"
+            )
+        source_admissions = [
+            dict(item.get("source_admission") or {})
+            for item in matching_runs
+        ]
+        admission_body = {
+            "schema": "zyra.phase2-metric-report-admission/v1",
+            "report_id": report_id,
+            "report_digest": str(report_document.get("digest") or ""),
+            "report_content_sha256": hashlib.sha256(encoded).hexdigest(),
+            "run_id": selected_run,
+            "task_id": selected_task,
+            "source_admission_digests": [
+                str(item.get("digest") or "")
+                for item in source_admissions
+            ],
+            "source_event_refs_digests": [
+                canonical_digest(
+                    sorted(str(ref) for ref in item.get("event_refs") or ())
+                )
+                for item in source_admissions
+            ],
+            "canonical_transition_counts": [
+                int(item.get("canonical_transition_count") or 0)
+                for item in source_admissions
+            ],
+            "evaluation_owner": "Phase2MetricReportBuilder",
+        }
+        admit_event(
+            EventRecord(
+                run_id=selected_run,
+                task_id=selected_task,
+                event_id=(
+                    "event_phase2_metric_report_"
+                    + canonical_digest(admission_body)[:24]
+                ),
+                event_type=EventType.EVALUATION,
+                payload={
+                    **admission_body,
+                    "admission_digest": canonical_digest(admission_body),
+                },
+            )
+        )
     return destination
 
 
