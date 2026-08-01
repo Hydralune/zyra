@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.error import HTTPError
 
+import pytest
+
 from apps.api.zyra_api import main as api_main
+from zyra_orchestration.deployment import DeploymentProfile
+from zyra_scheduler.worker_pool import (
+    BackendCapability,
+    ResourceVector,
+    WorkerLocation,
+)
 
 
 def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_requests(
@@ -151,10 +159,77 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
             base_url,
             "Reassign a lost worker without changing logical task ownership.",
         )
-        api_main.get_worker_pool_api().ensure_default_local_worker(
+        worker_api = api_main.get_worker_pool_api()
+        # The earlier control cases are complete but deliberately delayed
+        # tasks still hold API leases.  Close those test-only reservations
+        # before restarting the shared device process so they cannot mask the
+        # reassign case with unrelated stale-generation leases.
+        for completed_task in (
+            steer_task,
+            retry_task,
+            unbounded_retry_task,
+        ):
+            completed_lease_id = _owner(completed_task)["expected_lease_id"]
+            worker_api.pool.leases.cancel(
+                completed_lease_id,
+                reason="timeline control case completed before successor test",
+            )
+        orchestrator = api_main.get_deployment_api().orchestrator
+        device_policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
+        successor_process, _, successor_health = orchestrator.processes.start_node(
+            device_policy,
+            restart=True,
+        )
+        successor_identity = dict(successor_health["runtime_identity"])
+        worker_api.pool.register_physical_worker(
             worker_id="timeline-successor-worker",
+            worker_kind="code-worker",
+            location=WorkerLocation.LOCAL,
+            backend=BackendCapability(
+                backend_id="timeline-successor-backend",
+                backend_kind="local_process",
+                enabled=True,
+                healthy=True,
+                capabilities=(
+                    "agent_task",
+                    "code_execution",
+                    "artifact_return",
+                ),
+                tool_ids=("code", "shell", "read", "write", "search"),
+            ),
+            capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+            ),
+            tool_ids=("code", "shell", "read", "write", "search"),
+            resources=ResourceVector(
+                cpu_cores=1.0,
+                memory_mb=512,
+                disk_mb=512,
+                process_slots=2,
+            ),
+            process_identity=str(successor_identity["failure_boundary_id"]),
+            endpoint=successor_process.endpoint,
+            metadata={
+                "test_physical_successor": True,
+                "deployment_node_id": successor_health["node_id"],
+                "deployment_generation_id": successor_identity["generation_id"],
+            },
         )
         previous_owner = _owner(reassign_task)
+        prior_worker = worker_api.pool.store.require_worker(
+            previous_owner["expected_worker_id"]
+        )
+        successor_worker = worker_api.pool.store.require_worker(
+            "timeline-successor-worker"
+        )
+        assert successor_worker.accepting_leases is True
+        assert successor_worker.process_identity != prior_worker.process_identity
+        # A deployment profile may reuse its stable endpoint after a real
+        # process-generation restart.  The signed failure-boundary identity,
+        # rather than the address alone, distinguishes the successor.
+        assert successor_worker.endpoint == prior_worker.endpoint
         reassign_status, reassigned = _command(
             base_url,
             reassign_task,
@@ -193,6 +268,47 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
             sort_keys=True,
         )
         assert replacement["lease_id"] != previous_owner["expected_lease_id"]
+        recovery_route = refreshed["metadata"]["recovery_worker_route"]
+        assert recovery_route["prior_failure_boundary"] != recovery_route[
+            "successor_failure_boundary"
+        ]
+        graph_terminal = refreshed["metadata"]["worker_pool_graph_terminal"]
+        assert graph_terminal["committed"] is True
+        graph_terminal_history = refreshed["metadata"][
+            "worker_pool_graph_terminal_history"
+        ]
+        assert any(
+            item["committed"] is True
+            and item["lease_id"] == previous_owner["expected_lease_id"]
+            for item in graph_terminal_history
+        )
+
+        replay_callback = api_main._recovery_owner_callbacks(
+            api_main.get_store()
+        ).worker_successor
+        assert replay_callback is not None
+        attempts_before_replay = api_main.get_worker_pool_api().pool.store.list_attempts(
+            task_id=reassign_task["task_id"]
+        )
+        replayed = replay_callback(
+            {
+                "run_id": reassign_task["run_id"],
+                "task_id": reassign_task["task_id"],
+                "plan_id": recovery_route["plan_id"],
+                "idempotency_key": recovery_route["idempotency_key"],
+                "excluded_refs": [previous_owner["expected_worker_id"]],
+                "constraints": {
+                    "worker": {"required_capabilities": ["agent_task"]}
+                },
+            }
+        )
+        assert replayed["metadata"]["replayed"] is True
+        assert replayed["canonical_ref"]["lease_id"] == recovery_route["lease_id"]
+        assert len(
+            api_main.get_worker_pool_api().pool.store.list_attempts(
+                task_id=reassign_task["task_id"]
+            )
+        ) == len(attempts_before_replay)
         previous_lease = _lease(
             base_url,
             previous_owner["expected_lease_id"],
@@ -283,6 +399,50 @@ def test_sealed_timeline_control_is_denied_once_without_manual_mutation_or_human
         # rejected manual /kill must never cancel or fence it.
         assert lease["state"] not in {"cancelled", "fenced"}
         assert lease["worker_id"] == owner["expected_worker_id"]
+
+
+def test_delayed_sealed_task_runs_loopx_pre_control_before_graph(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def pre_control(state: Any, *, causation_id: str) -> dict[str, Any]:
+        calls.append((state.task_id, causation_id))
+        return {"ready": True}
+
+    monkeypatch.setattr(
+        api_main,
+        "prepare_phase2_loopx_pre_control",
+        pre_control,
+    )
+    monkeypatch.setattr(api_main, "graph_execution_context", object)
+    monkeypatch.setattr(
+        api_main,
+        "run_task_graph",
+        lambda state, *, execution_context: [],
+    )
+
+    with _api(tmp_path) as base_url:
+        created = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Run one delayed sealed task.",
+                "sealed": True,
+                "auto_run": False,
+            },
+        )["task"]
+        assert calls == []
+
+        _post(base_url, f"/tasks/{created['task_id']}/run", {})
+
+    assert calls == [
+        (
+            created["task_id"],
+            f"task-resume:{created['run_id']}:{created['task_id']}",
+        )
+    ]
 
 
 def test_timeline_exact_resume_preserves_checkpoint_identity_and_idempotency(
@@ -459,6 +619,7 @@ def _api(root: Path) -> Iterator[str]:
     api_main._WORKER_POOL_API = None
     api_main._WORKER_POOL_RUNTIME = None
     api_main._WORKER_POOL_KEY = None
+    api_main.reset_deployment_api()
     api_main.reset_control_runtime()
     api_main.reset_subagent_runtime()
     server = ThreadingHTTPServer(
@@ -478,6 +639,7 @@ def _api(root: Path) -> Iterator[str]:
         api_main._WORKER_POOL_API = None
         api_main._WORKER_POOL_RUNTIME = None
         api_main._WORKER_POOL_KEY = None
+        api_main.reset_deployment_api()
         api_main.reset_control_runtime()
         api_main.reset_subagent_runtime()
         for name, value in previous.items():

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import platform
@@ -681,6 +682,7 @@ class ReleaseRuntime:
         bun: str | None = None,
         maximum_parallel: int = 2,
         python_regression_receipt: Path | None = None,
+        python_regression_receipt_sha256: str = "",
     ) -> dict[str, Any]:
         python = python or sys.executable
         bun = bun or ReleaseDoctor(
@@ -694,6 +696,7 @@ class ReleaseRuntime:
             expected_commit=expected_commit,
             evidence_root=evidence_root,
             python_regression_receipt=python_regression_receipt,
+            python_regression_receipt_sha256=python_regression_receipt_sha256,
         )
         with tempfile.TemporaryDirectory(
             prefix="zyra-release-pytest-",
@@ -752,6 +755,7 @@ class ReleaseRuntime:
         expected_commit: str,
         evidence_root: Path,
         python_regression_receipt: Path | None = None,
+        python_regression_receipt_sha256: str = "",
     ) -> dict[str, Any]:
         def python_tests_reuse(_: GateContext) -> Mapping[str, Any]:
             if python_regression_receipt is None:
@@ -762,11 +766,29 @@ class ReleaseRuntime:
             from .phase2_freeze import Phase2FreezeAuditor
 
             receipt_path = python_regression_receipt.resolve()
+            expected_digest = python_regression_receipt_sha256.strip().casefold()
+            if not expected_digest:
+                raise GateFailure(
+                    "Final regression reuse requires an external SHA-256 anchor.",
+                    code="final_regression_reuse_digest_missing",
+                )
+            actual_digest = sha256_file(receipt_path)
+            if not hmac.compare_digest(actual_digest, expected_digest):
+                raise GateFailure(
+                    "Final regression receipt does not match its external SHA-256 anchor.",
+                    code="final_regression_reuse_digest_mismatch",
+                    details={
+                        "receipt": str(receipt_path),
+                        "expected_sha256": expected_digest,
+                        "actual_sha256": actual_digest,
+                    },
+                )
             verification = Phase2FreezeAuditor(
                 self.project_root
             ).verify_final_regression_receipt(
                 receipt_path,
                 target_commit=expected_commit,
+                expected_sha256=expected_digest,
             )
             if verification.get("ready") is not True:
                 raise GateFailure(
@@ -782,7 +804,8 @@ class ReleaseRuntime:
                 "ready": True,
                 "source_commit": expected_commit,
                 "source_receipt": str(receipt_path),
-                "source_receipt_sha256": sha256_file(receipt_path),
+                "source_receipt_sha256": actual_digest,
+                "external_receipt_sha256": expected_digest,
                 "verification": verification,
                 "duplicate_execution_avoided": True,
             }

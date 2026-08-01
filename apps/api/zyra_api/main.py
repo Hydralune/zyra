@@ -895,22 +895,132 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
         return state
 
     def worker_successor(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        def same_failure_boundary(left: Any, right: Any) -> bool:
+            left_identity = str(left.process_identity or "")
+            right_identity = str(right.process_identity or "")
+            if left_identity and right_identity:
+                return left_identity == right_identity
+            left_endpoint = str(left.endpoint or "")
+            right_endpoint = str(right.endpoint or "")
+            return bool(
+                left_endpoint
+                and right_endpoint
+                and left_endpoint == right_endpoint
+            )
+
         state = require_state(request)
         before = dict(state.metadata.get("worker_pool") or {})
         worker_api = get_worker_pool_api()
+        idempotency_key = str(request.get("idempotency_key") or "")
         prior_lease_id = str(before.get("lease_id") or "")
+        prior = (
+            worker_api.pool.store.get_lease(prior_lease_id)
+            if prior_lease_id
+            else None
+        )
+
+        def replay_successor(
+            lease: Any,
+            route: Mapping[str, Any],
+        ) -> Mapping[str, Any]:
+            prior_attempt = worker_api.pool.store.require_attempt(
+                lease.attempt_id
+            )
+            replay_before = dict(route.get("before") or {})
+            if not replay_before and prior_attempt.parent_attempt_id:
+                parent_lease = worker_api.pool.store.lease_for_attempt(
+                    prior_attempt.parent_attempt_id
+                )
+                if parent_lease is not None:
+                    replay_before = {
+                        "attempt_id": parent_lease.attempt_id,
+                        "lease_id": parent_lease.lease_id,
+                        "worker_id": parent_lease.worker_id,
+                        "backend_id": parent_lease.backend_id,
+                    }
+            return {
+                "accepted": True,
+                "changed": True,
+                "before": replay_before,
+                "after": before,
+                "canonical_ref": {
+                    "attempt_id": lease.attempt_id,
+                    "lease_id": lease.lease_id,
+                    "fence_epoch": lease.fence_epoch,
+                    "worker_id": lease.worker_id,
+                },
+                "receipt_id": lease.lease_id,
+                "message": (
+                    "WorkerPoolFoundationRuntime replayed the committed "
+                    "successor lease"
+                ),
+                "metadata": {
+                    "replayed": True,
+                    "terminal": lease.terminal,
+                },
+            }
+
+        route = dict(state.metadata.get("recovery_worker_route") or {})
+        route_lease = worker_api.pool.store.get_lease(
+            str(route.get("lease_id") or "")
+        )
+        if (
+            idempotency_key
+            and route.get("idempotency_key") == idempotency_key
+            and route_lease is not None
+        ):
+            return replay_successor(route_lease, route)
+        if (
+            idempotency_key
+            and prior is not None
+            and prior.idempotency_key == idempotency_key
+        ):
+            return replay_successor(prior, route)
+        prior_worker = (
+            worker_api.pool.store.get_worker(str(before.get("worker_id") or ""))
+            if before.get("worker_id")
+            else None
+        )
         if prior_lease_id:
-            prior = worker_api.pool.store.get_lease(prior_lease_id)
             if prior is not None and not prior.terminal:
                 worker_api.pool.leases.cancel(
                     prior.lease_id,
                     reason=f"recovery successor requested by {request.get('plan_id')}",
+                )
+            if prior is not None:
+                worker_api.cancel_task_graph_binding(
+                    state,
+                    reason=(
+                        "recovery successor superseded the prior physical "
+                        f"binding for {request.get('plan_id')}"
+                    ),
+                    actor_id="recovery-worker-successor",
+                    causation_id=(
+                        f"recovery-successor:{request.get('plan_id')}:"
+                        f"{prior.lease_id}"
+                    ),
                 )
         excluded = {
             str(item) for item in request.get("excluded_refs") or () if str(item)
         }
         if before.get("worker_id"):
             excluded.add(str(before["worker_id"]))
+        if prior_worker is not None:
+            for candidate in worker_api.pool.store.list_workers():
+                if same_failure_boundary(prior_worker, candidate):
+                    excluded.add(candidate.worker_id)
+        successor_locations = sorted(
+            {
+                candidate.location.value
+                for candidate in worker_api.pool.store.list_workers()
+                if candidate.accepting_leases
+                and candidate.worker_id not in excluded
+            }
+        )
+        if not successor_locations:
+            raise RuntimeError(
+                "recovery successor has no distinct physical failure boundary"
+            )
         acquisition = worker_api.acquire_for_task(
             state,
             payload={
@@ -919,11 +1029,32 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                     (request.get("constraints") or {}).get("worker", {}).get("required_capabilities")
                     or ("agent_task",)
                 ),
-                "idempotency_key": str(request.get("idempotency_key") or ""),
+                "locations": successor_locations,
+                "idempotency_key": idempotency_key,
                 "ttl_seconds": 3600.0,
             },
         )
         after = dict(state.metadata.get("worker_pool") or {})
+        successor_worker = acquisition.worker
+        if prior_worker is not None and same_failure_boundary(
+            prior_worker,
+            successor_worker,
+        ):
+            worker_api.pool.leases.cancel(
+                acquisition.lease.lease_id,
+                reason="recovery successor reused the prior failure boundary",
+            )
+            worker_api.cancel_task_graph_binding(
+                state,
+                reason="recovery successor reused the prior failure boundary",
+                actor_id="recovery-worker-successor",
+                causation_id=(
+                    f"recovery-successor-rejected:{acquisition.lease.lease_id}"
+                ),
+            )
+            raise RuntimeError(
+                "recovery successor must cross a physical failure boundary"
+            )
         runtime_hints = dict(state.metadata.get("runtime_hints") or {})
         runtime_hints["preferred_worker"] = acquisition.worker.worker_id
         runtime_hints["avoid_workers"] = sorted(excluded)
@@ -935,6 +1066,18 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             "avoided_worker_ids": sorted(excluded),
             "lease_id": acquisition.lease.lease_id,
             "attempt_id": acquisition.attempt.attempt_id,
+            "idempotency_key": idempotency_key,
+            "before": before,
+            "prior_failure_boundary": {
+                "process_identity": (
+                    prior_worker.process_identity if prior_worker else ""
+                ),
+                "endpoint": prior_worker.endpoint if prior_worker else "",
+            },
+            "successor_failure_boundary": {
+                "process_identity": successor_worker.process_identity,
+                "endpoint": successor_worker.endpoint,
+            },
         }
         store.save_checkpoint(state)
         return {
@@ -1600,6 +1743,12 @@ def _fence_pending_task_reservation(
     # reservation was superseded without misattributing an autonomous
     # continuation to a rejected manual cancellation.
     pool_api.pool.leases.expire(lease_id, reason=reason)
+    pool_api.cancel_task_graph_binding(
+        state,
+        reason=reason,
+        actor_id="task-reservation-fence",
+        causation_id=f"task-reservation-fence:{lease_id}",
+    )
     return lease_id
 
 
@@ -3611,6 +3760,25 @@ def prepare_phase2_loopx_pre_control(
 ) -> dict[str, Any]:
     """Commit and execute the shared LoopX control input before topology."""
 
+    existing = state.metadata.get("phase2_loopx_pre_control")
+    if isinstance(existing, Mapping):
+        replay = dict(existing)
+        replay_unsigned = dict(replay)
+        replay_digest = str(replay_unsigned.pop("receipt_digest", ""))
+        replay_checks = replay.get("checks")
+        if (
+            replay.get("schema")
+            == "zyra.phase2-production-loopx-pre-control/v1"
+            and replay.get("run_id") == state.run_id
+            and replay.get("task_id") == state.task_id
+            and replay_digest
+            and replay_digest == canonical_digest(replay_unsigned)
+            and isinstance(replay_checks, Mapping)
+            and bool(replay_checks)
+            and all(item is True for item in replay_checks.values())
+        ):
+            return replay
+
     permission_receipt = dict(
         _phase2_permission_decision(
             state,
@@ -5340,6 +5508,49 @@ class _CanonicalFinalVerifierOwner:
         return None
 
 
+def _scheduler_backend_from_physical_manifest(
+    manifest: Any,
+) -> WorkerBackendKind:
+    aliases = {
+        WorkerBackendKind.LOCAL_PROCESS.value: WorkerBackendKind.LOCAL_PROCESS,
+        WorkerBackendKind.ISOLATED_PROCESS.value: WorkerBackendKind.ISOLATED_PROCESS,
+        WorkerBackendKind.DOCKER_SANDBOX.value: WorkerBackendKind.DOCKER_SANDBOX,
+        WorkerBackendKind.CLOUD_MODEL.value: WorkerBackendKind.CLOUD_MODEL,
+        "sandbox_gateway": WorkerBackendKind.DOCKER_SANDBOX,
+    }
+    declared = tuple(
+        dict.fromkeys(
+            str(item).strip().casefold()
+            for item in getattr(manifest, "backend_kinds", ())
+            if str(item).strip()
+        )
+    )
+    if len(declared) != 1 or declared[0] not in aliases:
+        raise RuntimeError(
+            "dynamic physical manifest requires exactly one supported real "
+            f"backend kind: {declared!r}"
+        )
+    selected = aliases[declared[0]]
+    location = str(getattr(getattr(manifest, "location", None), "value", ""))
+    allowed = {
+        ResourceLocation.LOCAL.value: {
+            WorkerBackendKind.LOCAL_PROCESS,
+            WorkerBackendKind.DOCKER_SANDBOX,
+        },
+        ResourceLocation.EDGE.value: {
+            WorkerBackendKind.ISOLATED_PROCESS,
+            WorkerBackendKind.DOCKER_SANDBOX,
+        },
+        ResourceLocation.CLOUD.value: {WorkerBackendKind.CLOUD_MODEL},
+    }
+    if selected not in allowed.get(location, set()):
+        raise RuntimeError(
+            "dynamic physical manifest backend/location mismatch: "
+            f"location={location!r}, backend={declared[0]!r}"
+        )
+    return selected
+
+
 def graph_execution_context() -> GraphExecutionContext:
     pool_api = get_worker_pool_api()
     _ensure_phase2_production_workers(pool_api)
@@ -5370,7 +5581,7 @@ def graph_execution_context() -> GraphExecutionContext:
                     else "CodeWorkerRuntime"
                 ),
                 location=ResourceLocation(manifest.location.value),
-                backend=WorkerBackendKind.LOCAL_PROCESS,
+                backend=_scheduler_backend_from_physical_manifest(manifest),
                 capabilities=list(manifest.capabilities),
                 tools=list(manifest.tool_ids),
                 sandbox="deployment-node",
@@ -5393,6 +5604,13 @@ def graph_execution_context() -> GraphExecutionContext:
                     "dynamic_physical_manifest": True,
                     "process_identity": worker.process_identity,
                     "endpoint": worker.endpoint,
+                    "physical_backend_kinds": list(manifest.backend_kinds),
+                    "operator": {
+                        "health_status": "healthy",
+                        "health_source": (
+                            "WorkerInstance.accepting_leases"
+                        ),
+                    },
                 },
             )
         )
@@ -9553,6 +9771,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 state,
                 reason="superseded by task resume physical dispatch",
             )
+            if _task_is_sealed_control(state, payload):
+                prepare_phase2_loopx_pre_control(
+                    state,
+                    causation_id=(
+                        f"task-resume:{state.run_id}:{state.task_id}"
+                    ),
+                )
             events = run_task_graph(state, execution_context=graph_execution_context())
             pool_api.finalize_task(
                 state,

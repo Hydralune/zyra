@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,6 +14,27 @@ from zyra_orchestration.topology_policy.contracts import (
 )
 from zyra_symbolic import TopologyRouter
 from zyra_scheduler import OperatorLayerProposal
+
+
+def _assert_physical_graph_binding_terminal(state) -> None:
+    pool_api = api.get_worker_pool_api()
+    projection = state.metadata["worker_pool"]
+    graph = pool_api.graph_custody.current(
+        state.metadata["dynamic_graph_id"]
+    )
+    execute_node = next(
+        node
+        for node in graph.nodes
+        if node.physical_attempt_ref == projection["attempt_id"]
+        and node.worker_lease_ref == projection["lease_id"]
+    )
+    assert execute_node.terminal is True
+    assert any(
+        item["attempt_id"] == projection["attempt_id"]
+        and item["lease_id"] == projection["lease_id"]
+        and item["committed"] is True
+        for item in state.metadata["worker_pool_graph_terminal_history"]
+    )
 
 
 def test_loopx_pre_control_denial_stops_before_graph_mutation(
@@ -51,6 +73,80 @@ def test_loopx_pre_control_denial_stops_before_graph_mutation(
         api.prepare_phase2_loopx_pre_control(
             state,
             causation_id=created.event_id,
+        )
+
+
+def test_loopx_pre_control_replays_valid_task_bound_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event("Replay valid LoopX pre-control.")
+    receipt = {
+        "schema": "zyra.phase2-production-loopx-pre-control/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "checks": {"canonical_commit": True, "permission_allowed": True},
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    state.metadata["phase2_loopx_pre_control"] = dict(receipt)
+    monkeypatch.setattr(
+        api,
+        "_phase2_permission_decision",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("valid pre-control must replay before owner mutation")
+        ),
+    )
+
+    replayed = api.prepare_phase2_loopx_pre_control(
+        state,
+        causation_id="replayed-cause",
+    )
+
+    assert replayed == receipt
+
+
+@pytest.mark.parametrize(
+    ("location", "backend_kind", "expected"),
+    (
+        ("local", "local_process", "local_process"),
+        ("local", "sandbox_gateway", "docker_sandbox"),
+        ("edge", "isolated_process", "isolated_process"),
+        ("cloud", "cloud_model", "cloud_model"),
+    ),
+)
+def test_dynamic_physical_manifest_preserves_real_backend_kind(
+    location: str,
+    backend_kind: str,
+    expected: str,
+) -> None:
+    selected = api._scheduler_backend_from_physical_manifest(
+        SimpleNamespace(
+            location=SimpleNamespace(value=location),
+            backend_kinds=(backend_kind,),
+        )
+    )
+
+    assert selected.value == expected
+
+
+@pytest.mark.parametrize(
+    ("location", "backend_kinds"),
+    (
+        ("edge", ()),
+        ("edge", ("local_process",)),
+        ("cloud", ("cloud_model", "isolated_process")),
+        ("edge", ("simulated_edge",)),
+    ),
+)
+def test_dynamic_physical_manifest_rejects_ambiguous_or_false_backend(
+    location: str,
+    backend_kinds: tuple[str, ...],
+) -> None:
+    with pytest.raises(RuntimeError, match="dynamic physical manifest"):
+        api._scheduler_backend_from_physical_manifest(
+            SimpleNamespace(
+                location=SimpleNamespace(value=location),
+                backend_kinds=backend_kinds,
+            )
         )
 
 
@@ -430,6 +526,7 @@ def test_acquired_fallback_worker_cannot_impersonate_scheduler_selection(
     projection = state.metadata["worker_pool"]
     rejected_lease = pool_api.pool.store.require_lease(projection["lease_id"])
     assert rejected_lease.terminal is True
+    _assert_physical_graph_binding_terminal(state)
     assert "operator_placement_binding" not in state.metadata
     assert not state.metadata.get("physical_dispatch_receipts")
 
@@ -492,6 +589,7 @@ def test_physical_execution_rejects_tampered_attempt_worker_backend_binding() ->
     lease_id = state.metadata["worker_pool"]["lease_id"]
     lease = api.get_worker_pool_api().pool.store.require_lease(lease_id)
     assert lease.terminal is True
+    _assert_physical_graph_binding_terminal(state)
 
 
 def test_physical_preflight_failure_closes_started_attempt(
@@ -548,6 +646,7 @@ def test_physical_preflight_failure_closes_started_attempt(
     )
     assert lease.terminal is True
     assert attempt.terminal is True
+    _assert_physical_graph_binding_terminal(state)
     assert not state.artifacts
 
 
@@ -592,6 +691,7 @@ def test_disabled_physical_operator_adapter_fails_closed_with_terminal_receipt(
     )
     assert lease.terminal is True
     assert attempt.terminal is True
+    _assert_physical_graph_binding_terminal(state)
     assert not state.artifacts
 
 
@@ -691,6 +791,7 @@ def test_tampered_operator_output_fails_closed_after_dispatch(
     )
     assert lease.terminal is True
     assert attempt.terminal is True
+    _assert_physical_graph_binding_terminal(state)
     assert not state.artifacts
 
 

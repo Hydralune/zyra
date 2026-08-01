@@ -993,8 +993,11 @@ def test_release_ci_python_gate_reuses_only_verified_receipt(
     monkeypatch.setattr(
         Phase2FreezeAuditor,
         "verify_final_regression_receipt",
-        lambda self, path, *, target_commit: {
-            "ready": path == receipt.resolve(),
+        lambda self, path, *, target_commit, expected_sha256: {
+            "ready": (
+                path == receipt.resolve()
+                and expected_sha256 == sha256_file(receipt)
+            ),
             "target_commit": target_commit,
             "blockers": [],
         },
@@ -1006,6 +1009,7 @@ def test_release_ci_python_gate_reuses_only_verified_receipt(
         expected_commit="a" * 40,
         evidence_root=evidence,
         python_regression_receipt=receipt,
+        python_regression_receipt_sha256=sha256_file(receipt),
     )["python-tests-reuse"]
 
     result = gate(None)
@@ -1015,10 +1019,29 @@ def test_release_ci_python_gate_reuses_only_verified_receipt(
     assert result["source_receipt_sha256"] == sha256_file(receipt)
     assert (evidence / "python-regression-reuse.json").is_file()
 
+    missing_anchor = runtime._ci_callables(
+        archive=tmp_path / "unused.tar.gz",
+        expected_commit="a" * 40,
+        evidence_root=evidence,
+        python_regression_receipt=receipt,
+    )["python-tests-reuse"]
+    with pytest.raises(GateFailure, match="external SHA-256 anchor"):
+        missing_anchor(None)
+
+    mismatched_anchor = runtime._ci_callables(
+        archive=tmp_path / "unused.tar.gz",
+        expected_commit="a" * 40,
+        evidence_root=evidence,
+        python_regression_receipt=receipt,
+        python_regression_receipt_sha256="0" * 64,
+    )["python-tests-reuse"]
+    with pytest.raises(GateFailure, match="does not match"):
+        mismatched_anchor(None)
+
     monkeypatch.setattr(
         Phase2FreezeAuditor,
         "verify_final_regression_receipt",
-        lambda self, path, *, target_commit: {
+        lambda self, path, *, target_commit, expected_sha256: {
             "ready": False,
             "target_commit": target_commit,
             "blockers": ["command_failed:python-full-regression"],

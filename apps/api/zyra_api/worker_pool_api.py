@@ -624,6 +624,109 @@ class WorkerPoolApiService:
             raise
         return acquisition
 
+    def cancel_task_graph_binding(
+        self,
+        state: TaskState,
+        *,
+        reason: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> Mapping[str, Any] | None:
+        """Make the canonical graph binding terminal after its lease closes."""
+
+        def record(receipt: Mapping[str, Any]) -> Mapping[str, Any]:
+            normalized = dict(receipt)
+            history = [
+                dict(item)
+                for item in state.metadata.get(
+                    "worker_pool_graph_terminal_history",
+                    (),
+                )
+                if isinstance(item, Mapping)
+            ]
+            identity = (
+                str(normalized.get("attempt_id") or ""),
+                str(normalized.get("lease_id") or ""),
+                str(normalized.get("state") or ""),
+            )
+            if not any(
+                (
+                    str(item.get("attempt_id") or ""),
+                    str(item.get("lease_id") or ""),
+                    str(item.get("state") or ""),
+                )
+                == identity
+                for item in history
+            ):
+                history.append(normalized)
+            state.metadata["worker_pool_graph_terminal_history"] = history
+            state.metadata["worker_pool_graph_terminal"] = normalized
+            return normalized
+
+        projection = state.metadata.get("worker_pool")
+        if not isinstance(projection, Mapping):
+            return None
+        graph_id_value = str(state.metadata.get("dynamic_graph_id") or "")
+        attempt_id = str(projection.get("attempt_id") or "")
+        lease_id = str(projection.get("lease_id") or "")
+        if not graph_id_value or not attempt_id or not lease_id:
+            return None
+        execute_node_id = next(
+            (
+                node.node_id
+                for node in state.plan_nodes.values()
+                if str(node.metadata.get("stage") or "") == "execute"
+            ),
+            state.root_node_id,
+        )
+        snapshot = self.graph_custody.current(graph_id_value)
+        node = snapshot.node_map.get(execute_node_id)
+        if node is None:
+            raise RuntimeError("dynamic graph execute node is unavailable")
+        if (
+            node.physical_attempt_ref != attempt_id
+            or node.worker_lease_ref != lease_id
+        ):
+            raise RuntimeError(
+                "dynamic graph physical binding terminalization was fenced"
+            )
+        if node.terminal:
+            return record({
+                "schema": "zyra.graph-physical-binding-terminal/v1",
+                "committed": True,
+                "replayed": True,
+                "graph_id": graph_id_value,
+                "node_id": execute_node_id,
+                "attempt_id": attempt_id,
+                "lease_id": lease_id,
+                "state": node.state.value,
+            })
+        result = self.topology.cancel_physical_attempt(
+            graph_id_value,
+            execute_node_id,
+            physical_attempt_ref=attempt_id,
+            worker_lease_ref=lease_id,
+            reason=reason,
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+        if not result.receipt.committed:
+            raise RuntimeError(
+                "dynamic graph physical binding terminalization was not committed"
+            )
+        receipt = {
+            "schema": "zyra.graph-physical-binding-terminal/v1",
+            "committed": True,
+            "replayed": False,
+            "graph_id": graph_id_value,
+            "node_id": execute_node_id,
+            "attempt_id": attempt_id,
+            "lease_id": lease_id,
+            "state": result.snapshot.node_map[execute_node_id].state.value,
+            "graph_commit": result.receipt.to_dict(),
+        }
+        return record(receipt)
+
     def ensure_task_lease(
         self,
         state: TaskState,

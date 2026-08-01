@@ -152,6 +152,11 @@ def build_parser() -> argparse.ArgumentParser:
             "of executing the identical Python suite again"
         ),
     )
+    ci.add_argument(
+        "--python-regression-receipt-sha256",
+        default="",
+        help="out-of-band SHA-256 anchor for the reused regression receipt",
+    )
     return parser
 
 
@@ -305,6 +310,9 @@ def _dispatch(
                 Path(arguments.python_regression_receipt)
                 if arguments.python_regression_receipt
                 else None
+            ),
+            python_regression_receipt_sha256=(
+                arguments.python_regression_receipt_sha256
             ),
         )
     raise AssertionError(f"unhandled release command: {command}")

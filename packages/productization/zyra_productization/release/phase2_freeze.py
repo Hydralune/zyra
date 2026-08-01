@@ -1924,8 +1924,25 @@ class Phase2FreezeAuditor:
                 blockers.append(f"command_cwd:{command_id}")
         return blockers
 
-    def _receipt_ready(self, path: Path, target: str) -> dict[str, Any]:
-        value = _load_json(path)
+    def _receipt_ready(
+        self,
+        path: Path,
+        target: str,
+        *,
+        expected_receipt_sha256: str = "",
+    ) -> dict[str, Any]:
+        raw_receipt = path.read_bytes()
+        actual_receipt_sha256 = hashlib.sha256(raw_receipt).hexdigest()
+        try:
+            value = json.loads(raw_receipt.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise Phase2FreezeError(
+                f"invalid final regression receipt: {path}"
+            ) from error
+        if not isinstance(value, Mapping):
+            raise Phase2FreezeError(
+                f"final regression receipt must be an object: {path}"
+            )
         commands = value.get("commands")
         commands = (
             commands
@@ -1934,6 +1951,12 @@ class Phase2FreezeAuditor:
             else ()
         )
         blockers: list[str] = []
+        expected_digest = expected_receipt_sha256.strip().casefold()
+        if expected_digest and (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_digest)
+            or actual_receipt_sha256 != expected_digest
+        ):
+            blockers.append("external_receipt_digest")
         command_ids = tuple(
             str(item.get("command_id") or "")
             for item in commands
@@ -1977,17 +2000,36 @@ class Phase2FreezeAuditor:
         after = value.get("worktree_boundary_after")
         before = before if isinstance(before, Mapping) else {}
         after = after if isinstance(after, Mapping) else {}
+        target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
+        current_boundary = inspect_worktree(
+            self.root,
+            expected_head=target,
+        )
+
+        def boundary_ready(boundary: Mapping[str, Any]) -> bool:
+            return (
+                boundary.get("schema")
+                == "zyra.release-worktree-boundary/v1"
+                and boundary.get("ready") is True
+                and boundary.get("head_commit") == target
+                and boundary.get("head_tree") == target_tree
+                and boundary.get("expected_head") == target
+                and boundary.get("head_matches") is True
+                and boundary.get("tracked_dirty_entries") in ([], ())
+                and boundary.get("unexpected_untracked_entries") in ([], ())
+                and _embedded_digest_ready(boundary, "boundary_digest")
+            )
+
         source_boundary_ready = (
-            before.get("ready") is True
-            and after.get("ready") is True
-            and before.get("head_commit") == target
-            and after.get("head_commit") == target
+            boundary_ready(before)
+            and boundary_ready(after)
             and before.get("head_tree") == after.get("head_tree")
-            and _embedded_digest_ready(before, "boundary_digest")
-            and _embedded_digest_ready(after, "boundary_digest")
         )
         if not source_boundary_ready:
             blockers.append("target_source_boundary")
+        current_source_boundary_ready = boundary_ready(current_boundary)
+        if not current_source_boundary_ready:
+            blockers.append("current_target_source_boundary")
         if (
             value.get("schema") != "zyra.phase2-final-regression/v1"
             or not _embedded_digest_ready(value, "receipt_digest")
@@ -2009,6 +2051,12 @@ class Phase2FreezeAuditor:
                 for item in commands
             ),
             "source_boundary_ready": source_boundary_ready,
+            "current_source_boundary_ready": current_source_boundary_ready,
+            "receipt_sha256": actual_receipt_sha256,
+            "external_receipt_digest_required": bool(expected_digest),
+            "external_receipt_digest_matches": bool(
+                expected_digest and actual_receipt_sha256 == expected_digest
+            ),
             "blockers": sorted(set(blockers)),
             "ready": ready,
         }
@@ -2018,6 +2066,7 @@ class Phase2FreezeAuditor:
         path: Path,
         *,
         target_commit: str,
+        expected_sha256: str,
     ) -> dict[str, Any]:
         """Verify an immutable final-regression receipt for gate reuse."""
 
@@ -2026,7 +2075,15 @@ class Phase2FreezeAuditor:
             raise Phase2FreezeError(
                 "final regression reuse requires a full target commit"
             )
-        return self._receipt_ready(path.resolve(), target)
+        if not expected_sha256.strip():
+            raise Phase2FreezeError(
+                "final regression reuse requires an external SHA-256 anchor"
+            )
+        return self._receipt_ready(
+            path.resolve(),
+            target,
+            expected_receipt_sha256=expected_sha256,
+        )
 
     def audit(
         self,

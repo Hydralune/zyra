@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -8,6 +9,8 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
 if str(PRODUCTIZATION_ROOT) not in sys.path:
@@ -15,9 +18,11 @@ if str(PRODUCTIZATION_ROOT) not in sys.path:
 
 from zyra_productization.release.phase2_freeze import (
     Phase2FreezeAuditor,
+    Phase2FreezeError,
     canonical_digest,
     inspect_release_archive,
 )
+from zyra_productization.release import phase2_freeze
 from zyra_productization.release.worktree import inspect_worktree
 
 
@@ -204,6 +209,110 @@ def test_final_regression_audit_rejects_command_or_cwd_substitution(
     )
     assert "command_argv:python-full-regression" in blockers
     assert "command_cwd:typescript-runtime-regression" in blockers
+
+
+def test_final_regression_reuse_requires_external_digest_and_live_boundary(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    target = _git(ROOT, "rev-parse", "HEAD")
+    target_tree = _git(ROOT, "rev-parse", f"{target}^{{tree}}")
+    boundary = {
+        "schema": "zyra.release-worktree-boundary/v1",
+        "ready": True,
+        "head_commit": target,
+        "head_tree": target_tree,
+        "expected_head": target,
+        "head_matches": True,
+        "tracked_dirty_entries": [],
+        "unexpected_untracked_entries": [],
+        "allowed_generated_roots": [],
+        "ignored_generated_entry_count": 0,
+        "ignored_generated_paths_digest": "ignored",
+    }
+    boundary["boundary_digest"] = canonical_digest(boundary)
+    monkeypatch.setattr(
+        phase2_freeze,
+        "inspect_worktree",
+        lambda root, *, expected_head: dict(boundary),
+    )
+    commands = []
+    for command_id, argv in auditor._expected_regression_commands(
+        output_root=tmp_path,
+        target=target,
+    ).items():
+        stdout = tmp_path / f"{command_id}.stdout.log"
+        stderr = tmp_path / f"{command_id}.stderr.log"
+        stdout.write_bytes(b"")
+        stderr.write_bytes(b"")
+        commands.append(
+            {
+                "command_id": command_id,
+                "argv": list(argv),
+                "cwd": str(ROOT),
+                "stdout": stdout.name,
+                "stderr": stderr.name,
+                "stdout_sha256": hashlib.sha256(b"").hexdigest(),
+                "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+                "returncode": 0,
+                "ready": True,
+            }
+        )
+    policy_path = ROOT / "config" / "release-python-tests.json"
+    receipt = {
+        "schema": "zyra.phase2-final-regression/v1",
+        "target_commit": target,
+        "ready": True,
+        "passed_count": len(commands),
+        "failed_count": 0,
+        "commands": commands,
+        "python_test_policy": {
+            "path": "config/release-python-tests.json",
+            "sha256": hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+        },
+        "worktree_boundary_before": dict(boundary),
+        "worktree_boundary_after": dict(boundary),
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    receipt_path = tmp_path / "final-regression.json"
+    receipt_path.write_text(
+        json.dumps(receipt, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    external_digest = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+
+    ready = auditor.verify_final_regression_receipt(
+        receipt_path,
+        target_commit=target,
+        expected_sha256=external_digest,
+    )
+    assert ready["ready"] is True
+    assert ready["external_receipt_digest_matches"] is True
+    with pytest.raises(Phase2FreezeError, match="external SHA-256 anchor"):
+        auditor.verify_final_regression_receipt(
+            receipt_path,
+            target_commit=target,
+            expected_sha256="",
+        )
+
+    dirty_boundary = dict(boundary)
+    dirty_boundary["ready"] = False
+    dirty_boundary["tracked_dirty_entries"] = [" M production.py"]
+    dirty_boundary.pop("boundary_digest")
+    dirty_boundary["boundary_digest"] = canonical_digest(dirty_boundary)
+    monkeypatch.setattr(
+        phase2_freeze,
+        "inspect_worktree",
+        lambda root, *, expected_head: dict(dirty_boundary),
+    )
+    dirty = auditor.verify_final_regression_receipt(
+        receipt_path,
+        target_commit=target,
+        expected_sha256=external_digest,
+    )
+    assert dirty["ready"] is False
+    assert "current_target_source_boundary" in dirty["blockers"]
 
 
 def test_preflight_command_audit_rejects_manifest_probe_substitution() -> None:

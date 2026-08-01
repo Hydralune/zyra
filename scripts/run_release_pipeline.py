@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--python-regression-receipt-sha256",
+        default="",
+        help="out-of-band SHA-256 anchor for the reused regression receipt",
+    )
+    parser.add_argument(
         "--allow-dirty",
         action="store_true",
         help="development-only; release admission still records the revision",
@@ -85,6 +90,7 @@ class ReleasePipeline:
         maximum_parallel: int,
         require_clean: bool,
         python_regression_receipt: Path | None = None,
+        python_regression_receipt_sha256: str = "",
     ) -> dict[str, Any]:
         started = time.monotonic()
         git_receipt = (
@@ -168,6 +174,9 @@ class ReleasePipeline:
                 expected_commit=expected_commit,
                 maximum_parallel=maximum_parallel,
                 python_regression_receipt=python_regression_receipt,
+                python_regression_receipt_sha256=(
+                    python_regression_receipt_sha256
+                ),
             )
         ready = (
             reproducibility.get("ready") is True
@@ -256,6 +265,9 @@ def run(argv: Sequence[str] | None = None) -> int:
                 Path(arguments.python_regression_receipt)
                 if arguments.python_regression_receipt
                 else None
+            ),
+            python_regression_receipt_sha256=(
+                arguments.python_regression_receipt_sha256
             ),
         )
     except ReleaseError as error:

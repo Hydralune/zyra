@@ -837,6 +837,18 @@ class Phase2StrongestProductionBridge:
                         f"{decision.decision_id}"
                     ),
                 )
+                self.worker_pool_api.cancel_task_graph_binding(
+                    state,
+                    reason=(
+                        "superseded by ResourceScheduler decision "
+                        f"{decision.decision_id}"
+                    ),
+                    actor_id="phase2-resource-scheduler",
+                    causation_id=(
+                        f"resource-scheduler-supersede:{previous_lease_id}:"
+                        f"{decision.decision_id}"
+                    ),
+                )
         acquisition = self.worker_pool_api.acquire_for_task(
             state,
             payload={
@@ -903,6 +915,18 @@ class Phase2StrongestProductionBridge:
             self.worker_pool_api.pool.leases.cancel(
                 acquisition.lease.lease_id,
                 reason="ResourceScheduler selection and acquired lease identity diverged",
+            )
+            self.worker_pool_api.cancel_task_graph_binding(
+                state,
+                reason=(
+                    "ResourceScheduler selection and acquired lease identity "
+                    "diverged"
+                ),
+                actor_id="phase2-resource-scheduler",
+                causation_id=(
+                    "resource-scheduler-identity-rejected:"
+                    f"{acquisition.lease.lease_id}"
+                ),
             )
             raise Phase2ProductionPolicyError(
                 "acquired lease does not exactly match the ResourceScheduler selection: "
@@ -1230,6 +1254,14 @@ class Phase2StrongestProductionBridge:
                     ),
                 }
                 state.metadata["physical_execution_failure_receipt"] = failure
+                self.worker_pool_api.cancel_task_graph_binding(
+                    state,
+                    reason=(
+                        "physical execution placement gate rejected the lease"
+                    ),
+                    actor_id="phase2-physical-execution",
+                    causation_id=f"placement-rejected:{cancelled.lease_id}",
+                )
             else:
                 failure = {
                     "schema": "zyra.production-physical-failure-receipt/v1",
@@ -1816,6 +1848,15 @@ class Phase2StrongestProductionBridge:
             )
             selected = receipt.to_dict()
         state.metadata["physical_execution_failure_receipt"] = dict(selected)
+        self.worker_pool_api.cancel_task_graph_binding(
+            state,
+            reason=(
+                "physical execution failed: "
+                f"{str(getattr(error, 'code', '') or type(error).__name__)}"
+            ),
+            actor_id="phase2-physical-execution",
+            causation_id=f"physical-failure:{lease_id}",
+        )
         if isinstance(route_context, dict):
             route_context["physical_execution_failure_receipt"] = dict(selected)
         return selected
