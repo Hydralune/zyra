@@ -4,13 +4,17 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
-from zyra_productization.release.worktree import require_worktree_boundary
-
 
 ROOT = Path(__file__).resolve().parents[2]
+PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_ROOT))
+
+from zyra_productization.release.worktree import require_worktree_boundary
 
 
 def _sha256(path: Path) -> str:

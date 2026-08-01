@@ -3,9 +3,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[2]
+for package_root in (
+    "packages/evaluation",
+    "packages/orchestration",
+    "packages/productization",
+):
+    selected = str(ROOT / package_root)
+    if selected not in sys.path:
+        sys.path.insert(0, selected)
 
 from zyra_evaluation.policy_benchmark.preflight import compute_preflight_id
 from zyra_orchestration.topology_policy import (
@@ -14,10 +26,6 @@ from zyra_orchestration.topology_policy import (
     canonical_digest,
 )
 from zyra_productization.release.worktree import require_worktree_boundary
-
-
-ROOT = Path(__file__).resolve().parents[2]
-
 
 def _file_digest(path: Path) -> str:
     value = hashlib.sha256()

@@ -13,14 +13,18 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+
+ROOT = Path(__file__).resolve().parents[2]
+PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_ROOT))
+
 from zyra_productization.release.worktree import (
     WorktreeBoundaryError,
     inspect_worktree,
     require_worktree_boundary,
 )
 
-
-ROOT = Path(__file__).resolve().parents[2]
 P2_BASE_COMMIT = "e207b46ca690171139a718b8b85d808cb5a79c1e"
 PYTHON_TEST_POLICY_PATH = ROOT / "config" / "release-python-tests.json"
 TYPESCRIPT_RUNTIME_TEST_ROOTS = (
