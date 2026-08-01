@@ -951,11 +951,27 @@ class DynamicTopologyRuntime:
                 "physical_attempt_terminal_reason": str(reason),
             },
         )
-        return self.replace_node(
-            graph_id_value,
-            replacement,
+        builder = GraphDeltaBuilder(
+            snapshot,
+            branch_id="topology-main",
             actor_id=actor_id,
             causation_id=causation_id,
+            idempotency_key=digest(
+                (
+                    "cancel_physical_attempt",
+                    node_id,
+                    physical_attempt_ref,
+                    worker_lease_ref,
+                    causation_id,
+                )
+            ),
+        )
+        builder.read_node(node_id)
+        return self.custody.commit(
+            builder.replace_node(
+                replacement,
+                expected_revision=node.revision,
+            ).build()
         )
 
     def version_ref(self, graph_id_value: str) -> GraphVersionRef:

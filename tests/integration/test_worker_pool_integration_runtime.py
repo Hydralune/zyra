@@ -230,6 +230,62 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
         assert execute_node.state is not NodeExecutionState.LEASED
 
 
+def test_physical_attempt_compensation_is_fenced_by_concurrent_rebind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    custody = _custody(tmp_path / "graph.sqlite3")
+    topology = DynamicTopologyRuntime(custody)
+    initial = topology.bind_physical_attempt(
+        "graph-integration",
+        "root",
+        physical_attempt_ref="attempt-old",
+        worker_lease_ref="lease-old",
+        backend_route_ref="backend-old",
+        actor_id="worker-pool-api",
+        causation_id="lease-old",
+    )
+    assert initial.receipt.committed
+
+    original_commit = custody.commit
+    race_injected = False
+
+    def commit_after_rebind(delta: Any, *args: Any, **kwargs: Any) -> Any:
+        nonlocal race_injected
+        if delta.causation_id == "cancel:lease-old" and not race_injected:
+            race_injected = True
+            rebound = topology.bind_physical_attempt(
+                "graph-integration",
+                "root",
+                physical_attempt_ref="attempt-new",
+                worker_lease_ref="lease-new",
+                backend_route_ref="backend-new",
+                actor_id="concurrent-worker-pool-api",
+                causation_id="lease-new",
+            )
+            assert rebound.receipt.committed
+        return original_commit(delta, *args, **kwargs)
+
+    monkeypatch.setattr(custody, "commit", commit_after_rebind)
+    compensated = topology.cancel_physical_attempt(
+        "graph-integration",
+        "root",
+        physical_attempt_ref="attempt-old",
+        worker_lease_ref="lease-old",
+        reason="injected projection failure",
+        actor_id="worker-pool-api",
+        causation_id="cancel:lease-old",
+    )
+
+    assert race_injected is True
+    assert compensated.receipt.committed is False
+    current = custody.current("graph-integration").node_map["root"]
+    assert current.physical_attempt_ref == "attempt-new"
+    assert current.worker_lease_ref == "lease-new"
+    assert current.backend_route_ref == "backend-new"
+    assert current.state is NodeExecutionState.LEASED
+
+
 def _add_node(runtime: WorkerPoolIntegrationRuntime, task_id: str) -> str:
     node_id = f"runtime-{task_id}"
     result = runtime.add_runtime_node_for_requirement(
