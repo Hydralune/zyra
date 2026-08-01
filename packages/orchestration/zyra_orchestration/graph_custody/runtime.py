@@ -932,6 +932,68 @@ class DynamicTopologyRuntime:
         binding if another writer advanced the canonical node first.
         """
 
+        return self._terminalize_physical_attempt(
+            graph_id_value,
+            node_id,
+            physical_attempt_ref=physical_attempt_ref,
+            worker_lease_ref=worker_lease_ref,
+            terminal_state=NodeExecutionState.CANCELLED,
+            reason=reason,
+            outcome_ref="",
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
+    def complete_physical_attempt(
+        self,
+        graph_id_value: str,
+        node_id: str,
+        *,
+        physical_attempt_ref: str,
+        worker_lease_ref: str,
+        succeeded: bool,
+        reason: str,
+        outcome_ref: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> GraphCommitResult:
+        """Commit the exact physical binding's normal terminal outcome."""
+
+        return self._terminalize_physical_attempt(
+            graph_id_value,
+            node_id,
+            physical_attempt_ref=physical_attempt_ref,
+            worker_lease_ref=worker_lease_ref,
+            terminal_state=(
+                NodeExecutionState.SUCCEEDED
+                if succeeded
+                else NodeExecutionState.FAILED
+            ),
+            reason=reason,
+            outcome_ref=outcome_ref,
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
+    def _terminalize_physical_attempt(
+        self,
+        graph_id_value: str,
+        node_id: str,
+        *,
+        physical_attempt_ref: str,
+        worker_lease_ref: str,
+        terminal_state: NodeExecutionState,
+        reason: str,
+        outcome_ref: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> GraphCommitResult:
+        if terminal_state not in {
+            NodeExecutionState.SUCCEEDED,
+            NodeExecutionState.FAILED,
+            NodeExecutionState.CANCELLED,
+        }:
+            raise ValueError("physical attempt terminal state is invalid")
         snapshot = self.custody.current(graph_id_value)
         node = snapshot.node_map.get(node_id)
         if node is None:
@@ -944,11 +1006,13 @@ class DynamicTopologyRuntime:
                 "dynamic graph physical attempt compensation was fenced"
             )
         replacement = node.revise(
-            state=NodeExecutionState.CANCELLED,
+            state=terminal_state,
             metadata={
                 **dict(node.metadata),
                 "physical_attempt_terminal": True,
                 "physical_attempt_terminal_reason": str(reason),
+                "physical_attempt_terminal_state": terminal_state.value,
+                "physical_attempt_outcome_ref": str(outcome_ref),
             },
         )
         builder = GraphDeltaBuilder(
@@ -958,10 +1022,12 @@ class DynamicTopologyRuntime:
             causation_id=causation_id,
             idempotency_key=digest(
                 (
-                    "cancel_physical_attempt",
+                    "terminalize_physical_attempt",
                     node_id,
                     physical_attempt_ref,
                     worker_lease_ref,
+                    terminal_state.value,
+                    str(outcome_ref),
                     causation_id,
                 )
             ),

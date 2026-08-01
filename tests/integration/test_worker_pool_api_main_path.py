@@ -48,6 +48,133 @@ def test_task_api_uses_physical_lease_dynamic_graph_projection_and_real_cancel(t
         after = _get(base_url, f"/worker-pool/leases?task_id={task_id}")
         selected = next(item for item in after["leases"] if item["lease_id"] == physical["lease_id"])
         assert selected["state"] == "cancelled"
+        terminal_graph = _get(
+            base_url,
+            f"/worker-pool/graphs/graph:{task_id}",
+        )
+        terminal_execute = next(
+            item
+            for item in terminal_graph["snapshot"]["nodes"]
+            if item["metadata"].get("stage") == "execute"
+        )
+        assert terminal_execute["state"] == "cancelled"
+
+
+def test_expired_task_rebind_terminalizes_old_graph_before_new_binding(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Rebind one expired physical reservation.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        old = dict(state.metadata["worker_pool"])
+        pool_api.pool.leases.expire(
+            old["lease_id"],
+            reason="controlled checkpoint expiry",
+        )
+
+        acquisition = pool_api.ensure_task_lease(
+            state,
+            payload={"idempotency_key": "expired-checkpoint-rebind"},
+        )
+
+        assert acquisition is not None
+        assert acquisition.lease.lease_id != old["lease_id"]
+        assert any(
+            item["lease_id"] == old["lease_id"]
+            and item["state"] == "cancelled"
+            for item in state.metadata["worker_pool_graph_terminal_history"]
+        )
+        current = pool_api.graph_custody.current(
+            state.metadata["dynamic_graph_id"]
+        )
+        rebound = next(
+            node
+            for node in current.nodes
+            if node.physical_attempt_ref == acquisition.attempt.attempt_id
+        )
+        assert rebound.worker_lease_ref == acquisition.lease.lease_id
+        assert rebound.state.value == "leased"
+        old_snapshot = next(
+            snapshot
+            for snapshot in pool_api.graph_custody.store.list_snapshots(
+                state.metadata["dynamic_graph_id"]
+            )
+            if any(
+                node.physical_attempt_ref == old["attempt_id"]
+                and node.worker_lease_ref == old["lease_id"]
+                and node.state.value == "cancelled"
+                for node in snapshot.nodes
+            )
+        )
+        assert old_snapshot.commit_id != current.commit_id
+
+
+def test_normal_task_finalize_replays_lease_and_graph_success(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Finalize one physical task.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+
+        first = pool_api.finalize_task(
+            state,
+            success=True,
+            summary="controlled physical success",
+        )
+        state.metadata["worker_pool_receipt"] = {
+            **dict(first or {}),
+            "physical_dispatch_receipt": {
+                "schema_version": "zyra.physical-dispatch-receipt/v2",
+                "digest": "dispatch-digest",
+            },
+            "physical_dispatch_validation": {"real_gate_closed": True},
+        }
+        replayed = pool_api.finalize_task(
+            state,
+            success=True,
+            summary="controlled physical success",
+        )
+
+        assert first is not None
+        assert replayed is not None
+        assert replayed["receipt_id"] == first["receipt_id"]
+        assert replayed["physical_dispatch_receipt"]["digest"] == (
+            "dispatch-digest"
+        )
+        assert replayed["physical_dispatch_validation"][
+            "real_gate_closed"
+        ] is True
+        graph = pool_api.graph_custody.current(
+            state.metadata["dynamic_graph_id"]
+        )
+        completed = next(
+            node
+            for node in graph.nodes
+            if node.worker_lease_ref == state.metadata["worker_pool"]["lease_id"]
+        )
+        assert completed.state.value == "succeeded"
+        assert completed.metadata["physical_attempt_outcome_ref"] == first[
+            "receipt_id"
+        ]
+        matching_history = [
+            item
+            for item in state.metadata["worker_pool_graph_terminal_history"]
+            if item["lease_id"] == state.metadata["worker_pool"]["lease_id"]
+        ]
+        assert len(matching_history) == 1
+        assert matching_history[0]["state"] == "succeeded"
 
 
 def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(

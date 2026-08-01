@@ -339,6 +339,121 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
         assert live_lease["state"] == "active"
 
 
+def test_worker_successor_recovers_committed_lease_before_task_checkpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _create_task(
+            base_url,
+            "Recover a successor committed before the task checkpoint.",
+        )
+        previous_owner = _owner(task)
+        worker_api = api_main.get_worker_pool_api()
+        orchestrator = api_main.get_deployment_api().orchestrator
+        device_policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
+        successor_process, _, successor_health = orchestrator.processes.start_node(
+            device_policy,
+            restart=True,
+        )
+        successor_identity = dict(successor_health["runtime_identity"])
+        worker_api.pool.register_physical_worker(
+            worker_id="checkpoint-crash-successor",
+            worker_kind="code-worker",
+            location=WorkerLocation.LOCAL,
+            backend=BackendCapability(
+                backend_id="checkpoint-crash-backend",
+                backend_kind="local_process",
+                enabled=True,
+                healthy=True,
+                capabilities=(
+                    "agent_task",
+                    "code_execution",
+                    "artifact_return",
+                ),
+                tool_ids=("code", "shell", "read", "write", "search"),
+            ),
+            capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+            ),
+            tool_ids=("code", "shell", "read", "write", "search"),
+            resources=ResourceVector(
+                cpu_cores=1.0,
+                memory_mb=512,
+                disk_mb=512,
+                process_slots=2,
+            ),
+            process_identity=str(successor_identity["failure_boundary_id"]),
+            endpoint=successor_process.endpoint,
+            metadata={
+                "checkpoint_crash_successor": True,
+                "deployment_node_id": successor_health["node_id"],
+                "deployment_generation_id": successor_identity[
+                    "generation_id"
+                ],
+            },
+        )
+        request = {
+            "run_id": task["run_id"],
+            "task_id": task["task_id"],
+            "plan_id": "plan-checkpoint-crash",
+            "idempotency_key": "successor-checkpoint-crash",
+            "excluded_refs": [previous_owner["expected_worker_id"]],
+            "constraints": {
+                "worker": {"required_capabilities": ["agent_task"]}
+            },
+        }
+        store = api_main.get_store()
+        callback = api_main._recovery_owner_callbacks(store).worker_successor
+        assert callback is not None
+        original_save = store.save_checkpoint
+        crashed = False
+
+        def crash_once(state: Any) -> None:
+            nonlocal crashed
+            if not crashed:
+                crashed = True
+                raise RuntimeError("controlled crash before task checkpoint")
+            original_save(state)
+
+        monkeypatch.setattr(store, "save_checkpoint", crash_once)
+        with pytest.raises(
+            RuntimeError,
+            match="controlled crash before task checkpoint",
+        ):
+            callback(request)
+        attempts_after_crash = worker_api.pool.store.list_attempts(
+            task_id=task["task_id"]
+        )
+        assert len(attempts_after_crash) == 2
+
+        recovered = callback(request)
+
+        assert recovered["accepted"] is True
+        assert recovered["metadata"]["replayed"] is True
+        assert len(
+            worker_api.pool.store.list_attempts(task_id=task["task_id"])
+        ) == len(attempts_after_crash)
+        restored = store.load_task(task["task_id"])
+        assert restored is not None
+        route = restored.metadata["recovery_worker_route"]
+        assert route["recovered_before_task_checkpoint"] is True
+        assert route["lease_id"] == recovered["canonical_ref"]["lease_id"]
+        assert restored.metadata["worker_pool"]["lease_id"] == route["lease_id"]
+        graph = worker_api.graph_custody.current(
+            restored.metadata["dynamic_graph_id"]
+        )
+        bound = next(
+            node
+            for node in graph.nodes
+            if node.physical_attempt_ref == route["attempt_id"]
+        )
+        assert bound.worker_lease_ref == route["lease_id"]
+        assert bound.state.value == "leased"
+
+
 def test_sealed_timeline_control_is_denied_once_without_manual_mutation_or_human_wait(
     tmp_path: Path,
 ) -> None:

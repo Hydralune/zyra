@@ -632,7 +632,53 @@ class WorkerPoolApiService:
         actor_id: str,
         causation_id: str,
     ) -> Mapping[str, Any] | None:
-        """Make the canonical graph binding terminal after its lease closes."""
+        """Cancel the exact canonical graph binding after its lease closes."""
+
+        return self._terminalize_task_graph_binding(
+            state,
+            terminal_state=NodeExecutionState.CANCELLED,
+            reason=reason,
+            outcome_ref="",
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
+    def complete_task_graph_binding(
+        self,
+        state: TaskState,
+        *,
+        succeeded: bool,
+        reason: str,
+        outcome_ref: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> Mapping[str, Any] | None:
+        """Commit a normal success or failure for the exact graph binding."""
+
+        return self._terminalize_task_graph_binding(
+            state,
+            terminal_state=(
+                NodeExecutionState.SUCCEEDED
+                if succeeded
+                else NodeExecutionState.FAILED
+            ),
+            reason=reason,
+            outcome_ref=outcome_ref,
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
+    def _terminalize_task_graph_binding(
+        self,
+        state: TaskState,
+        *,
+        terminal_state: NodeExecutionState,
+        reason: str,
+        outcome_ref: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> Mapping[str, Any] | None:
+        """Make one exact canonical graph binding durably terminal."""
 
         def record(receipt: Mapping[str, Any]) -> Mapping[str, Any]:
             normalized = dict(receipt)
@@ -701,15 +747,28 @@ class WorkerPoolApiService:
                 "lease_id": lease_id,
                 "state": node.state.value,
             })
-        result = self.topology.cancel_physical_attempt(
-            graph_id_value,
-            execute_node_id,
-            physical_attempt_ref=attempt_id,
-            worker_lease_ref=lease_id,
-            reason=reason,
-            actor_id=actor_id,
-            causation_id=causation_id,
-        )
+        if terminal_state is NodeExecutionState.CANCELLED:
+            result = self.topology.cancel_physical_attempt(
+                graph_id_value,
+                execute_node_id,
+                physical_attempt_ref=attempt_id,
+                worker_lease_ref=lease_id,
+                reason=reason,
+                actor_id=actor_id,
+                causation_id=causation_id,
+            )
+        else:
+            result = self.topology.complete_physical_attempt(
+                graph_id_value,
+                execute_node_id,
+                physical_attempt_ref=attempt_id,
+                worker_lease_ref=lease_id,
+                succeeded=terminal_state is NodeExecutionState.SUCCEEDED,
+                reason=reason,
+                outcome_ref=outcome_ref,
+                actor_id=actor_id,
+                causation_id=causation_id,
+            )
         if not result.receipt.committed:
             raise RuntimeError(
                 "dynamic graph physical binding terminalization was not committed"
@@ -726,6 +785,181 @@ class WorkerPoolApiService:
             "graph_commit": result.receipt.to_dict(),
         }
         return record(receipt)
+
+    def reconcile_task_graph_binding(
+        self,
+        state: TaskState,
+        *,
+        reason: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> Mapping[str, Any] | None:
+        """Replay the terminal WorkerPool outcome into GraphStateCustody."""
+
+        projection = state.metadata.get("worker_pool")
+        if not isinstance(projection, Mapping):
+            return None
+        lease_id = str(projection.get("lease_id") or "")
+        attempt_id = str(projection.get("attempt_id") or "")
+        lease = self.pool.store.get_lease(lease_id) if lease_id else None
+        if lease is not None and not lease.terminal:
+            return None
+        execution_receipt = next(
+            (
+                item
+                for item in self.pool.store.receipts_for_task(state.task_id)
+                if item.attempt_id == attempt_id
+                and item.lease_id == lease_id
+            ),
+            None,
+        )
+        if execution_receipt is not None:
+            return self.complete_task_graph_binding(
+                state,
+                succeeded=(
+                    execution_receipt.outcome is ExecutionOutcome.SUCCEEDED
+                ),
+                reason=reason,
+                outcome_ref=execution_receipt.receipt_id,
+                actor_id=actor_id,
+                causation_id=causation_id,
+            )
+        return self.cancel_task_graph_binding(
+            state,
+            reason=reason,
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
+    def recover_task_acquisition(
+        self,
+        state: TaskState,
+        *,
+        idempotency_key: str,
+    ) -> Mapping[str, Any] | None:
+        """Recover a lease+graph commit lost before TaskState checkpointing."""
+
+        if not idempotency_key:
+            return None
+        before = state.metadata.get("worker_pool")
+        if not isinstance(before, Mapping):
+            return None
+        matches = tuple(
+            lease
+            for lease in self.pool.store.list_leases(task_id=state.task_id)
+            if lease.idempotency_key == idempotency_key
+            and lease.run_id == state.run_id
+        )
+        if not matches:
+            return None
+        if len(matches) != 1:
+            raise RuntimeError(
+                "worker acquisition idempotency key resolved ambiguously"
+            )
+        lease = matches[0]
+        if lease.lease_id == str(before.get("lease_id") or ""):
+            return None
+        if lease.terminal:
+            raise RuntimeError(
+                "recovered worker acquisition is already terminal"
+            )
+        attempt = self.pool.store.require_attempt(lease.attempt_id)
+        if (
+            attempt.task_id != state.task_id
+            or attempt.run_id != state.run_id
+            or (
+                attempt.parent_attempt_id
+                and attempt.parent_attempt_id
+                != str(before.get("attempt_id") or "")
+            )
+        ):
+            raise RuntimeError(
+                "recovered worker acquisition lineage does not match task state"
+            )
+        worker = self.pool.store.require_worker(lease.worker_id)
+        graph_id_value = str(state.metadata.get("dynamic_graph_id") or "")
+        if not graph_id_value:
+            raise RuntimeError(
+                "recovered worker acquisition lost its dynamic graph identity"
+            )
+        execute_node_id = next(
+            (
+                node.node_id
+                for node in state.plan_nodes.values()
+                if str(node.metadata.get("stage") or "") == "execute"
+            ),
+            state.root_node_id,
+        )
+        snapshot = self.graph_custody.current(graph_id_value)
+        node = snapshot.node_map.get(execute_node_id)
+        if node is None:
+            raise RuntimeError("recovered worker acquisition node is unavailable")
+        graph_commit: Mapping[str, Any]
+        if (
+            node.physical_attempt_ref == attempt.attempt_id
+            and node.worker_lease_ref == lease.lease_id
+            and not node.terminal
+        ):
+            graph_commit = {
+                "schema": "zyra.graph-binding-recovery/v1",
+                "committed": True,
+                "replayed": True,
+                "commit_id": snapshot.commit_id,
+                "revision": snapshot.revision,
+                "signature": snapshot.signature,
+            }
+        elif (
+            node.terminal
+            and node.physical_attempt_ref
+            == str(before.get("attempt_id") or "")
+            and node.worker_lease_ref == str(before.get("lease_id") or "")
+        ):
+            rebound = self.topology.bind_physical_attempt(
+                graph_id_value,
+                execute_node_id,
+                physical_attempt_ref=attempt.attempt_id,
+                worker_lease_ref=lease.lease_id,
+                backend_route_ref=lease.backend_id,
+                actor_id="worker-pool-api",
+                causation_id=lease.lease_id,
+            )
+            if not rebound.receipt.committed:
+                raise RuntimeError(
+                    "recovered worker acquisition graph binding was rejected"
+                )
+            snapshot = rebound.snapshot
+            graph_commit = rebound.receipt.to_dict()
+        else:
+            raise RuntimeError(
+                "recovered worker acquisition conflicts with canonical graph"
+            )
+        graph_ref = {
+            "graph_id": snapshot.graph_id,
+            "run_id": snapshot.run_id,
+            "revision": snapshot.revision,
+            "signature": snapshot.signature,
+            "commit_id": snapshot.commit_id,
+        }
+        after = {
+            "attempt_id": attempt.attempt_id,
+            "attempt_number": attempt.attempt_number,
+            "lease_id": lease.lease_id,
+            "worker_id": worker.worker_id,
+            "backend_id": lease.backend_id,
+            "graph_ref": graph_ref,
+            "graph_commit": dict(graph_commit),
+            "operator_placement_causality": dict(
+                lease.metadata.get("operator_placement_causality") or {}
+            ),
+        }
+        state.metadata["worker_pool"] = after
+        return {
+            "before": dict(before),
+            "after": dict(after),
+            "lease": lease,
+            "attempt": attempt,
+            "worker": worker,
+        }
 
     def ensure_task_lease(
         self,
@@ -751,6 +985,19 @@ class WorkerPoolApiService:
         if lease is not None and not lease.terminal:
             self.ensure_default_local_worker()
             return None
+        self.reconcile_task_graph_binding(
+            state,
+            reason="task lease was terminal before rebind",
+            actor_id="worker-pool-rebind",
+            causation_id=(
+                "worker-pool-rebind:"
+                + str(
+                    (projection or {}).get("lease_id")
+                    if isinstance(projection, Mapping)
+                    else "missing"
+                )
+            ),
+        )
         return self.acquire_for_task(state, payload=payload)
 
     def finalize_task(
@@ -767,7 +1014,57 @@ class WorkerPoolApiService:
         if not isinstance(projection, Mapping):
             return None
         lease = self.pool.store.get_lease(str(projection.get("lease_id") or ""))
-        if lease is None or lease.terminal:
+        if lease is None:
+            self.reconcile_task_graph_binding(
+                state,
+                reason="task finalization found no physical lease",
+                actor_id="worker-pool-finalize",
+                causation_id=(
+                    "worker-pool-finalize-missing:"
+                    + str(projection.get("lease_id") or "")
+                ),
+            )
+            return None
+        if lease.terminal:
+            existing = next(
+                (
+                    item
+                    for item in self.pool.store.receipts_for_task(state.task_id)
+                    if item.attempt_id == lease.attempt_id
+                    and item.lease_id == lease.lease_id
+                ),
+                None,
+            )
+            self.reconcile_task_graph_binding(
+                state,
+                reason="task finalization replayed a terminal physical lease",
+                actor_id="worker-pool-finalize",
+                causation_id=f"worker-pool-finalize-replay:{lease.lease_id}",
+            )
+            if existing is not None:
+                persisted = existing.to_dict()
+                current = state.metadata.get("worker_pool_receipt")
+                if (
+                    isinstance(current, Mapping)
+                    and str(current.get("receipt_id") or "")
+                    == str(persisted.get("receipt_id") or "")
+                ):
+                    # The lease store owns the canonical execution receipt,
+                    # while the production policy appends verified physical
+                    # dispatch/custody projections after that receipt commits.
+                    # An idempotent terminal replay must not erase those
+                    # projections or downstream recovery will falsely report
+                    # that no physical dispatch occurred.
+                    for key in (
+                        "physical_dispatch_receipt",
+                        "physical_dispatch_validation",
+                        "physical_dispatch_policy_artifact_ref",
+                        "memory_mutation_receipt",
+                    ):
+                        if key in current:
+                            persisted[key] = current[key]
+                state.metadata["worker_pool_receipt"] = persisted
+                return persisted
             return None
         self.pool.leases.start_attempt(
             lease.lease_id,
@@ -794,6 +1091,14 @@ class WorkerPoolApiService:
             },
         )
         state.metadata["worker_pool_receipt"] = receipt.to_dict()
+        self.complete_task_graph_binding(
+            state,
+            succeeded=success,
+            reason=summary,
+            outcome_ref=receipt.receipt_id,
+            actor_id="worker-pool-finalize",
+            causation_id=f"worker-pool-finalize:{receipt.receipt_id}",
+        )
         return receipt.to_dict()
 
     def _mutate_graph(self, graph_id_value: str, payload: Mapping[str, Any]) -> WorkerPoolApiResponse:

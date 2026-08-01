@@ -1785,12 +1785,26 @@ class Phase2StrongestProductionBridge:
         lease_id = str(binding.get("lease_id") or "")
         lease = self.worker_pool_api.pool.store.get_lease(lease_id)
         if lease is None:
-            return {
+            selected = {
                 "schema": "zyra.production-physical-failure-receipt/v1",
                 "lease_id": lease_id,
-                "terminal": False,
+                "terminal": True,
                 "error_code": "lease_missing",
             }
+            state.metadata["physical_execution_failure_receipt"] = dict(
+                selected
+            )
+            self.worker_pool_api.cancel_task_graph_binding(
+                state,
+                reason="physical execution lease was missing",
+                actor_id="phase2-physical-execution",
+                causation_id=f"physical-failure-missing:{lease_id}",
+            )
+            if isinstance(route_context, dict):
+                route_context["physical_execution_failure_receipt"] = dict(
+                    selected
+                )
+            return selected
         existing = next(
             (
                 item
@@ -1848,12 +1862,14 @@ class Phase2StrongestProductionBridge:
             )
             selected = receipt.to_dict()
         state.metadata["physical_execution_failure_receipt"] = dict(selected)
-        self.worker_pool_api.cancel_task_graph_binding(
+        self.worker_pool_api.complete_task_graph_binding(
             state,
+            succeeded=False,
             reason=(
                 "physical execution failed: "
                 f"{str(getattr(error, 'code', '') or type(error).__name__)}"
             ),
+            outcome_ref=str(selected.get("receipt_id") or ""),
             actor_id="phase2-physical-execution",
             causation_id=f"physical-failure:{lease_id}",
         )

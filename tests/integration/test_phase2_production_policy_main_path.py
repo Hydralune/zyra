@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -80,10 +81,25 @@ def test_loopx_pre_control_replays_valid_task_bound_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state, _ = api.make_task_created_event("Replay valid LoopX pre-control.")
+    permission = {
+        "decision_id": "decision-loopx-replay",
+        "canonical_owner": "typescript.PermissionCoordinator",
+        "effect": "allow",
+        "allowed_permissions": ["graph.write", "worker.dispatch"],
+        "valid_until": (
+            datetime.now(UTC) + timedelta(minutes=5)
+        ).isoformat().replace("+00:00", "Z"),
+    }
+    permission["receipt_digest"] = canonical_digest(permission)
+    canonical_commit = {"receipt": {"status": "committed"}}
     receipt = {
         "schema": "zyra.phase2-production-loopx-pre-control/v1",
         "run_id": state.run_id,
         "task_id": state.task_id,
+        "canonical_commit": canonical_commit,
+        "canonical_commit_digest": canonical_digest(canonical_commit),
+        "permission_receipt": permission,
+        "continuation": {"allowed": True},
         "checks": {"canonical_commit": True, "permission_allowed": True},
     }
     receipt["receipt_digest"] = canonical_digest(receipt)
@@ -103,12 +119,35 @@ def test_loopx_pre_control_replays_valid_task_bound_receipt(
 
     assert replayed == receipt
 
+    expired_permission = dict(permission)
+    expired_permission["valid_until"] = "2000-01-01T00:00:00Z"
+    expired_permission.pop("receipt_digest")
+    expired_permission["receipt_digest"] = canonical_digest(
+        expired_permission
+    )
+    expired = dict(receipt)
+    expired["permission_receipt"] = expired_permission
+    expired.pop("receipt_digest")
+    expired["receipt_digest"] = canonical_digest(expired)
+    state.metadata["phase2_loopx_pre_control"] = expired
+    monkeypatch.setattr(
+        api,
+        "_phase2_permission_decision",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("fresh permission requested")
+        ),
+    )
+    with pytest.raises(RuntimeError, match="fresh permission requested"):
+        api.prepare_phase2_loopx_pre_control(
+            state,
+            causation_id="stale-replay-cause",
+        )
+
 
 @pytest.mark.parametrize(
     ("location", "backend_kind", "expected"),
     (
         ("local", "local_process", "local_process"),
-        ("local", "sandbox_gateway", "docker_sandbox"),
         ("edge", "isolated_process", "isolated_process"),
         ("cloud", "cloud_model", "cloud_model"),
     ),
@@ -132,6 +171,8 @@ def test_dynamic_physical_manifest_preserves_real_backend_kind(
     ("location", "backend_kinds"),
     (
         ("edge", ()),
+        ("local", ("sandbox_gateway",)),
+        ("edge", ("sandbox_gateway",)),
         ("edge", ("local_process",)),
         ("cloud", ("cloud_model", "isolated_process")),
         ("edge", ("simulated_edge",)),
@@ -648,6 +689,57 @@ def test_physical_preflight_failure_closes_started_attempt(
     assert attempt.terminal is True
     _assert_physical_graph_binding_terminal(state)
     assert not state.artifacts
+
+
+def test_physical_failure_missing_lease_still_terminalizes_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Reject a physical call whose lease disappeared at the failure boundary."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    store = api.get_worker_pool_api().pool.store
+    original_get_lease = store.get_lease
+    lease_missing = False
+
+    class MissingLeasePreflightPort:
+        receipts: list[object] = []
+        validation_reports: list[object] = []
+
+        def prepare(self, execution_context: object) -> None:
+            nonlocal lease_missing
+            del execution_context
+            lease_missing = True
+            raise RuntimeError("controlled lease disappearance")
+
+    monkeypatch.setattr(
+        store,
+        "get_lease",
+        lambda lease_id: (
+            None if lease_missing else original_get_lease(lease_id)
+        ),
+    )
+    monkeypatch.setattr(
+        bridge,
+        "physical_dispatch_factory",
+        lambda *args, **kwargs: MissingLeasePreflightPort(),
+    )
+
+    events = run_task_graph(state, execution_context=context)
+
+    failure = next(
+        item.payload
+        for item in reversed(events)
+        if item.payload.get("error_code")
+    )
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["error_code"] == "lease_missing"
+    assert failure_receipt["terminal"] is True
+    _assert_physical_graph_binding_terminal(state)
 
 
 def test_disabled_physical_operator_adapter_fails_closed_with_terminal_receipt(

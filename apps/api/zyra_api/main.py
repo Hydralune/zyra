@@ -938,11 +938,14 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                         "worker_id": parent_lease.worker_id,
                         "backend_id": parent_lease.backend_id,
                     }
+            replay_after = dict(route.get("after") or {})
+            if not replay_after and before.get("lease_id") == lease.lease_id:
+                replay_after = dict(before)
             return {
-                "accepted": True,
-                "changed": True,
+                "accepted": not lease.terminal,
+                "changed": False,
                 "before": replay_before,
-                "after": before,
+                "after": replay_after,
                 "canonical_ref": {
                     "attempt_id": lease.attempt_id,
                     "lease_id": lease.lease_id,
@@ -981,6 +984,121 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             if before.get("worker_id")
             else None
         )
+        excluded = {
+            str(item) for item in request.get("excluded_refs") or () if str(item)
+        }
+        if before.get("worker_id"):
+            excluded.add(str(before["worker_id"]))
+        if prior_worker is not None:
+            for candidate in worker_api.pool.store.list_workers():
+                if same_failure_boundary(prior_worker, candidate):
+                    excluded.add(candidate.worker_id)
+
+        def persist_successor(
+            *,
+            lease: Any,
+            attempt: Any,
+            worker: Any,
+            original_before: Mapping[str, Any],
+            after_projection: Mapping[str, Any],
+            recovered: bool,
+        ) -> Mapping[str, Any]:
+            if (
+                worker.worker_id in excluded
+                or (
+                    prior_worker is not None
+                    and same_failure_boundary(prior_worker, worker)
+                )
+            ):
+                if not lease.terminal:
+                    worker_api.pool.leases.cancel(
+                        lease.lease_id,
+                        reason=(
+                            "recovery successor reused the prior failure "
+                            "boundary"
+                        ),
+                    )
+                worker_api.cancel_task_graph_binding(
+                    state,
+                    reason=(
+                        "recovery successor reused the prior failure boundary"
+                    ),
+                    actor_id="recovery-worker-successor",
+                    causation_id=(
+                        f"recovery-successor-rejected:{lease.lease_id}"
+                    ),
+                )
+                raise RuntimeError(
+                    "recovery successor must cross a physical failure boundary"
+                )
+            runtime_hints = dict(state.metadata.get("runtime_hints") or {})
+            runtime_hints["preferred_worker"] = worker.worker_id
+            runtime_hints["avoid_workers"] = sorted(excluded)
+            state.metadata["runtime_hints"] = runtime_hints
+            route_value = {
+                "owner": "WorkerPoolFoundationRuntime",
+                "plan_id": str(request.get("plan_id") or ""),
+                "preferred_worker_id": worker.worker_id,
+                "avoided_worker_ids": sorted(excluded),
+                "lease_id": lease.lease_id,
+                "attempt_id": attempt.attempt_id,
+                "idempotency_key": idempotency_key,
+                "before": dict(original_before),
+                "after": dict(after_projection),
+                "prior_failure_boundary": {
+                    "process_identity": (
+                        prior_worker.process_identity if prior_worker else ""
+                    ),
+                    "endpoint": prior_worker.endpoint if prior_worker else "",
+                },
+                "successor_failure_boundary": {
+                    "process_identity": worker.process_identity,
+                    "endpoint": worker.endpoint,
+                },
+                "recovered_before_task_checkpoint": recovered,
+            }
+            state.metadata["recovery_worker_route"] = route_value
+            store.save_checkpoint(state)
+            return {
+                "accepted": True,
+                "changed": (
+                    original_before.get("lease_id")
+                    != after_projection.get("lease_id")
+                ),
+                "before": dict(original_before),
+                "after": dict(after_projection),
+                "canonical_ref": {
+                    "attempt_id": attempt.attempt_id,
+                    "lease_id": lease.lease_id,
+                    "fence_epoch": lease.fence_epoch,
+                    "worker_id": worker.worker_id,
+                },
+                "receipt_id": lease.lease_id,
+                "message": (
+                    "WorkerPoolFoundationRuntime recovered the committed "
+                    "successor lease"
+                    if recovered
+                    else "WorkerPoolFoundationRuntime allocated a successor lease"
+                ),
+                "metadata": {
+                    "replayed": recovered,
+                    "terminal": False,
+                },
+            }
+
+        recovered = worker_api.recover_task_acquisition(
+            state,
+            idempotency_key=idempotency_key,
+        )
+        if recovered is not None:
+            return persist_successor(
+                lease=recovered["lease"],
+                attempt=recovered["attempt"],
+                worker=recovered["worker"],
+                original_before=recovered["before"],
+                after_projection=recovered["after"],
+                recovered=True,
+            )
         if prior_lease_id:
             if prior is not None and not prior.terminal:
                 worker_api.pool.leases.cancel(
@@ -1000,15 +1118,6 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                         f"{prior.lease_id}"
                     ),
                 )
-        excluded = {
-            str(item) for item in request.get("excluded_refs") or () if str(item)
-        }
-        if before.get("worker_id"):
-            excluded.add(str(before["worker_id"]))
-        if prior_worker is not None:
-            for candidate in worker_api.pool.store.list_workers():
-                if same_failure_boundary(prior_worker, candidate):
-                    excluded.add(candidate.worker_id)
         successor_locations = sorted(
             {
                 candidate.location.value
@@ -1035,65 +1144,14 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             },
         )
         after = dict(state.metadata.get("worker_pool") or {})
-        successor_worker = acquisition.worker
-        if prior_worker is not None and same_failure_boundary(
-            prior_worker,
-            successor_worker,
-        ):
-            worker_api.pool.leases.cancel(
-                acquisition.lease.lease_id,
-                reason="recovery successor reused the prior failure boundary",
-            )
-            worker_api.cancel_task_graph_binding(
-                state,
-                reason="recovery successor reused the prior failure boundary",
-                actor_id="recovery-worker-successor",
-                causation_id=(
-                    f"recovery-successor-rejected:{acquisition.lease.lease_id}"
-                ),
-            )
-            raise RuntimeError(
-                "recovery successor must cross a physical failure boundary"
-            )
-        runtime_hints = dict(state.metadata.get("runtime_hints") or {})
-        runtime_hints["preferred_worker"] = acquisition.worker.worker_id
-        runtime_hints["avoid_workers"] = sorted(excluded)
-        state.metadata["runtime_hints"] = runtime_hints
-        state.metadata["recovery_worker_route"] = {
-            "owner": "WorkerPoolFoundationRuntime",
-            "plan_id": str(request.get("plan_id") or ""),
-            "preferred_worker_id": acquisition.worker.worker_id,
-            "avoided_worker_ids": sorted(excluded),
-            "lease_id": acquisition.lease.lease_id,
-            "attempt_id": acquisition.attempt.attempt_id,
-            "idempotency_key": idempotency_key,
-            "before": before,
-            "prior_failure_boundary": {
-                "process_identity": (
-                    prior_worker.process_identity if prior_worker else ""
-                ),
-                "endpoint": prior_worker.endpoint if prior_worker else "",
-            },
-            "successor_failure_boundary": {
-                "process_identity": successor_worker.process_identity,
-                "endpoint": successor_worker.endpoint,
-            },
-        }
-        store.save_checkpoint(state)
-        return {
-            "accepted": True,
-            "changed": before.get("lease_id") != after.get("lease_id"),
-            "before": before,
-            "after": after,
-            "canonical_ref": {
-                "attempt_id": acquisition.attempt.attempt_id,
-                "lease_id": acquisition.lease.lease_id,
-                "fence_epoch": acquisition.lease.fence_epoch,
-                "worker_id": acquisition.worker.worker_id,
-            },
-            "receipt_id": acquisition.lease.lease_id,
-            "message": "WorkerPoolFoundationRuntime allocated a successor lease",
-        }
+        return persist_successor(
+            lease=acquisition.lease,
+            attempt=acquisition.attempt,
+            worker=acquisition.worker,
+            original_before=before,
+            after_projection=after,
+            recovered=False,
+        )
 
     def backend_successor(request: Mapping[str, Any]) -> Mapping[str, Any]:
         state = require_state(request)
@@ -1737,13 +1795,19 @@ def _fence_pending_task_reservation(
     lease_id = str(projection.get("lease_id") or "")
     lease = pool_api.pool.store.get_lease(lease_id) if lease_id else None
     if lease is None or lease.terminal:
+        pool_api.reconcile_task_graph_binding(
+            state,
+            reason=reason,
+            actor_id="task-reservation-fence",
+            causation_id=f"task-reservation-fence-replay:{lease_id or 'missing'}",
+        )
         return ""
     # This lease is an unstarted API reservation, not a cancelled user
     # action.  Expiry both advances the fence epoch and records that the
     # reservation was superseded without misattributing an autonomous
     # continuation to a rejected manual cancellation.
     pool_api.pool.leases.expire(lease_id, reason=reason)
-    pool_api.cancel_task_graph_binding(
+    pool_api.reconcile_task_graph_binding(
         state,
         reason=reason,
         actor_id="task-reservation-fence",
@@ -3766,6 +3830,22 @@ def prepare_phase2_loopx_pre_control(
         replay_unsigned = dict(replay)
         replay_digest = str(replay_unsigned.pop("receipt_digest", ""))
         replay_checks = replay.get("checks")
+        replay_permission = dict(replay.get("permission_receipt") or {})
+        replay_permission_unsigned = dict(replay_permission)
+        replay_permission_digest = str(
+            replay_permission_unsigned.pop("receipt_digest", "")
+        )
+        try:
+            replay_permission_fresh = datetime.now(UTC) <= datetime.fromisoformat(
+                str(replay_permission.get("valid_until") or "").replace(
+                    "Z",
+                    "+00:00",
+                )
+            ).astimezone(UTC)
+        except (TypeError, ValueError):
+            replay_permission_fresh = False
+        replay_continuation = dict(replay.get("continuation") or {})
+        replay_commit = dict(replay.get("canonical_commit") or {})
         if (
             replay.get("schema")
             == "zyra.phase2-production-loopx-pre-control/v1"
@@ -3776,6 +3856,25 @@ def prepare_phase2_loopx_pre_control(
             and isinstance(replay_checks, Mapping)
             and bool(replay_checks)
             and all(item is True for item in replay_checks.values())
+            and replay_permission_digest
+            and replay_permission_digest
+            == canonical_digest(replay_permission_unsigned)
+            and replay_permission.get("effect") == "allow"
+            and "typescript"
+            in str(
+                replay_permission.get("canonical_owner") or ""
+            ).casefold()
+            and {"graph.write", "worker.dispatch"}.issubset(
+                set(replay_permission.get("allowed_permissions") or ())
+            )
+            and replay_permission_fresh
+            and replay_continuation.get("allowed") is True
+            and str(
+                dict(replay_commit.get("receipt") or {}).get("status") or ""
+            )
+            in {"committed", "rebased", "replayed"}
+            and replay.get("canonical_commit_digest")
+            == canonical_digest(replay_commit)
         ):
             return replay
 
@@ -5516,7 +5615,6 @@ def _scheduler_backend_from_physical_manifest(
         WorkerBackendKind.ISOLATED_PROCESS.value: WorkerBackendKind.ISOLATED_PROCESS,
         WorkerBackendKind.DOCKER_SANDBOX.value: WorkerBackendKind.DOCKER_SANDBOX,
         WorkerBackendKind.CLOUD_MODEL.value: WorkerBackendKind.CLOUD_MODEL,
-        "sandbox_gateway": WorkerBackendKind.DOCKER_SANDBOX,
     }
     declared = tuple(
         dict.fromkeys(
@@ -9839,7 +9937,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 idempotency_key=f"task-cancel:{state.run_id}:{state.task_id}:{reason}",
             )
             events = cancel_task_graph(state, reason=reason)
-            pool_cancel = get_worker_pool_api().integration.control.submit_and_apply(
+            pool_api = get_worker_pool_api()
+            pool_cancel = pool_api.integration.control.submit_and_apply(
                 ControlKind.CANCEL,
                 claim_owner="task-control-api",
                 actor_id="task-control-api",
@@ -9851,6 +9950,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 task_id=state.task_id,
                 run_id=state.run_id,
             )
+            if pool_cancel.phase.value == "applied":
+                pool_api.reconcile_task_graph_binding(
+                    state,
+                    reason=reason,
+                    actor_id="task-control-api",
+                    causation_id=f"task-cancel-graph:{pool_cancel.command_id}",
+                )
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
             cancelled_physical_children: list[dict[str, Any]] = []
