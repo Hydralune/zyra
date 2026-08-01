@@ -13,7 +13,11 @@ PRODUCTIZATION_ROOT = ROOT / "packages" / "productization"
 if str(PRODUCTIZATION_ROOT) not in sys.path:
     sys.path.insert(0, str(PRODUCTIZATION_ROOT))
 
-from zyra_productization.release.phase2_freeze import inspect_release_archive
+from zyra_productization.release.phase2_freeze import (
+    Phase2FreezeAuditor,
+    canonical_digest,
+    inspect_release_archive,
+)
 from zyra_productization.release.worktree import inspect_worktree
 
 
@@ -110,7 +114,9 @@ def test_worktree_boundary_allows_generated_evidence_but_rejects_source(
     _git(tmp_path, "commit", "-m", "baseline")
     head = _git(tmp_path, "rev-parse", "HEAD")
 
-    generated = tmp_path / "docs" / "evidence" / "receipt.json"
+    generated = (
+        tmp_path / "docs" / "evidence" / "phase2" / "receipt.json"
+    )
     generated.parent.mkdir(parents=True)
     generated.write_text("{}\n", encoding="utf-8")
     allowed = inspect_worktree(tmp_path, expected_head=head)
@@ -137,3 +143,150 @@ def test_worktree_boundary_rejects_untracked_source(tmp_path: Path) -> None:
     receipt = inspect_worktree(tmp_path, expected_head=head)
     assert receipt["ready"] is False
     assert receipt["unexpected_untracked_entries"] == ["?? unexpected.py"]
+
+
+def test_final_regression_audit_rejects_command_or_cwd_substitution(
+    tmp_path: Path,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    target = "a" * 40
+    expected = auditor._expected_regression_commands(
+        output_root=tmp_path,
+        target=target,
+    )
+    commands = [
+        {
+            "command_id": command_id,
+            "argv": list(argv),
+            "cwd": str(ROOT),
+        }
+        for command_id, argv in expected.items()
+    ]
+    assert auditor._regression_command_policy_blockers(
+        commands,
+        output_root=tmp_path,
+        target=target,
+    ) == []
+
+    commands[0]["argv"] = [sys.executable, "-c", "pass"]
+    commands[1]["cwd"] = ""
+    blockers = auditor._regression_command_policy_blockers(
+        commands,
+        output_root=tmp_path,
+        target=target,
+    )
+    assert "command_argv:python-full-regression" in blockers
+    assert "command_cwd:typescript-runtime-regression" in blockers
+
+
+def test_preflight_command_audit_rejects_manifest_probe_substitution() -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    probe = {
+        "probe_id": "probe-a",
+        "argv": ["-m", "pytest", "tests/unit/example.py"],
+        "timeout_seconds": 120,
+        "categories": ["integration"],
+        "required": True,
+        "isolated": True,
+        "external_cost": False,
+    }
+    receipt = {
+        "probe_id": "probe-a",
+        "receipt_id": "receipt_command_probe-a",
+        "argv": [sys.executable, *probe["argv"]],
+        "cwd": str(ROOT),
+        "timeout_seconds": 120,
+        "categories": ["integration"],
+        "required": True,
+        "isolated": True,
+        "external_cost": False,
+        "status": "passed",
+        "exit_code": 0,
+        "retained": True,
+    }
+    assert auditor._preflight_command_blockers((probe,), (receipt,)) == []
+    receipt["argv"] = [sys.executable, "-c", "pass"]
+    assert auditor._preflight_command_blockers((probe,), (receipt,)) == [
+        "preflight_command_argv:probe-a"
+    ]
+
+
+def test_preflight_activation_audit_recomputes_active_semantics() -> None:
+    report = {
+        "preflight_id": "preflight-test",
+        "profile_family": "topology_policy",
+        "profile_version": "phase2_strongest_v1",
+        "report_digest": "report-digest",
+        "status": "completed",
+        "execution_mode": "active_default_revalidation",
+        "hard_gate_order": ["gate-a"],
+        "hard_gates": {"gate-a": True},
+        "resolver_before": "phase2_strongest_v1",
+        "resolver_after": "phase2_strongest_v1",
+    }
+    readiness = {
+        "report_digest": "readiness-digest",
+        "mechanisms": {
+            name: {
+                "readiness_stage": "activation_ready",
+                "status": "deterministic_ready",
+            }
+            for name in ("arg_designer", "card", "agentprune", "maas")
+        },
+    }
+    refs = ("raw-receipts.json#receipt-a",)
+    passed = sorted(
+        [
+            "preflight_status",
+            "hard_gate:gate-a",
+            "resolver_retention",
+            *[
+                f"readiness:{name}"
+                for name in ("arg_designer", "card", "agentprune", "maas")
+            ],
+        ]
+    )
+    activation = {
+        "schema": "zyra.strongest-preflight-activation-report/v1",
+        "preflight_id": "preflight-test",
+        "profile_family": "topology_policy",
+        "profile_version": "phase2_strongest_v1",
+        "preflight_report_digest": "report-digest",
+        "readiness_report_digest": "readiness-digest",
+        "sealed_run_admission_eligible": True,
+        "default_activation_allowed": True,
+        "conclusion": "phase2_strongest_v1_revalidated",
+        "blockers": [],
+        "passed_gates": passed,
+        "readiness": {
+            name: {"stage": "activation_ready", "status": "deterministic_ready"}
+            for name in sorted(("arg_designer", "card", "agentprune", "maas"))
+        },
+        "resolver_before": "phase2_strongest_v1",
+        "resolver_after": "phase2_strongest_v1",
+        "raw_receipt_refs": list(refs),
+        "activation_semantics": {
+            "scope": "final_phase2_strongest_v1_revalidation",
+            "normal_resolver_mutated": False,
+            "default_profile_activated": True,
+            "explicit_activation_transition_required_later": False,
+            "baseline_retained_until_transition": False,
+        },
+    }
+    activation["activation_report_digest"] = canonical_digest(activation)
+    assert Phase2FreezeAuditor._preflight_activation_blockers(
+        report=report,
+        readiness=readiness,
+        activation=activation,
+        raw_receipt_refs=refs,
+    ) == []
+    activation["activation_semantics"]["default_profile_activated"] = False
+    unsigned = dict(activation)
+    unsigned.pop("activation_report_digest")
+    activation["activation_report_digest"] = canonical_digest(unsigned)
+    assert Phase2FreezeAuditor._preflight_activation_blockers(
+        report=report,
+        readiness=readiness,
+        activation=activation,
+        raw_receipt_refs=refs,
+    ) == ["preflight_activation_recompute"]

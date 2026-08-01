@@ -9,6 +9,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from types import SimpleNamespace
 from uuid import uuid4
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
@@ -23,6 +24,34 @@ from zyra_evaluation.scenario_runner.software_delivery import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_canonical_event_snapshot_uses_initialized_state_and_prebegin_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from apps.api.zyra_api import main as api_main
+    from apps.api.zyra_api.live_scenario_owners import CanonicalLiveScenarioOwners
+
+    owner = CanonicalLiveScenarioOwners(
+        project_root=ROOT,
+        artifact_root=tmp_path / "artifacts",
+        scratch_root=tmp_path / "scratch",
+    )
+    owner._canonical_event_snapshot = ({"event_id": "cached-event"},)
+    assert owner.canonical_event_snapshot() == ({"event_id": "cached-event"},)
+
+    class Store:
+        @staticmethod
+        def task_events(task_id: str) -> list[dict[str, str]]:
+            assert task_id == "task-owner-snapshot"
+            return [{"event_id": "persisted-event"}]
+
+    monkeypatch.setattr(api_main, "get_store", lambda: Store())
+    owner.state = SimpleNamespace(task_id="task-owner-snapshot")
+    assert owner.canonical_event_snapshot() == (
+        {"event_id": "persisted-event"},
+    )
 
 
 @contextmanager

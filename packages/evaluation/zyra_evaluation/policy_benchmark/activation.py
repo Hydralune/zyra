@@ -156,6 +156,9 @@ class StrongestPreflightActivationReport:
         return canonical_digest(self.to_dict(include_digest=False))
 
     def to_dict(self, *, include_digest: bool = True) -> dict[str, Any]:
+        active_revalidation = (
+            self.conclusion == "phase2_strongest_v1_revalidated"
+        )
         value = {
             "schema": self.schema,
             "preflight_id": self.preflight_id,
@@ -177,11 +180,19 @@ class StrongestPreflightActivationReport:
             "resolver_after": self.resolver_after,
             "raw_receipt_refs": list(self.raw_receipt_refs),
             "activation_semantics": {
-                "scope": "admission_to_P2-S06-02_sealed_runs",
+                "scope": (
+                    "final_phase2_strongest_v1_revalidation"
+                    if active_revalidation
+                    else "admission_to_P2-S06-02_sealed_runs"
+                ),
                 "normal_resolver_mutated": False,
-                "default_profile_activated": False,
-                "explicit_activation_transition_required_later": True,
-                "baseline_retained_until_transition": True,
+                "default_profile_activated": active_revalidation,
+                "explicit_activation_transition_required_later": (
+                    not active_revalidation
+                ),
+                "baseline_retained_until_transition": (
+                    not active_revalidation
+                ),
             },
         }
         if include_digest:

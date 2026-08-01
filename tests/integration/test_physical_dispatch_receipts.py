@@ -14,6 +14,7 @@ from zyra_orchestration.deployment.provider_dispatch import (
     KIMI_PROVIDER_ID,
     PROVIDER_PRIORITY,
     ZHIPU_PROVIDER_ID,
+    _LIVE_PROFILES,
 )
 from zyra_scheduler.dispatch_evidence import (
     PhysicalDispatchReceiptValidator,
@@ -40,6 +41,18 @@ def test_deployment_redaction_preserves_usage_but_removes_credentials() -> None:
     assert value["total_tokens"] == 15
     assert value["access_token"] == "<redacted>"
     assert value["password"] == "<redacted>"
+
+
+def test_kimi_pricing_has_conservative_nonzero_usd_budget_normalization() -> None:
+    profile = _LIVE_PROFILES[(KIMI_PROVIDER_ID, KIMI_MODEL_ID)]
+
+    assert profile.pricing_currency == "CNY"
+    assert profile.normalized_input_usd_per_million == 6.5
+    assert profile.normalized_cached_input_usd_per_million == 1.3
+    assert profile.normalized_output_usd_per_million == 27
+    assert profile.normalized_pricing_source == (
+        "zyra://pricing/conservative-cny-as-usd-upper-bound"
+    )
 
 
 @pytest.mark.parametrize("location", ("local", "edge"))

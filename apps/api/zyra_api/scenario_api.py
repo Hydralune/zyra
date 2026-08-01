@@ -136,6 +136,12 @@ def _execute_owner_chain(
         *api_main.drain_workspace_events(state.task_id),
     ]
     pool_api = api_main.get_worker_pool_api()
+    # Resolve the production composition root before taking the task lease.
+    # The resolver replaces the logical bootstrap registration with the
+    # deployment-node-backed physical worker.  Acquiring first would leave a
+    # live lease on that stale generation and correctly make replacement fail
+    # closed.
+    execution_context = api_main.graph_execution_context()
     pool_journal = pool_api.pool.store.journal(limit=10000)
     pool_sequence = pool_journal[-1].sequence if pool_journal else 0
     pool_api.acquire_for_task(
@@ -153,7 +159,7 @@ def _execute_owner_chain(
     events.extend(
         api_main.run_task_graph(
             state,
-            execution_context=api_main.graph_execution_context(),
+            execution_context=execution_context,
         )
     )
     pool_api.finalize_task(

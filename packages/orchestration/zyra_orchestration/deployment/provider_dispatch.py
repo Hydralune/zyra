@@ -115,6 +115,12 @@ _LIVE_PROFILES = {
         output_per_million=27,
         pricing_currency="CNY",
         pricing_source="https://platform.kimi.com/",
+        # Admission uses a conservative upper bound instead of silently
+        # treating non-USD usage as free: one CNY is charged as one USD.
+        normalized_input_usd_per_million=6.5,
+        normalized_cached_input_usd_per_million=1.3,
+        normalized_output_usd_per_million=27,
+        normalized_pricing_source="zyra://pricing/conservative-cny-as-usd-upper-bound",
     ),
     (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID): LiveProviderProfile(
         provider_id=DEEPSEEK_PROVIDER_ID,

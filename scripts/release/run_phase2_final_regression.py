@@ -60,13 +60,13 @@ def _head() -> str:
 
 
 def _resolve_bun() -> str:
-    discovered = shutil.which("bun")
-    if discovered:
-        return discovered
     executable = "bun.exe" if os.name == "nt" else "bun"
     local = ROOT / "node_modules" / ".bin" / executable
     if local.is_file():
         return str(local)
+    discovered = shutil.which("bun")
+    if discovered:
+        return discovered
     raise ValueError(
         "bun is required for the final regression and was not found on PATH "
         "or in node_modules/.bin"

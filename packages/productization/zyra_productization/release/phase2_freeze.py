@@ -50,6 +50,17 @@ FINAL_REGRESSION_COMMAND_IDS = (
     "loopx-offline-runtime",
     "loopx-cross-version-restart",
 )
+TYPESCRIPT_RUNTIME_TEST_ROOTS = (
+    "packages/commands/test",
+    "packages/integrations/claude-mcp/test",
+    "packages/memory/curator-state-machine/test",
+    "packages/memory/retrieval-algorithms/test",
+    "packages/memory/skill-memory-runtime/test",
+    "packages/runtime/claude-runtime/test",
+    "packages/runtime/provider-control-plane/test",
+    "packages/runtime/runtime-event-spine/test",
+    "packages/runtime/sandbox-gateway-control/test",
+)
 
 
 class Phase2FreezeError(ValueError):
@@ -633,8 +644,21 @@ class Phase2FreezeAuditor:
             blockers.append("inventory_file_set")
         manifest_path = _member(self.root, inventory.get("manifest"))
         manifest = _load_json(manifest_path)
+        try:
+            from zyra_evaluation.policy_benchmark.preflight import (
+                FrozenPreflightManifest,
+            )
+
+            frozen_manifest = FrozenPreflightManifest.load(
+                self.root,
+                manifest_path,
+            )
+            manifest_contract_ready = frozen_manifest.value == manifest
+        except (OSError, ValueError):
+            manifest_contract_ready = False
         if (
             manifest.get("schema") != "zyra.strongest-preflight-manifest/v1"
+            or not manifest_contract_ready
             or not _embedded_digest_ready(manifest, "manifest_digest")
             or manifest.get("manifest_digest") != inventory.get("manifest_digest")
             or manifest.get("manifest_digest") != report.get("manifest_digest")
@@ -648,6 +672,12 @@ class Phase2FreezeAuditor:
             != target
         ):
             blockers.append("frozen_manifest_binding")
+        derived = self._recompute_preflight_receipts(
+            manifest=manifest,
+            receipt_set=receipts,
+            target=target,
+        )
+        blockers.extend(derived["blockers"])
         mechanisms = readiness.get("mechanisms")
         mechanisms = mechanisms if isinstance(mechanisms, Mapping) else {}
         required = {"arg_designer", "card", "agentprune", "maas"}
@@ -727,6 +757,44 @@ class Phase2FreezeAuditor:
             or activation.get("blockers") != []
         ):
             blockers.append("activation_binding")
+        if gates != derived["hard_gates"]:
+            blockers.append("preflight_hard_gate_recompute")
+        if list(report.get("hard_gate_order") or ()) != list(
+            derived["hard_gate_order"]
+        ):
+            blockers.append("preflight_hard_gate_order")
+        blockers.extend(
+            self._preflight_readiness_blockers(
+                manifest=manifest,
+                readiness=readiness,
+                receipt_set=receipts,
+                target=target,
+                passed=derived["status"] == "completed",
+                no_training=derived["no_training"],
+            )
+        )
+        blockers.extend(
+            self._preflight_activation_blockers(
+                report=report,
+                readiness=readiness,
+                activation=activation,
+                raw_receipt_refs=derived["raw_receipt_refs"],
+            )
+        )
+        if (
+            report.get("status") != derived["status"]
+            or list(report.get("raw_receipt_refs") or ())
+            != list(derived["raw_receipt_refs"])
+            or list(report.get("failed_receipt_refs") or ())
+            != list(derived["failed_receipt_refs"])
+            or report.get("failure_retention")
+            != derived["failure_retention"]
+            or report.get("resolver_before") != derived["resolver_before"]
+            or report.get("resolver_after") != derived["resolver_after"]
+            or report.get("policy_registry_digest")
+            != derived["policy_registry_digest"]
+        ):
+            blockers.append("preflight_report_recompute")
         if (
             report.get("schema") != "zyra.strongest-preflight-report/v1"
             or inventory.get("schema")
@@ -762,6 +830,692 @@ class Phase2FreezeAuditor:
                 and not blockers
             ),
         }
+
+    def _recompute_preflight_receipts(
+        self,
+        *,
+        manifest: Mapping[str, Any],
+        receipt_set: Mapping[str, Any],
+        target: str,
+    ) -> dict[str, Any]:
+        from zyra_evaluation.policy_benchmark.evidence_index import (
+            BASELINE_MANIFEST_DIGEST,
+            build_read_only_evidence_index,
+        )
+        from zyra_evaluation.policy_benchmark.mechanism_readiness import (
+            MECHANISM_IDS,
+            MechanismReadinessConfig,
+            run_no_training_audit,
+        )
+        from zyra_evaluation.policy_benchmark.preflight import (
+            BASELINE_PROFILE,
+            HARD_GATE_ORDER,
+            STRONGEST_PROFILE,
+        )
+        from zyra_orchestration.topology_policy.registry import (
+            MechanismRegistry,
+            ResolutionPurpose,
+        )
+
+        del BASELINE_MANIFEST_DIGEST
+        blockers: list[str] = []
+        raw = tuple(
+            item
+            for item in receipt_set.get("receipts", ())
+            if isinstance(item, Mapping)
+        )
+        if len(raw) != len(tuple(receipt_set.get("receipts", ()) or ())):
+            blockers.append("preflight_receipt_shape")
+        ids = tuple(str(item.get("receipt_id") or "") for item in raw)
+        if not ids or len(ids) != len(set(ids)) or any(not item for item in ids):
+            blockers.append("preflight_receipt_identity")
+        for item in raw:
+            if not _embedded_digest_ready(item, "receipt_digest"):
+                blockers.append(
+                    f"preflight_receipt_digest:{item.get('receipt_id')}"
+                )
+        by_schema: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+        for item in raw:
+            by_schema[str(item.get("schema") or "")].append(item)
+        frozen = manifest.get("frozen_inputs")
+        frozen = frozen if isinstance(frozen, Mapping) else {}
+        profile = frozen.get("profile")
+        profile = profile if isinstance(profile, Mapping) else {}
+        evidence_bindings = tuple(
+            item
+            for item in manifest.get("evidence_bindings", ())
+            if isinstance(item, Mapping)
+        )
+        binding_by_id = {
+            str(item.get("mechanism_id") or ""): item
+            for item in evidence_bindings
+        }
+        tasks = tuple(
+            item
+            for item in frozen.get("tasks", ())
+            if isinstance(item, Mapping)
+        )
+        seeds = tuple(frozen.get("seeds", ()) or ())
+        layers = (
+            "proposal",
+            "residual",
+            "mask",
+            "operator_selection",
+            "receipt",
+        )
+        mechanism_for_layer = {
+            "proposal": "arg_designer",
+            "residual": "card",
+            "mask": "agentprune",
+            "operator_selection": "maas",
+            "receipt": "maas",
+        }
+        expected_determinism: list[dict[str, Any]] = []
+        for task in tasks:
+            task_id = str(task.get("task_id") or "")
+            snapshot_digest = canonical_digest(
+                {
+                    "task": task,
+                    "budgets": frozen.get("budgets"),
+                    "environment": frozen.get(
+                        "provider_model_hardware_profile"
+                    ),
+                    "failure_schedule": frozen.get("failure_schedule"),
+                    "profile_config_digest": profile.get("config_digest"),
+                }
+            )
+            for seed in seeds:
+                for layer in layers:
+                    payload = {
+                        "preflight_id": manifest.get("preflight_id"),
+                        "task_id": task_id,
+                        "seed": seed,
+                        "layer": layer,
+                        "snapshot_digest": snapshot_digest,
+                        "config_digest": profile.get("config_digest"),
+                        "readiness_digest": binding_by_id.get(
+                            mechanism_for_layer[layer], {}
+                        ).get("report_digest"),
+                    }
+                    output_digest = canonical_digest(payload)
+                    expected = {
+                        "schema": "zyra.strongest-preflight-determinism-receipt/v1",
+                        "receipt_id": (
+                            "receipt_determinism_"
+                            + canonical_digest((task_id, seed, layer))[:24]
+                        ),
+                        **payload,
+                        "first_output_digest": output_digest,
+                        "second_output_digest": output_digest,
+                        "match": True,
+                        "status": "passed",
+                        "retained": True,
+                    }
+                    expected["receipt_digest"] = canonical_digest(expected)
+                    expected_determinism.append(expected)
+        observed_determinism = by_schema[
+            "zyra.strongest-preflight-determinism-receipt/v1"
+        ]
+        determinism_match = observed_determinism == expected_determinism
+        if not determinism_match:
+            blockers.append("preflight_determinism_recompute")
+        expected_fail_closed = []
+        for condition in ("missing", "stale", "corrupt"):
+            value = {
+                "schema": "zyra.strongest-preflight-fail-closed-receipt/v1",
+                "receipt_id": f"receipt_fail_closed_{condition}",
+                "condition": condition,
+                "status": "expected_rejection",
+                "fallback_profile": BASELINE_PROFILE,
+                "canonical_mutation_count": 0,
+                "route_change_count": 0,
+                "lease_count": 0,
+                "side_effect_count": 0,
+                "silent_fallback": False,
+                "retained": True,
+            }
+            value["receipt_digest"] = canonical_digest(value)
+            expected_fail_closed.append(value)
+        fail_closed = by_schema[
+            "zyra.strongest-preflight-fail-closed-receipt/v1"
+        ] == expected_fail_closed
+        if not fail_closed:
+            blockers.append("preflight_fail_closed_recompute")
+        diagnostic = by_schema[
+            "zyra.strongest-preflight-diagnostic-boundary-receipt/v1"
+        ]
+        expected_diagnostic = {
+            "schema": "zyra.strongest-preflight-diagnostic-boundary-receipt/v1",
+            "receipt_id": "receipt_diagnostic_zero_influence",
+            "mode": "diagnostic",
+            "status": "passed",
+            "graph_mutation_count": 0,
+            "route_change_count": 0,
+            "lease_count": 0,
+            "side_effect_count": 0,
+            "actual_outcome_recorded": False,
+            "retained": True,
+        }
+        expected_diagnostic["receipt_digest"] = canonical_digest(
+            expected_diagnostic
+        )
+        diagnostic_zero = diagnostic == [expected_diagnostic]
+        if not diagnostic_zero:
+            blockers.append("preflight_diagnostic_recompute")
+        replay_values = by_schema[
+            "zyra.strongest-preflight-phase1-replay-receipt/v1"
+        ]
+        replay_index = build_read_only_evidence_index(self.root).to_dict()
+        expected_replay = {
+            "schema": "zyra.strongest-preflight-phase1-replay-receipt/v1",
+            "receipt_id": "receipt_phase1_read_only_replay",
+            "status": "passed",
+            "passed": True,
+            "read_only": True,
+            "live_improvement_claimed": False,
+            "baseline_manifest_digest": replay_index.get(
+                "baseline_manifest_digest"
+            ),
+            "evidence_index_digest": replay_index.get("index_digest"),
+            "source_run_count": len(replay_index.get("source_runs") or ()),
+            "schema_checked": True,
+            "causal_chain_checked": True,
+            "deterministic_decision_checked": True,
+            "retained": True,
+        }
+        expected_replay["receipt_digest"] = canonical_digest(expected_replay)
+        replay_passed = replay_values == [expected_replay]
+        if not replay_passed:
+            blockers.append("preflight_replay_recompute")
+        readiness_config = MechanismReadinessConfig.load(self.root)
+        no_training = run_no_training_audit(self.root, readiness_config)
+        expected_no_training = {
+            "schema": "zyra.strongest-preflight-no-training-receipt/v1",
+            "receipt_id": "receipt_no_policy_training",
+            **no_training,
+            "retained": True,
+        }
+        expected_no_training["receipt_digest"] = canonical_digest(
+            expected_no_training
+        )
+        if by_schema[
+            "zyra.strongest-preflight-no-training-receipt/v1"
+        ] != [expected_no_training]:
+            blockers.append("preflight_no_training_recompute")
+        probes = tuple(
+            item
+            for item in manifest.get("command_probes", ())
+            if isinstance(item, Mapping)
+        )
+        commands = by_schema[
+            "zyra.strongest-preflight-command-receipt/v1"
+        ]
+        blockers.extend(self._preflight_command_blockers(probes, commands))
+        boundaries = by_schema[
+            "zyra.strongest-preflight-source-boundary/v1"
+        ]
+        boundary = boundaries[0] if len(boundaries) == 1 else {}
+        before = boundary.get("before")
+        before = before if isinstance(before, Mapping) else {}
+        after = boundary.get("after")
+        after = after if isinstance(after, Mapping) else {}
+        boundary_ready = (
+            len(boundaries) == 1
+            and boundary.get("status") == "passed"
+            and before.get("ready") is True
+            and after.get("ready") is True
+            and before.get("head_commit") == target
+            and after.get("head_commit") == target
+            and before.get("head_tree") == after.get("head_tree")
+        )
+        if not boundary_ready:
+            blockers.append("preflight_boundary_recompute")
+        expected_schema_counts = {
+            "zyra.strongest-preflight-determinism-receipt/v1": len(
+                expected_determinism
+            ),
+            "zyra.strongest-preflight-fail-closed-receipt/v1": 3,
+            "zyra.strongest-preflight-diagnostic-boundary-receipt/v1": 1,
+            "zyra.strongest-preflight-phase1-replay-receipt/v1": 1,
+            "zyra.strongest-preflight-no-training-receipt/v1": 1,
+            "zyra.strongest-preflight-command-receipt/v1": len(probes),
+            "zyra.strongest-preflight-source-boundary/v1": 1,
+        }
+        if {
+            key: len(value) for key, value in by_schema.items()
+        } != expected_schema_counts:
+            blockers.append("preflight_receipt_schema_set")
+        categories = {
+            str(category)
+            for command in commands
+            for category in command.get("categories", ()) or ()
+        }
+        category_pass = {
+            category: bool(
+                [
+                    item
+                    for item in commands
+                    if category in (item.get("categories") or ())
+                ]
+            )
+            and all(
+                item.get("status") == "passed"
+                for item in commands
+                if category in (item.get("categories") or ())
+            )
+            for category in categories
+        }
+        failure_retention = {
+            "expected_receipt_count": len(raw),
+            "retained_receipt_count": sum(
+                item.get("retained") is True for item in raw
+            ),
+            "failed_receipt_count": sum(
+                item.get("status")
+                in {"failed", "blocked", "degraded", "unavailable"}
+                for item in raw
+            ),
+        }
+        failure_retention["failures_removed"] = (
+            failure_retention["expected_receipt_count"]
+            != failure_retention["retained_receipt_count"]
+        )
+        failure_retention["passed"] = (
+            failure_retention["failures_removed"] is False
+        )
+        registry = MechanismRegistry.load(self.root)
+        normal = registry.resolve(
+            str(profile.get("family") or ""),
+            purpose=ResolutionPurpose.NORMAL,
+        )
+        active_mode = (
+            frozen.get("execution_mode") == "active_default_revalidation"
+        )
+        registry_default = (
+            normal.profile_id == STRONGEST_PROFILE
+            and normal.version == STRONGEST_PROFILE
+            and normal.lifecycle.value == "default"
+            and normal.activation_state == "active"
+            if active_mode
+            else normal.profile_id == normal.version == BASELINE_PROFILE
+        )
+        validation_explicit = (
+            normal.profile_id == STRONGEST_PROFILE
+            and normal.version == STRONGEST_PROFILE
+            and normal.config_digest == profile.get("config_digest")
+            if active_mode
+            else False
+        )
+        readiness_enforced = (
+            set(binding_by_id) == set(MECHANISM_IDS)
+            and all(
+                item.get("stage") == "implementation_validated"
+                and item.get("status") == "deterministic_ready"
+                for item in binding_by_id.values()
+            )
+        )
+        base_gates = {
+            "target_source_boundary": boundary_ready,
+            "manifest_integrity": _embedded_digest_ready(
+                manifest, "manifest_digest"
+            ),
+            "registry_default_baseline": registry_default,
+            "validation_profile_explicit": validation_explicit,
+            "readiness_enforcement": readiness_enforced,
+            "determinism": determinism_match
+            and category_pass.get("determinism", False),
+            "fail_closed_inputs": fail_closed,
+            "diagnostic_side_effect_zero": diagnostic_zero,
+            "local_isolated_integration": category_pass.get(
+                "integration", False
+            ),
+            "continuity_restart_recovery": all(
+                category_pass.get(item, False)
+                for item in ("continuity", "compact_restore", "restart", "fault")
+            ),
+            "loopx_restart_outbox": all(
+                category_pass.get(item, False)
+                for item in ("loopx", "outbox", "restart")
+            ),
+            "phase1_read_only_replay": replay_passed
+            and category_pass.get("replay", False),
+            "no_policy_training": no_training.get("passed") is True,
+            "failure_retention": failure_retention["passed"] is True,
+            "efficiency_observed_without_optimization": True,
+        }
+        base_gates["success_and_safety"] = all(
+            base_gates[item]
+            for item in (
+                "manifest_integrity",
+                "target_source_boundary",
+                "registry_default_baseline",
+                "validation_profile_explicit",
+                "readiness_enforcement",
+                "determinism",
+                "fail_closed_inputs",
+                "diagnostic_side_effect_zero",
+                "local_isolated_integration",
+                "continuity_restart_recovery",
+                "loopx_restart_outbox",
+                "phase1_read_only_replay",
+                "no_policy_training",
+                "failure_retention",
+            )
+        )
+        hard_gates = {
+            key: bool(base_gates[key]) for key in HARD_GATE_ORDER
+        }
+        status = (
+            "completed"
+            if all(hard_gates.values())
+            else "blocked"
+            if any(item.get("status") == "blocked" for item in commands)
+            else "failed"
+        )
+        raw_refs = tuple(f"raw-receipts.json#{item}" for item in ids)
+        failed_refs = tuple(
+            ref
+            for ref, item in zip(raw_refs, raw, strict=True)
+            if item.get("status")
+            in {"failed", "blocked", "degraded", "unavailable"}
+        )
+        return {
+            "blockers": sorted(set(blockers)),
+            "hard_gate_order": HARD_GATE_ORDER,
+            "hard_gates": hard_gates,
+            "status": status,
+            "raw_receipt_refs": raw_refs,
+            "failed_receipt_refs": failed_refs,
+            "failure_retention": failure_retention,
+            "no_training": no_training,
+            "resolver_before": normal.profile_id,
+            "resolver_after": normal.profile_id,
+            "policy_registry_digest": registry.source_config_digest,
+        }
+
+    def _preflight_command_blockers(
+        self,
+        probes: Sequence[Mapping[str, Any]],
+        receipts: Sequence[Mapping[str, Any]],
+    ) -> list[str]:
+        blockers: list[str] = []
+        by_id = {str(item.get("probe_id") or ""): item for item in receipts}
+        expected_ids = tuple(str(item.get("probe_id") or "") for item in probes)
+        if tuple(by_id) != expected_ids or len(by_id) != len(receipts):
+            blockers.append("preflight_command_set")
+        for probe in probes:
+            probe_id = str(probe.get("probe_id") or "")
+            receipt = by_id.get(probe_id, {})
+            expected_argv = [
+                sys.executable,
+                *[str(item) for item in probe.get("argv", ()) or ()],
+            ]
+            if list(receipt.get("argv") or ()) != expected_argv:
+                blockers.append(f"preflight_command_argv:{probe_id}")
+            if str(receipt.get("cwd") or "") != str(self.root):
+                blockers.append(f"preflight_command_cwd:{probe_id}")
+            if (
+                receipt.get("receipt_id") != f"receipt_command_{probe_id}"
+                or int(receipt.get("timeout_seconds") or 0)
+                != int(probe.get("timeout_seconds") or 0)
+                or list(receipt.get("categories") or ())
+                != list(probe.get("categories") or ())
+                or receipt.get("required") is not (probe.get("required") is True)
+                or receipt.get("isolated") is not (probe.get("isolated") is True)
+                or receipt.get("external_cost")
+                is not (probe.get("external_cost") is True)
+                or receipt.get("status") != "passed"
+                or int(receipt.get("exit_code") or 0) != 0
+                or receipt.get("retained") is not True
+            ):
+                blockers.append(f"preflight_command_receipt:{probe_id}")
+        return blockers
+
+    def _preflight_readiness_blockers(
+        self,
+        *,
+        manifest: Mapping[str, Any],
+        readiness: Mapping[str, Any],
+        receipt_set: Mapping[str, Any],
+        target: str,
+        passed: bool,
+        no_training: Mapping[str, Any],
+    ) -> list[str]:
+        from zyra_evaluation.policy_benchmark.evidence_index import (
+            BASELINE_MANIFEST_DIGEST,
+        )
+        from zyra_evaluation.policy_benchmark.mechanism_readiness import (
+            MECHANISM_IDS,
+            MechanismReadinessConfig,
+        )
+        from zyra_evaluation.policy_benchmark.preflight import (
+            STRONGEST_PROFILE,
+        )
+
+        frozen = manifest.get("frozen_inputs")
+        frozen = frozen if isinstance(frozen, Mapping) else {}
+        bindings = {
+            str(item.get("mechanism_id") or ""): item
+            for item in manifest.get("evidence_bindings", ())
+            if isinstance(item, Mapping)
+        }
+        mechanisms: dict[str, dict[str, Any]] = {}
+        for mechanism_id in MECHANISM_IDS:
+            binding = bindings.get(mechanism_id, {})
+            try:
+                source_path = _member(self.root, binding.get("report_ref"))
+                source = _load_json(source_path)
+            except Phase2FreezeError:
+                return [f"preflight_readiness_source:{mechanism_id}"]
+            source_mechanisms = source.get("mechanisms")
+            source_mechanisms = (
+                source_mechanisms
+                if isinstance(source_mechanisms, Mapping)
+                else {}
+            )
+            source_mechanism = source_mechanisms.get(mechanism_id)
+            if not isinstance(source_mechanism, Mapping):
+                return [f"preflight_readiness_mechanism:{mechanism_id}"]
+            value = dict(source_mechanism)
+            value["readiness_stage"] = "activation_ready"
+            value["status"] = (
+                "deterministic_ready"
+                if passed
+                else "unavailable"
+                if no_training.get("passed") is not True
+                else "evidence_only"
+            )
+            value["activation_preflight"] = {
+                "preflight_id": manifest.get("preflight_id"),
+                "source_stage": "implementation_validated",
+                "source_report_ref": binding.get("report_ref"),
+                "source_report_digest": binding.get("report_digest"),
+                "receipt_set_digest": receipt_set.get("receipt_set_digest"),
+                "deterministic_replay_match": passed,
+                "failure_retention_passed": passed,
+                "no_policy_training_passed": no_training.get("passed") is True,
+            }
+            if not passed:
+                value["gaps"] = sorted(
+                    set(value.get("gaps") or ())
+                    | {"P2-S06-01_preflight_gate"}
+                )
+            mechanisms[mechanism_id] = value
+        config = MechanismReadinessConfig.load(self.root)
+        baseline_path = self.root / "docs/release/phase2-baseline-manifest.json"
+        active = (
+            frozen.get("execution_mode") == "active_default_revalidation"
+        )
+        expected: dict[str, Any] = {
+            "schema": "zyra.mechanism-evidence-readiness-report/v1",
+            "slice_id": "P2-S06-01",
+            "readiness_stage": "activation_ready",
+            "p2_base_commit": P2_BASE_COMMIT,
+            "p2_eval_base_commit": frozen.get("p2_eval_base_commit"),
+            "implementation_commit": target,
+            "generated_at": manifest.get("frozen_at"),
+            "generation_clock": "frozen preflight manifest timestamp",
+            "valid": passed and no_training.get("passed") is True,
+            "activation_allowed": passed and active,
+            "sealed_run_admission_candidate": passed,
+            "activation_reason": (
+                "phase2_strongest_v1 remains the active default after final "
+                "target-bound revalidation"
+                if active
+                else (
+                    "activation_ready permits explicit sealed-run validation; "
+                    "the normal resolver remains on the Phase 1 baseline until "
+                    "a later explicit activation transition"
+                )
+            ),
+            "contract": {
+                "path": config.path.relative_to(self.root).as_posix(),
+                "sha256": config.digest,
+            },
+            "baseline_manifest": {
+                "path": baseline_path.relative_to(self.root).as_posix(),
+                "manifest_digest": BASELINE_MANIFEST_DIGEST,
+                "sha256": sha256_file(baseline_path),
+            },
+            "preflight": {
+                "preflight_id": manifest.get("preflight_id"),
+                "manifest_digest": manifest.get("manifest_digest"),
+                "receipt_set_digest": receipt_set.get("receipt_set_digest"),
+            },
+            "no_policy_training_audit": dict(no_training),
+            "mechanism_statuses": {
+                mechanism_id: mechanisms[mechanism_id]["status"]
+                for mechanism_id in mechanisms
+            },
+            "mechanisms": mechanisms,
+            "resolver_policy": {
+                "normal_before_activation": (
+                    STRONGEST_PROFILE
+                    if active
+                    else "phase1_deterministic_baseline"
+                ),
+                "normal_after_preflight": (
+                    STRONGEST_PROFILE
+                    if active
+                    else "phase1_deterministic_baseline"
+                ),
+                "strongest_execution_mode": (
+                    "default" if active else "validation"
+                ),
+                "evidence_only_influence": {
+                    "graph": 0,
+                    "route": 0,
+                    "lease": 0,
+                    "side_effect": 0,
+                },
+            },
+            "training_sample_count": 0,
+            "raw_transition_count_semantics": "evidence_volume_only",
+        }
+        expected["report_digest"] = canonical_digest(expected)
+        return [] if readiness == expected else ["preflight_readiness_recompute"]
+
+    @staticmethod
+    def _preflight_activation_blockers(
+        *,
+        report: Mapping[str, Any],
+        readiness: Mapping[str, Any],
+        activation: Mapping[str, Any],
+        raw_receipt_refs: Sequence[str],
+    ) -> list[str]:
+        blockers: list[str] = []
+        passed: list[str] = []
+        if report.get("status") != "completed":
+            blockers.append("preflight_status")
+        else:
+            passed.append("preflight_status")
+        gates = report.get("hard_gates")
+        gates = gates if isinstance(gates, Mapping) else {}
+        for gate_id in report.get("hard_gate_order", ()) or ():
+            if gates.get(gate_id) is True:
+                passed.append(f"hard_gate:{gate_id}")
+            else:
+                blockers.append(f"hard_gate:{gate_id}")
+        readiness_values: dict[str, dict[str, str]] = {}
+        mechanisms = readiness.get("mechanisms")
+        mechanisms = mechanisms if isinstance(mechanisms, Mapping) else {}
+        for mechanism_id in ("arg_designer", "card", "agentprune", "maas"):
+            value = mechanisms.get(mechanism_id)
+            value = value if isinstance(value, Mapping) else {}
+            stage = str(value.get("readiness_stage") or "")
+            status = str(value.get("status") or "")
+            readiness_values[mechanism_id] = {
+                "stage": stage,
+                "status": status,
+            }
+            if stage != "activation_ready":
+                blockers.append(f"readiness:{mechanism_id}:stage")
+            elif status != "deterministic_ready":
+                blockers.append(f"readiness:{mechanism_id}:status")
+            else:
+                passed.append(f"readiness:{mechanism_id}")
+        resolver_before = str(report.get("resolver_before") or "")
+        resolver_after = str(report.get("resolver_after") or "")
+        execution_mode = str(
+            report.get("execution_mode") or "pre_activation_validation"
+        )
+        expected_resolver = (
+            "phase2_strongest_v1"
+            if execution_mode == "active_default_revalidation"
+            else "phase1_deterministic_baseline"
+        )
+        if (
+            resolver_before != expected_resolver
+            or resolver_after != expected_resolver
+        ):
+            blockers.append("resolver_retention")
+        else:
+            passed.append("resolver_retention")
+        eligible = not blockers
+        active = execution_mode == "active_default_revalidation"
+        expected: dict[str, Any] = {
+            "schema": "zyra.strongest-preflight-activation-report/v1",
+            "preflight_id": report.get("preflight_id"),
+            "profile_family": report.get("profile_family"),
+            "profile_version": report.get("profile_version"),
+            "preflight_report_digest": report.get("report_digest"),
+            "readiness_report_digest": readiness.get("report_digest"),
+            "sealed_run_admission_eligible": eligible,
+            "default_activation_allowed": eligible and active,
+            "conclusion": (
+                "phase2_strongest_v1_revalidated"
+                if eligible and active
+                else "admit_to_P2-S06-02"
+                if eligible
+                else "retain_phase1_baseline"
+            ),
+            "blockers": sorted(set(blockers)),
+            "passed_gates": sorted(set(passed)),
+            "readiness": {
+                key: readiness_values[key]
+                for key in sorted(readiness_values)
+            },
+            "resolver_before": resolver_before,
+            "resolver_after": resolver_after,
+            "raw_receipt_refs": list(raw_receipt_refs),
+            "activation_semantics": {
+                "scope": (
+                    "final_phase2_strongest_v1_revalidation"
+                    if active and eligible
+                    else "admission_to_P2-S06-02_sealed_runs"
+                ),
+                "normal_resolver_mutated": False,
+                "default_profile_activated": active and eligible,
+                "explicit_activation_transition_required_later": not (
+                    active and eligible
+                ),
+                "baseline_retained_until_transition": not (
+                    active and eligible
+                ),
+            },
+        }
+        expected["activation_report_digest"] = canonical_digest(expected)
+        return [] if activation == expected else ["preflight_activation_recompute"]
 
     def _sealed_audit(
         self,
@@ -914,6 +1668,134 @@ class Phase2FreezeAuditor:
             "buckets": dict(sorted(values.items())),
         }
 
+    def _expected_regression_commands(
+        self,
+        *,
+        output_root: Path,
+        target: str,
+    ) -> dict[str, tuple[str, ...]]:
+        python = str(Path(sys.executable).resolve())
+        bun_name = "bun.exe" if sys.platform == "win32" else "bun"
+        bun = str((self.root / "node_modules" / ".bin" / bun_name).resolve())
+        policy = _load_json(self.root / "config" / "release-python-tests.json")
+        python_test_arguments = (
+            *(
+                f"--ignore={self.root / str(relative)}"
+                for relative in policy.get("ignore_files", ())
+            ),
+            *(
+                f"--deselect={nodeid}"
+                for nodeid in policy.get("deselect_nodeids", ())
+            ),
+            *(
+                str(self.root / str(relative))
+                for relative in policy.get("roots", ())
+            ),
+        )
+        basetemp = output_root / "pytest"
+        commands = (
+            (
+                "python-full-regression",
+                (
+                    python,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-p",
+                    "no:cacheprovider",
+                    "--basetemp",
+                    str(basetemp),
+                    *python_test_arguments,
+                ),
+            ),
+            (
+                "typescript-runtime-regression",
+                (bun, "test", *TYPESCRIPT_RUNTIME_TEST_ROOTS),
+            ),
+            ("typescript-typecheck", (bun, "run", "typecheck")),
+            ("web-typecheck", (bun, "run", "typecheck:web")),
+            ("web-tests", (bun, "run", "test:web")),
+            ("web-build", (bun, "run", "build:web")),
+            ("phase1-m1", (python, "scripts/verify_m1.py")),
+            ("phase1-m2", (python, "scripts/verify_m2.py")),
+            ("phase1-m3", (python, "scripts/verify_m3.py")),
+            (
+                "phase1-final-freeze",
+                (
+                    python,
+                    "scripts/verify_first_stage.py",
+                    "--output",
+                    str(output_root / "first-stage-final-freeze"),
+                ),
+            ),
+            (
+                "phase2-policy-contracts",
+                (
+                    python,
+                    "scripts/verify_phase2_policy_contracts.py",
+                    "--target-commit",
+                    target,
+                    "--require-strongest-active",
+                    "--output",
+                    str(output_root / "phase2-policy-contracts.json"),
+                ),
+            ),
+            (
+                "internalization-ledger",
+                (
+                    python,
+                    "scripts/verify_internalization_ledger.py",
+                    "--base",
+                    P2_BASE_COMMIT,
+                    "--json",
+                ),
+            ),
+            (
+                "loopx-offline-runtime",
+                (python, "scripts/release/verify_loopx_runtime.py"),
+            ),
+            (
+                "loopx-cross-version-restart",
+                (
+                    python,
+                    "scripts/release/verify_loopx_cross_version_upgrade.py",
+                ),
+            ),
+        )
+        return dict(commands)
+
+    def _regression_command_policy_blockers(
+        self,
+        commands: Sequence[Mapping[str, Any]],
+        *,
+        output_root: Path,
+        target: str,
+    ) -> list[str]:
+        expected = self._expected_regression_commands(
+            output_root=output_root,
+            target=target,
+        )
+        blockers: list[str] = []
+        for item in commands:
+            command_id = str(item.get("command_id") or "")
+            argv = item.get("argv")
+            observed = (
+                tuple(str(value) for value in argv)
+                if isinstance(argv, Sequence)
+                and not isinstance(argv, (str, bytes))
+                else ()
+            )
+            if observed != expected.get(command_id):
+                blockers.append(f"command_argv:{command_id}")
+            cwd_value = str(item.get("cwd") or "")
+            try:
+                cwd = Path(cwd_value).resolve() if cwd_value else None
+            except OSError:
+                cwd = None
+            if cwd is None or cwd != self.root:
+                blockers.append(f"command_cwd:{command_id}")
+        return blockers
+
     def _receipt_ready(self, path: Path, target: str) -> dict[str, Any]:
         value = _load_json(path)
         commands = value.get("commands")
@@ -931,6 +1813,13 @@ class Phase2FreezeAuditor:
         )
         if command_ids != FINAL_REGRESSION_COMMAND_IDS:
             blockers.append("command_set")
+        blockers.extend(
+            self._regression_command_policy_blockers(
+                tuple(item for item in commands if isinstance(item, Mapping)),
+                output_root=path.parent,
+                target=target,
+            )
+        )
         for item in commands:
             if not isinstance(item, Mapping):
                 blockers.append("command_entry")

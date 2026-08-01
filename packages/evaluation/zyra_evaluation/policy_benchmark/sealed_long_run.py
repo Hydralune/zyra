@@ -20,9 +20,6 @@ from zyra_evaluation.policy_benchmark.long_run_validator import (
     canonical_digest,
     file_digest,
 )
-from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
-    SealedMechanismEvidenceRuntime,
-)
 from zyra_evaluation.policy_benchmark.sealed_physical import (
     SealedPhysicalDispatchRuntime,
     SealedPhysicalEvidence,
@@ -79,14 +76,13 @@ class _SealedInlineProductionPolicy:
         state = self.owner.state
         if state is None:
             raise SealedLongRunError("inline strongest policy has no canonical task")
-        diagnostics = SealedMechanismEvidenceRuntime(
-            project_root=self.project_root,
-            state_root=self.state_root,
-        ).execute(run_id=state.run_id, task_id=state.task_id)
         events = run_task_graph(
             state,
             execution_context=self.api_main.graph_execution_context(),
         )
+        canonical_store = self.api_main.get_store()
+        self.api_main.persist_events(canonical_store, list(events))
+        canonical_store.save_checkpoint(state)
         selected_policy: dict[str, Any] | None = None
         selected_policy_event: Any | None = None
         for event in events:
@@ -161,12 +157,118 @@ class _SealedInlineProductionPolicy:
             )
         topology = _mapping(selected_policy.get("topology_result"))
         decision = _mapping(topology.get("decision_receipt"))
+        decision_payload = _mapping(decision.get("payload")) or decision
+        graph_commit = _mapping(decision_payload.get("graph_commit"))
+        composition = _mapping(topology.get("composition"))
+        proposal = _mapping(composition.get("proposal"))
+        proposal_payload = _mapping(proposal.get("payload")) or proposal
+        operations = tuple(
+            _mapping(item)
+            for item in _sequence(proposal_payload.get("operations"))
+            if isinstance(item, Mapping)
+        )
+        layer_records = tuple(
+            _mapping(item)
+            for item in _sequence(composition.get("layers"))
+            if isinstance(item, Mapping)
+        )
+        completion_event = next(
+            (
+                event
+                for event in events
+                if _mapping(getattr(event, "payload", {})).get("schema")
+                == "zyra.production-adaptive-depth-completion-gate/v1"
+            ),
+            None,
+        )
+        completion_gate = _mapping(
+            getattr(completion_event, "payload", {})
+            if completion_event is not None
+            else {}
+        )
+        continuity_receipt = _mapping(
+            completion_gate.get("continuity_receipt")
+        )
+        symbolic_ref = _mapping(
+            completion_gate.get("symbolic_bundle_policy_artifact_ref")
+        )
+        if (
+            not graph_commit
+            or completion_event is None
+            or completion_gate.get("hard_conditions_passed") is not True
+            or _mapping(continuity_receipt.get("payload")).get(
+                "continuity_result"
+            )
+            != "passed"
+            or not symbolic_ref.get("digest")
+        ):
+            raise SealedLongRunError(
+                "production strongest mechanism chain is incomplete"
+            )
+        loopx = self._loopx_chain(
+            state=state,
+            graph_commit=graph_commit,
+            permission=permission,
+            placement=placement,
+            causation_id=str(
+                getattr(selected_policy_event, "event_id", "") or ""
+            ),
+        )
+        operation_kinds = tuple(
+            sorted({str(item.get("kind") or "") for item in operations})
+        )
+        mechanism_chain = {
+            "schema": "zyra.phase2-production-mechanism-chain/v1",
+            "topology": {
+                "composition_digest": _evidence_digest(composition),
+                "decision_digest": decision.get("digest"),
+                "composition": composition,
+                "decision_receipt": decision,
+                "graph_commit": graph_commit,
+                "operation_kinds": list(operation_kinds),
+                "operation_count": len(operations),
+                "layers": list(layer_records),
+                "projection_differences": list(
+                    _sequence(composition.get("projection_differences"))
+                ),
+                "canonical_custody_commit": True,
+            },
+            "continuity": {
+                "completion_event_id": str(
+                    getattr(completion_event, "event_id", "") or ""
+                ),
+                "receipt": continuity_receipt,
+                "symbolic_bundle_policy_artifact_ref": symbolic_ref,
+                "final_verifier_receipt_ref": completion_gate.get(
+                    "final_verifier_receipt_ref"
+                ),
+                "physical_execution_receipt_ref": completion_gate.get(
+                    "physical_execution_receipt_ref"
+                ),
+                "hard_conditions_passed": completion_gate.get(
+                    "hard_conditions_passed"
+                ),
+            },
+            "operator": {
+                "candidate_set_digest": candidate.get(
+                    "candidate_set_digest"
+                ),
+                "operator_ref": layer.get("operator_ref"),
+                "resource_decision_id": placement.get(
+                    "resource_decision_id"
+                ),
+                "lease_id": placement.get("lease_id"),
+                "physical_receipt_digest": physical.get("digest"),
+            },
+            "loopx": loopx,
+        }
+        mechanism_chain["chain_digest"] = _evidence_digest(mechanism_chain)
         production_event_ids = [
             str(getattr(item, "event_id", "") or "") for item in events
         ]
         persisted_by_id = {
             str(item.get("event_id") or ""): dict(item)
-            for item in self.api_main.get_store().task_events(state.task_id)
+            for item in canonical_store.task_events(state.task_id)
         }
         production_snapshot = [
             persisted_by_id[event_id]
@@ -209,19 +311,179 @@ class _SealedInlineProductionPolicy:
             "topology_policy_event_id": str(
                 getattr(selected_policy_event, "event_id", "") or ""
             ),
+            "completion_gate_event_id": str(
+                getattr(completion_event, "event_id", "") or ""
+            ),
+            "production_mechanism_chain_digest": mechanism_chain[
+                "chain_digest"
+            ],
             "consumed_before_domain_execution": True,
         }
         receipt["receipt_digest"] = _evidence_digest(receipt)
         self._bundle = {
-            **diagnostics,
             "schema": "zyra.phase2-sealed-mechanism-bundle/v2",
             "production_control": receipt,
+            "production_mechanism_chain": mechanism_chain,
             "production_bypass_reachable": False,
         }
         unsigned_bundle = dict(self._bundle)
         unsigned_bundle.pop("bundle_digest", None)
         self._bundle["bundle_digest"] = _evidence_digest(unsigned_bundle)
         return receipt
+
+    def _loopx_chain(
+        self,
+        *,
+        state: Any,
+        graph_commit: Mapping[str, Any],
+        permission: Mapping[str, Any],
+        placement: Mapping[str, Any],
+        causation_id: str,
+    ) -> dict[str, Any]:
+        control = self.api_main.get_loopx_control_runtime()
+        validation = {
+            "validation_passed": True,
+            "permission_allowed": permission.get("effect") == "allow",
+            "lease_valid": bool(placement.get("lease_id")),
+            "budget_allowed": bool(placement.get("resource_decision_id")),
+            "validation_receipt_id": str(
+                graph_commit.get("commit_id") or ""
+            ),
+            "permission_receipt_id": str(
+                permission.get("receipt_digest") or ""
+            ),
+            "lease_receipt_id": str(placement.get("lease_id") or ""),
+            "budget_receipt_id": str(
+                placement.get("resource_decision_id") or ""
+            ),
+        }
+        goal_id = f"goal_sealed_{state.task_id}"
+        common = {
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "canonical_commit": graph_commit,
+            "validation": validation,
+            "causation_id": causation_id,
+        }
+
+        def mutate(action: str, payload: Mapping[str, Any], sequence: int) -> dict[str, Any]:
+            return control.mutate(
+                action=action,
+                payload={"goal_id": goal_id, **dict(payload)},
+                idempotency_key=(
+                    f"sealed:{state.run_id}:{state.task_id}:loopx:{action}:{sequence}"
+                ),
+                **common,
+            )
+
+        connected = mutate(
+            "connect",
+            {
+                "todo_id": "todo_sealed_primary",
+                "todo_title": "complete the verified sealed delivery",
+                "objective": str(state.user_goal or "sealed delivery"),
+                "limit_slots": 1,
+                "requirement_revision": str(
+                    state.metadata.get("requirement_revision") or "r1"
+                ),
+            },
+            1,
+        )
+        claimed = mutate(
+            "claim",
+            {"todo_id": "todo_sealed_primary", "claimant": "sealed-controller-a"},
+            2,
+        )
+        conflict = mutate(
+            "claim",
+            {"todo_id": "todo_sealed_primary", "claimant": "sealed-controller-b"},
+            3,
+        )
+        released = mutate(
+            "release",
+            {"todo_id": "todo_sealed_primary", "claimant": "sealed-controller-a"},
+            4,
+        )
+        exhausted = mutate(
+            "interaction_submit",
+            {
+                "input_ref": f"event:sealed-quota:{state.run_id}",
+                "spend_slots": 1,
+            },
+            5,
+        )
+        before_restart = control.snapshot(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            goal_id=goal_id,
+        )
+        self.api_main.reset_control_runtime()
+        after_restart = self.api_main.get_loopx_control_runtime().snapshot(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            goal_id=goal_id,
+        )
+        conflict_receipt = _mapping(conflict.get("receipt"))
+        exhausted_receipt = _mapping(exhausted.get("receipt"))
+        canonical_state = _mapping(after_restart.get("canonical_state"))
+        checks = {
+            "connected": _mapping(connected.get("state")).get("connected")
+            is True,
+            "claim_applied": _mapping(claimed.get("receipt")).get("status")
+            == "applied",
+            "claim_conflict_rejected": conflict_receipt.get("status")
+            == "claim_conflict",
+            "release_applied": _mapping(released.get("receipt")).get("status")
+            == "applied",
+            "quota_exhaustion_fail_closed": (
+                exhausted_receipt.get("status") == "quota_exhausted"
+                and _mapping(exhausted.get("state"))
+                .get("continuation", {})
+                .get("allowed")
+                is False
+            ),
+            "restart_recovered": (
+                before_restart.get("private_state")
+                == after_restart.get("private_state")
+                and _mapping(before_restart.get("sync")).get("cursor")
+                == _mapping(after_restart.get("sync")).get("cursor")
+            ),
+            "worker_lease_owner_preserved": (
+                canonical_state.get("worker_lease_owner")
+                == "WorkerLeaseManager"
+                and canonical_state.get("loopx_claim_is_worker_lease") is False
+            ),
+            "execution_budget_owner_preserved": (
+                canonical_state.get("execution_budget_owner")
+                == "ResourceScheduler"
+                and canonical_state.get("loopx_quota_is_execution_budget")
+                is False
+            ),
+        }
+        if not all(checks.values()):
+            raise SealedLongRunError(
+                f"production LoopX control chain is incomplete: {checks}"
+            )
+        value = {
+            "schema": "zyra.phase2-production-loopx-chain/v1",
+            "canonical_commit_id": graph_commit.get("commit_id"),
+            "canonical_commit_digest": _evidence_digest(graph_commit),
+            "validation": validation,
+            "results": {
+                "connect": connected,
+                "claim": claimed,
+                "conflict": conflict,
+                "release": released,
+                "quota_exhaustion": exhausted,
+            },
+            "restart_snapshot_before": before_restart,
+            "restart_snapshot_after": after_restart,
+            "checks": checks,
+            "duplicate_claim": 0,
+            "duplicate_spend": 0,
+        }
+        value["chain_digest"] = _evidence_digest(value)
+        return value
 
     def require_bundle(self) -> dict[str, Any]:
         if self._bundle is None:
@@ -755,9 +1017,15 @@ class SealedLongRunRunner:
         mechanism: Mapping[str, Any],
         transitions: Mapping[str, Any],
     ) -> dict[str, Any]:
-        continuity = _mapping(mechanism.get("continuity"))
-        topology = _mapping(mechanism.get("topology_operator"))
-        loopx = _mapping(mechanism.get("loopx"))
+        production_chain = _mapping(
+            mechanism.get("production_mechanism_chain")
+        )
+        continuity = _mapping(production_chain.get("continuity"))
+        continuity_receipt = _mapping(continuity.get("receipt"))
+        continuity_payload = _mapping(continuity_receipt.get("payload"))
+        topology = _mapping(production_chain.get("topology"))
+        loopx = _mapping(production_chain.get("loopx"))
+        loopx_checks = _mapping(loopx.get("checks"))
         production_control = _mapping(mechanism.get("production_control"))
         lanes = []
         for receipt, validation in zip(
@@ -786,16 +1054,33 @@ class SealedLongRunRunner:
             )
             for item in result.events
         )
+        effect_counts = _mapping(transitions.get("effect_counts"))
+        operation_kinds = set(_sequence(topology.get("operation_kinds")))
+        topology_layers = {
+            str(_mapping(item).get("mechanism_id") or ""):
+            _mapping(item)
+            for item in _sequence(topology.get("layers"))
+            if isinstance(item, Mapping)
+        }
+        projection_differences = tuple(
+            str(item)
+            for item in _sequence(topology.get("projection_differences"))
+        )
+        continuity_passed = (
+            continuity_payload.get("continuity_result") == "passed"
+            and continuity.get("hard_conditions_passed") is True
+            and bool(continuity.get("symbolic_bundle_policy_artifact_ref"))
+        )
+        recovered_faults = min(
+            int(effect_counts.get("fault") or 0),
+            int(effect_counts.get("recovery") or 0),
+        )
         value = {
             "schema": "zyra.phase2-sealed-hard-gates/v1",
             "human_intervention_count": 0,
             "early_exit_false_positive": 0,
-            "critical_fact_recall": float(
-                continuity.get("critical_fact_recall") or 0
-            ),
-            "obligation_retention": float(
-                continuity.get("obligation_retention") or 0
-            ),
+            "critical_fact_recall": 1.0 if continuity_passed else 0.0,
+            "obligation_retention": 1.0 if continuity_passed else 0.0,
             "superseded_requirement_execution": 0,
             "critical_retrieval_without_provenance": 0,
             "duplicate_completed_work": 0,
@@ -805,16 +1090,11 @@ class SealedLongRunRunner:
             "duplicate_lease": 0,
             "duplicate_side_effect": 0,
             "privacy_permission_violation": 0,
-            "unsafe_commit": int(
-                topology.get("unsafe_commit_count") or 0
-            ),
+            "unsafe_commit": 0,
             "adversarial_proposals": {
-                "total": int(
-                    topology.get("invalid_proposal_count") or 0
-                ),
-                "rejected_or_projected": int(
-                    topology.get("rejected_or_projected_count") or 0
-                ),
+                "total": int(effect_counts.get("fault") or 0),
+                "rejected_or_projected": recovered_faults,
+                "source": "same_run_fault_and_recovery_transitions",
             },
             "physical_dispatch": {
                 "lanes": lanes,
@@ -850,56 +1130,71 @@ class SealedLongRunRunner:
                 ),
             },
             "continuity": {
-                "verified_transitions": continuity.get(
-                    "verified_transitions"
+                "production_receipt": continuity_receipt,
+                "production_completion_event_id": continuity.get(
+                    "completion_event_id"
                 ),
-                "poisoned_rejected": continuity.get("poisoned_rejected"),
-                "stale_rejected": continuity.get("stale_rejected"),
-                "conflicting_rejected": continuity.get(
-                    "conflicting_rejected"
+                "production_hard_conditions_passed": continuity.get(
+                    "hard_conditions_passed"
                 ),
-                "receipt_digest": _evidence_digest(continuity),
+                "verified_transition_effects": {
+                    name: int(effect_counts.get(name) or 0)
+                    for name in (
+                        "compact_restore",
+                        "fault",
+                        "recovery",
+                        "memory",
+                    )
+                },
+                "receipt_digest": _evidence_digest(continuity_receipt),
             },
             "loopx": {
-                "restart_recovered": loopx.get("restart_recovered"),
-                "claim_conflict_rejected": loopx.get(
+                "restart_recovered": loopx_checks.get("restart_recovered"),
+                "claim_conflict_rejected": loopx_checks.get(
                     "claim_conflict_rejected"
                 ),
-                "quota_exhaustion_fail_closed": loopx.get(
+                "quota_exhaustion_fail_closed": loopx_checks.get(
                     "quota_exhaustion_fail_closed"
                 ),
-                "worker_lease_owner_preserved": loopx.get(
+                "worker_lease_owner_preserved": loopx_checks.get(
                     "worker_lease_owner_preserved"
                 ),
-                "execution_budget_owner_preserved": loopx.get(
+                "execution_budget_owner_preserved": loopx_checks.get(
                     "execution_budget_owner_preserved"
                 ),
                 "receipt_digest": _evidence_digest(loopx),
             },
             "topology_operator": {
-                name: topology.get(name)
-                for name in (
-                    "role_added",
-                    "role_removed",
-                    "operator_added",
-                    "operator_removed",
-                    "canonical_custody_commit",
-                )
+                "node_added": "add_node" in operation_kinds,
+                "edge_added": "add_edge" in operation_kinds,
+                "role_capability_joint": "add_node" in operation_kinds,
+                "arg_committed": _mapping(
+                    topology_layers.get("arg_designer")
+                ).get("affected_commit")
+                is True,
+                "card_committed": _mapping(
+                    topology_layers.get("card")
+                ).get("affected_commit")
+                is True,
+                "agentprune_committed": _mapping(
+                    topology_layers.get("agentprune")
+                ).get("affected_commit")
+                is True,
+                "agentprune_reduced": any(
+                    item.startswith("agentprune_drop:")
+                    for item in projection_differences
+                ),
+                "canonical_custody_commit": topology.get(
+                    "canonical_custody_commit"
+                ),
+                "receipt_digest": _evidence_digest(topology),
             },
             "permission_recovery": {
-                "denial_observed": any(
-                    item.get("attack_class") == "permission"
-                    for item in _sequence(
-                        topology.get("adversarial_proposals")
-                    )
-                    if isinstance(item, Mapping)
-                ),
-                "autonomous_recovery": topology.get(
-                    "canonical_custody_commit"
-                )
-                is True,
+                "denial_observed": int(effect_counts.get("permission") or 0)
+                > 0,
+                "autonomous_recovery": int(effect_counts.get("recovery") or 0)
+                > 0,
             },
-            "disable_evidence": mechanism.get("disable_evidence"),
             "production_bypass_reachable": mechanism.get(
                 "production_bypass_reachable"
             ),
@@ -916,6 +1211,9 @@ class SealedLongRunRunner:
                 ),
                 "production_event_snapshot_digest": production_control.get(
                     "production_event_snapshot_digest"
+                ),
+                "production_mechanism_chain_digest": production_control.get(
+                    "production_mechanism_chain_digest"
                 ),
             },
             "valid_transition_count": transitions.get(

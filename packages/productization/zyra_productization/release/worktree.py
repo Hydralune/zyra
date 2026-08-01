@@ -11,8 +11,8 @@ from typing import Any
 DEFAULT_GENERATED_UNTRACKED_ROOTS = (
     ".tmp",
     ".zyra",
-    "docs/evidence",
-    "docs/reviews/evidence",
+    "docs/evidence/phase2",
+    "docs/reviews/evidence/phase2",
 )
 
 

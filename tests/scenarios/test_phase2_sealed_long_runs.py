@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from zyra_evaluation.policy_benchmark.long_run_validator import (
     IndependentTransitionValidator,
+    SealedLongRunValidator,
     canonical_digest,
 )
 from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
@@ -15,6 +17,7 @@ from zyra_evaluation.policy_benchmark.sealed_mechanisms import (
 from zyra_evaluation.policy_benchmark.sealed_long_run import (
     SealedLongRunError,
     SealedLongRunRunner,
+    _SealedInlineProductionPolicy,
     _evidence_digest,
     _json,
 )
@@ -31,6 +34,239 @@ from zyra_evaluation.scenario_runner.research_delivery import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_inline_policy_persists_every_returned_production_event_before_readback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_values = [
+        SimpleNamespace(
+            event_id="event-topology",
+            payload={
+                "topology_policy": {
+                    "used_baseline": False,
+                    "committed": True,
+                    "operator_candidate_set": {
+                        "candidate_set_digest": "candidate-digest",
+                    },
+                    "physical_placement": {
+                        "candidate_set_digest": "candidate-digest",
+                        "resource_decision_id": "resource-decision",
+                        "lease_id": "lease-id",
+                        "attempt_id": "attempt-id",
+                    },
+                    "permission_receipt": {
+                        "effect": "allow",
+                        "receipt_digest": "permission-digest",
+                    },
+                    "topology_result": {
+                        "composition": {
+                            "proposal": {"payload": {"operations": []}},
+                            "layers": [],
+                            "projection_differences": [],
+                        },
+                        "decision_receipt": {
+                            "digest": "decision-digest",
+                            "payload": {
+                                "decision_id": "decision-id",
+                                "graph_commit": {
+                                    "commit_id": "commit-id",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ),
+        SimpleNamespace(
+            event_id="event-completion",
+            payload={
+                "schema": "zyra.production-adaptive-depth-completion-gate/v1",
+                "hard_conditions_passed": True,
+                "continuity_receipt": {
+                    "payload": {"continuity_result": "passed"},
+                },
+                "symbolic_bundle_policy_artifact_ref": {
+                    "digest": "symbolic-digest",
+                },
+                "final_verifier_receipt_ref": "verifier-ref",
+                "physical_execution_receipt_ref": "physical-ref",
+            },
+        ),
+    ]
+    persisted: dict[str, dict] = {}
+    calls: list[str] = []
+
+    class Store:
+        def save_checkpoint(self, _state: object) -> None:
+            calls.append("checkpoint")
+
+        def task_events(self, _task_id: str) -> list[dict]:
+            calls.append("readback")
+            return list(persisted.values())
+
+    store = Store()
+
+    class Api:
+        @staticmethod
+        def graph_execution_context() -> object:
+            return object()
+
+        @staticmethod
+        def get_store() -> Store:
+            return store
+
+        @staticmethod
+        def persist_events(_store: Store, events: list[object]) -> None:
+            calls.append("persist")
+            for event in events:
+                persisted[str(event.event_id)] = {
+                    "event_id": str(event.event_id),
+                    "payload": dict(event.payload),
+                }
+
+    state = SimpleNamespace(
+        run_id="run-inline",
+        task_id="task-inline",
+        user_goal="sealed goal",
+        metadata={
+            "phase2_operator_execution_layers": [
+                {
+                    "operator_ref": "operator-ref",
+                    "resource_decision_id": "resource-decision",
+                    "lease_id": "lease-id",
+                    "attempt_id": "attempt-id",
+                    "physical_dispatch_receipt_digest": "physical-digest",
+                    "operator_execution_digest": "operator-digest",
+                    "canonical_artifact_ids": ["artifact-id"],
+                }
+            ],
+            "worker_pool_receipt": {
+                "receipt_id": "worker-receipt",
+                "physical_dispatch_receipt": {
+                    "digest": "physical-digest",
+                    "payload": {
+                        "placement_decision_id": "resource-decision",
+                        "lease_id": "lease-id",
+                        "physical_attempt_id": "attempt-id",
+                        "simulated": False,
+                        "semantic_only": False,
+                    },
+                },
+                "physical_dispatch_validation": {"real_gate_closed": True},
+            },
+            "operator_placement_binding": {
+                "candidate_set_digest": "candidate-digest",
+            },
+        },
+    )
+    policy = _SealedInlineProductionPolicy(
+        api_main=Api(),
+        owner=SimpleNamespace(state=state),
+        project_root=ROOT,
+        state_root=tmp_path,
+    )
+    fake_loopx = {
+        "schema": "zyra.phase2-production-loopx-chain/v1",
+        "checks": {},
+        "chain_digest": "loopx-digest",
+    }
+    monkeypatch.setattr(
+        policy,
+        "_loopx_chain",
+        lambda **_kwargs: fake_loopx,
+    )
+    monkeypatch.setattr(
+        "zyra_orchestration.run_task_graph",
+        lambda *_args, **_kwargs: list(event_values),
+    )
+
+    receipt = policy.execute(
+        owner_context={"run_id": "run-inline", "task_id": "task-inline"},
+        configuration=None,
+        goal="sealed goal",
+    )
+
+    assert tuple(persisted) == ("event-topology", "event-completion")
+    assert calls[:3] == ["persist", "checkpoint", "readback"]
+    assert receipt["production_event_count"] == 2
+    assert policy.require_bundle()["production_mechanism_chain"]["loopx"] == (
+        fake_loopx
+    )
+
+
+def test_inline_policy_binds_actual_production_mechanisms_and_rejects_tamper(
+    tmp_path: Path,
+) -> None:
+    from apps.api.zyra_api import main as api_main
+    from zyra_orchestration import ensure_default_graph
+
+    state, created = api_main.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    workspace = api_main.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"sealed-inline-test:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    policy = _SealedInlineProductionPolicy(
+        api_main=api_main,
+        owner=SimpleNamespace(state=state),
+        project_root=ROOT,
+        state_root=tmp_path / "mechanisms",
+    )
+    policy.execute(
+        owner_context={"run_id": state.run_id, "task_id": state.task_id},
+        configuration=None,
+        goal=state.user_goal,
+    )
+    bundle = policy.require_bundle()
+    chain = bundle["production_mechanism_chain"]
+    control = bundle["production_control"]
+    owner_events = api_main.get_store().task_events(state.task_id)
+
+    assert SealedLongRunValidator._production_chain_blockers(
+        chain,
+        control=control,
+        owner_events=owner_events,
+        run_id=state.run_id,
+        task_id=state.task_id,
+    ) == []
+    assert set(chain["topology"]["operation_kinds"]) == {
+        "add_edge",
+        "add_node",
+    }
+    assert all(chain["loopx"]["checks"].values())
+
+    tampered = json.loads(json.dumps(chain))
+    tampered["loopx"]["checks"]["restart_recovered"] = False
+    loopx_unsigned = dict(tampered["loopx"])
+    loopx_unsigned.pop("chain_digest")
+    tampered["loopx"]["chain_digest"] = canonical_digest(loopx_unsigned)
+    chain_unsigned = dict(tampered)
+    chain_unsigned.pop("chain_digest")
+    tampered["chain_digest"] = canonical_digest(chain_unsigned)
+    tampered_control = dict(control)
+    tampered_control["production_mechanism_chain_digest"] = tampered[
+        "chain_digest"
+    ]
+    control_unsigned = dict(tampered_control)
+    control_unsigned.pop("receipt_digest")
+    tampered_control["receipt_digest"] = canonical_digest(control_unsigned)
+    blockers = SealedLongRunValidator._production_chain_blockers(
+        tampered,
+        control=tampered_control,
+        owner_events=owner_events,
+        run_id=state.run_id,
+        task_id=state.task_id,
+    )
+    assert "production_loopx_chain_binding" in blockers
 
 
 def _analysis_receipt(

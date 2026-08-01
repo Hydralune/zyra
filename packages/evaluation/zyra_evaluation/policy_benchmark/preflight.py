@@ -621,6 +621,9 @@ class StrongestPreflightRunner:
             **no_training,
             "retained": True,
         }
+        no_training_receipt["receipt_digest"] = canonical_digest(
+            no_training_receipt
+        )
         command_receipts = tuple(
             self._normalize_command_receipt(
                 probe,
@@ -941,8 +944,8 @@ class StrongestPreflightRunner:
             "retained": True,
         }
 
-    @staticmethod
     def _normalize_command_receipt(
+        self,
         probe: Mapping[str, Any],
         result: Mapping[str, Any],
     ) -> dict[str, Any]:
@@ -963,6 +966,12 @@ class StrongestPreflightRunner:
                 "probe_id",
             ),
             "probe_id": str(probe["probe_id"]),
+            "argv": [
+                sys.executable,
+                *[str(item) for item in probe.get("argv") or ()],
+            ],
+            "cwd": str(self.repository_root),
+            "timeout_seconds": int(probe.get("timeout_seconds") or 0),
             "categories": list(probe.get("categories") or ()),
             "required": probe.get("required") is True,
             "isolated": probe.get("isolated") is True,
@@ -1185,6 +1194,9 @@ class StrongestPreflightRunner:
                     | {"P2-S06-01_preflight_gate"}
                 )
             mechanisms[mechanism_id] = source_mechanism
+        active_revalidation = (
+            self.manifest.execution_mode == "active_default_revalidation"
+        )
         report: dict[str, Any] = {
             "schema": "zyra.mechanism-evidence-readiness-report/v1",
             "slice_id": "P2-S06-01",
@@ -1195,12 +1207,17 @@ class StrongestPreflightRunner:
             "generated_at": self.manifest.frozen_at,
             "generation_clock": "frozen preflight manifest timestamp",
             "valid": passed and no_training.get("passed") is True,
-            "activation_allowed": False,
+            "activation_allowed": passed and active_revalidation,
             "sealed_run_admission_candidate": passed,
             "activation_reason": (
-                "activation_ready permits explicit sealed-run validation; "
-                "the normal resolver remains on the Phase 1 baseline until "
-                "a later explicit activation transition"
+                "phase2_strongest_v1 remains the active default after final "
+                "target-bound revalidation"
+                if active_revalidation
+                else (
+                    "activation_ready permits explicit sealed-run validation; "
+                    "the normal resolver remains on the Phase 1 baseline until "
+                    "a later explicit activation transition"
+                )
             ),
             "contract": {
                 "path": config.path.relative_to(self.repository_root).as_posix(),
@@ -1225,9 +1242,19 @@ class StrongestPreflightRunner:
             },
             "mechanisms": mechanisms,
             "resolver_policy": {
-                "normal_before_activation": BASELINE_PROFILE,
-                "normal_after_preflight": BASELINE_PROFILE,
-                "strongest_execution_mode": "validation",
+                "normal_before_activation": (
+                    STRONGEST_PROFILE
+                    if active_revalidation
+                    else BASELINE_PROFILE
+                ),
+                "normal_after_preflight": (
+                    STRONGEST_PROFILE
+                    if active_revalidation
+                    else BASELINE_PROFILE
+                ),
+                "strongest_execution_mode": (
+                    "default" if active_revalidation else "validation"
+                ),
                 "evidence_only_influence": {
                     "graph": 0,
                     "route": 0,

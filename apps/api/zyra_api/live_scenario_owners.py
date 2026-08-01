@@ -394,11 +394,11 @@ class CanonicalLiveScenarioOwners:
     def canonical_event_snapshot(self) -> tuple[dict[str, Any], ...]:
         from . import main as api_main
 
-        if self._state is None:
+        if self.state is None:
             return tuple(dict(item) for item in self._canonical_event_snapshot)
         return tuple(
             dict(item)
-            for item in api_main.get_store().task_events(self._state.task_id)
+            for item in api_main.get_store().task_events(self.state.task_id)
         )
 
     def canonical_analysis_snapshot(self) -> tuple[dict[str, Any], ...]:

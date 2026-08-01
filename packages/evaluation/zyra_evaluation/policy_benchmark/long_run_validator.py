@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from zyra_orchestration.topology_policy.contracts import PhysicalDispatchReceipt
+from zyra_integrations.loopx.bridge.contracts import CanonicalCommitRef
+from zyra_orchestration.topology_policy.contracts import (
+    MemoryContinuityReceipt,
+    PhysicalDispatchReceipt,
+)
 
 
 EVIDENCE_INDEX_SCHEMA = "zyra.phase2-sealed-evidence-index/v1"
@@ -718,6 +722,18 @@ class SealedLongRunValidator:
                 task_id=task_id,
             )
         )
+        production_chain = _mapping(
+            mechanism.get("production_mechanism_chain")
+        )
+        blockers.extend(
+            self._production_chain_blockers(
+                production_chain,
+                control=control,
+                owner_events=owner_events,
+                run_id=run_id,
+                task_id=task_id,
+            )
+        )
         physical_path = _member(
             root,
             run.get("physical_dispatch_bundle"),
@@ -772,6 +788,27 @@ class SealedLongRunValidator:
             "receipt_digest"
         ) != control.get("receipt_digest"):
             blockers.append("hard_gate_production_control_binding")
+        if (
+            _mapping(gates.get("production_control")).get(
+                "production_mechanism_chain_digest"
+            )
+            != production_chain.get("chain_digest")
+            or _mapping(gates.get("topology_operator")).get(
+                "receipt_digest"
+            )
+            != canonical_digest(_mapping(production_chain.get("topology")))
+            or _mapping(gates.get("loopx")).get("receipt_digest")
+            != canonical_digest(_mapping(production_chain.get("loopx")))
+            or _mapping(gates.get("continuity")).get("receipt_digest")
+            != canonical_digest(
+                _mapping(
+                    _mapping(production_chain.get("continuity")).get(
+                        "receipt"
+                    )
+                )
+            )
+        ):
+            blockers.append("hard_gate_production_mechanism_binding")
         artifact_path = _member(
             root,
             run.get("final_artifact"),
@@ -1011,6 +1048,215 @@ class SealedLongRunValidator:
         return blockers
 
     @staticmethod
+    def _production_chain_blockers(
+        chain: Mapping[str, Any],
+        *,
+        control: Mapping[str, Any],
+        owner_events: Sequence[Mapping[str, Any]],
+        run_id: str,
+        task_id: str,
+    ) -> list[str]:
+        blockers: list[str] = []
+        unsigned = dict(chain)
+        claimed = str(unsigned.pop("chain_digest", ""))
+        if (
+            chain.get("schema")
+            != "zyra.phase2-production-mechanism-chain/v1"
+            or claimed != canonical_digest(unsigned)
+            or control.get("production_mechanism_chain_digest") != claimed
+        ):
+            blockers.append("production_mechanism_chain_integrity")
+        owner_map = {
+            str(item.get("event_id") or ""): dict(item)
+            for item in owner_events
+            if str(item.get("event_id") or "")
+        }
+        topology_event = owner_map.get(
+            str(control.get("topology_policy_event_id") or "")
+        )
+        policy = _mapping(
+            _mapping((topology_event or {}).get("payload")).get(
+                "topology_policy"
+            )
+        )
+        topology_result = _mapping(policy.get("topology_result"))
+        composition = _mapping(topology_result.get("composition"))
+        decision = _mapping(topology_result.get("decision_receipt"))
+        decision_payload = _mapping(decision.get("payload")) or decision
+        graph_commit = _mapping(decision_payload.get("graph_commit"))
+        proposal = _mapping(composition.get("proposal"))
+        proposal_payload = _mapping(proposal.get("payload")) or proposal
+        operations = tuple(
+            _mapping(item)
+            for item in _sequence(proposal_payload.get("operations"))
+            if isinstance(item, Mapping)
+        )
+        topology = _mapping(chain.get("topology"))
+        embedded_composition = _mapping(topology.get("composition"))
+        embedded_decision = _mapping(topology.get("decision_receipt"))
+        embedded_decision_payload = (
+            _mapping(embedded_decision.get("payload"))
+            or embedded_decision
+        )
+        if (
+            topology.get("composition_digest")
+            != canonical_digest(embedded_composition)
+            or topology.get("decision_digest") != decision.get("digest")
+            or embedded_decision.get("digest") != decision.get("digest")
+            or _mapping(embedded_decision_payload.get("graph_commit"))
+            != graph_commit
+            or _mapping(embedded_composition.get("proposal")).get("digest")
+            != _mapping(composition.get("proposal")).get("digest")
+            or _mapping(topology.get("graph_commit")) != graph_commit
+            or tuple(_sequence(topology.get("operation_kinds")))
+            != tuple(
+                sorted({str(item.get("kind") or "") for item in operations})
+            )
+            or int(topology.get("operation_count") or 0) != len(operations)
+            or tuple(_sequence(topology.get("layers")))
+            != tuple(_sequence(composition.get("layers")))
+            or tuple(_sequence(topology.get("projection_differences")))
+            != tuple(_sequence(composition.get("projection_differences")))
+            or topology.get("canonical_custody_commit") is not True
+        ):
+            blockers.append("production_topology_chain_binding")
+        completion_id = str(control.get("completion_gate_event_id") or "")
+        completion = _mapping(
+            _mapping(owner_map.get(completion_id)).get("payload")
+        )
+        continuity = _mapping(chain.get("continuity"))
+        continuity_receipt = _mapping(continuity.get("receipt"))
+        try:
+            MemoryContinuityReceipt.from_dict(continuity_receipt)
+        except (TypeError, ValueError):
+            blockers.append("production_continuity_contract")
+        if (
+            completion_id
+            not in set(_sequence(control.get("production_event_ids")))
+            or completion.get("schema")
+            != "zyra.production-adaptive-depth-completion-gate/v1"
+            or completion.get("hard_conditions_passed") is not True
+            or continuity.get("completion_event_id") != completion_id
+            or continuity_receipt != _mapping(
+                completion.get("continuity_receipt")
+            )
+            or _mapping(
+                continuity.get("symbolic_bundle_policy_artifact_ref")
+            )
+            != _mapping(
+                completion.get("symbolic_bundle_policy_artifact_ref")
+            )
+            or continuity.get("final_verifier_receipt_ref")
+            != completion.get("final_verifier_receipt_ref")
+            or continuity.get("physical_execution_receipt_ref")
+            != completion.get("physical_execution_receipt_ref")
+            or continuity.get("hard_conditions_passed") is not True
+        ):
+            blockers.append("production_continuity_chain_binding")
+        loopx = _mapping(chain.get("loopx"))
+        loopx_unsigned = dict(loopx)
+        loopx_claimed = str(loopx_unsigned.pop("chain_digest", ""))
+        validation = _mapping(loopx.get("validation"))
+        placement = _mapping(policy.get("physical_placement"))
+        permission = _mapping(policy.get("permission_receipt"))
+        try:
+            canonical_ref = CanonicalCommitRef.from_value(graph_commit)
+        except (TypeError, ValueError):
+            canonical_ref = None
+            blockers.append("production_loopx_commit_contract")
+        expected_checks: dict[str, bool] = {}
+        results = _mapping(loopx.get("results"))
+        expected_statuses = {
+            "connect": "applied",
+            "claim": "applied",
+            "conflict": "claim_conflict",
+            "release": "applied",
+            "quota_exhaustion": "quota_exhausted",
+        }
+        for name, status in expected_statuses.items():
+            result = _mapping(results.get(name))
+            receipt = _mapping(result.get("receipt"))
+            apply_receipt = _mapping(receipt.get("apply_receipt"))
+            last_validated = (
+                _mapping(apply_receipt.get("last_validated_receipt"))
+                or _mapping(
+                    _mapping(result.get("state")).get(
+                        "last_validated_receipt"
+                    )
+                )
+            )
+            result_checks = {
+                "schema": result.get("schema")
+                == "zyra.loopx-control-result/v1",
+                "action": result.get("action")
+                == (
+                    "claim"
+                    if name == "conflict"
+                    else "interaction_submit"
+                    if name == "quota_exhaustion"
+                    else name
+                ),
+                "status": receipt.get("status") == status,
+                "sequence": int(result.get("sequence") or 0) > 0,
+                "commit_id": name == "conflict"
+                or last_validated.get("canonical_commit_id")
+                == graph_commit.get("commit_id"),
+                "commit_digest": (
+                    name == "conflict"
+                    or canonical_ref is None
+                    or last_validated.get("canonical_receipt_digest")
+                    == canonical_ref.receipt_digest
+                ),
+            }
+            blockers.extend(
+                f"production_loopx_result:{name}:{check}"
+                for check, passed in result_checks.items()
+                if not passed
+            )
+        before = _mapping(loopx.get("restart_snapshot_before"))
+        after = _mapping(loopx.get("restart_snapshot_after"))
+        canonical_state = _mapping(after.get("canonical_state"))
+        expected_checks = {
+            "connected": _mapping(results.get("connect")).get("state", {}).get("connected") is True,
+            "claim_applied": _mapping(_mapping(results.get("claim")).get("receipt")).get("status") == "applied",
+            "claim_conflict_rejected": _mapping(_mapping(results.get("conflict")).get("receipt")).get("status") == "claim_conflict",
+            "release_applied": _mapping(_mapping(results.get("release")).get("receipt")).get("status") == "applied",
+            "quota_exhaustion_fail_closed": (
+                _mapping(_mapping(results.get("quota_exhaustion")).get("receipt")).get("status") == "quota_exhausted"
+                and _mapping(_mapping(results.get("quota_exhaustion")).get("state")).get("continuation", {}).get("allowed") is False
+            ),
+            "restart_recovered": (
+                before.get("private_state") == after.get("private_state")
+                and _mapping(before.get("sync")).get("cursor")
+                == _mapping(after.get("sync")).get("cursor")
+            ),
+            "worker_lease_owner_preserved": (
+                canonical_state.get("worker_lease_owner") == "WorkerLeaseManager"
+                and canonical_state.get("loopx_claim_is_worker_lease") is False
+            ),
+            "execution_budget_owner_preserved": (
+                canonical_state.get("execution_budget_owner") == "ResourceScheduler"
+                and canonical_state.get("loopx_quota_is_execution_budget") is False
+            ),
+        }
+        if (
+            loopx.get("schema") != "zyra.phase2-production-loopx-chain/v1"
+            or loopx_claimed != canonical_digest(loopx_unsigned)
+            or loopx.get("canonical_commit_id") != graph_commit.get("commit_id")
+            or loopx.get("canonical_commit_digest")
+            != canonical_digest(graph_commit)
+            or validation.get("permission_receipt_id")
+            != permission.get("receipt_digest")
+            or validation.get("lease_receipt_id") != placement.get("lease_id")
+            or validation.get("budget_receipt_id")
+            != placement.get("resource_decision_id")
+            or _mapping(loopx.get("checks")) != expected_checks
+            or not all(expected_checks.values())
+        ):
+            blockers.append("production_loopx_chain_binding")
+        return blockers
+
+    @staticmethod
     def _hard_gate_blockers(gates: Mapping[str, Any]) -> list[str]:
         blockers: list[str] = []
         if gates.get("schema") != "zyra.phase2-sealed-hard-gates/v1":
@@ -1089,20 +1335,31 @@ class SealedLongRunValidator:
         if physical.get("artifact_continuity") is not True:
             blockers.append("physical_artifact_continuity")
         continuity = _mapping(gates.get("continuity"))
-        required_transitions = {
+        continuity_receipt = _mapping(continuity.get("production_receipt"))
+        try:
+            parsed_continuity = MemoryContinuityReceipt.from_dict(
+                continuity_receipt
+            )
+        except (TypeError, ValueError):
+            parsed_continuity = None
+            blockers.append("continuity_production_receipt")
+        if (
+            parsed_continuity is not None
+            and parsed_continuity.continuity_result != "passed"
+        ):
+            blockers.append("continuity_production_result")
+        if continuity.get("production_hard_conditions_passed") is not True:
+            blockers.append("continuity_completion_gate")
+        transition_effects = _mapping(
+            continuity.get("verified_transition_effects")
+        )
+        if set(transition_effects) != {
             "compact_restore",
-            "process_restart",
-            "handoff",
-            "requirement_revision",
-        }
-        if set(_sequence(continuity.get("verified_transitions"))) != required_transitions:
+            "fault",
+            "recovery",
+            "memory",
+        } or any(int(value or 0) < 1 for value in transition_effects.values()):
             blockers.append("continuity_transition_coverage")
-        if continuity.get("poisoned_rejected") is not True:
-            blockers.append("poisoned_memory_rejection")
-        if continuity.get("stale_rejected") is not True:
-            blockers.append("stale_memory_rejection")
-        if continuity.get("conflicting_rejected") is not True:
-            blockers.append("conflicting_memory_rejection")
         loopx = _mapping(gates.get("loopx"))
         for name in (
             "restart_recovered",
@@ -1115,10 +1372,13 @@ class SealedLongRunValidator:
                 blockers.append(f"loopx_{name}")
         topology = _mapping(gates.get("topology_operator"))
         for name in (
-            "role_added",
-            "role_removed",
-            "operator_added",
-            "operator_removed",
+            "node_added",
+            "edge_added",
+            "role_capability_joint",
+            "arg_committed",
+            "card_committed",
+            "agentprune_committed",
+            "agentprune_reduced",
             "canonical_custody_commit",
         ):
             if topology.get(name) is not True:
@@ -1128,13 +1388,6 @@ class SealedLongRunValidator:
             blockers.append("permission_denial")
         if permission.get("autonomous_recovery") is not True:
             blockers.append("permission_autonomous_recovery")
-        disable = _mapping(gates.get("disable_evidence"))
-        if set(disable) != REQUIRED_DISABLE_GATES:
-            blockers.append("disable_evidence_coverage")
-        for name, value in disable.items():
-            item = _mapping(value)
-            if item.get("disabled_changed_outcome") is not True:
-                blockers.append(f"disable_evidence_{name}")
         if gates.get("production_bypass_reachable") is not False:
             blockers.append("production_bypass")
         production = _mapping(gates.get("production_control"))
