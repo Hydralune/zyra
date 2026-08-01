@@ -431,11 +431,11 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
         for item in pool_api.pool.store.receipts_for_task(state.task_id)
         if item.receipt_id == valid_replay["receipt_id"]
     )
-    state.metadata["worker_pool_receipt"] = dict(canonical_base)
+    state.metadata.pop("worker_pool_receipt")
     artifact_restored = pool_api.finalize_task(
         state,
         success=True,
-        summary="restore enrichment from canonical artifact bytes",
+        summary="restore absent TaskState receipt from canonical artifact bytes",
     )
     assert artifact_restored is not None
     assert artifact_restored["physical_dispatch_receipt"] == dispatch_receipt
@@ -444,7 +444,7 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     )
 
     with monkeypatch.context() as missing_artifact:
-        state.metadata["worker_pool_receipt"] = dict(canonical_base)
+        state.metadata.pop("worker_pool_receipt", None)
 
         def reject_missing_artifact(*_args, **_kwargs):
             raise FileNotFoundError("controlled missing policy artifact")
@@ -462,7 +462,7 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
             )
 
     with monkeypatch.context() as corrupt_artifact:
-        state.metadata["worker_pool_receipt"] = dict(canonical_base)
+        state.metadata.pop("worker_pool_receipt", None)
         corrupt_artifact.setattr(
             pool_api.artifact_store,
             "iter_bytes",
