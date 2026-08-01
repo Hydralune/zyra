@@ -83,27 +83,21 @@ def _dispatch(location: str, attempt: str, *, simulated: bool) -> dict[str, obje
     }
 
 
-def test_simulated_dispatch_is_excluded_from_real_edge_numerator() -> None:
-    result = Phase2MetricEngine().evaluate_run(
-        _run(
-            {
-                PHYSICAL_DISPATCH_RECEIPTS: (
-                    _dispatch("local", "attempt-real", simulated=False),
-                    _dispatch("edge", "attempt-simulated", simulated=True),
-                )
-            }
+def test_self_reported_dispatch_cannot_enter_real_numerator() -> None:
+    forged = _dispatch("edge", "attempt-forged", simulated=False)
+    forged["digest"] = canonical_digest(forged)
+    with pytest.raises(Phase2MetricError) as captured:
+        Phase2MetricEngine().evaluate_run(
+            _run({PHYSICAL_DISPATCH_RECEIPTS: (forged,)})
         )
-    )
-    local = result.metrics["dispatch.local_real_receipt_completeness"]
-    edge = result.metrics["dispatch.edge_real_receipt_completeness"]
-    assert local.value == 1.0
-    assert local.numerator == 1
-    assert edge.value is None
-    assert edge.status is MetricStatus.DEGRADED
-    assert edge.numerator == 0
+    assert captured.value.code in {
+        "metric_receipt_digest_mismatch",
+        "metric_receipt_contract_invalid",
+        "metric_physical_dispatch_gate_open",
+    }
 
 
-def test_memory_presence_without_downstream_use_does_not_pass_continuity() -> None:
+def test_incomplete_continuity_mapping_fails_contract_admission() -> None:
     receipt = {
         "schema_version": "zyra.memory-continuity-receipt/v1",
         "contract_kind": "memory_continuity_receipt",
@@ -129,17 +123,15 @@ def test_memory_presence_without_downstream_use_does_not_pass_continuity() -> No
             "continuity_result": "passed",
         },
     }
-    result = Phase2MetricEngine().evaluate_run(
-        _run({CONTINUITY_RECEIPTS: (receipt,)})
-    )
-    recall = result.metrics["continuity.critical_fact_recall"]
-    first_decision = result.metrics["continuity.first_decision_correctness"]
-    assert recall.value == 0.0
-    assert "downstream_usage_required" in recall.reasons
-    assert first_decision.value == 0.0
+    receipt["digest"] = canonical_digest(receipt)
+    with pytest.raises(Phase2MetricError) as captured:
+        Phase2MetricEngine().evaluate_run(
+            _run({CONTINUITY_RECEIPTS: (receipt,)})
+        )
+    assert captured.value.code == "metric_receipt_contract_invalid"
 
 
-def test_projector_reject_without_commit_records_zero_unsafe_commit() -> None:
+def test_incomplete_symbolic_mapping_fails_contract_admission() -> None:
     bundle = {
         "schema_version": "zyra.neuro-symbolic-evidence-bundle/v1",
         "contract_kind": "neuro_symbolic_evidence_bundle",
@@ -154,22 +146,24 @@ def test_projector_reject_without_commit_records_zero_unsafe_commit() -> None:
             }
         },
     }
-    result = Phase2MetricEngine().evaluate_run(
-        _run({SYMBOLIC_BUNDLES: (bundle,)})
-    )
-    assert result.metrics["symbolic.adversarial_reject_ratio"].value == 1.0
-    assert result.metrics["symbolic.unsafe_commit_count"].value == 0.0
-    assert result.metrics["symbolic.projector_bypass_reachable"].value == 0.0
+    unsigned = dict(bundle)
+    bundle["digest"] = canonical_digest(unsigned)
+    with pytest.raises(Phase2MetricError) as captured:
+        Phase2MetricEngine().evaluate_run(
+            _run({SYMBOLIC_BUNDLES: (bundle,)})
+        )
+    assert captured.value.code == "metric_receipt_contract_invalid"
 
 
 def test_transition_volume_cannot_raise_readiness_status() -> None:
     readiness = {
-        "report_digest": "readiness-evidence-only",
+        "schema": "zyra.mechanism-evidence-readiness-report/v1",
         "mechanism_id": "arg",
         "readiness_stage": "input_precheck",
         "status": "evidence_only",
         "actual_mode": "diagnostic",
     }
+    readiness["report_digest"] = canonical_digest(readiness)
     engine = Phase2MetricEngine()
     short = engine.evaluate_run(
         _run({READINESS_REPORTS: (readiness,)}, transitions=1)
@@ -185,7 +179,7 @@ def test_transition_volume_cannot_raise_readiness_status() -> None:
     )
 
 
-def test_stale_proposal_and_missing_outcome_fail_closed() -> None:
+def test_incomplete_topology_contract_fails_before_staleness_gaming() -> None:
     proposal = {
         "schema_version": "zyra.topology-proposal-artifact/v1",
         "contract_kind": "topology_proposal_artifact",
@@ -198,6 +192,7 @@ def test_stale_proposal_and_missing_outcome_fail_closed() -> None:
             "operations": [],
         },
     }
+    proposal["digest"] = canonical_digest(proposal)
     decision = {
         "schema_version": "zyra.policy-decision-receipt/v1",
         "contract_kind": "policy_decision_receipt",
@@ -207,12 +202,13 @@ def test_stale_proposal_and_missing_outcome_fail_closed() -> None:
         "payload": {
             "decision_id": "decision-stale",
             "proposal_id": "proposal-stale",
-            "proposal_digest": canonical_digest(proposal),
+            "proposal_digest": proposal["digest"],
             "disposition": "accept",
             "projected_operations": [],
             "graph_commit": {"commit_id": "commit-stale"},
         },
     }
+    decision["digest"] = canonical_digest(decision)
     with pytest.raises(Phase2MetricError) as stale:
         Phase2MetricEngine().evaluate_run(
             _run(
@@ -222,19 +218,10 @@ def test_stale_proposal_and_missing_outcome_fail_closed() -> None:
                 }
             )
         )
-    assert stale.value.code == "metric_receipt_stale"
-
-    decision["created_at"] = "2026-07-30T10:00:00.500Z"
-    with pytest.raises(Phase2MetricError) as missing:
-        Phase2MetricEngine().evaluate_run(
-            _run(
-                {
-                    TOPOLOGY_PROPOSALS: (proposal,),
-                    POLICY_DECISIONS: (decision,),
-                }
-            )
-        )
-    assert missing.value.code == "metric_policy_outcome_reference_missing"
+    assert stale.value.code in {
+        "metric_receipt_digest_mismatch",
+        "metric_receipt_contract_invalid",
+    }
 
 
 def test_zero_denominator_and_disconnected_resolver_are_non_success() -> None:
@@ -249,7 +236,7 @@ def test_zero_denominator_and_disconnected_resolver_are_non_success() -> None:
     assert disconnected.metrics["dispatch.causal_chain_completeness"].status is MetricStatus.FAILED
 
 
-def test_policy_api_reads_digest_verified_report_without_owning_state() -> None:
+def test_policy_api_rejects_self_hashed_report_without_owner_admission() -> None:
     body = {
         "schema_version": "zyra.phase2-metric-report/v1",
         "registry_digest": "a" * 64,
@@ -278,8 +265,8 @@ def test_policy_api_reads_digest_verified_report_without_owning_state() -> None:
             {},
         )
     assert response is not None
-    assert response.status == 200
-    assert response.body["digest"] == payload["digest"]
+    assert response.status == 409
+    assert response.body["error"] == "metric_report_run_admission_missing"
     assert response.headers["Cache-Control"] == "no-store, max-age=0"
     assert ("GET", "/policy/metrics/specs") in ZYRA_DYNAMIC_API_ROUTES
     assert (

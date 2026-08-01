@@ -12,6 +12,7 @@ from zyra_evaluation.policy_benchmark import (
     Phase2MetricError,
     Phase2MetricReportBuilder,
     RunMetricInput,
+    canonical_digest,
     metric_spec_registry_payload,
     requirement_metric_map,
 )
@@ -24,7 +25,7 @@ def _observation(
     *,
     cost: float = 0.01,
 ) -> dict[str, object]:
-    return {
+    body = {
         "schema_version": "zyra.agentprune-communication-outcome/v1",
         "observation_id": f"observation-{index}",
         "run_id": "run-metrics",
@@ -53,6 +54,7 @@ def _observation(
         "permission_result": "allowed",
         "causal_refs": [f"delivery-{index}", f"usage-{index}"],
     }
+    return {**body, "digest": canonical_digest(body)}
 
 
 def _input(
@@ -177,15 +179,19 @@ def test_duplicate_import_is_idempotent_but_conflicting_identity_fails() -> None
     twice = engine.evaluate_run(_input((observation, observation)))
     assert once.digest == twice.digest
 
-    first = {"report_digest": "shared", "mechanism_id": "arg", "status": "evidence_only"}
-    second = {"report_digest": "shared", "mechanism_id": "arg", "status": "deterministic_ready"}
+    first = _observation("a", "b", 20)
+    second_body = {
+        key: value for key, value in first.items() if key != "digest"
+    }
+    second_body["delivered"] = False
+    second = {**second_body, "digest": canonical_digest(second_body)}
     value = RunMetricInput(
         run_id="run-conflict",
         task_id="task-conflict",
         scenario_id="scenario-conflict",
         mechanism_profile="phase2_strongest_v1",
         receipt_resolver=InMemoryCanonicalReceiptResolver(
-            {"readiness_reports": (first, second)}
+            {COMMUNICATION_RECEIPTS: (first, second)}
         ),
         task_succeeded=True,
         effective_transition_count=0,

@@ -125,6 +125,22 @@ const INTEGRITY = new Set<PolicyIntegrity>([
   "stale",
   "inconsistent",
 ])
+const VERIFIED_CONTRACT_SCHEMAS = new Map<string, string>([
+  ["topology_proposal_artifact", "zyra.topology-proposal-artifact/v1"],
+  ["policy_decision_receipt", "zyra.policy-decision-receipt/v1"],
+  ["policy_outcome", "zyra.policy-outcome/v1"],
+  ["memory_continuity_receipt", "zyra.memory-continuity-receipt/v1"],
+  ["neuro_symbolic_evidence_bundle", "zyra.neuro-symbolic-evidence-bundle/v1"],
+  ["physical_dispatch_receipt", "zyra.physical-dispatch-receipt/v2"],
+])
+
+function digest(value: unknown, label: string): string {
+  const selected = String(value || "").toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(selected)) {
+    throw new TypeError(`${label} must be a SHA-256 digest.`)
+  }
+  return selected
+}
 
 function record(value: unknown, label: string): Readonly<Record<string, unknown>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -162,6 +178,10 @@ function transition(value: unknown): PolicyEvidenceTransition {
     route: String(item.route || ""),
   }))
   const sequence = Number(body.sequence)
+  const integrity = enumValue(body.integrity, INTEGRITY, "Policy integrity")
+  const contractKind = String(body.contract_kind || "")
+  const schemaVersion = String(body.schema_version || "")
+  const contractDigest = String(body.contract_digest || "")
   if (
     !String(body.transition_id || "")
     || !String(body.event_id || "")
@@ -170,6 +190,19 @@ function transition(value: unknown): PolicyEvidenceTransition {
     || sequence < 1
   ) {
     throw new TypeError("Policy evidence transition identity is incomplete.")
+  }
+  if (integrity === "verified") {
+    if (
+      !String(body.run_id || "")
+      || !String(body.task_id || "")
+      || VERIFIED_CONTRACT_SCHEMAS.get(contractKind) !== schemaVersion
+    ) {
+      throw new TypeError("Verified policy evidence contract identity is invalid.")
+    }
+    digest(contractDigest, "Verified policy contract digest")
+    if (causalRefs.some((item) => !item.kind || !item.id || !item.route)) {
+      throw new TypeError("Verified policy causal references are incomplete.")
+    }
   }
   return Object.freeze({
     transition_id: String(body.transition_id),
@@ -180,9 +213,9 @@ function transition(value: unknown): PolicyEvidenceTransition {
     run_id: String(body.run_id || ""),
     task_id: String(body.task_id || ""),
     receipt_id: String(body.receipt_id),
-    contract_kind: String(body.contract_kind || ""),
-    schema_version: String(body.schema_version || ""),
-    contract_digest: String(body.contract_digest || ""),
+    contract_kind: contractKind,
+    schema_version: schemaVersion,
+    contract_digest: contractDigest,
     mechanism: Object.freeze({
       id: String(mechanism.id || ""),
       version: String(mechanism.version || ""),
@@ -198,7 +231,7 @@ function transition(value: unknown): PolicyEvidenceTransition {
       ),
     }),
     execution: enumValue(body.execution, EXECUTIONS, "Policy execution"),
-    integrity: enumValue(body.integrity, INTEGRITY, "Policy integrity"),
+    integrity,
     disposition: String(body.disposition || ""),
     constraints: records(body.constraints),
     graph_diff: records(body.graph_diff),
@@ -236,6 +269,14 @@ export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
   if (transitions.length !== transitionCount) {
     throw new TypeError("Policy evidence transition count is inconsistent.")
   }
+  if (
+    transitions.some((item, index) => (
+      item.sequence > highWatermark
+      || (index > 0 && item.sequence <= transitions[index - 1].sequence)
+    ))
+  ) {
+    throw new TypeError("Policy evidence transition sequence is inconsistent.")
+  }
   const issues = records(body.issues).map((item) => Object.freeze({
     code: String(item.code || ""),
     message: String(item.message || ""),
@@ -243,13 +284,26 @@ export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
     event_id: String(item.event_id || ""),
   }))
   const labels = record(body.labels, "Policy evidence labels")
+  const filterDigest = digest(body.filter_digest, "Policy filter digest")
+  const snapshotDigest = digest(body.snapshot_digest, "Policy snapshot digest")
+  const evidenceDigest = digest(body.evidence_digest, "Policy evidence digest")
+  const metricReport = record(body.metric_report ?? {}, "Policy metric projection")
+  if (metricReport.status === "verified") {
+    if (
+      metricReport.schema_version !== "zyra.phase2-metric-report/v1"
+      || !String(metricReport.report_id || "")
+    ) {
+      throw new TypeError("Verified policy metric report identity is invalid.")
+    }
+    digest(metricReport.digest, "Verified policy metric report digest")
+  }
   return Object.freeze({
     schema_version: "zyra.policy-evidence-projection/v1",
     projection_owner: "canonical_event_artifact_metric_read_model",
     canonical_write_allowed: false,
     status: String(body.status) as "ready" | "degraded",
     filters: record(body.filters, "Policy evidence filters") as Readonly<Record<string, string>>,
-    filter_digest: String(body.filter_digest || ""),
+    filter_digest: filterDigest,
     cursor: String(body.cursor || ""),
     next_cursor: String(body.next_cursor || ""),
     high_watermark: highWatermark,
@@ -257,15 +311,15 @@ export function admitPolicyEvidencePage(value: unknown): PolicyEvidencePage {
     scanned,
     transition_count: transitionCount,
     transitions,
-    metric_report: record(body.metric_report ?? {}, "Policy metric projection"),
+    metric_report: metricReport,
     issues: Object.freeze(issues),
     labels: Object.freeze(
       Object.fromEntries(
         Object.entries(labels).map(([key, item]) => [key, strings(item)]),
       ),
     ),
-    snapshot_digest: String(body.snapshot_digest || ""),
-    evidence_digest: String(body.evidence_digest || ""),
+    snapshot_digest: snapshotDigest,
+    evidence_digest: evidenceDigest,
   })
 }
 

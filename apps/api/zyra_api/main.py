@@ -5002,6 +5002,9 @@ def graph_execution_context() -> GraphExecutionContext:
         worker_pool_api=pool_api,
         memory_fabric=_memory_fabric(get_store()),
         resource_scheduler=scheduler,
+        policy_evidence_event_sink=(
+            lambda event: persist_events(get_store(), [event])
+        ),
         communication_outcome_provider=_phase2_communication_outcomes,
         communication_outcome_recorder=(
             _record_phase2_communication_outcomes
@@ -5230,23 +5233,19 @@ def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
         ):
             continue
         selected = dict(raw)
-        selected["delivery_receipt_ref"] = str(
-            selected.get("delivery_receipt_ref") or event_id
-        )
-        if (
-            int(selected.get("prompt_tokens") or 0) > 0
-            or int(selected.get("completion_tokens") or 0) > 0
-            or float(selected.get("cost_usd") or 0) > 0
-        ):
-            selected["usage_receipt_ref"] = str(
-                selected.get("usage_receipt_ref") or event_id
+        # The canonical TypeScript event ingress adds transport identity keys
+        # to every legacy payload.  They are outside the owner-signed receipt
+        # body and must not change its digest or leak into metric admission.
+        for transport_key in ("taskId", "sessionId", "legacyEventType"):
+            selected.pop(transport_key, None)
+        supplied_digest = str(selected.get("digest") or "")
+        unsigned = dict(selected)
+        unsigned.pop("digest", None)
+        if not supplied_digest or canonical_digest(unsigned) != supplied_digest:
+            raise RuntimeError(
+                "canonical communication outcome digest is missing or invalid: "
+                + event_id
             )
-        selected["causal_refs"] = sorted(
-            {
-                *(str(item) for item in selected.get("causal_refs") or ()),
-                event_id,
-            }
-        )
         output.append(selected)
     return tuple(output)
 
@@ -5343,7 +5342,7 @@ def _record_phase2_communication_outcomes(
             ).encode("utf-8")
         )
         evidence_refs = [cause_event.event_id, message_id]
-        outcome = {
+        outcome_body = {
             "schema_version": "zyra.agentprune-communication-outcome/v1",
             "observation_id": "observation:" + outcome_id,
             "window_id": "topology-route:" + cause_event.event_id,
@@ -5361,7 +5360,10 @@ def _record_phase2_communication_outcomes(
             "message_bytes": message_bytes,
             "prompt_tokens": 0,
             "completion_tokens": 0,
-            "cost_usd": 0.0,
+            # Use the cross-runtime canonical numeric form. JavaScript JSON
+            # serializes 0.0 as 0, so signing the integer form keeps the
+            # Python owner digest stable after TypeScript event admission.
+            "cost_usd": 0,
             "evidence_refs": evidence_refs,
             "utilized_evidence_refs": [],
             "artifact_refs": [],
@@ -5379,6 +5381,10 @@ def _record_phase2_communication_outcomes(
                 message_id,
                 *([permission_ref] if permission_ref else []),
             ],
+        }
+        outcome = {
+            **outcome_body,
+            "digest": canonical_digest(outcome_body),
         }
         new_outcomes.append(
             EventRecord(

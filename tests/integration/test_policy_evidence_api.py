@@ -154,7 +154,7 @@ def _api(
     )
 
 
-def test_real_policy_artifacts_project_graph_dispatch_metrics_and_cursor(
+def test_policy_artifacts_project_graph_dispatch_metrics_and_cursor(
     tmp_path: Path,
 ) -> None:
     api, bridge, artifacts, reports = _api(tmp_path)
@@ -178,10 +178,43 @@ def test_real_policy_artifacts_project_graph_dispatch_metrics_and_cursor(
             run_id="run-policy-evidence",
             task_id="task-policy-evidence",
         )
+        source = api.evidence_source
+        assert source is not None
+        source_page = source.page(
+            after_sequence=0,
+            limit=100,
+            task_id="task-policy-evidence",
+        )
+        event_refs = sorted(
+            str(item["eventId"])
+            for item in source_page["events"]
+            if item.get("eventId")
+        )
+        lineage: dict[str, list[str]] = {}
+        source_admission_body = {
+            "schema_version": "zyra.phase2-runtime-source-admission/v1",
+            "canonical_owner": "RuntimeEventSpine+TaskState+ArtifactStore",
+            "run_id": "run-policy-evidence",
+            "task_id": "task-policy-evidence",
+            "event_refs": event_refs,
+            "lineage_digest": canonical_digest(lineage),
+            "canonical_transition_count": len(event_refs),
+        }
         report_body = {
             "schema_version": "zyra.phase2-metric-report/v1",
             "registry_digest": "d" * 64,
-            "run_reports": [],
+            "run_reports": [
+                {
+                    "run_id": "run-policy-evidence",
+                    "task_id": "task-policy-evidence",
+                    "evidence_transition_count": len(event_refs),
+                    "lineage": lineage,
+                    "source_admission": {
+                        **source_admission_body,
+                        "digest": canonical_digest(source_admission_body),
+                    },
+                }
+            ],
             "scenario_reports": [],
             "mechanism_reports": [],
             "aggregate_report": {
@@ -249,9 +282,19 @@ def test_real_policy_artifacts_project_graph_dispatch_metrics_and_cursor(
             for item in [*first.body["transitions"], *second.body["transitions"]]
             if item["contract_kind"] == "physical_dispatch_receipt"
         ]
-        assert {item["execution"] for item in dispatches} == {"real", "simulated"}
+        assert {item["execution"] for item in dispatches} == {
+            "degraded",
+            "simulated",
+        }
+        invalid_real = next(
+            item for item in dispatches if item["receipt_id"] == "dispatch-real"
+        )
+        assert invalid_real["integrity"] == "inconsistent"
+        assert invalid_real["details"]["physical_validation"][
+            "real_gate_closed"
+        ] is False
         simulated = next(item for item in dispatches if item["execution"] == "simulated")
-        assert simulated["integrity"] == "verified"
+        assert simulated["integrity"] == "inconsistent"
         assert any(item["kind"] == "attempt" for item in simulated["causal_refs"])
 
         wrong_scope = api.route_get(
@@ -363,6 +406,65 @@ def test_task_drilldown_cursor_terminates_across_unrelated_global_events(
         assert final.body["transition_count"] == 0
         assert final.body["has_more"] is False
         assert final.body["next_cursor"] == ""
+    finally:
+        bridge.close()
+
+
+def test_cursor_expired_when_retention_moves_past_snapshot_position(
+    tmp_path: Path,
+) -> None:
+    api, bridge, _, _ = _api(tmp_path)
+    try:
+        bridge.append_legacy_events(
+            [
+                EventRecord(
+                    run_id="run-policy-retention",
+                    task_id="task-policy-retention",
+                    event_id=f"event-policy-retention-{index}",
+                    event_type=EventType.ARTIFACT_WRITTEN,
+                    payload={
+                        "schema": "zyra.loopx-sync-status/v1",
+                        "receipt_id": f"loopx-retention-{index}",
+                        "mechanism_version": "0.2.13",
+                        "status": "acked",
+                    },
+                )
+                for index in range(2)
+            ]
+        )
+        first = api.route_get(
+            ("policy", "evidence"),
+            {"task_id": "task-policy-retention", "limit": "1"},
+        )
+        assert first is not None and first.status == 200
+        assert first.body["next_cursor"]
+        source = api.evidence_source
+        assert source is not None
+
+        class RetentionAdvancedSource:
+            def health(self):
+                return source.health()
+
+            def earliest_sequence(self):
+                return 3
+
+            def page(self, **kwargs):
+                return source.page(**kwargs)
+
+            def contract_for_event(self, event):
+                return source.contract_for_event(event)
+
+        api.evidence_source = RetentionAdvancedSource()
+        expired = api.route_get(
+            ("policy", "evidence"),
+            {
+                "task_id": "task-policy-retention",
+                "limit": "1",
+                "cursor": first.body["next_cursor"],
+            },
+        )
+        assert expired is not None and expired.status == 409
+        assert expired.body["error"] == "policy_evidence_cursor_expired"
     finally:
         bridge.close()
 

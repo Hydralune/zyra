@@ -41,9 +41,9 @@ function transition(
     constraints: [],
     graph_diff: [],
     causal_refs: [
-      { kind: "attempt", id: `attempt-${sequence}`, route: "" },
+      { kind: "attempt", id: `attempt-${sequence}`, route: "/attempts" },
       { kind: "artifact", id: `artifact-${sequence}`, route: "/artifacts" },
-      { kind: "verifier", id: `verifier-${sequence}`, route: "" },
+      { kind: "verifier", id: `verifier-${sequence}`, route: "/verifiers" },
     ],
     details: {
       physical_identity: {
@@ -93,7 +93,8 @@ function page(
     metric_report: {
       report_id: "report-real",
       status: "verified",
-      digest: "m".repeat(64),
+      schema_version: "zyra.phase2-metric-report/v1",
+      digest: "d".repeat(64),
       aggregate_report: {
         metrics: {
           "dispatch.causal_chain_completeness": {
@@ -115,7 +116,7 @@ function page(
       execution: ["real", "simulated", "degraded", "not_applicable"],
       integrity: ["verified", "pending", "missing", "stale", "inconsistent"],
     },
-    snapshot_digest: "s".repeat(64),
+    snapshot_digest: "c".repeat(64),
     evidence_digest: `${start}`.padStart(64, "e").slice(-64),
   }
 }
@@ -138,6 +139,17 @@ describe("policy evidence admission and incremental projection", () => {
         },
       }],
     })).toThrow("lifecycle")
+    expect(() => admitPolicyEvidencePage({
+      ...page(1, 1),
+      transitions: [{
+        ...page(1, 1).transitions[0]!,
+        schema_version: "bogus/v0",
+      }],
+    })).toThrow("contract identity")
+    expect(() => admitPolicyEvidencePage({
+      ...page(1, 1),
+      evidence_digest: "self-reported",
+    })).toThrow("SHA-256")
   })
 
   test("2105 transitions append by cursor without a load-all render", () => {
@@ -154,7 +166,7 @@ describe("policy evidence admission and incremental projection", () => {
     const snapshot = store.getSnapshot()
     expect(snapshot.transitions).toHaveLength(2_105)
     expect(snapshot.hasMore).toBeFalse()
-    expect(snapshot.snapshotDigest).toBe("s".repeat(64))
+    expect(snapshot.snapshotDigest).toBe("c".repeat(64))
     expect(snapshot.evidenceDigests).toHaveLength(11)
     expect(snapshot.transitions[0]?.sequence).toBe(1)
     expect(snapshot.transitions.at(-1)?.sequence).toBe(2_105)
@@ -181,7 +193,7 @@ describe("policy evidence admission and incremental projection", () => {
     await runtime.loadNext()
     const exported = JSON.parse(runtime.exportLoaded())
     expect(exported.complete).toBeTrue()
-    expect(exported.snapshot_digest).toBe("s".repeat(64))
+    expect(exported.snapshot_digest).toBe("c".repeat(64))
     expect(exported.evidence_digests).toHaveLength(2)
     expect(exported.transitions).toHaveLength(3)
     expect(exported.canonical_write_allowed).toBeFalse()

@@ -8,6 +8,12 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
+from zyra_orchestration.topology_policy import (
+    PhysicalDispatchReceipt,
+    parse_policy_contract,
+)
+from zyra_scheduler import PhysicalDispatchReceiptValidator
+
 from .contracts import canonical_digest
 from .metric_specs import (
     EmptySampleSemantics,
@@ -41,6 +47,19 @@ RECEIPT_KINDS = (
     ADAPTIVE_DEPTH_RECEIPTS,
     PHYSICAL_DISPATCH_RECEIPTS,
 )
+
+_RECEIPT_SCHEMAS = {
+    COMMUNICATION_RECEIPTS: "zyra.agentprune-communication-outcome/v1",
+    TOPOLOGY_PROPOSALS: "zyra.topology-proposal-artifact/v1",
+    POLICY_DECISIONS: "zyra.policy-decision-receipt/v1",
+    POLICY_OUTCOMES: "zyra.policy-outcome/v1",
+    READINESS_REPORTS: "zyra.mechanism-evidence-readiness-report/v1",
+    CONTINUITY_RECEIPTS: "zyra.memory-continuity-receipt/v1",
+    SYMBOLIC_BUNDLES: "zyra.neuro-symbolic-evidence-bundle/v1",
+    EARLY_EXIT_RECEIPTS: "zyra.early-exit-decision-receipt/v1",
+    ADAPTIVE_DEPTH_RECEIPTS: "zyra.adaptive-depth-cost-receipt/v1",
+    PHYSICAL_DISPATCH_RECEIPTS: "zyra.physical-dispatch-receipt/v2",
+}
 
 
 class Phase2MetricError(ValueError):
@@ -172,6 +191,7 @@ class RunMetricResult:
     metrics: Mapping[str, MetricValue]
     lineage: Mapping[str, tuple[str, ...]]
     evidence_transition_count: int
+    source_admission: Mapping[str, Any]
 
     @property
     def digest(self) -> str:
@@ -192,6 +212,7 @@ class RunMetricResult:
                 key: list(self.lineage[key]) for key in sorted(self.lineage)
             },
             "evidence_transition_count": self.evidence_transition_count,
+            "source_admission": dict(self.source_admission),
         }
         return {**body, "digest": self.digest} if include_digest else body
 
@@ -228,14 +249,74 @@ def _document(value: Any) -> dict[str, Any]:
             f"{type(value).__name__} has no canonical mapping",
         )
     supplied = str(result.get("digest") or "")
-    if supplied:
-        body = {key: item for key, item in result.items() if key != "digest"}
-        if canonical_digest(body) != supplied:
+    if not supplied:
+        raise Phase2MetricError(
+            "metric_receipt_digest_missing",
+            "canonical metric input requires an owner-issued digest",
+        )
+    body = {key: item for key, item in result.items() if key != "digest"}
+    if canonical_digest(body) != supplied:
+        raise Phase2MetricError(
+            "metric_receipt_digest_mismatch",
+            "canonical receipt digest does not match its content",
+        )
+    return result
+
+
+def _admit_document(kind: str, value: Any) -> dict[str, Any]:
+    if kind == READINESS_REPORTS:
+        if not isinstance(value, Mapping):
+            raise Phase2MetricError(
+                "metric_receipt_not_canonical",
+                "readiness report must be a canonical mapping",
+            )
+        result = dict(value)
+        if result.get("schema") != _RECEIPT_SCHEMAS[kind]:
+            raise Phase2MetricError(
+                "metric_receipt_schema_invalid",
+                "readiness report schema is unsupported",
+            )
+        supplied = str(result.get("report_digest") or "")
+        body = dict(result)
+        body.pop("report_digest", None)
+        if not supplied or canonical_digest(body) != supplied:
             raise Phase2MetricError(
                 "metric_receipt_digest_mismatch",
-                "canonical receipt digest does not match its content",
+                "readiness report digest does not match its content",
             )
-    return result
+        return {**result, "digest": supplied}
+    document = _document(value)
+    schema = str(document.get("schema_version") or document.get("schema") or "")
+    if schema != _RECEIPT_SCHEMAS[kind]:
+        raise Phase2MetricError(
+            "metric_receipt_schema_invalid",
+            f"{kind} requires {_RECEIPT_SCHEMAS[kind]}, observed {schema or 'missing'}",
+        )
+    if kind in {
+        TOPOLOGY_PROPOSALS,
+        POLICY_DECISIONS,
+        POLICY_OUTCOMES,
+        CONTINUITY_RECEIPTS,
+        SYMBOLIC_BUNDLES,
+        PHYSICAL_DISPATCH_RECEIPTS,
+    }:
+        try:
+            parsed = parse_policy_contract(document)
+        except Exception as error:
+            raise Phase2MetricError(
+                "metric_receipt_contract_invalid",
+                f"{kind} failed canonical contract admission: {error}",
+            ) from error
+        if kind == PHYSICAL_DISPATCH_RECEIPTS:
+            receipt = PhysicalDispatchReceipt.from_dict(parsed.to_dict())
+            validation = PhysicalDispatchReceiptValidator().validate(receipt)
+            if not validation.real_gate_closed:
+                raise Phase2MetricError(
+                    "metric_physical_dispatch_gate_open",
+                    "physical dispatch failed the production v2 real gate: "
+                    + ",".join(validation.blockers),
+                )
+    return document
 
 
 def _payload(document: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -275,7 +356,7 @@ def _identity(kind: str, document: Mapping[str, Any]) -> str:
 def _deduplicate(kind: str, values: Sequence[Any]) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
     unique: dict[str, tuple[str, dict[str, Any]]] = {}
     for value in values:
-        document = _document(value)
+        document = _admit_document(kind, value)
         identity = _identity(kind, document)
         digest = _receipt_digest(document)
         previous = unique.get(identity)
@@ -990,6 +1071,18 @@ class Phase2MetricEngine:
     """Deterministic, read-only computation over canonical receipt resolvers."""
 
     def evaluate_run(self, value: RunMetricInput) -> RunMetricResult:
+        canonical_transition_count = getattr(
+            value.receipt_resolver,
+            "canonical_transition_count",
+            None,
+        )
+        if callable(canonical_transition_count):
+            observed_transition_count = int(canonical_transition_count())
+            if observed_transition_count != value.effective_transition_count:
+                raise Phase2MetricError(
+                    "metric_transition_count_not_canonical",
+                    "runtime transition count differs from the canonical event spine",
+                )
         resolved: dict[str, ReceiptResolution] = {
             kind: value.receipt_resolver.resolve(kind) for kind in RECEIPT_KINDS
         }
@@ -1099,6 +1192,29 @@ class Phase2MetricEngine:
         lineage = {
             kind: refs[kind] for kind in RECEIPT_KINDS
         }
+        admission_context = getattr(
+            value.receipt_resolver,
+            "admission_context",
+            None,
+        )
+        source_admission: dict[str, Any] = {}
+        if callable(admission_context):
+            admission_body = {
+                **dict(admission_context()),
+                "run_id": value.run_id,
+                "task_id": value.task_id,
+                "lineage_digest": canonical_digest(
+                    {
+                        kind: list(lineage[kind])
+                        for kind in sorted(lineage)
+                    }
+                ),
+                "canonical_transition_count": value.effective_transition_count,
+            }
+            source_admission = {
+                **admission_body,
+                "digest": canonical_digest(admission_body),
+            }
         return RunMetricResult(
             run_id=value.run_id,
             task_id=value.task_id,
@@ -1108,6 +1224,7 @@ class Phase2MetricEngine:
             metrics=metrics,
             lineage=lineage,
             evidence_transition_count=value.effective_transition_count,
+            source_admission=source_admission,
         )
 
 

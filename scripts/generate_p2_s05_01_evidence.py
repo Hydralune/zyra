@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 for package_path in (
@@ -18,169 +20,8 @@ for package_path in (
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from tests.integration.test_policy_metrics_from_receipts import (
-    _communication_receipts,
-    _continuity_receipt,
-    _dispatch,
-    _header,
-    _policy_receipts,
-    _symbolic_bundle,
-)
-from zyra_evaluation.policy_benchmark import (
-    ADAPTIVE_DEPTH_RECEIPTS,
-    COMMUNICATION_RECEIPTS,
-    CONTINUITY_RECEIPTS,
-    EARLY_EXIT_RECEIPTS,
-    PHYSICAL_DISPATCH_RECEIPTS,
-    POLICY_DECISIONS,
-    POLICY_OUTCOMES,
-    READINESS_REPORTS,
-    SYMBOLIC_BUNDLES,
-    TOPOLOGY_PROPOSALS,
-    InMemoryCanonicalReceiptResolver,
-    Phase2MetricReportBuilder,
-    RunMetricInput,
-    canonical_digest,
-    metric_spec_registry_payload,
-)
-from zyra_scheduler.operator_policy.adaptive_depth import (
-    AdaptiveDepthCostReceipt,
-)
-from zyra_scheduler.operator_policy.early_exit import (
-    ExitConditionResult,
-    ExitDecision,
-    ExitDecisionReceipt,
-    ExitPosteriorResult,
-)
-
 
 SLICE_ID = "P2-S05-01"
-
-
-def _readiness_report() -> dict[str, Any]:
-    body: dict[str, Any] = {
-        "schema": "zyra.mechanism-evidence-readiness-report/v1",
-        "mechanisms": {
-            "arg": {
-                "mechanism_id": "arg",
-                "readiness_stage": "implementation_validated",
-                "status": "deterministic_ready",
-                "actual_mode": "default",
-                "field_coverage": [
-                    {
-                        "field_id": "graph",
-                        "required": True,
-                        "sample_count": 1,
-                        "missing_count": 0,
-                        "coverage_ratio": 1.0,
-                        "freshness_ratio": 1.0,
-                        "confidence_ratio": 1.0,
-                    },
-                    {
-                        "field_id": "optional_signal",
-                        "required": False,
-                        "sample_count": 1,
-                        "missing_count": 0,
-                        "coverage_ratio": 1.0,
-                        "freshness_ratio": 1.0,
-                        "confidence_ratio": 1.0,
-                    },
-                ],
-                "scenario_coverage": {
-                    "required": ["normal"],
-                    "observed": ["normal"],
-                },
-                "failure_path_coverage": {
-                    "required": ["projector_reject"],
-                    "observed": ["projector_reject"],
-                },
-                "causal_links": {
-                    "required": ["proposal", "decision", "commit"],
-                    "completeness_ratio": 1.0,
-                },
-                "deterministic_input_snapshot_replay": {"passed": True},
-            }
-        },
-        "no_policy_training_audit": {
-            "passed": True,
-            "training_sample_count": 0,
-            "datasets": [],
-            "checkpoints": [],
-        },
-    }
-    return {**body, "report_digest": canonical_digest(body)}
-
-
-def _metric_input() -> RunMetricInput:
-    proposal, decision, outcome = _policy_receipts()
-    exit_receipt = ExitDecisionReceipt(
-        header=_header("exit-real", mechanism="maas_early_exit"),
-        decision_id="exit-real",
-        snapshot_id="snapshot-real",
-        snapshot_digest="2" * 64,
-        decision=ExitDecision.EXIT,
-        conditions=(
-            ExitConditionResult(
-                condition_id="final_verifier",
-                passed=True,
-                reason="final verifier passed",
-                evidence_refs=("verification-real",),
-            ),
-        ),
-        confidence=1.0,
-        avoided_operator_count=2,
-        avoided_tokens=200,
-        avoided_cost_usd=0.02,
-        verifier_refs=("verification-real",),
-        artifact_refs=("artifact-real",),
-        posterior_result=ExitPosteriorResult.TRUE_EXIT,
-        posterior_outcome_ref="outcome-real",
-    )
-    depth_receipt = AdaptiveDepthCostReceipt(
-        proposal_id="operator-proposal-real",
-        proposal_digest="3" * 64,
-        decision_ref="exit-real",
-        proposed_depth=3,
-        executed_depth=2,
-        proposed_operator_count=5,
-        executed_operator_count=3,
-        avoided_operator_refs=("operator-4", "operator-5"),
-        actual_tokens=300,
-        estimated_avoided_tokens=200,
-        actual_cost_usd=0.03,
-        estimated_avoided_cost_usd=0.02,
-        actual_latency_ms=600,
-        task_completed=True,
-        verifier_passed=True,
-        artifact_complete=True,
-    )
-    resolver = InMemoryCanonicalReceiptResolver(
-        {
-            COMMUNICATION_RECEIPTS: _communication_receipts(),
-            TOPOLOGY_PROPOSALS: (proposal,),
-            POLICY_DECISIONS: (decision,),
-            POLICY_OUTCOMES: (outcome,),
-            READINESS_REPORTS: (_readiness_report(),),
-            CONTINUITY_RECEIPTS: (_continuity_receipt(),),
-            SYMBOLIC_BUNDLES: (_symbolic_bundle(),),
-            EARLY_EXIT_RECEIPTS: (exit_receipt,),
-            ADAPTIVE_DEPTH_RECEIPTS: (depth_receipt,),
-            PHYSICAL_DISPATCH_RECEIPTS: (
-                _dispatch("local", 1),
-                _dispatch("edge", 2),
-                _dispatch("cloud", 3),
-            ),
-        }
-    )
-    return RunMetricInput(
-        run_id="run-real-receipts",
-        task_id="task-real-receipts",
-        scenario_id="cross-domain-long-run",
-        mechanism_profile="phase2_strongest_v1",
-        receipt_resolver=resolver,
-        task_succeeded=True,
-        effective_transition_count=3,
-    )
 
 
 def _write(path: Path, value: dict[str, Any]) -> None:
@@ -190,24 +31,102 @@ def _write(path: Path, value: dict[str, Any]) -> None:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--implementation-commit", required=True)
-    arguments = parser.parse_args()
-    output_dir = arguments.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+def _run_production_capture(
+    *,
+    output_dir: Path,
+    implementation_commit: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    # Import after the isolated state owner is selected. This prevents a
+    # developer or prior test run from supplying residual canonical receipts.
+    os.environ["ZYRA_STATE_ROOT"] = str(output_dir / "runtime-state")
 
-    registry = metric_spec_registry_payload()
-    report = Phase2MetricReportBuilder().build((_metric_input(),))
+    from apps.api.zyra_api import main as api
+    from zyra_core import PlanNodeStatus
+    from zyra_evaluation.policy_benchmark import (
+        CanonicalRuntimeReceiptResolver,
+        Phase2MetricReportBuilder,
+        RunMetricInput,
+        canonical_digest,
+        metric_spec_registry_payload,
+        write_phase2_metric_report,
+    )
+    from zyra_orchestration import ensure_default_graph, run_task_graph
+
+    state, created = api.make_task_created_event(
+        "Implement a code artifact through phase2_strongest_v1 and verify it."
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"p2-s05-production:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+    api.persist_events(api.get_store(), [created, *events])
+    if state.status is not PlanNodeStatus.COMPLETED:
+        raise RuntimeError(
+            f"production metric capture did not complete: {state.status}"
+        )
+    readiness = json.loads(
+        (
+            PROJECT_ROOT
+            / "docs"
+            / "release"
+            / "phase2"
+            / "activation-readiness.json"
+        ).read_text(encoding="utf-8")
+    )
+    resolver = CanonicalRuntimeReceiptResolver(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        events=(created, *events),
+        canonical_events=tuple(api.get_store().task_events(state.task_id)),
+        communication_receipts=api._phase2_communication_outcomes(state),
+        physical_dispatch_receipts=tuple(
+            state.metadata.get("physical_dispatch_receipts") or ()
+        ),
+        readiness_report=readiness,
+        decision_records=tuple(state.decisions),
+    )
+    report = Phase2MetricReportBuilder().build(
+        (
+            RunMetricInput(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                scenario_id="production-main-path",
+                mechanism_profile="phase2_strongest_v1",
+                receipt_resolver=resolver,
+                task_succeeded=True,
+                effective_transition_count=(
+                    resolver.canonical_transition_count()
+                ),
+            ),
+        )
+    )
+    report_id = f"p2-05-aggregate-{implementation_commit[:12]}"
+    runtime_report = write_phase2_metric_report(
+        report,
+        root=PROJECT_ROOT / ".zyra" / "reports" / "policy-metrics",
+        report_id=report_id,
+    )
     report_payload = report.to_dict()
     run = report.runs[0]
     lineage_body = {
-        "schema_version": "zyra.phase2-metric-lineage/v1",
+        "schema_version": "zyra.phase2-metric-lineage/v2",
         "slice_id": SLICE_ID,
-        "implementation_commit": arguments.implementation_commit,
+        "implementation_commit": implementation_commit,
         "run_id": run.run_id,
         "task_id": run.task_id,
+        "report_id": report_id,
+        "runtime_report_path": runtime_report.relative_to(PROJECT_ROOT).as_posix(),
+        "source_admission": dict(run.source_admission),
         "receipt_kinds": {
             kind: {
                 "receipt_count": len(refs),
@@ -221,25 +140,51 @@ def main() -> int:
         },
         "canonical_only": True,
         "ui_projection_used_as_input": False,
+        "test_fixture_used_as_input": False,
+        "transition_count_semantics": "canonical_event_spine_evidence_volume_only",
     }
     lineage = {**lineage_body, "digest": canonical_digest(lineage_body)}
+    registry = metric_spec_registry_payload()
     manifest_body = {
-        "schema_version": "zyra.p2-s05-01-evidence-manifest/v1",
+        "schema_version": "zyra.p2-s05-01-evidence-manifest/v2",
         "slice_id": SLICE_ID,
-        "implementation_commit": arguments.implementation_commit,
+        "implementation_commit": implementation_commit,
         "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "metric_spec_count": len(registry["specs"]),
         "registry_digest": registry["digest"],
+        "report_id": report_id,
         "report_digest": report_payload["digest"],
         "lineage_digest": lineage["digest"],
-        "run_count": len(report.runs),
-        "scenario_count": len(report.scenarios),
-        "mechanism_count": len(report.mechanisms),
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "canonical_event_count": resolver.canonical_transition_count(),
+        "physical_dispatch_receipt_count": len(
+            state.metadata.get("physical_dispatch_receipts") or ()
+        ),
         "failed_run_count": report.aggregate.failed_run_count,
+        "production_runtime_capture": True,
+        "fixture_free": True,
     }
     manifest = {**manifest_body, "digest": canonical_digest(manifest_body)}
-    _write(output_dir / "metric-spec-registry.json", registry)
-    _write(output_dir / "metric-report.json", report_payload)
+    return report_payload, lineage, manifest
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--implementation-commit", required=True)
+    arguments = parser.parse_args()
+    output_dir = arguments.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    report, lineage, manifest = _run_production_capture(
+        output_dir=output_dir,
+        implementation_commit=arguments.implementation_commit,
+    )
+    from zyra_evaluation.policy_benchmark import metric_spec_registry_payload
+
+    _write(output_dir / "metric-spec-registry.json", metric_spec_registry_payload())
+    _write(output_dir / "metric-report.json", report)
     _write(output_dir / "receipt-metric-lineage.json", lineage)
     _write(output_dir / "evidence-manifest.json", manifest)
     print(json.dumps(manifest, sort_keys=True))

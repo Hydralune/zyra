@@ -128,6 +128,10 @@ from .report import (
     Phase2MetricReportBuilder,
     StrongestPreflightReport,
 )
+from .runtime_receipts import (
+    CanonicalRuntimeReceiptResolver,
+    write_phase2_metric_report,
+)
 
 __all__ = [
     "ContractViolation",
@@ -204,6 +208,7 @@ __all__ = [
     "FIRST_STAGE_METRIC_COMPATIBILITY",
     "FailedTaskSemantics",
     "InMemoryCanonicalReceiptResolver",
+    "CanonicalRuntimeReceiptResolver",
     "MetricDirection",
     "MetricGroupReport",
     "MetricSpec",
@@ -236,4 +241,5 @@ __all__ = [
     "TOPOLOGY_PROPOSALS",
     "metric_spec_registry_payload",
     "requirement_metric_map",
+    "write_phase2_metric_report",
 ]

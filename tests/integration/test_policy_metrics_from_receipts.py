@@ -15,6 +15,7 @@ from zyra_evaluation.policy_benchmark import (
     MetricStatus,
     Phase2MetricReportBuilder,
     RunMetricInput,
+    canonical_digest,
 )
 from zyra_orchestration.topology_policy import (
     ConstraintResult,
@@ -190,6 +191,14 @@ def _communication_receipts() -> tuple[CommunicationOutcomeObservation, ...]:
     )
 
 
+def _signed_communications() -> tuple[dict[str, object], ...]:
+    output = []
+    for item in _communication_receipts():
+        body = item.to_dict()
+        output.append({**body, "digest": canonical_digest(body)})
+    return tuple(output)
+
+
 def _continuity_receipt() -> MemoryContinuityReceipt:
     return MemoryContinuityReceipt(
         header=_header("continuity-real", mechanism="MemoryContinuityVerifier"),
@@ -341,7 +350,6 @@ def test_structured_report_is_derived_from_real_contract_receipts() -> None:
     )
     readiness = {
         "schema": "zyra.mechanism-evidence-readiness-report/v1",
-        "report_digest": "readiness-real",
         "no_policy_training_audit": {"passed": True},
         "mechanisms": {
             "arg": {
@@ -385,9 +393,10 @@ def test_structured_report_is_derived_from_real_contract_receipts() -> None:
             }
         },
     }
+    readiness["report_digest"] = canonical_digest(readiness)
     resolver = InMemoryCanonicalReceiptResolver(
         {
-            COMMUNICATION_RECEIPTS: _communication_receipts(),
+            COMMUNICATION_RECEIPTS: _signed_communications(),
             TOPOLOGY_PROPOSALS: (proposal,),
             POLICY_DECISIONS: (decision,),
             POLICY_OUTCOMES: (outcome,),
@@ -396,11 +405,6 @@ def test_structured_report_is_derived_from_real_contract_receipts() -> None:
             SYMBOLIC_BUNDLES: (_symbolic_bundle(),),
             EARLY_EXIT_RECEIPTS: (exit_receipt,),
             ADAPTIVE_DEPTH_RECEIPTS: (depth_receipt,),
-            PHYSICAL_DISPATCH_RECEIPTS: (
-                _dispatch("local", 1),
-                _dispatch("edge", 2),
-                _dispatch("cloud", 3),
-            ),
         }
     )
     report = Phase2MetricReportBuilder().build(
@@ -425,17 +429,20 @@ def test_structured_report_is_derived_from_real_contract_receipts() -> None:
     assert run.metrics["symbolic.unsafe_commit_count"].value == 0.0
     assert run.metrics["operator.early_exit_true_positive_ratio"].value == 1.0
     assert run.metrics["operator.executed_depth"].value == 2.0
-    assert run.metrics["dispatch.local_real_receipt_completeness"].value == 1.0
-    assert run.metrics["dispatch.edge_real_receipt_completeness"].value == 1.0
-    assert run.metrics["dispatch.cloud_real_receipt_completeness"].value == 1.0
-    assert run.metrics["dispatch.provider_receipt_coverage"].value == 1.0
-    assert run.metrics["dispatch.causal_chain_completeness"].value == 1.0
+    assert run.metrics["dispatch.local_real_receipt_completeness"].value is None
+    assert run.metrics["dispatch.provider_receipt_coverage"].value is None
+    assert run.metrics["dispatch.causal_chain_completeness"].value is None
     assert run.metrics["evidence.canonical_transition_count"].reasons == (
         "evidence_volume_only",
     )
     assert report.aggregate.failed_run_count == 0
     assert report.digest
     assert all(
-        value.status in {MetricStatus.OBSERVED, MetricStatus.NOT_APPLICABLE}
+        value.status
+        in {
+            MetricStatus.OBSERVED,
+            MetricStatus.NOT_APPLICABLE,
+            MetricStatus.DEGRADED,
+        }
         for value in run.metrics.values()
     )

@@ -13,7 +13,11 @@ from zyra_evaluation.policy_benchmark.contracts import canonical_digest
 from zyra_evaluation.policy_benchmark.metric_specs import (
     metric_spec_registry_payload,
 )
-from zyra_orchestration.topology_policy.contracts import parse_policy_contract
+from zyra_orchestration.topology_policy.contracts import (
+    PhysicalDispatchReceipt,
+    parse_policy_contract,
+)
+from zyra_scheduler import PhysicalDispatchReceiptValidator
 
 
 _REPORT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -47,6 +51,11 @@ class PolicyEvidenceSource(Protocol):
         self,
         event: Mapping[str, Any],
     ) -> Mapping[str, Any] | None: ...
+
+    def verify_report_admission(
+        self,
+        report: Mapping[str, Any],
+    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +105,13 @@ class FilesystemPolicyMetricReportProvider:
             return {
                 "schema_version": "zyra.policy-metric-projection-error/v1",
                 "error": "metric_report_digest_mismatch",
+                "report_id": report_id,
+            }
+        admission_error = _metric_source_admission_error(payload)
+        if admission_error:
+            return {
+                "schema_version": "zyra.policy-metric-projection-error/v1",
+                "error": admission_error,
                 "report_id": report_id,
             }
         return dict(payload)
@@ -207,6 +223,70 @@ class RuntimePolicyEvidenceSource:
             raise ValueError("policy contract digest differs from event declaration")
         return contract
 
+    def verify_report_admission(
+        self,
+        report: Mapping[str, Any],
+    ) -> None:
+        """Resolve every report admission ref against the canonical event owner."""
+
+        runs = report.get("run_reports")
+        if not isinstance(runs, list) or not runs:
+            raise ValueError("metric report has no admitted runtime run")
+        for run in runs:
+            if not isinstance(run, Mapping):
+                raise ValueError("metric report run admission is invalid")
+            run_id = str(run.get("run_id") or "")
+            task_id = str(run.get("task_id") or "")
+            admission = _record(run.get("source_admission"))
+            expected_refs = {
+                str(item)
+                for item in admission.get("event_refs") or ()
+                if str(item)
+            }
+            if not run_id or not task_id or not expected_refs:
+                raise ValueError("metric report source identity is incomplete")
+            observed_refs: set[str] = set()
+            after_sequence = 0
+            scanned = 0
+            while scanned < 5_000:
+                source_page = self.page(
+                    after_sequence=after_sequence,
+                    limit=_MAX_SOURCE_PAGE,
+                    task_id=task_id,
+                )
+                events = source_page.get("events")
+                if not isinstance(events, list):
+                    raise ValueError("canonical event owner returned an invalid page")
+                if not events:
+                    break
+                advanced = False
+                for event in events:
+                    if not isinstance(event, Mapping):
+                        continue
+                    sequence = int(event.get("globalSequence") or 0)
+                    if sequence <= after_sequence:
+                        continue
+                    after_sequence = sequence
+                    scanned += 1
+                    advanced = True
+                    observed_run, observed_task = _event_identity(event, None)
+                    if observed_run == run_id and observed_task == task_id:
+                        event_id = str(event.get("eventId") or "")
+                        if event_id:
+                            observed_refs.add(event_id)
+                if not advanced:
+                    break
+            if observed_refs != expected_refs:
+                raise ValueError(
+                    "metric report event admission differs from canonical event owner"
+                )
+            if int(admission.get("canonical_transition_count") or -1) != len(
+                observed_refs
+            ):
+                raise ValueError(
+                    "metric report transition count differs from canonical event owner"
+                )
+
 
 class PolicyMetricApi:
     """GET-only API facade; it cannot mutate task, graph, lease, or run state."""
@@ -273,6 +353,20 @@ class PolicyMetricApi:
                     body=report,
                     headers=headers,
                 )
+            if self.evidence_source is not None:
+                try:
+                    self.evidence_source.verify_report_admission(report)
+                except Exception as error:
+                    return PolicyApiResponse(
+                        status=409,
+                        body={
+                            "schema_version": "zyra.policy-metric-projection-error/v1",
+                            "error": "metric_report_source_owner_unresolved",
+                            "report_id": report_id,
+                            "message": str(error),
+                        },
+                        headers=headers,
+                    )
             return PolicyApiResponse(
                 status=200,
                 body=report,
@@ -386,6 +480,7 @@ class PolicyMetricApi:
 
         metric_report = _metric_projection(
             self.provider,
+            self.evidence_source,
             filters["report_id"],
             issues,
         )
@@ -487,6 +582,54 @@ def reset_policy_metric_api() -> None:
 
 def _record(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _metric_source_admission_error(report: Mapping[str, Any]) -> str:
+    if report.get("schema_version") != "zyra.phase2-metric-report/v1":
+        return "metric_report_schema_invalid"
+    runs = report.get("run_reports")
+    if not isinstance(runs, list) or not runs:
+        return "metric_report_run_admission_missing"
+    for run in runs:
+        if not isinstance(run, Mapping):
+            return "metric_report_run_admission_invalid"
+        admission = run.get("source_admission")
+        if not isinstance(admission, Mapping):
+            return "metric_report_source_admission_missing"
+        supplied = str(admission.get("digest") or "")
+        unsigned = dict(admission)
+        unsigned.pop("digest", None)
+        if not supplied or canonical_digest(unsigned) != supplied:
+            return "metric_report_source_admission_digest_mismatch"
+        if (
+            admission.get("schema_version")
+            != "zyra.phase2-runtime-source-admission/v1"
+            or admission.get("canonical_owner")
+            != "RuntimeEventSpine+TaskState+ArtifactStore"
+            or admission.get("run_id") != run.get("run_id")
+            or admission.get("task_id") != run.get("task_id")
+        ):
+            return "metric_report_source_owner_invalid"
+        lineage = run.get("lineage")
+        if not isinstance(lineage, Mapping):
+            return "metric_report_lineage_missing"
+        expected_lineage = canonical_digest(
+            {
+                str(kind): list(refs)
+                for kind, refs in sorted(lineage.items())
+                if isinstance(refs, list)
+            }
+        )
+        if admission.get("lineage_digest") != expected_lineage:
+            return "metric_report_lineage_admission_mismatch"
+        event_refs = admission.get("event_refs")
+        if not isinstance(event_refs, list) or not event_refs:
+            return "metric_report_event_admission_missing"
+        if int(admission.get("canonical_transition_count") or -1) != int(
+            run.get("evidence_transition_count") or -2
+        ):
+            return "metric_report_transition_admission_mismatch"
+    return ""
 
 
 def _event_payload(event: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -623,6 +766,7 @@ def _issue(
 
 def _metric_projection(
     provider: PolicyMetricReportProvider,
+    evidence_source: PolicyEvidenceSource,
     report_id: str,
     issues: list[Mapping[str, Any]],
 ) -> Mapping[str, Any]:
@@ -650,6 +794,21 @@ def _metric_projection(
             "report_id": report_id,
             "status": "inconsistent",
             "error": report.get("error"),
+        }
+    try:
+        evidence_source.verify_report_admission(report)
+    except Exception as error:
+        issues.append(
+            _issue(
+                "metric_report_source_owner_unresolved",
+                str(error),
+                "inconsistent",
+            )
+        )
+        return {
+            "report_id": report_id,
+            "status": "inconsistent",
+            "error": "metric_report_source_owner_unresolved",
         }
     return {
         "report_id": report_id,
@@ -898,17 +1057,23 @@ def _project_event(
         payload.get("simulated", False)
         or payload.get("semantic_only", False)
     )
-    physical_complete = all(
-        (
-            str(payload.get("lease_id") or ""),
-            str(payload.get("physical_attempt_id") or ""),
-            _record(payload.get("physical_identity")),
-            _record(payload.get("worker_manifest_ref")),
-            _record(payload.get("call_receipt")),
-            _record(payload.get("artifact_ref")),
-            _record(payload.get("verifier_ref")),
-        )
-    )
+    physical_validation: Mapping[str, Any] = {}
+    if contract_kind == "physical_dispatch_receipt" and contract is not None:
+        try:
+            physical_validation = (
+                PhysicalDispatchReceiptValidator()
+                .validate(PhysicalDispatchReceipt.from_dict(contract))
+                .to_dict()
+            )
+        except Exception as error:
+            physical_validation = {
+                "schema": "zyra.physical-dispatch-validation/v1",
+                "real_gate_closed": False,
+                "blockers": [
+                    f"contract_admission:{type(error).__name__}"
+                ],
+            }
+    physical_complete = physical_validation.get("real_gate_closed") is True
     execution = (
         "simulated"
         if simulated
@@ -957,7 +1122,14 @@ def _project_event(
             "readiness": _readiness(contract_kind, payload),
         },
         "execution": execution,
-        "integrity": "verified" if contract else "pending",
+        "integrity": (
+            "inconsistent"
+            if contract_kind == "physical_dispatch_receipt"
+            and not physical_complete
+            else "verified"
+            if contract
+            else "pending"
+        ),
         "disposition": str(
             payload.get("disposition")
             or payload.get("continuity_result")
@@ -967,7 +1139,11 @@ def _project_event(
         "constraints": constraints,
         "graph_diff": operations,
         "causal_refs": refs,
-        "details": payload,
+        "details": (
+            {**dict(payload), "physical_validation": dict(physical_validation)}
+            if contract_kind == "physical_dispatch_receipt"
+            else payload
+        ),
     }
 
 

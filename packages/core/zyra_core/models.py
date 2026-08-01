@@ -371,7 +371,7 @@ def to_jsonable(value: Any) -> Any:
         return {item.name: to_jsonable(getattr(value, item.name)) for item in fields(value)}
     if isinstance(value, StrEnum):
         return str(value)
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {str(key): to_jsonable(item) for key, item in value.items()}
     if isinstance(value, list | tuple | set):
         return [to_jsonable(item) for item in value]

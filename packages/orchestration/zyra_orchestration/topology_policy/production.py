@@ -19,6 +19,7 @@ from zyra_core import (
     to_jsonable,
 )
 from zyra_scheduler.operator_policy import (
+    AdaptiveDepthCostReceipt,
     AdaptiveDepthRuntime,
     CanonicalExitSnapshotBuilder,
     DeterministicEarlyExitGate,
@@ -47,8 +48,10 @@ from .contracts import (
     MechanismEvidenceReadinessReportRef,
     PolicyBudget,
     TelemetryObservation,
+    PhysicalDispatchReceipt,
     canonical_digest,
 )
+from .evidence import PolicyEvidencePublisher
 from .continuity import (
     ContinuityTransition,
     ContinuityTransitionKind,
@@ -134,6 +137,9 @@ class Phase2StrongestProductionBridge:
         memory_fabric: Any,
         resource_scheduler: Any,
         admit_event: Callable[[EventRecord], None] | None = None,
+        policy_evidence_event_sink: (
+            Callable[[EventRecord], None] | None
+        ) = None,
         communication_outcome_provider: (
             Callable[[TaskState], Sequence[Mapping[str, Any]]] | None
         ) = None,
@@ -172,6 +178,15 @@ class Phase2StrongestProductionBridge:
         self.communication_outcome_recorder = communication_outcome_recorder
         self.permission_decision_provider = permission_decision_provider
         self.artifact_store = artifact_store
+        self.evidence_publisher = (
+            PolicyEvidencePublisher(
+                artifact_store,
+                admit_event=policy_evidence_event_sink,
+            )
+            if artifact_store is not None
+            and policy_evidence_event_sink is not None
+            else None
+        )
         self.permission_queue_provider = permission_queue_provider
         self.recovery_store = recovery_store
         self.final_verifier_owner = final_verifier_owner
@@ -201,6 +216,7 @@ class Phase2StrongestProductionBridge:
                 "placement_owner": "ResourceScheduler",
                 "lease_owner": "WorkerPoolFoundationRuntime",
             },
+            evidence_publisher=self.evidence_publisher,
             admit_event=self.admit_event,
         )
         self.operator_policy = MaasOperatorPolicyRuntime.from_repository(
@@ -1815,9 +1831,23 @@ class Phase2StrongestProductionBridge:
         state.metadata.setdefault("physical_dispatch_receipts", []).append(
             physical_dispatch
         )
+        if self.evidence_publisher is not None:
+            published_dispatch = self.evidence_publisher.publish(
+                PhysicalDispatchReceipt.from_dict(physical_dispatch),
+                run_id=state.run_id,
+                task_id=state.task_id,
+            )
+            selected["physical_dispatch_policy_artifact_ref"] = (
+                published_dispatch.artifact_ref.to_dict()
+            )
         if memory_mutation_receipt:
             selected["memory_mutation_receipt"] = dict(
                 memory_mutation_receipt
+            )
+        operator_call_result = route_context.get("operator_call_result")
+        if operator_call_result is None:
+            raise Phase2ProductionPolicyError(
+                "physical operator call result is missing before layer custody"
             )
         layer_record = {
             "schema": "zyra.production-operator-execution-layer/v1",
@@ -1876,6 +1906,9 @@ class Phase2StrongestProductionBridge:
             "worker_pool_receipt_id": str(
                 selected.get("receipt_id") or ""
             ),
+            "actual_tokens": int(operator_call_result.actual_tokens),
+            "actual_cost_usd": float(operator_call_result.actual_cost_usd),
+            "actual_latency_ms": int(operator_call_result.actual_latency_ms),
         }
         layer_record["layer_digest"] = canonical_digest(layer_record)
         state.metadata.setdefault("phase2_operator_execution_layers", []).append(
@@ -2148,6 +2181,16 @@ class Phase2StrongestProductionBridge:
                 "post-dispatch memory continuity failed: "
                 + ",".join(continuity.reason_codes)
             )
+        published_continuity_ref: dict[str, Any] = {}
+        if self.evidence_publisher is not None:
+            published_continuity = self.evidence_publisher.publish(
+                continuity.receipt,
+                run_id=state.run_id,
+                task_id=state.task_id,
+            )
+            published_continuity_ref = (
+                published_continuity.artifact_ref.to_dict()
+            )
         builder = CanonicalExitSnapshotBuilder(
             config=self.early_exit_config,
             artifact_store=self.artifact_store,
@@ -2218,6 +2261,52 @@ class Phase2StrongestProductionBridge:
             hard_condition_names.issubset(condition_map)
             and all(condition_map[name] for name in hard_condition_names)
         )
+        full_proposal = context.get("full_proposal") or proposal
+        proposed_operator_refs = tuple(
+            dict.fromkeys(
+                f"{candidate.operator_id}@{candidate.version}"
+                for layer in full_proposal.layers
+                for candidate in layer.candidates
+            )
+        )
+        executed_set = set(accumulated_executed)
+        layer_records = tuple(
+            item
+            for item in state.metadata.get(
+                "phase2_operator_execution_layers"
+            )
+            or ()
+            if isinstance(item, Mapping)
+        )
+        adaptive_depth_receipt = AdaptiveDepthCostReceipt(
+            proposal_id=full_proposal.proposal_id,
+            proposal_digest=full_proposal.digest,
+            decision_ref=decision.decision_id,
+            proposed_depth=len(full_proposal.layers),
+            executed_depth=len(layer_records),
+            proposed_operator_count=len(proposed_operator_refs),
+            executed_operator_count=len(executed_set),
+            avoided_operator_refs=tuple(
+                ref for ref in proposed_operator_refs if ref not in executed_set
+            ),
+            actual_tokens=sum(
+                int(item.get("actual_tokens") or 0)
+                for item in layer_records
+            ),
+            estimated_avoided_tokens=int(decision.avoided_tokens),
+            actual_cost_usd=sum(
+                float(item.get("actual_cost_usd") or 0.0)
+                for item in layer_records
+            ),
+            estimated_avoided_cost_usd=float(decision.avoided_cost_usd),
+            actual_latency_ms=sum(
+                int(item.get("actual_latency_ms") or 0)
+                for item in layer_records
+            ),
+            task_completed=state.status is PlanNodeStatus.COMPLETED,
+            verifier_passed=hard_conditions_passed,
+            artifact_complete=not snapshot.invalid_artifact_ids,
+        )
         return {
             "schema": "zyra.production-adaptive-depth-completion-gate/v1",
             "decision": decision.decision.value,
@@ -2233,9 +2322,12 @@ class Phase2StrongestProductionBridge:
             "checkpoint_receipt": checkpoint_receipt.to_dict(),
             "checkpoint_binding": binding.to_dict(),
             "continuity_receipt": continuity.receipt.to_dict(),
+            "continuity_policy_artifact_ref": published_continuity_ref,
             "final_verifier_receipt_ref": verifier_ref,
             "physical_execution_receipt_ref": physical_receipt_id,
             "adaptive_depth_event_id": decision_event.event_id,
+            "early_exit_receipt": decision.to_dict(),
+            "adaptive_depth_receipt": adaptive_depth_receipt.to_dict(),
             "early_exit_enabled": early_exit_enabled,
             "canonical_owner_bypass": False,
         }
