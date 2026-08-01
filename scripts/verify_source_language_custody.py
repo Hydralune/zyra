@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -304,6 +306,36 @@ def verify(document: Mapping[str, Any], *, base: str, target: str) -> dict[str, 
     }
 
 
+def _write_report(output: Path, report: Mapping[str, object]) -> Path:
+    resolved_root = ROOT.resolve()
+    resolved_output = (output if output.is_absolute() else ROOT / output).resolve()
+    if not resolved_output.is_relative_to(resolved_root):
+        raise CustodyViolation(
+            f"output path must remain inside repository root: {resolved_output}"
+        )
+    resolved_output.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=resolved_output.parent,
+            prefix=f".{resolved_output.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            json.dump(report, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary_path.replace(resolved_output)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+    return resolved_output
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Fail closed when a source role's required implementation language disappears."
@@ -311,6 +343,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--base", required=True)
     parser.add_argument("--target", default="WORKTREE")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Atomically write the report to a repository-contained JSON path.",
+    )
     arguments = parser.parse_args(argv)
     try:
         document = json.loads(arguments.evidence.read_text(encoding="utf-8"))
@@ -326,6 +363,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             "roles": [],
             "violations": [f"{type(error).__name__}: {error}"],
         }
+    if arguments.output is not None:
+        try:
+            _write_report(arguments.output, report)
+        except (OSError, CustodyViolation, ValueError) as error:
+            report["ok"] = False
+            report["violations"].append(
+                f"output {type(error).__name__}: {error}"
+            )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

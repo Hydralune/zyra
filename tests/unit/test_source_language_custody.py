@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -191,3 +192,85 @@ def test_ledger_is_read_from_evidence_checkout_not_implementation_target(monkeyp
 
     assert report["ok"] is True
     assert ledger_targets == ["HEAD"]
+
+
+def test_cli_atomically_writes_repository_contained_report(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    evidence = tmp_path / "custody-input.json"
+    evidence.write_text("{}", encoding="utf-8")
+    expected = {
+        "schema": "zyra.source-language-custody-report/v1",
+        "base": "base",
+        "target": "target",
+        "ok": True,
+        "roles": [],
+        "violations": [],
+    }
+    monkeypatch.setattr(MODULE, "ROOT", tmp_path)
+    monkeypatch.setattr(MODULE, "verify", lambda document, base, target: expected)
+
+    status = MODULE.main(
+        [
+            "--evidence",
+            str(evidence),
+            "--base",
+            "base",
+            "--target",
+            "target",
+            "--output",
+            "reports/custody.json",
+        ]
+    )
+
+    output = tmp_path / "reports" / "custody.json"
+    assert status == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == expected
+    assert json.loads(capsys.readouterr().out) == expected
+    assert not list(output.parent.glob("*.tmp"))
+
+
+def test_cli_rejects_output_outside_repository(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    evidence = repository / "custody-input.json"
+    evidence.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(MODULE, "ROOT", repository)
+    monkeypatch.setattr(
+        MODULE,
+        "verify",
+        lambda document, base, target: {
+            "schema": "zyra.source-language-custody-report/v1",
+            "base": base,
+            "target": target,
+            "ok": True,
+            "roles": [],
+            "violations": [],
+        },
+    )
+
+    status = MODULE.main(
+        [
+            "--evidence",
+            str(evidence),
+            "--base",
+            "base",
+            "--output",
+            str(tmp_path / "outside.json"),
+        ]
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    assert status == 1
+    assert report["ok"] is False
+    assert any(
+        "must remain inside repository root" in item
+        for item in report["violations"]
+    )
+    assert not (tmp_path / "outside.json").exists()
