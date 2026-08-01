@@ -1,0 +1,71 @@
+{
+  "schema": "zyra.phase2-aggregate-command-evidence/v1",
+  "target_commit": "197f722653972f01e22df3a760ce350444387701",
+  "commands": [
+    {
+      "name": "metrics_and_anti_gaming",
+      "command": ".venv/Scripts/python.exe -m pytest tests/unit/evaluation/test_phase2_metrics.py tests/integration/test_metrics_anti_gaming.py tests/integration/test_policy_metrics_from_receipts.py -q -p no:cacheprovider",
+      "result": "14 passed",
+      "status": "passed"
+    },
+    {
+      "name": "policy_evidence_api_negative_gates",
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_policy_evidence_api.py -q -k 'not more_than_two_thousand' -p no:cacheprovider",
+      "result": "4 passed, 1 deselected",
+      "status": "passed"
+    },
+    {
+      "name": "production_runtime_metric_and_api_e2e",
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_policy_metrics_from_production_runtime.py -q -p no:cacheprovider",
+      "result": "1 passed in 10.97s",
+      "status": "passed"
+    },
+    {
+      "name": "web_targeted_digest_admission",
+      "command": "bun test apps/web/test/policy-evidence-workbench.test.tsx",
+      "result": "5 passed, 0 failed",
+      "status": "passed"
+    },
+    {
+      "name": "web_typecheck",
+      "command": "bun run typecheck:web",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "name": "formal_target_bound_capture",
+      "command": ".venv/Scripts/python.exe scripts/generate_p2_s05_01_evidence.py --output-dir docs/reviews/evidence/phase2/P2-05/197f722 --implementation-commit 197f722653972f01e22df3a760ce350444387701",
+      "result": "61 canonical source events; 1 report admission; 1 physical receipt; 1 symbolic bundle; 57 specs; 0 failed runs; manifest 8cc874f07d14a989ff43bc1147028d1bef55cec1a8d881a4713198300f2f6453",
+      "status": "passed",
+      "run_count": 1
+    },
+    {
+      "name": "real_api_page_web_admission",
+      "command": "bun scripts/verify_p2_policy_evidence_page.ts docs/reviews/evidence/phase2/P2-05/197f722/policy-evidence-page.json",
+      "result": "passed; 12 transitions; 48 causal refs; 0 empty routes; report and evidence digests recomputed",
+      "status": "passed"
+    },
+    {
+      "name": "python_compile",
+      "command": ".venv/Scripts/python.exe -m py_compile <changed Python modules and tests>",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "name": "diff_integrity",
+      "command": "git diff --check",
+      "result": "passed",
+      "status": "passed"
+    }
+  ],
+  "strict_reuse": {
+    "reused_heavy_results_as_final_target_evidence": false,
+    "note": "The earlier 2105 ACK capacity test and full Web run were not claimed as final target-bound long-run evidence after the admission changes."
+  },
+  "deferred_once_only": [
+    "full regression",
+    "cleanroom",
+    "target-bound sealed scenarios with at least 2000 effective transitions",
+    "target-bound strongest preflight"
+  ]
+}

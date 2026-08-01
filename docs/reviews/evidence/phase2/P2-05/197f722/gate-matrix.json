@@ -1,0 +1,19 @@
+{
+  "schema": "zyra.phase2-aggregate-slice-gate-matrix/v1",
+  "target_commit": "197f722653972f01e22df3a760ce350444387701",
+  "slice_count": 2,
+  "gates": [
+    {
+      "slice_id": "P2-S05-01",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S05-01-metrics-upgrade-review.md",
+      "aggregate_note": "Metrics come from one admitted production run; typed contracts, physical v2, production symbolic ownership, MemoryFabric actual use, canonical transition identity and report admission fail closed."
+    },
+    {
+      "slice_id": "P2-S05-02",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S05-02-evidence-visualization-review.md",
+      "aggregate_note": "API resolves report/event/artifact owners and causal routes; Web recomputes canonical report/filter/snapshot/page digests. Final 2000+ effective-transition proof is deliberately deferred to the single final sealed run."
+    }
+  ]
+}

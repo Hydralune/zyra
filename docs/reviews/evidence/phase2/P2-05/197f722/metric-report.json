@@ -1,0 +1,4235 @@
+{
+  "aggregate_report": {
+    "dimension": "aggregate",
+    "failed_run_count": 0,
+    "group_id": "all",
+    "metrics": {
+      "communication.cost_per_effective_transition": {
+        "denominator": 61.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.cost_per_effective_transition",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "communication.delivered_bytes": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.delivered_bytes",
+        "numerator": 3248.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 3248.0
+      },
+      "communication.delivered_cost_usd": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.delivered_cost_usd",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "communication.delivered_tokens": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.delivered_tokens",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "communication.duplicate_semantic_payload_ratio": {
+        "denominator": 7.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.duplicate_semantic_payload_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "communication.evidence_utilization_ratio": {
+        "denominator": 8.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.evidence_utilization_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "communication.normalized_entropy": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.normalized_entropy",
+        "numerator": 0.583452704668155,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.583452704668155
+      },
+      "communication.sender_conditioned_recipient_entropy": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.sender_conditioned_recipient_entropy",
+        "numerator": 0.28571428571428575,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.28571428571428575
+      },
+      "communication.spatial_delivery_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.spatial_delivery_count",
+        "numerator": 6.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 6.0
+      },
+      "communication.temporal_delivery_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.temporal_delivery_count",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "communication.useful_message_ratio": {
+        "denominator": 7.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "communication.useful_message_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 7,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "continuity.critical_fact_recall": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.critical_fact_recall",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "continuity.duplicate_completed_work_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.duplicate_completed_work_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "continuity.first_decision_correctness": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.first_decision_correctness",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "continuity.provenance_coverage": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.provenance_coverage",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "continuity.stale_requirement_execution_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.stale_requirement_execution_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "continuity.unresolved_obligation_retention": {
+        "denominator": 7.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "continuity.unresolved_obligation_retention",
+        "numerator": 7.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "dispatch.causal_chain_completeness": {
+        "denominator": 6.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.causal_chain_completeness",
+        "numerator": 6.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "dispatch.cloud_real_receipt_completeness": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.cloud_real_receipt_completeness",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "dispatch.edge_real_receipt_completeness": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.edge_real_receipt_completeness",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "dispatch.local_real_receipt_completeness": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.local_real_receipt_completeness",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "dispatch.physical_reroute_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.physical_reroute_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "dispatch.privacy_placement_violation_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.privacy_placement_violation_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "dispatch.provider_receipt_coverage": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "dispatch.provider_receipt_coverage",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "evidence.canonical_transition_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "evidence.canonical_transition_count",
+        "numerator": 61.0,
+        "reasons": [
+          "evidence_volume_only"
+        ],
+        "sample_count": 61,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01"
+        ],
+        "status": "observed",
+        "value": 61.0
+      },
+      "operator.early_exit_false_positive_ratio": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "operator.early_exit_false_positive_ratio",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+          "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "operator.early_exit_true_positive_ratio": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "operator.early_exit_true_positive_ratio",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+          "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "operator.executed_breadth": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "operator.executed_breadth",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+          "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "operator.executed_depth": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "operator.executed_depth",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+          "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "readiness.actual_default_mode_ratio": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.actual_default_mode_ratio",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.baseline_mode_ratio": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.baseline_mode_ratio",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.causal_link_completeness": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.causal_link_completeness",
+        "numerator": 0,
+        "reasons": [
+          "zero_denominator"
+        ],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.confidence": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.confidence",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.deterministic_replay_match": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.deterministic_replay_match",
+        "numerator": 0,
+        "reasons": [
+          "zero_denominator"
+        ],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.diagnostic_mode_ratio": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.diagnostic_mode_ratio",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.failure_path_coverage": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.failure_path_coverage",
+        "numerator": 0,
+        "reasons": [
+          "zero_denominator"
+        ],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.freshness": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.freshness",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.missingness": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.missingness",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.no_policy_audit_pass": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.no_policy_audit_pass",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "readiness.optional_input_coverage": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.optional_input_coverage",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "not_applicable",
+        "value": null
+      },
+      "readiness.required_input_coverage": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.required_input_coverage",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.scenario_coverage": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.scenario_coverage",
+        "numerator": 0,
+        "reasons": [
+          "zero_denominator"
+        ],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "readiness.stage_score": {
+        "denominator": 5.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.stage_score",
+        "numerator": 5.0,
+        "reasons": [],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "readiness.status_score": {
+        "denominator": 5.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "readiness.status_score",
+        "numerator": 5.0,
+        "reasons": [],
+        "sample_count": 5,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "symbolic.adversarial_accept_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "symbolic.adversarial_accept_ratio",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "symbolic.adversarial_project_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "symbolic.adversarial_project_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "symbolic.adversarial_reject_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "symbolic.adversarial_reject_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "symbolic.projector_bypass_reachable": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "symbolic.projector_bypass_reachable",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "symbolic.unsafe_commit_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "symbolic.unsafe_commit_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "topology.adaptation_latency_ms": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.adaptation_latency_ms",
+        "numerator": 426.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 426.0
+      },
+      "topology.mechanism_decision_overhead_ms": {
+        "denominator": 0,
+        "eligible_for_optimization": false,
+        "failed_sample_count": 0,
+        "metric_id": "topology.mechanism_decision_overhead_ms",
+        "numerator": 0,
+        "reasons": [
+          "minimum_sample_not_met"
+        ],
+        "sample_count": 0,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "degraded",
+        "value": null
+      },
+      "topology.normalized_churn": {
+        "denominator": 6.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.normalized_churn",
+        "numerator": 6.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "topology.oscillation_count": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.oscillation_count",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "topology.proposal_accept_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.proposal_accept_ratio",
+        "numerator": 1.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 1.0
+      },
+      "topology.proposal_degraded_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.proposal_degraded_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "topology.proposal_project_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.proposal_project_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 0.0
+      },
+      "topology.proposal_reject_ratio": {
+        "denominator": 1.0,
+        "eligible_for_optimization": true,
+        "failed_sample_count": 0,
+        "metric_id": "topology.proposal_reject_ratio",
+        "numerator": 0.0,
+        "reasons": [],
+        "sample_count": 1,
+        "schema_version": "zyra.phase2-metric-value/v1",
+        "source_refs": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ],
+        "status": "observed",
+        "value": 0.0
+      }
+    },
+    "run_count": 1,
+    "schema_version": "zyra.phase2-metric-group/v1",
+    "successful_run_count": 1
+  },
+  "anti_gaming": {
+    "canonical_transition_count_is_evidence_volume_only": true,
+    "failed_runs_separate": true,
+    "idempotent_reimport_deduplicated": true,
+    "receipt_resolver_disconnect_fails_closed": true,
+    "simulated_dispatch_excluded_from_real_numerator": true
+  },
+  "digest": "e1327fe0dbf09d7fb612abcb06e108c3940cfaaf157a49e94eea305ea8f8c8e6",
+  "mechanism_reports": [
+    {
+      "dimension": "mechanism",
+      "failed_run_count": 0,
+      "group_id": "phase2_strongest_v1",
+      "metrics": {
+        "communication.cost_per_effective_transition": {
+          "denominator": 61.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.cost_per_effective_transition",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_bytes": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_bytes",
+          "numerator": 3248.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 3248.0
+        },
+        "communication.delivered_cost_usd": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_cost_usd",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_tokens": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_tokens",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.duplicate_semantic_payload_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.duplicate_semantic_payload_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.evidence_utilization_ratio": {
+          "denominator": 8.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.evidence_utilization_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.normalized_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.normalized_entropy",
+          "numerator": 0.583452704668155,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.583452704668155
+        },
+        "communication.sender_conditioned_recipient_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.sender_conditioned_recipient_entropy",
+          "numerator": 0.28571428571428575,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.28571428571428575
+        },
+        "communication.spatial_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.spatial_delivery_count",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 6.0
+        },
+        "communication.temporal_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.temporal_delivery_count",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "communication.useful_message_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.useful_message_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.critical_fact_recall": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.critical_fact_recall",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.duplicate_completed_work_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.duplicate_completed_work_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.first_decision_correctness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.first_decision_correctness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.provenance_coverage": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.provenance_coverage",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.stale_requirement_execution_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.stale_requirement_execution_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.unresolved_obligation_retention": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.unresolved_obligation_retention",
+          "numerator": 7.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.causal_chain_completeness": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.causal_chain_completeness",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.cloud_real_receipt_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.cloud_real_receipt_completeness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.edge_real_receipt_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.edge_real_receipt_completeness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.local_real_receipt_completeness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.local_real_receipt_completeness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.physical_reroute_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.physical_reroute_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.privacy_placement_violation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.privacy_placement_violation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.provider_receipt_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.provider_receipt_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "evidence.canonical_transition_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "evidence.canonical_transition_count",
+          "numerator": 61.0,
+          "reasons": [
+            "evidence_volume_only"
+          ],
+          "sample_count": 61,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01"
+          ],
+          "status": "observed",
+          "value": 61.0
+        },
+        "operator.early_exit_false_positive_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_false_positive_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.early_exit_true_positive_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_true_positive_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.executed_breadth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_breadth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "operator.executed_depth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_depth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.actual_default_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.actual_default_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.baseline_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.baseline_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.causal_link_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.causal_link_completeness",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.confidence": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.confidence",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.deterministic_replay_match": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.deterministic_replay_match",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.diagnostic_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.diagnostic_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.failure_path_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.failure_path_coverage",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.freshness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.freshness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.missingness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.missingness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.no_policy_audit_pass": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.no_policy_audit_pass",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.optional_input_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.optional_input_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "not_applicable",
+          "value": null
+        },
+        "readiness.required_input_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.required_input_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.scenario_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.scenario_coverage",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.stage_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.stage_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.status_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.status_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.adversarial_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.projector_bypass_reachable": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.projector_bypass_reachable",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.unsafe_commit_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.unsafe_commit_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.adaptation_latency_ms": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.adaptation_latency_ms",
+          "numerator": 426.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 426.0
+        },
+        "topology.mechanism_decision_overhead_ms": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "topology.mechanism_decision_overhead_ms",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "topology.normalized_churn": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.normalized_churn",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.oscillation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.oscillation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.proposal_degraded_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_degraded_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        }
+      },
+      "run_count": 1,
+      "schema_version": "zyra.phase2-metric-group/v1",
+      "successful_run_count": 1
+    }
+  ],
+  "registry_digest": "64bab25967951abc5f43ce4c7df834475f700d147d2d54a3d0685dcaf2a176a6",
+  "requirement_metrics": {
+    "REQ-COMM-01": [
+      "communication.cost_per_effective_transition",
+      "communication.delivered_bytes",
+      "communication.delivered_cost_usd",
+      "communication.delivered_tokens",
+      "communication.duplicate_semantic_payload_ratio",
+      "communication.evidence_utilization_ratio",
+      "communication.normalized_entropy",
+      "communication.sender_conditioned_recipient_entropy",
+      "communication.spatial_delivery_count",
+      "communication.temporal_delivery_count",
+      "communication.useful_message_ratio"
+    ],
+    "REQ-EDGE-01": [
+      "dispatch.causal_chain_completeness",
+      "dispatch.cloud_real_receipt_completeness",
+      "dispatch.edge_real_receipt_completeness",
+      "dispatch.local_real_receipt_completeness",
+      "dispatch.physical_reroute_count",
+      "dispatch.privacy_placement_violation_count",
+      "dispatch.provider_receipt_coverage"
+    ],
+    "REQ-FAULT-01": [
+      "continuity.duplicate_completed_work_count",
+      "continuity.stale_requirement_execution_count",
+      "dispatch.physical_reroute_count",
+      "operator.early_exit_false_positive_ratio",
+      "readiness.failure_path_coverage",
+      "topology.adaptation_latency_ms",
+      "topology.oscillation_count",
+      "topology.proposal_degraded_ratio"
+    ],
+    "REQ-MEM-01": [
+      "continuity.critical_fact_recall",
+      "continuity.duplicate_completed_work_count",
+      "continuity.first_decision_correctness",
+      "continuity.provenance_coverage",
+      "continuity.stale_requirement_execution_count",
+      "continuity.unresolved_obligation_retention"
+    ],
+    "REQ-TOPO-01": [
+      "symbolic.adversarial_accept_ratio",
+      "symbolic.adversarial_project_ratio",
+      "symbolic.adversarial_reject_ratio",
+      "symbolic.projector_bypass_reachable",
+      "symbolic.unsafe_commit_count",
+      "topology.adaptation_latency_ms",
+      "topology.mechanism_decision_overhead_ms",
+      "topology.normalized_churn",
+      "topology.oscillation_count",
+      "topology.proposal_accept_ratio",
+      "topology.proposal_degraded_ratio",
+      "topology.proposal_project_ratio",
+      "topology.proposal_reject_ratio"
+    ],
+    "REQ-TRACE-01": [
+      "communication.cost_per_effective_transition",
+      "continuity.provenance_coverage",
+      "dispatch.causal_chain_completeness",
+      "dispatch.provider_receipt_coverage",
+      "evidence.canonical_transition_count",
+      "operator.early_exit_true_positive_ratio",
+      "operator.executed_breadth",
+      "operator.executed_depth",
+      "readiness.actual_default_mode_ratio",
+      "readiness.baseline_mode_ratio",
+      "readiness.causal_link_completeness",
+      "readiness.confidence",
+      "readiness.deterministic_replay_match",
+      "readiness.diagnostic_mode_ratio",
+      "readiness.freshness",
+      "readiness.missingness",
+      "readiness.no_policy_audit_pass",
+      "readiness.optional_input_coverage",
+      "readiness.required_input_coverage",
+      "readiness.scenario_coverage",
+      "readiness.stage_score",
+      "readiness.status_score",
+      "symbolic.adversarial_accept_ratio",
+      "symbolic.adversarial_project_ratio",
+      "symbolic.adversarial_reject_ratio",
+      "symbolic.projector_bypass_reachable",
+      "symbolic.unsafe_commit_count"
+    ],
+    "SCORE-ALGO": [
+      "continuity.critical_fact_recall",
+      "continuity.duplicate_completed_work_count",
+      "continuity.first_decision_correctness",
+      "continuity.provenance_coverage",
+      "continuity.stale_requirement_execution_count",
+      "continuity.unresolved_obligation_retention"
+    ],
+    "SCORE-COMPAT": [
+      "dispatch.causal_chain_completeness",
+      "dispatch.cloud_real_receipt_completeness",
+      "dispatch.edge_real_receipt_completeness",
+      "dispatch.local_real_receipt_completeness",
+      "dispatch.physical_reroute_count",
+      "dispatch.privacy_placement_violation_count",
+      "dispatch.provider_receipt_coverage"
+    ],
+    "SCORE-NOISE": [
+      "communication.cost_per_effective_transition",
+      "communication.delivered_bytes",
+      "communication.delivered_cost_usd",
+      "communication.delivered_tokens",
+      "communication.duplicate_semantic_payload_ratio",
+      "communication.evidence_utilization_ratio",
+      "communication.normalized_entropy",
+      "communication.sender_conditioned_recipient_entropy",
+      "communication.spatial_delivery_count",
+      "communication.temporal_delivery_count",
+      "communication.useful_message_ratio"
+    ],
+    "SCORE-ORG": [
+      "symbolic.adversarial_accept_ratio",
+      "symbolic.adversarial_project_ratio",
+      "symbolic.adversarial_reject_ratio",
+      "symbolic.projector_bypass_reachable",
+      "symbolic.unsafe_commit_count",
+      "topology.adaptation_latency_ms",
+      "topology.mechanism_decision_overhead_ms",
+      "topology.normalized_churn",
+      "topology.oscillation_count",
+      "topology.proposal_accept_ratio",
+      "topology.proposal_degraded_ratio",
+      "topology.proposal_project_ratio",
+      "topology.proposal_reject_ratio"
+    ],
+    "SCORE-ROBUST": [
+      "continuity.duplicate_completed_work_count",
+      "continuity.stale_requirement_execution_count",
+      "dispatch.physical_reroute_count",
+      "operator.early_exit_false_positive_ratio",
+      "readiness.failure_path_coverage",
+      "topology.adaptation_latency_ms",
+      "topology.oscillation_count",
+      "topology.proposal_degraded_ratio"
+    ]
+  },
+  "run_reports": [
+    {
+      "digest": "043a1aacdf921fe4b384d1fdd171530e6066e66a5909526ef9bcd064cc4b5b10",
+      "evidence_transition_count": 61,
+      "lineage": {
+        "adaptive_depth_receipts": [
+          "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+        ],
+        "communication_observations": [
+          "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+          "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+          "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+          "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b",
+          "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+          "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+          "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd"
+        ],
+        "continuity_receipts": [
+          "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+        ],
+        "early_exit_receipts": [
+          "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a"
+        ],
+        "physical_dispatch_receipts": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "policy_decisions": [
+          "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01"
+        ],
+        "policy_outcomes": [
+          "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753"
+        ],
+        "readiness_reports": [
+          "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+        ],
+        "symbolic_bundles": [
+          "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+        ],
+        "topology_proposals": [
+          "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+        ]
+      },
+      "mechanism_profile": "phase2_strongest_v1",
+      "metrics": {
+        "communication.cost_per_effective_transition": {
+          "denominator": 61.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.cost_per_effective_transition",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_bytes": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_bytes",
+          "numerator": 3248.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 3248.0
+        },
+        "communication.delivered_cost_usd": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_cost_usd",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_tokens": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_tokens",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.duplicate_semantic_payload_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.duplicate_semantic_payload_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.evidence_utilization_ratio": {
+          "denominator": 8.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.evidence_utilization_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.normalized_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.normalized_entropy",
+          "numerator": 0.583452704668155,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.583452704668155
+        },
+        "communication.sender_conditioned_recipient_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.sender_conditioned_recipient_entropy",
+          "numerator": 0.28571428571428575,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.28571428571428575
+        },
+        "communication.spatial_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.spatial_delivery_count",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 6.0
+        },
+        "communication.temporal_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.temporal_delivery_count",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "communication.useful_message_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.useful_message_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.critical_fact_recall": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.critical_fact_recall",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.duplicate_completed_work_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.duplicate_completed_work_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.first_decision_correctness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.first_decision_correctness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.provenance_coverage": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.provenance_coverage",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.stale_requirement_execution_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.stale_requirement_execution_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.unresolved_obligation_retention": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.unresolved_obligation_retention",
+          "numerator": 7.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.causal_chain_completeness": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.causal_chain_completeness",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.cloud_real_receipt_completeness": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.cloud_real_receipt_completeness",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.edge_real_receipt_completeness": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.edge_real_receipt_completeness",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.local_real_receipt_completeness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.local_real_receipt_completeness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.physical_reroute_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.physical_reroute_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.privacy_placement_violation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.privacy_placement_violation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.provider_receipt_coverage": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.provider_receipt_coverage",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "evidence.canonical_transition_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "evidence.canonical_transition_count",
+          "numerator": 61.0,
+          "reasons": [
+            "evidence_volume_only"
+          ],
+          "sample_count": 61,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01"
+          ],
+          "status": "observed",
+          "value": 61.0
+        },
+        "operator.early_exit_false_positive_ratio": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_false_positive_ratio",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.early_exit_true_positive_ratio": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_true_positive_ratio",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.executed_breadth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_breadth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "operator.executed_depth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_depth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.actual_default_mode_ratio": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.actual_default_mode_ratio",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.baseline_mode_ratio": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.baseline_mode_ratio",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.causal_link_completeness": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.causal_link_completeness",
+          "numerator": 0.0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.confidence": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.confidence",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.deterministic_replay_match": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.deterministic_replay_match",
+          "numerator": 0.0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.diagnostic_mode_ratio": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.diagnostic_mode_ratio",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.failure_path_coverage": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.failure_path_coverage",
+          "numerator": 0.0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.freshness": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.freshness",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.missingness": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.missingness",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.no_policy_audit_pass": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.no_policy_audit_pass",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.optional_input_coverage": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.optional_input_coverage",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "not_applicable",
+          "value": null
+        },
+        "readiness.required_input_coverage": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.required_input_coverage",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.scenario_coverage": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.scenario_coverage",
+          "numerator": 0.0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.stage_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.stage_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.status_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.status_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.adversarial_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.projector_bypass_reachable": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.projector_bypass_reachable",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.unsafe_commit_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.unsafe_commit_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.adaptation_latency_ms": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.adaptation_latency_ms",
+          "numerator": 426.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 426.0
+        },
+        "topology.mechanism_decision_overhead_ms": {
+          "denominator": 0.0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "topology.mechanism_decision_overhead_ms",
+          "numerator": 0.0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "topology.normalized_churn": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.normalized_churn",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.oscillation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.oscillation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.proposal_degraded_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_degraded_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        }
+      },
+      "run_id": "run_a3b4a637913d",
+      "scenario_id": "production-main-path",
+      "schema_version": "zyra.phase2-run-metric-result/v1",
+      "source_admission": {
+        "canonical_owner": "RuntimeEventSpine+TaskState+ArtifactStore",
+        "canonical_transition_count": 61,
+        "digest": "681d2033161d37fc5bbe47731b1c172be61e7e064d054b84f529581af1a1f9e4",
+        "event_refs": [
+          "event-p2-s05-critical-release-checksum",
+          "event_07439132f637",
+          "event_0efb26f7a2f7",
+          "event_0f3f5b6652ac",
+          "event_160a555334e7",
+          "event_1b9dac29df0d",
+          "event_1f3e0cd4a063",
+          "event_2d192f498304",
+          "event_3664390777d7",
+          "event_46e205cac034",
+          "event_4977675527f8",
+          "event_5ef9c690fe11",
+          "event_6205fa624ac5",
+          "event_700d5e92ae2c",
+          "event_722023dc0b4f",
+          "event_74241b0fb383",
+          "event_7a815025b2d8",
+          "event_830864ac4987",
+          "event_8c3c09a4ea97",
+          "event_93e8934e2299",
+          "event_9cc68973c918",
+          "event_a22a731cacf4",
+          "event_ac1b91461eb7",
+          "event_agentprune_outcome_15f391a74476fedf1a524bc3",
+          "event_agentprune_outcome_3fa72406940aeb26c4cbeb38",
+          "event_agentprune_outcome_6d4c469c753f0ce1622a721b",
+          "event_agentprune_outcome_7f2d4f72ce27eaf406dbd423",
+          "event_agentprune_outcome_84fedf8a48a191e1c9ad7a3f",
+          "event_agentprune_outcome_906c67cfdb7f29c3eb9875f5",
+          "event_agentprune_outcome_e0eaf6a30eb127396ecc9b3c",
+          "event_cb5cd546d766",
+          "event_d196361f7ddc",
+          "event_d50edca367df",
+          "event_d8185f83ffe7",
+          "event_d9a044cb703d",
+          "event_d9dc33a38fff",
+          "event_dbd18249b04b",
+          "event_e42191df779f",
+          "event_eed3f77b838c",
+          "event_f3360d282f91",
+          "event_f68ac0e827b5",
+          "event_fe12ce72f3be",
+          "event_final_verifier_owner_aa64208dc349df8cdcc7a2cd",
+          "event_phase2_message_01c9ff3057057483430b76b4",
+          "event_phase2_message_342c0ec646897f01bf42f419",
+          "event_phase2_message_3f3f5d865d410c360f69ac3b",
+          "event_phase2_message_6676b28afdfcd002bb80a83e",
+          "event_phase2_message_7f0861ec8888450e89dd0e5a",
+          "event_phase2_message_84eec9a61013ebea1f30729f",
+          "event_phase2_message_aec1e91faaee39190af9a418",
+          "event_policy_0723646a9fc674fe1da79a5e",
+          "event_policy_20beda1e662744a9a5343b01",
+          "event_policy_3c9a179ec0833f1ae86353e9",
+          "event_policy_4443133eb7a4c30f052b6f30",
+          "event_policy_5118195fc7ad056ceb2c1f83",
+          "event_policy_5ab9bf7ab4fc8e5474c3b44b",
+          "event_policy_7e5ae8772330a6fb90a74814",
+          "event_policy_80cbbfa57ef89896e79ee936",
+          "event_policy_962f29ce1723d44d41d6dc50",
+          "event_policy_cce601c2757b8f9a045c84c3",
+          "event_policy_dc571c7de28e0834be5a5b2d"
+        ],
+        "lineage_digest": "bd3baf2934049a81a5e1ec74aeccae428a579e64955dbd886f55fe29a0042a9d",
+        "physical_dispatch_digests": [
+          "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+        ],
+        "readiness_report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda",
+        "run_id": "run_a3b4a637913d",
+        "schema_version": "zyra.phase2-runtime-source-admission/v1",
+        "task_id": "task_264ea99edaad"
+      },
+      "task_id": "task_264ea99edaad",
+      "task_succeeded": true
+    }
+  ],
+  "scenario_reports": [
+    {
+      "dimension": "scenario",
+      "failed_run_count": 0,
+      "group_id": "production-main-path",
+      "metrics": {
+        "communication.cost_per_effective_transition": {
+          "denominator": 61.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.cost_per_effective_transition",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_bytes": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_bytes",
+          "numerator": 3248.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 3248.0
+        },
+        "communication.delivered_cost_usd": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_cost_usd",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.delivered_tokens": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.delivered_tokens",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.duplicate_semantic_payload_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.duplicate_semantic_payload_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.evidence_utilization_ratio": {
+          "denominator": 8.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.evidence_utilization_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "communication.normalized_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.normalized_entropy",
+          "numerator": 0.583452704668155,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.583452704668155
+        },
+        "communication.sender_conditioned_recipient_entropy": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.sender_conditioned_recipient_entropy",
+          "numerator": 0.28571428571428575,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.28571428571428575
+        },
+        "communication.spatial_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.spatial_delivery_count",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 6.0
+        },
+        "communication.temporal_delivery_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.temporal_delivery_count",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "communication.useful_message_ratio": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "communication.useful_message_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 7,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "261e4be91c0268c08fb80dea99ba3899573e723ec0664f9e80f6ea5d47d97683",
+            "5a949438ff600f03b4953b6f5b9303f99692f7a939325a051e5340873e9d8086",
+            "6c0882ba8efe21f38d29b70cb644fcf029f97f0823d9de0b6526ed04fe39aff2",
+            "a5164eb1ab5832f1a1ddbd6a2bc2109eeef231f928855f49b4012d9810c75cfd",
+            "a5bce1e6d5c86f5204485181cd27cf836cdeba5e239aa2f5b19193c296129d2c",
+            "e4a6e31eeceebed4fc11f2d65ff18b741e5ac878cc3f79e4a4ca6bf4e6679282",
+            "f1744c2b29e9fdc2d2368cb2e1fca3fd066813d5425c6669b4e3fd4ac7ce4b2b"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.critical_fact_recall": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.critical_fact_recall",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.duplicate_completed_work_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.duplicate_completed_work_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.first_decision_correctness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.first_decision_correctness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.provenance_coverage": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.provenance_coverage",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "continuity.stale_requirement_execution_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.stale_requirement_execution_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "continuity.unresolved_obligation_retention": {
+          "denominator": 7.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "continuity.unresolved_obligation_retention",
+          "numerator": 7.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "510f95ff1ec894045d190b412200d1eff37b14a442e15365e570d599315500eb"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.causal_chain_completeness": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.causal_chain_completeness",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.cloud_real_receipt_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.cloud_real_receipt_completeness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.edge_real_receipt_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.edge_real_receipt_completeness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "dispatch.local_real_receipt_completeness": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.local_real_receipt_completeness",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "dispatch.physical_reroute_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.physical_reroute_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.privacy_placement_violation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.privacy_placement_violation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "dispatch.provider_receipt_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "dispatch.provider_receipt_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "0b5d4157eac3cdc811995cdd56a736b8072782e711a27d78e561d70a82e5b118"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "evidence.canonical_transition_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "evidence.canonical_transition_count",
+          "numerator": 61.0,
+          "reasons": [
+            "evidence_volume_only"
+          ],
+          "sample_count": 61,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01"
+          ],
+          "status": "observed",
+          "value": 61.0
+        },
+        "operator.early_exit_false_positive_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_false_positive_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.early_exit_true_positive_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "operator.early_exit_true_positive_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "operator.executed_breadth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_breadth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "operator.executed_depth": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "operator.executed_depth",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "59a15e4e7dd9cb21b1f30d32e79c5970987b3550d99db12bcd5bfe96b7b90d9a",
+            "d5fbebd3305f38936cbe61327c9f8c1684487314f868b5971ccffcf8ea358ed4"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.actual_default_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.actual_default_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.baseline_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.baseline_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.causal_link_completeness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.causal_link_completeness",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.confidence": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.confidence",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.deterministic_replay_match": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.deterministic_replay_match",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.diagnostic_mode_ratio": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.diagnostic_mode_ratio",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.failure_path_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.failure_path_coverage",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.freshness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.freshness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.missingness": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.missingness",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.no_policy_audit_pass": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.no_policy_audit_pass",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.optional_input_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.optional_input_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "not_applicable",
+          "value": null
+        },
+        "readiness.required_input_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.required_input_coverage",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.scenario_coverage": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.scenario_coverage",
+          "numerator": 0,
+          "reasons": [
+            "zero_denominator"
+          ],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "readiness.stage_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.stage_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "readiness.status_score": {
+          "denominator": 5.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "readiness.status_score",
+          "numerator": 5.0,
+          "reasons": [],
+          "sample_count": 5,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "symbolic.adversarial_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.adversarial_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.adversarial_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.projector_bypass_reachable": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.projector_bypass_reachable",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "symbolic.unsafe_commit_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "symbolic.unsafe_commit_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "f97188e4b33554b1d5dec7e4800e4eeaf893f3f1e190c4d3028a0d021c3cc589"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.adaptation_latency_ms": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.adaptation_latency_ms",
+          "numerator": 426.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 426.0
+        },
+        "topology.mechanism_decision_overhead_ms": {
+          "denominator": 0,
+          "eligible_for_optimization": false,
+          "failed_sample_count": 0,
+          "metric_id": "topology.mechanism_decision_overhead_ms",
+          "numerator": 0,
+          "reasons": [
+            "minimum_sample_not_met"
+          ],
+          "sample_count": 0,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "degraded",
+          "value": null
+        },
+        "topology.normalized_churn": {
+          "denominator": 6.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.normalized_churn",
+          "numerator": 6.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.oscillation_count": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.oscillation_count",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_accept_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_accept_ratio",
+          "numerator": 1.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 1.0
+        },
+        "topology.proposal_degraded_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_degraded_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_project_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_project_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        },
+        "topology.proposal_reject_ratio": {
+          "denominator": 1.0,
+          "eligible_for_optimization": true,
+          "failed_sample_count": 0,
+          "metric_id": "topology.proposal_reject_ratio",
+          "numerator": 0.0,
+          "reasons": [],
+          "sample_count": 1,
+          "schema_version": "zyra.phase2-metric-value/v1",
+          "source_refs": [
+            "20946d01a5a4f44323f93699ebc46017e72121b192951b318f27074978735753",
+            "61c346fd84d5b1ce9a04d665df9b9028780a6966db662d5522e9d3c8c1912b01",
+            "76b0e203ea29774dac0113627f195a3520f98395d8c12b5e092abbead7c10638"
+          ],
+          "status": "observed",
+          "value": 0.0
+        }
+      },
+      "run_count": 1,
+      "schema_version": "zyra.phase2-metric-group/v1",
+      "successful_run_count": 1
+    }
+  ],
+  "schema_version": "zyra.phase2-metric-report/v1"
+}

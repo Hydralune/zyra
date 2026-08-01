@@ -1,0 +1,33 @@
+{
+  "committed_at": "2026-08-01T01:23:58.082405+00:00",
+  "conflicts": {},
+  "endpoints": {
+    "local-default": {
+      "capability_revision": 1,
+      "enabled": true,
+      "endpoint_id": "local-default",
+      "metadata": {
+        "backend_kind": "local",
+        "default": true,
+        "physical_location_public": false
+      },
+      "physical_location_redacted": true,
+      "relative_root": "tasks",
+      "root_token": "workspace-data"
+    }
+  },
+  "envelope_audits": {},
+  "idempotency": {},
+  "isolations": {},
+  "manifests": {},
+  "publications": {},
+  "rebinds": {},
+  "receipts": {},
+  "recovery_inputs": {},
+  "reference_migrations": {},
+  "revision": 1,
+  "schema_version": 1,
+  "state_owner": "WorkspaceManagerRuntime/WorkspaceIntegrationStore",
+  "transactions": {},
+  "workspace_indexes": {}
+}

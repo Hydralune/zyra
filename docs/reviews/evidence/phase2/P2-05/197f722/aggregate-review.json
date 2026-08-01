@@ -1,0 +1,81 @@
+{
+  "schema": "zyra.phase2-digital-stage-aggregate-review/v1",
+  "review_id": "P2-05-audit-and-fix",
+  "date": "2026-08-01",
+  "scope": {"digital_stages": ["P2-05"], "slice_count": 2, "mode": "audit_and_fix"},
+  "commits": {
+    "aggregate_base": "6b81f660822b1f8d5c30206d38f7d4d9d998f0fc",
+    "original_code_target": "4eb7db194721ce8be9d72e12cf3ba46f68dccf6d",
+    "original_evidence_head": "ff460ab7c3c138ad021b64edc303fc282effb995",
+    "target_before_review": "23e39222cb1b649e6f1e59e13e79fcc9dcea7d70",
+    "target_after_fixes": "197f722653972f01e22df3a760ce350444387701",
+    "fix_commits": [
+      "bf6807b9d7429fae429ba30c8a5dc729fc3ca8f3",
+      "197f722653972f01e22df3a760ce350444387701"
+    ],
+    "evidence_commit": "SELF"
+  },
+  "verdict": "PASS_AFTER_FIX",
+  "severity_counts": {"p0_open": 0, "p1_open": 0, "p2_open": 0},
+  "independent_reviews": [
+    {"reviewer": "independent-review-a", "verdict": "PASS", "p0_open": 0, "p1_open": 0},
+    {"reviewer": "independent-review-b", "verdict": "PASS", "p0_open": 0, "p1_open": 0}
+  ],
+  "closed_controls": [
+    "fixture_free_production_capture",
+    "runtime_owner_receipt_resolution",
+    "physical_dispatch_v2_real_gate",
+    "production_symbolic_bundle_owner",
+    "memory_fabric_critical_fact_actual_use",
+    "continuity_usage_refs_owner_resolved",
+    "canonical_transition_count_bound",
+    "canonical_metric_report_admission",
+    "metric_resign_attack_rejected",
+    "api_verified_refs_have_routes",
+    "web_canonical_digest_payload_recalculation",
+    "expired_cursor_rejected",
+    "permission_disconnect_degraded"
+  ],
+  "formal_capture": {
+    "run_id": "run_a3b4a637913d",
+    "task_id": "task_264ea99edaad",
+    "canonical_source_event_count": 61,
+    "report_admission_event_count": 1,
+    "physical_dispatch_receipt_count": 1,
+    "symbolic_bundle_receipt_count": 1,
+    "failed_run_count": 0,
+    "metric_spec_count": 57,
+    "fixture_free": true,
+    "continuity_critical_fact_recall": 1.0,
+    "continuity_provenance_coverage": 1.0,
+    "api_web_transition_count": 12,
+    "api_web_causal_ref_count": 48,
+    "api_web_empty_route_count": 0,
+    "report_digest": "e1327fe0dbf09d7fb612abcb06e108c3940cfaaf157a49e94eea305ea8f8c8e6",
+    "lineage_digest": "73d73bf4796228ee3902aea01d5eff9acbe8d44a3cdc8d737ef4c7c758bdc0d9",
+    "manifest_digest": "8cc874f07d14a989ff43bc1147028d1bef55cec1a8d881a4713198300f2f6453",
+    "api_web_evidence_digest": "5e0ae96e192afab66236feb8dd8b40f09fb38402b84e862e0cc5efa376f3d8a6"
+  },
+  "hard_gate_results": {
+    "p2_05_code_and_directed_evidence": true,
+    "independent_review_passed": true,
+    "openclaw_changed_file_count": 0,
+    "final_2000_effective_transition_gate": false
+  },
+  "heavy_validation": {
+    "full_regression": "deferred_to_single_final_run_after_P2-06",
+    "cleanroom": "deferred_to_single_final_run_after_P2-06",
+    "target_bound_sealed": "deferred_to_single_final_run_after_P2-06",
+    "target_bound_preflight": "deferred_to_single_final_run_after_P2-06"
+  },
+  "next_stage_recommendation": "P2-06_AUDIT_AND_FIX",
+  "next_stage_authorized": true,
+  "residuals": ["final_target_bound_2000_effective_transition_evidence_gate"],
+  "evidence_refs": [
+    "docs/reviews/phase2/P2-05-aggregate-review.md",
+    "docs/reviews/evidence/phase2/P2-05/197f722/evidence-manifest.json",
+    "docs/reviews/evidence/phase2/P2-05/197f722/gate-matrix.json",
+    "docs/reviews/evidence/phase2/P2-05/197f722/bucket-summary.json",
+    "docs/reviews/evidence/phase2/P2-05/197f722/commands.json"
+  ]
+}

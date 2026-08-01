@@ -1,0 +1,41 @@
+{
+  "schema": "zyra.phase2-aggregate-change-buckets/v1",
+  "ranges": [
+    {
+      "range": "6b81f660822b1f8d5c30206d38f7d4d9d998f0fc..ff460ab7c3c138ad021b64edc303fc282effb995",
+      "role": "original_p2_05_digital_stage",
+      "buckets": {
+        "production": {"files": 24, "additions": 4204, "deletions": 3},
+        "test": {"files": 5, "additions": 1575, "deletions": 0},
+        "adapter_scripts": {"files": 1, "additions": 250, "deletions": 0},
+        "docs_evidence": {"files": 14, "additions": 6227, "deletions": 0}
+      }
+    },
+    {
+      "range": "23e39222cb1b649e6f1e59e13e79fcc9dcea7d70..197f722653972f01e22df3a760ce350444387701",
+      "role": "aggregate_audit_fix",
+      "buckets": {
+        "production": {"files": 8, "additions": 1272, "deletions": 53},
+        "test": {"files": 6, "additions": 581, "deletions": 91},
+        "adapter_scripts": {"files": 2, "additions": 267, "deletions": 179}
+      }
+    }
+  ],
+  "combined": {
+    "changed_file_observations": 60,
+    "additions": 14376,
+    "deletions": 326,
+    "production": {"files": 32, "additions": 5476, "deletions": 56},
+    "test": {"files": 11, "additions": 2156, "deletions": 91},
+    "adapter_scripts": {"files": 3, "additions": 517, "deletions": 179},
+    "docs_evidence": {"files": 14, "additions": 6227, "deletions": 0},
+    "runtime_assets": {"files": 0, "additions": 0, "deletions": 0},
+    "generated_data": {"files": 0, "additions": 0, "deletions": 0},
+    "mock_fixture": {"files": 0, "additions": 0, "deletions": 0},
+    "openclaw": {"files": 0, "additions": 0, "deletions": 0}
+  },
+  "exclusions": [
+    "Target-bound formal runtime-state and aggregate evidence are evidence outputs and are not counted as production implementation.",
+    "Pre-existing untracked sealed attempt directories are outside both ranges and remain untouched."
+  ]
+}

@@ -1,0 +1,204 @@
+{
+  "bindings": {
+    "ws_9be94af67535233e3fa19603": {
+      "active_snapshot_id": "",
+      "backend_id": "local-default",
+      "backend_kind": "local",
+      "binding_revision": 4,
+      "capability_revision": 1,
+      "created_at": "2026-08-01T01:23:58.085776+00:00",
+      "deadline_at": "",
+      "fence_token_hash": "98579da02786fe4b56adb2d2c4960db25702093ba70f1821d28ecb58adfa24b2",
+      "lease_id": "lease_bcc6adb36f3c6016e7d7e805",
+      "lifecycle_state": "open",
+      "location": {
+        "kind": "local",
+        "platform": "nt",
+        "relative_root": "tasks/ws_9b/ws_9be94af67535233e3fa19603",
+        "root_token": "workspace-data"
+      },
+      "metadata": {
+        "artifact_byte_owner": "LocalArtifactStore",
+        "canonical_owner": "WorkspaceManagerRuntime",
+        "endpoint_id": "local-default",
+        "physical_location_public": false
+      },
+      "owner_epoch": 1,
+      "quota": {
+        "include_generated": true,
+        "max_bytes": 1073741824,
+        "max_directories": 20000,
+        "max_files": 100000,
+        "max_path_depth": 64,
+        "max_single_file_bytes": 134217728,
+        "max_snapshot_bytes": 4294967296,
+        "max_snapshots": 32
+      },
+      "recovery_record_id": "",
+      "run_id": "run_a3b4a637913d",
+      "session_id": "task:task_264ea99edaad",
+      "task_id": "task_264ea99edaad",
+      "updated_at": "2026-08-01T01:23:58.134125+00:00",
+      "workspace_id": "ws_9be94af67535233e3fa19603",
+      "workspace_kind": "task",
+      "write_frozen_reason": ""
+    }
+  },
+  "idempotency": {
+    "p2-s05-production:task_264ea99edaad": {
+      "created_at": "2026-08-01T01:23:58.086062+00:00",
+      "fingerprint": "{\"active_snapshot_id\":\"\",\"backend_id\":\"local-default\",\"backend_kind\":\"local\",\"binding_revision\":1,\"capability_revision\":1,\"deadline_at\":\"\",\"fence_token_hash\":\"98579da02786fe4b56adb2d2c4960db25702093ba70f1821d28ecb58adfa24b2\",\"lease_id\":\"lease_bcc6adb36f3c6016e7d7e805\",\"lifecycle_state\":\"requested\",\"location\":{\"kind\":\"local\",\"platform\":\"nt\",\"relative_root\":\"tasks/ws_9b/ws_9be94af67535233e3fa19603\",\"root_token\":\"workspace-data\"},\"metadata\":{\"artifact_byte_owner\":\"LocalArtifactStore\",\"canonical_owner\":\"WorkspaceManagerRuntime\",\"endpoint_id\":\"local-default\",\"physical_location_public\":false},\"owner_epoch\":1,\"quota\":{\"include_generated\":true,\"max_bytes\":1073741824,\"max_directories\":20000,\"max_files\":100000,\"max_path_depth\":64,\"max_single_file_bytes\":134217728,\"max_snapshot_bytes\":4294967296,\"max_snapshots\":32},\"recovery_record_id\":\"\",\"run_id\":\"run_a3b4a637913d\",\"session_id\":\"task:task_264ea99edaad\",\"task_id\":\"task_264ea99edaad\",\"workspace_id\":\"ws_9be94af67535233e3fa19603\",\"workspace_kind\":\"task\",\"write_frozen_reason\":\"\"}",
+      "operation": "create_binding",
+      "workspace_id": "ws_9be94af67535233e3fa19603"
+    }
+  },
+  "leases": {
+    "lease_bcc6adb36f3c6016e7d7e805": {
+      "capability_revision": 1,
+      "expires_at": "2026-08-01T01:53:58.111016+00:00",
+      "fence_token_hash": "98579da02786fe4b56adb2d2c4960db25702093ba70f1821d28ecb58adfa24b2",
+      "issued_at": "2026-08-01T01:23:58.111038+00:00",
+      "lease_id": "lease_bcc6adb36f3c6016e7d7e805",
+      "metadata": {
+        "physical_location_public": false
+      },
+      "operations": [
+        "read",
+        "write",
+        "delete",
+        "list",
+        "snapshot",
+        "git_query",
+        "quota_query"
+      ],
+      "owner_epoch": 1,
+      "renewed_at": "2026-08-01T01:23:58.111041+00:00",
+      "run_id": "run_a3b4a637913d",
+      "session_id": "task:task_264ea99edaad",
+      "state": "active",
+      "task_id": "task_264ea99edaad",
+      "worker_id": "task-runtime",
+      "workspace_id": "ws_9be94af67535233e3fa19603"
+    }
+  },
+  "mounts": {
+    "ws_9be94af67535233e3fa19603": [
+      {
+        "access": "read_write",
+        "created_at": "2026-08-01T01:23:58.092590+00:00",
+        "kind": "task",
+        "metadata": {
+          "canonical_artifact_owner": false,
+          "exec_allowed": true
+        },
+        "mount_id": "mount_f71347779e387ed8b1eb191f",
+        "owner_epoch": 1,
+        "quota": {
+          "include_generated": true,
+          "max_bytes": 1073741824,
+          "max_directories": 20000,
+          "max_files": 100000,
+          "max_path_depth": 64,
+          "max_single_file_bytes": 134217728,
+          "max_snapshot_bytes": 4294967296,
+          "max_snapshots": 32
+        },
+        "relative_root": "task",
+        "workspace_id": "ws_9be94af67535233e3fa19603"
+      },
+      {
+        "access": "read_only",
+        "created_at": "2026-08-01T01:23:58.092623+00:00",
+        "kind": "artifact",
+        "metadata": {
+          "canonical_artifact_owner": "LocalArtifactStore",
+          "exec_allowed": false,
+          "workspace_stores_refs_only": true
+        },
+        "mount_id": "mount_5ea5dcd9b7f9912ccd06c34a",
+        "owner_epoch": 1,
+        "quota": {
+          "include_generated": true,
+          "max_bytes": 1073741824,
+          "max_directories": 20000,
+          "max_files": 100000,
+          "max_path_depth": 64,
+          "max_single_file_bytes": 134217728,
+          "max_snapshot_bytes": 4294967296,
+          "max_snapshots": 32
+        },
+        "relative_root": "artifact",
+        "workspace_id": "ws_9be94af67535233e3fa19603"
+      },
+      {
+        "access": "append_only",
+        "created_at": "2026-08-01T01:23:58.092636+00:00",
+        "kind": "download",
+        "metadata": {
+          "artifact_import_required": true,
+          "exec_allowed": false,
+          "quarantine_required": true
+        },
+        "mount_id": "mount_f7e35f1995d229c76bf0d98c",
+        "owner_epoch": 1,
+        "quota": {
+          "include_generated": true,
+          "max_bytes": 1073741824,
+          "max_directories": 20000,
+          "max_files": 100000,
+          "max_path_depth": 64,
+          "max_single_file_bytes": 134217728,
+          "max_snapshot_bytes": 4294967296,
+          "max_snapshots": 32
+        },
+        "relative_root": "download",
+        "workspace_id": "ws_9be94af67535233e3fa19603"
+      },
+      {
+        "access": "read_write",
+        "created_at": "2026-08-01T01:23:58.092646+00:00",
+        "kind": "temp",
+        "metadata": {
+          "canonical_artifact_allowed": false,
+          "cleanup_with_lease": true,
+          "exec_allowed": false
+        },
+        "mount_id": "mount_1498d4b67a1a972aefb086cb",
+        "owner_epoch": 1,
+        "quota": {
+          "include_generated": true,
+          "max_bytes": 1073741824,
+          "max_directories": 20000,
+          "max_files": 100000,
+          "max_path_depth": 64,
+          "max_single_file_bytes": 134217728,
+          "max_snapshot_bytes": 4294967296,
+          "max_snapshots": 32
+        },
+        "relative_root": "temp",
+        "workspace_id": "ws_9be94af67535233e3fa19603"
+      }
+    ]
+  },
+  "read_records": {},
+  "receipts": [],
+  "recoveries": {},
+  "revision": 7,
+  "schema": "zyra.workspace-binding-store.v1",
+  "snapshots": {},
+  "updated_at": "2026-08-01T01:23:58.134151+00:00",
+  "usages": {
+    "ws_9be94af67535233e3fa19603": {
+      "accounted_bytes": 0,
+      "directory_count": 4,
+      "file_count": 0,
+      "reserved_bytes": 0,
+      "revision": 1,
+      "scanned_at": "2026-08-01T01:23:58.119174+00:00",
+      "snapshot_bytes": 0,
+      "snapshot_count": 0,
+      "symlink_count": 0,
+      "used_bytes": 0
+    }
+  }
+}
