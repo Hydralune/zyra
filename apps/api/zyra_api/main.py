@@ -1056,13 +1056,16 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                     "endpoint": worker.endpoint,
                 },
                 "recovered_before_task_checkpoint": recovered,
+                "terminal": lease.terminal,
+                "accepted": not lease.terminal,
             }
             state.metadata["recovery_worker_route"] = route_value
             store.save_checkpoint(state)
             return {
-                "accepted": True,
+                "accepted": not lease.terminal,
                 "changed": (
-                    original_before.get("lease_id")
+                    not lease.terminal
+                    and original_before.get("lease_id")
                     != after_projection.get("lease_id")
                 ),
                 "before": dict(original_before),
@@ -1075,14 +1078,17 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 },
                 "receipt_id": lease.lease_id,
                 "message": (
-                    "WorkerPoolFoundationRuntime recovered the committed "
+                    "WorkerPoolFoundationRuntime reconciled a terminal "
+                    "successor committed before the task checkpoint"
+                    if lease.terminal
+                    else "WorkerPoolFoundationRuntime recovered the committed "
                     "successor lease"
                     if recovered
                     else "WorkerPoolFoundationRuntime allocated a successor lease"
                 ),
                 "metadata": {
                     "replayed": recovered,
-                    "terminal": False,
+                    "terminal": lease.terminal,
                 },
             }
 

@@ -454,6 +454,160 @@ def test_worker_successor_recovers_committed_lease_before_task_checkpoint(
         assert bound.state.value == "leased"
 
 
+def test_worker_successor_reconciles_terminal_precheckpoint_lease_then_reroutes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _create_task(
+            base_url,
+            "Reconcile a terminal successor committed before checkpointing.",
+        )
+        previous_owner = _owner(task)
+        worker_api = api_main.get_worker_pool_api()
+        orchestrator = api_main.get_deployment_api().orchestrator
+        device_policy = orchestrator.catalog.policy(
+            DeploymentProfile.DEVICE
+        )
+        successor_process, _, successor_health = (
+            orchestrator.processes.start_node(device_policy, restart=True)
+        )
+        successor_identity = dict(successor_health["runtime_identity"])
+        worker_api.pool.register_physical_worker(
+            worker_id="terminal-checkpoint-successor",
+            worker_kind="code-worker",
+            location=WorkerLocation.LOCAL,
+            backend=BackendCapability(
+                backend_id="terminal-checkpoint-backend",
+                backend_kind="local_process",
+                enabled=True,
+                healthy=True,
+                capabilities=(
+                    "agent_task",
+                    "code_execution",
+                    "artifact_return",
+                ),
+                tool_ids=("code", "shell", "read", "write", "search"),
+            ),
+            capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+            ),
+            tool_ids=("code", "shell", "read", "write", "search"),
+            resources=ResourceVector(
+                cpu_cores=1.0,
+                memory_mb=512,
+                disk_mb=512,
+                process_slots=2,
+            ),
+            process_identity=str(successor_identity["failure_boundary_id"]),
+            endpoint=successor_process.endpoint,
+            metadata={
+                "terminal_checkpoint_successor": True,
+                "deployment_node_id": successor_health["node_id"],
+                "deployment_generation_id": successor_identity[
+                    "generation_id"
+                ],
+            },
+        )
+        request = {
+            "run_id": task["run_id"],
+            "task_id": task["task_id"],
+            "plan_id": "plan-terminal-checkpoint",
+            "idempotency_key": "successor-terminal-checkpoint",
+            "excluded_refs": [previous_owner["expected_worker_id"]],
+            "constraints": {
+                "worker": {"required_capabilities": ["agent_task"]}
+            },
+        }
+        store = api_main.get_store()
+        callback = api_main._recovery_owner_callbacks(
+            store
+        ).worker_successor
+        assert callback is not None
+        original_save = store.save_checkpoint
+        crashed = False
+
+        def crash_once(state: Any) -> None:
+            nonlocal crashed
+            if not crashed:
+                crashed = True
+                raise RuntimeError("controlled terminal precheckpoint crash")
+            original_save(state)
+
+        monkeypatch.setattr(store, "save_checkpoint", crash_once)
+        with pytest.raises(
+            RuntimeError,
+            match="controlled terminal precheckpoint crash",
+        ):
+            callback(request)
+        successor_lease = next(
+            lease
+            for lease in worker_api.pool.store.list_leases(
+                task_id=task["task_id"]
+            )
+            if lease.lease_id != previous_owner["expected_lease_id"]
+        )
+        worker_api.pool.leases.cancel(
+            successor_lease.lease_id,
+            reason="controlled terminal successor before task checkpoint",
+        )
+
+        rejected = callback(request)
+
+        assert rejected["accepted"] is False
+        assert rejected["changed"] is False
+        assert rejected["metadata"] == {
+            "replayed": True,
+            "terminal": True,
+        }
+        restored = store.load_task(task["task_id"])
+        assert restored is not None
+        assert restored.metadata["worker_pool"]["lease_id"] == (
+            successor_lease.lease_id
+        )
+        terminal_graph = worker_api.graph_custody.current(
+            restored.metadata["dynamic_graph_id"]
+        )
+        terminal_node = next(
+            node
+            for node in terminal_graph.nodes
+            if node.physical_attempt_ref == successor_lease.attempt_id
+        )
+        assert terminal_node.worker_lease_ref == successor_lease.lease_id
+        assert terminal_node.state.value == "cancelled"
+
+        rerouted = callback(
+            {
+                **request,
+                "plan_id": "plan-after-terminal-checkpoint",
+                "idempotency_key": "successor-after-terminal-checkpoint",
+                "excluded_refs": [successor_lease.worker_id],
+            }
+        )
+
+        assert rerouted["accepted"] is True
+        assert rerouted["canonical_ref"]["lease_id"] != (
+            successor_lease.lease_id
+        )
+        final_state = store.load_task(task["task_id"])
+        assert final_state is not None
+        assert final_state.metadata["worker_pool"]["lease_id"] == (
+            rerouted["canonical_ref"]["lease_id"]
+        )
+        final_graph = worker_api.graph_custody.current(
+            final_state.metadata["dynamic_graph_id"]
+        )
+        final_node = next(
+            node
+            for node in final_graph.nodes
+            if node.physical_attempt_ref
+            == rerouted["canonical_ref"]["attempt_id"]
+        )
+        assert final_node.state.value == "leased"
+
+
 def test_sealed_timeline_control_is_denied_once_without_manual_mutation_or_human_wait(
     tmp_path: Path,
 ) -> None:

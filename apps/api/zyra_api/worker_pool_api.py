@@ -13,6 +13,8 @@ from zyra_orchestration.graph_custody import (
     GraphStateCustody,
     NodeExecutionState,
 )
+from zyra_orchestration.topology_policy import PhysicalDispatchReceipt
+from zyra_scheduler import PhysicalDispatchReceiptValidator
 from zyra_scheduler.worker_pool import (
     AttemptState,
     BackendCapability,
@@ -737,6 +739,26 @@ class WorkerPoolApiService:
                 "dynamic graph physical binding terminalization was fenced"
             )
         if node.terminal:
+            if node.state is not terminal_state:
+                raise RuntimeError(
+                    "dynamic graph terminal state conflicts with the "
+                    "canonical WorkerPool outcome"
+                )
+            committed_outcome_ref = str(
+                node.metadata.get("physical_attempt_outcome_ref") or ""
+            )
+            if (
+                terminal_state
+                in {NodeExecutionState.SUCCEEDED, NodeExecutionState.FAILED}
+                and (
+                    not outcome_ref
+                    or committed_outcome_ref != outcome_ref
+                )
+            ):
+                raise RuntimeError(
+                    "dynamic graph terminal outcome receipt conflicts with "
+                    "the canonical WorkerPool receipt"
+                )
             return record({
                 "schema": "zyra.graph-physical-binding-terminal/v1",
                 "committed": True,
@@ -814,6 +836,16 @@ class WorkerPoolApiService:
             None,
         )
         if execution_receipt is not None:
+            if execution_receipt.outcome in {
+                ExecutionOutcome.CANCELLED,
+                ExecutionOutcome.FENCED,
+            }:
+                return self.cancel_task_graph_binding(
+                    state,
+                    reason=reason,
+                    actor_id=actor_id,
+                    causation_id=causation_id,
+                )
             return self.complete_task_graph_binding(
                 state,
                 succeeded=(
@@ -859,10 +891,6 @@ class WorkerPoolApiService:
         lease = matches[0]
         if lease.lease_id == str(before.get("lease_id") or ""):
             return None
-        if lease.terminal:
-            raise RuntimeError(
-                "recovered worker acquisition is already terminal"
-            )
         attempt = self.pool.store.require_attempt(lease.attempt_id)
         if (
             attempt.task_id != state.task_id
@@ -895,10 +923,10 @@ class WorkerPoolApiService:
         if node is None:
             raise RuntimeError("recovered worker acquisition node is unavailable")
         graph_commit: Mapping[str, Any]
+        projection_applied = True
         if (
             node.physical_attempt_ref == attempt.attempt_id
             and node.worker_lease_ref == lease.lease_id
-            and not node.terminal
         ):
             graph_commit = {
                 "schema": "zyra.graph-binding-recovery/v1",
@@ -914,21 +942,37 @@ class WorkerPoolApiService:
             == str(before.get("attempt_id") or "")
             and node.worker_lease_ref == str(before.get("lease_id") or "")
         ):
-            rebound = self.topology.bind_physical_attempt(
-                graph_id_value,
-                execute_node_id,
-                physical_attempt_ref=attempt.attempt_id,
-                worker_lease_ref=lease.lease_id,
-                backend_route_ref=lease.backend_id,
-                actor_id="worker-pool-api",
-                causation_id=lease.lease_id,
-            )
-            if not rebound.receipt.committed:
-                raise RuntimeError(
-                    "recovered worker acquisition graph binding was rejected"
+            if lease.terminal:
+                # The successor lease never reached GraphStateCustody.  Keep
+                # TaskState on its already-terminal prior projection, but
+                # return the canonical terminal successor so the caller can
+                # persist an idempotent rejected route for this key.
+                projection_applied = False
+                graph_commit = {
+                    "schema": "zyra.graph-binding-recovery/v1",
+                    "committed": False,
+                    "replayed": True,
+                    "binding_absent": True,
+                    "commit_id": snapshot.commit_id,
+                    "revision": snapshot.revision,
+                    "signature": snapshot.signature,
+                }
+            else:
+                rebound = self.topology.bind_physical_attempt(
+                    graph_id_value,
+                    execute_node_id,
+                    physical_attempt_ref=attempt.attempt_id,
+                    worker_lease_ref=lease.lease_id,
+                    backend_route_ref=lease.backend_id,
+                    actor_id="worker-pool-api",
+                    causation_id=lease.lease_id,
                 )
-            snapshot = rebound.snapshot
-            graph_commit = rebound.receipt.to_dict()
+                if not rebound.receipt.committed:
+                    raise RuntimeError(
+                        "recovered worker acquisition graph binding was rejected"
+                    )
+                snapshot = rebound.snapshot
+                graph_commit = rebound.receipt.to_dict()
         else:
             raise RuntimeError(
                 "recovered worker acquisition conflicts with canonical graph"
@@ -952,14 +996,128 @@ class WorkerPoolApiService:
                 lease.metadata.get("operator_placement_causality") or {}
             ),
         }
-        state.metadata["worker_pool"] = after
+        if projection_applied:
+            state.metadata["worker_pool"] = after
+            if lease.terminal:
+                self.reconcile_task_graph_binding(
+                    state,
+                    reason=(
+                        "recovered successor lease became terminal before "
+                        "TaskState checkpoint"
+                    ),
+                    actor_id="worker-pool-recovery",
+                    causation_id=(
+                        f"worker-pool-recovery-terminal:{lease.lease_id}"
+                    ),
+                )
+        else:
+            after = dict(before)
         return {
             "before": dict(before),
             "after": dict(after),
             "lease": lease,
             "attempt": attempt,
             "worker": worker,
+            "terminal": lease.terminal,
+            "projection_applied": projection_applied,
         }
+
+    def _verified_terminal_receipt_enrichment(
+        self,
+        state: TaskState,
+        *,
+        lease: Any,
+        execution_receipt: Any,
+        current: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        """Admit only enrichment bound to the canonical execution receipt."""
+
+        raw_dispatch = current.get("physical_dispatch_receipt")
+        raw_validation = current.get("physical_dispatch_validation")
+        if raw_dispatch is None and raw_validation is None:
+            return {}
+        if not isinstance(raw_dispatch, Mapping) or not isinstance(
+            raw_validation,
+            Mapping,
+        ):
+            raise RuntimeError(
+                "terminal physical dispatch enrichment is incomplete"
+            )
+        dispatch = PhysicalDispatchReceipt.from_dict(raw_dispatch)
+        validation = PhysicalDispatchReceiptValidator().validate(
+            dispatch
+        ).to_dict()
+        binding = dict(
+            state.metadata.get("operator_placement_binding") or {}
+        )
+        worker = self.pool.store.require_worker(lease.worker_id)
+        identity = dict(dispatch.physical_identity)
+        signals = dict(dispatch.input_signals)
+        canonical_metadata = dict(execution_receipt.metadata or {})
+        checks = {
+            "validation_exact": dict(raw_validation) == validation,
+            "real_gate_closed": validation.get("real_gate_closed") is True,
+            "canonical_digest": (
+                dispatch.digest
+                == str(
+                    canonical_metadata.get(
+                        "physical_dispatch_receipt_digest"
+                    )
+                    or ""
+                )
+            ),
+            "lease_exact": dispatch.lease_id == lease.lease_id,
+            "attempt_exact": (
+                dispatch.physical_attempt_id == lease.attempt_id
+            ),
+            "worker_exact": (
+                str(signals.get("worker_id") or "") == lease.worker_id
+            ),
+            "placement_exact": (
+                dispatch.placement_decision_id
+                == str(binding.get("resource_decision_id") or "")
+            ),
+            "binding_lease_exact": (
+                str(binding.get("lease_id") or "") == lease.lease_id
+            ),
+            "binding_attempt_exact": (
+                str(binding.get("attempt_id") or "")
+                == lease.attempt_id
+            ),
+            "process_exact": (
+                str(identity.get("failure_boundary_id") or "")
+                == worker.process_identity
+            ),
+            "endpoint_exact": (
+                str(identity.get("endpoint") or "") == worker.endpoint
+            ),
+        }
+        failed = sorted(name for name, passed in checks.items() if not passed)
+        if failed:
+            raise RuntimeError(
+                "terminal physical dispatch enrichment failed canonical "
+                "binding: " + ",".join(failed)
+            )
+        result: dict[str, Any] = {
+            "physical_dispatch_receipt": dispatch.to_dict(),
+            "physical_dispatch_validation": validation,
+        }
+        current_memory = current.get("memory_mutation_receipt")
+        canonical_memory = canonical_metadata.get(
+            "memory_mutation_receipt"
+        )
+        if current_memory is not None:
+            if (
+                not isinstance(current_memory, Mapping)
+                or not isinstance(canonical_memory, Mapping)
+                or dict(current_memory) != dict(canonical_memory)
+            ):
+                raise RuntimeError(
+                    "terminal memory mutation receipt conflicts with the "
+                    "canonical execution receipt"
+                )
+            result["memory_mutation_receipt"] = dict(canonical_memory)
+        return result
 
     def ensure_task_lease(
         self,
@@ -1049,20 +1207,14 @@ class WorkerPoolApiService:
                     and str(current.get("receipt_id") or "")
                     == str(persisted.get("receipt_id") or "")
                 ):
-                    # The lease store owns the canonical execution receipt,
-                    # while the production policy appends verified physical
-                    # dispatch/custody projections after that receipt commits.
-                    # An idempotent terminal replay must not erase those
-                    # projections or downstream recovery will falsely report
-                    # that no physical dispatch occurred.
-                    for key in (
-                        "physical_dispatch_receipt",
-                        "physical_dispatch_validation",
-                        "physical_dispatch_policy_artifact_ref",
-                        "memory_mutation_receipt",
-                    ):
-                        if key in current:
-                            persisted[key] = current[key]
+                    persisted.update(
+                        self._verified_terminal_receipt_enrichment(
+                            state,
+                            lease=lease,
+                            execution_receipt=existing,
+                            current=current,
+                        )
+                    )
                 state.metadata["worker_pool_receipt"] = persisted
                 return persisted
             return None

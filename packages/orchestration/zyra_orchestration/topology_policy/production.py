@@ -1271,6 +1271,20 @@ class Phase2StrongestProductionBridge:
                     "side_effect_started": False,
                     "automatic_execution_retry_allowed": True,
                 }
+                state.metadata[
+                    "physical_execution_failure_receipt"
+                ] = failure
+                self.worker_pool_api.reconcile_task_graph_binding(
+                    state,
+                    reason=(
+                        "physical execution placement gate found a missing "
+                        "or terminal lease"
+                    ),
+                    actor_id="phase2-physical-execution",
+                    causation_id=(
+                        f"placement-rejected-terminal:{lease_id or 'missing'}"
+                    ),
+                )
             raise Phase2ProductionPolicyError(
                 "physical execution placement gate rejected and closed the lease",
                 code="phase2_physical_placement_rejected",

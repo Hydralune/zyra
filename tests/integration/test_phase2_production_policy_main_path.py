@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -11,10 +12,14 @@ from zyra_core import EventType
 from zyra_orchestration import ensure_default_graph, run_task_graph
 from zyra_orchestration.topology_policy.contracts import (
     FrozenDict,
+    PhysicalDispatchReceipt,
     canonical_digest,
 )
 from zyra_symbolic import TopologyRouter
-from zyra_scheduler import OperatorLayerProposal
+from zyra_scheduler import (
+    OperatorLayerProposal,
+    PhysicalDispatchReceiptValidator,
+)
 
 
 def _assert_physical_graph_binding_terminal(state) -> None:
@@ -406,6 +411,51 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None
     ] == dispatch_receipt["digest"]
     assert dispatch_validation["real_gate_closed"] is True
     assert not dispatch_validation["blockers"]
+    pool_api = api.get_worker_pool_api()
+    valid_replay = pool_api.finalize_task(
+        state,
+        success=True,
+        summary="verify exact physical receipt replay",
+    )
+    assert valid_replay is not None
+    assert valid_replay["physical_dispatch_receipt"]["digest"] == (
+        dispatch_receipt["digest"]
+    )
+
+    wrong_validation = dict(dispatch_validation)
+    wrong_validation["real_gate_closed"] = False
+    state.metadata["worker_pool_receipt"] = {
+        **dict(physical_receipt),
+        "physical_dispatch_validation": wrong_validation,
+    }
+    with pytest.raises(RuntimeError, match="canonical binding"):
+        pool_api.finalize_task(
+            state,
+            success=True,
+            summary="reject wrong physical validation replay",
+        )
+
+    parsed_dispatch = PhysicalDispatchReceipt.from_dict(dispatch_receipt)
+    cross_lease_dispatch = replace(
+        parsed_dispatch,
+        lease_id="lease_cross_attempt_replay",
+    )
+    state.metadata["worker_pool_receipt"] = {
+        **dict(physical_receipt),
+        "physical_dispatch_receipt": cross_lease_dispatch.to_dict(),
+        "physical_dispatch_validation": (
+            PhysicalDispatchReceiptValidator()
+            .validate(cross_lease_dispatch)
+            .to_dict()
+        ),
+    }
+    with pytest.raises(RuntimeError, match="canonical binding"):
+        pool_api.finalize_task(
+            state,
+            success=True,
+            summary="reject cross-lease physical receipt replay",
+        )
+    state.metadata["worker_pool_receipt"] = dict(valid_replay)
     assert str(state.status) == "completed", {
         "nodes": {
             item.metadata.get("stage"): {
@@ -630,6 +680,55 @@ def test_physical_execution_rejects_tampered_attempt_worker_backend_binding() ->
     lease_id = state.metadata["worker_pool"]["lease_id"]
     lease = api.get_worker_pool_api().pool.store.require_lease(lease_id)
     assert lease.terminal is True
+    _assert_physical_graph_binding_terminal(state)
+
+
+def test_physical_placement_missing_lease_reconciles_graph_and_failure_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Reject placement after its canonical lease disappears."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    original_runner = context.physical_execution_runner
+    assert original_runner is not None
+    store = api.get_worker_pool_api().pool.store
+    original_get_lease = store.get_lease
+    lease_missing = False
+
+    def missing_lease_runner(task, node):
+        nonlocal lease_missing
+        lease_missing = True
+        return original_runner(task, node)
+
+    monkeypatch.setattr(
+        store,
+        "get_lease",
+        lambda lease_id: (
+            None if lease_missing else original_get_lease(lease_id)
+        ),
+    )
+    events = run_task_graph(
+        state,
+        execution_context=replace(
+            context,
+            physical_execution_runner=missing_lease_runner,
+        ),
+    )
+
+    failure = next(
+        item.payload
+        for item in events
+        if item.payload.get("error_code")
+        == "phase2_physical_placement_rejected"
+    )
+    receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert receipt == state.metadata["physical_execution_failure_receipt"]
+    assert receipt["lease_id"] == state.metadata["worker_pool"]["lease_id"]
+    assert receipt["terminal"] is False
     _assert_physical_graph_binding_terminal(state)
 
 
@@ -867,7 +966,7 @@ def test_tampered_operator_output_fails_closed_after_dispatch(
     assert (
         failure["error_code"]
         == "phase2_physical_operator_output_binding_failed"
-    )
+    ), json.dumps(failures, ensure_ascii=False, sort_keys=True)
     assert failed_check in failure["error_metadata"][
         "failed_execution_checks"
     ]

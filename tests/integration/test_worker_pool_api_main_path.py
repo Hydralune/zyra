@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.error import HTTPError
 
+import pytest
+
 from apps.api.zyra_api import main as api_main
 
 
@@ -141,6 +143,16 @@ def test_normal_task_finalize_replays_lease_and_graph_success(
             },
             "physical_dispatch_validation": {"real_gate_closed": True},
         }
+        with pytest.raises(
+            (RuntimeError, ValueError),
+            match="physical dispatch|digest|contract",
+        ):
+            pool_api.finalize_task(
+                state,
+                success=True,
+                summary="controlled physical success",
+            )
+        state.metadata["worker_pool_receipt"] = dict(first or {})
         replayed = pool_api.finalize_task(
             state,
             success=True,
@@ -150,12 +162,8 @@ def test_normal_task_finalize_replays_lease_and_graph_success(
         assert first is not None
         assert replayed is not None
         assert replayed["receipt_id"] == first["receipt_id"]
-        assert replayed["physical_dispatch_receipt"]["digest"] == (
-            "dispatch-digest"
-        )
-        assert replayed["physical_dispatch_validation"][
-            "real_gate_closed"
-        ] is True
+        assert "physical_dispatch_receipt" not in replayed
+        assert "physical_dispatch_validation" not in replayed
         graph = pool_api.graph_custody.current(
             state.metadata["dynamic_graph_id"]
         )
@@ -175,6 +183,25 @@ def test_normal_task_finalize_replays_lease_and_graph_success(
         ]
         assert len(matching_history) == 1
         assert matching_history[0]["state"] == "succeeded"
+        with pytest.raises(RuntimeError, match="terminal state conflicts"):
+            pool_api.cancel_task_graph_binding(
+                state,
+                reason="controlled opposite terminal replay",
+                actor_id="test-worker-pool",
+                causation_id="opposite-terminal-state",
+            )
+        with pytest.raises(
+            RuntimeError,
+            match="terminal outcome receipt conflicts",
+        ):
+            pool_api.complete_task_graph_binding(
+                state,
+                succeeded=True,
+                reason="controlled mismatched outcome replay",
+                outcome_ref="execution_receipt_wrong",
+                actor_id="test-worker-pool",
+                causation_id="mismatched-outcome-ref",
+            )
 
 
 def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(
