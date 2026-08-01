@@ -1012,7 +1012,22 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             route_boundary.get("process_identity") or ""
         )
         route_endpoint = str(route_boundary.get("endpoint") or "")
-        if route_worker_id:
+        route_worker = (
+            worker_api.pool.store.get_worker(route_worker_id)
+            if route_worker_id
+            else None
+        )
+        if route_worker is not None and (
+            (
+                route_process_identity
+                and route_worker.process_identity == route_process_identity
+            )
+            or (
+                not route_process_identity
+                and route_endpoint
+                and route_worker.endpoint == route_endpoint
+            )
+        ):
             excluded.add(route_worker_id)
         if route_process_identity or route_endpoint:
             for candidate in worker_api.pool.store.list_workers():

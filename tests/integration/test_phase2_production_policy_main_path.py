@@ -424,6 +424,25 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None
     assert valid_replay["physical_dispatch_policy_artifact_ref"] == (
         physical_receipt["physical_dispatch_policy_artifact_ref"]
     )
+    forged_policy_artifact = dict(
+        valid_replay["physical_dispatch_policy_artifact_ref"]
+    )
+    forged_policy_artifact.update(
+        {
+            "ref_id": "artifact_forged_cross_task",
+            "uri": "artifact://nonexistent/cross-task",
+        }
+    )
+    state.metadata["worker_pool_receipt"] = {
+        **dict(valid_replay),
+        "physical_dispatch_policy_artifact_ref": forged_policy_artifact,
+    }
+    with pytest.raises(RuntimeError, match="canonical execution custody"):
+        pool_api.finalize_task(
+            state,
+            success=True,
+            summary="reject forged policy artifact custody",
+        )
 
     wrong_validation = dict(dispatch_validation)
     wrong_validation["real_gate_closed"] = False

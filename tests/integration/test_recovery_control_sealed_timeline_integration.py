@@ -689,12 +689,22 @@ def test_unbound_terminal_successor_route_excludes_failed_boundary_on_new_key(
         )
         terminal_successor_id = rejected["canonical_ref"]["worker_id"]
         assert terminal_successor_id == "unbound-terminal-successor"
+        terminal_route_state = api_main.get_store().load_task(task["task_id"])
+        assert terminal_route_state is not None
+        failed_process_identity = terminal_route_state.metadata[
+            "recovery_worker_route"
+        ]["successor_failure_boundary"]["process_identity"]
         _register_successor_worker(
             worker_api,
             orchestrator,
-            worker_id="after-unbound-successor",
-            backend_id="after-unbound-backend",
+            worker_id="unbound-terminal-successor",
+            backend_id="unbound-terminal-backend",
+            replace_generation=True,
         )
+        replacement_worker = worker_api.pool.store.require_worker(
+            terminal_successor_id
+        )
+        assert replacement_worker.process_identity != failed_process_identity
 
         rerouted = callback(
             {
@@ -707,14 +717,14 @@ def test_unbound_terminal_successor_route_excludes_failed_boundary_on_new_key(
 
         assert rerouted["accepted"] is True
         assert rerouted["canonical_ref"]["worker_id"] == (
-            "after-unbound-successor"
+            "unbound-terminal-successor"
         )
         route = api_main.get_store().load_task(task["task_id"])
         assert route is not None
         avoided = route.metadata["recovery_worker_route"][
             "avoided_worker_ids"
         ]
-        assert terminal_successor_id in avoided
+        assert terminal_successor_id not in avoided
 
 
 def test_sealed_timeline_control_is_denied_once_without_manual_mutation_or_human_wait(
@@ -905,6 +915,7 @@ def _register_successor_worker(
     *,
     worker_id: str,
     backend_id: str,
+    replace_generation: bool = False,
 ) -> None:
     device_policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
     process, _, health = orchestrator.processes.start_node(
@@ -942,6 +953,7 @@ def _register_successor_worker(
         ),
         process_identity=str(identity["failure_boundary_id"]),
         endpoint=process.endpoint,
+        replace_generation=replace_generation,
         metadata={
             "unbound_terminal_test_worker": True,
             "deployment_node_id": health["node_id"],

@@ -1119,13 +1119,16 @@ class WorkerPoolApiService:
         raw_policy_artifact = current.get(
             "physical_dispatch_policy_artifact_ref"
         )
-        if raw_policy_artifact is not None:
-            if not isinstance(raw_policy_artifact, Mapping):
+        canonical_policy_artifact = canonical_metadata.get(
+            "physical_dispatch_policy_artifact_ref"
+        )
+        if canonical_policy_artifact:
+            if not isinstance(canonical_policy_artifact, Mapping):
                 raise RuntimeError(
-                    "terminal physical dispatch policy artifact ref is invalid"
+                    "canonical physical dispatch policy artifact ref is invalid"
                 )
             policy_artifact = StableArtifactRef.from_mapping(
-                raw_policy_artifact
+                canonical_policy_artifact
             )
             if policy_artifact.digest != canonical_digest(
                 dispatch.to_dict()
@@ -1134,8 +1137,25 @@ class WorkerPoolApiService:
                     "terminal physical dispatch policy artifact digest "
                     "conflicts with the verified receipt"
                 )
+            if (
+                raw_policy_artifact is not None
+                and (
+                    not isinstance(raw_policy_artifact, Mapping)
+                    or dict(raw_policy_artifact)
+                    != dict(canonical_policy_artifact)
+                )
+            ):
+                raise RuntimeError(
+                    "terminal physical dispatch policy artifact ref "
+                    "conflicts with canonical execution custody"
+                )
             result["physical_dispatch_policy_artifact_ref"] = (
                 policy_artifact.to_dict()
+            )
+        elif raw_policy_artifact is not None:
+            raise RuntimeError(
+                "terminal physical dispatch policy artifact ref has no "
+                "canonical execution custody"
             )
         current_memory = current.get("memory_mutation_receipt")
         canonical_memory = canonical_metadata.get(

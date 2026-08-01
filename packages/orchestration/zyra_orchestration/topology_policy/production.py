@@ -2032,6 +2032,16 @@ class Phase2StrongestProductionBridge:
                         "reconcile_before_retry": True,
                     },
                 ) from error
+        published_dispatch_ref: dict[str, Any] = {}
+        if self.evidence_publisher is not None:
+            published_dispatch = self.evidence_publisher.publish(
+                PhysicalDispatchReceipt.from_dict(physical_dispatch),
+                run_id=state.run_id,
+                task_id=state.task_id,
+            )
+            published_dispatch_ref = (
+                published_dispatch.artifact_ref.to_dict()
+            )
         receipt = self.worker_pool_api.finalize_task(
             state,
             success=bool(worker_run.worker_result.ok),
@@ -2060,6 +2070,9 @@ class Phase2StrongestProductionBridge:
                     result_metadata.get("operator_idempotency_key") or ""
                 ),
                 "memory_mutation_receipt": memory_mutation_receipt,
+                "physical_dispatch_policy_artifact_ref": (
+                    published_dispatch_ref
+                ),
             },
         )
         if not isinstance(receipt, Mapping):
@@ -2072,14 +2085,9 @@ class Phase2StrongestProductionBridge:
         state.metadata.setdefault("physical_dispatch_receipts", []).append(
             physical_dispatch
         )
-        if self.evidence_publisher is not None:
-            published_dispatch = self.evidence_publisher.publish(
-                PhysicalDispatchReceipt.from_dict(physical_dispatch),
-                run_id=state.run_id,
-                task_id=state.task_id,
-            )
-            selected["physical_dispatch_policy_artifact_ref"] = (
-                published_dispatch.artifact_ref.to_dict()
+        if published_dispatch_ref:
+            selected["physical_dispatch_policy_artifact_ref"] = dict(
+                published_dispatch_ref
             )
         if memory_mutation_receipt:
             selected["memory_mutation_receipt"] = dict(
