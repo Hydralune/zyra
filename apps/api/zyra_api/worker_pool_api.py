@@ -14,6 +14,7 @@ from zyra_orchestration.graph_custody import (
     NodeExecutionState,
 )
 from zyra_scheduler.worker_pool import (
+    AttemptState,
     BackendCapability,
     CapabilityRequirement,
     ExecutionOutcome,
@@ -501,7 +502,11 @@ class WorkerPoolApiService:
                 "operator placement causal binding is incomplete"
             )
         latest_attempt = self.pool.store.latest_attempt(state.task_id)
-        replay_attempt = latest_attempt is not None and not latest_attempt.terminal
+        replay_attempt = (
+            latest_attempt is not None
+            and not latest_attempt.terminal
+            and latest_attempt.state is not AttemptState.LOST
+        )
         attempt_number = (
             latest_attempt.attempt_number
             if replay_attempt

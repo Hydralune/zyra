@@ -237,7 +237,10 @@ from zyra_scheduler import (
     PhysicalDispatchCallPort,
     PhysicalDispatchEvidenceStore,
     PhysicalDispatchTask,
+    ResourceLocation,
     ResourceScheduler,
+    WorkerBackendKind,
+    WorkerManifest,
     WorkerPool,
     backend_registry_path,
     build_final_verifier_decision,
@@ -921,6 +924,18 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             },
         )
         after = dict(state.metadata.get("worker_pool") or {})
+        runtime_hints = dict(state.metadata.get("runtime_hints") or {})
+        runtime_hints["preferred_worker"] = acquisition.worker.worker_id
+        runtime_hints["avoid_workers"] = sorted(excluded)
+        state.metadata["runtime_hints"] = runtime_hints
+        state.metadata["recovery_worker_route"] = {
+            "owner": "WorkerPoolFoundationRuntime",
+            "plan_id": str(request.get("plan_id") or ""),
+            "preferred_worker_id": acquisition.worker.worker_id,
+            "avoided_worker_ids": sorted(excluded),
+            "lease_id": acquisition.lease.lease_id,
+            "attempt_id": acquisition.attempt.attempt_id,
+        }
         store.save_checkpoint(state)
         return {
             "accepted": True,
@@ -1084,6 +1099,14 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
         worker_api = get_worker_pool_api()
         graph_id_value = worker_api.ensure_task_graph(state)
         before = worker_api.topology.version_ref(graph_id_value).to_dict()
+        prior_requirement_revision = str(
+            state.metadata.get("requirement_revision")
+            or "requirements:initial"
+        )
+        requirement_revision = (
+            "requirements:recovery:"
+            + str(request.get("signal_id") or request.get("plan_id") or "unknown")
+        )
         branch = worker_api.graph_custody.branch(
             graph_id_value,
             branch_id=f"recovery:{request.get('plan_id')}",
@@ -1096,6 +1119,8 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             "plan_id": str(request.get("plan_id") or ""),
             "signal_id": str(request.get("signal_id") or ""),
             "reason": str(request.get("reason") or "recovery replan"),
+            "prior_requirement_revision": prior_requirement_revision,
+            "requirement_revision": requirement_revision,
             "requested_at": now_iso(),
         })
         committed = worker_api.graph_custody.commit(branch.build())
@@ -1110,6 +1135,32 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             }
         after = worker_api.topology.version_ref(graph_id_value).to_dict()
         state.metadata["dynamic_graph_ref"] = after
+        prior_execution = {
+            "requirement_revision": prior_requirement_revision,
+            "executed_operator_refs": list(
+                state.metadata.get("phase2_executed_operator_refs") or ()
+            ),
+            "execution_layers": list(
+                state.metadata.get("phase2_operator_execution_layers") or ()
+            ),
+        }
+        if prior_execution["executed_operator_refs"] or prior_execution["execution_layers"]:
+            history = list(
+                state.metadata.get("phase2_requirement_execution_history") or ()
+            )
+            history.append(prior_execution)
+            state.metadata["phase2_requirement_execution_history"] = history[-16:]
+        state.metadata.pop("phase2_executed_operator_refs", None)
+        state.metadata.pop("phase2_operator_execution_layers", None)
+        state.metadata.pop("phase2_adaptive_depth_pass", None)
+        state.metadata["requirement_revision"] = requirement_revision
+        state.metadata["requirement_change_ref"] = {
+            "owner": "GraphStateCustody",
+            "commit_id": committed.receipt.commit_id,
+            "signal_id": str(request.get("signal_id") or ""),
+            "prior_requirement_revision": prior_requirement_revision,
+            "requirement_revision": requirement_revision,
+        }
         store.save_checkpoint(state)
         return {
             "accepted": True,
@@ -1467,16 +1518,54 @@ def _recovery_continuation_request_digest(request: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def _reopen_task_for_recovery_continuation(state: Any, action: str) -> bool:
+def _reopen_task_for_recovery_continuation(
+    state: Any,
+    action: str,
+    *,
+    plan_id: str = "",
+) -> bool:
     """Reopen only the graph stages whose execution must consume a recovery result."""
 
     if action not in _RECOVERY_EXECUTION_CONTINUATION_ACTIONS:
         return False
     if state.status == PlanNodeStatus.CANCELLED:
         raise RuntimeError("cancelled tasks cannot dispatch a recovery continuation")
-    stages = {"execute", "verify", "finalize"}
-    if action == "replan":
-        stages.add("route")
+    # Every physical continuation needs a fresh ResourceScheduler decision
+    # and lease.  Reusing a completed task's prior route would retain a
+    # released placement binding and fail the execution fence before any new
+    # canonical attempt can start.
+    stages = {"route", "execute", "verify", "finalize"}
+    prior_execution = {
+        "plan_id": plan_id,
+        "action": action,
+        "requirement_revision": str(
+            state.metadata.get("requirement_revision")
+            or "requirements:initial"
+        ),
+        "executed_operator_refs": list(
+            state.metadata.get("phase2_executed_operator_refs") or ()
+        ),
+        "execution_layers": list(
+            state.metadata.get("phase2_operator_execution_layers") or ()
+        ),
+    }
+    if prior_execution["executed_operator_refs"] or prior_execution["execution_layers"]:
+        history = list(
+            state.metadata.get("phase2_recovery_execution_history") or ()
+        )
+        history.append(prior_execution)
+        state.metadata["phase2_recovery_execution_history"] = history[-16:]
+    for key in (
+        "phase2_executed_operator_refs",
+        "phase2_operator_execution_layers",
+        "phase2_adaptive_depth_pass",
+        "phase2_final_verifier_scope",
+        "phase2_final_verifier_decision",
+        "operator_placement_binding",
+        "worker_pool_receipt",
+        "physical_execution_failure_receipt",
+    ):
+        state.metadata.pop(key, None)
     changed = state.status != PlanNodeStatus.PENDING
     state.status = PlanNodeStatus.PENDING
     for node in state.plan_nodes.values():
@@ -1489,6 +1578,29 @@ def _reopen_task_for_recovery_continuation(state: Any, action: str) -> bool:
         node.updated_at = now_iso()
     state.updated_at = now_iso()
     return changed
+
+
+def _fence_pending_task_reservation(
+    pool_api: WorkerPoolApiService,
+    state: Any,
+    *,
+    reason: str,
+) -> str:
+    """Fence an API-process reservation before binding a real deployment worker."""
+
+    projection = state.metadata.get("worker_pool")
+    if not isinstance(projection, Mapping):
+        return ""
+    lease_id = str(projection.get("lease_id") or "")
+    lease = pool_api.pool.store.get_lease(lease_id) if lease_id else None
+    if lease is None or lease.terminal:
+        return ""
+    # This lease is an unstarted API reservation, not a cancelled user
+    # action.  Expiry both advances the fence epoch and records that the
+    # reservation was superseded without misattributing an autonomous
+    # continuation to a rejected manual cancellation.
+    pool_api.pool.leases.expire(lease_id, reason=reason)
+    return lease_id
 
 
 def _recovery_execution_projection(state: Any) -> dict[str, Any]:
@@ -1505,6 +1617,19 @@ def _recovery_execution_projection(state: Any) -> dict[str, Any]:
     )
     raw_envelope = dict(raw_backend_dispatch.get("final_envelope") or {})
     raw_route_ref = dict(raw_backend_dispatch.get("provider_route_ref") or {})
+    raw_worker_receipt = dict(state.metadata.get("worker_pool_receipt") or {})
+    raw_physical_dispatch = dict(
+        raw_worker_receipt.get("physical_dispatch_receipt") or {}
+    )
+    raw_physical_validation = dict(
+        raw_worker_receipt.get("physical_dispatch_validation") or {}
+    )
+    raw_physical_payload = dict(
+        raw_physical_dispatch.get("payload") or {}
+    )
+    raw_operator_binding = dict(
+        state.metadata.get("operator_placement_binding") or {}
+    )
     backend_dispatch = {
         "final_envelope": {
             key: raw_envelope.get(key)
@@ -1534,6 +1659,29 @@ def _recovery_execution_projection(state: Any) -> dict[str, Any]:
         "worker_error": str((getattr(execute, "metadata", {}) or {}).get("worker_error") or ""),
         "result_summary": str((getattr(execute, "metadata", {}) or {}).get("result_summary") or ""),
         "backend_dispatch": backend_dispatch,
+        "physical_dispatch": {
+            "schema_version": str(
+                raw_physical_dispatch.get("schema_version") or ""
+            ),
+            "digest": str(raw_physical_dispatch.get("digest") or ""),
+            "placement_decision_id": str(
+                raw_physical_payload.get("placement_decision_id") or ""
+            ),
+            "lease_id": str(raw_physical_payload.get("lease_id") or ""),
+            "physical_attempt_id": str(
+                raw_physical_payload.get("physical_attempt_id") or ""
+            ),
+            "call_receipt": dict(
+                raw_physical_payload.get("call_receipt") or {}
+            ),
+            "real_gate_closed": (
+                raw_physical_validation.get("real_gate_closed") is True
+            ),
+        },
+        "physical_execution_failure": dict(
+            state.metadata.get("physical_execution_failure_receipt") or {}
+        ),
+        "operator_placement_binding": raw_operator_binding,
         "worker_pool": dict(state.metadata.get("worker_pool") or {}),
         "backend_route": dict(state.metadata.get("backend_route") or {}),
         "provider_route": dict(state.metadata.get("provider_route") or {}),
@@ -1616,10 +1764,23 @@ def _recovery_continuation_owners(
                         "message": "a prepared recovery dispatch cannot be replayed without its committed receipt",
                     }
 
-                _reopen_task_for_recovery_continuation(state, action)
-                recovery_session_id = (
-                    f"query:{run_id}:{task_id}:recovery:"
-                    f"{str(request.get('plan_id') or request_digest[:24])}"
+                _reopen_task_for_recovery_continuation(
+                    state,
+                    action,
+                    plan_id=str(request.get("plan_id") or ""),
+                )
+                request_metadata = (
+                    dict(request.get("metadata") or {})
+                    if isinstance(request.get("metadata"), Mapping)
+                    else {}
+                )
+                recovery_session_id = str(
+                    request_metadata.get("session_id")
+                    or (state.metadata.get("runtime_hints") or {}).get("session_id")
+                    or (
+                        f"query:{run_id}:{task_id}:recovery:"
+                        f"{str(request.get('plan_id') or request_digest[:24])}"
+                    )
                 )
                 runtime_hints = dict(state.metadata.get("runtime_hints") or {})
                 runtime_hints["session_id"] = recovery_session_id
@@ -1646,9 +1807,13 @@ def _recovery_continuation_owners(
                 pool_sequence = pool_journal[-1].sequence if pool_journal else 0
                 events: list[EventRecord] = []
                 try:
-                    pool_api.ensure_task_lease(
+                    _fence_pending_task_reservation(
+                        pool_api,
                         state,
-                        payload={"idempotency_key": f"{idempotency_key}:worker-lease"},
+                        reason=(
+                            "superseded by recovery continuation physical dispatch "
+                            f"{idempotency_key}"
+                        ),
                     )
                     events = run_task_graph(state, execution_context=graph_execution_context())
                     pool_api.finalize_task(
@@ -1663,11 +1828,35 @@ def _recovery_continuation_owners(
                     )
                     after = _recovery_execution_projection(state)
                     worker_dispatch = dict(after.get("backend_dispatch") or {})
-                    consumed = bool(worker_dispatch.get("final_envelope"))
+                    physical_dispatch = dict(
+                        after.get("physical_dispatch") or {}
+                    )
+                    operator_binding = dict(
+                        after.get("operator_placement_binding") or {}
+                    )
+                    legacy_dispatch_consumed = bool(
+                        worker_dispatch.get("final_envelope")
+                    )
+                    physical_dispatch_consumed = bool(
+                        physical_dispatch.get("schema_version")
+                        == "zyra.physical-dispatch-receipt/v2"
+                        and physical_dispatch.get("digest")
+                        and physical_dispatch.get("real_gate_closed") is True
+                        and physical_dispatch.get("placement_decision_id")
+                        == operator_binding.get("resource_decision_id")
+                        and physical_dispatch.get("lease_id")
+                        == operator_binding.get("lease_id")
+                        and physical_dispatch.get("physical_attempt_id")
+                        == operator_binding.get("attempt_id")
+                    )
+                    consumed = (
+                        legacy_dispatch_consumed
+                        or physical_dispatch_consumed
+                    )
                     if not events or not consumed or state.status != PlanNodeStatus.COMPLETED:
                         raise RuntimeError(
-                            "recovery continuation did not complete a canonical worker/backend dispatch: "
-                            f"event_count={len(events)}, backend_dispatch_consumed={consumed}, "
+                            "recovery continuation did not complete a canonical physical dispatch: "
+                            f"event_count={len(events)}, dispatch_consumed={consumed}, "
                             f"task_status={state.status}"
                         )
                     persist_events(store, events)
@@ -1679,10 +1868,14 @@ def _recovery_continuation_owners(
                         "owner": owner,
                         "event_only": False,
                         "worker_dispatch_consumed": True,
+                        "canonical_physical_dispatch_consumed": (
+                            physical_dispatch_consumed
+                        ),
                         "worker_id": str(after.get("assigned_worker_id") or ""),
                         "worker_lease_id": str((after.get("worker_pool") or {}).get("lease_id") or ""),
                         "backend_id": str(
                             ((worker_dispatch.get("final_envelope") or {}).get("backend_id"))
+                            or operator_binding.get("backend_id")
                             or ((after.get("backend_route") or {}).get("backend_id"))
                             or ""
                         ),
@@ -1692,6 +1885,9 @@ def _recovery_continuation_owners(
                             or ""
                         ),
                         "session_id": recovery_session_id,
+                        "physical_dispatch_receipt_digest": str(
+                            physical_dispatch.get("digest") or ""
+                        ),
                     }
                     receipt = {
                         "accepted": True,
@@ -1724,6 +1920,19 @@ def _recovery_continuation_owners(
                 except Exception as error:
                     failed_state = store.load_task(task_id) or state
                     failed_fences = dict(failed_state.metadata.get("recovery_continuation_fences") or {})
+                    event_tail = [
+                        {
+                            "event_id": event.event_id,
+                            "event_type": str(event.event_type),
+                            "node_id": str(event.node_id or ""),
+                            "transition": str(event.payload.get("transition") or ""),
+                            "summary": str(event.payload.get("summary") or "")[:300],
+                            "error": str(event.payload.get("error") or ""),
+                            "message": str(event.payload.get("message") or "")[:300],
+                        }
+                        for event in events[-12:]
+                    ]
+                    failure_projection = _recovery_execution_projection(state)
                     failed_fences[idempotency_key] = {
                         "phase": "failed",
                         "request_digest": request_digest,
@@ -1732,19 +1941,8 @@ def _recovery_continuation_owners(
                         "failed_at": now_iso(),
                         "error_type": type(error).__name__,
                         "error_message": str(error)[:2000],
-                        "execution_projection": _recovery_execution_projection(state),
-                        "event_tail": [
-                            {
-                                "event_id": event.event_id,
-                                "event_type": str(event.event_type),
-                                "node_id": str(event.node_id or ""),
-                                "transition": str(event.payload.get("transition") or ""),
-                                "summary": str(event.payload.get("summary") or "")[:300],
-                                "error": str(event.payload.get("error") or ""),
-                                "message": str(event.payload.get("message") or "")[:300],
-                            }
-                            for event in events[-12:]
-                        ],
+                        "execution_projection": failure_projection,
+                        "event_tail": event_tail,
                     }
                     failed_state.metadata["recovery_continuation_fences"] = dict(list(failed_fences.items())[-64:])
                     store.save_checkpoint(failed_state)
@@ -1754,8 +1952,16 @@ def _recovery_continuation_owners(
                         "before": before,
                         "after": _recovery_execution_projection(failed_state),
                         "error_code": "continuation_dispatch_failed",
-                        "message": str(error)[:2000],
-                        "metadata": {"event_only": False, "replay_forbidden": True},
+                        "message": (
+                            f"{str(error)[:1400]}; "
+                            f"event_tail={json.dumps(event_tail, sort_keys=True)[:500]}"
+                        ),
+                        "metadata": {
+                            "event_only": False,
+                            "replay_forbidden": True,
+                            "execution_projection": failure_projection,
+                            "event_tail": event_tail,
+                        },
                     }
 
         return CallbackContinuationOwner(owner, continue_execution)
@@ -5137,16 +5343,60 @@ class _CanonicalFinalVerifierOwner:
 def graph_execution_context() -> GraphExecutionContext:
     pool_api = get_worker_pool_api()
     _ensure_phase2_production_workers(pool_api)
-    physical_worker_ids = {
-        str(item.get("worker_id") or "")
-        for item in pool_api.pool.api_projection().get("workers") or ()
-        if isinstance(item, Mapping)
+    physical_workers = {
+        item.worker_id: item
+        for item in pool_api.pool.store.list_workers()
+        if item.accepting_leases
     }
-    executable_manifests = tuple(
-        item
-        for item in WorkerPool().manifests()
-        if item.worker_id in physical_worker_ids
-    )
+    static_manifests = {
+        item.worker_id: item for item in WorkerPool().manifests()
+    }
+    executable: list[WorkerManifest] = []
+    for worker_id, worker in sorted(physical_workers.items()):
+        static = static_manifests.get(worker_id)
+        if static is not None:
+            executable.append(static)
+            continue
+        manifest = pool_api.pool.store.latest_manifest(worker_id)
+        if manifest is None:
+            continue
+        executable.append(
+            WorkerManifest(
+                worker_id=worker_id,
+                display_name=f"Physical worker {worker_id}",
+                runtime_worker=(
+                    "MemoryCuratorRuntime"
+                    if "memory" in worker.worker_kind.casefold()
+                    else "CodeWorkerRuntime"
+                ),
+                location=ResourceLocation(manifest.location.value),
+                backend=WorkerBackendKind.LOCAL_PROCESS,
+                capabilities=list(manifest.capabilities),
+                tools=list(manifest.tool_ids),
+                sandbox="deployment-node",
+                gateway="DeploymentNodeRuntime",
+                workspace_scope="project-workspace",
+                privacy_level=(
+                    "sensitive_ok"
+                    if manifest.location.value == "local"
+                    else "public_or_masked"
+                ),
+                max_concurrency=max(
+                    1, int(manifest.resource_capacity.process_slots)
+                ),
+                source_modules={
+                    "zyra": [
+                        "WorkerPoolFoundationRuntime dynamic physical manifest"
+                    ]
+                },
+                metadata={
+                    "dynamic_physical_manifest": True,
+                    "process_identity": worker.process_identity,
+                    "endpoint": worker.endpoint,
+                },
+            )
+        )
+    executable_manifests = tuple(executable)
     if not executable_manifests:
         raise RuntimeError(
             "ResourceScheduler has no registered physical worker manifest"
@@ -5238,18 +5488,39 @@ def _ensure_phase2_production_workers(
     if not failure_boundary_id or not node_id or not generation_id:
         raise RuntimeError("deployment node physical identity is incomplete")
 
-    local_manifests = tuple(
-        item
-        for item in WorkerPool().manifests()
-        if item.worker_id in {"local-code-worker", "local-memory-curator"}
-    )
-    for logical in local_manifests:
-        worker_id = logical.worker_id
-        if (
-            worker_id == "local-memory-curator"
-            and pool_api.pool.store.get_worker(worker_id) is None
-        ):
+    static_manifests = {
+        item.worker_id: item for item in WorkerPool().manifests()
+    }
+    local_worker_ids = {
+        item.worker_id
+        for item in pool_api.pool.store.list_workers()
+        if item.location is PhysicalWorkerLocation.LOCAL
+        and (
+            item.worker_id in {"local-code-worker", "local-memory-curator"}
+            or bool(item.metadata.get("default_api_worker"))
+        )
+    }
+    local_worker_ids.add("local-code-worker")
+    for worker_id in sorted(local_worker_ids):
+        logical = static_manifests.get(worker_id)
+        capability_manifest = pool_api.pool.store.latest_manifest(worker_id)
+        if capability_manifest is None and logical is None:
             continue
+        worker_kind = (
+            logical.runtime_worker
+            if logical is not None
+            else pool_api.pool.store.require_worker(worker_id).worker_kind
+        )
+        capabilities = (
+            tuple(logical.capabilities)
+            if logical is not None
+            else tuple(capability_manifest.capabilities)  # type: ignore[union-attr]
+        )
+        tools = (
+            tuple(logical.tools)
+            if logical is not None
+            else tuple(capability_manifest.tool_ids)  # type: ignore[union-attr]
+        )
         backend_id = f"phase2-device:{worker_id}"
         existing = pool_api.pool.store.get_worker(worker_id)
         exact_existing = bool(
@@ -5278,7 +5549,7 @@ def _ensure_phase2_production_workers(
                 worker_id=worker_id,
                 worker_kind=(
                     "code-worker"
-                    if worker_id == "local-code-worker"
+                    if "memory" not in worker_kind.casefold()
                     else "memory-curator-worker"
                 ),
                 location=PhysicalWorkerLocation.LOCAL,
@@ -5288,9 +5559,9 @@ def _ensure_phase2_production_workers(
                     enabled=True,
                     healthy=True,
                     capabilities=tuple(
-                        dict.fromkeys(("agent_task", *logical.capabilities))
+                        dict.fromkeys(("agent_task", *capabilities))
                     ),
-                    tool_ids=tuple(logical.tools),
+                    tool_ids=tools,
                     constraints={
                         "gateway_owner": "DeploymentNodeRuntime",
                         "physical_operator_runtime": True,
@@ -5298,9 +5569,9 @@ def _ensure_phase2_production_workers(
                     labels={"dispatch_location": "local"},
                 ),
                 capabilities=tuple(
-                    dict.fromkeys(("agent_task", *logical.capabilities))
+                    dict.fromkeys(("agent_task", *capabilities))
                 ),
-                tool_ids=tuple(logical.tools),
+                tool_ids=tools,
                 resources=PhysicalResourceVector(
                     cpu_cores=1.0,
                     memory_mb=1024,
@@ -5318,6 +5589,10 @@ def _ensure_phase2_production_workers(
                     "deployment_profile": policy.profile.value,
                     "deployment_pid": int(identity.get("pid") or process.pid),
                     "canonical_runtime_owner": "DeploymentNodeRuntime",
+                    "source_default_api_worker": bool(
+                        existing is not None
+                        and existing.metadata.get("default_api_worker")
+                    ),
                 },
             )
         latest = pool_api.pool.store.latest_heartbeat(worker_id)
@@ -9184,8 +9459,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_journal = pool_api.pool.store.journal(limit=10000)
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
             try:
-                pool_api.ensure_default_local_worker()
-                pool_api.ensure_task_graph(state)
+                if auto_run:
+                    # The strongest production route acquires its execution
+                    # lease only after the canonical permission and resource
+                    # decisions.  A pending task still needs one fenced
+                    # reservation so recovery/control owners have a concrete
+                    # physical attempt before execution starts.
+                    pool_api.ensure_default_local_worker()
+                    pool_api.ensure_task_graph(state)
+                else:
+                    pool_api.acquire_for_task(
+                        state,
+                        payload=(
+                            payload.get("worker_pool")
+                            if isinstance(payload.get("worker_pool"), dict)
+                            else {}
+                        ),
+                    )
             except Exception as error:
                 self._typed_receipts().abandon(receipt_reservation)
                 self._send_json(
@@ -9199,6 +9489,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             if auto_run:
+                if requested_sealed:
+                    prepare_phase2_loopx_pre_control(
+                        state,
+                        causation_id=created_event.event_id,
+                    )
                 events.extend(run_task_graph(state, execution_context=graph_execution_context()))
                 pool_api.finalize_task(
                     state,
@@ -9253,8 +9548,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_api = get_worker_pool_api()
             pool_journal = pool_api.pool.store.journal(limit=10000)
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
-            pool_api.ensure_default_local_worker()
-            pool_api.ensure_task_graph(state)
+            _fence_pending_task_reservation(
+                pool_api,
+                state,
+                reason="superseded by task resume physical dispatch",
+            )
             events = run_task_graph(state, execution_context=graph_execution_context())
             pool_api.finalize_task(
                 state,

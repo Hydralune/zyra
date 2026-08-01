@@ -183,9 +183,15 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
         ), route_change
         refreshed = _get(base_url, f"/tasks/{reassign_task['task_id']}")["task"]
         replacement = refreshed["metadata"]["worker_pool"]
-        assert replacement["worker_id"] == "timeline-successor-worker", reassigned[
-            "command_result"
-        ]["data"]["recovery"]["execution"]
+        assert replacement["worker_id"] == "timeline-successor-worker", json.dumps(
+            {
+                "recovery_worker_route": refreshed["metadata"].get("recovery_worker_route"),
+                "runtime_hints": refreshed["metadata"].get("runtime_hints"),
+                "last_resource_decision": refreshed["metadata"].get("last_resource_decision"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
         assert replacement["lease_id"] != previous_owner["expected_lease_id"]
         previous_lease = _lease(
             base_url,

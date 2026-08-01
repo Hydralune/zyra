@@ -48,11 +48,52 @@ def _git(root: Path, *arguments: str) -> str:
     return completed.stdout
 
 
-def _normalized_path(status_line: str) -> str:
-    value = status_line[3:].strip().replace("\\", "/")
-    if " -> " in value:
-        value = value.rsplit(" -> ", 1)[-1]
-    return value.rstrip("/")
+def _status_entries(root: Path) -> tuple[tuple[str, str], ...]:
+    """Return porcelain entries without Git's C-style path quoting.
+
+    ``-z`` is required here: a quoted non-ASCII path can look as though the
+    leading quote is part of the repository path and escape an otherwise
+    allowed generated root.  NUL framing also keeps whitespace and newlines
+    in filenames unambiguous.
+    """
+
+    completed = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "-z",
+        ],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode:
+        raise WorktreeBoundaryError(
+            "git status --porcelain=v1 --untracked-files=all -z failed: "
+            + completed.stderr.decode("utf-8", errors="replace").strip()
+        )
+    records = completed.stdout.decode("utf-8", errors="replace").split("\0")
+    entries: list[tuple[str, str]] = []
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        if len(record) < 4 or record[2] != " ":
+            raise WorktreeBoundaryError("git status returned an invalid porcelain record")
+        status = record[:2]
+        path = record[3:].replace("\\", "/").rstrip("/")
+        entries.append((status, path))
+        if "R" in status or "C" in status:
+            if index >= len(records) or not records[index]:
+                raise WorktreeBoundaryError(
+                    "git status returned an incomplete rename/copy record"
+                )
+            index += 1
+    return tuple(entries)
 
 
 def _inside(path: str, root: str) -> bool:
@@ -70,16 +111,7 @@ def inspect_worktree(
     root = Path(repository_root).resolve()
     head = _git(root, "rev-parse", "HEAD").strip()
     tree = _git(root, "rev-parse", "HEAD^{tree}").strip()
-    entries = tuple(
-        line
-        for line in _git(
-            root,
-            "status",
-            "--porcelain=v1",
-            "--untracked-files=all",
-        ).splitlines()
-        if line.strip()
-    )
+    entries = _status_entries(root)
     allowed = tuple(
         sorted(
             {
@@ -92,9 +124,9 @@ def inspect_worktree(
     generated: list[str] = []
     tracked_dirty: list[str] = []
     unexpected_untracked: list[str] = []
-    for entry in entries:
-        path = _normalized_path(entry)
-        if entry.startswith("?? "):
+    for status, path in entries:
+        entry = f"{status} {path}"
+        if status == "??":
             if any(_inside(path, prefix) for prefix in allowed):
                 generated.append(path)
             else:

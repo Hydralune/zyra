@@ -291,21 +291,62 @@ class ShortTaskVerifier:
                 "projection_digest": digest(scheduler),
             },
         )
-        codeworker = self._body(projections, "codeworker_session")
-        route_contract = codeworker.get("route_contract")
+        metadata = task.get("metadata")
+        metadata = metadata if isinstance(metadata, Mapping) else {}
+        physical_receipts = metadata.get("physical_dispatch_receipts")
+        physical_receipts = (
+            physical_receipts if isinstance(physical_receipts, list) else []
+        )
+        physical_receipt = (
+            physical_receipts[-1]
+            if physical_receipts
+            and isinstance(physical_receipts[-1], Mapping)
+            else {}
+        )
+        physical_payload = physical_receipt.get("payload")
+        physical_payload = (
+            physical_payload if isinstance(physical_payload, Mapping) else {}
+        )
+        input_signals = physical_payload.get("input_signals")
+        input_signals = (
+            input_signals if isinstance(input_signals, Mapping) else {}
+        )
+        placement = metadata.get("operator_placement_binding")
+        placement = placement if isinstance(placement, Mapping) else {}
+        worker_receipt = metadata.get("worker_pool_receipt")
+        worker_receipt = (
+            worker_receipt if isinstance(worker_receipt, Mapping) else {}
+        )
         self._assert(
             assertions,
-            "codeworker_route_contract",
+            "physical_operator_route_contract",
             (
-                projections.get("codeworker_session", {}).get("status")
-                == "observed"
-                and isinstance(route_contract, Mapping)
-                and route_contract.get("ok") is True
+                physical_receipt.get("schema_version")
+                == "zyra.physical-dispatch-receipt/v2"
+                and bool(physical_receipt.get("digest"))
+                and worker_receipt.get("outcome") == "succeeded"
+                and physical_payload.get("simulated") is False
+                and physical_payload.get("semantic_only") is False
+                and input_signals.get("workload_operation")
+                == "phase2-operator-execution"
+                and input_signals.get("domain_effect_performed") is True
+                and input_signals.get("output_contract_fulfilled") is True
+                and physical_payload.get("lease_id")
+                == placement.get("lease_id")
+                and physical_payload.get("physical_attempt_id")
+                == placement.get("attempt_id")
             ),
             {
-                "route_contract": dict(route_contract)
-                if isinstance(route_contract, Mapping)
-                else {},
+                "physical_receipt_digest": physical_receipt.get("digest"),
+                "outcome": worker_receipt.get("outcome"),
+                "lease_id": physical_payload.get("lease_id"),
+                "physical_attempt_id": physical_payload.get(
+                    "physical_attempt_id"
+                ),
+                "operator_ref": input_signals.get("operator_ref"),
+                "legacy_codeworker_projection_status": projections.get(
+                    "codeworker_session", {}
+                ).get("status"),
             },
         )
         event_capabilities = self._body(projections, "event_capabilities")

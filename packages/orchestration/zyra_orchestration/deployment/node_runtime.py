@@ -1080,6 +1080,7 @@ class DeploymentNodeRuntime:
     ) -> dict[str, Any]:
         operator = payload.get("operator")
         operator_ref = str(payload.get("operator_ref") or "")
+        operator_runtime = str(payload.get("operator_runtime") or "")
         goal = str(payload.get("goal") or "")
         layer_index = int(payload.get("layer_index") or 0)
         physical_binding = payload.get("physical_worker_binding")
@@ -1094,6 +1095,16 @@ class DeploymentNodeRuntime:
             invalid_fields.append("physical_worker_binding")
         if not operator_ref:
             invalid_fields.append("operator_ref")
+        if not operator_runtime:
+            invalid_fields.append("operator_runtime")
+        if (
+            isinstance(operator, Mapping)
+            and str(operator.get("operator_type") or "") == "worker"
+            and isinstance(physical_binding, Mapping)
+            and str(operator.get("source_ref") or "")
+            != str(physical_binding.get("worker_id") or "")
+        ):
+            invalid_fields.append("worker_source_binding")
         if not goal:
             invalid_fields.append("goal")
         if layer_index < 1:
@@ -1151,6 +1162,7 @@ class DeploymentNodeRuntime:
         adapter = self._phase2_operator_adapter(
             operator_ref=operator_ref,
             operator=operator,
+            operator_runtime=operator_runtime,
             goal=goal,
             layer_index=layer_index,
             workload=workload,
@@ -1180,6 +1192,7 @@ class DeploymentNodeRuntime:
         execution_body = {
             "operator_ref": operator_ref,
             "operator_type": str(operator.get("operator_type") or ""),
+            "operator_runtime": operator_runtime,
             "operator_profile_digest": str(operator.get("profile_digest") or ""),
             "operator_adapter_id": str(adapter["adapter_id"]),
             "operator_adapter_version": str(adapter["adapter_version"]),
@@ -1275,6 +1288,7 @@ class DeploymentNodeRuntime:
         *,
         operator_ref: str,
         operator: Mapping[str, Any],
+        operator_runtime: str,
         goal: str,
         layer_index: int,
         workload: Workload,
@@ -1286,7 +1300,16 @@ class DeploymentNodeRuntime:
             "total_tokens": max(2, min(128, len(goal_words) * 2 + 8)),
             "provider_called": self.policy.profile is DeploymentProfile.CLOUD,
         }
-        if operator_ref.startswith("worker:local-code-worker@"):
+        if (
+            operator_ref.startswith("worker:local-code-worker@")
+            or (
+                str(operator.get("operator_type") or "") == "worker"
+                and operator_runtime == "CodeWorkerRuntime"
+                and not operator_ref.startswith(
+                    "worker:local-memory-curator@"
+                )
+            )
+        ):
             function_name = "execute_phase2_goal"
             content = "\n".join(
                 (

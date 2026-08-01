@@ -59,7 +59,8 @@ class TopologyRouter:
             except Exception as error:  # noqa: BLE001 - baseline route remains explicit and available.
                 if bool(getattr(self.topology_policy_trigger, "fail_closed", False)):
                     raise RuntimeError(
-                        "required production topology policy failed closed"
+                        "required production topology policy failed closed: "
+                        f"{type(error).__name__}: {error}"
                     ) from error
                 topology_policy = {
                     "used_baseline": True,

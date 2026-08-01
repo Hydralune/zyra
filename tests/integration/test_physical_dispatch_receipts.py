@@ -146,6 +146,7 @@ def test_phase2_operator_workload_executes_on_selected_physical_node(
         "goal": "Produce and verify a deterministic artifact.",
         "requirement_revision": "requirement-revision-1",
         "operator_ref": operator_ref,
+        "operator_runtime": "CodeWorkerRuntime",
         "operator": {
             "operator_ref": operator_ref,
             "operator_type": "tool",

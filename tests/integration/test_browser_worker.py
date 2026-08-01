@@ -86,6 +86,7 @@ def _preauthorize_browser_session(
             workspace_root=str(runtime.workspace_root),
         )
     )
+    policy_revision = int(state_store.read_state().get("revision") or 0)
     action_names = {
         str(item["action"])
         for item in runtime.action_registry.describe()["actions"]
@@ -96,7 +97,7 @@ def _preauthorize_browser_session(
         policy = port.permission_policy(
             {
                 "action": "replace_rules",
-                "expected_revision": 0,
+                "expected_revision": policy_revision,
                 "actor_id": "browser-live-smoke-authority",
                 "rules": [
                     {

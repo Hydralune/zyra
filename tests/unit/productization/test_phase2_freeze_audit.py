@@ -145,6 +145,33 @@ def test_worktree_boundary_rejects_untracked_source(tmp_path: Path) -> None:
     assert receipt["unexpected_untracked_entries"] == ["?? unexpected.py"]
 
 
+def test_worktree_boundary_allows_non_ascii_generated_path(tmp_path: Path) -> None:
+    _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.name", "Zyra Test")
+    _git(tmp_path, "config", "user.email", "zyra@example.invalid")
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("tracked\n", encoding="utf-8")
+    _git(tmp_path, "add", "tracked.txt")
+    _git(tmp_path, "commit", "-m", "baseline")
+    head = _git(tmp_path, "rev-parse", "HEAD")
+    generated = (
+        tmp_path
+        / "docs"
+        / "evidence"
+        / "phase2"
+        / "competition-workspace"
+        / "比赛要求追踪矩阵.md"
+    )
+    generated.parent.mkdir(parents=True)
+    generated.write_text("generated\n", encoding="utf-8")
+
+    receipt = inspect_worktree(tmp_path, expected_head=head)
+
+    assert receipt["ready"] is True
+    assert receipt["ignored_generated_entry_count"] == 1
+    assert receipt["unexpected_untracked_entries"] == []
+
+
 def test_final_regression_audit_rejects_command_or_cwd_substitution(
     tmp_path: Path,
 ) -> None:

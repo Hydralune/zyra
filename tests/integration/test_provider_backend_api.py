@@ -177,38 +177,74 @@ class ProviderBackendApiTests(unittest.TestCase):
                     "/tasks",
                     {"goal": "Run backend-dispatch API integration.", "auto_run": True},
                 )
+                physical_receipts = created["task"]["metadata"].get(
+                    "physical_dispatch_receipts"
+                )
+                self.assertTrue(physical_receipts)
+                physical_receipt = physical_receipts[-1]
+                self.assertEqual(
+                    physical_receipt["schema_version"],
+                    "zyra.physical-dispatch-receipt/v2",
+                )
+                self.assertFalse(physical_receipt["payload"]["simulated"])
+                self.assertFalse(physical_receipt["payload"]["semantic_only"])
+                self.assertEqual(
+                    physical_receipt["payload"]["input_signals"][
+                        "workload_operation"
+                    ],
+                    "phase2-operator-execution",
+                )
                 backend_events = [
                     event
                     for event in created["events"]
                     if event.get("payload", {}).get("backend_event_type")
                 ]
-                self.assertTrue(
-                    any(
-                        event["payload"]["backend_event_type"]
-                        == "backend.dispatch.started"
-                        for event in backend_events
-                    )
-                )
-                self.assertTrue(
-                    any(
-                        event["payload"]["backend_event_type"]
-                        == "backend.dispatch.completed"
-                        for event in backend_events
-                    )
-                )
-                execute_node = next(
-                    item
-                    for item in created["task"]["plan_nodes"].values()
-                    if item.get("metadata", {}).get("stage") == "execute"
-                )
-                dispatch = execute_node["metadata"]["backend_dispatch"]
-                self.assertEqual(dispatch["state_owner"], "python.BackendRegistryStore")
-                self.assertFalse(dispatch["provider_state_owned"])
-                self.assertEqual(dispatch["attempts"][0]["outcome"], "succeeded")
+                self.assertFalse(backend_events)
 
-                session = dispatch["dispatch_session"]
-                run_id = created["task"]["run_id"]
-                task_id = created["task"]["task_id"]
+                # The strongest task route is physically dispatched by
+                # ResourceScheduler.  Exercise BackendRegistry independently
+                # so its API projections are verified without pretending it
+                # still owns the canonical Phase 2 placement path.
+                from zyra_scheduler import dispatch_worker_callable
+
+                provider_route = route["result"]
+                run_id = "api-backend-run"
+                task_id = "api-backend-task"
+                outcome = dispatch_worker_callable(
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id="api-backend-node",
+                    runtime_worker="CodeWorkerRuntime",
+                    preferred_backend_id=None,
+                    workspace_root=root / "workspace",
+                    artifact_root=root / "artifacts",
+                    provider_route_id=provider_route["routeId"],
+                    provider_route_checksum=str(
+                        provider_route.get("checksum") or ""
+                    ),
+                    provider_catalog_revision=int(
+                        provider_route.get("catalogRevision") or 0
+                    ),
+                    provider_credential_version=int(
+                        provider_route.get("credentialVersion") or 0
+                    ),
+                    provider_credential_fingerprint=str(
+                        provider_route.get("credentialFingerprint") or ""
+                    ),
+                    provider_transport_id=str(
+                        provider_route.get("transportId") or ""
+                    ),
+                    m0_execution_ref="api-backend-m0-execution",
+                    turn_id="api-backend-turn",
+                    operation=lambda envelope: envelope.envelope_id,
+                    idempotency_key="api-backend-dispatch-once",
+                )
+                self.assertEqual(outcome.attempts[0].outcome, "succeeded")
+                event_types = {event.event_type for event in outcome.events}
+                self.assertIn("backend.dispatch.started", event_types)
+                self.assertIn("backend.dispatch.completed", event_types)
+                self.assertIsNotNone(outcome.session)
+                session = outcome.session.to_dict()
                 sessions = _get(
                     base_url,
                     f"/backends/dispatch-sessions?run_id={run_id}&task_id={task_id}",
@@ -226,11 +262,11 @@ class ProviderBackendApiTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     replay["result"]["route_refs"]["provider_before"],
-                    dispatch["provider_route_ref"]["route_id"],
+                    provider_route["routeId"],
                 )
                 self.assertEqual(
                     replay["result"]["route_refs"]["provider_after"],
-                    dispatch["provider_route_ref"]["route_id"],
+                    provider_route["routeId"],
                 )
                 verification = _get(
                     base_url,

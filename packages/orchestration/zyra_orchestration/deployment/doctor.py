@@ -451,6 +451,13 @@ class DeploymentDoctor:
         }
         package_manifests: list[Path] = []
         for root, directories, files in os.walk(self.project_root):
+            relative_parts = Path(root).relative_to(self.project_root).parts
+            if (
+                relative_parts[:2] == ("docs", "evidence")
+                or relative_parts[:3] == ("docs", "reviews", "evidence")
+            ):
+                directories[:] = []
+                continue
             directories[:] = [
                 name for name in directories if name not in excluded_directories
             ]

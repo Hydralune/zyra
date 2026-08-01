@@ -1154,7 +1154,18 @@ class PhysicalDispatchCallPort:
             raise OperatorPlacementError(
                 "physical_dispatch_receipt_invalid",
                 "physical dispatch receipt failed the real-execution gate",
-                metadata={"blockers": list(validation.blockers)},
+                metadata={
+                    "blockers": list(validation.blockers),
+                    "execution_timestamps": {
+                        key: receipt.input_signals.get(key)
+                        for key in (
+                            "lease_acquired_at",
+                            "attempt_started_at",
+                            "call_started_at",
+                            "call_finished_at",
+                        )
+                    },
+                },
             )
         receipt_ref = self.evidence_store.save(
             kind="receipt",

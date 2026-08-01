@@ -61,9 +61,24 @@ def _projection_source_events(
 ) -> list[EventRecord]:
     selected: list[EventRecord] = []
     for event in events:
+        if event.event_type == EventType.RESOURCE_DECISION:
+            payload = event.payload
+            decision = payload.get("resource_decision") or payload.get("decision") or {}
+            plan = payload.get("recovery_plan") or {}
+            if not any(
+                str(value or "")
+                for value in (
+                    payload.get("selected_worker"),
+                    decision.get("selected_worker"),
+                    decision.get("selected"),
+                    plan.get("selected_worker"),
+                )
+            ):
+                continue
+            selected.append(event)
+            continue
         if event.event_type in {
             EventType.TOPOLOGY_ROUTE,
-            EventType.RESOURCE_DECISION,
             EventType.NODE_FAILED,
             EventType.RECOVERY_PLANNED,
         }:

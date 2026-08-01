@@ -209,7 +209,9 @@ class RecoveryContinuationRuntime:
             before = self._snapshot(state, existing)
             owner_result = self._owner_continue(request, before)
             if not owner_result.accepted:
-                raise RecoveryContinuationRejected(owner_result.error_code or owner_result.message or "continuation owner rejected")
+                code = owner_result.error_code or "continuation_owner_rejected"
+                message = owner_result.message or "continuation owner rejected"
+                raise RecoveryContinuationRejected(f"{code}: {message}")
             projection = self._project(request, before, owner_result)
             if projection.generation <= before.generation:
                 raise RecoveryContinuationRejected("continuation generation did not advance")

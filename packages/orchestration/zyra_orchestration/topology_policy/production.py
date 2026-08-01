@@ -350,6 +350,13 @@ class Phase2StrongestProductionBridge:
             state=state,
             candidates=preview_candidates,
         )
+        recovery_dispatch = any(
+            isinstance(item, Mapping)
+            and str(item.get("phase") or "") == "prepared"
+            for item in (
+                state.metadata.get("recovery_continuation_fences") or {}
+            ).values()
+        )
         topology = self.topology_policy.execute(
             DefaultTopologyPolicyRequest(
                 policy_input=policy_input,
@@ -364,13 +371,12 @@ class Phase2StrongestProductionBridge:
                     max_delivered_tokens=policy_input.budget.remaining_tokens,
                     max_cost_usd=policy_input.budget.remaining_cost_usd,
                 ),
-                mechanism_epoch=f"epoch:{requirement_revision}",
-                trigger_kind=(
-                    "recovery"
-                    if node is not None
-                    and str(node.metadata.get("stage") or "") == "recover"
-                    else "task_ready"
+                mechanism_epoch=(
+                    f"epoch:{requirement_revision}:graph:{current.revision}:"
+                    f"{current.signature[:16]}:candidates:"
+                    f"{canonical_digest([item.to_dict() for item in preview_candidates])[:16]}"
                 ),
+                trigger_kind="recovery" if recovery_dispatch else "task_ready",
                 recovery_causal_refs=(
                     (source_event_id,)
                     if cause_event is not None
@@ -400,7 +406,11 @@ class Phase2StrongestProductionBridge:
         }
         if topology.used_baseline or not topology.committed:
             delivered_for_next_window = ()
-            if preview_candidates and self.communication_outcome_recorder is not None:
+            if (
+                preview_candidates
+                and not communication_observations
+                and self.communication_outcome_recorder is not None
+            ):
                 delivered_for_next_window = tuple(
                     self.communication_outcome_recorder(
                         state,
@@ -472,6 +482,34 @@ class Phase2StrongestProductionBridge:
             for item in self.resource_scheduler.worker_pool.manifests()
             if item.worker_id in physical_worker_ids
         )
+        recovery_worker_route = state.metadata.get("recovery_worker_route")
+        if isinstance(recovery_worker_route, Mapping):
+            preferred_worker_id = str(
+                recovery_worker_route.get("preferred_worker_id") or ""
+            )
+            avoided_worker_ids = {
+                str(item)
+                for item in recovery_worker_route.get("avoided_worker_ids") or ()
+                if str(item)
+            }
+            if preferred_worker_id:
+                executable_manifests = tuple(
+                    item
+                    for item in executable_manifests
+                    if item.worker_id == preferred_worker_id
+                    and item.worker_id not in avoided_worker_ids
+                )
+                if not executable_manifests:
+                    raise Phase2ProductionPolicyError(
+                        "canonical recovery worker route has no registered "
+                        f"physical manifest: {preferred_worker_id}"
+                    )
+            elif avoided_worker_ids:
+                executable_manifests = tuple(
+                    item
+                    for item in executable_manifests
+                    if item.worker_id not in avoided_worker_ids
+                )
         if not executable_manifests:
             raise Phase2ProductionPolicyError(
                 "no ResourceScheduler manifest is backed by a registered physical worker"
@@ -1211,8 +1249,22 @@ class Phase2StrongestProductionBridge:
             ) from error
         route_context = self._route_contexts.get((state.run_id, state.task_id))
         if route_context is None:
+            last_route = dict(state.metadata.get("last_topology_route") or {})
+            last_policy = dict(last_route.get("topology_policy") or {})
+            operator_selection = dict(
+                last_policy.get("operator_selection") or {}
+            )
             raise Phase2ProductionPolicyError(
-                "physical dispatch lost its route context"
+                "physical dispatch lost its route context after topology route: "
+                f"committed={bool(last_policy.get('committed'))}, "
+                "candidate_set="
+                f"{last_policy.get('operator_candidate_set') is not None}, "
+                f"degraded={bool(last_policy.get('degraded'))}, "
+                f"reason={str(last_policy.get('degraded_reason') or '')[:160]}, "
+                "operator_mode="
+                f"{str(operator_selection.get('mode') or '')[:80]}, "
+                "operator_reason="
+                f"{str(operator_selection.get('degraded_reason') or '')[:240]}"
             )
         lease_private = dict(route_context.get("lease_private") or {})
         selected_refs = tuple(
@@ -1228,11 +1280,28 @@ class Phase2StrongestProductionBridge:
         policy_input = route_context["policy_input"]
         selected_ref = selected_refs[0]
         selected_candidate = candidate_set.candidate(selected_ref)
+        selected_manifest = self.resource_scheduler.worker_pool.by_id(
+            str(binding.get("worker_id") or "")
+        )
+        if selected_manifest is None:
+            raise Phase2ProductionPolicyError(
+                "physical dispatch lost its ResourceScheduler worker manifest"
+            )
         layer_index = (
             len(route_context.get("prior_executed_operator_refs") or ()) + 1
         )
+        recovery_execution = state.metadata.get(
+            "recovery_continuation_session"
+        )
+        recovery_plan_id = (
+            str(recovery_execution.get("plan_id") or "")
+            if isinstance(recovery_execution, Mapping)
+            else ""
+        )
         operator_idempotency_key = (
-            f"production-physical:{state.task_id}:{selected_ref}:{layer_index}"
+            f"production-physical:{state.task_id}:"
+            f"{canonical_digest((policy_input.requirement_revision, recovery_plan_id))[:16]}:"
+            f"{selected_ref}:{layer_index}"
         )
         started_attempt = self.worker_pool_api.pool.leases.start_attempt(
             str(binding.get("lease_id") or ""),
@@ -1285,6 +1354,7 @@ class Phase2StrongestProductionBridge:
             "requirement_revision": policy_input.requirement_revision,
             "operator_ref": selected_ref,
             "operator": selected_candidate.to_dict(),
+            "operator_runtime": selected_manifest.runtime_worker,
             "layer_index": layer_index,
             "candidate_set_digest": candidate_set.digest,
             "policy_input_digest": policy_input.digest,
@@ -1738,6 +1808,9 @@ class Phase2StrongestProductionBridge:
                     "reconcile_before_retry": side_effect_started,
                     "resource_decision_id": str(
                         binding.get("resource_decision_id") or ""
+                    ),
+                    "cause_metadata": dict(
+                        getattr(error, "metadata", {}) or {}
                     ),
                 },
             )
@@ -2418,7 +2491,13 @@ class Phase2StrongestProductionBridge:
             "failed_conditions": list(decision.failed_conditions),
             "snapshot_id": snapshot.snapshot_id,
             "snapshot_digest": snapshot.digest,
-            "remaining_operator_count": len(ordered_candidates) - 1,
+            "remaining_operator_count": len(
+                tuple(
+                    ref
+                    for ref in proposed_operator_refs
+                    if ref not in executed_set
+                )
+            ),
             "executed_operator_refs": list(accumulated_executed),
             "hard_conditions_passed": hard_conditions_passed,
             "checkpoint_id": checkpoint.checkpoint_id,
@@ -2666,7 +2745,16 @@ class Phase2StrongestProductionBridge:
         # ARG roles are logical capabilities, so multiple local roles may be
         # backed by one healthy physical runtime. Placement candidates remain
         # separately restricted to the ResourceScheduler's executable pool.
-        for item in default_worker_manifests():
+        logical_catalog = {
+            item.worker_id: item for item in default_worker_manifests()
+        }
+        logical_catalog.update(
+            {
+                item.worker_id: item
+                for item in self.resource_scheduler.worker_pool.manifests()
+            }
+        )
+        for item in logical_catalog.values():
             location = item.location.value
             physical = physical_by_location.get(location)
             if physical is None:

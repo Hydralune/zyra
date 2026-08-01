@@ -330,15 +330,28 @@ class ResourceScheduler:
         hints = state.metadata.get("runtime_hints") if isinstance(state.metadata.get("runtime_hints"), Mapping) else {}
         required_tools = _required_tools(state, node=node, hints=hints)
         preferred_worker = str(hints.get("preferred_worker") or hints.get("worker") or "")
+        hinted_avoided = (
+            hints.get("avoid_workers")
+            if isinstance(hints.get("avoid_workers"), Sequence)
+            and not isinstance(hints.get("avoid_workers"), (str, bytes))
+            else ()
+        )
+        effective_avoided = tuple(
+            dict.fromkeys(
+                str(item)
+                for item in (*avoid_workers, *hinted_avoided)
+                if str(item)
+            )
+        )
         failure_workers = _failure_workers_from_state_and_events(state, events, memory_records)
-        for worker in avoid_workers:
+        for worker in effective_avoided:
             failure_workers[str(worker)] = failure_workers.get(str(worker), 0) + 3
         profile = _task_profile(text, required_tools)
         privacy = "sensitive" if _has_any(text, ["secret", "credential", "private", "本地", "隐私", "脱敏"]) else "project"
         return SchedulerSignals(
             required_tools=required_tools,
             preferred_worker=preferred_worker,
-            avoided_workers=[str(item) for item in avoid_workers],
+            avoided_workers=list(effective_avoided),
             privacy_mode=privacy,
             contains_url=_contains_url(text),
             stage="" if node is None else str(node.metadata.get("stage") or ""),

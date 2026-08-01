@@ -379,6 +379,7 @@ class AppliedOutcomeVerifier:
                 "policy_rule": plan.decision.selected.policy_rule,
                 "route_layers": [item.value for item in layers],
                 "explicit_escalation": explicit,
+                "session_id": plan.signal.refs.session_id,
                 "permission_tool_dispatch_allowed": outcome.action is not RecoveryAction.ASK_PERMISSION,
             },
         )

@@ -56,6 +56,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 task = created["task"]
                 task_id = task["task_id"]
                 run_id = task["run_id"]
+                canonical_session_id = task["metadata"]["query_session_id"]
 
                 status, recovered = _post_with_status(
                     base_url,
@@ -66,7 +67,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                         "refs": {
                             "run_id": run_id,
                             "task_id": task_id,
-                            "session_id": "session-recovery-api",
+                            "session_id": canonical_session_id,
                             "request_id": "request-stalled-1",
                             "provider_id": "provider-stalled-1",
                         },
@@ -75,7 +76,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                         "idempotency_key": "recover-stall-once",
                     },
                 )
-                self.assertEqual(status, 202)
+                self.assertEqual(status, 202, recovered)
                 self.assertTrue(recovered["ok"])
                 self.assertEqual(recovered["plan"]["decision"]["selected"]["action"], "retry")
                 self.assertTrue(recovered["execution"]["outcome"]["success"])
@@ -97,25 +98,28 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                     for item in view["journal"]
                 ))
 
+                checkpoint_head = view["checkpoint_head"]
+                self.assertEqual(checkpoint_head["commit_revision"], 1)
                 checkpoint_status, checkpoint_body = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/recovery/checkpoints",
                     {
                         "run_id": run_id,
                         "task_id": task_id,
-                        "session_id": "session-recovery-api",
-                        "workflow_signature": "workflow-api-v1",
-                        "graph_signature": "graph-api-v1",
-                        "topology_signature": "topology-api-v1",
-                        "owner_refs": {"task": task_id, "session": "session-recovery-api"},
+                        "session_id": checkpoint_head["session_id"],
+                        "workflow_signature": checkpoint_head["workflow_signature"],
+                        "graph_signature": checkpoint_head["graph_signature"],
+                        "topology_signature": checkpoint_head["topology_signature"],
+                        "owner_refs": {"task": task_id, "session": checkpoint_head["session_id"]},
                         "version_refs": {"task": 1, "session": 1},
                         "state_payload": {"progress": 4, "artifacts": ["artifact-a"]},
                         "completed_step_ids": ["step-4"],
+                        "expected_revision": checkpoint_head["commit_revision"],
                     },
                 )
-                self.assertEqual(checkpoint_status, 201)
+                self.assertEqual(checkpoint_status, 201, checkpoint_body)
                 checkpoint = checkpoint_body["checkpoint"]
-                self.assertEqual(checkpoint["commit_revision"], 1)
+                self.assertEqual(checkpoint["commit_revision"], 2)
 
                 delta_status, delta = _post_with_status(
                     base_url,
@@ -136,7 +140,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 self.assertEqual(delta["checkpoint"]["state_payload"]["artifacts"], ["artifact-a", "artifact-b"])
 
                 after_delta = _get(base_url, f"/tasks/{task_id}/recovery")
-                self.assertEqual(after_delta["checkpoint_head"]["commit_revision"], 2)
+                self.assertEqual(after_delta["checkpoint_head"]["commit_revision"], 3)
                 self.assertTrue(after_delta["runtime_audit"]["ok"])
 
                 replan_status, replanned = _post_with_status(
@@ -148,7 +152,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                         "refs": {
                             "run_id": run_id,
                             "task_id": task_id,
-                            "session_id": "session-recovery-api",
+                            "session_id": canonical_session_id,
                             "node_id": task["root_node_id"],
                             "request_id": "requirement-change-1",
                         },
