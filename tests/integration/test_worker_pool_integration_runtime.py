@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -16,9 +17,13 @@ from zyra_core import PlanNode, TaskState
 from zyra_orchestration import ensure_default_graph
 from zyra_orchestration.graph_custody import (
     DynamicTopologyRuntime,
+    GraphCommitReceipt,
+    GraphCommitStatus,
+    GraphConflictStrategy,
     GraphNode,
     GraphStateCustody,
     GraphStateStore,
+    NodeExecutionState,
 )
 from zyra_scheduler.worker_pool import (
     AdmissionPhase,
@@ -129,9 +134,19 @@ def _runtime(tmp_path: Path, *, workers: tuple[str, ...] = ("worker-a",)) -> Wor
     )
 
 
+@pytest.mark.parametrize(
+    ("failure_kind", "message"),
+    (
+        ("bind_exception", "injected physical attempt binding failure"),
+        ("receipt_projection", "injected graph receipt projection failure"),
+        ("rejected_bind", "physical attempt binding was not committed"),
+    ),
+)
 def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    failure_kind: str,
+    message: str,
 ) -> None:
     pool = _pool(tmp_path / "pool.sqlite3")
     custody = _custody(tmp_path / "graph.sqlite3")
@@ -151,8 +166,39 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
     )
     ensure_default_graph(state)
 
-    def fail_binding(*_args: Any, **_kwargs: Any) -> None:
-        raise RuntimeError("injected physical attempt binding failure")
+    original_binding = api.topology.bind_physical_attempt
+
+    class ReceiptProjection:
+        committed = True
+
+        @staticmethod
+        def to_dict() -> dict[str, Any]:
+            if failure_kind == "receipt_projection":
+                raise RuntimeError(
+                    "injected graph receipt projection failure"
+                )
+            return {"committed": True}
+
+    def fail_binding(*_args: Any, **_kwargs: Any) -> Any:
+        if failure_kind == "bind_exception":
+            raise RuntimeError("injected physical attempt binding failure")
+        if failure_kind == "rejected_bind":
+            snapshot = custody.current(str(state.metadata["dynamic_graph_id"]))
+            receipt = GraphCommitReceipt(
+                graph_id=snapshot.graph_id,
+                delta_id="delta-rejected-bind",
+                status=GraphCommitStatus.CONFLICTED,
+                strategy=GraphConflictStrategy.SERIALIZE,
+                base_revision=snapshot.revision,
+                committed_revision=snapshot.revision,
+                snapshot_signature=snapshot.signature,
+            )
+            return SimpleNamespace(receipt=receipt, snapshot=snapshot)
+        result = original_binding(*_args, **_kwargs)
+        return SimpleNamespace(
+            receipt=ReceiptProjection(),
+            snapshot=result.snapshot,
+        )
 
     monkeypatch.setattr(
         api.topology,
@@ -161,7 +207,7 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
     )
     with pytest.raises(
         RuntimeError,
-        match="injected physical attempt binding failure",
+        match=message,
     ):
         api.acquire_for_task(state)
 
@@ -173,6 +219,15 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
     assert attempt.state.value == "cancelled"
     assert lease.state.value == "cancelled"
     assert state.metadata.get("worker_pool") is None
+    graph_id_value = str(state.metadata["dynamic_graph_id"])
+    execute_node = custody.current(graph_id_value).node_map[root.node_id]
+    if failure_kind == "receipt_projection":
+        assert execute_node.state is NodeExecutionState.CANCELLED
+        assert execute_node.physical_attempt_ref == attempt.attempt_id
+        assert execute_node.worker_lease_ref == lease.lease_id
+        assert execute_node.metadata["physical_attempt_terminal"] is True
+    else:
+        assert execute_node.state is not NodeExecutionState.LEASED
 
 
 def _add_node(runtime: WorkerPoolIntegrationRuntime, task_id: str) -> str:

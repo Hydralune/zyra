@@ -508,6 +508,8 @@ class WorkerPoolApiService:
             else (1 if latest_attempt is None else latest_attempt.attempt_number + 1)
         )
         acquisition = None
+        bound = None
+        execute_node_id = ""
         try:
             acquisition = self.pool.acquire_task(
                 task_id=state.task_id,
@@ -554,9 +556,30 @@ class WorkerPoolApiService:
                 actor_id="worker-pool-api",
                 causation_id=acquisition.lease.lease_id,
             )
-            graph_ref = self.topology.version_ref(graph_id_value).to_dict()
+            if not bound.receipt.committed:
+                raise RuntimeError(
+                    "dynamic graph physical attempt binding was not committed"
+                )
+            graph_ref = {
+                "graph_id": bound.snapshot.graph_id,
+                "run_id": bound.snapshot.run_id,
+                "revision": bound.snapshot.revision,
+                "signature": bound.snapshot.signature,
+                "commit_id": bound.snapshot.commit_id,
+            }
+            state.metadata["worker_pool"] = {
+                "attempt_id": acquisition.attempt.attempt_id,
+                "attempt_number": acquisition.attempt.attempt_number,
+                "lease_id": acquisition.lease.lease_id,
+                "worker_id": acquisition.worker.worker_id,
+                "backend_id": acquisition.lease.backend_id,
+                "graph_ref": graph_ref,
+                "graph_commit": bound.receipt.to_dict(),
+                "operator_placement_causality": causal_binding,
+            }
         except Exception as error:
             if acquisition is not None:
+                compensation_errors: list[Exception] = []
                 try:
                     self.pool.leases.cancel(
                         acquisition.lease.lease_id,
@@ -566,21 +589,34 @@ class WorkerPoolApiService:
                         ),
                     )
                 except Exception as compensation_error:
+                    compensation_errors.append(compensation_error)
+                if bound is not None and bound.receipt.committed:
+                    try:
+                        graph_compensation = self.topology.cancel_physical_attempt(
+                            graph_id_value,
+                            execute_node_id,
+                            physical_attempt_ref=acquisition.attempt.attempt_id,
+                            worker_lease_ref=acquisition.lease.lease_id,
+                            reason=(
+                                "worker-pool acquisition projection failed: "
+                                f"{type(error).__name__}"
+                            ),
+                            actor_id="worker-pool-api",
+                            causation_id=f"cancel:{acquisition.lease.lease_id}",
+                        )
+                        if not graph_compensation.receipt.committed:
+                            raise RuntimeError(
+                                "dynamic graph physical attempt compensation "
+                                "was not committed"
+                            )
+                    except Exception as compensation_error:
+                        compensation_errors.append(compensation_error)
+                if compensation_errors:
                     raise ExceptionGroup(
-                        "worker-pool acquisition and lease compensation failed",
-                        (error, compensation_error),
+                        "worker-pool acquisition compensation failed",
+                        (error, *compensation_errors),
                     ) from error
             raise
-        state.metadata["worker_pool"] = {
-            "attempt_id": acquisition.attempt.attempt_id,
-            "attempt_number": acquisition.attempt.attempt_number,
-            "lease_id": acquisition.lease.lease_id,
-            "worker_id": acquisition.worker.worker_id,
-            "backend_id": acquisition.lease.backend_id,
-            "graph_ref": graph_ref,
-            "graph_commit": bound.receipt.to_dict(),
-            "operator_placement_causality": causal_binding,
-        }
         return acquisition
 
     def ensure_task_lease(

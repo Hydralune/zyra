@@ -915,6 +915,49 @@ class DynamicTopologyRuntime:
             causation_id=causation_id,
         )
 
+    def cancel_physical_attempt(
+        self,
+        graph_id_value: str,
+        node_id: str,
+        *,
+        physical_attempt_ref: str,
+        worker_lease_ref: str,
+        reason: str,
+        actor_id: str,
+        causation_id: str,
+    ) -> GraphCommitResult:
+        """Make one exact physical binding terminal after acquisition rollback.
+
+        The reference checks fence this compensation from cancelling a newer
+        binding if another writer advanced the canonical node first.
+        """
+
+        snapshot = self.custody.current(graph_id_value)
+        node = snapshot.node_map.get(node_id)
+        if node is None:
+            raise KeyError(node_id)
+        if (
+            node.physical_attempt_ref != physical_attempt_ref
+            or node.worker_lease_ref != worker_lease_ref
+        ):
+            raise RuntimeError(
+                "dynamic graph physical attempt compensation was fenced"
+            )
+        replacement = node.revise(
+            state=NodeExecutionState.CANCELLED,
+            metadata={
+                **dict(node.metadata),
+                "physical_attempt_terminal": True,
+                "physical_attempt_terminal_reason": str(reason),
+            },
+        )
+        return self.replace_node(
+            graph_id_value,
+            replacement,
+            actor_id=actor_id,
+            causation_id=causation_id,
+        )
+
     def version_ref(self, graph_id_value: str) -> GraphVersionRef:
         snapshot = self.custody.current(graph_id_value)
         return GraphVersionRef(
