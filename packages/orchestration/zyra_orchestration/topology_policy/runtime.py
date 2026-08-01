@@ -1005,7 +1005,7 @@ class TopologyComposerRuntime:
                 policy_input=policy_input,
                 before_signature=before.signature,
                 after_signature=after.signature,
-                recovery_dwell_bypass=(
+                recovery_minimum_dwell_exempt=(
                     trigger_kind == "recovery"
                     and bool(recovery_causal_refs)
                 ),
@@ -1272,7 +1272,7 @@ class TopologyComposerRuntime:
         policy_input: PolicyInputSnapshot,
         before_signature: str,
         after_signature: str,
-        recovery_dwell_bypass: bool = False,
+        recovery_minimum_dwell_exempt: bool = False,
     ) -> ConstraintResult | None:
         observed_at = datetime.now(UTC)
         history = list(
@@ -1392,7 +1392,7 @@ class TopologyComposerRuntime:
                     }
                 ),
             )
-        if within_window and not recovery_dwell_bypass:
+        if within_window and not recovery_minimum_dwell_exempt:
             dwell_seconds = (
                 observed_at
                 - datetime.fromisoformat(
@@ -1427,7 +1427,9 @@ class TopologyComposerRuntime:
                     "commit_count": len(within_window),
                     "before_signature": before_signature,
                     "after_signature": after_signature,
-                    "recovery_dwell_bypass": recovery_dwell_bypass,
+                    "recovery_minimum_dwell_exempt": (
+                        recovery_minimum_dwell_exempt
+                    ),
                 }
             ),
         )

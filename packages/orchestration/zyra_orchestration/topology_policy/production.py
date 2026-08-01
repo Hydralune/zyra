@@ -408,7 +408,10 @@ class Phase2StrongestProductionBridge:
             delivered_for_next_window = ()
             if (
                 preview_candidates
-                and not communication_observations
+                and not self._communication_coverage_complete(
+                    candidates=preview_candidates,
+                    observations=communication_observations,
+                )
                 and self.communication_outcome_recorder is not None
             ):
                 delivered_for_next_window = tuple(
@@ -434,6 +437,12 @@ class Phase2StrongestProductionBridge:
                 ],
                 "communication_outcome_count": len(
                     communication_observations
+                ),
+                "communication_outcome_coverage_complete": (
+                    self._communication_coverage_complete(
+                        candidates=preview_candidates,
+                        observations=communication_observations,
+                    )
                 ),
                 "condition_preview": (
                     preview_card.to_dict()
@@ -1297,6 +1306,16 @@ class Phase2StrongestProductionBridge:
         if route_context is None:
             last_route = dict(state.metadata.get("last_topology_route") or {})
             last_policy = dict(last_route.get("topology_policy") or {})
+            topology_result = dict(
+                last_policy.get("topology_result") or {}
+            )
+            candidate_edges = tuple(
+                item
+                for item in (
+                    last_policy.get("communication_candidate_edges") or ()
+                )
+                if isinstance(item, Mapping)
+            )
             operator_selection = dict(
                 last_policy.get("operator_selection") or {}
             )
@@ -1307,6 +1326,12 @@ class Phase2StrongestProductionBridge:
                 f"{last_policy.get('operator_candidate_set') is not None}, "
                 f"degraded={bool(last_policy.get('degraded'))}, "
                 f"reason={str(last_policy.get('degraded_reason') or '')[:160]}, "
+                "topology_reason="
+                f"{str(topology_result.get('degraded_reason') or '')[:240]}, "
+                "candidate_edges="
+                f"{','.join(str(item.get('edge_id') or '') for item in candidate_edges)[:320]}, "
+                "outcome_count="
+                f"{int(last_policy.get('communication_outcome_count') or 0)}, "
                 "operator_mode="
                 f"{str(operator_selection.get('mode') or '')[:80]}, "
                 "operator_reason="
@@ -2849,6 +2874,22 @@ class Phase2StrongestProductionBridge:
                 )
             )
         return tuple(observations)
+
+    @staticmethod
+    def _communication_coverage_complete(
+        *,
+        candidates: Sequence[Any],
+        observations: Sequence[CommunicationOutcomeObservation],
+    ) -> bool:
+        candidate_edge_ids = {
+            str(item.edge_id) for item in candidates if str(item.edge_id)
+        }
+        observed_edge_ids = {
+            str(item.edge_id) for item in observations if str(item.edge_id)
+        }
+        return bool(candidate_edge_ids) and candidate_edge_ids.issubset(
+            observed_edge_ids
+        )
 
     def _logical_role_projection(
         self,

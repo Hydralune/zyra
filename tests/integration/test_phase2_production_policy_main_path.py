@@ -15,6 +15,9 @@ from zyra_orchestration.topology_policy.contracts import (
     PhysicalDispatchReceipt,
     canonical_digest,
 )
+from zyra_orchestration.topology_policy.production import (
+    Phase2StrongestProductionBridge,
+)
 from zyra_symbolic import TopologyRouter
 from zyra_scheduler import (
     OperatorLayerProposal,
@@ -194,6 +197,27 @@ def test_dynamic_physical_manifest_rejects_ambiguous_or_false_backend(
                 backend_kinds=backend_kinds,
             )
         )
+
+
+def test_partial_communication_outcome_coverage_requires_new_window() -> None:
+    candidates = (
+        SimpleNamespace(edge_id="edge-a"),
+        SimpleNamespace(edge_id="edge-b"),
+    )
+    partial = (SimpleNamespace(edge_id="edge-a"),)
+    complete = (
+        SimpleNamespace(edge_id="edge-a"),
+        SimpleNamespace(edge_id="edge-b"),
+    )
+
+    assert Phase2StrongestProductionBridge._communication_coverage_complete(
+        candidates=candidates,
+        observations=partial,
+    ) is False
+    assert Phase2StrongestProductionBridge._communication_coverage_complete(
+        candidates=candidates,
+        observations=complete,
+    ) is True
 
 
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
