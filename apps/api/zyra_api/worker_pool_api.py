@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from zyra_core import TaskState, new_id
+from zyra_core import ArtifactKind, ArtifactRef, TaskState, new_id
 from zyra_orchestration.graph_custody import (
     DynamicTopologyRuntime,
     GraphDeltaBuilder,
@@ -79,11 +81,13 @@ class WorkerPoolApiService:
         *,
         backend_health: Any | None = None,
         wake_execution: Any | None = None,
+        artifact_store: Any | None = None,
     ) -> None:
         self.pool = pool
         self.graph_custody = graph_custody
         self.topology = DynamicTopologyRuntime(graph_custody)
         self.backend_health = backend_health
+        self.artifact_store = artifact_store
         self.integration = WorkerPoolIntegrationRuntime(
             pool,
             graph_custody,
@@ -1032,33 +1036,68 @@ class WorkerPoolApiService:
     ) -> Mapping[str, Any]:
         """Admit only enrichment bound to the canonical execution receipt."""
 
+        canonical_metadata = dict(execution_receipt.metadata or {})
+        canonical_policy_artifact = canonical_metadata.get(
+            "physical_dispatch_policy_artifact_ref"
+        )
+        policy_artifact: StableArtifactRef | None = None
+        artifact_dispatch: PhysicalDispatchReceipt | None = None
+        if canonical_policy_artifact:
+            if not isinstance(canonical_policy_artifact, Mapping):
+                raise RuntimeError(
+                    "canonical physical dispatch policy artifact ref is invalid"
+                )
+            policy_artifact = StableArtifactRef.from_mapping(
+                canonical_policy_artifact
+            )
+            artifact_dispatch = self._read_terminal_dispatch_artifact(
+                state,
+                policy_artifact,
+            )
+
         raw_dispatch = current.get("physical_dispatch_receipt")
         raw_validation = current.get("physical_dispatch_validation")
         if raw_dispatch is None and raw_validation is None:
-            return {}
-        if not isinstance(raw_dispatch, Mapping) or not isinstance(
-            raw_validation,
-            Mapping,
-        ):
-            raise RuntimeError(
-                "terminal physical dispatch enrichment is incomplete"
-            )
-        dispatch = PhysicalDispatchReceipt.from_dict(raw_dispatch)
-        validation = PhysicalDispatchReceiptValidator().validate(
-            dispatch
-        ).to_dict()
+            if artifact_dispatch is None:
+                return {}
+            dispatch = artifact_dispatch
+            validation = PhysicalDispatchReceiptValidator().validate(
+                dispatch
+            ).to_dict()
+        else:
+            if not isinstance(raw_dispatch, Mapping) or not isinstance(
+                raw_validation,
+                Mapping,
+            ):
+                raise RuntimeError(
+                    "terminal physical dispatch enrichment is incomplete"
+                )
+            dispatch = PhysicalDispatchReceipt.from_dict(raw_dispatch)
+            validation = PhysicalDispatchReceiptValidator().validate(
+                dispatch
+            ).to_dict()
+            if (
+                artifact_dispatch is not None
+                and dispatch.to_dict() != artifact_dispatch.to_dict()
+            ):
+                raise RuntimeError(
+                    "terminal physical dispatch receipt failed canonical "
+                    "binding: artifact custody conflict"
+                )
         binding = dict(
             state.metadata.get("operator_placement_binding") or {}
         )
         identity = dict(dispatch.physical_identity)
         signals = dict(dispatch.input_signals)
-        canonical_metadata = dict(execution_receipt.metadata or {})
         binding_unsigned = dict(binding)
         binding_digest = str(
             binding_unsigned.pop("binding_digest", "")
         )
         checks = {
-            "validation_exact": dict(raw_validation) == validation,
+            "validation_exact": (
+                raw_validation is None
+                or dict(raw_validation) == validation
+            ),
             "real_gate_closed": validation.get("real_gate_closed") is True,
             "canonical_digest": (
                 dispatch.digest
@@ -1119,17 +1158,7 @@ class WorkerPoolApiService:
         raw_policy_artifact = current.get(
             "physical_dispatch_policy_artifact_ref"
         )
-        canonical_policy_artifact = canonical_metadata.get(
-            "physical_dispatch_policy_artifact_ref"
-        )
-        if canonical_policy_artifact:
-            if not isinstance(canonical_policy_artifact, Mapping):
-                raise RuntimeError(
-                    "canonical physical dispatch policy artifact ref is invalid"
-                )
-            policy_artifact = StableArtifactRef.from_mapping(
-                canonical_policy_artifact
-            )
+        if policy_artifact is not None:
             if policy_artifact.digest != canonical_digest(
                 dispatch.to_dict()
             ):
@@ -1173,6 +1202,86 @@ class WorkerPoolApiService:
                 )
             result["memory_mutation_receipt"] = dict(canonical_memory)
         return result
+
+    def _read_terminal_dispatch_artifact(
+        self,
+        state: TaskState,
+        policy_artifact: StableArtifactRef,
+    ) -> PhysicalDispatchReceipt:
+        """Read a canonical dispatch receipt through ArtifactStore custody."""
+
+        if self.artifact_store is None:
+            raise RuntimeError(
+                "terminal physical dispatch artifact owner is unavailable"
+            )
+        if policy_artifact.media_type not in {
+            "application/json",
+            "application/ld+json",
+        }:
+            raise RuntimeError(
+                "terminal physical dispatch artifact media type is invalid"
+            )
+        artifact = ArtifactRef(
+            artifact_id=policy_artifact.ref_id,
+            kind=ArtifactKind.STRUCTURED_DATA,
+            uri=policy_artifact.uri,
+            title="canonical physical dispatch receipt",
+            metadata={
+                "sha256": policy_artifact.digest,
+                "revision": f"sha256:{policy_artifact.digest}",
+                "media_type": policy_artifact.media_type,
+            },
+        )
+        try:
+            resolver = getattr(self.artifact_store, "resolve_path", None)
+            root = getattr(self.artifact_store, "root", None)
+            if callable(resolver) and root is not None:
+                resolved = Path(resolver(artifact)).resolve()
+                expected_directory = (
+                    Path(root).resolve() / state.run_id / state.task_id
+                ).resolve()
+                if (
+                    resolved.parent != expected_directory
+                    or resolved.stem != policy_artifact.ref_id
+                ):
+                    raise ValueError(
+                        "artifact URI is outside the canonical run/task custody"
+                    )
+            observed = self.artifact_store.verify(
+                artifact,
+                expected_revision=f"sha256:{policy_artifact.digest}",
+            )
+            if str(getattr(observed, "sha256", "")) != policy_artifact.digest:
+                raise ValueError(
+                    "observed artifact digest differs from canonical custody"
+                )
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in self.artifact_store.iter_bytes(
+                artifact,
+                expected_revision=f"sha256:{policy_artifact.digest}",
+            ):
+                total += len(chunk)
+                if total > 16 * 1024 * 1024:
+                    raise ValueError(
+                        "physical dispatch artifact exceeds the replay limit"
+                    )
+                chunks.append(bytes(chunk))
+            value = json.loads(b"".join(chunks).decode("utf-8"))
+            if not isinstance(value, Mapping):
+                raise ValueError(
+                    "physical dispatch artifact is not a JSON object"
+                )
+            dispatch = PhysicalDispatchReceipt.from_dict(value)
+            if canonical_digest(dispatch.to_dict()) != policy_artifact.digest:
+                raise ValueError(
+                    "physical dispatch contract differs from artifact digest"
+                )
+            return dispatch
+        except Exception as error:
+            raise RuntimeError(
+                "terminal physical dispatch artifact verification failed"
+            ) from error
 
     def ensure_task_lease(
         self,

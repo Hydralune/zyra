@@ -1796,6 +1796,12 @@ class Phase2StrongestProductionBridge:
         side_effect_started: bool,
     ) -> Mapping[str, Any]:
         lease_private = dict(route_context.get("lease_private") or {})
+        physical_dispatch_digest = str(
+            dict(route_context.get("physical_dispatch_receipt") or {}).get(
+                "digest"
+            )
+            or ""
+        )
         lease_id = str(binding.get("lease_id") or "")
         lease = self.worker_pool_api.pool.store.get_lease(lease_id)
         if lease is None:
@@ -1804,6 +1810,10 @@ class Phase2StrongestProductionBridge:
                 "lease_id": lease_id,
                 "terminal": True,
                 "error_code": "lease_missing",
+                "side_effect_started": side_effect_started,
+                "physical_dispatch_receipt_digest": (
+                    physical_dispatch_digest
+                ),
             }
             state.metadata["physical_execution_failure_receipt"] = dict(
                 selected
@@ -1838,6 +1848,10 @@ class Phase2StrongestProductionBridge:
                 "attempt_id": lease.attempt_id,
                 "terminal": True,
                 "lease_state": lease.state.value,
+                "side_effect_started": side_effect_started,
+                "physical_dispatch_receipt_digest": (
+                    physical_dispatch_digest
+                ),
             }
         else:
             receipt = self.worker_pool_api.pool.leases.complete(
@@ -1868,6 +1882,9 @@ class Phase2StrongestProductionBridge:
                     "reconcile_before_retry": side_effect_started,
                     "resource_decision_id": str(
                         binding.get("resource_decision_id") or ""
+                    ),
+                    "physical_dispatch_receipt_digest": (
+                        physical_dispatch_digest
                     ),
                     "cause_metadata": dict(
                         getattr(error, "metadata", {}) or {}
@@ -2034,14 +2051,40 @@ class Phase2StrongestProductionBridge:
                 ) from error
         published_dispatch_ref: dict[str, Any] = {}
         if self.evidence_publisher is not None:
-            published_dispatch = self.evidence_publisher.publish(
-                PhysicalDispatchReceipt.from_dict(physical_dispatch),
-                run_id=state.run_id,
-                task_id=state.task_id,
-            )
-            published_dispatch_ref = (
-                published_dispatch.artifact_ref.to_dict()
-            )
+            try:
+                published_dispatch = self.evidence_publisher.publish(
+                    PhysicalDispatchReceipt.from_dict(physical_dispatch),
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                )
+                published_dispatch_ref = (
+                    published_dispatch.artifact_ref.to_dict()
+                )
+            except Exception as error:
+                publication_error = Phase2ProductionPolicyError(
+                    "physical dispatch evidence publication failed after "
+                    "physical execution",
+                    code="phase2_physical_evidence_publish_failed",
+                    metadata={
+                        "physical_dispatch_receipt_digest": str(
+                            physical_dispatch.get("digest") or ""
+                        ),
+                        "automatic_execution_retry_allowed": False,
+                        "reconcile_before_retry": True,
+                        "publication_error": type(error).__name__,
+                    },
+                )
+                failure = self._close_physical_execution_failure(
+                    state=state,
+                    binding=binding,
+                    route_context=route_context,
+                    error=publication_error,
+                    side_effect_started=True,
+                )
+                publication_error.metadata[
+                    "physical_execution_failure_receipt"
+                ] = failure
+                raise publication_error from error
         receipt = self.worker_pool_api.finalize_task(
             state,
             success=bool(worker_run.worker_result.ok),

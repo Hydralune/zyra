@@ -663,6 +663,7 @@ def get_worker_pool_api() -> WorkerPoolApiService:
                 _WORKER_POOL_RUNTIME,
                 GraphStateCustody(graph_store),
                 backend_health=BackendRegistryHealthAdapter(backend_path),
+                artifact_store=LocalArtifactStore(artifact_root_path()),
             )
             _WORKER_POOL_KEY = key
         return _WORKER_POOL_API

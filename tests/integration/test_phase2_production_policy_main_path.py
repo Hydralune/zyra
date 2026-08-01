@@ -196,7 +196,9 @@ def test_dynamic_physical_manifest_rejects_ambiguous_or_false_backend(
         )
 
 
-def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None:
+def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state, created = api.make_task_created_event(
         "Implement a code artifact and verify the result."
     )
@@ -424,6 +426,56 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None
     assert valid_replay["physical_dispatch_policy_artifact_ref"] == (
         physical_receipt["physical_dispatch_policy_artifact_ref"]
     )
+    canonical_base = next(
+        item.to_dict()
+        for item in pool_api.pool.store.receipts_for_task(state.task_id)
+        if item.receipt_id == valid_replay["receipt_id"]
+    )
+    state.metadata["worker_pool_receipt"] = dict(canonical_base)
+    artifact_restored = pool_api.finalize_task(
+        state,
+        success=True,
+        summary="restore enrichment from canonical artifact bytes",
+    )
+    assert artifact_restored is not None
+    assert artifact_restored["physical_dispatch_receipt"] == dispatch_receipt
+    assert artifact_restored["physical_dispatch_validation"] == (
+        dispatch_validation
+    )
+
+    with monkeypatch.context() as missing_artifact:
+        state.metadata["worker_pool_receipt"] = dict(canonical_base)
+
+        def reject_missing_artifact(*_args, **_kwargs):
+            raise FileNotFoundError("controlled missing policy artifact")
+
+        missing_artifact.setattr(
+            pool_api.artifact_store,
+            "verify",
+            reject_missing_artifact,
+        )
+        with pytest.raises(RuntimeError, match="artifact verification failed"):
+            pool_api.finalize_task(
+                state,
+                success=True,
+                summary="reject missing canonical artifact bytes",
+            )
+
+    with monkeypatch.context() as corrupt_artifact:
+        state.metadata["worker_pool_receipt"] = dict(canonical_base)
+        corrupt_artifact.setattr(
+            pool_api.artifact_store,
+            "iter_bytes",
+            lambda *_args, **_kwargs: iter((b"{}",)),
+        )
+        with pytest.raises(RuntimeError, match="artifact verification failed"):
+            pool_api.finalize_task(
+                state,
+                success=True,
+                summary="reject corrupt canonical artifact bytes",
+            )
+
+    state.metadata["worker_pool_receipt"] = dict(valid_replay)
     forged_policy_artifact = dict(
         valid_replay["physical_dispatch_policy_artifact_ref"]
     )
@@ -846,6 +898,61 @@ def test_physical_preflight_failure_closes_started_attempt(
     assert attempt.terminal is True
     _assert_physical_graph_binding_terminal(state)
     assert not state.artifacts
+
+
+def test_physical_evidence_publish_failure_requires_reconciliation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Execute the physical operator and reject an uncommitted evidence event."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    publisher = bridge.evidence_publisher
+    assert publisher is not None
+    original_admit = publisher.admit_event
+
+    def reject_physical_dispatch_event(event) -> None:
+        if event.payload.get("policy_contract_kind") == (
+            PhysicalDispatchReceipt.CONTRACT_KIND
+        ):
+            raise RuntimeError("controlled physical evidence event failure")
+        original_admit(event)
+
+    monkeypatch.setattr(publisher, "admit_event", reject_physical_dispatch_event)
+    events = run_task_graph(state, execution_context=context)
+
+    failure = next(
+        item.payload
+        for item in reversed(events)
+        if item.payload.get("error_code")
+        == "phase2_physical_evidence_publish_failed"
+    )
+    failure_receipt = failure["error_metadata"][
+        "physical_execution_failure_receipt"
+    ]
+    assert failure_receipt["outcome"] == "failed"
+    assert failure_receipt["metadata"]["side_effect_started"] is True
+    assert failure_receipt["metadata"]["outcome_unknown"] is True
+    assert failure_receipt["metadata"][
+        "automatic_execution_retry_allowed"
+    ] is False
+    assert failure_receipt["metadata"]["reconcile_before_retry"] is True
+    assert failure_receipt["metadata"][
+        "physical_dispatch_receipt_digest"
+    ]
+    assert failure["error_metadata"][
+        "physical_dispatch_receipt_digest"
+    ] == failure_receipt["metadata"][
+        "physical_dispatch_receipt_digest"
+    ]
+    assert "worker_pool_receipt" not in state.metadata
+    lease = api.get_worker_pool_api().pool.store.require_lease(
+        state.metadata["worker_pool"]["lease_id"]
+    )
+    assert lease.terminal is True
+    _assert_physical_graph_binding_terminal(state)
 
 
 def test_physical_failure_missing_lease_still_terminalizes_graph(
