@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EVALUATION_PACKAGE = ROOT / "packages" / "evaluation"
 if str(EVALUATION_PACKAGE) not in sys.path:
     sys.path.insert(0, str(EVALUATION_PACKAGE))
+PRODUCTIZATION_PACKAGE = ROOT / "packages" / "productization"
+if str(PRODUCTIZATION_PACKAGE) not in sys.path:
+    sys.path.insert(0, str(PRODUCTIZATION_PACKAGE))
 
 from zyra_evaluation.policy_benchmark import (  # noqa: E402
     ContractViolation,
