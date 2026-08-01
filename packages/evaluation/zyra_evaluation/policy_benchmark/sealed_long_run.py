@@ -248,6 +248,12 @@ class _SealedInlineProductionPolicy:
                     "loopx_operator_policy_input_digest"
                 )
             ),
+            "loopx_pre_control_permission": (
+                _mapping(
+                    loopx_pre_control.get("permission_receipt")
+                ).get("receipt_digest")
+                == loopx_consumption.get("permission_receipt_digest")
+            ),
         }
         topology = _mapping(selected_policy.get("topology_result"))
         decision = _mapping(topology.get("decision_receipt"))

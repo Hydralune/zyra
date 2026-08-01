@@ -2934,6 +2934,14 @@ class Phase2StrongestProductionBridge:
         continuation = (
             continuation if isinstance(continuation, Mapping) else {}
         )
+        permission = selected.get("permission_receipt")
+        permission = permission if isinstance(permission, Mapping) else {}
+        permission_unsigned = dict(permission)
+        permission_digest = str(
+            permission_unsigned.pop("receipt_digest", "")
+        )
+        validation = selected.get("validation")
+        validation = validation if isinstance(validation, Mapping) else {}
         if (
             selected.get("schema")
             != "zyra.phase2-production-loopx-pre-control/v1"
@@ -2945,6 +2953,21 @@ class Phase2StrongestProductionBridge:
             or not all(item is True for item in checks.values())
             or continuation.get("allowed") is not True
             or not str(selected.get("canonical_commit_id") or "")
+            or permission.get("schema")
+            != "zyra.phase2-policy-permission-receipt/v1"
+            or permission.get("run_id") != state.run_id
+            or permission.get("task_id") != state.task_id
+            or permission.get("effect") != "allow"
+            or "typescript"
+            not in str(permission.get("canonical_owner") or "").casefold()
+            or not {"graph.write", "worker.dispatch"}.issubset(
+                set(permission.get("allowed_permissions") or ())
+            )
+            or not permission_digest
+            or permission_digest != canonical_digest(permission_unsigned)
+            or validation.get("permission_allowed") is not True
+            or validation.get("permission_receipt_id")
+            != permission.get("decision_id")
         ):
             raise Phase2ProductionPolicyError(
                 "LoopX pre-control receipt is invalid or denies continuation"
@@ -2963,6 +2986,13 @@ class Phase2StrongestProductionBridge:
             "schema": "zyra.production-loopx-consumption/v1",
             "receipt_digest": value.get("receipt_digest"),
             "goal_id": value.get("goal_id"),
+            "permission_receipt_digest": (
+                (value.get("permission_receipt") or {}).get(
+                    "receipt_digest"
+                )
+                if isinstance(value.get("permission_receipt"), Mapping)
+                else ""
+            ),
             "continuation_allowed": (
                 (value.get("continuation") or {}).get("allowed") is True
                 if isinstance(value.get("continuation"), Mapping)

@@ -59,6 +59,7 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
                     },
                     "loopx_pre_control": {
                         "receipt_digest": "loopx-pre-digest",
+                        "permission_receipt_digest": "loopx-permission-digest",
                         "consumed_before_topology": True,
                         "topology_policy_input_digest": "topology-policy-digest",
                         "operator_policy_input_digest": "operator-policy-digest",
@@ -191,6 +192,9 @@ def test_inline_policy_persists_every_returned_production_event_before_readback(
     fake_pre_control = {
         "schema": "zyra.phase2-production-loopx-pre-control/v1",
         "receipt_digest": "loopx-pre-digest",
+        "permission_receipt": {
+            "receipt_digest": "loopx-permission-digest",
+        },
     }
     monkeypatch.setattr(
         policy,
@@ -293,6 +297,24 @@ def test_inline_policy_binds_actual_production_mechanisms_and_rejects_tamper(
     assert chain["topology"]["loopx_pre_control_consumption"][
         "consumed_before_topology"
     ] is True
+    pre_control = chain["loopx"]["pre_control"]
+    pre_permission = pre_control["permission_receipt"]
+    pre_permission_unsigned = dict(pre_permission)
+    pre_permission_digest = pre_permission_unsigned.pop("receipt_digest")
+    assert "typescript" in pre_permission["canonical_owner"].casefold()
+    assert pre_permission["effect"] == "allow"
+    assert {"graph.write", "worker.dispatch"}.issubset(
+        pre_permission["allowed_permissions"]
+    )
+    assert pre_permission_digest == canonical_digest(
+        pre_permission_unsigned
+    )
+    assert pre_control["validation"]["permission_receipt_id"] == (
+        pre_permission["decision_id"]
+    )
+    assert chain["topology"]["loopx_pre_control_consumption"][
+        "permission_receipt_digest"
+    ] == pre_permission_digest
 
     tampered = json.loads(json.dumps(chain))
     tampered["loopx"]["checks"]["restart_recovered"] = False

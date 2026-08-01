@@ -12,6 +12,8 @@ from typing import Any
 
 import pytest
 
+from zyra_core import PlanNode, TaskState
+from zyra_orchestration import ensure_default_graph
 from zyra_orchestration.graph_custody import (
     DynamicTopologyRuntime,
     GraphNode,
@@ -125,6 +127,52 @@ def _runtime(tmp_path: Path, *, workers: tuple[str, ...] = ("worker-a",)) -> Wor
             maximum_lease_ttl_seconds=120,
         ),
     )
+
+
+def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _pool(tmp_path / "pool.sqlite3")
+    custody = _custody(tmp_path / "graph.sqlite3")
+    api = WorkerPoolApiService(pool, custody)
+    root = PlanNode(
+        node_id="root-acquisition-compensation",
+        title="Compensate a failed acquisition projection",
+        description="Bind a real lease and fail the graph projection.",
+        metadata={"stage": "execute"},
+    )
+    state = TaskState(
+        run_id="run-acquisition-compensation",
+        task_id="task-acquisition-compensation",
+        user_goal="Prove acquisition failure cannot leak a lease.",
+        root_node_id=root.node_id,
+        plan_nodes={root.node_id: root},
+    )
+    ensure_default_graph(state)
+
+    def fail_binding(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("injected physical attempt binding failure")
+
+    monkeypatch.setattr(
+        api.topology,
+        "bind_physical_attempt",
+        fail_binding,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="injected physical attempt binding failure",
+    ):
+        api.acquire_for_task(state)
+
+    attempt = pool.store.latest_attempt(state.task_id)
+    assert attempt is not None
+    lease = pool.store.require_lease(attempt.lease_id)
+    assert attempt.terminal is True
+    assert lease.terminal is True
+    assert attempt.state.value == "cancelled"
+    assert lease.state.value == "cancelled"
+    assert state.metadata.get("worker_pool") is None
 
 
 def _add_node(runtime: WorkerPoolIntegrationRuntime, task_id: str) -> str:

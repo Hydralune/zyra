@@ -1163,6 +1163,12 @@ class SealedLongRunValidator:
         pre_unsigned = dict(pre_control)
         pre_claimed = str(pre_unsigned.pop("receipt_digest", ""))
         pre_commit = _mapping(pre_control.get("canonical_commit"))
+        pre_validation = _mapping(pre_control.get("validation"))
+        pre_permission = _mapping(pre_control.get("permission_receipt"))
+        pre_permission_unsigned = dict(pre_permission)
+        pre_permission_digest = str(
+            pre_permission_unsigned.pop("receipt_digest", "")
+        )
         validation = _mapping(loopx.get("validation"))
         placement = _mapping(policy.get("physical_placement"))
         permission = _mapping(policy.get("permission_receipt"))
@@ -1293,6 +1299,23 @@ class SealedLongRunValidator:
             == _mapping(_mapping(pre_commit.get("receipt"))).get("commit_id")
             and pre_control.get("canonical_commit_digest")
             == canonical_digest(pre_commit)
+            and pre_permission.get("schema")
+            == "zyra.phase2-policy-permission-receipt/v1"
+            and pre_permission.get("run_id") == control.get("run_id")
+            and pre_permission.get("task_id") == control.get("task_id")
+            and pre_permission.get("effect") == "allow"
+            and "typescript"
+            in str(
+                pre_permission.get("canonical_owner") or ""
+            ).casefold()
+            and {"graph.write", "worker.dispatch"}.issubset(
+                set(pre_permission.get("allowed_permissions") or ())
+            )
+            and pre_permission_digest
+            == canonical_digest(pre_permission_unsigned)
+            and pre_validation.get("permission_allowed") is True
+            and pre_validation.get("permission_receipt_id")
+            == pre_permission.get("decision_id")
             and pre_checks
             and all(item is True for item in pre_checks.values())
             and _mapping(pre_results.get("connect"))
@@ -1303,6 +1326,8 @@ class SealedLongRunValidator:
             and control.get("loopx_pre_control_digest") == pre_claimed
             and policy_loopx == topology_loopx
             and policy_loopx.get("receipt_digest") == pre_claimed
+            and policy_loopx.get("permission_receipt_digest")
+            == pre_permission_digest
             and policy_loopx.get("consumed_before_topology") is True
             and composition.get("policy_input_digest")
             == policy_loopx.get("topology_policy_input_digest")

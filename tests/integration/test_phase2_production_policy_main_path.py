@@ -15,6 +15,45 @@ from zyra_symbolic import TopologyRouter
 from zyra_scheduler import OperatorLayerProposal
 
 
+def test_loopx_pre_control_denial_stops_before_graph_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, created = api.make_task_created_event(
+        "Deny LoopX control before any canonical graph mutation."
+    )
+    denied = {
+        "schema": "zyra.phase2-policy-permission-receipt/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "decision_id": "decision-loopx-denied",
+        "canonical_owner": "typescript.PermissionCoordinator",
+        "effect": "deny",
+        "allowed_permissions": [],
+    }
+    denied["receipt_digest"] = canonical_digest(denied)
+    monkeypatch.setattr(
+        api,
+        "_phase2_permission_decision",
+        lambda *_args, **_kwargs: denied,
+    )
+    monkeypatch.setattr(
+        api,
+        "get_worker_pool_api",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("graph owner must not run after permission denial")
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="canonical permission owner denied LoopX pre-control",
+    ):
+        api.prepare_phase2_loopx_pre_control(
+            state,
+            causation_id=created.event_id,
+        )
+
+
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease() -> None:
     state, created = api.make_task_created_event(
         "Implement a code artifact and verify the result."

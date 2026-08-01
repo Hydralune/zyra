@@ -3405,6 +3405,31 @@ def prepare_phase2_loopx_pre_control(
 ) -> dict[str, Any]:
     """Commit and execute the shared LoopX control input before topology."""
 
+    permission_receipt = dict(
+        _phase2_permission_decision(
+            state,
+            ("graph.write", "worker.dispatch"),
+            SimpleNamespace(event_id=causation_id),
+        )
+    )
+    permission_unsigned = dict(permission_receipt)
+    permission_digest = str(
+        permission_unsigned.pop("receipt_digest", "")
+    )
+    permission_allowed = bool(
+        permission_digest
+        and permission_digest == canonical_digest(permission_unsigned)
+        and permission_receipt.get("effect") == "allow"
+        and "typescript"
+        in str(permission_receipt.get("canonical_owner") or "").casefold()
+        and {"graph.write", "worker.dispatch"}.issubset(
+            set(permission_receipt.get("allowed_permissions") or ())
+        )
+    )
+    if not permission_allowed:
+        raise RuntimeError(
+            "canonical permission owner denied LoopX pre-control"
+        )
     pool_api = get_worker_pool_api()
     graph_id_value = pool_api.ensure_task_graph(state)
     branch = pool_api.graph_custody.branch(
@@ -3435,11 +3460,11 @@ def prepare_phase2_loopx_pre_control(
         raise RuntimeError("GraphStateCustody rejected LoopX pre-control commit")
     validation = {
         "validation_passed": True,
-        "permission_allowed": True,
+        "permission_allowed": permission_allowed,
         "lease_valid": True,
         "budget_allowed": True,
         "validation_receipt_id": committed.receipt.commit_id,
-        "permission_receipt_id": "sealed-pre-control:allowlisted",
+        "permission_receipt_id": permission_receipt.get("decision_id"),
         "lease_receipt_id": "control-plane:no-worker-dispatch",
         "budget_receipt_id": "loopx-private-quota:not-zyra-budget",
     }
@@ -3488,6 +3513,16 @@ def prepare_phase2_loopx_pre_control(
     continuation = dict(snapshot.get("continuation") or {})
     checks = {
         "canonical_commit": committed.receipt.committed is True,
+        "canonical_permission_owner": (
+            "typescript"
+            in str(
+                permission_receipt.get("canonical_owner") or ""
+            ).casefold()
+        ),
+        "permission_receipt_digest": (
+            permission_digest == canonical_digest(permission_unsigned)
+        ),
+        "permission_allowed": permission_allowed,
         "connected": dict(connected.get("state") or {}).get("connected")
         is True,
         "claim_applied": dict(claimed.get("receipt") or {}).get("status")
@@ -3505,6 +3540,7 @@ def prepare_phase2_loopx_pre_control(
         "canonical_commit": committed.to_dict(),
         "canonical_commit_digest": canonical_digest(committed.to_dict()),
         "validation": validation,
+        "permission_receipt": permission_receipt,
         "continuation": continuation,
         "sync_cursor": dict(snapshot.get("sync") or {}).get("cursor"),
         "results": {
