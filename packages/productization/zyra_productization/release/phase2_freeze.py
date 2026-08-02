@@ -73,7 +73,10 @@ FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET = (
 FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256 = (
     "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4"
 )
-FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT = (
+    "751dbe2c2aff2172ad3bd82946486d09ca415f3c"
+)
+FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -81,9 +84,20 @@ FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
+    "packages/orchestration/zyra_orchestration/topology_policy/production.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/integration/test_phase2_production_policy_main_path.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
 FINAL_REGRESSION_SUPPLEMENT_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/test_deployment_profiles_runtime.py",
+    "tests/unit/orchestration/test_agentprune_optimizer.py",
+    "tests/integration/test_spatial_temporal_pruning.py",
+    "tests/integration/test_phase2_production_policy_main_path.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
@@ -2654,17 +2668,130 @@ class Phase2FreezeAuditor:
     ) -> dict[str, Any]:
         self._require_full_commit(target, label="supplement target")
         source = FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
-        allowed = set(FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS)
         blockers: list[str] = []
-        parents = self._git("rev-list", "--parents", "-n", "1", target).split()
-        exact_parent = parents == [target, source]
+        commit_chain = (
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+            target,
+        )
+        expected_parents = (
+            source,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+        )
+        exact_chain = True
+        for commit, expected_parent in zip(
+            commit_chain,
+            expected_parents,
+            strict=True,
+        ):
+            parents = self._git(
+                "rev-list", "--parents", "-n", "1", commit
+            ).split()
+            if parents != [commit, expected_parent]:
+                exact_chain = False
+                blockers.append("supplement_target_not_exact_two_commit_chain")
+                break
+        segment_allowlists = (
+            FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+        )
+        cumulative_allowed = tuple(
+            dict.fromkeys(
+                (
+                    *FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+                )
+            )
+        )
+        commit_path_changes: list[dict[str, Any]] = []
         status_lines: tuple[str, ...] = ()
         changed_paths: list[str] = []
         transitions: list[dict[str, str]] = []
         diff = b""
-        if not exact_parent:
-            blockers.append("supplement_target_not_direct_child")
-        else:
+        if exact_chain:
+            previous = source
+            for commit, allowed_paths in zip(
+                commit_chain,
+                segment_allowlists,
+                strict=True,
+            ):
+                allowed = set(allowed_paths)
+                segment_statuses = tuple(
+                    line
+                    for line in self._git(
+                        "diff",
+                        "--name-status",
+                        "--no-renames",
+                        previous,
+                        commit,
+                    ).splitlines()
+                    if line
+                )
+                segment_paths: list[str] = []
+                segment_transitions: list[dict[str, str]] = []
+                if not segment_statuses:
+                    blockers.append("supplement_target_delta_missing")
+                for line in segment_statuses:
+                    status, separator, path = line.partition("\t")
+                    if separator != "\t" or status != "M" or path not in allowed:
+                        blockers.append(f"forbidden_supplement_change:{line}")
+                        continue
+                    source_entry = self._git(
+                        "ls-tree", previous, "--", path
+                    ).split()
+                    target_entry = self._git(
+                        "ls-tree", commit, "--", path
+                    ).split()
+                    if (
+                        len(source_entry) < 3
+                        or len(target_entry) < 3
+                        or source_entry[0] != target_entry[0]
+                        or source_entry[0] not in {"100644", "100755"}
+                        or source_entry[1] != "blob"
+                        or target_entry[1] != "blob"
+                    ):
+                        blockers.append(f"supplement_mode_or_type:{path}")
+                        continue
+                    segment_paths.append(path)
+                    segment_transitions.append(
+                        {
+                            "path": path,
+                            "mode": source_entry[0],
+                            "source_blob": source_entry[2],
+                            "target_blob": target_entry[2],
+                        }
+                    )
+                if (
+                    set(segment_paths) != allowed
+                    or len(segment_paths) != len(allowed)
+                ):
+                    blockers.append("supplement_required_delta_incomplete")
+                segment_diff = subprocess.run(
+                    [
+                        "git",
+                        "diff",
+                        "--binary",
+                        "--no-renames",
+                        previous,
+                        commit,
+                    ],
+                    cwd=self.root,
+                    check=True,
+                    capture_output=True,
+                ).stdout
+                commit_path_changes.append(
+                    {
+                        "commit": commit,
+                        "parent": previous,
+                        "change_statuses": list(segment_statuses),
+                        "blob_transitions": segment_transitions,
+                        "allowed_paths": list(allowed_paths),
+                        "diff_sha256": hashlib.sha256(
+                            segment_diff
+                        ).hexdigest(),
+                    }
+                )
+                previous = commit
+
             status_lines = tuple(
                 line
                 for line in self._git(
@@ -2680,8 +2807,12 @@ class Phase2FreezeAuditor:
                 blockers.append("supplement_target_delta_missing")
             for line in status_lines:
                 status, separator, path = line.partition("\t")
-                if separator != "\t" or status != "M" or path not in allowed:
-                    blockers.append(f"forbidden_supplement_change:{line}")
+                if (
+                    separator != "\t"
+                    or status != "M"
+                    or path not in cumulative_allowed
+                ):
+                    blockers.append(f"forbidden_supplement_cumulative:{line}")
                     continue
                 source_entry = self._git("ls-tree", source, "--", path).split()
                 target_entry = self._git("ls-tree", target, "--", path).split()
@@ -2704,8 +2835,8 @@ class Phase2FreezeAuditor:
                         "target_blob": target_entry[2],
                     }
                 )
-            if set(changed_paths) != allowed or len(changed_paths) != len(allowed):
-                blockers.append("supplement_required_delta_incomplete")
+            if set(changed_paths) != set(cumulative_allowed):
+                blockers.append("supplement_cumulative_delta_incomplete")
             diff = subprocess.run(
                 ["git", "diff", "--binary", "--no-renames", source, target],
                 cwd=self.root,
@@ -2713,45 +2844,36 @@ class Phase2FreezeAuditor:
                 capture_output=True,
             ).stdout
         allowlist_payload = json.dumps(
-            FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+            cumulative_allowed,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode()
-        diff_sha = hashlib.sha256(diff).hexdigest() if exact_parent else ""
+        diff_sha = hashlib.sha256(diff).hexdigest() if exact_chain else ""
         observed = {
             "source_target_commit": source,
             "source_target_tree": (
                 self._git("rev-parse", f"{source}^{{tree}}").strip()
-                if exact_parent
+                if exact_chain
                 else ""
             ),
             "target_commit": target,
             "target_tree": (
                 self._git("rev-parse", f"{target}^{{tree}}").strip()
-                if exact_parent
+                if exact_chain
                 else ""
             ),
-            "direct_single_parent": exact_parent,
-            "linear_single_parent_chain": exact_parent,
-            "commit_count": 1,
-            "commit_chain": [target],
-            "commit_path_changes": (
-                [
-                    {
-                        "commit": target,
-                        "parent": source,
-                        "change_statuses": list(status_lines),
-                        "blob_transitions": transitions,
-                        "diff_sha256": diff_sha,
-                    }
-                ]
-                if exact_parent
-                else []
+            "direct_single_parent": False,
+            "linear_single_parent_chain": exact_chain,
+            "required_first_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT
             ),
+            "commit_count": len(commit_chain),
+            "commit_chain": list(commit_chain),
+            "commit_path_changes": commit_path_changes,
             "changed_paths": changed_paths,
             "change_statuses": list(status_lines),
             "blob_transitions": transitions,
-            "allowed_paths": list(FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS),
+            "allowed_paths": list(cumulative_allowed),
             "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
             "diff_sha256": diff_sha,
             "production_or_configuration_changed": True,

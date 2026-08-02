@@ -4,7 +4,7 @@ import json
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -294,6 +294,9 @@ class Phase2StrongestProductionBridge:
         readiness_refs, readiness_digest = self._readiness_refs(
             source_event_id=source_event_id,
         )
+        communication_outcome_snapshot = tuple(
+            self.communication_outcome_provider(state)
+        )
         policy_input = self._policy_input(
             state=state,
             graph=current,
@@ -305,6 +308,11 @@ class Phase2StrongestProductionBridge:
             source_event_id=source_event_id,
             allowed_permissions=allowed_permissions,
             loopx_pre_control=loopx_pre_control,
+            created_at=self._causal_policy_input_created_at(
+                observations=communication_outcome_snapshot,
+                run_id=state.run_id,
+                task_id=state.task_id,
+            ),
         )
         loopx_consumption = self._loopx_consumption_projection(
             loopx_pre_control,
@@ -357,6 +365,7 @@ class Phase2StrongestProductionBridge:
                 if self.topology_policy.pruning_runtime.config is not None
                 else 0
             ),
+            observation_snapshot=communication_outcome_snapshot,
         )
         recovery_dispatch = any(
             isinstance(item, Mapping)
@@ -481,6 +490,11 @@ class Phase2StrongestProductionBridge:
             source_event_id=source_event_id,
             allowed_permissions=allowed_permissions,
             loopx_pre_control=loopx_pre_control,
+            created_at=self._causal_policy_input_created_at(
+                observations=communication_outcome_snapshot,
+                run_id=state.run_id,
+                task_id=state.task_id,
+            ),
         )
         loopx_consumption = {
             **loopx_consumption,
@@ -2812,10 +2826,16 @@ class Phase2StrongestProductionBridge:
         current_window_id: str,
         completed_before: str,
         maximum_age_seconds: int,
+        observation_snapshot: Sequence[Mapping[str, Any]] | None = None,
     ) -> tuple[CommunicationOutcomeObservation, ...]:
         by_id = {item.edge_id: item for item in candidates}
         observations = []
-        for raw in self.communication_outcome_provider(state):
+        raw_observations = (
+            observation_snapshot
+            if observation_snapshot is not None
+            else self.communication_outcome_provider(state)
+        )
+        for raw in raw_observations:
             if not isinstance(raw, Mapping):
                 continue
             if (
@@ -2900,6 +2920,69 @@ class Phase2StrongestProductionBridge:
                 )
             )
         return tuple(observations)
+
+    @staticmethod
+    def _causal_policy_input_created_at(
+        *,
+        observations: Sequence[Mapping[str, Any]],
+        run_id: str,
+        task_id: str,
+    ) -> str:
+        """Return a millisecond timestamp strictly after admitted outcomes.
+
+        Canonical events use millisecond timestamps.  A reroute can begin in
+        the same millisecond as its final outcome, so wall-clock equality must
+        be advanced logically instead of weakening AgentPrune's strict prior
+        window contract.
+        """
+
+        try:
+            selected_value = datetime.fromisoformat(
+                now_iso().replace("Z", "+00:00")
+            )
+        except (AttributeError, ValueError) as error:
+            raise Phase2ProductionPolicyError(
+                "policy input timestamp is invalid"
+            ) from error
+        if selected_value.tzinfo is None:
+            raise Phase2ProductionPolicyError(
+                "policy input timestamp requires a timezone"
+            )
+        wall_clock = selected_value.astimezone(UTC)
+        selected = wall_clock
+        for raw in observations:
+            if not isinstance(raw, Mapping):
+                continue
+            if (
+                str(raw.get("run_id") or "") != run_id
+                or str(raw.get("task_id") or "") != task_id
+            ):
+                raise Phase2ProductionPolicyError(
+                    "communication outcome scope differs from the current task"
+                )
+            completed_at = str(raw.get("completed_at") or "")
+            try:
+                completed = datetime.fromisoformat(
+                    completed_at.replace("Z", "+00:00")
+                )
+            except (AttributeError, ValueError) as error:
+                raise Phase2ProductionPolicyError(
+                    "communication outcome timestamp is invalid"
+                ) from error
+            if completed.tzinfo is None:
+                raise Phase2ProductionPolicyError(
+                    "communication outcome timestamp requires a timezone"
+                )
+            completed = completed.astimezone(UTC)
+            if completed > wall_clock:
+                raise Phase2ProductionPolicyError(
+                    "communication outcome timestamp is in the future"
+                )
+            if completed == wall_clock:
+                selected = completed + timedelta(milliseconds=1)
+        return selected.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        )
 
     @staticmethod
     def _communication_outcome_is_prior_and_fresh(
@@ -3322,6 +3405,7 @@ class Phase2StrongestProductionBridge:
         source_event_id: str,
         allowed_permissions: tuple[str, ...],
         loopx_pre_control: Mapping[str, Any],
+        created_at: str,
     ) -> Any:
         budget = self._budget(state)
         verifier = MemoryContinuityVerifier(self.memory_fabric)
@@ -3338,6 +3422,7 @@ class Phase2StrongestProductionBridge:
                 mechanism_id="PolicyInputSnapshotBuilder",
                 source_event_id=source_event_id,
                 causation_id=continuity.gate_id,
+                created_at=created_at,
             ),
             budget=budget,
             readiness_refs=readiness_refs,

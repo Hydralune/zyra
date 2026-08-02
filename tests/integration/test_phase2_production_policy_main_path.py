@@ -10,6 +10,7 @@ import pytest
 from apps.api.zyra_api import main as api
 from zyra_core import EventRecord, EventType, now_iso
 from zyra_orchestration import ensure_default_graph, run_task_graph
+from zyra_orchestration.topology_policy import production as production_policy
 from zyra_orchestration.topology_policy.contracts import (
     FrozenDict,
     PhysicalDispatchReceipt,
@@ -990,6 +991,120 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     assert all(item["delivered"] is True for item in outcomes)
     assert all(not item["utilized_evidence_refs"] for item in outcomes)
     assert all(item["verifier_result"] == "not_run" for item in outcomes)
+
+
+def test_policy_input_clock_advances_past_same_millisecond_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed_at = "2026-08-02T06:53:16.192Z"
+    monkeypatch.setattr(production_policy, "now_iso", lambda: completed_at)
+
+    cutoff = Phase2StrongestProductionBridge._causal_policy_input_created_at(
+        observations=(
+            {
+                "run_id": "run-clock",
+                "task_id": "task-clock",
+                "completed_at": completed_at,
+            },
+        ),
+        run_id="run-clock",
+        task_id="task-clock",
+    )
+
+    assert cutoff == "2026-08-02T06:53:16.193Z"
+    assert (
+        Phase2StrongestProductionBridge
+        ._communication_outcome_is_prior_and_fresh(
+            completed_at=completed_at,
+            completed_before=cutoff,
+            maximum_age_seconds=60,
+        )
+        is True
+    )
+
+
+def test_policy_input_clock_rejects_future_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        production_policy,
+        "now_iso",
+        lambda: "2026-08-02T06:53:16.192Z",
+    )
+
+    with pytest.raises(
+        production_policy.Phase2ProductionPolicyError,
+        match="timestamp is in the future",
+    ):
+        Phase2StrongestProductionBridge._causal_policy_input_created_at(
+            observations=(
+                {
+                    "run_id": "run-clock",
+                    "task_id": "task-clock",
+                    "completed_at": "2026-08-02T06:53:17.192Z",
+                },
+            ),
+            run_id="run-clock",
+            task_id="task-clock",
+        )
+
+
+def test_sealed_semantic_health_goal_consumes_loopx_before_physical_route() -> None:
+    state, created = api.make_task_created_event(
+        "Produce a concise deployment readiness artifact, preserve the result "
+        "in memory, and verify it through the default task graph."
+    )
+    state.metadata.update(
+        {
+            "sealed": True,
+            "sealed_autonomous": True,
+            "competition_mode": "sealed_autonomous",
+        }
+    )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"deployment-health:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"sealed-semantic-health:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+    pool_api = api.get_worker_pool_api()
+    pool_api.ensure_default_local_worker()
+    pool_api.ensure_task_graph(state)
+    pre_control = api.prepare_phase2_loopx_pre_control(
+        state,
+        causation_id=created.event_id,
+    )
+
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+
+    route_events = [
+        item
+        for item in events
+        if item.event_type is EventType.TOPOLOGY_ROUTE
+    ]
+    final_policy = route_events[-1].payload["topology_policy"]
+    loopx = final_policy["loopx_pre_control"]
+    assert pre_control["receipt_digest"] == loopx["receipt_digest"]
+    assert loopx["consumed_before_topology"] is True
+    assert loopx["topology_policy_input_digest"]
+    assert loopx["operator_policy_input_digest"]
+    assert final_policy["committed"] is True
+    assert final_policy["used_baseline"] is False
+    assert final_policy["operator_candidate_set"]["candidate_set_digest"]
+    assert final_policy["physical_placement"]["lease_id"]
+    cutoff = final_policy["topology_result"]["decision_receipt"]["created_at"]
+    assert all(
+        item["completed_at"] < cutoff
+        for item in api._phase2_communication_outcomes(state)
+    )
+    assert str(state.status) == "completed"
 
 
 def test_api_composition_root_missing_outcome_mutation_is_explicit_baseline() -> None:

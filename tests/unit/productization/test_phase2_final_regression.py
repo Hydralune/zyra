@@ -194,26 +194,51 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_direct_bounded_and_production_explicit(
+def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
     target = "b" * 40
-    statuses = "\n".join(
+    first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
+    first_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
+    )
+    target_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_ALLOWED_PATHS
+    )
+    cumulative_paths = tuple(
+        dict.fromkeys(
+            (*MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS, *MODULE.SUPPLEMENT_ALLOWED_PATHS)
+        )
+    )
+    cumulative_statuses = "\n".join(
+        f"M\t{path}" for path in cumulative_paths
     )
 
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
-            return f"{target} {MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT}"
+            commit = arguments[-1]
+            parent = (
+                MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
+                if commit == first
+                else first
+            )
+            return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
-            return statuses
+            revisions = arguments[-2:]
+            if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, first):
+                return first_statuses
+            if revisions == (first, target):
+                return target_statuses
+            if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
+                return cumulative_statuses
+            raise AssertionError(arguments)
         if arguments[0] == "ls-tree":
             revision = arguments[1]
-            blob = (
-                "a" * 40
-                if revision == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
-                else "b" * 40
-            )
+            blob = {
+                MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT: "a" * 40,
+                first: "b" * 40,
+                target: "c" * 40,
+            }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
             return "c" * 40
@@ -228,15 +253,46 @@ def test_supplement_delta_is_direct_bounded_and_production_explicit(
 
     delta = MODULE._supplement_target_delta(target_commit=target)
 
-    assert delta["direct_single_parent"] is True
+    assert delta["direct_single_parent"] is False
+    assert delta["linear_single_parent_chain"] is True
+    assert delta["required_first_commit"] == first
+    assert delta["commit_chain"] == [first, target]
+    assert delta["commit_count"] == 2
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
     )
-    assert delta["changed_paths"] == list(MODULE.SUPPLEMENT_ALLOWED_PATHS)
+    assert delta["changed_paths"] == list(cumulative_paths)
+    assert delta["commit_path_changes"][0]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][1]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_ALLOWED_PATHS
+    )
     assert delta["bounded_production_change"] is True
     assert delta["production_or_configuration_changed"] is True
     assert delta["rename_symlink_or_submodule_changed"] is False
+
+
+def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
+    target = "b" * 40
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            return f"{arguments[-1]} {'f' * 40}"
+        raise AssertionError("invalid chain reached a diff or tree query")
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("invalid chain reached subprocess diff")
+        ),
+    )
+
+    with pytest.raises(ValueError, match="exact two-commit remediation chain"):
+        MODULE._supplement_target_delta(target_commit=target)
 
 
 def test_supplement_specs_rerun_only_bounded_target_gates(tmp_path: Path) -> None:

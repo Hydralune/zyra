@@ -82,7 +82,10 @@ SUPPLEMENT_SOURCE_TARGET_COMMIT = "7995b64e8fd48028f1e12d4c60a23f6df4784a2e"
 SUPPLEMENT_SOURCE_RECEIPT_SHA256 = (
     "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4"
 )
-SUPPLEMENT_ALLOWED_PATHS = (
+SUPPLEMENT_REQUIRED_FIRST_COMMIT = (
+    "751dbe2c2aff2172ad3bd82946486d09ca415f3c"
+)
+SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -90,9 +93,20 @@ SUPPLEMENT_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+SUPPLEMENT_ALLOWED_PATHS = (
+    "packages/orchestration/zyra_orchestration/topology_policy/production.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/integration/test_phase2_production_policy_main_path.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
 SUPPLEMENT_REMEDIATION_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/test_deployment_profiles_runtime.py",
+    "tests/unit/orchestration/test_agentprune_optimizer.py",
+    "tests/integration/test_spatial_temporal_pruning.py",
+    "tests/integration/test_phase2_production_policy_main_path.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
@@ -752,12 +766,103 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
 
 
 def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
-    parents = _git("rev-list", "--parents", "-n", "1", target_commit).split()
-    if parents != [target_commit, SUPPLEMENT_SOURCE_TARGET_COMMIT]:
-        raise ValueError(
-            "supplement target is not the direct child of the frozen regression target"
+    commit_chain = (SUPPLEMENT_REQUIRED_FIRST_COMMIT, target_commit)
+    expected_parents = (
+        SUPPLEMENT_SOURCE_TARGET_COMMIT,
+        SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+    )
+    for commit, expected_parent in zip(
+        commit_chain,
+        expected_parents,
+        strict=True,
+    ):
+        parents = _git("rev-list", "--parents", "-n", "1", commit).split()
+        if parents != [commit, expected_parent]:
+            raise ValueError(
+                "supplement target is not the exact two-commit remediation chain"
+            )
+
+    segment_allowlists = (
+        SUPPLEMENT_FIRST_ALLOWED_PATHS,
+        SUPPLEMENT_ALLOWED_PATHS,
+    )
+    commit_path_changes: list[dict[str, Any]] = []
+    previous = SUPPLEMENT_SOURCE_TARGET_COMMIT
+    for commit, allowed_paths in zip(
+        commit_chain,
+        segment_allowlists,
+        strict=True,
+    ):
+        status_lines = tuple(
+            line
+            for line in _git(
+                "diff",
+                "--name-status",
+                "--no-renames",
+                previous,
+                commit,
+            ).splitlines()
+            if line
         )
-    allowed = set(SUPPLEMENT_ALLOWED_PATHS)
+        allowed = set(allowed_paths)
+        segment_paths: list[str] = []
+        segment_transitions: list[dict[str, str]] = []
+        for line in status_lines:
+            status, separator, path = line.partition("\t")
+            if separator != "\t" or status != "M" or path not in allowed:
+                raise ValueError(
+                    f"supplement target contains a forbidden change: {line}"
+                )
+            source_entry = _git("ls-tree", previous, "--", path).split()
+            target_entry = _git("ls-tree", commit, "--", path).split()
+            if (
+                len(source_entry) < 3
+                or len(target_entry) < 3
+                or source_entry[0] != target_entry[0]
+                or source_entry[0] not in {"100644", "100755"}
+                or source_entry[1] != "blob"
+                or target_entry[1] != "blob"
+            ):
+                raise ValueError(
+                    "supplement target changed the file mode or object type: "
+                    + path
+                )
+            segment_paths.append(path)
+            segment_transitions.append(
+                {
+                    "path": path,
+                    "mode": source_entry[0],
+                    "source_blob": source_entry[2],
+                    "target_blob": target_entry[2],
+                }
+            )
+        if set(segment_paths) != allowed or len(segment_paths) != len(allowed):
+            raise ValueError(
+                "supplement target must change every bounded remediation file"
+            )
+        segment_diff = subprocess.run(
+            ["git", "diff", "--binary", "--no-renames", previous, commit],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+        commit_path_changes.append(
+            {
+                "commit": commit,
+                "parent": previous,
+                "change_statuses": list(status_lines),
+                "blob_transitions": segment_transitions,
+                "allowed_paths": list(allowed_paths),
+                "diff_sha256": hashlib.sha256(segment_diff).hexdigest(),
+            }
+        )
+        previous = commit
+
+    cumulative_allowed_paths = tuple(
+        dict.fromkeys(
+            (*SUPPLEMENT_FIRST_ALLOWED_PATHS, *SUPPLEMENT_ALLOWED_PATHS)
+        )
+    )
     status_lines = tuple(
         line
         for line in _git(
@@ -769,19 +874,20 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         ).splitlines()
         if line
     )
-    if not status_lines:
-        raise ValueError("supplement target has no remediation delta")
     changed_paths: list[str] = []
     blob_transitions: list[dict[str, str]] = []
     for line in status_lines:
         status, separator, path = line.partition("\t")
-        if separator != "\t" or status != "M" or path not in allowed:
-            raise ValueError(f"supplement target contains a forbidden change: {line}")
+        if (
+            separator != "\t"
+            or status != "M"
+            or path not in cumulative_allowed_paths
+        ):
+            raise ValueError(
+                f"supplement target contains a forbidden cumulative change: {line}"
+            )
         source_entry = _git(
-            "ls-tree",
-            SUPPLEMENT_SOURCE_TARGET_COMMIT,
-            "--",
-            path,
+            "ls-tree", SUPPLEMENT_SOURCE_TARGET_COMMIT, "--", path
         ).split()
         target_entry = _git("ls-tree", target_commit, "--", path).split()
         if (
@@ -793,7 +899,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
             or target_entry[1] != "blob"
         ):
             raise ValueError(
-                "supplement target changed the file mode or object type: " + path
+                "supplement target changed the cumulative mode or object type: "
+                + path
             )
         changed_paths.append(path)
         blob_transitions.append(
@@ -804,8 +911,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
                 "target_blob": target_entry[2],
             }
         )
-    if set(changed_paths) != allowed or len(changed_paths) != len(allowed):
-        raise ValueError("supplement target must change every bounded remediation file")
+    if set(changed_paths) != set(cumulative_allowed_paths):
+        raise ValueError("supplement cumulative remediation delta is incomplete")
     diff = subprocess.run(
         [
             "git",
@@ -820,7 +927,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         capture_output=True,
     ).stdout
     allowlist_payload = json.dumps(
-        SUPPLEMENT_ALLOWED_PATHS,
+        cumulative_allowed_paths,
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode()
@@ -832,23 +939,16 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         ),
         "target_commit": target_commit,
         "target_tree": _git("rev-parse", f"{target_commit}^{{tree}}"),
-        "direct_single_parent": True,
+        "direct_single_parent": False,
         "linear_single_parent_chain": True,
-        "commit_count": 1,
-        "commit_chain": [target_commit],
-        "commit_path_changes": [
-            {
-                "commit": target_commit,
-                "parent": SUPPLEMENT_SOURCE_TARGET_COMMIT,
-                "change_statuses": list(status_lines),
-                "blob_transitions": blob_transitions,
-                "diff_sha256": hashlib.sha256(diff).hexdigest(),
-            }
-        ],
+        "required_first_commit": SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+        "commit_count": len(commit_chain),
+        "commit_chain": list(commit_chain),
+        "commit_path_changes": commit_path_changes,
         "changed_paths": changed_paths,
         "change_statuses": list(status_lines),
         "blob_transitions": blob_transitions,
-        "allowed_paths": list(SUPPLEMENT_ALLOWED_PATHS),
+        "allowed_paths": list(cumulative_allowed_paths),
         "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
         "diff_sha256": hashlib.sha256(diff).hexdigest(),
         "production_or_configuration_changed": True,

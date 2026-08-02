@@ -285,25 +285,57 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
-def test_supplement_delta_audit_matches_direct_bounded_production_fix(
+def test_supplement_delta_audit_matches_two_commit_bounded_production_fix(
     monkeypatch,
 ) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
     target = "d" * 40
     source = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
-    statuses = "\n".join(
+    first = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT
+    )
+    first_statuses = "\n".join(
+        f"M\t{path}"
+        for path in (
+            phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS
+        )
+    )
+    target_statuses = "\n".join(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS
+    )
+    cumulative_paths = tuple(
+        dict.fromkeys(
+            (
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+            )
+        )
+    )
+    cumulative_statuses = "\n".join(
+        f"M\t{path}" for path in cumulative_paths
     )
 
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
-            return f"{target} {source}"
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
-            return statuses
+            revisions = arguments[-2:]
+            if revisions == (source, first):
+                return first_statuses
+            if revisions == (first, target):
+                return target_statuses
+            if revisions == (source, target):
+                return cumulative_statuses
+            raise AssertionError(arguments)
         if arguments[0] == "ls-tree":
             revision = arguments[1]
-            blob = "a" * 40 if revision == source else "b" * 40
+            blob = {
+                source: "a" * 40,
+                first: "b" * 40,
+                target: "c" * 40,
+            }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
             return "c" * 40
@@ -324,11 +356,41 @@ def test_supplement_delta_audit_matches_direct_bounded_production_fix(
     audit = auditor._supplement_delta_audit(supplied, target=target)
 
     assert audit["ready"] is True
-    assert audit["changed_paths"] == list(
-        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS
-    )
+    assert audit["direct_single_parent"] is False
+    assert audit["linear_single_parent_chain"] is True
+    assert audit["required_first_commit"] == first
+    assert audit["commit_chain"] == [first, target]
+    assert audit["changed_paths"] == list(cumulative_paths)
     assert audit["bounded_production_change"] is True
     assert audit["production_or_configuration_changed"] is True
+
+
+def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
+    monkeypatch,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    target = "d" * 40
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            return f"{arguments[-1]} {'f' * 40}"
+        if arguments[:1] == ("rev-parse",):
+            return ""
+        raise AssertionError("invalid chain reached a diff or tree query")
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("invalid chain reached subprocess diff")
+        ),
+    )
+
+    audit = auditor._supplement_delta_audit({}, target=target)
+
+    assert "supplement_target_not_exact_two_commit_chain" in audit["blockers"]
+    assert audit["commit_path_changes"] == []
 
 
 def test_resume_delta_audit_rejects_transient_mode_change(monkeypatch) -> None:
