@@ -17,12 +17,289 @@ for package_path in [
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from zyra_core import EventType, PlanNodeStatus, create_task_state
+from zyra_core import (
+    DecisionRecord,
+    EventRecord,
+    EventType,
+    PlanNodeStatus,
+    create_task_state,
+)
 from zyra_orchestration import GraphExecutionContext, ensure_default_graph, run_task_graph
-from zyra_orchestration.task_graph import _code_constraints, _worker_request_metadata
+from zyra_orchestration.task_graph import (
+    _code_constraints,
+    _run_route_node,
+    _worker_request_metadata,
+)
+
+
+class _PolicySequenceRouter:
+    def __init__(self, policies: list[dict[str, object]]) -> None:
+        self.policies = policies
+        self.calls = 0
+
+    def route(self, state, *, node, route_type, cause_event):
+        self.calls += 1
+        policy = self.policies[min(self.calls - 1, len(self.policies) - 1)]
+        decision = DecisionRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            decision_type=route_type,
+            selected="CodeWorkerRuntime",
+            summary="bounded revalidation test",
+            rationale="formal strongest route",
+        )
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            event_type=EventType.TOPOLOGY_ROUTE,
+            node_id=node.node_id,
+            payload={
+                "topology_policy": policy,
+                "cause_event_id": cause_event.event_id,
+            },
+        )
+        return decision, event
+
+
+def _formal_route_context():
+    state = create_task_state("Exercise bounded formal topology recovery.")
+    state.metadata["sealed_autonomous"] = True
+    ensure_default_graph(state)
+    route_node = next(
+        node
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage") == "route"
+    )
+    cause = EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.RESOURCE_DECISION,
+        node_id=route_node.node_id,
+        payload={
+            "schema": "zyra.phase2-temporal-handoff-receipt/v1",
+            "acknowledged": True,
+        },
+    )
+    return state, route_node, cause
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_formal_route_revalidates_one_covered_baseline_before_placement(self) -> None:
+        state = create_task_state("Revalidate one transient formal baseline.")
+        state.metadata["sealed_autonomous"] = True
+        ensure_default_graph(state)
+        route_node = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "route"
+        )
+
+        class Router:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def route(self, selected_state, *, node, route_type, cause_event):
+                del node, route_type
+                self.calls += 1
+                if self.calls == 1:
+                    policy = {
+                        "used_baseline": True,
+                        "committed": False,
+                        "reroute_required": True,
+                    }
+                elif self.calls == 2:
+                    policy = {
+                        "used_baseline": True,
+                        "committed": False,
+                        "reroute_required": False,
+                        "communication_outcome_coverage_complete": True,
+                        "communication_outcome_count": 7,
+                        "execution_receipt": {
+                            "degraded_reason": "transient_snapshot"
+                        },
+                    }
+                else:
+                    policy = {
+                        "used_baseline": False,
+                        "committed": True,
+                        "reroute_required": False,
+                    }
+                decision = DecisionRecord(
+                    run_id=selected_state.run_id,
+                    task_id=selected_state.task_id,
+                    decision_type="worker_route",
+                    selected="CodeWorkerRuntime",
+                    summary="bounded revalidation",
+                    rationale="formal strongest route",
+                )
+                event = EventRecord(
+                    run_id=selected_state.run_id,
+                    task_id=selected_state.task_id,
+                    event_type=EventType.TOPOLOGY_ROUTE,
+                    node_id=route_node.node_id,
+                    payload={
+                        "topology_policy": policy,
+                        "cause_event_id": cause_event.event_id,
+                    },
+                )
+                return decision, event
+
+        router = Router()
+        cause = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            event_type=EventType.RESOURCE_DECISION,
+            node_id=route_node.node_id,
+            payload={
+                "schema": "zyra.phase2-temporal-handoff-receipt/v1",
+                "acknowledged": True,
+            },
+        )
+
+        events = _run_route_node(
+            state,
+            route_node,
+            router,
+            [],
+            cause_event=cause,
+        )
+
+        self.assertEqual(router.calls, 3)
+        self.assertEqual(state.metadata["phase2_topology_revalidation_count"], 1)
+        self.assertEqual(route_node.status, PlanNodeStatus.COMPLETED)
+        self.assertEqual(
+            sum(item.event_type is EventType.TOPOLOGY_ROUTE for item in events),
+            3,
+        )
+
+    def test_formal_route_revalidation_guard_survives_failed_reentry(self) -> None:
+        baseline = {
+            "used_baseline": True,
+            "committed": False,
+            "reroute_required": False,
+            "communication_outcome_coverage_complete": True,
+            "operator_selection": {
+                "degraded_reason": "topology_strongest_not_committed"
+            },
+        }
+        state, route_node, cause = _formal_route_context()
+        router = _PolicySequenceRouter([baseline, baseline])
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "topology_strongest_not_committed",
+        ):
+            _run_route_node(
+                state,
+                route_node,
+                router,
+                [],
+                cause_event=cause,
+            )
+        self.assertEqual(router.calls, 2)
+        self.assertEqual(state.metadata["phase2_topology_revalidation_count"], 1)
+        self.assertEqual(
+            state.metadata["phase2_topology_revalidated_route_nodes"],
+            [route_node.node_id],
+        )
+
+        with self.assertRaisesRegex(RuntimeError, '"revalidation_count": 1'):
+            _run_route_node(
+                state,
+                route_node,
+                router,
+                [],
+                cause_event=cause,
+            )
+        self.assertEqual(router.calls, 3)
+        self.assertEqual(state.metadata["phase2_topology_revalidation_count"], 1)
+
+    def test_formal_route_incomplete_coverage_does_not_revalidate(self) -> None:
+        state, route_node, cause = _formal_route_context()
+        router = _PolicySequenceRouter(
+            [
+                {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": False,
+                    "communication_outcome_coverage_complete": False,
+                }
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, '"coverage_complete": false'):
+            _run_route_node(
+                state,
+                route_node,
+                router,
+                [],
+                cause_event=cause,
+            )
+
+        self.assertEqual(router.calls, 1)
+        self.assertNotIn("phase2_topology_revalidation_count", state.metadata)
+
+    def test_formal_route_revalidation_rejects_uncommitted_nonbaseline(self) -> None:
+        state, route_node, cause = _formal_route_context()
+        router = _PolicySequenceRouter(
+            [
+                {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": False,
+                    "communication_outcome_coverage_complete": True,
+                },
+                {
+                    "used_baseline": False,
+                    "committed": False,
+                    "reroute_required": False,
+                    "degraded_reason": "canonical_commit_missing",
+                },
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "canonical_commit_missing"):
+            _run_route_node(
+                state,
+                route_node,
+                router,
+                [],
+                cause_event=cause,
+            )
+
+        self.assertEqual(router.calls, 2)
+        self.assertEqual(state.metadata["phase2_topology_revalidation_count"], 1)
+
+    def test_formal_route_second_reroute_fails_with_actual_reason(self) -> None:
+        state, route_node, cause = _formal_route_context()
+        router = _PolicySequenceRouter(
+            [
+                {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": True,
+                },
+                {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": True,
+                    "reroute_reason": "window_still_incomplete",
+                },
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "window_still_incomplete"):
+            _run_route_node(
+                state,
+                route_node,
+                router,
+                [],
+                cause_event=cause,
+            )
+
+        self.assertEqual(router.calls, 2)
+        self.assertNotIn("phase2_topology_revalidation_count", state.metadata)
+
     def test_recovery_route_projection_overrides_stale_dispatch_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Consume the canonical recovery route.")

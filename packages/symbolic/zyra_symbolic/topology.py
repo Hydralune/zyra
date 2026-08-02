@@ -77,10 +77,25 @@ class TopologyRouter:
                 )
         resource_decision = None
         candidates: list[RouteCandidate]
-        if topology_policy.get("reroute_required") is True:
+        formal_strongest_required = bool(
+            state.metadata.get("formal_benchmark")
+            or state.metadata.get("sealed_autonomous")
+        )
+        formal_topology_uncommitted = bool(
+            formal_strongest_required
+            and (
+                topology_policy.get("used_baseline") is True
+                or topology_policy.get("committed") is not True
+            )
+        )
+        if (
+            topology_policy.get("reroute_required") is True
+            or formal_topology_uncommitted
+        ):
             # The first policy window may only establish actual communication
-            # outcomes.  Do not mutate placement/lease/graph state until a
-            # later route consumes that prior window.
+            # outcomes.  A formal strongest route also cannot create a
+            # placement/lease after an explicit baseline: task-graph recovery
+            # gets one bounded chance to revalidate it first.
             candidates = self.rank_candidates(
                 state,
                 node=node,

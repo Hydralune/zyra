@@ -85,6 +85,9 @@ SUPPLEMENT_SOURCE_RECEIPT_SHA256 = (
 SUPPLEMENT_REQUIRED_FIRST_COMMIT = (
     "751dbe2c2aff2172ad3bd82946486d09ca415f3c"
 )
+SUPPLEMENT_REQUIRED_SECOND_COMMIT = (
+    "cb0328abcbeef3dc7957954a7eaece19288f50e9"
+)
 SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -93,7 +96,7 @@ SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
-SUPPLEMENT_ALLOWED_PATHS = (
+SUPPLEMENT_SECOND_ALLOWED_PATHS = (
     "packages/orchestration/zyra_orchestration/topology_policy/production.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -101,14 +104,28 @@ SUPPLEMENT_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/orchestration/zyra_orchestration/task_graph.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "packages/symbolic/zyra_symbolic/topology.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+    "tests/unit/test_symbolic_control.py",
+    "tests/unit/test_task_graph.py",
+)
 SUPPLEMENT_REMEDIATION_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/test_deployment_profiles_runtime.py",
     "tests/unit/orchestration/test_agentprune_optimizer.py",
     "tests/integration/test_spatial_temporal_pruning.py",
     "tests/integration/test_phase2_production_policy_main_path.py",
+    "tests/integration/test_topology_policy_default_path.py",
+    "tests/integration/test_topology_route_placement_projection.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
+    "tests/unit/test_symbolic_control.py",
+    "tests/unit/test_task_graph.py",
 )
 SUPPLEMENT_RERUN_GATE_IDS = (
     "phase2-policy-contracts",
@@ -766,10 +783,15 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
 
 
 def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
-    commit_chain = (SUPPLEMENT_REQUIRED_FIRST_COMMIT, target_commit)
+    commit_chain = (
+        SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+        SUPPLEMENT_REQUIRED_SECOND_COMMIT,
+        target_commit,
+    )
     expected_parents = (
         SUPPLEMENT_SOURCE_TARGET_COMMIT,
         SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+        SUPPLEMENT_REQUIRED_SECOND_COMMIT,
     )
     for commit, expected_parent in zip(
         commit_chain,
@@ -779,12 +801,13 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         parents = _git("rev-list", "--parents", "-n", "1", commit).split()
         if parents != [commit, expected_parent]:
             raise ValueError(
-                "supplement target is not the exact two-commit remediation chain"
+                "supplement target is not the exact three-commit remediation chain"
             )
 
     segment_allowlists = (
         SUPPLEMENT_FIRST_ALLOWED_PATHS,
-        SUPPLEMENT_ALLOWED_PATHS,
+        SUPPLEMENT_SECOND_ALLOWED_PATHS,
+        SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     commit_path_changes: list[dict[str, Any]] = []
     previous = SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -860,7 +883,11 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
 
     cumulative_allowed_paths = tuple(
         dict.fromkeys(
-            (*SUPPLEMENT_FIRST_ALLOWED_PATHS, *SUPPLEMENT_ALLOWED_PATHS)
+            (
+                *SUPPLEMENT_FIRST_ALLOWED_PATHS,
+                *SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                *SUPPLEMENT_FINAL_ALLOWED_PATHS,
+            )
         )
     )
     status_lines = tuple(
@@ -942,6 +969,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         "direct_single_parent": False,
         "linear_single_parent_chain": True,
         "required_first_commit": SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+        "required_second_commit": SUPPLEMENT_REQUIRED_SECOND_COMMIT,
         "commit_count": len(commit_chain),
         "commit_chain": list(commit_chain),
         "commit_path_changes": commit_path_changes,

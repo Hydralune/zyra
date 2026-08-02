@@ -71,6 +71,105 @@ class SymbolicControlTests(unittest.TestCase):
         browser_candidate = next(candidate for candidate in decision.route_candidates if candidate["worker_name"] == "BrowserWorker")
         self.assertTrue(any("browser" in reason for reason in browser_candidate["reasons"]))
 
+    def test_formal_baseline_never_reaches_scheduler_or_placement_binder(self) -> None:
+        class Scheduler:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def decide(self, *args, **kwargs):
+                del args, kwargs
+                self.calls += 1
+                raise AssertionError("formal baseline reached ResourceScheduler")
+
+        class Trigger:
+            fail_closed = True
+
+            def __init__(self) -> None:
+                self.bind_calls = 0
+
+            def __call__(self, state, node, cause_event):
+                del state, node, cause_event
+                return {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": False,
+                    "communication_outcome_coverage_complete": True,
+                }
+
+            def bind_resource_decision(self, *args, **kwargs):
+                del args, kwargs
+                self.bind_calls += 1
+                raise AssertionError("formal baseline reached placement binder")
+
+        for formal_flag in ("sealed_autonomous", "formal_benchmark"):
+            with self.subTest(formal_flag=formal_flag):
+                state = create_task_state("Keep formal baseline fail-closed.")
+                state.metadata[formal_flag] = True
+                ensure_default_graph(state)
+                execute_node = next(
+                    node
+                    for node in state.plan_nodes.values()
+                    if node.metadata.get("stage") == "execute"
+                )
+                scheduler = Scheduler()
+                trigger = Trigger()
+
+                decision, event = TopologyRouter(
+                    resource_scheduler=scheduler,
+                    topology_policy_trigger=trigger,
+                ).route(state, node=execute_node)
+
+                self.assertEqual(scheduler.calls, 0)
+                self.assertEqual(trigger.bind_calls, 0)
+                self.assertEqual(decision.metadata["physical_lease_ref"], "")
+                self.assertNotIn(
+                    "physical_placement",
+                    event.payload["topology_policy"],
+                )
+
+    def test_nonformal_baseline_keeps_scheduler_compatibility(self) -> None:
+        class Trigger:
+            fail_closed = True
+
+            def __init__(self) -> None:
+                self.bind_calls = 0
+
+            def __call__(self, state, node, cause_event):
+                del state, node, cause_event
+                return {
+                    "used_baseline": True,
+                    "committed": False,
+                    "reroute_required": False,
+                }
+
+            def bind_resource_decision(self, *args, **kwargs):
+                del args, kwargs
+                self.bind_calls += 1
+                return {"compatibility": "phase1_deterministic_baseline"}
+
+        state = create_task_state("Keep non-formal baseline compatible.")
+        ensure_default_graph(state)
+        execute_node = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "execute"
+        )
+        trigger = Trigger()
+
+        decision, event = TopologyRouter(
+            topology_policy_trigger=trigger,
+        ).route(state, node=execute_node)
+
+        self.assertEqual(trigger.bind_calls, 1)
+        self.assertEqual(
+            decision.metadata["router"],
+            "m5-resource-aware-topology-router",
+        )
+        self.assertEqual(
+            event.payload["topology_policy"]["physical_placement"]["compatibility"],
+            "phase1_deterministic_baseline",
+        )
+
     def test_requirement_change_supersedes_affected_nodes_and_creates_replan_decision(self) -> None:
         state = create_task_state("Build, execute, and verify a long task.")
         ensure_default_graph(state)

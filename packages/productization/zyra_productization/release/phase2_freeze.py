@@ -76,6 +76,9 @@ FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256 = (
 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT = (
     "751dbe2c2aff2172ad3bd82946486d09ca415f3c"
 )
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT = (
+    "cb0328abcbeef3dc7957954a7eaece19288f50e9"
+)
 FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -84,7 +87,7 @@ FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
-FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
+FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS = (
     "packages/orchestration/zyra_orchestration/topology_policy/production.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -92,14 +95,28 @@ FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/orchestration/zyra_orchestration/task_graph.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "packages/symbolic/zyra_symbolic/topology.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+    "tests/unit/test_symbolic_control.py",
+    "tests/unit/test_task_graph.py",
+)
 FINAL_REGRESSION_SUPPLEMENT_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/test_deployment_profiles_runtime.py",
     "tests/unit/orchestration/test_agentprune_optimizer.py",
     "tests/integration/test_spatial_temporal_pruning.py",
     "tests/integration/test_phase2_production_policy_main_path.py",
+    "tests/integration/test_topology_policy_default_path.py",
+    "tests/integration/test_topology_route_placement_projection.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
+    "tests/unit/test_symbolic_control.py",
+    "tests/unit/test_task_graph.py",
 )
 FINAL_REGRESSION_SUPPLEMENT_RERUN_IDS = (
     "phase2-policy-contracts",
@@ -2671,11 +2688,13 @@ class Phase2FreezeAuditor:
         blockers: list[str] = []
         commit_chain = (
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT,
             target,
         )
         expected_parents = (
             source,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT,
         )
         exact_chain = True
         for commit, expected_parent in zip(
@@ -2688,17 +2707,19 @@ class Phase2FreezeAuditor:
             ).split()
             if parents != [commit, expected_parent]:
                 exact_chain = False
-                blockers.append("supplement_target_not_exact_two_commit_chain")
+                blockers.append("supplement_target_not_exact_three_commit_chain")
                 break
         segment_allowlists = (
             FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
-            FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
         )
         cumulative_allowed = tuple(
             dict.fromkeys(
                 (
                     *FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
-                    *FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
                 )
             )
         )
@@ -2866,6 +2887,9 @@ class Phase2FreezeAuditor:
             "linear_single_parent_chain": exact_chain,
             "required_first_commit": (
                 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT
+            ),
+            "required_second_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT
             ),
             "commit_count": len(commit_chain),
             "commit_chain": list(commit_chain),

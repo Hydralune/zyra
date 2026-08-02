@@ -500,6 +500,7 @@ def _run_route_node(
         events.append(resource_event)
 
     topology_policy = route_event.payload.get("topology_policy")
+    final_policy = topology_policy
     if (
         isinstance(topology_policy, Mapping)
         and topology_policy.get("reroute_required") is True
@@ -525,24 +526,140 @@ def _run_route_node(
         if (
             isinstance(final_policy, Mapping)
             and final_policy.get("reroute_required") is True
-            ):
-                raise RuntimeError(
-                    "production topology reroute did not consume the prior actual communication window: "
-                    + json.dumps(
-                        {
-                            "degraded_reason": (
-                                final_policy.get("topology_result") or {}
-                            ).get("degraded_reason"),
-                            "candidate_count": len(
-                                final_policy.get("communication_candidate_edges") or ()
-                            ),
-                            "outcome_count": final_policy.get(
-                                "communication_outcome_count"
-                            ),
-                        },
-                        sort_keys=True,
-                    )
+        ):
+            operator_selection = final_policy.get("operator_selection")
+            operator_selection = (
+                operator_selection
+                if isinstance(operator_selection, Mapping)
+                else {}
+            )
+            raise RuntimeError(
+                "production topology reroute did not consume the prior actual communication window: "
+                + json.dumps(
+                    {
+                        "degraded_reason": final_policy.get("degraded_reason"),
+                        "operator_degraded_reason": operator_selection.get(
+                            "degraded_reason"
+                        ),
+                        "topology_degraded_reason": (
+                            final_policy.get("topology_result") or {}
+                        ).get("degraded_reason"),
+                        "reroute_reason": final_policy.get("reroute_reason"),
+                        "candidate_count": len(
+                            final_policy.get("communication_candidate_edges") or ()
+                        ),
+                        "outcome_count": final_policy.get(
+                            "communication_outcome_count"
+                        ),
+                    },
+                    sort_keys=True,
                 )
+            )
+
+    formal_strongest_required = bool(
+        state.metadata.get("formal_benchmark")
+        or state.metadata.get("sealed_autonomous")
+    )
+    revalidated_nodes_value = state.metadata.get(
+        "phase2_topology_revalidated_route_nodes"
+    )
+    revalidated_nodes = {
+        str(item)
+        for item in (
+            revalidated_nodes_value
+            if isinstance(revalidated_nodes_value, (list, tuple, set))
+            else ()
+        )
+        if str(item)
+    }
+    revalidation_already_attempted = node.node_id in revalidated_nodes
+    needs_bounded_revalidation = bool(
+        formal_strongest_required
+        and isinstance(final_policy, Mapping)
+        and final_policy.get("used_baseline") is True
+        and final_policy.get("committed") is not True
+        and final_policy.get("communication_outcome_coverage_complete") is True
+        and not revalidation_already_attempted
+    )
+    if needs_bounded_revalidation:
+        revalidated_nodes.add(node.node_id)
+        state.metadata["phase2_topology_revalidated_route_nodes"] = sorted(
+            revalidated_nodes
+        )
+        state.metadata["phase2_topology_revalidation_count"] = int(
+            state.metadata.get("phase2_topology_revalidation_count") or 0
+        ) + 1
+        revalidation_cause = _policy_reroute_cause_event(
+            state,
+            node,
+            events,
+            reason="revalidate_strongest_after_covered_baseline",
+        )
+        events.append(revalidation_cause)
+        decision, route_event = router.route(
+            state,
+            node=target,
+            route_type="worker_route",
+            cause_event=revalidation_cause,
+        )
+        decision.checks = [to_jsonable(result) for result in route_checks]
+        route_event.payload["decision"] = to_jsonable(decision)
+        events.append(route_event)
+        resource_event = _resource_decision_event_from_route(route_event)
+        if resource_event is not None:
+            events.append(resource_event)
+        final_policy = route_event.payload.get("topology_policy")
+    if formal_strongest_required and (
+        not isinstance(final_policy, Mapping)
+        or final_policy.get("used_baseline") is True
+        or final_policy.get("committed") is not True
+        or final_policy.get("reroute_required") is True
+    ):
+        policy_value = (
+            final_policy if isinstance(final_policy, Mapping) else {}
+        )
+        operator_selection = policy_value.get("operator_selection")
+        operator_selection = (
+            operator_selection
+            if isinstance(operator_selection, Mapping)
+            else {}
+        )
+        raise RuntimeError(
+            "formal strongest topology remained uncommitted after bounded revalidation: "
+            + json.dumps(
+                {
+                    "degraded_reason": policy_value.get("degraded_reason"),
+                    "operator_degraded_reason": operator_selection.get(
+                        "degraded_reason"
+                    ),
+                    "execution_degraded_reason": (
+                        policy_value.get("execution_receipt") or {}
+                    ).get("degraded_reason"),
+                    "topology_degraded_reason": (
+                        policy_value.get("topology_result") or {}
+                    ).get("degraded_reason"),
+                    "candidate_count": len(
+                        policy_value.get("communication_candidate_edges") or ()
+                    ),
+                    "outcome_count": policy_value.get(
+                        "communication_outcome_count"
+                    ),
+                    "coverage_complete": policy_value.get(
+                        "communication_outcome_coverage_complete"
+                    ),
+                    "reroute_reason": policy_value.get("reroute_reason"),
+                    "revalidation_already_attempted": (
+                        revalidation_already_attempted
+                        or needs_bounded_revalidation
+                    ),
+                    "revalidation_count": int(
+                        state.metadata.get("phase2_topology_revalidation_count")
+                        or 0
+                    ),
+                },
+                sort_keys=True,
+            )
+        )
 
     node.status = PlanNodeStatus.COMPLETED
     node.updated_at = now_iso()
@@ -1445,6 +1562,8 @@ def _policy_reroute_cause_event(
     state: TaskState,
     route_node: PlanNode,
     events: list[EventRecord],
+    *,
+    reason: str = "consume_completed_communication_window",
 ) -> EventRecord:
     prior_route_refs = tuple(
         item.event_id
@@ -1467,7 +1586,7 @@ def _policy_reroute_cause_event(
             "target_stage": "route",
             "source_event_refs": list(prior_route_refs),
             "acknowledged": True,
-            "reason": "consume_completed_communication_window",
+            "reason": reason,
             "canonical_owner": "TaskGraphRuntime/EventRecord",
         },
     )

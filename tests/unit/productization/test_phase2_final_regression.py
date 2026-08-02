@@ -194,20 +194,28 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
-    target = "b" * 40
+    target = "d" * 40
     first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
+    second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
-    target_statuses = "\n".join(
-        f"M\t{path}" for path in MODULE.SUPPLEMENT_ALLOWED_PATHS
+    second_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS
+    )
+    final_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     cumulative_paths = tuple(
         dict.fromkeys(
-            (*MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS, *MODULE.SUPPLEMENT_ALLOWED_PATHS)
+            (
+                *MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
+            )
         )
     )
     cumulative_statuses = "\n".join(
@@ -217,18 +225,20 @@ def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
             commit = arguments[-1]
-            parent = (
-                MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
-                if commit == first
-                else first
-            )
+            parent = {
+                first: MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT,
+                second: first,
+                target: second,
+            }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
             revisions = arguments[-2:]
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, first):
                 return first_statuses
-            if revisions == (first, target):
-                return target_statuses
+            if revisions == (first, second):
+                return second_statuses
+            if revisions == (second, target):
+                return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
             raise AssertionError(arguments)
@@ -237,7 +247,8 @@ def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
             blob = {
                 MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT: "a" * 40,
                 first: "b" * 40,
-                target: "c" * 40,
+                second: "c" * 40,
+                target: "d" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -256,8 +267,9 @@ def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
     assert delta["direct_single_parent"] is False
     assert delta["linear_single_parent_chain"] is True
     assert delta["required_first_commit"] == first
-    assert delta["commit_chain"] == [first, target]
-    assert delta["commit_count"] == 2
+    assert delta["required_second_commit"] == second
+    assert delta["commit_chain"] == [first, second, target]
+    assert delta["commit_count"] == 3
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -267,7 +279,10 @@ def test_supplement_delta_is_two_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][1]["allowed_paths"] == list(
-        MODULE.SUPPLEMENT_ALLOWED_PATHS
+        MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][2]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
     assert delta["production_or_configuration_changed"] is True
@@ -291,7 +306,7 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact two-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact three-commit remediation chain"):
         MODULE._supplement_target_delta(target_commit=target)
 
 
