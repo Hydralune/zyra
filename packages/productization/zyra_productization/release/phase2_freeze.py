@@ -97,6 +97,12 @@ FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT = (
 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT = (
     "0831eb5cc2c3dd771520d929ca0bd8e5485fd201"
 )
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT = (
+    "3ed043bb48c88a9194d3ca80351c3b6f7ec089d1"
+)
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT = (
+    "de0d2f32fa1e6502c2d89d4a8f942424eeff89df"
+)
 FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -163,11 +169,21 @@ FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
-FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS = (
     "apps/api/zyra_api/live_scenario_owners.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
     "tests/integration/test_scenario_runner_api_main_path.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS = (
+    "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py",
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
@@ -2766,6 +2782,8 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT,
             target,
         )
         expected_parents = (
@@ -2778,6 +2796,8 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT,
         )
         exact_chain = True
         for commit, expected_parent in zip(
@@ -2790,7 +2810,9 @@ class Phase2FreezeAuditor:
             ).split()
             if parents != [commit, expected_parent]:
                 exact_chain = False
-                blockers.append("supplement_target_not_exact_nine_commit_chain")
+                blockers.append(
+                    "supplement_target_not_exact_eleven_commit_chain"
+                )
                 break
         segment_allowlists = (
             FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
@@ -2801,6 +2823,8 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
         )
         cumulative_allowed = tuple(
@@ -2814,6 +2838,8 @@ class Phase2FreezeAuditor:
                     *FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
                 )
             )
@@ -3003,6 +3029,12 @@ class Phase2FreezeAuditor:
             ),
             "required_eighth_commit": (
                 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+            ),
+            "required_ninth_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT
+            ),
+            "required_tenth_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
             ),
             "commit_count": len(commit_chain),
             "commit_chain": list(commit_chain),

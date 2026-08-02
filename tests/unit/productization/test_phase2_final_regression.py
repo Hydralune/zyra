@@ -194,7 +194,7 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_eleven_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
     target = "9" * 40
@@ -206,6 +206,8 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
     sixth = MODULE.SUPPLEMENT_REQUIRED_SIXTH_COMMIT
     seventh = MODULE.SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
     eighth = MODULE.SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+    ninth = MODULE.SUPPLEMENT_REQUIRED_NINTH_COMMIT
+    tenth = MODULE.SUPPLEMENT_REQUIRED_TENTH_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
@@ -230,6 +232,12 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
     eighth_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS
     )
+    ninth_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_NINTH_ALLOWED_PATHS
+    )
+    tenth_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_TENTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
@@ -244,6 +252,8 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
                 *MODULE.SUPPLEMENT_SIXTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_NINTH_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_TENTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -264,7 +274,9 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
                 sixth: fifth,
                 seventh: sixth,
                 eighth: seventh,
-                target: eighth,
+                ninth: eighth,
+                tenth: ninth,
+                target: tenth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -285,7 +297,11 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
                 return seventh_statuses
             if revisions == (seventh, eighth):
                 return eighth_statuses
-            if revisions == (eighth, target):
+            if revisions == (eighth, ninth):
+                return ninth_statuses
+            if revisions == (ninth, tenth):
+                return tenth_statuses
+            if revisions == (tenth, target):
                 return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
@@ -302,6 +318,8 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
                 sixth: "6" * 40,
                 seventh: "7" * 40,
                 eighth: "8" * 40,
+                ninth: "1" * 40,
+                tenth: "2" * 40,
                 target: "9" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
@@ -328,6 +346,8 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
     assert delta["required_sixth_commit"] == sixth
     assert delta["required_seventh_commit"] == seventh
     assert delta["required_eighth_commit"] == eighth
+    assert delta["required_ninth_commit"] == ninth
+    assert delta["required_tenth_commit"] == tenth
     assert delta["commit_chain"] == [
         first,
         second,
@@ -337,9 +357,11 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
         target,
     ]
-    assert delta["commit_count"] == 9
+    assert delta["commit_count"] == 11
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -370,6 +392,12 @@ def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][8]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_NINTH_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][9]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_TENTH_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][10]["allowed_paths"] == list(
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
@@ -394,7 +422,7 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact nine-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact eleven-commit remediation chain"):
         MODULE._supplement_target_delta(target_commit=target)
 
 
@@ -423,6 +451,8 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
     sixth = MODULE.SUPPLEMENT_REQUIRED_SIXTH_COMMIT
     seventh = MODULE.SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
     eighth = MODULE.SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+    ninth = MODULE.SUPPLEMENT_REQUIRED_NINTH_COMMIT
+    tenth = MODULE.SUPPLEMENT_REQUIRED_TENTH_COMMIT
     target = "9" * 40
     chain = (
         first,
@@ -433,6 +463,8 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
         target,
     )
     parents = (
@@ -445,6 +477,8 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
     )
     allowlists = (
         MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
@@ -455,6 +489,8 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
         MODULE.SUPPLEMENT_SIXTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_NINTH_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_TENTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))

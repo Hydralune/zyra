@@ -285,7 +285,7 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
-def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
+def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
     monkeypatch,
 ) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
@@ -314,6 +314,12 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
     )
     eighth = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+    )
+    ninth = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT
+    )
+    tenth = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
     )
     first_statuses = "\n".join(
         f"M\t{path}"
@@ -349,6 +355,14 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS
     )
+    ninth_statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS
+    )
+    tenth_statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -364,6 +378,8 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -384,7 +400,9 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
                 sixth: fifth,
                 seventh: sixth,
                 eighth: seventh,
-                target: eighth,
+                ninth: eighth,
+                tenth: ninth,
+                target: tenth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -405,7 +423,11 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
                 return seventh_statuses
             if revisions == (seventh, eighth):
                 return eighth_statuses
-            if revisions == (eighth, target):
+            if revisions == (eighth, ninth):
+                return ninth_statuses
+            if revisions == (ninth, tenth):
+                return tenth_statuses
+            if revisions == (tenth, target):
                 return final_statuses
             if revisions == (source, target):
                 return cumulative_statuses
@@ -422,6 +444,8 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
                 sixth: "6" * 40,
                 seventh: "7" * 40,
                 eighth: "8" * 40,
+                ninth: "1" * 40,
+                tenth: "2" * 40,
                 target: "9" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
@@ -454,6 +478,8 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
     assert audit["required_sixth_commit"] == sixth
     assert audit["required_seventh_commit"] == seventh
     assert audit["required_eighth_commit"] == eighth
+    assert audit["required_ninth_commit"] == ninth
+    assert audit["required_tenth_commit"] == tenth
     assert audit["commit_chain"] == [
         first,
         second,
@@ -463,6 +489,8 @@ def test_supplement_delta_audit_matches_nine_commit_bounded_production_fix(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
         target,
     ]
     assert audit["changed_paths"] == list(cumulative_paths)
@@ -498,7 +526,7 @@ def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
 
     audit = auditor._supplement_delta_audit({}, target=target)
 
-    assert "supplement_target_not_exact_nine_commit_chain" in audit["blockers"]
+    assert "supplement_target_not_exact_eleven_commit_chain" in audit["blockers"]
     assert audit["commit_path_changes"] == []
 
 
@@ -531,6 +559,8 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
     sixth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT
     seventh = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
     eighth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+    ninth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT
+    tenth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
     target = "9" * 40
     chain = (
         first,
@@ -541,6 +571,8 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
         target,
     )
     parents = (
@@ -553,6 +585,8 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         sixth,
         seventh,
         eighth,
+        ninth,
+        tenth,
     )
     allowlists = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
@@ -563,6 +597,8 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))

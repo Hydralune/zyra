@@ -106,6 +106,12 @@ SUPPLEMENT_REQUIRED_SEVENTH_COMMIT = (
 SUPPLEMENT_REQUIRED_EIGHTH_COMMIT = (
     "0831eb5cc2c3dd771520d929ca0bd8e5485fd201"
 )
+SUPPLEMENT_REQUIRED_NINTH_COMMIT = (
+    "3ed043bb48c88a9194d3ca80351c3b6f7ec089d1"
+)
+SUPPLEMENT_REQUIRED_TENTH_COMMIT = (
+    "de0d2f32fa1e6502c2d89d4a8f942424eeff89df"
+)
 SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -172,11 +178,21 @@ SUPPLEMENT_EIGHTH_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
-SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+SUPPLEMENT_NINTH_ALLOWED_PATHS = (
     "apps/api/zyra_api/live_scenario_owners.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
     "tests/integration/test_scenario_runner_api_main_path.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+SUPPLEMENT_TENTH_ALLOWED_PATHS = (
+    "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py",
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+)
+SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
@@ -863,6 +879,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
         SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
         SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
+        SUPPLEMENT_REQUIRED_NINTH_COMMIT,
+        SUPPLEMENT_REQUIRED_TENTH_COMMIT,
         target_commit,
     )
     expected_parents = (
@@ -875,6 +893,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
         SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
         SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
+        SUPPLEMENT_REQUIRED_NINTH_COMMIT,
+        SUPPLEMENT_REQUIRED_TENTH_COMMIT,
     )
     for commit, expected_parent in zip(
         commit_chain,
@@ -884,7 +904,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         parents = _git("rev-list", "--parents", "-n", "1", commit).split()
         if parents != [commit, expected_parent]:
             raise ValueError(
-                "supplement target is not the exact nine-commit remediation chain"
+                "supplement target is not the exact eleven-commit remediation chain"
             )
 
     segment_allowlists = (
@@ -896,6 +916,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         SUPPLEMENT_SIXTH_ALLOWED_PATHS,
         SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
         SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+        SUPPLEMENT_NINTH_ALLOWED_PATHS,
+        SUPPLEMENT_TENTH_ALLOWED_PATHS,
         SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     commit_path_changes: list[dict[str, Any]] = []
@@ -981,6 +1003,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
                 *SUPPLEMENT_SIXTH_ALLOWED_PATHS,
                 *SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
                 *SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
+                *SUPPLEMENT_NINTH_ALLOWED_PATHS,
+                *SUPPLEMENT_TENTH_ALLOWED_PATHS,
                 *SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -1071,6 +1095,8 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         "required_sixth_commit": SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
         "required_seventh_commit": SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
         "required_eighth_commit": SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
+        "required_ninth_commit": SUPPLEMENT_REQUIRED_NINTH_COMMIT,
+        "required_tenth_commit": SUPPLEMENT_REQUIRED_TENTH_COMMIT,
         "commit_count": len(commit_chain),
         "commit_chain": list(commit_chain),
         "commit_path_changes": commit_path_changes,
