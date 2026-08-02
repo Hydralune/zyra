@@ -22,6 +22,8 @@ from zyra_productization.release.phase2_freeze import (
     Phase2FreezeError,
     canonical_digest,
     inspect_release_archive,
+    _contains_external_source_runtime_reference,
+    _read_only_evidence_index_binding,
 )
 from zyra_productization.release import phase2_freeze
 from zyra_productization.release.worktree import inspect_worktree
@@ -96,6 +98,45 @@ def test_release_archive_audit_rejects_vendor_roots_in_every_boundary(
     assert result["release_vendor_root_count"] == 1
     assert result["wheel_vendor_root_count"] == 1
     assert result["sbom_vendor_root_count"] == 1
+
+
+def test_external_source_runtime_scan_detects_references_without_self_match(
+) -> None:
+    assert _contains_external_source_runtime_reference(
+        "source = '../long-horizon-systems/loopx'"
+    )
+    assert _contains_external_source_runtime_reference(
+        r"G:\agent-zoo\long-horizon-systems\loopx"
+    )
+    assert _contains_external_source_runtime_reference(
+        "G:/agent-zoo/long-horizon-systems/loopx"
+    )
+    auditor_source = (
+        ROOT
+        / "packages"
+        / "productization"
+        / "zyra_productization"
+        / "release"
+        / "phase2_freeze.py"
+    ).read_text(encoding="utf-8")
+    assert not _contains_external_source_runtime_reference(auditor_source)
+
+
+def test_read_only_evidence_index_binding_uses_nested_frozen_manifest() -> None:
+    binding = _read_only_evidence_index_binding(
+        {
+            "baseline_manifest_digest": "untrusted-legacy-decoy",
+            "baseline_manifest": {"manifest_digest": "frozen-digest"},
+            "index_digest": "index-digest",
+            "source_runs": [{"run_id": "one"}, {"run_id": "two"}],
+        }
+    )
+
+    assert binding == {
+        "baseline_manifest_digest": "frozen-digest",
+        "evidence_index_digest": "index-digest",
+        "source_run_count": 2,
+    }
 
 
 def _git(path: Path, *arguments: str) -> str:
@@ -285,7 +326,7 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
-def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
+def test_supplement_delta_audit_matches_twelve_commit_bounded_production_fix(
     monkeypatch,
 ) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
@@ -320,6 +361,9 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
     )
     tenth = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
+    )
+    eleventh = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT
     )
     first_statuses = "\n".join(
         f"M\t{path}"
@@ -363,6 +407,10 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS
     )
+    eleventh_statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -380,6 +428,7 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -402,7 +451,8 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
                 eighth: seventh,
                 ninth: eighth,
                 tenth: ninth,
-                target: tenth,
+                eleventh: tenth,
+                target: eleventh,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -427,7 +477,9 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
                 return ninth_statuses
             if revisions == (ninth, tenth):
                 return tenth_statuses
-            if revisions == (tenth, target):
+            if revisions == (tenth, eleventh):
+                return eleventh_statuses
+            if revisions == (eleventh, target):
                 return final_statuses
             if revisions == (source, target):
                 return cumulative_statuses
@@ -446,6 +498,7 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
                 eighth: "8" * 40,
                 ninth: "1" * 40,
                 tenth: "2" * 40,
+                eleventh: "3" * 40,
                 target: "9" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
@@ -480,6 +533,7 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
     assert audit["required_eighth_commit"] == eighth
     assert audit["required_ninth_commit"] == ninth
     assert audit["required_tenth_commit"] == tenth
+    assert audit["required_eleventh_commit"] == eleventh
     assert audit["commit_chain"] == [
         first,
         second,
@@ -491,6 +545,7 @@ def test_supplement_delta_audit_matches_eleven_commit_bounded_production_fix(
         eighth,
         ninth,
         tenth,
+        eleventh,
         target,
     ]
     assert audit["changed_paths"] == list(cumulative_paths)
@@ -526,7 +581,7 @@ def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
 
     audit = auditor._supplement_delta_audit({}, target=target)
 
-    assert "supplement_target_not_exact_eleven_commit_chain" in audit["blockers"]
+    assert "supplement_target_not_exact_twelve_commit_chain" in audit["blockers"]
     assert audit["commit_path_changes"] == []
 
 
@@ -561,6 +616,9 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
     eighth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
     ninth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT
     tenth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
+    eleventh = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT
+    )
     target = "9" * 40
     chain = (
         first,
@@ -573,6 +631,7 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         eighth,
         ninth,
         tenth,
+        eleventh,
         target,
     )
     parents = (
@@ -587,6 +646,7 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         eighth,
         ninth,
         tenth,
+        eleventh,
     )
     allowlists = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
@@ -599,6 +659,7 @@ def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS,
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))

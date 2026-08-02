@@ -103,6 +103,9 @@ FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT = (
 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT = (
     "de0d2f32fa1e6502c2d89d4a8f942424eeff89df"
 )
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT = (
+    "d486f015d6e103867acbc1622d371b060b0ad4ba"
+)
 FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -181,6 +184,12 @@ FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py",
     "tests/scenarios/test_phase2_sealed_long_runs.py",
 )
+FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS = (
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
 FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -250,6 +259,36 @@ def _embedded_digest_ready(value: Mapping[str, Any], field: str) -> bool:
     unsigned = dict(value)
     claimed = str(unsigned.pop(field, ""))
     return bool(claimed) and claimed == canonical_digest(unsigned)
+
+
+def _contains_external_source_runtime_reference(text: str) -> bool:
+    folded = text.casefold()
+    parent_reference = "/".join(("..", "long-horizon-systems"))
+    workspace_reference_parts = ("agent-zoo", "long-horizon-systems")
+    return (
+        parent_reference in folded
+        or "\\".join(workspace_reference_parts) in folded
+        or "/".join(workspace_reference_parts) in folded
+    )
+
+
+def _read_only_evidence_index_binding(
+    index: Mapping[str, Any],
+) -> dict[str, Any]:
+    baseline = index.get("baseline_manifest")
+    baseline = baseline if isinstance(baseline, Mapping) else {}
+    source_runs = index.get("source_runs")
+    source_runs = (
+        source_runs
+        if isinstance(source_runs, Sequence)
+        and not isinstance(source_runs, (str, bytes))
+        else ()
+    )
+    return {
+        "baseline_manifest_digest": baseline.get("manifest_digest"),
+        "evidence_index_digest": index.get("index_digest"),
+        "source_run_count": len(source_runs),
+    }
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
@@ -568,11 +607,7 @@ class Phase2FreezeAuditor:
                 and path.suffix.casefold() in production_suffixes
             ):
                 text = path.read_text(encoding="utf-8", errors="replace")
-                if (
-                    "../long-horizon-systems" in text
-                    or "agent-zoo\\long-horizon-systems" in text.casefold()
-                    or "agent-zoo/long-horizon-systems" in text.casefold()
-                ):
+                if _contains_external_source_runtime_reference(text):
                     runtime_dependency_findings.append(relative)
             if path.name == "package.json":
                 manifest = _load_json(path)
@@ -1300,7 +1335,9 @@ class Phase2FreezeAuditor:
         replay_values = by_schema[
             "zyra.strongest-preflight-phase1-replay-receipt/v1"
         ]
-        replay_index = build_read_only_evidence_index(self.root).to_dict()
+        replay_index = _read_only_evidence_index_binding(
+            build_read_only_evidence_index(self.root).to_dict()
+        )
         expected_replay = {
             "schema": "zyra.strongest-preflight-phase1-replay-receipt/v1",
             "receipt_id": "receipt_phase1_read_only_replay",
@@ -1311,8 +1348,10 @@ class Phase2FreezeAuditor:
             "baseline_manifest_digest": replay_index.get(
                 "baseline_manifest_digest"
             ),
-            "evidence_index_digest": replay_index.get("index_digest"),
-            "source_run_count": len(replay_index.get("source_runs") or ()),
+            "evidence_index_digest": replay_index.get(
+                "evidence_index_digest"
+            ),
+            "source_run_count": replay_index.get("source_run_count"),
             "schema_checked": True,
             "causal_chain_checked": True,
             "deterministic_decision_checked": True,
@@ -2784,6 +2823,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT,
             target,
         )
         expected_parents = (
@@ -2798,6 +2838,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_EIGHTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_NINTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT,
         )
         exact_chain = True
         for commit, expected_parent in zip(
@@ -2811,7 +2852,7 @@ class Phase2FreezeAuditor:
             if parents != [commit, expected_parent]:
                 exact_chain = False
                 blockers.append(
-                    "supplement_target_not_exact_eleven_commit_chain"
+                    "supplement_target_not_exact_twelve_commit_chain"
                 )
                 break
         segment_allowlists = (
@@ -2825,6 +2866,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
         )
         cumulative_allowed = tuple(
@@ -2840,6 +2882,7 @@ class Phase2FreezeAuditor:
                     *FINAL_REGRESSION_SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_NINTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_TENTH_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_ELEVENTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
                 )
             )
@@ -3035,6 +3078,9 @@ class Phase2FreezeAuditor:
             ),
             "required_tenth_commit": (
                 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_TENTH_COMMIT
+            ),
+            "required_eleventh_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_ELEVENTH_COMMIT
             ),
             "commit_count": len(commit_chain),
             "commit_chain": list(commit_chain),
