@@ -1,0 +1,94 @@
+{
+  "schema": "zyra.phase2-slice-post-aggregate-evidence-manifest/v1",
+  "review_id": "P2-S06-03-post-aggregate-technical-revalidation",
+  "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+  "target_tree": "b61f75a2fe00c27bdd3d5d2ce13e08a601344ce7",
+  "verdict": "PASS_AFTER_FIX",
+  "review_artifacts": [
+    {
+      "path": "docs/reviews/evidence/phase2/P2-S06-03/0485261/technical-revalidation.json",
+      "sha256": "6e60002ccbb60054df78ac49d26b4cb4488e44bcd9dfcfb9e0ccd6a1925a902c"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-S06-03/0485261/gate-matrix.json",
+      "sha256": "1352e4402b36d5542a8f448cc2d91c783c5f048059ec4661c9ca02f4d8372553"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-S06-03/0485261/bucket-summary.json",
+      "sha256": "b19871cebd5e7268ed68fc0b145906ddee8d2d182583ea5230cca5acfdcb250f"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-S06-03/0485261/commands.json",
+      "sha256": "ca6f4eff9ec90e187b2779b86d8f69f080420ad58e6f9c2d4b8a295f563659a9"
+    },
+    {
+      "path": "docs/reviews/phase2/P2-S06-03-post-aggregate-technical-review.md",
+      "sha256": "422838dff8b95641b107e47856c34250e18f5215ae4b1f52f0d971faeb15cf49"
+    },
+    {
+      "path": "docs/architecture/phase2/adr/P2-ADR-009.md",
+      "sha256": "f0e7b4aaa1767a28fa04b715874b84b1cf4c6d6521cfa89153410da75248d41e"
+    }
+  ],
+  "formal_external_evidence": [
+    {
+      "path": "docs/evidence/phase2/final/P2-S06-03-user-authorized-completion.json",
+      "sha256": "51f6648c7704baa06c0d99c60a6bfd8e36ea3d650635a66c37c4160a1d37bd90",
+      "role": "historical_override_record"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/preflight/preflight-report.json",
+      "sha256": "f7343a3a59fa9aaf25e82d4a644b730f2360d30d1fa6d2f0be3efb6db8aae274"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/preflight/activation-report.json",
+      "sha256": "60f3fd51ca26c433f4859864980ecc744286999cab70c852324f85b970eeadaf"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/preflight/MechanismEvidenceReadinessReport.json",
+      "sha256": "fbafa433931d3beb3ceae7454b666bd8312ccb14d763eee9ac1fb5cef3f1d925"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/sealed-attempt-01/independent-validation.json",
+      "sha256": "028dd4dc69a213b92eb301aadeb6c63a6090dd3cbd46f142a4b4b40054ef3a0c"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/release-attempt-01/pipeline-report.json",
+      "sha256": "f9de04dab5d71b63ab35045b9e3b839c87a41e4ead46d1a20cf18639cea2b8b1"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/release-attempt-01/phase2-final-0485261-offline-cache-v1.tar.gz",
+      "sha256": "f476a506e7dd60307844d33fee969cdb27336a089ce21c707adb76320ffabefd"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/final-regression-supplement/final-regression-supplement.json",
+      "sha256": "2764a4c39186e5cce23e99da9047a8ce4fe2482ee153681cc97a702e523c1353"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/freeze-inputs/source-language-custody-report.json",
+      "sha256": "fd517a671776aaa4a09f0f8cfed3cacfd33062223a24490f0074b216764c4d0e"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/final-freeze-audit/final-freeze-audit.json",
+      "sha256": "13aa8041f011acf945a5338bd208c159a21c5cc408815bf82c65ec270b1a8257"
+    },
+    {
+      "path": "docs/reviews/phase2/P2-final-independent-review.md",
+      "sha256": "c06d0594fe775723af808057cccd377c23186bc46cea4e558993882c592e798f",
+      "role": "independent_read_only_review"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-06/0485261/evidence-manifest.json",
+      "sha256": "cfb48f6b5826e1db9ac64dbffa2046df9c9c95c053c4fcaf285c93bf9347a0ce",
+      "role": "aggregate_manifest"
+    }
+  ],
+  "failed_attempts_preserved": [
+    "docs/evidence/phase2/final/0485261/preflight-attempt-01"
+  ],
+  "heavy_processes_rerun": false,
+  "historical_override_preserved": true,
+  "independent_review_passed": true,
+  "technical_exit_pass_established": true,
+  "phase2_completion_remains_valid": true
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "zyra.phase2-slice-post-aggregate-command-evidence/v1",
+  "slice_id": "P2-S06-03",
+  "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+  "commands": [
+    {
+      "name": "git_identity_and_ancestry",
+      "scope": "target commit, target tree, evidence-head ancestry and tracked worktree",
+      "result": "target/tree exact; target is ancestor of evidence head; tracked worktree clean before review edits",
+      "status": "passed"
+    },
+    {
+      "name": "structured_terminal_evidence_crosscheck",
+      "scope": "final regression, preflight, activation, sealed, release, custody and final freeze JSON",
+      "result": "14/14 composite checks passed",
+      "status": "passed"
+    },
+    {
+      "name": "aggregate_evidence_manifest_rehash",
+      "scope": "all review and formal external artifacts listed by the P2-06 manifest",
+      "result": "14/14 SHA-256 values matched",
+      "status": "passed"
+    },
+    {
+      "name": "phase2_policy_contract_validation",
+      "scope": "frozen P2-ADR-001 through P2-ADR-008 and strongest activation contracts",
+      "result": "valid=true; strongest_activation_eligible=true; all mechanism statuses deterministic_ready",
+      "status": "passed"
+    },
+    {
+      "name": "governance_fix_diff_check",
+      "scope": "P2-ADR-009",
+      "result": "git diff --cached --check passed before governance commit",
+      "status": "passed"
+    },
+    {
+      "name": "heavy_execution_decision",
+      "scope": "full regression, preflight, sealed and cleanroom",
+      "result": "not rerun because exact target-bound evidence or validated strict-reuse evidence already exists",
+      "status": "passed",
+      "heavy_processes_rerun": false
+    }
+  ]
+}

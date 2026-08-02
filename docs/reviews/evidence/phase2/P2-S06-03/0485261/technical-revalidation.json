@@ -1,0 +1,128 @@
+{
+  "schema": "zyra.phase2-slice-post-aggregate-technical-revalidation/v1",
+  "review_id": "P2-S06-03-post-aggregate-technical-revalidation",
+  "date": "2026-08-03",
+  "mode": "audit_and_fix",
+  "scope": {
+    "slice_id": "P2-S06-03",
+    "historical_record_preserved": true,
+    "technical_revalidation_is_additive": true,
+    "duplicate_heavy_execution_forbidden": true
+  },
+  "commits": {
+    "slice_base": "a312129f2b358e534321c4ec58989f4674dc8a7f",
+    "historical_user_override_target": "b63093e41b5b54be97eb6f60152a5bf2fe0af605",
+    "historical_evidence_commit": "8c1a49464870a399b3cf0e3828ce43e5517bd231",
+    "final_technical_target": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+    "final_technical_tree": "b61f75a2fe00c27bdd3d5d2ce13e08a601344ce7",
+    "aggregate_evidence_commit": "14edfd56b9b50c81333a1d4076f1603ebb626509",
+    "governance_fix_commit": "538debf5b783afab4387981ca3153d5cb1fcc7c3",
+    "evidence_commit": "SELF"
+  },
+  "historical_closure": {
+    "status": "completed_after_user_authorized_override",
+    "completion_basis": "explicit_user_authorized_override",
+    "execution_state_sha256_before_additive_update": "0e89898c85f68a1339be6a0b678a9dac1ee99e047f9916888025c28fc5a56125",
+    "completion_evidence_sha256": "51f6648c7704baa06c0d99c60a6bfd8e36ea3d650635a66c37c4160a1d37bd90",
+    "final_regression_report_present": false,
+    "target_bound_sealed_rerun_completed": false,
+    "target_bound_preflight_rerun_completed": false,
+    "independent_review_passed": false,
+    "all_slice_hard_gates_passed": false,
+    "technical_exit_pass_established": false,
+    "record_modified_by_this_review": false
+  },
+  "verdict": "PASS_AFTER_FIX",
+  "technical_exit_pass_established": true,
+  "severity_counts": {
+    "p0_open": 0,
+    "p1_open": 0,
+    "p2_open": 0,
+    "p2_fixed": 3
+  },
+  "findings": [
+    {
+      "id": "P2-S06-03-R01",
+      "severity": "P2",
+      "finding": "The historical P2-S00-02 LoopX ADR described version 0.2.4 and an offline-wheel package boundary rather than the final 0.2.13 embedded-source product.",
+      "disposition": "fixed",
+      "fix": "P2-ADR-009 supersedes the old product identity while preserving all frozen ADR bytes and digests."
+    },
+    {
+      "id": "P2-S06-03-R02",
+      "severity": "P2",
+      "finding": "P2-ADR-008 compressed strict regression reuse into wording that implied every full suite was rerun at the final target.",
+      "disposition": "fixed",
+      "fix": "P2-ADR-009 records the exact origin, direct-resume, 12-commit supplement-chain, and target-local 250-test provenance."
+    },
+    {
+      "id": "P2-S06-03-R03",
+      "severity": "P2",
+      "finding": "The final readiness artifact retains implementation-stage MaAS activation_allowed/deferred_to fields inside the copied source-mechanism payload.",
+      "disposition": "fixed_by_authoritative_field_clarification",
+      "fix": "The post-aggregate review records those nested values as source-stage provenance. Final authority is the top-level activation_allowed=true, mechanism status deterministic_ready, readiness stage activation_ready, activation report default_activation_allowed=true, and completed preflight."
+    }
+  ],
+  "hard_gate_results": {
+    "historical_override_record_unchanged": true,
+    "target_commit_exact": true,
+    "target_tree_exact": true,
+    "target_is_ancestor_of_evidence_head": true,
+    "full_regression_14_of_14": true,
+    "strict_reuse_chain_valid": true,
+    "target_supplement_passed": true,
+    "preflight_16_of_16": true,
+    "failure_receipts_31_of_31_retained": true,
+    "default_activation_allowed": true,
+    "sealed_candidate_exact": true,
+    "sealed_two_runs_valid": true,
+    "sealed_minimum_2000_transitions_each": true,
+    "sealed_invalid_transitions_zero": true,
+    "sealed_human_interventions_zero": true,
+    "release_admission_14_of_14": true,
+    "cleanroom_ready": true,
+    "release_rebuilds_byte_identical": true,
+    "source_language_custody_clean": true,
+    "openclaw_change_count_zero": true,
+    "final_freeze_13_of_13": true,
+    "independent_review_passed": true,
+    "evidence_manifest_rehash_14_of_14": true
+  },
+  "formal_evidence": {
+    "full_regression_origin_target": "f5a5036e9e2d05dc4e7b84b023b31d9ad18ef923",
+    "direct_resume_target": "7995b64e8fd48028f1e12d4c60a23f6df4784a2e",
+    "final_regression_supplement_sha256": "2764a4c39186e5cce23e99da9047a8ce4fe2482ee153681cc97a702e523c1353",
+    "final_regression_receipt_digest": "edbdd5bc7c62915827eedb16288c8044303dd074279e14830306653ada5279cc",
+    "preflight_report_sha256": "f7343a3a59fa9aaf25e82d4a644b730f2360d30d1fa6d2f0be3efb6db8aae274",
+    "preflight_report_digest": "036d48d9d4106691b0dc93608f1374351d2447c81b54b18a549059e60f254d36",
+    "activation_report_sha256": "60f3fd51ca26c433f4859864980ecc744286999cab70c852324f85b970eeadaf",
+    "sealed_independent_validation_sha256": "028dd4dc69a213b92eb301aadeb6c63a6090dd3cbd46f142a4b4b40054ef3a0c",
+    "sealed_validation_digest": "6ef8f56cc5551c5e1f572c64da708f97717696cf2021f3203ec861810cc9cdc1",
+    "sealed_effective_transitions": [3144, 7437],
+    "release_pipeline_sha256": "f9de04dab5d71b63ab35045b9e3b839c87a41e4ead46d1a20cf18639cea2b8b1",
+    "release_archive_sha256": "f476a506e7dd60307844d33fee969cdb27336a089ce21c707adb76320ffabefd",
+    "source_custody_sha256": "fd517a671776aaa4a09f0f8cfed3cacfd33062223a24490f0074b216764c4d0e",
+    "final_freeze_sha256": "13aa8041f011acf945a5338bd208c159a21c5cc408815bf82c65ec270b1a8257",
+    "final_freeze_report_digest": "185e5b227370aa3fb5b0163add38657a0300c5c1d072c99ab0d027171057b918"
+  },
+  "independent_review": {
+    "path": "docs/reviews/phase2/P2-final-independent-review.md",
+    "sha256": "c06d0594fe775723af808057cccd377c23186bc46cea4e558993882c592e798f",
+    "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+    "verdict": "PASS",
+    "p0_open": 0,
+    "p1_open": 0,
+    "p2_open": 0,
+    "reused_without_heavy_rerun": true
+  },
+  "execution_policy": {
+    "heavy_processes_rerun": false,
+    "sealed_rerun": false,
+    "full_regression_rerun": false,
+    "cleanroom_rerun": false,
+    "preflight_rerun": false,
+    "reason": "Every heavy receipt exactly matches the final technical target or is admitted through the already-validated strict regression-reuse chain."
+  },
+  "phase2_completion_remains_valid": true,
+  "residual_blockers": []
+}
