@@ -24,6 +24,7 @@ from zyra_evaluation.policy_benchmark.sealed_long_run import (
 from zyra_evaluation.policy_benchmark.sealed_physical import (
     SealedPhysicalDispatchError,
     _receipt_evidence,
+    _sealed_route_projection,
 )
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
 from zyra_evaluation.scenario_runner.errors import ScenarioRunnerError
@@ -31,6 +32,8 @@ from zyra_evaluation.scenario_runner.dual_domain import CanonicalEventBuilder
 from zyra_evaluation.scenario_runner.research_delivery import (
     LiveHttpSourceAcquirer,
 )
+from zyra_orchestration.deployment.errors import DispatchRejected
+from zyra_orchestration.deployment.node_runtime import DeploymentNodeRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -593,6 +596,48 @@ def test_physical_receipt_contract_envelope_is_flattened_for_evidence() -> None:
         match="contract payload is missing",
     ):
         _receipt_evidence({"digest": "b" * 64})
+
+
+def test_sealed_route_projection_binds_route_without_forwarding_fence_token() -> None:
+    route = {
+        "schema": "zyra.live-scheduler-route/v1",
+        "route_id": "route-test",
+        "lease_id": "lease-test",
+        "fence_token_digest": "a" * 64,
+    }
+
+    with pytest.raises(DispatchRejected) as direct:
+        DeploymentNodeRuntime._reject_secret_payload({"canonical_route": route})
+    assert direct.value.code == "node_secret_payload_rejected"
+    assert direct.value.details == {
+        "path": "canonical_route.fence_token_digest"
+    }
+
+    projection = _sealed_route_projection(route)
+
+    DeploymentNodeRuntime._reject_secret_payload(projection)
+    assert projection["canonical_route"] == {
+        "schema": "zyra.live-scheduler-route/v1",
+        "route_id": "route-test",
+        "lease_id": "lease-test",
+    }
+    assert projection["canonical_route_digest"] == canonical_digest(route)
+    assert projection["canonical_route_redacted_fields"] == [
+        "fence_token_digest"
+    ]
+    changed_fence = _sealed_route_projection(
+        {**route, "fence_token_digest": "b" * 64}
+    )
+    assert changed_fence["canonical_route"] == projection["canonical_route"]
+    assert changed_fence["canonical_route_digest"] != projection[
+        "canonical_route_digest"
+    ]
+    null_fence = _sealed_route_projection(
+        {**route, "fence_token_digest": None}
+    )
+    assert null_fence["canonical_route_redacted_fields"] == [
+        "fence_token_digest"
+    ]
 
 
 def test_live_research_redirects_stay_inside_frozen_host_allowlist(

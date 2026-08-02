@@ -285,6 +285,52 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
+def test_supplement_delta_audit_matches_direct_bounded_production_fix(
+    monkeypatch,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    target = "d" * 40
+    source = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
+    statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS
+    )
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            return f"{target} {source}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            return statuses
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            blob = "a" * 40 if revision == source else "b" * 40
+            return f"100644 blob {blob}\t{arguments[-1]}"
+        if arguments[:1] == ("rev-parse",):
+            return "c" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+    observed = auditor._supplement_delta_audit({}, target=target)
+    supplied = {
+        key: value
+        for key, value in observed.items()
+        if key not in {"ready", "blockers"}
+    }
+    audit = auditor._supplement_delta_audit(supplied, target=target)
+
+    assert audit["ready"] is True
+    assert audit["changed_paths"] == list(
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS
+    )
+    assert audit["bounded_production_change"] is True
+    assert audit["production_or_configuration_changed"] is True
+
+
 def test_resume_delta_audit_rejects_transient_mode_change(monkeypatch) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
     source = "a" * 40

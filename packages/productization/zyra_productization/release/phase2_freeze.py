@@ -67,6 +67,30 @@ FINAL_REGRESSION_RESUME_ALLOWED_PATHS = (
 FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT = (
     "363e011ff899e76cdb2c16e7246294f333cb5b9f"
 )
+FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET = (
+    "7995b64e8fd48028f1e12d4c60a23f6df4784a2e"
+)
+FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256 = (
+    "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4"
+)
+FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS = (
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_TESTS = (
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+    "tests/unit/test_deployment_profiles_runtime.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_RERUN_IDS = (
+    "phase2-policy-contracts",
+    "internalization-ledger",
+)
 LOOPX_CROSS_VERSION_BASE_COMMIT = "3c4d1092187b1777468cad0ce2a772244d012197"
 TYPESCRIPT_RUNTIME_TEST_ROOTS = (
     "packages/commands/test",
@@ -2622,6 +2646,122 @@ class Phase2FreezeAuditor:
             blockers.append("target_delta_receipt_mismatch")
         return {"ready": not blockers, "blockers": blockers, **observed}
 
+    def _supplement_delta_audit(
+        self,
+        supplied: Mapping[str, Any],
+        *,
+        target: str,
+    ) -> dict[str, Any]:
+        self._require_full_commit(target, label="supplement target")
+        source = FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
+        allowed = set(FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS)
+        blockers: list[str] = []
+        parents = self._git("rev-list", "--parents", "-n", "1", target).split()
+        exact_parent = parents == [target, source]
+        status_lines: tuple[str, ...] = ()
+        changed_paths: list[str] = []
+        transitions: list[dict[str, str]] = []
+        diff = b""
+        if not exact_parent:
+            blockers.append("supplement_target_not_direct_child")
+        else:
+            status_lines = tuple(
+                line
+                for line in self._git(
+                    "diff",
+                    "--name-status",
+                    "--no-renames",
+                    source,
+                    target,
+                ).splitlines()
+                if line
+            )
+            if not status_lines:
+                blockers.append("supplement_target_delta_missing")
+            for line in status_lines:
+                status, separator, path = line.partition("\t")
+                if separator != "\t" or status != "M" or path not in allowed:
+                    blockers.append(f"forbidden_supplement_change:{line}")
+                    continue
+                source_entry = self._git("ls-tree", source, "--", path).split()
+                target_entry = self._git("ls-tree", target, "--", path).split()
+                if (
+                    len(source_entry) < 3
+                    or len(target_entry) < 3
+                    or source_entry[0] != target_entry[0]
+                    or source_entry[0] not in {"100644", "100755"}
+                    or source_entry[1] != "blob"
+                    or target_entry[1] != "blob"
+                ):
+                    blockers.append(f"supplement_mode_or_type:{path}")
+                    continue
+                changed_paths.append(path)
+                transitions.append(
+                    {
+                        "path": path,
+                        "mode": source_entry[0],
+                        "source_blob": source_entry[2],
+                        "target_blob": target_entry[2],
+                    }
+                )
+            if set(changed_paths) != allowed or len(changed_paths) != len(allowed):
+                blockers.append("supplement_required_delta_incomplete")
+            diff = subprocess.run(
+                ["git", "diff", "--binary", "--no-renames", source, target],
+                cwd=self.root,
+                check=True,
+                capture_output=True,
+            ).stdout
+        allowlist_payload = json.dumps(
+            FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        diff_sha = hashlib.sha256(diff).hexdigest() if exact_parent else ""
+        observed = {
+            "source_target_commit": source,
+            "source_target_tree": (
+                self._git("rev-parse", f"{source}^{{tree}}").strip()
+                if exact_parent
+                else ""
+            ),
+            "target_commit": target,
+            "target_tree": (
+                self._git("rev-parse", f"{target}^{{tree}}").strip()
+                if exact_parent
+                else ""
+            ),
+            "direct_single_parent": exact_parent,
+            "linear_single_parent_chain": exact_parent,
+            "commit_count": 1,
+            "commit_chain": [target],
+            "commit_path_changes": (
+                [
+                    {
+                        "commit": target,
+                        "parent": source,
+                        "change_statuses": list(status_lines),
+                        "blob_transitions": transitions,
+                        "diff_sha256": diff_sha,
+                    }
+                ]
+                if exact_parent
+                else []
+            ),
+            "changed_paths": changed_paths,
+            "change_statuses": list(status_lines),
+            "blob_transitions": transitions,
+            "allowed_paths": list(FINAL_REGRESSION_SUPPLEMENT_ALLOWED_PATHS),
+            "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
+            "diff_sha256": diff_sha,
+            "production_or_configuration_changed": True,
+            "bounded_production_change": True,
+            "rename_symlink_or_submodule_changed": False,
+        }
+        if dict(supplied) != observed:
+            blockers.append("supplement_delta_receipt_mismatch")
+        return {"ready": not blockers, "blockers": sorted(set(blockers)), **observed}
+
     def _resume_receipt_ready(
         self,
         path: Path,
@@ -2630,6 +2770,7 @@ class Phase2FreezeAuditor:
         target: str,
         actual_receipt_sha256: str,
         expected_receipt_sha256: str,
+        require_current_boundary: bool = True,
     ) -> dict[str, Any]:
         self._require_full_commit(target, label="resume target")
         blockers: list[str] = []
@@ -2968,6 +3109,291 @@ class Phase2FreezeAuditor:
         target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
         before = value.get("worktree_boundary_before")
         after = value.get("worktree_boundary_after")
+        current = (
+            inspect_worktree(self.root, expected_head=target)
+            if require_current_boundary
+            else None
+        )
+        boundaries_ready = (
+            isinstance(before, Mapping)
+            and isinstance(after, Mapping)
+            and self._regression_boundary_ready(
+                before,
+                target=target,
+                target_tree=target_tree,
+            )
+            and self._regression_boundary_ready(
+                after,
+                target=target,
+                target_tree=target_tree,
+            )
+            and (
+                not require_current_boundary
+                or (
+                    isinstance(current, Mapping)
+                    and self._regression_boundary_ready(
+                        current,
+                        target=target,
+                        target_tree=target_tree,
+                    )
+                )
+            )
+        )
+        if not boundaries_ready:
+            blockers.append("resume_target_boundary")
+        return {
+            "schema": value.get("schema"),
+            "target_commit": value.get("target_commit"),
+            "target_matches": value.get("target_commit") == target,
+            "command_count": len(logical),
+            "all_commands_passed": len(logical) == len(FINAL_REGRESSION_COMMAND_IDS)
+            and all(item.get("ready") is True for item in logical),
+            "source_boundary_ready": source_audit.get("ready") is True,
+            "current_source_boundary_ready": boundaries_ready,
+            "current_target_boundary_required": require_current_boundary,
+            "receipt_sha256": actual_receipt_sha256,
+            "external_receipt_digest_required": True,
+            "external_receipt_digest_matches": actual_receipt_sha256 == expected_digest,
+            "source_receipt_audit": source_audit,
+            "target_delta_audit": delta_audit,
+            "loopx_result_ready": loopx_ready,
+            "loopx_base_boundary_before": base_boundary_before_audit,
+            "loopx_base_boundary_after": base_boundary_after_audit,
+            "blockers": sorted(set(blockers)),
+            "ready": value.get("ready") is True and not blockers,
+        }
+
+    def _supplement_receipt_ready(
+        self,
+        path: Path,
+        value: Mapping[str, Any],
+        *,
+        target: str,
+        actual_receipt_sha256: str,
+        expected_receipt_sha256: str,
+    ) -> dict[str, Any]:
+        blockers: list[str] = []
+        expected_digest = expected_receipt_sha256.strip().casefold()
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_digest)
+            or actual_receipt_sha256 != expected_digest
+        ):
+            blockers.append("supplement_external_receipt_digest")
+        source_sha = str(value.get("source_receipt_sha256") or "").casefold()
+        if source_sha != FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256:
+            blockers.append("supplement_source_anchor")
+        try:
+            source_path = _member(
+                self.root,
+                value.get("source_receipt"),
+                repository_relative=True,
+            )
+            source_raw = source_path.read_bytes()
+            source_actual_sha = hashlib.sha256(source_raw).hexdigest()
+            source_value = json.loads(source_raw.decode("utf-8"))
+            if not isinstance(source_value, Mapping):
+                raise Phase2FreezeError("supplement source receipt is not an object")
+            source_audit = self._resume_receipt_ready(
+                source_path,
+                source_value,
+                target=FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET,
+                actual_receipt_sha256=source_actual_sha,
+                expected_receipt_sha256=FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256,
+                require_current_boundary=False,
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, Phase2FreezeError):
+            source_value = {}
+            source_audit = {
+                "ready": False,
+                "blockers": ["supplement_source_receipt"],
+            }
+            blockers.append("supplement_source_receipt")
+        if source_audit.get("ready") is not True:
+            blockers.append("supplement_source_receipt_not_ready")
+        if (
+            value.get("source_target_commit")
+            != FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
+            or value.get("source_target_tree")
+            != self._git(
+                "rev-parse",
+                f"{FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET}^{{tree}}",
+            ).strip()
+            or value.get("source_receipt_digest")
+            != source_value.get("receipt_digest")
+        ):
+            blockers.append("supplement_source_cross_binding")
+        delta_value = value.get("target_delta")
+        delta_audit = self._supplement_delta_audit(
+            delta_value if isinstance(delta_value, Mapping) else {},
+            target=target,
+        )
+        if delta_audit["ready"] is not True:
+            blockers.extend(delta_audit["blockers"])
+        loopx_base = Path(str(value.get("loopx_base_checkout") or "."))
+        base_before_value = value.get("loopx_base_boundary_before")
+        base_after_value = value.get("loopx_base_boundary_after")
+        base_before = self._loopx_base_boundary_audit(
+            base_before_value if isinstance(base_before_value, Mapping) else {},
+            loopx_base,
+        )
+        live_base = base_before["observed"]
+        base_after_supplied = (
+            dict(base_after_value) if isinstance(base_after_value, Mapping) else {}
+        )
+        base_after = {
+            "ready": live_base.get("ready") is True
+            and base_after_supplied == live_base,
+            "supplied_matches": base_after_supplied == live_base,
+            "observed": live_base,
+        }
+        if (
+            base_before.get("ready") is not True
+            or base_after.get("ready") is not True
+            or base_before_value != base_after_value
+        ):
+            blockers.append("supplement_loopx_base_boundary")
+        if not self._roots_are_disjoint(path.parent, loopx_base):
+            blockers.append("supplement_loopx_base_output_overlap")
+        expected_full = self._expected_regression_commands(
+            output_root=path.parent,
+            target=target,
+            loopx_base_checkout=loopx_base,
+        )
+        targeted_argv = (
+            str(Path(sys.executable).resolve()),
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp",
+            str(path.parent / "supplement-pytest"),
+            *(
+                str(self.root / relative)
+                for relative in FINAL_REGRESSION_SUPPLEMENT_TESTS
+            ),
+        )
+        expected_reruns = {
+            "supplement-targeted-python": targeted_argv,
+            **{
+                command_id: expected_full[command_id]
+                for command_id in FINAL_REGRESSION_SUPPLEMENT_RERUN_IDS
+            },
+        }
+        reruns_value = value.get("rerun_commands")
+        reruns = (
+            tuple(item for item in reruns_value if isinstance(item, Mapping))
+            if isinstance(reruns_value, Sequence)
+            and not isinstance(reruns_value, (str, bytes))
+            else ()
+        )
+        if tuple(str(item.get("command_id") or "") for item in reruns) != tuple(
+            expected_reruns
+        ):
+            blockers.append("supplement_rerun_set")
+        if value.get("remediation_command_ids") != ["supplement-targeted-python"]:
+            blockers.append("supplement_remediation_set")
+        rerun_by_id: dict[str, Mapping[str, Any]] = {}
+        for item in reruns:
+            command_id = str(item.get("command_id") or "")
+            argv_value = item.get("argv")
+            argv = (
+                tuple(str(part) for part in argv_value)
+                if isinstance(argv_value, Sequence)
+                and not isinstance(argv_value, (str, bytes))
+                else ()
+            )
+            if argv != expected_reruns.get(command_id):
+                blockers.append(f"supplement_command_argv:{command_id}")
+            try:
+                cwd_ready = Path(str(item.get("cwd") or "")).resolve() == self.root
+            except OSError:
+                cwd_ready = False
+            if (
+                not cwd_ready
+                or item.get("ready") is not True
+                or int(item.get("returncode") or 0) != 0
+            ):
+                blockers.append(f"supplement_command_failed:{command_id}")
+            for field in ("stdout", "stderr"):
+                try:
+                    member = _member(path.parent, item.get(field))
+                except Phase2FreezeError:
+                    blockers.append(f"supplement_command_log:{command_id}:{field}")
+                    continue
+                if sha256_file(member) != item.get(f"{field}_sha256"):
+                    blockers.append(
+                        f"supplement_command_log_digest:{command_id}:{field}"
+                    )
+            rerun_by_id[command_id] = item
+        source_logical_value = source_value.get("logical_gates")
+        source_logical = {
+            str(item.get("command_id") or ""): item
+            for item in source_logical_value
+            if isinstance(item, Mapping)
+        } if (
+            isinstance(source_logical_value, Sequence)
+            and not isinstance(source_logical_value, (str, bytes))
+        ) else {}
+        logical_value = value.get("logical_gates")
+        logical = (
+            tuple(item for item in logical_value if isinstance(item, Mapping))
+            if isinstance(logical_value, Sequence)
+            and not isinstance(logical_value, (str, bytes))
+            else ()
+        )
+        if tuple(str(item.get("command_id") or "") for item in logical) != FINAL_REGRESSION_COMMAND_IDS:
+            blockers.append("supplement_logical_gate_set")
+        for item in logical:
+            command_id = str(item.get("command_id") or "")
+            if item.get("ready") is not True:
+                blockers.append(f"supplement_logical_gate_failed:{command_id}")
+            if command_id in FINAL_REGRESSION_SUPPLEMENT_RERUN_IDS:
+                rerun = rerun_by_id.get(command_id, {})
+                if (
+                    item.get("source") != "rerun"
+                    or item.get("stdout_sha256") != rerun.get("stdout_sha256")
+                    or item.get("stderr_sha256") != rerun.get("stderr_sha256")
+                ):
+                    blockers.append(f"supplement_logical_rerun:{command_id}")
+            else:
+                source_gate = source_logical.get(command_id, {})
+                if (
+                    item.get("source") != "inherited_v2"
+                    or item.get("source_target_commit")
+                    != FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
+                    or item.get("source_receipt_sha256")
+                    != FINAL_REGRESSION_SUPPLEMENT_SOURCE_SHA256
+                    or item.get("source_gate_digest")
+                    != canonical_digest(source_gate)
+                ):
+                    blockers.append(f"supplement_logical_inheritance:{command_id}")
+        loopx_ready = (
+            source_audit.get("loopx_result_ready") is True
+            and value.get("loopx_result_ready") is True
+            and value.get("source_loopx_result_sha256")
+            == source_value.get("loopx_result_sha256")
+        )
+        if not loopx_ready:
+            blockers.append("supplement_loopx_inheritance")
+        policy = value.get("python_test_policy")
+        policy = policy if isinstance(policy, Mapping) else {}
+        if (
+            policy.get("path") != "config/release-python-tests.json"
+            or policy.get("sha256")
+            != sha256_file(self.root / "config" / "release-python-tests.json")
+        ):
+            blockers.append("supplement_test_policy")
+        explicit_environment = value.get("explicit_environment")
+        if (
+            not isinstance(explicit_environment, Mapping)
+            or dict(explicit_environment)
+            != self._expected_regression_environment(path.parent)
+        ):
+            blockers.append("supplement_explicit_environment")
+        target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
+        before = value.get("worktree_boundary_before")
+        after = value.get("worktree_boundary_after")
         current = inspect_worktree(self.root, expected_head=target)
         boundaries_ready = (
             isinstance(before, Mapping)
@@ -2989,7 +3415,22 @@ class Phase2FreezeAuditor:
             )
         )
         if not boundaries_ready:
-            blockers.append("resume_target_boundary")
+            blockers.append("supplement_target_boundary")
+        if (
+            value.get("schema") != "zyra.phase2-final-regression-supplement/v1"
+            or value.get("ready") is not True
+            or value.get("target_commit") != target
+            or value.get("target_tree") != target_tree
+            or not _embedded_digest_ready(value, "receipt_digest")
+            or int(value.get("passed_count") or 0)
+            != len(FINAL_REGRESSION_COMMAND_IDS)
+            or int(value.get("failed_count") or 0) != 0
+            or value.get("p2_base_commit") != P2_BASE_COMMIT
+            or value.get("loopx_cross_version_base_commit")
+            != LOOPX_CROSS_VERSION_BASE_COMMIT
+            or value.get("duplicate_heavy_execution_avoided") is not True
+        ):
+            blockers.append("supplement_receipt_integrity")
         return {
             "schema": value.get("schema"),
             "target_commit": value.get("target_commit"),
@@ -3001,12 +3442,13 @@ class Phase2FreezeAuditor:
             "current_source_boundary_ready": boundaries_ready,
             "receipt_sha256": actual_receipt_sha256,
             "external_receipt_digest_required": True,
-            "external_receipt_digest_matches": actual_receipt_sha256 == expected_digest,
+            "external_receipt_digest_matches": actual_receipt_sha256
+            == expected_digest,
             "source_receipt_audit": source_audit,
             "target_delta_audit": delta_audit,
             "loopx_result_ready": loopx_ready,
-            "loopx_base_boundary_before": base_boundary_before_audit,
-            "loopx_base_boundary_after": base_boundary_after_audit,
+            "loopx_base_boundary_before": base_before,
+            "loopx_base_boundary_after": base_after,
             "blockers": sorted(set(blockers)),
             "ready": value.get("ready") is True and not blockers,
         }
@@ -3033,6 +3475,14 @@ class Phase2FreezeAuditor:
             )
         if value.get("schema") == "zyra.phase2-final-regression-resume/v1":
             return self._resume_receipt_ready(
+                path,
+                value,
+                target=target,
+                actual_receipt_sha256=actual_receipt_sha256,
+                expected_receipt_sha256=expected_receipt_sha256,
+            )
+        if value.get("schema") == "zyra.phase2-final-regression-supplement/v1":
+            return self._supplement_receipt_ready(
                 path,
                 value,
                 target=target,

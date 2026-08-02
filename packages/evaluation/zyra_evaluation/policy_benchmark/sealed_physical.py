@@ -894,7 +894,7 @@ class SealedPlacementOwner:
                     "kind": "phase2-sealed-physical-proof",
                     "domain": str(domain_input.domain.value),
                     "input_digest": str(domain_input.input_digest),
-                    "canonical_route": dict(route),
+                    **_sealed_route_projection(route),
                 },
                 privacy_class=str(domain_input.privacy_class.value),
                 maximum_cost_usd=float(domain_input.maximum_cost_usd),
@@ -907,6 +907,24 @@ class SealedPlacementOwner:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _sealed_route_projection(route: Mapping[str, Any]) -> dict[str, Any]:
+    """Bind the canonical route without forwarding credential-shaped fields."""
+
+    canonical_route = dict(route)
+    redacted_fields = tuple(
+        field
+        for field in ("fence_token_digest",)
+        if field in canonical_route
+    )
+    for field in redacted_fields:
+        canonical_route.pop(field)
+    return {
+        "canonical_route": canonical_route,
+        "canonical_route_digest": _digest(dict(route)),
+        "canonical_route_redacted_fields": list(redacted_fields),
+    }
 
 
 __all__ = [

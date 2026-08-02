@@ -78,6 +78,28 @@ RESUME_REMEDIATION_TESTS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+SUPPLEMENT_SOURCE_TARGET_COMMIT = "7995b64e8fd48028f1e12d4c60a23f6df4784a2e"
+SUPPLEMENT_SOURCE_RECEIPT_SHA256 = (
+    "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4"
+)
+SUPPLEMENT_ALLOWED_PATHS = (
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+SUPPLEMENT_REMEDIATION_TESTS = (
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
+    "tests/unit/test_deployment_profiles_runtime.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+SUPPLEMENT_RERUN_GATE_IDS = (
+    "phase2-policy-contracts",
+    "internalization-ledger",
+)
 
 
 def _sha256(path: Path) -> str:
@@ -729,6 +751,112 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
     }
 
 
+def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
+    parents = _git("rev-list", "--parents", "-n", "1", target_commit).split()
+    if parents != [target_commit, SUPPLEMENT_SOURCE_TARGET_COMMIT]:
+        raise ValueError(
+            "supplement target is not the direct child of the frozen regression target"
+        )
+    allowed = set(SUPPLEMENT_ALLOWED_PATHS)
+    status_lines = tuple(
+        line
+        for line in _git(
+            "diff",
+            "--name-status",
+            "--no-renames",
+            SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            target_commit,
+        ).splitlines()
+        if line
+    )
+    if not status_lines:
+        raise ValueError("supplement target has no remediation delta")
+    changed_paths: list[str] = []
+    blob_transitions: list[dict[str, str]] = []
+    for line in status_lines:
+        status, separator, path = line.partition("\t")
+        if separator != "\t" or status != "M" or path not in allowed:
+            raise ValueError(f"supplement target contains a forbidden change: {line}")
+        source_entry = _git(
+            "ls-tree",
+            SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            "--",
+            path,
+        ).split()
+        target_entry = _git("ls-tree", target_commit, "--", path).split()
+        if (
+            len(source_entry) < 3
+            or len(target_entry) < 3
+            or source_entry[0] != target_entry[0]
+            or source_entry[0] not in {"100644", "100755"}
+            or source_entry[1] != "blob"
+            or target_entry[1] != "blob"
+        ):
+            raise ValueError(
+                "supplement target changed the file mode or object type: " + path
+            )
+        changed_paths.append(path)
+        blob_transitions.append(
+            {
+                "path": path,
+                "mode": source_entry[0],
+                "source_blob": source_entry[2],
+                "target_blob": target_entry[2],
+            }
+        )
+    if set(changed_paths) != allowed or len(changed_paths) != len(allowed):
+        raise ValueError("supplement target must change every bounded remediation file")
+    diff = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--binary",
+            "--no-renames",
+            SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            target_commit,
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    allowlist_payload = json.dumps(
+        SUPPLEMENT_ALLOWED_PATHS,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    return {
+        "source_target_commit": SUPPLEMENT_SOURCE_TARGET_COMMIT,
+        "source_target_tree": _git(
+            "rev-parse",
+            f"{SUPPLEMENT_SOURCE_TARGET_COMMIT}^{{tree}}",
+        ),
+        "target_commit": target_commit,
+        "target_tree": _git("rev-parse", f"{target_commit}^{{tree}}"),
+        "direct_single_parent": True,
+        "linear_single_parent_chain": True,
+        "commit_count": 1,
+        "commit_chain": [target_commit],
+        "commit_path_changes": [
+            {
+                "commit": target_commit,
+                "parent": SUPPLEMENT_SOURCE_TARGET_COMMIT,
+                "change_statuses": list(status_lines),
+                "blob_transitions": blob_transitions,
+                "diff_sha256": hashlib.sha256(diff).hexdigest(),
+            }
+        ],
+        "changed_paths": changed_paths,
+        "change_statuses": list(status_lines),
+        "blob_transitions": blob_transitions,
+        "allowed_paths": list(SUPPLEMENT_ALLOWED_PATHS),
+        "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
+        "diff_sha256": hashlib.sha256(diff).hexdigest(),
+        "production_or_configuration_changed": True,
+        "bounded_production_change": True,
+        "rename_symlink_or_submodule_changed": False,
+    }
+
+
 def _validate_resume_source(
     *,
     source_receipt: Path,
@@ -850,6 +978,163 @@ def _validate_resume_source(
     return value, delta, inherited
 
 
+def _validate_supplement_source(
+    *,
+    source_receipt: Path,
+    source_receipt_sha256: str,
+    loopx_base_checkout: Path,
+    bun: str,
+) -> tuple[Mapping[str, Any], dict[str, Mapping[str, Any]]]:
+    expected_sha = source_receipt_sha256.strip().casefold()
+    if expected_sha != SUPPLEMENT_SOURCE_RECEIPT_SHA256:
+        raise ValueError("supplement source receipt is not the frozen v2 anchor")
+    source_receipt = source_receipt.resolve()
+    try:
+        source_receipt.relative_to(ROOT)
+    except ValueError as error:
+        raise ValueError(
+            "supplement source receipt must be inside the Zyra workspace"
+        ) from error
+    if not hmac.compare_digest(_sha256(source_receipt), expected_sha):
+        raise ValueError("supplement source receipt SHA-256 does not match its anchor")
+    value = _load_json(source_receipt)
+    target_tree = _git(
+        "rev-parse",
+        f"{SUPPLEMENT_SOURCE_TARGET_COMMIT}^{{tree}}",
+    )
+    logical_value = value.get("logical_gates")
+    logical = (
+        tuple(item for item in logical_value if isinstance(item, Mapping))
+        if isinstance(logical_value, Sequence)
+        and not isinstance(logical_value, (str, bytes))
+        else ()
+    )
+    if (
+        value.get("schema") != "zyra.phase2-final-regression-resume/v1"
+        or value.get("ready") is not True
+        or value.get("target_commit") != SUPPLEMENT_SOURCE_TARGET_COMMIT
+        or value.get("target_tree") != target_tree
+        or not _embedded_digest_ready(value, "receipt_digest")
+        or int(value.get("passed_count") or 0) != len(FINAL_REGRESSION_COMMAND_IDS)
+        or int(value.get("failed_count") or 0) != 0
+        or value.get("duplicate_heavy_execution_avoided") is not True
+        or tuple(str(item.get("command_id") or "") for item in logical)
+        != FINAL_REGRESSION_COMMAND_IDS
+        or not all(item.get("ready") is True for item in logical)
+    ):
+        raise ValueError("supplement source v2 receipt integrity is invalid")
+    inner_path = Path(str(value.get("source_receipt") or ""))
+    inner, expected_delta, inherited = _validate_resume_source(
+        source_receipt=inner_path,
+        source_receipt_sha256=str(value.get("source_receipt_sha256") or ""),
+        target_commit=SUPPLEMENT_SOURCE_TARGET_COMMIT,
+        bun=bun,
+    )
+    if (
+        value.get("source_receipt_digest") != inner.get("receipt_digest")
+        or value.get("source_target_commit") != inner.get("target_commit")
+        or value.get("target_delta") != expected_delta
+    ):
+        raise ValueError("supplement source v2 inheritance binding is invalid")
+    source_loopx_base = Path(str(value.get("loopx_base_checkout") or ".")).resolve()
+    if source_loopx_base != loopx_base_checkout.resolve():
+        raise ValueError("supplement source LoopX base checkout changed")
+    source_boundary_before = value.get("worktree_boundary_before")
+    source_boundary_after = value.get("worktree_boundary_after")
+    if (
+        not isinstance(source_boundary_before, Mapping)
+        or not isinstance(source_boundary_after, Mapping)
+        or not _boundary_ready(
+            source_boundary_before,
+            target=SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            target_tree=target_tree,
+        )
+        or not _boundary_ready(
+            source_boundary_after,
+            target=SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            target_tree=target_tree,
+        )
+    ):
+        raise ValueError("supplement source v2 clean boundaries are invalid")
+    reruns_value = value.get("rerun_commands")
+    reruns = (
+        tuple(item for item in reruns_value if isinstance(item, Mapping))
+        if isinstance(reruns_value, Sequence)
+        and not isinstance(reruns_value, (str, bytes))
+        else ()
+    )
+    expected_specs = {
+        command_id: argv
+        for command_id, argv, _timeout in _resume_command_specs(
+            output_root=source_receipt.parent,
+            target_commit=SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            loopx_base_checkout=loopx_base_checkout,
+        )
+    }
+    if tuple(str(item.get("command_id") or "") for item in reruns) != tuple(
+        expected_specs
+    ):
+        raise ValueError("supplement source v2 rerun coverage is invalid")
+    rerun_by_id: dict[str, Mapping[str, Any]] = {}
+    for item in reruns:
+        command_id = str(item.get("command_id") or "")
+        argv = tuple(str(part) for part in item.get("argv") or ())
+        if (
+            argv != expected_specs[command_id]
+            or Path(str(item.get("cwd") or "")).resolve() != ROOT
+            or item.get("ready") is not True
+            or int(item.get("returncode") or 0) != 0
+        ):
+            raise ValueError(
+                f"supplement source v2 rerun provenance is invalid: {command_id}"
+            )
+        for field in ("stdout", "stderr"):
+            member = _receipt_member(source_receipt.parent, item.get(field))
+            if _sha256(member) != item.get(f"{field}_sha256"):
+                raise ValueError(
+                    f"supplement source v2 log digest mismatch: {command_id}:{field}"
+                )
+        rerun_by_id[command_id] = item
+    logical_by_id = {str(item.get("command_id") or ""): item for item in logical}
+    for command_id in FINAL_REGRESSION_COMMAND_IDS:
+        item = logical_by_id[command_id]
+        if command_id in RESUME_RERUN_GATE_IDS:
+            rerun = rerun_by_id[command_id]
+            if (
+                item.get("source") != "rerun"
+                or item.get("stdout_sha256") != rerun.get("stdout_sha256")
+                or item.get("stderr_sha256") != rerun.get("stderr_sha256")
+            ):
+                raise ValueError(
+                    f"supplement source v2 logical rerun mismatch: {command_id}"
+                )
+        else:
+            parent = inherited[command_id]
+            if (
+                item.get("source") != "inherited"
+                or item.get("source_target_commit") != inner.get("target_commit")
+                or item.get("source_receipt_sha256")
+                != value.get("source_receipt_sha256")
+                or item.get("source_stdout_sha256") != parent.get("stdout_sha256")
+                or item.get("source_stderr_sha256") != parent.get("stderr_sha256")
+            ):
+                raise ValueError(
+                    f"supplement source v2 logical inheritance mismatch: {command_id}"
+                )
+    loopx_path = _receipt_member(source_receipt.parent, value.get("loopx_result"))
+    if (
+        _sha256(loopx_path) != value.get("loopx_result_sha256")
+        or value.get("loopx_result_ready") is not True
+        or not _loopx_resume_result_ready(
+            loopx_path,
+            target_commit=SUPPLEMENT_SOURCE_TARGET_COMMIT,
+            loopx_base_checkout=loopx_base_checkout,
+        )
+    ):
+        raise ValueError("supplement source v2 LoopX result is invalid")
+    return value, logical_by_id
+
+
 def _resume_command_specs(
     *,
     output_root: Path,
@@ -882,6 +1167,42 @@ def _resume_command_specs(
         *(
             (command_id, full[command_id][0], full[command_id][1])
             for command_id in RESUME_RERUN_GATE_IDS
+        ),
+    )
+
+
+def _supplement_command_specs(
+    *,
+    output_root: Path,
+    target_commit: str,
+    loopx_base_checkout: Path,
+) -> tuple[tuple[str, tuple[str, ...], float], ...]:
+    full = {
+        command_id: (argv, timeout)
+        for command_id, argv, timeout in _command_specs(
+            output_root=output_root,
+            python=sys.executable,
+            bun=_resolve_bun(),
+            loopx_base_checkout=loopx_base_checkout,
+            target_commit=target_commit,
+        )
+    }
+    remediation = (
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        str(output_root / "supplement-pytest"),
+        *(str(ROOT / relative) for relative in SUPPLEMENT_REMEDIATION_TESTS),
+    )
+    return (
+        ("supplement-targeted-python", remediation, 900),
+        *(
+            (command_id, full[command_id][0], full[command_id][1])
+            for command_id in SUPPLEMENT_RERUN_GATE_IDS
         ),
     )
 
@@ -1156,6 +1477,153 @@ def resume_regression(
     return value
 
 
+def supplement_regression(
+    *,
+    target_commit: str,
+    output_root: Path,
+    loopx_base_checkout: Path,
+    source_receipt: Path,
+    source_receipt_sha256: str,
+) -> dict[str, Any]:
+    if _head() != target_commit:
+        raise ValueError("supplement target commit does not match HEAD")
+    boundary_before = require_worktree_boundary(ROOT, expected_head=target_commit)
+    output_root = output_root.resolve()
+    loopx_base_checkout = loopx_base_checkout.resolve()
+    _require_disjoint_roots(output_root, loopx_base_checkout)
+    loopx_base_boundary_before = _loopx_base_boundary(loopx_base_checkout)
+    if loopx_base_boundary_before["ready"] is not True:
+        raise ValueError("LoopX supplement base checkout is not frozen and clean")
+    bun = _resolve_bun()
+    source, source_logical = _validate_supplement_source(
+        source_receipt=source_receipt,
+        source_receipt_sha256=source_receipt_sha256,
+        loopx_base_checkout=loopx_base_checkout,
+        bun=bun,
+    )
+    delta = _supplement_target_delta(target_commit=target_commit)
+    output_root.mkdir(parents=True, exist_ok=False)
+    environment = {
+        **os.environ,
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "BUN_INSTALL_CACHE_DIR": str(output_root / "cache" / "bun"),
+        "PIP_CACHE_DIR": str(output_root / "cache" / "pip"),
+        "UV_CACHE_DIR": str(output_root / "cache" / "uv"),
+        "ZYRA_STATE_ROOT": str(output_root / "state"),
+        "PYTHONPATH": _source_python_path(),
+    }
+    specs = _supplement_command_specs(
+        output_root=output_root,
+        target_commit=target_commit,
+        loopx_base_checkout=loopx_base_checkout,
+    )
+    rerun_commands = _run_commands(
+        specs=specs,
+        output_root=output_root,
+        environment=environment,
+    )
+    rerun_by_id = {str(item["command_id"]): item for item in rerun_commands}
+    logical_gates: list[dict[str, Any]] = []
+    for command_id in FINAL_REGRESSION_COMMAND_IDS:
+        if command_id in SUPPLEMENT_RERUN_GATE_IDS:
+            item = rerun_by_id.get(command_id, {})
+            logical_gates.append(
+                {
+                    "command_id": command_id,
+                    "source": "rerun",
+                    "ready": item.get("ready") is True,
+                    "rerun_command_id": command_id,
+                    "stdout_sha256": item.get("stdout_sha256"),
+                    "stderr_sha256": item.get("stderr_sha256"),
+                }
+            )
+        else:
+            item = source_logical[command_id]
+            logical_gates.append(
+                {
+                    "command_id": command_id,
+                    "source": "inherited_v2",
+                    "ready": True,
+                    "source_target_commit": SUPPLEMENT_SOURCE_TARGET_COMMIT,
+                    "source_receipt_sha256": source_receipt_sha256.casefold(),
+                    "source_gate_digest": _canonical_digest(
+                        item,
+                        "source_gate_digest",
+                    ),
+                }
+            )
+    boundary_after = inspect_worktree(ROOT, expected_head=target_commit)
+    loopx_base_boundary_after = _loopx_base_boundary(loopx_base_checkout)
+    target_tree = _git("rev-parse", f"{target_commit}^{{tree}}")
+    all_reruns_passed = len(rerun_commands) == len(specs) and all(
+        item.get("ready") is True for item in rerun_commands
+    )
+    ready = (
+        all_reruns_passed
+        and loopx_base_boundary_after == loopx_base_boundary_before
+        and loopx_base_boundary_after["ready"] is True
+        and all(item["ready"] for item in logical_gates)
+        and _boundary_ready(
+            boundary_after,
+            target=target_commit,
+            target_tree=target_tree,
+        )
+    )
+    value: dict[str, Any] = {
+        "schema": "zyra.phase2-final-regression-supplement/v1",
+        "slice_id": "P2-S06-03",
+        "ready": ready,
+        "target_commit": target_commit,
+        "target_tree": target_tree,
+        "p2_base_commit": P2_BASE_COMMIT,
+        "source_receipt": str(source_receipt.resolve()),
+        "source_receipt_sha256": source_receipt_sha256.casefold(),
+        "source_receipt_digest": source.get("receipt_digest"),
+        "source_target_commit": SUPPLEMENT_SOURCE_TARGET_COMMIT,
+        "source_target_tree": delta["source_target_tree"],
+        "target_delta": delta,
+        "loopx_cross_version_base_commit": LOOPX_CROSS_VERSION_BASE_COMMIT,
+        "loopx_base_checkout": str(loopx_base_checkout),
+        "loopx_base_boundary_before": loopx_base_boundary_before,
+        "loopx_base_boundary_after": loopx_base_boundary_after,
+        "loopx_result_ready": source.get("loopx_result_ready") is True,
+        "source_loopx_result_sha256": source.get("loopx_result_sha256"),
+        "python_test_policy": {
+            "path": PYTHON_TEST_POLICY_PATH.relative_to(ROOT).as_posix(),
+            "sha256": _sha256(PYTHON_TEST_POLICY_PATH),
+        },
+        "logical_gates": logical_gates,
+        "rerun_commands": rerun_commands,
+        "remediation_command_ids": ["supplement-targeted-python"],
+        "passed_count": sum(item["ready"] for item in logical_gates),
+        "failed_count": sum(not item["ready"] for item in logical_gates),
+        "worktree_boundary_before": boundary_before,
+        "worktree_boundary_after": boundary_after,
+        "explicit_environment": {
+            key: environment[key]
+            for key in (
+                "PYTHONNOUSERSITE",
+                "PYTHONDONTWRITEBYTECODE",
+                "PIP_DISABLE_PIP_VERSION_CHECK",
+                "BUN_INSTALL_CACHE_DIR",
+                "PIP_CACHE_DIR",
+                "UV_CACHE_DIR",
+                "ZYRA_STATE_ROOT",
+                "PYTHONPATH",
+            )
+        },
+        "duplicate_heavy_execution_avoided": True,
+    }
+    value["receipt_digest"] = _canonical_digest(value, "receipt_digest")
+    (output_root / "final-regression-supplement.json").write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return value
+
+
 def run_regression(
     *,
     target_commit: str,
@@ -1320,13 +1788,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loopx-base-checkout", required=True)
     parser.add_argument("--resume-receipt", default="")
     parser.add_argument("--resume-receipt-sha256", default="")
+    parser.add_argument("--supplement-receipt", default="")
+    parser.add_argument("--supplement-receipt-sha256", default="")
     return parser
 
 
 def run(argv: Sequence[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     try:
-        if arguments.resume_receipt:
+        if arguments.resume_receipt and arguments.supplement_receipt:
+            raise ValueError("resume and supplement receipts are mutually exclusive")
+        if arguments.supplement_receipt:
+            if arguments.resume_receipt_sha256:
+                raise ValueError(
+                    "--resume-receipt-sha256 requires --resume-receipt"
+                )
+            result = supplement_regression(
+                target_commit=arguments.target_commit,
+                output_root=ROOT / arguments.output_root,
+                loopx_base_checkout=Path(arguments.loopx_base_checkout),
+                source_receipt=Path(arguments.supplement_receipt),
+                source_receipt_sha256=arguments.supplement_receipt_sha256,
+            )
+        elif arguments.resume_receipt:
+            if arguments.supplement_receipt_sha256:
+                raise ValueError(
+                    "--supplement-receipt-sha256 requires --supplement-receipt"
+                )
             result = resume_regression(
                 target_commit=arguments.target_commit,
                 output_root=ROOT / arguments.output_root,
@@ -1335,9 +1823,12 @@ def run(argv: Sequence[str] | None = None) -> int:
                 source_receipt_sha256=arguments.resume_receipt_sha256,
             )
         else:
-            if arguments.resume_receipt_sha256:
+            if (
+                arguments.resume_receipt_sha256
+                or arguments.supplement_receipt_sha256
+            ):
                 raise ValueError(
-                    "--resume-receipt-sha256 requires --resume-receipt"
+                    "receipt SHA-256 requires its matching receipt option"
                 )
             result = run_regression(
                 target_commit=arguments.target_commit,

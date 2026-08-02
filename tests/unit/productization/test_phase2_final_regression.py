@@ -194,6 +194,69 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
+def test_supplement_delta_is_direct_bounded_and_production_explicit(
+    monkeypatch,
+) -> None:
+    target = "b" * 40
+    statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_ALLOWED_PATHS
+    )
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            return f"{target} {MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            return statuses
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            blob = (
+                "a" * 40
+                if revision == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
+                else "b" * 40
+            )
+            return f"100644 blob {blob}\t{arguments[-1]}"
+        if arguments[:1] == ("rev-parse",):
+            return "c" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    delta = MODULE._supplement_target_delta(target_commit=target)
+
+    assert delta["direct_single_parent"] is True
+    assert (
+        delta["source_target_commit"]
+        == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
+    )
+    assert delta["changed_paths"] == list(MODULE.SUPPLEMENT_ALLOWED_PATHS)
+    assert delta["bounded_production_change"] is True
+    assert delta["production_or_configuration_changed"] is True
+    assert delta["rename_symlink_or_submodule_changed"] is False
+
+
+def test_supplement_specs_rerun_only_bounded_target_gates(tmp_path: Path) -> None:
+    specs = MODULE._supplement_command_specs(
+        output_root=tmp_path / "supplement",
+        target_commit="a" * 40,
+        loopx_base_checkout=tmp_path / "loopx-base",
+    )
+
+    assert tuple(item[0] for item in specs) == (
+        "supplement-targeted-python",
+        *MODULE.SUPPLEMENT_RERUN_GATE_IDS,
+    )
+    targeted = specs[0][1]
+    assert tuple(
+        str(ROOT / relative) for relative in MODULE.SUPPLEMENT_REMEDIATION_TESTS
+    ) == targeted[-len(MODULE.SUPPLEMENT_REMEDIATION_TESTS) :]
+    assert "python-full-regression" not in {item[0] for item in specs}
+
+
 def test_resume_delta_requires_every_control_plane_file(monkeypatch) -> None:
     source = "a" * 40
     target = "b" * 40
