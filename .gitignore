@@ -26,3 +26,18 @@ tmp/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Phase 2 external evidence retained locally and hash-pinned by committed manifests.
+/.zyra/reports/
+/docs/evidence/phase2/final/0485261/
+/docs/evidence/phase2/final/7995b64/
+/docs/evidence/phase2/final/f5a5036/
+
+# Phase 2 sealed-run runtime residue; canonical receipts remain tracked.
+/docs/evidence/phase2/sealed/**/runtime-state/
+/docs/evidence/phase2/sealed/**/mechanism-runtime/
+/docs/evidence/phase2/sealed/**/physical-runtime/deployment/
+/docs/evidence/phase2/sealed/**/physical-runtime/worker-pool.sqlite3
+/docs/evidence/phase2/sealed/**/s/.zyra-workspace-manager/
+/docs/evidence/phase2/sealed/**/s/*.sqlite3
+/docs/evidence/phase2/sealed/**/s/runtime-event-artifacts/
