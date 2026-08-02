@@ -3,15 +3,21 @@ from __future__ import annotations
 import json
 import socket
 import tempfile
+import threading
 import time
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import psutil
+import pytest
 
 from zyra_orchestration.deployment.dispatch import DeploymentDispatchRuntime
+from zyra_orchestration.deployment.errors import ProcessUnavailable
 from zyra_orchestration.deployment.handoff import CheckpointHandoffRuntime
+from zyra_orchestration.deployment.http_client import ProductHttpClient
 from zyra_orchestration.deployment.models import (
     DeploymentProfile,
     DispatchStatus,
@@ -29,10 +35,169 @@ from zyra_orchestration.deployment.placement import (
 from zyra_orchestration.deployment.process_manager import DeploymentProcessManager
 from zyra_orchestration.deployment.profiles import ProfileCatalog
 from zyra_orchestration.deployment.recovery import DeploymentRecoveryRuntime
+from zyra_orchestration.deployment.semantic_health import SemanticHealthRuntime
 from zyra_orchestration.deployment.state_store import DeploymentStateStore
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class _SequencedReadinessApi:
+    def __init__(self, values: list[Mapping[str, Any] | BaseException]) -> None:
+        self.values = list(values)
+        self.calls = 0
+
+    def get(self, path: str) -> dict[str, Any]:
+        assert path == "/runtime/readiness"
+        value = self.values[self.calls]
+        self.calls += 1
+        if isinstance(value, BaseException):
+            raise value
+        return dict(value)
+
+
+def _semantic_runtime(api: _SequencedReadinessApi) -> SemanticHealthRuntime:
+    runtime = object.__new__(SemanticHealthRuntime)
+    runtime.api = api
+    runtime._runtime_readiness_lock = threading.RLock()
+    runtime._runtime_readiness_cache = None
+    runtime._runtime_readiness_attempts = ()
+    return runtime
+
+
+def test_runtime_readiness_retries_retryable_transport_reset_and_caches(
+    monkeypatch,
+) -> None:
+    api = _SequencedReadinessApi(
+        [
+            ProcessUnavailable(
+                "product_http_unreachable",
+                "connection reset",
+                retryable=True,
+            ),
+            {"ready": True, "canonical_owners": {"domains": []}},
+        ]
+    )
+    runtime = _semantic_runtime(api)
+    monkeypatch.setattr(
+        "zyra_orchestration.deployment.semantic_health.time.sleep",
+        lambda _seconds: None,
+    )
+
+    first = runtime._runtime_readiness()
+    second = runtime._runtime_readiness()
+
+    assert first == second
+    assert first["ready"] is True
+    assert api.calls == 2
+    assert runtime._runtime_readiness_attempts == (
+        {
+            "attempt": 1,
+            "ready": False,
+            "error": "product_http_unreachable",
+            "retryable": True,
+        },
+        {
+            "attempt": 2,
+            "ready": True,
+            "error": "",
+            "retryable": False,
+        },
+    )
+    observation = runtime._probe_runtime_owners()
+    assert observation["transport_retried"] is True
+    assert observation["transport_attempts"] == list(
+        runtime._runtime_readiness_attempts
+    )
+
+
+def test_runtime_readiness_does_not_retry_non_retryable_failure(
+    monkeypatch,
+) -> None:
+    error = ProcessUnavailable(
+        "runtime_owner_contract_invalid",
+        "invalid readiness contract",
+        retryable=False,
+    )
+    api = _SequencedReadinessApi([error])
+    runtime = _semantic_runtime(api)
+    monkeypatch.setattr(
+        "zyra_orchestration.deployment.semantic_health.time.sleep",
+        lambda _seconds: pytest.fail("non-retryable failure must not sleep"),
+    )
+
+    with pytest.raises(ProcessUnavailable) as caught:
+        runtime._runtime_readiness()
+
+    assert caught.value is error
+    assert api.calls == 1
+    assert error.details["runtime_readiness_attempts"] == [
+        {
+            "attempt": 1,
+            "ready": False,
+            "error": "runtime_owner_contract_invalid",
+            "retryable": False,
+        }
+    ]
+
+
+def test_runtime_readiness_exhausts_exactly_three_retryable_attempts(
+    monkeypatch,
+) -> None:
+    errors = [
+        ProcessUnavailable(
+            "product_http_unreachable",
+            f"connection reset {attempt}",
+            retryable=True,
+        )
+        for attempt in range(1, 4)
+    ]
+    api = _SequencedReadinessApi(errors)
+    runtime = _semantic_runtime(api)
+    monkeypatch.setattr(
+        "zyra_orchestration.deployment.semantic_health.time.sleep",
+        lambda _seconds: None,
+    )
+
+    with pytest.raises(ProcessUnavailable) as caught:
+        runtime._runtime_readiness()
+
+    assert caught.value is errors[-1]
+    assert api.calls == 3
+    assert [
+        attempt["attempt"]
+        for attempt in errors[-1].details["runtime_readiness_attempts"]
+    ] == [1, 2, 3]
+
+
+def test_product_http_client_marks_connection_reset_retryable(
+    monkeypatch,
+) -> None:
+    class ResetConnection:
+        closed = False
+
+        def request(self, *_args, **_kwargs) -> None:
+            raise ConnectionResetError(10054, "connection reset")
+
+        def close(self) -> None:
+            self.closed = True
+
+    connection = ResetConnection()
+    monkeypatch.setattr(
+        "zyra_orchestration.deployment.http_client.HTTPConnection",
+        lambda *_args, **_kwargs: connection,
+    )
+
+    with pytest.raises(ProcessUnavailable) as caught:
+        ProductHttpClient("http://127.0.0.1:16393").get(
+            "/runtime/readiness"
+        )
+
+    assert caught.value.code == "product_http_unreachable"
+    assert caught.value.retryable is True
+    assert caught.value.operation == "GET /runtime/readiness"
+    assert caught.value.details["error"].startswith("ConnectionResetError:")
+    assert connection.closed is True
 
 
 def _free_port_block(count: int = 3) -> int:

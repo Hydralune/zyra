@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 
 from .doctor import DeploymentDoctor
 from .errors import (
+    DeploymentError,
     SemanticHealthDisabled,
     SemanticProbeFailed,
     redact,
@@ -141,6 +142,7 @@ class SemanticHealthRuntime:
         self.enabled = enabled
         self._runtime_readiness_lock = threading.RLock()
         self._runtime_readiness_cache: dict[str, Any] | None = None
+        self._runtime_readiness_attempts: tuple[dict[str, Any], ...] = ()
 
     def registry(
         self,
@@ -574,9 +576,38 @@ class SemanticHealthRuntime:
     def _runtime_readiness(self) -> dict[str, Any]:
         with self._runtime_readiness_lock:
             if self._runtime_readiness_cache is None:
-                self._runtime_readiness_cache = self.api.get(
-                    "/runtime/readiness"
-                )
+                attempts: list[dict[str, Any]] = []
+                for attempt in range(1, 4):
+                    try:
+                        value = self.api.get("/runtime/readiness")
+                    except DeploymentError as error:
+                        attempts.append(
+                            {
+                                "attempt": attempt,
+                                "ready": False,
+                                "error": error.code,
+                                "retryable": error.retryable,
+                            }
+                        )
+                        self._runtime_readiness_attempts = tuple(attempts)
+                        if not error.retryable or attempt == 3:
+                            error.details["runtime_readiness_attempts"] = list(
+                                attempts
+                            )
+                            raise
+                        time.sleep(0.15 * attempt)
+                    else:
+                        attempts.append(
+                            {
+                                "attempt": attempt,
+                                "ready": value.get("ready") is True,
+                                "error": "",
+                                "retryable": False,
+                            }
+                        )
+                        self._runtime_readiness_attempts = tuple(attempts)
+                        self._runtime_readiness_cache = value
+                        break
             return dict(self._runtime_readiness_cache)
 
     def _probe_runtime_owners(self) -> dict[str, Any]:
@@ -611,6 +642,10 @@ class SemanticHealthRuntime:
             "ready_domains": ready_domains,
             "fallback_domains": fallback_domains,
             "readiness_digest": digest(value),
+            "transport_attempts": [
+                dict(item) for item in self._runtime_readiness_attempts
+            ],
+            "transport_retried": len(self._runtime_readiness_attempts) > 1,
             "blockers": (
                 []
                 if ready
