@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +25,7 @@ from zyra_evaluation.policy_benchmark.sealed_long_run import (
     _json,
 )
 from zyra_evaluation.policy_benchmark.sealed_physical import (
+    SealedPhysicalDispatchRuntime,
     SealedPhysicalDispatchError,
     _receipt_evidence,
     _sealed_route_projection,
@@ -34,6 +38,28 @@ from zyra_evaluation.scenario_runner.research_delivery import (
 )
 from zyra_orchestration.deployment.errors import DispatchRejected
 from zyra_orchestration.deployment.node_runtime import DeploymentNodeRuntime
+from zyra_orchestration.deployment.provider_dispatch import (
+    DEEPSEEK_MODEL_ID,
+    DEEPSEEK_PROVIDER_ID,
+    GLM_52_MODEL_ID,
+    KIMI_MODEL_ID,
+    KIMI_PROVIDER_ID,
+    MARKER_MAXIMUM_OUTPUT_TOKENS,
+    ZHIPU_PROVIDER_ID,
+    _LIVE_PROFILES,
+    _marker_dispatch_request,
+)
+from zyra_runtime.provider_control_plane import (
+    CredentialRegistration,
+    IntegrationDefinition,
+    ModelCapabilities,
+    ModelDefinition,
+    ProviderControlPlaneClient,
+    ProviderDefinition,
+    ProviderProtocol,
+    RouteConstraints,
+    RouteRequest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -596,6 +622,252 @@ def test_physical_receipt_contract_envelope_is_flattened_for_evidence() -> None:
         match="contract payload is missing",
     ):
         _receipt_evidence({"digest": "b" * 64})
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "model_id", "expected_endpoint"),
+    (
+        (
+            ZHIPU_PROVIDER_ID,
+            GLM_52_MODEL_ID,
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        ),
+        (
+            DEEPSEEK_PROVIDER_ID,
+            DEEPSEEK_MODEL_ID,
+            "https://api.deepseek.com/chat/completions",
+        ),
+        (
+            KIMI_PROVIDER_ID,
+            KIMI_MODEL_ID,
+            "https://api.moonshot.cn/v1/chat/completions",
+        ),
+    ),
+)
+def test_sealed_provider_projection_uses_profile_canonical_https_endpoint(
+    provider_id: str,
+    model_id: str,
+    expected_endpoint: str,
+) -> None:
+    profile = _LIVE_PROFILES[(provider_id, model_id)]
+    providers = SealedPhysicalDispatchRuntime._providers(
+        (
+            {
+                "physical_attempt_id": "attempt-local",
+                "physical_identity": {
+                    "location": "local",
+                    "endpoint": "local://terminal",
+                },
+                "call_receipt": {
+                    "ref_id": "call-local",
+                    "digest": "a" * 64,
+                },
+                "placement_decision_id": "decision-local",
+                "input_signals": {
+                    "payload_digest": "b" * 64,
+                    "call_started_at": "2026-08-02T00:00:00Z",
+                },
+                "completed_at": "2026-08-02T00:00:01Z",
+                "digest": "c" * 64,
+            },
+            {
+                "physical_attempt_id": "attempt-cloud",
+                "physical_identity": {"location": "cloud"},
+                "call_receipt": {
+                    "ref_id": "call-cloud",
+                    "digest": "d" * 64,
+                },
+                "placement_decision_id": "decision-cloud",
+                "input_signals": {
+                    "call_started_at": "2026-08-02T00:00:00Z",
+                },
+                "completed_at": "2026-08-02T00:00:01Z",
+                "digest": "e" * 64,
+                "provider_evidence": {
+                    "provider_id": provider_id,
+                    "model_id": model_id,
+                    "endpoint": profile.endpoint,
+                    "endpoint_host": profile.endpoint_host,
+                    "endpoint_path": profile.endpoint_path,
+                    "request_id": "request-cloud",
+                    "provider_attempt_id": "provider-attempt-cloud",
+                    "credential_ref": "env://ZAI_API_KEY",
+                    "live": True,
+                    "http_status": 200,
+                    "payload_digest": "f" * 64,
+                    "cost_usd": 0.001,
+                    "latency_ms": 12,
+                },
+            },
+        ),
+        (),
+    )
+
+    assert profile.endpoint == expected_endpoint
+    assert providers[1]["endpoint"] == expected_endpoint
+
+
+def test_marker_request_reserves_reasoning_headroom_without_payload_in_message() -> None:
+    request = _marker_dispatch_request(
+        request_id="request-marker",
+        route_id="route-marker",
+        run_id="run-marker",
+        task_id="task-marker",
+        node_id="node-marker",
+        marker="ZYRA_PHYSICAL_ABC123",
+        idempotency_key="marker-key",
+        payload_digest="a" * 64,
+    )
+
+    assert request.maximum_output_tokens == MARKER_MAXIMUM_OUTPUT_TOKENS == 512
+    assert len(request.messages) == 1
+    assert request.messages[0].content.endswith("ZYRA_PHYSICAL_ABC123")
+    assert "a" * 64 not in request.messages[0].content
+
+
+def test_marker_request_external_http_body_excludes_control_plane_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = "ZYRA_PHYSICAL_ABC123"
+    payload_digest = "9" * 64
+    captured: dict[str, object] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            body = self.rfile.read(int(self.headers.get("content-length") or 0))
+            captured["body"] = json.loads(body.decode("utf-8"))
+            self.send_response(200)
+            self.send_header("content-type", "text/event-stream")
+            self.end_headers()
+            self.wfile.write(
+                (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "choices": [
+                                {
+                                    "delta": {"content": marker},
+                                    "finish_reason": "stop",
+                                }
+                            ],
+                            "usage": {
+                                "prompt_tokens": 8,
+                                "completion_tokens": 8,
+                                "total_tokens": 16,
+                            },
+                        }
+                    )
+                    + "\n\ndata: [DONE]\n\n"
+                ).encode("utf-8")
+            )
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    api_key_env = "ZYRA_MARKER_BODY_TEST_API_KEY"
+    monkeypatch.setenv(api_key_env, "marker-test-secret")
+    try:
+        with ProviderControlPlaneClient(
+            project_root=ROOT,
+            database_path=tmp_path / "provider.sqlite3",
+        ) as client:
+            client.integrations.upsert(
+                IntegrationDefinition(
+                    integration_id="marker-test-integration",
+                    display_name="Marker Test",
+                    kind="bearer",
+                    env_names=(api_key_env,),
+                    authorization_scheme="Bearer",
+                )
+            )
+            client.catalog.upsert_provider(
+                ProviderDefinition(
+                    provider_id="marker-test-provider",
+                    display_name="Marker Test Provider",
+                    integration_id="marker-test-integration",
+                    status="active",
+                    base_url=f"http://127.0.0.1:{server.server_address[1]}",
+                    protocol=ProviderProtocol.OPENAI_CHAT,
+                    allowed_hosts=("127.0.0.1",),
+                )
+            )
+            client.catalog.upsert_model(
+                ModelDefinition(
+                    provider_id="marker-test-provider",
+                    model_id="marker-test-model",
+                    display_name="Marker Test Model",
+                    family="marker-test",
+                    maximum_output_tokens=4096,
+                    capabilities=ModelCapabilities(streaming=True),
+                    endpoint_path="/chat/completions",
+                    protocol=ProviderProtocol.OPENAI_CHAT,
+                )
+            )
+            client.credentials.register(
+                CredentialRegistration(
+                    credential_id="marker-test-credential",
+                    integration_id="marker-test-integration",
+                    provider_id="marker-test-provider",
+                    account_id="marker-test",
+                    secret_ref=f"env://{api_key_env}",
+                    fingerprint=(
+                        "sha256:"
+                        + hashlib.sha256(b"marker-test-secret").hexdigest()[:16]
+                    ),
+                    allowed_models=("marker-test-model",),
+                    scopes=("chat.completions",),
+                )
+            )
+            route = client.routing.acquire(
+                RouteRequest(
+                    run_id="run-marker",
+                    task_id="task-marker",
+                    node_id="node-marker",
+                    session_id="physical-session:task-marker",
+                    turn_id="request-marker",
+                    preferred_provider_id="marker-test-provider",
+                    preferred_model_id="marker-test-model",
+                    constraints=RouteConstraints(
+                        provider_ids=("marker-test-provider",),
+                        model_ids=("marker-test-model",),
+                        required_scopes=("chat.completions",),
+                    ),
+                )
+            )
+            client.dispatch(
+                _marker_dispatch_request(
+                    request_id="request-marker",
+                    route_id=str(route["routeId"]),
+                    run_id="run-marker",
+                    task_id="task-marker",
+                    node_id="node-marker",
+                    marker=marker,
+                    idempotency_key="marker-key",
+                    payload_digest=payload_digest,
+                )
+            )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": (
+                "Return exactly the marker below and no other text.\n" + marker
+            ),
+        }
+    ]
+    assert body["max_completion_tokens"] == MARKER_MAXIMUM_OUTPUT_TOKENS
+    assert "metadata" not in body
+    assert payload_digest not in json.dumps(body, sort_keys=True)
 
 
 def test_sealed_route_projection_binds_route_without_forwarding_fence_token() -> None:

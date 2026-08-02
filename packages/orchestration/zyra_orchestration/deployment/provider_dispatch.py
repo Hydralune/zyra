@@ -52,6 +52,10 @@ class LiveProviderProfile:
     normalized_pricing_source: str | None = None
     model_version: str | None = None
 
+    @property
+    def endpoint(self) -> str:
+        return f"{self.base_url.rstrip('/')}/{self.endpoint_path.lstrip('/')}"
+
 
 ZHIPU_PROVIDER_ID = "zhipu"
 GLM_52_MODEL_ID = "glm-5.2"
@@ -68,6 +72,11 @@ PROVIDER_PRIORITY = (
     (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
     (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
 )
+
+# Reasoning-capable providers can consume part of the output allowance before
+# emitting the visible marker.  The previous 64-token cap intermittently ended
+# Kimi requests with ``stop_reason=length`` before the marker was produced.
+MARKER_MAXIMUM_OUTPUT_TOKENS = 512
 
 _LIVE_PROFILES = {
     (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID): LiveProviderProfile(
@@ -165,6 +174,7 @@ class LiveProviderDispatchEvidence:
     provider_attempt_id: str
     route_id: str
     protocol: str
+    endpoint: str
     endpoint_host: str
     endpoint_path: str
     http_status: int
@@ -197,6 +207,7 @@ class LiveProviderDispatchEvidence:
             "provider_attempt_id": self.provider_attempt_id,
             "route_id": self.route_id,
             "protocol": self.protocol,
+            "endpoint": self.endpoint,
             "endpoint_host": self.endpoint_host,
             "endpoint_path": self.endpoint_path,
             "http_status": self.http_status,
@@ -228,6 +239,47 @@ class LiveProviderDispatchEvidence:
             "simulated": False,
             "semantic_only": False,
         }
+
+
+def _marker_dispatch_request(
+    *,
+    request_id: str,
+    route_id: str,
+    run_id: str,
+    task_id: str,
+    node_id: str,
+    marker: str,
+    idempotency_key: str,
+    payload_digest: str,
+) -> ProviderDispatchRequest:
+    return ProviderDispatchRequest(
+        dispatch_id=request_id,
+        route_id=route_id,
+        run_id=run_id,
+        task_id=task_id,
+        node_id=node_id,
+        session_id=f"physical-session:{task_id}",
+        turn_id=request_id,
+        messages=(
+            DispatchMessage(
+                role="user",
+                content=(
+                    "Return exactly the marker below and no other text.\n"
+                    f"{marker}"
+                ),
+            ),
+        ),
+        maximum_output_tokens=MARKER_MAXIMUM_OUTPUT_TOKENS,
+        temperature=None,
+        stream=True,
+        timeout_milliseconds=90_000,
+        chunk_timeout_milliseconds=45_000,
+        idempotency_key=idempotency_key,
+        metadata={
+            "purpose": "p2-physical-dispatch-marker",
+            "payload_digest": payload_digest,
+        },
+    )
 
 
 class LiveProviderDispatchRuntime:
@@ -370,33 +422,15 @@ class LiveProviderDispatchRuntime:
                     )
                 )
                 result = client.dispatch(
-                    ProviderDispatchRequest(
-                        dispatch_id=request_id,
+                    _marker_dispatch_request(
+                        request_id=request_id,
                         route_id=str(route.get("routeId") or ""),
                         run_id=run_id,
                         task_id=task_id,
                         node_id=node_id,
-                        session_id=f"physical-session:{task_id}",
-                        turn_id=request_id,
-                        messages=(
-                            DispatchMessage(
-                                role="user",
-                                content=(
-                                    "Return exactly the marker below and no other text.\n"
-                                    f"{marker}"
-                                ),
-                            ),
-                        ),
-                        maximum_output_tokens=64,
-                        temperature=None,
-                        stream=True,
-                        timeout_milliseconds=90_000,
-                        chunk_timeout_milliseconds=45_000,
+                        marker=marker,
                         idempotency_key=idempotency_key,
-                        metadata={
-                            "purpose": "p2-physical-dispatch-marker",
-                            "payload_digest": payload_digest,
-                        },
+                        payload_digest=payload_digest,
                     )
                 )
                 profile = _LIVE_PROFILES.get(
@@ -527,6 +561,7 @@ class LiveProviderDispatchRuntime:
             provider_attempt_id=str(attempt.get("attemptId") or ""),
             route_id=str(result.get("routeId") or route.get("routeId") or ""),
             protocol=str(result.get("protocol") or ""),
+            endpoint=profile.endpoint,
             endpoint_host=profile.endpoint_host,
             endpoint_path=profile.endpoint_path,
             http_status=http_status,
@@ -701,6 +736,7 @@ __all__ = [
     "LiveProviderDispatchEvidence",
     "LiveProviderProfile",
     "LiveProviderDispatchRuntime",
+    "MARKER_MAXIMUM_OUTPUT_TOKENS",
     "PROVIDER_PRIORITY",
     "ZAI_API_KEY_ENV",
     "ZHIPU_PROVIDER_ID",

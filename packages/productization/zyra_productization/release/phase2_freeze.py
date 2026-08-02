@@ -91,6 +91,9 @@ FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIFTH_COMMIT = (
 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT = (
     "ca26a2134f46ae863beb6eeca183028a160e3f2c"
 )
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT = (
+    "d09e48113af26b32d81e1b13b3dcd37023aa0877"
+)
 FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -141,11 +144,19 @@ FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_freeze_audit.py",
     "tests/unit/test_release_productization.py",
 )
-FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS = (
     "packages/orchestration/zyra_orchestration/deployment/semantic_health.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
     "tests/integration/test_deployment_node_processes.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/orchestration/zyra_orchestration/deployment/provider_dispatch.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
@@ -2741,6 +2752,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FOURTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIFTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
             target,
         )
         expected_parents = (
@@ -2751,6 +2763,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FOURTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIFTH_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT,
         )
         exact_chain = True
         for commit, expected_parent in zip(
@@ -2763,7 +2776,7 @@ class Phase2FreezeAuditor:
             ).split()
             if parents != [commit, expected_parent]:
                 exact_chain = False
-                blockers.append("supplement_target_not_exact_seven_commit_chain")
+                blockers.append("supplement_target_not_exact_eight_commit_chain")
                 break
         segment_allowlists = (
             FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
@@ -2772,6 +2785,7 @@ class Phase2FreezeAuditor:
             FINAL_REGRESSION_SUPPLEMENT_FOURTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_FIFTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
         )
         cumulative_allowed = tuple(
@@ -2783,6 +2797,7 @@ class Phase2FreezeAuditor:
                     *FINAL_REGRESSION_SUPPLEMENT_FOURTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_FIFTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_SIXTH_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
                 )
             )
@@ -2966,6 +2981,9 @@ class Phase2FreezeAuditor:
             ),
             "required_sixth_commit": (
                 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SIXTH_COMMIT
+            ),
+            "required_seventh_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
             ),
             "commit_count": len(commit_chain),
             "commit_chain": list(commit_chain),
