@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -420,16 +421,43 @@ def _write(path: Path, value: Mapping[str, Any]) -> None:
 def _run_phase(arguments: argparse.Namespace) -> int:
     checkout = Path(str(arguments.checkout)).resolve()
     workspace = Path(str(arguments.workspace)).resolve()
-    if arguments.phase == "baseline":
-        result = _baseline_phase(checkout, workspace)
-    else:
-        baseline = json.loads(Path(str(arguments.baseline)).read_text(encoding="utf-8"))
-        result = _target_phase(
-            checkout,
-            workspace,
-            baseline,
-            restart_index=arguments.restart_index,
-        )
+    previous_deployment_root = os.environ.get("ZYRA_DEPLOYMENT_STATE_ROOT")
+    deployment_root: Path
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix=".zyra-loopx-cross-version-deployment-",
+            dir=checkout,
+        ) as raw_deployment_root:
+            deployment_root = Path(raw_deployment_root).resolve()
+            os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"] = str(deployment_root)
+            if arguments.phase == "baseline":
+                result = _baseline_phase(checkout, workspace)
+            else:
+                baseline = json.loads(
+                    Path(str(arguments.baseline)).read_text(encoding="utf-8")
+                )
+                result = _target_phase(
+                    checkout,
+                    workspace,
+                    baseline,
+                    restart_index=arguments.restart_index,
+                )
+    finally:
+        if previous_deployment_root is None:
+            os.environ.pop("ZYRA_DEPLOYMENT_STATE_ROOT", None)
+        else:
+            os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"] = previous_deployment_root
+    if deployment_root.exists():
+        raise RuntimeError("owned cross-version deployment state was not cleaned")
+    result = {
+        **result,
+        "deployment_state_isolation": {
+            "strategy": "owned_checkout_temporary_directory",
+            "checkout": str(checkout),
+            "path": str(deployment_root),
+            "cleaned": True,
+        },
+    }
     _write(Path(str(arguments.phase_output)).resolve(), result)
     return 0
 
@@ -520,6 +548,32 @@ def _run_parent(arguments: argparse.Namespace) -> int:
         == targets[1]["state_digest"]
     ):
         raise RuntimeError("cross-version semantic state digest is not stable")
+    phase_values = (baseline, *targets)
+    expected_checkouts = (base_checkout, target_checkout, target_checkout)
+    isolation_paths: list[Path] = []
+    isolation_ready = True
+    for item, expected_checkout in zip(
+        phase_values,
+        expected_checkouts,
+        strict=True,
+    ):
+        isolation = dict(item.get("deployment_state_isolation") or {})
+        isolation_path = Path(str(isolation.get("path") or ".")).resolve()
+        expected_checkout = expected_checkout.resolve()
+        isolation_ready = isolation_ready and (
+            isolation.get("strategy") == "owned_checkout_temporary_directory"
+            and isolation.get("cleaned") is True
+            and Path(str(isolation.get("checkout") or ".")).resolve()
+            == expected_checkout
+            and expected_checkout in isolation_path.parents
+            and not isolation_path.exists()
+        )
+        isolation_paths.append(isolation_path)
+    isolation_ready = isolation_ready and len(
+        {os.path.normcase(str(path)) for path in isolation_paths}
+    ) == len(isolation_paths)
+    if not isolation_ready:
+        raise RuntimeError("cross-version deployment state isolation is incomplete")
     result = {
         "schema": "zyra.loopx-cross-version-upgrade/v1",
         "ready": True,
@@ -541,6 +595,8 @@ def _run_parent(arguments: argparse.Namespace) -> int:
             "claim_became_worker_lease": False,
             "quota_became_execution_budget": False,
             "independent_target_restart_count": 2,
+            "checkout_runtime_state_cleaned": True,
+            "checkout_runtime_state_paths_distinct": True,
         },
     }
     _write(output, result)

@@ -60,8 +60,12 @@ FINAL_REGRESSION_RESUME_ALLOWED_PATHS = (
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/audit/verify_phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
+    "scripts/release/verify_loopx_cross_version_upgrade.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT = (
+    "363e011ff899e76cdb2c16e7246294f333cb5b9f"
 )
 LOOPX_CROSS_VERSION_BASE_COMMIT = "3c4d1092187b1777468cad0ce2a772244d012197"
 TYPESCRIPT_RUNTIME_TEST_ROOTS = (
@@ -2426,7 +2430,62 @@ class Phase2FreezeAuditor:
     ) -> dict[str, Any]:
         self._require_full_commit(source_target, label="resume source target")
         self._require_full_commit(target, label="resume target")
-        parents = self._git("rev-list", "--parents", "-n", "1", target).split()
+        blockers: list[str] = []
+        allowed = set(FINAL_REGRESSION_RESUME_ALLOWED_PATHS)
+        allowlist_payload = json.dumps(
+            FINAL_REGRESSION_RESUME_ALLOWED_PATHS,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        commit_chain = (
+            FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT,
+            target,
+        )
+        expected_parents = (
+            source_target,
+            FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT,
+        )
+        observed_parents = tuple(
+            self._git("rev-list", "--parents", "-n", "1", commit).split()
+            for commit in commit_chain
+        )
+        exact_chain = all(
+            parents == [commit, expected_parent]
+            for commit, expected_parent, parents in zip(
+                commit_chain,
+                expected_parents,
+                observed_parents,
+                strict=True,
+            )
+        )
+        if not exact_chain:
+            observed = {
+                "source_target_commit": source_target,
+                "source_target_tree": "",
+                "target_commit": target,
+                "target_tree": "",
+                "direct_single_parent": False,
+                "linear_single_parent_chain": False,
+                "required_first_commit": (
+                    FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT
+                ),
+                "commit_count": 2,
+                "commit_chain": list(commit_chain),
+                "commit_path_changes": [],
+                "changed_paths": [],
+                "change_statuses": [],
+                "blob_transitions": [],
+                "allowed_paths": list(FINAL_REGRESSION_RESUME_ALLOWED_PATHS),
+                "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
+                "diff_sha256": "",
+                "production_or_configuration_changed": False,
+                "rename_symlink_or_submodule_changed": False,
+            }
+            blockers.append("target_not_exact_two_commit_remediation_chain")
+            if dict(supplied) != observed:
+                blockers.append("target_delta_receipt_mismatch")
+            return {"ready": False, "blockers": blockers, **observed}
+
         status_lines = tuple(
             line
             for line in self._git(
@@ -2440,10 +2499,6 @@ class Phase2FreezeAuditor:
         )
         changed_paths: list[str] = []
         transitions: list[dict[str, str]] = []
-        blockers: list[str] = []
-        allowed = set(FINAL_REGRESSION_RESUME_ALLOWED_PATHS)
-        if parents != [target, source_target]:
-            blockers.append("target_not_direct_single_child")
         if not status_lines:
             blockers.append("target_delta_missing")
         for line in status_lines:
@@ -2476,17 +2531,71 @@ class Phase2FreezeAuditor:
             changed_paths
         ) != len(FINAL_REGRESSION_RESUME_ALLOWED_PATHS):
             blockers.append("required_control_plane_delta_incomplete")
+
+        previous = source_target
+        commit_path_changes: list[dict[str, Any]] = []
+        for commit in commit_chain:
+            commit_statuses = tuple(
+                line
+                for line in self._git(
+                    "diff",
+                    "--name-status",
+                    "--no-renames",
+                    previous,
+                    commit,
+                ).splitlines()
+                if line
+            )
+            if not commit_statuses:
+                blockers.append(f"empty_remediation_commit:{commit}")
+            segment_transitions: list[dict[str, str]] = []
+            for line in commit_statuses:
+                status, separator, path = line.partition("\t")
+                if separator != "\t" or status != "M" or path not in allowed:
+                    blockers.append(f"forbidden_remediation_commit_change:{commit}:{line}")
+                    continue
+                parent_entry = self._git("ls-tree", previous, "--", path).split()
+                commit_entry = self._git("ls-tree", commit, "--", path).split()
+                if (
+                    len(parent_entry) < 3
+                    or len(commit_entry) < 3
+                    or parent_entry[0] != commit_entry[0]
+                    or parent_entry[0] not in {"100644", "100755"}
+                    or parent_entry[1] != "blob"
+                    or commit_entry[1] != "blob"
+                ):
+                    blockers.append(f"remediation_commit_mode_or_type:{commit}:{path}")
+                    continue
+                segment_transitions.append(
+                    {
+                        "path": path,
+                        "mode": parent_entry[0],
+                        "source_blob": parent_entry[2],
+                        "target_blob": commit_entry[2],
+                    }
+                )
+            segment_diff = subprocess.run(
+                ["git", "diff", "--binary", "--no-renames", previous, commit],
+                cwd=self.root,
+                check=True,
+                capture_output=True,
+            ).stdout
+            commit_path_changes.append(
+                {
+                    "commit": commit,
+                    "parent": previous,
+                    "change_statuses": list(commit_statuses),
+                    "blob_transitions": segment_transitions,
+                    "diff_sha256": hashlib.sha256(segment_diff).hexdigest(),
+                }
+            )
+            previous = commit
         diff = subprocess.run(
             ["git", "diff", "--binary", "--no-renames", source_target, target],
             cwd=self.root,
             check=True,
             capture_output=True,
         ).stdout
-        allowlist_payload = json.dumps(
-            FINAL_REGRESSION_RESUME_ALLOWED_PATHS,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
         observed = {
             "source_target_commit": source_target,
             "source_target_tree": self._git(
@@ -2494,7 +2603,12 @@ class Phase2FreezeAuditor:
             ).strip(),
             "target_commit": target,
             "target_tree": self._git("rev-parse", f"{target}^{{tree}}").strip(),
-            "direct_single_parent": parents == [target, source_target],
+            "direct_single_parent": False,
+            "linear_single_parent_chain": True,
+            "required_first_commit": FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT,
+            "commit_count": len(commit_chain),
+            "commit_chain": list(commit_chain),
+            "commit_path_changes": commit_path_changes,
             "changed_paths": changed_paths,
             "change_statuses": list(status_lines),
             "blob_transitions": transitions,
@@ -2769,6 +2883,41 @@ class Phase2FreezeAuditor:
             blockers.append("resume_loopx_result")
         invariants = loopx.get("invariants")
         restarts = loopx.get("target_restarts")
+        baseline = loopx.get("baseline")
+        phases = (
+            (baseline, loopx_base.resolve()),
+            *((item, self.root) for item in restarts),
+        ) if (
+            isinstance(baseline, Mapping)
+            and isinstance(restarts, Sequence)
+            and not isinstance(restarts, (str, bytes))
+            and len(restarts) == 2
+            and all(isinstance(item, Mapping) for item in restarts)
+        ) else ()
+        isolation_paths: list[Path] = []
+        isolation_ready = len(phases) == 3
+        for phase, expected_checkout in phases:
+            isolation = phase.get("deployment_state_isolation")
+            if not isinstance(isolation, Mapping):
+                isolation_ready = False
+                continue
+            isolation_path = Path(str(isolation.get("path") or ".")).resolve()
+            expected_checkout = expected_checkout.resolve()
+            isolation_ready = isolation_ready and (
+                isolation.get("strategy")
+                == "owned_checkout_temporary_directory"
+                and isolation.get("cleaned") is True
+                and Path(str(isolation.get("checkout") or ".")).resolve()
+                == expected_checkout
+                and expected_checkout in isolation_path.parents
+                and not isolation_path.exists()
+            )
+            isolation_paths.append(isolation_path)
+        isolation_ready = (
+            isolation_ready
+            and len(isolation_paths) == 3
+            and len({os.path.normcase(str(item)) for item in isolation_paths}) == 3
+        )
         loopx_ready = (
             sha256_file(loopx_path) == value.get("loopx_result_sha256")
             if "loopx_path" in locals() and loopx_path.is_file()
@@ -2795,6 +2944,9 @@ class Phase2FreezeAuditor:
             and invariants.get("historical_install_preserved_and_ignored") is True
             and invariants.get("new_install_or_extraction") is False
             and invariants.get("independent_target_restart_count") == 2
+            and invariants.get("checkout_runtime_state_cleaned") is True
+            and invariants.get("checkout_runtime_state_paths_distinct") is True
+            and isolation_ready
         )
         if not loopx_ready or value.get("loopx_result_ready") is not True:
             blockers.append("resume_loopx_invariants")

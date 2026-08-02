@@ -69,9 +69,11 @@ RESUME_ALLOWED_PATHS = (
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/audit/verify_phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
+    "scripts/release/verify_loopx_cross_version_upgrade.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
+RESUME_REQUIRED_FIRST_COMMIT = "363e011ff899e76cdb2c16e7246294f333cb5b9f"
 RESUME_REMEDIATION_TESTS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
@@ -585,9 +587,13 @@ def _command_specs(
 
 
 def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str, Any]:
-    parents = _git("rev-list", "--parents", "-n", "1", target_commit).split()
-    if parents != [target_commit, source_target]:
-        raise ValueError("resume target must be the source target's single direct child")
+    commit_chain = (RESUME_REQUIRED_FIRST_COMMIT, target_commit)
+    expected_parents = (source_target, RESUME_REQUIRED_FIRST_COMMIT)
+    for commit, expected_parent in zip(commit_chain, expected_parents, strict=True):
+        parents = _git("rev-list", "--parents", "-n", "1", commit).split()
+        if parents != [commit, expected_parent]:
+            raise ValueError("resume target is not the exact two-commit remediation chain")
+    allowed = set(RESUME_ALLOWED_PATHS)
     status_lines = tuple(
         line
         for line in _git(
@@ -603,7 +609,6 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
         raise ValueError("resume target has no remediation delta")
     changed_paths: list[str] = []
     blob_transitions: list[dict[str, str]] = []
-    allowed = set(RESUME_ALLOWED_PATHS)
     for line in status_lines:
         status, separator, path = line.partition("\t")
         if separator != "\t" or status != "M" or path not in allowed:
@@ -638,6 +643,65 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
         check=True,
         capture_output=True,
     ).stdout
+    previous = source_target
+    commit_path_changes: list[dict[str, Any]] = []
+    for commit in commit_chain:
+        commit_statuses = tuple(
+            line
+            for line in _git(
+                "diff",
+                "--name-status",
+                "--no-renames",
+                previous,
+                commit,
+            ).splitlines()
+            if line
+        )
+        if not commit_statuses:
+            raise ValueError("resume remediation commit has no delta")
+        segment_transitions: list[dict[str, str]] = []
+        for line in commit_statuses:
+            status, separator, path = line.partition("\t")
+            if separator != "\t" or status != "M" or path not in allowed:
+                raise ValueError(f"resume remediation commit contains a forbidden change: {line}")
+            parent_entry = _git("ls-tree", previous, "--", path).split()
+            commit_entry = _git("ls-tree", commit, "--", path).split()
+            if (
+                len(parent_entry) < 3
+                or len(commit_entry) < 3
+                or parent_entry[0] != commit_entry[0]
+                or parent_entry[0] not in {"100644", "100755"}
+                or parent_entry[1] != "blob"
+                or commit_entry[1] != "blob"
+            ):
+                raise ValueError(
+                    "resume remediation commit changed the file mode or object type: "
+                    + path
+                )
+            segment_transitions.append(
+                {
+                    "path": path,
+                    "mode": parent_entry[0],
+                    "source_blob": parent_entry[2],
+                    "target_blob": commit_entry[2],
+                }
+            )
+        segment_diff = subprocess.run(
+            ["git", "diff", "--binary", "--no-renames", previous, commit],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+        commit_path_changes.append(
+            {
+                "commit": commit,
+                "parent": previous,
+                "change_statuses": list(commit_statuses),
+                "blob_transitions": segment_transitions,
+                "diff_sha256": hashlib.sha256(segment_diff).hexdigest(),
+            }
+        )
+        previous = commit
     allowlist_payload = json.dumps(
         RESUME_ALLOWED_PATHS,
         ensure_ascii=False,
@@ -648,7 +712,12 @@ def _resume_target_delta(*, source_target: str, target_commit: str) -> dict[str,
         "source_target_tree": _git("rev-parse", f"{source_target}^{{tree}}"),
         "target_commit": target_commit,
         "target_tree": _git("rev-parse", f"{target_commit}^{{tree}}"),
-        "direct_single_parent": True,
+        "direct_single_parent": False,
+        "linear_single_parent_chain": True,
+        "required_first_commit": RESUME_REQUIRED_FIRST_COMMIT,
+        "commit_count": len(commit_chain),
+        "commit_chain": list(commit_chain),
+        "commit_path_changes": commit_path_changes,
         "changed_paths": changed_paths,
         "change_statuses": list(status_lines),
         "blob_transitions": blob_transitions,
@@ -868,12 +937,45 @@ def _loopx_resume_result_ready(
     path: Path,
     *,
     target_commit: str,
+    loopx_base_checkout: Path,
 ) -> bool:
     if not path.is_file():
         return False
     value = _load_json(path)
     invariants = value.get("invariants")
     restarts = value.get("target_restarts")
+    baseline = value.get("baseline")
+    phases = (
+        (baseline, loopx_base_checkout.resolve()),
+        *((item, ROOT) for item in restarts),
+    ) if (
+        isinstance(baseline, Mapping)
+        and isinstance(restarts, Sequence)
+        and not isinstance(restarts, (str, bytes))
+        and len(restarts) == 2
+        and all(isinstance(item, Mapping) for item in restarts)
+    ) else ()
+    isolation_paths: list[Path] = []
+    isolation_ready = len(phases) == 3
+    for phase, expected_checkout in phases:
+        isolation = phase.get("deployment_state_isolation")
+        if not isinstance(isolation, Mapping):
+            isolation_ready = False
+            continue
+        isolation_path = Path(str(isolation.get("path") or ".")).resolve()
+        expected_checkout = expected_checkout.resolve()
+        isolation_ready = isolation_ready and (
+            isolation.get("strategy") == "owned_checkout_temporary_directory"
+            and isolation.get("cleaned") is True
+            and Path(str(isolation.get("checkout") or ".")).resolve()
+            == expected_checkout
+            and expected_checkout in isolation_path.parents
+            and not isolation_path.exists()
+        )
+        isolation_paths.append(isolation_path)
+    isolation_ready = isolation_ready and len(isolation_paths) == 3 and len(
+        {os.path.normcase(str(item)) for item in isolation_paths}
+    ) == 3
     return (
         value.get("schema") == "zyra.loopx-cross-version-upgrade/v1"
         and value.get("ready") is True
@@ -896,6 +998,9 @@ def _loopx_resume_result_ready(
         and invariants.get("historical_install_preserved_and_ignored") is True
         and invariants.get("new_install_or_extraction") is False
         and invariants.get("independent_target_restart_count") == 2
+        and invariants.get("checkout_runtime_state_cleaned") is True
+        and invariants.get("checkout_runtime_state_paths_distinct") is True
+        and isolation_ready
     )
 
 
@@ -980,6 +1085,7 @@ def resume_regression(
     loopx_ready = _loopx_resume_result_ready(
         loopx_output,
         target_commit=target_commit,
+        loopx_base_checkout=loopx_base_checkout,
     )
     all_reruns_passed = len(rerun_commands) == len(specs) and all(
         item.get("ready") is True for item in rerun_commands

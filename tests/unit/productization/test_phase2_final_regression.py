@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -26,6 +28,16 @@ FREEZE_SPEC = importlib.util.spec_from_file_location(
 assert FREEZE_SPEC is not None and FREEZE_SPEC.loader is not None
 FREEZE_MODULE = importlib.util.module_from_spec(FREEZE_SPEC)
 FREEZE_SPEC.loader.exec_module(FREEZE_MODULE)
+LOOPX_UPGRADE_SCRIPT = (
+    ROOT / "scripts" / "release" / "verify_loopx_cross_version_upgrade.py"
+)
+LOOPX_UPGRADE_SPEC = importlib.util.spec_from_file_location(
+    "verify_loopx_cross_version_upgrade",
+    LOOPX_UPGRADE_SCRIPT,
+)
+assert LOOPX_UPGRADE_SPEC is not None and LOOPX_UPGRADE_SPEC.loader is not None
+LOOPX_UPGRADE_MODULE = importlib.util.module_from_spec(LOOPX_UPGRADE_SPEC)
+LOOPX_UPGRADE_SPEC.loader.exec_module(LOOPX_UPGRADE_MODULE)
 
 from zyra_productization.release.phase2_freeze import Phase2FreezeAuditor
 
@@ -163,10 +175,12 @@ def test_loopx_cross_version_command_is_fully_parameterized(
 def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
     source = "a" * 40
     target = "b" * 40
+    first = MODULE.RESUME_REQUIRED_FIRST_COMMIT
 
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
-            return f"{target} {source}"
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
             return "M\tpackages/runtime/production.py"
         raise AssertionError(arguments)
@@ -183,11 +197,13 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
 def test_resume_delta_requires_every_control_plane_file(monkeypatch) -> None:
     source = "a" * 40
     target = "b" * 40
+    first = MODULE.RESUME_REQUIRED_FIRST_COMMIT
     only_path = MODULE.RESUME_ALLOWED_PATHS[0]
 
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
-            return f"{target} {source}"
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
             return f"M\t{only_path}"
         if arguments[:2] == ("ls-tree", source):
@@ -205,6 +221,160 @@ def test_resume_delta_requires_every_control_plane_file(monkeypatch) -> None:
         )
 
 
+def test_resume_delta_rejects_forbidden_intermediate_commit_change(
+    monkeypatch,
+) -> None:
+    source = "a" * 40
+    intermediate = MODULE.RESUME_REQUIRED_FIRST_COMMIT
+    target = "c" * 40
+    allowed_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.RESUME_ALLOWED_PATHS
+    )
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            parent = source if commit == intermediate else intermediate
+            return f"{commit} {parent}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            if arguments[-2:] == (source, intermediate):
+                return "M\tpackages/runtime/temporary-production-change.py"
+            return allowed_statuses
+        if arguments[0] == "ls-tree":
+            path = arguments[-1]
+            return f"100644 blob {'d' * 40}\t{path}"
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    with pytest.raises(ValueError, match="forbidden change"):
+        MODULE._resume_target_delta(
+            source_target=source,
+            target_commit=target,
+        )
+
+
+def test_resume_delta_rejects_wrong_exact_chain_before_diff(
+    monkeypatch,
+) -> None:
+    source = "a" * 40
+    target = "d" * 40
+    first = MODULE.RESUME_REQUIRED_FIRST_COMMIT
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            parent = source if commit == first else "e" * 40
+            return f"{commit} {parent}"
+        raise AssertionError("exact-chain rejection must precede diff calls")
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+
+    with pytest.raises(ValueError, match="exact two-commit remediation chain"):
+        MODULE._resume_target_delta(
+            source_target=source,
+            target_commit=target,
+        )
+
+
+def test_resume_delta_accepts_exact_two_commit_blob_chain(monkeypatch) -> None:
+    source = "a" * 40
+    first = MODULE.RESUME_REQUIRED_FIRST_COMMIT
+    target = "d" * 40
+    split = len(MODULE.RESUME_ALLOWED_PATHS) // 2
+    first_paths = MODULE.RESUME_ALLOWED_PATHS[:split]
+    second_paths = MODULE.RESUME_ALLOWED_PATHS[split:]
+
+    def statuses(paths: tuple[str, ...]) -> str:
+        return "\n".join(f"M\t{path}" for path in paths)
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            pair = arguments[-2:]
+            if pair == (source, target):
+                return statuses(MODULE.RESUME_ALLOWED_PATHS)
+            if pair == (source, first):
+                return statuses(first_paths)
+            if pair == (first, target):
+                return statuses(second_paths)
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            path = arguments[-1]
+            blob = {source: "b", first: "c", target: "d"}[revision] * 40
+            return f"100644 blob {blob}\t{path}"
+        if arguments[:2] == ("rev-parse", f"{source}^{{tree}}"):
+            return "e" * 40
+        if arguments[:2] == ("rev-parse", f"{target}^{{tree}}"):
+            return "f" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda command, **kwargs: SimpleNamespace(
+            stdout=(" ".join(command[-2:])).encode()
+        ),
+    )
+
+    delta = MODULE._resume_target_delta(
+        source_target=source,
+        target_commit=target,
+    )
+
+    assert delta["commit_chain"] == [first, target]
+    assert delta["required_first_commit"] == first
+    assert len(delta["commit_path_changes"]) == 2
+    assert all(item["blob_transitions"] for item in delta["commit_path_changes"])
+    assert all(item["diff_sha256"] for item in delta["commit_path_changes"])
+
+
+def test_resume_delta_rejects_transient_mode_change(monkeypatch) -> None:
+    source = "a" * 40
+    first = MODULE.RESUME_REQUIRED_FIRST_COMMIT
+    target = "d" * 40
+    changed_path = MODULE.RESUME_ALLOWED_PATHS[0]
+    allowed_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.RESUME_ALLOWED_PATHS
+    )
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            if arguments[-2:] == (source, target):
+                return allowed_statuses
+            return f"M\t{changed_path}"
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            path = arguments[-1]
+            mode = "100755" if revision == first and path == changed_path else "100644"
+            return f"{mode} blob {'e' * 40}\t{path}"
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    with pytest.raises(ValueError, match="mode or object type"):
+        MODULE._resume_target_delta(
+            source_target=source,
+            target_commit=target,
+        )
+
+
 def test_resume_source_requires_full_external_sha(tmp_path: Path) -> None:
     receipt = tmp_path / "source.json"
     receipt.write_text("{}\n", encoding="utf-8")
@@ -216,6 +386,150 @@ def test_resume_source_requires_full_external_sha(tmp_path: Path) -> None:
             target_commit="b" * 40,
             bun="bun",
         )
+
+
+def test_cross_version_phase_cleans_owned_deployment_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    output = tmp_path / "phase.json"
+    observed: dict[str, Path] = {}
+    monkeypatch.setenv("ZYRA_DEPLOYMENT_STATE_ROOT", "preexisting-sentinel")
+
+    def fake_baseline(selected_checkout: Path, workspace: Path) -> dict[str, object]:
+        assert selected_checkout == checkout.resolve()
+        assert workspace == (tmp_path / "workspace").resolve()
+        deployment_root = Path(os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"])
+        assert checkout.resolve() in deployment_root.parents
+        (deployment_root / "owned.sqlite3").write_bytes(b"owned")
+        observed["deployment_root"] = deployment_root
+        return {"schema": "test-phase"}
+
+    monkeypatch.setattr(LOOPX_UPGRADE_MODULE, "_baseline_phase", fake_baseline)
+    arguments = SimpleNamespace(
+        checkout=str(checkout),
+        workspace=str(tmp_path / "workspace"),
+        phase="baseline",
+        baseline=None,
+        restart_index=0,
+        phase_output=str(output),
+    )
+
+    assert LOOPX_UPGRADE_MODULE._run_phase(arguments) == 0
+    assert not observed["deployment_root"].exists()
+    assert os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"] == "preexisting-sentinel"
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["deployment_state_isolation"]["cleaned"] is True
+
+
+def test_cross_version_phase_cleans_deployment_state_after_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    observed: dict[str, Path] = {}
+    monkeypatch.setenv("ZYRA_DEPLOYMENT_STATE_ROOT", "preexisting-sentinel")
+
+    def failing_baseline(
+        selected_checkout: Path,
+        workspace: Path,
+    ) -> dict[str, object]:
+        deployment_root = Path(os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"])
+        (deployment_root / "owned.sqlite3").write_bytes(b"owned")
+        observed["deployment_root"] = deployment_root
+        raise RuntimeError("expected phase failure")
+
+    monkeypatch.setattr(
+        LOOPX_UPGRADE_MODULE,
+        "_baseline_phase",
+        failing_baseline,
+    )
+    arguments = SimpleNamespace(
+        checkout=str(checkout),
+        workspace=str(tmp_path / "workspace"),
+        phase="baseline",
+        baseline=None,
+        restart_index=0,
+        phase_output=str(tmp_path / "phase.json"),
+    )
+
+    with pytest.raises(RuntimeError, match="expected phase failure"):
+        LOOPX_UPGRADE_MODULE._run_phase(arguments)
+    assert not observed["deployment_root"].exists()
+    assert os.environ["ZYRA_DEPLOYMENT_STATE_ROOT"] == "preexisting-sentinel"
+
+
+def test_loopx_resume_result_requires_three_distinct_owned_isolations(
+    tmp_path: Path,
+) -> None:
+    target = "d" * 40
+    base = (tmp_path / "base").resolve()
+    base.mkdir()
+    target_paths = (
+        ROOT / f".nonexistent-loopx-isolation-{tmp_path.name}-1",
+        ROOT / f".nonexistent-loopx-isolation-{tmp_path.name}-2",
+    )
+
+    def phase(checkout: Path, path: Path, commit: str) -> dict[str, object]:
+        return {
+            "commit": commit,
+            "checkout": str(checkout),
+            "deployment_state_isolation": {
+                "strategy": "owned_checkout_temporary_directory",
+                "checkout": str(checkout),
+                "path": str(path),
+                "cleaned": True,
+            },
+        }
+
+    receipt = {
+        "schema": "zyra.loopx-cross-version-upgrade/v1",
+        "ready": True,
+        "base_commit": MODULE.LOOPX_CROSS_VERSION_BASE_COMMIT,
+        "target_commit": target,
+        "baseline": phase(
+            base,
+            base / ".nonexistent-loopx-isolation-base",
+            MODULE.LOOPX_CROSS_VERSION_BASE_COMMIT,
+        ),
+        "target_restarts": [
+            phase(ROOT, target_paths[0], target),
+            phase(ROOT, target_paths[1], target),
+        ],
+        "invariants": {
+            "semantic_state_preserved": True,
+            "cursor_monotonic": True,
+            "duplicate_claim": False,
+            "duplicate_spend": False,
+            "duplicate_interaction": False,
+            "duplicate_canonical_commit": False,
+            "historical_install_preserved_and_ignored": True,
+            "new_install_or_extraction": False,
+            "independent_target_restart_count": 2,
+            "checkout_runtime_state_cleaned": True,
+            "checkout_runtime_state_paths_distinct": True,
+        },
+    }
+    path = tmp_path / "loopx.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    assert MODULE._loopx_resume_result_ready(
+        path,
+        target_commit=target,
+        loopx_base_checkout=base,
+    )
+    receipt["target_restarts"][1]["deployment_state_isolation"]["path"] = str(
+        target_paths[0]
+    )
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    assert not MODULE._loopx_resume_result_ready(
+        path,
+        target_commit=target,
+        loopx_base_checkout=base,
+    )
 
 
 def test_loopx_base_boundary_rejects_ignored_bytecode(

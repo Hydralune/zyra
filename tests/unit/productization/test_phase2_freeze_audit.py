@@ -219,10 +219,12 @@ def test_resume_delta_audit_rejects_production_change(monkeypatch) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
     source = "a" * 40
     target = "b" * 40
+    first = phase2_freeze.FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT
 
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
-            return f"{target} {source}"
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
             return "M\tpackages/runtime/production.py"
         if arguments[:2] == ("rev-parse", f"{source}^{{tree}}"):
@@ -248,6 +250,86 @@ def test_resume_delta_audit_rejects_production_change(monkeypatch) -> None:
     assert "forbidden_target_change:M\tpackages/runtime/production.py" in audit[
         "blockers"
     ]
+
+
+def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
+    monkeypatch,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    source = "a" * 40
+    target = "d" * 40
+    first = phase2_freeze.FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else 'e' * 40}"
+        raise AssertionError("invalid exact chain reached a diff or tree query")
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("invalid exact chain reached subprocess diff")
+        ),
+    )
+
+    audit = auditor._resume_delta_audit(
+        {},
+        source_target=source,
+        target=target,
+    )
+
+    assert "target_not_exact_two_commit_remediation_chain" in audit["blockers"]
+    assert audit["commit_path_changes"] == []
+
+
+def test_resume_delta_audit_rejects_transient_mode_change(monkeypatch) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    source = "a" * 40
+    target = "d" * 40
+    first = phase2_freeze.FINAL_REGRESSION_RESUME_REQUIRED_FIRST_COMMIT
+    changed_path = phase2_freeze.FINAL_REGRESSION_RESUME_ALLOWED_PATHS[0]
+    cumulative = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_RESUME_ALLOWED_PATHS
+    )
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {source if commit == first else first}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            return cumulative if arguments[-2:] == (source, target) else f"M\t{changed_path}"
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            path = arguments[-1]
+            mode = "100755" if revision == first and path == changed_path else "100644"
+            return f"{mode} blob {'c' * 40}\t{path}"
+        if arguments[:2] == ("rev-parse", f"{source}^{{tree}}"):
+            return "e" * 40
+        if arguments[:2] == ("rev-parse", f"{target}^{{tree}}"):
+            return "f" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    audit = auditor._resume_delta_audit(
+        {},
+        source_target=source,
+        target=target,
+    )
+
+    assert any(
+        blocker.startswith("remediation_commit_mode_or_type:")
+        for blocker in audit["blockers"]
+    )
 
 
 def test_option_like_resume_source_is_rejected_before_git(
