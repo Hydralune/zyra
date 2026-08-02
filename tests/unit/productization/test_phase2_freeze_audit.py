@@ -8,6 +8,7 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -185,6 +186,7 @@ def test_final_regression_audit_rejects_command_or_cwd_substitution(
     expected = auditor._expected_regression_commands(
         output_root=tmp_path,
         target=target,
+        loopx_base_checkout=tmp_path / "loopx-base",
     )
     commands = [
         {
@@ -198,6 +200,7 @@ def test_final_regression_audit_rejects_command_or_cwd_substitution(
         commands,
         output_root=tmp_path,
         target=target,
+        loopx_base_checkout=tmp_path / "loopx-base",
     ) == []
 
     commands[0]["argv"] = [sys.executable, "-c", "pass"]
@@ -206,9 +209,75 @@ def test_final_regression_audit_rejects_command_or_cwd_substitution(
         commands,
         output_root=tmp_path,
         target=target,
+        loopx_base_checkout=tmp_path / "loopx-base",
     )
     assert "command_argv:python-full-regression" in blockers
     assert "command_cwd:typescript-runtime-regression" in blockers
+
+
+def test_resume_delta_audit_rejects_production_change(monkeypatch) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    source = "a" * 40
+    target = "b" * 40
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            return f"{target} {source}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            return "M\tpackages/runtime/production.py"
+        if arguments[:2] == ("rev-parse", f"{source}^{{tree}}"):
+            return "c" * 40
+        if arguments[:2] == ("rev-parse", f"{target}^{{tree}}"):
+            return "d" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"forbidden-diff"),
+    )
+
+    audit = auditor._resume_delta_audit(
+        {},
+        source_target=source,
+        target=target,
+    )
+
+    assert audit["ready"] is False
+    assert "forbidden_target_change:M\tpackages/runtime/production.py" in audit[
+        "blockers"
+    ]
+
+
+def test_option_like_resume_source_is_rejected_before_git(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Git or subprocess must not run for an invalid commit id")
+
+    monkeypatch.setattr(auditor, "_git", forbidden)
+    monkeypatch.setattr(phase2_freeze.subprocess, "run", forbidden)
+    target = "b" * 40
+    result = auditor._resume_receipt_ready(
+        tmp_path / "missing.json",
+        {"source_target_commit": "--output=G:/forbidden"},
+        target=target,
+        actual_receipt_sha256="a" * 64,
+        expected_receipt_sha256="a" * 64,
+    )
+
+    assert result["ready"] is False
+    assert result["blockers"] == ["source_target_commit"]
+    with pytest.raises(Phase2FreezeError, match="full lowercase commit"):
+        auditor._resume_delta_audit(
+            {},
+            source_target="--output=G:/forbidden",
+            target=target,
+        )
 
 
 def test_final_regression_reuse_requires_external_digest_and_live_boundary(
@@ -218,6 +287,7 @@ def test_final_regression_reuse_requires_external_digest_and_live_boundary(
     auditor = Phase2FreezeAuditor(ROOT)
     target = _git(ROOT, "rev-parse", "HEAD")
     target_tree = _git(ROOT, "rev-parse", f"{target}^{{tree}}")
+    loopx_base = tmp_path.parent / f"{tmp_path.name}-loopx-base"
     boundary = {
         "schema": "zyra.release-worktree-boundary/v1",
         "ready": True,
@@ -237,10 +307,20 @@ def test_final_regression_reuse_requires_external_digest_and_live_boundary(
         "inspect_worktree",
         lambda root, *, expected_head: dict(boundary),
     )
+    monkeypatch.setattr(
+        auditor,
+        "_loopx_base_boundary_audit",
+        lambda supplied, checkout: {
+            "ready": True,
+            "supplied_matches": True,
+            "observed": dict(supplied),
+        },
+    )
     commands = []
     for command_id, argv in auditor._expected_regression_commands(
         output_root=tmp_path,
         target=target,
+        loopx_base_checkout=loopx_base,
     ).items():
         stdout = tmp_path / f"{command_id}.stdout.log"
         stderr = tmp_path / f"{command_id}.stderr.log"
@@ -264,6 +344,9 @@ def test_final_regression_reuse_requires_external_digest_and_live_boundary(
         "schema": "zyra.phase2-final-regression/v1",
         "target_commit": target,
         "ready": True,
+        "loopx_base_checkout": str(loopx_base),
+        "loopx_base_boundary_before": {"ready": True},
+        "loopx_base_boundary_after": {"ready": True},
         "passed_count": len(commands),
         "failed_count": 0,
         "commands": commands,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -50,6 +51,19 @@ FINAL_REGRESSION_COMMAND_IDS = (
     "loopx-offline-runtime",
     "loopx-cross-version-restart",
 )
+FINAL_REGRESSION_RESUME_RERUN_IDS = (
+    "phase2-policy-contracts",
+    "internalization-ledger",
+    "loopx-cross-version-restart",
+)
+FINAL_REGRESSION_RESUME_ALLOWED_PATHS = (
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/audit/verify_phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
+LOOPX_CROSS_VERSION_BASE_COMMIT = "3c4d1092187b1777468cad0ce2a772244d012197"
 TYPESCRIPT_RUNTIME_TEST_ROOTS = (
     "packages/commands/test",
     "packages/integrations/claude-mcp/test",
@@ -265,6 +279,12 @@ class Phase2FreezeAuditor:
     def __init__(self, repository_root: Path) -> None:
         self.root = repository_root.resolve()
 
+    @staticmethod
+    def _require_full_commit(value: str, *, label: str) -> str:
+        if not re.fullmatch(r"[0-9a-f]{40}", value):
+            raise Phase2FreezeError(f"{label} must be a full lowercase commit id")
+        return value
+
     def _git(self, *arguments: str) -> str:
         completed = subprocess.run(
             ["git", *arguments],
@@ -361,6 +381,7 @@ class Phase2FreezeAuditor:
         }
 
     def _target_audit(self, target: str) -> dict[str, Any]:
+        self._require_full_commit(target, label="target commit")
         head = self._git("rev-parse", "HEAD").strip()
         boundary = inspect_worktree(self.root, expected_head=target)
         target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
@@ -1801,6 +1822,7 @@ class Phase2FreezeAuditor:
         *,
         output_root: Path,
         target: str,
+        loopx_base_checkout: Path,
     ) -> dict[str, tuple[str, ...]]:
         python = str(Path(sys.executable).resolve())
         bun_name = "bun.exe" if sys.platform == "win32" else "bun"
@@ -1894,10 +1916,323 @@ class Phase2FreezeAuditor:
                 (
                     python,
                     "scripts/release/verify_loopx_cross_version_upgrade.py",
+                    "--base-checkout",
+                    str(loopx_base_checkout.resolve()),
+                    "--target-checkout",
+                    str(self.root),
+                    "--workspace",
+                    str(output_root / "loopx-cross-version-workspace"),
+                    "--output",
+                    str(output_root / "loopx-cross-version-upgrade.json"),
                 ),
             ),
         )
         return dict(commands)
+
+    def _expected_regression_environment(self, output_root: Path) -> dict[str, str]:
+        with (self.root / "pyproject.toml").open("rb") as stream:
+            pyproject = tomllib.load(stream)
+        entries = (
+            pyproject.get("tool", {})
+            .get("setuptools", {})
+            .get("packages", {})
+            .get("find", {})
+            .get("where", ())
+        )
+        python_path = os.pathsep.join(
+            str((self.root / str(entry)).resolve()) for entry in entries
+        )
+        return {
+            "PYTHONNOUSERSITE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            "BUN_INSTALL_CACHE_DIR": str(output_root / "cache" / "bun"),
+            "PIP_CACHE_DIR": str(output_root / "cache" / "pip"),
+            "UV_CACHE_DIR": str(output_root / "cache" / "uv"),
+            "ZYRA_STATE_ROOT": str(output_root / "state"),
+            "PYTHONPATH": python_path,
+        }
+
+    def _loopx_base_boundary_audit(
+        self,
+        supplied: Mapping[str, Any],
+        checkout: Path,
+    ) -> dict[str, Any]:
+        checkout = checkout.resolve()
+        completed_trusted_common = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "--git-common-dir"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_common = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "--git-common-dir"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        def resolve_common(raw: str, root: Path) -> Path:
+            selected = Path(raw.strip())
+            return (
+                selected.resolve()
+                if selected.is_absolute()
+                else (root / selected).resolve()
+            )
+
+        trusted_common = resolve_common(
+            completed_trusted_common.stdout,
+            self.root,
+        )
+        common = resolve_common(completed_common.stdout, checkout)
+        common_ready = (
+            completed_trusted_common.returncode == 0
+            and completed_common.returncode == 0
+            and common == trusted_common
+        )
+        if not common_ready:
+            observed: dict[str, Any] = {
+                "schema": "zyra.loopx-cross-version-base-boundary/v1",
+                "ready": False,
+                "checkout": str(checkout),
+                "git_common_dir": str(common),
+                "trusted_git_common_dir": str(trusted_common),
+                "trusted_common_dir_matches": False,
+                "rejected_before_worktree_commands": True,
+            }
+            observed["boundary_digest"] = canonical_digest(observed)
+            return {
+                "ready": False,
+                "supplied_matches": dict(supplied) == observed,
+                "observed": observed,
+            }
+        completed_head = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_tree = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD^{tree}"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_expected_tree = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "rev-parse",
+                f"{LOOPX_CROSS_VERSION_BASE_COMMIT}^{{tree}}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_toplevel = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "--show-toplevel"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_status = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+                "--ignored=matching",
+            ],
+            check=False,
+            capture_output=True,
+        )
+        completed_flags = subprocess.run(
+            ["git", "-C", str(checkout), "ls-files", "-v", "-z"],
+            check=False,
+            capture_output=True,
+        )
+        completed_index = subprocess.run(
+            ["git", "-C", str(checkout), "ls-files", "-s", "-z"],
+            check=False,
+            capture_output=True,
+        )
+        completed_object_format = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "--show-object-format"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        completed_sparse = subprocess.run(
+            ["git", "-C", str(checkout), "config", "--bool", "core.sparseCheckout"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        status = completed_status.stdout
+        flags = completed_flags.stdout
+        index = completed_index.stdout
+        head = completed_head.stdout.strip()
+        tree = completed_tree.stdout.strip()
+        expected_tree = completed_expected_tree.stdout.strip()
+        object_format = completed_object_format.stdout.strip()
+        try:
+            toplevel = Path(completed_toplevel.stdout.strip()).resolve()
+        except OSError:
+            toplevel = Path()
+        sparse = completed_sparse.stdout.strip().casefold() == "true"
+        unsafe_flags = tuple(
+            entry.decode("utf-8", errors="replace")
+            for entry in flags.split(b"\0")
+            if entry and not entry.startswith(b"H ")
+        )
+        blob_manifest = hashlib.sha256()
+        blob_mismatches: list[str] = []
+        unsupported_entries: list[str] = []
+        tracked_paths: list[str] = []
+        expected_blobs: list[str] = []
+        tracked_count = 0
+        for entry in index.split(b"\0"):
+            if not entry:
+                continue
+            metadata, separator, path_bytes = entry.partition(b"\t")
+            parts = metadata.split()
+            path = path_bytes.decode("utf-8", errors="surrogateescape")
+            if separator != b"\t" or len(parts) != 3:
+                unsupported_entries.append(path or "<invalid-index-entry>")
+                continue
+            mode, expected_blob, stage = (
+                parts[0].decode("ascii", errors="replace"),
+                parts[1].decode("ascii", errors="replace"),
+                parts[2].decode("ascii", errors="replace"),
+            )
+            tracked_count += 1
+            blob_manifest.update(path_bytes)
+            blob_manifest.update(b"\0" + parts[0] + b"\0" + parts[1] + b"\n")
+            candidate = checkout / path
+            if (
+                mode not in {"100644", "100755"}
+                or stage != "0"
+                or not candidate.is_file()
+                or "\n" in path
+                or "\r" in path
+            ):
+                unsupported_entries.append(path)
+                continue
+            tracked_paths.append(path)
+            expected_blobs.append(expected_blob)
+        completed_hashes = subprocess.run(
+            ["git", "-C", str(checkout), "hash-object", "--stdin-paths"],
+            check=False,
+            input="".join(f"{path}\n" for path in tracked_paths),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        canonical_hashes = completed_hashes.stdout.splitlines()
+        if len(canonical_hashes) != len(tracked_paths):
+            unsupported_entries.append("<canonical-hash-count-mismatch>")
+        else:
+            blob_mismatches.extend(
+                path
+                for path, expected_blob, actual_blob in zip(
+                    tracked_paths,
+                    expected_blobs,
+                    canonical_hashes,
+                    strict=True,
+                )
+                if actual_blob != expected_blob
+            )
+        commands_ready = all(
+            completed.returncode == 0
+            for completed in (
+                completed_head,
+                completed_tree,
+                completed_expected_tree,
+                completed_toplevel,
+                completed_status,
+                completed_flags,
+                completed_index,
+                completed_object_format,
+                completed_hashes,
+            )
+        )
+        observed: dict[str, Any] = {
+            "schema": "zyra.loopx-cross-version-base-boundary/v1",
+            "ready": (
+                commands_ready
+                and head == LOOPX_CROSS_VERSION_BASE_COMMIT
+                and tree == expected_tree
+                and toplevel == checkout
+                and object_format == "sha1"
+                and not status
+                and not unsafe_flags
+                and not sparse
+                and not blob_mismatches
+                and not unsupported_entries
+            ),
+            "checkout": str(checkout),
+            "git_common_dir": str(common),
+            "trusted_git_common_dir": str(trusted_common),
+            "trusted_common_dir_matches": common == trusted_common,
+            "rejected_before_worktree_commands": False,
+            "head_commit": head,
+            "head_tree": tree,
+            "repository_toplevel": str(toplevel),
+            "checkout_is_repository_toplevel": toplevel == checkout,
+            "object_format": object_format,
+            "tracked_untracked_and_ignored_clean": not status,
+            "status_sha256": hashlib.sha256(status).hexdigest(),
+            "status_entry_count": 0 if not status else status.count(b"\0"),
+            "index_flags_sha256": hashlib.sha256(flags).hexdigest(),
+            "unsafe_index_flag_count": len(unsafe_flags),
+            "unsafe_index_flags": list(unsafe_flags[:20]),
+            "sparse_checkout": sparse,
+            "tracked_file_count": tracked_count,
+            "tracked_blob_manifest_sha256": blob_manifest.hexdigest(),
+            "tracked_blob_mismatch_count": len(blob_mismatches),
+            "tracked_blob_mismatches": blob_mismatches[:20],
+            "unsupported_index_entry_count": len(unsupported_entries),
+            "unsupported_index_entries": unsupported_entries[:20],
+        }
+        observed["boundary_digest"] = canonical_digest(observed)
+        return {
+            "ready": observed["ready"] is True and dict(supplied) == observed,
+            "supplied_matches": dict(supplied) == observed,
+            "observed": observed,
+        }
+
+    @staticmethod
+    def _roots_are_disjoint(first: Path, second: Path) -> bool:
+        first = first.resolve()
+        second = second.resolve()
+        for candidate, root in ((first, second), (second, first)):
+            try:
+                candidate.relative_to(root)
+            except ValueError:
+                continue
+            return False
+        return True
 
     def _regression_command_policy_blockers(
         self,
@@ -1905,10 +2240,12 @@ class Phase2FreezeAuditor:
         *,
         output_root: Path,
         target: str,
+        loopx_base_checkout: Path,
     ) -> list[str]:
         expected = self._expected_regression_commands(
             output_root=output_root,
             target=target,
+            loopx_base_checkout=loopx_base_checkout,
         )
         blockers: list[str] = []
         for item in commands:
@@ -1931,6 +2268,597 @@ class Phase2FreezeAuditor:
                 blockers.append(f"command_cwd:{command_id}")
         return blockers
 
+    @staticmethod
+    def _regression_boundary_ready(
+        boundary: Mapping[str, Any],
+        *,
+        target: str,
+        target_tree: str,
+    ) -> bool:
+        return (
+            boundary.get("schema") == "zyra.release-worktree-boundary/v1"
+            and boundary.get("ready") is True
+            and boundary.get("head_commit") == target
+            and boundary.get("head_tree") == target_tree
+            and boundary.get("expected_head") == target
+            and boundary.get("head_matches") is True
+            and boundary.get("tracked_dirty_entries") in ([], ())
+            and boundary.get("unexpected_untracked_entries") in ([], ())
+            and _embedded_digest_ready(boundary, "boundary_digest")
+        )
+
+    def _failed_v1_resume_source_ready(
+        self,
+        path: Path,
+        *,
+        expected_sha256: str,
+        source_target: str,
+    ) -> tuple[dict[str, Any], dict[str, Mapping[str, Any]]]:
+        self._require_full_commit(source_target, label="resume source target")
+        value = _load_json(path)
+        commands_value = value.get("commands")
+        commands = (
+            tuple(item for item in commands_value if isinstance(item, Mapping))
+            if isinstance(commands_value, Sequence)
+            and not isinstance(commands_value, (str, bytes))
+            else ()
+        )
+        blockers: list[str] = []
+        if sha256_file(path) != expected_sha256:
+            blockers.append("source_external_digest")
+        if (
+            value.get("schema") != "zyra.phase2-final-regression/v1"
+            or value.get("ready") is not False
+            or value.get("target_commit") != source_target
+            or not _embedded_digest_ready(value, "receipt_digest")
+            or int(value.get("passed_count") or 0) != 13
+            or int(value.get("failed_count") or 0) != 1
+        ):
+            blockers.append("source_receipt_integrity")
+        command_ids = tuple(str(item.get("command_id") or "") for item in commands)
+        if command_ids != FINAL_REGRESSION_COMMAND_IDS:
+            blockers.append("source_command_set")
+        expected = self._expected_regression_commands(
+            output_root=path.parent,
+            target=source_target,
+            loopx_base_checkout=self.root,
+        )
+        inherited: dict[str, Mapping[str, Any]] = {}
+        failed_ids: list[str] = []
+        for item in commands:
+            command_id = str(item.get("command_id") or "")
+            argv_value = item.get("argv")
+            argv = (
+                tuple(str(part) for part in argv_value)
+                if isinstance(argv_value, Sequence)
+                and not isinstance(argv_value, (str, bytes))
+                else ()
+            )
+            expected_argv = expected.get(command_id, ())
+            if command_id == "loopx-cross-version-restart":
+                expected_argv = expected_argv[:2]
+            if argv != expected_argv:
+                blockers.append(f"source_command_argv:{command_id}")
+            try:
+                cwd_ready = Path(str(item.get("cwd") or "")).resolve() == self.root
+            except OSError:
+                cwd_ready = False
+            if not cwd_ready:
+                blockers.append(f"source_command_cwd:{command_id}")
+            for field in ("stdout", "stderr"):
+                try:
+                    member = _member(path.parent, item.get(field))
+                except Phase2FreezeError:
+                    blockers.append(f"source_log:{command_id}:{field}")
+                    continue
+                if sha256_file(member) != item.get(f"{field}_sha256"):
+                    blockers.append(f"source_log_digest:{command_id}:{field}")
+            if item.get("ready") is not True or int(item.get("returncode") or 0) != 0:
+                failed_ids.append(command_id)
+            elif command_id not in FINAL_REGRESSION_RESUME_RERUN_IDS:
+                inherited[command_id] = item
+        if failed_ids != ["loopx-cross-version-restart"]:
+            blockers.append("source_failure_scope")
+        if commands:
+            try:
+                stderr = _member(
+                    path.parent,
+                    commands[-1].get("stderr"),
+                ).read_text(encoding="utf-8", errors="replace")
+            except Phase2FreezeError:
+                stderr = ""
+            required_error = (
+                "--base-checkout, --target-checkout, --workspace and --output "
+                "are required"
+            )
+            if required_error not in stderr:
+                blockers.append("source_failure_reason")
+        source_tree = self._git("rev-parse", f"{source_target}^{{tree}}").strip()
+        before = value.get("worktree_boundary_before")
+        after = value.get("worktree_boundary_after")
+        if (
+            not isinstance(before, Mapping)
+            or not isinstance(after, Mapping)
+            or not self._regression_boundary_ready(
+                before,
+                target=source_target,
+                target_tree=source_tree,
+            )
+            or not self._regression_boundary_ready(
+                after,
+                target=source_target,
+                target_tree=source_tree,
+            )
+        ):
+            blockers.append("source_target_boundary")
+        policy = value.get("python_test_policy")
+        policy = policy if isinstance(policy, Mapping) else {}
+        explicit_environment = value.get("explicit_environment")
+        if (
+            policy.get("path") != "config/release-python-tests.json"
+            or policy.get("sha256")
+            != sha256_file(self.root / "config" / "release-python-tests.json")
+            or value.get("p2_base_commit") != P2_BASE_COMMIT
+        ):
+            blockers.append("source_test_policy")
+        if (
+            not isinstance(explicit_environment, Mapping)
+            or dict(explicit_environment)
+            != self._expected_regression_environment(path.parent)
+        ):
+            blockers.append("source_explicit_environment")
+        return {
+            "ready": not blockers,
+            "blockers": sorted(set(blockers)),
+            "target_commit": source_target,
+            "target_tree": source_tree,
+            "receipt_sha256": sha256_file(path),
+            "receipt_digest": value.get("receipt_digest"),
+            "inherited_command_ids": sorted(inherited),
+        }, inherited
+
+    def _resume_delta_audit(
+        self,
+        supplied: Mapping[str, Any],
+        *,
+        source_target: str,
+        target: str,
+    ) -> dict[str, Any]:
+        self._require_full_commit(source_target, label="resume source target")
+        self._require_full_commit(target, label="resume target")
+        parents = self._git("rev-list", "--parents", "-n", "1", target).split()
+        status_lines = tuple(
+            line
+            for line in self._git(
+                "diff",
+                "--name-status",
+                "--no-renames",
+                source_target,
+                target,
+            ).splitlines()
+            if line
+        )
+        changed_paths: list[str] = []
+        transitions: list[dict[str, str]] = []
+        blockers: list[str] = []
+        allowed = set(FINAL_REGRESSION_RESUME_ALLOWED_PATHS)
+        if parents != [target, source_target]:
+            blockers.append("target_not_direct_single_child")
+        if not status_lines:
+            blockers.append("target_delta_missing")
+        for line in status_lines:
+            status, separator, path = line.partition("\t")
+            if separator != "\t" or status != "M" or path not in allowed:
+                blockers.append(f"forbidden_target_change:{line}")
+                continue
+            source_entry = self._git("ls-tree", source_target, "--", path).split()
+            target_entry = self._git("ls-tree", target, "--", path).split()
+            if (
+                len(source_entry) < 3
+                or len(target_entry) < 3
+                or source_entry[0] != target_entry[0]
+                or source_entry[0] not in {"100644", "100755"}
+                or source_entry[1] != "blob"
+                or target_entry[1] != "blob"
+            ):
+                blockers.append(f"target_mode_or_type:{path}")
+                continue
+            changed_paths.append(path)
+            transitions.append(
+                {
+                    "path": path,
+                    "mode": source_entry[0],
+                    "source_blob": source_entry[2],
+                    "target_blob": target_entry[2],
+                }
+            )
+        if set(changed_paths) != set(FINAL_REGRESSION_RESUME_ALLOWED_PATHS) or len(
+            changed_paths
+        ) != len(FINAL_REGRESSION_RESUME_ALLOWED_PATHS):
+            blockers.append("required_control_plane_delta_incomplete")
+        diff = subprocess.run(
+            ["git", "diff", "--binary", "--no-renames", source_target, target],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        ).stdout
+        allowlist_payload = json.dumps(
+            FINAL_REGRESSION_RESUME_ALLOWED_PATHS,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        observed = {
+            "source_target_commit": source_target,
+            "source_target_tree": self._git(
+                "rev-parse", f"{source_target}^{{tree}}"
+            ).strip(),
+            "target_commit": target,
+            "target_tree": self._git("rev-parse", f"{target}^{{tree}}").strip(),
+            "direct_single_parent": parents == [target, source_target],
+            "changed_paths": changed_paths,
+            "change_statuses": list(status_lines),
+            "blob_transitions": transitions,
+            "allowed_paths": list(FINAL_REGRESSION_RESUME_ALLOWED_PATHS),
+            "allowlist_sha256": hashlib.sha256(allowlist_payload).hexdigest(),
+            "diff_sha256": hashlib.sha256(diff).hexdigest(),
+            "production_or_configuration_changed": False,
+            "rename_symlink_or_submodule_changed": False,
+        }
+        if dict(supplied) != observed:
+            blockers.append("target_delta_receipt_mismatch")
+        return {"ready": not blockers, "blockers": blockers, **observed}
+
+    def _resume_receipt_ready(
+        self,
+        path: Path,
+        value: Mapping[str, Any],
+        *,
+        target: str,
+        actual_receipt_sha256: str,
+        expected_receipt_sha256: str,
+    ) -> dict[str, Any]:
+        self._require_full_commit(target, label="resume target")
+        blockers: list[str] = []
+        expected_digest = expected_receipt_sha256.strip().casefold()
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_digest)
+            or actual_receipt_sha256 != expected_digest
+        ):
+            blockers.append("external_receipt_digest")
+        source_target = str(value.get("source_target_commit") or "")
+        if re.fullmatch(r"[0-9a-f]{40}", source_target) is None:
+            blockers.append("source_target_commit")
+            return {
+                "schema": value.get("schema"),
+                "target_commit": value.get("target_commit"),
+                "target_matches": value.get("target_commit") == target,
+                "command_count": 0,
+                "all_commands_passed": False,
+                "source_boundary_ready": False,
+                "current_source_boundary_ready": False,
+                "receipt_sha256": actual_receipt_sha256,
+                "external_receipt_digest_required": True,
+                "external_receipt_digest_matches": (
+                    actual_receipt_sha256 == expected_digest
+                ),
+                "source_receipt_audit": {
+                    "ready": False,
+                    "blockers": ["source_target_commit"],
+                },
+                "target_delta_audit": {
+                    "ready": False,
+                    "blockers": ["source_target_commit"],
+                },
+                "loopx_result_ready": False,
+                "blockers": sorted(set(blockers)),
+                "ready": False,
+            }
+        if (
+            value.get("schema") != "zyra.phase2-final-regression-resume/v1"
+            or value.get("ready") is not True
+            or value.get("target_commit") != target
+            or value.get("target_tree")
+            != self._git("rev-parse", f"{target}^{{tree}}").strip()
+            or not _embedded_digest_ready(value, "receipt_digest")
+            or int(value.get("passed_count") or 0) != len(FINAL_REGRESSION_COMMAND_IDS)
+            or int(value.get("failed_count") or 0) != 0
+            or value.get("p2_base_commit") != P2_BASE_COMMIT
+            or value.get("loopx_cross_version_base_commit")
+            != LOOPX_CROSS_VERSION_BASE_COMMIT
+            or value.get("duplicate_heavy_execution_avoided") is not True
+        ):
+            blockers.append("resume_receipt_integrity")
+        source_sha = str(value.get("source_receipt_sha256") or "").casefold()
+        if not re.fullmatch(r"[0-9a-f]{64}", source_sha):
+            blockers.append("source_receipt_digest")
+        source_target_valid = re.fullmatch(r"[0-9a-f]{40}", source_target) is not None
+        if not source_target_valid:
+            source_audit = {
+                "ready": False,
+                "blockers": ["source_target_commit"],
+            }
+            inherited = {}
+            delta_audit = {
+                "ready": False,
+                "blockers": ["source_target_commit"],
+            }
+            blockers.append("source_target_commit")
+        else:
+            try:
+                source_path = _member(
+                    self.root,
+                    value.get("source_receipt"),
+                    repository_relative=True,
+                )
+                source_audit, inherited = self._failed_v1_resume_source_ready(
+                    source_path,
+                    expected_sha256=source_sha,
+                    source_target=source_target,
+                )
+                if source_audit["ready"] is not True:
+                    blockers.extend(source_audit["blockers"])
+                if (
+                    value.get("source_receipt_digest")
+                    != source_audit.get("receipt_digest")
+                    or value.get("source_target_tree")
+                    != source_audit.get("target_tree")
+                ):
+                    blockers.append("source_receipt_cross_binding")
+            except Phase2FreezeError:
+                source_audit = {
+                    "ready": False,
+                    "blockers": ["source_receipt_path"],
+                }
+                inherited = {}
+                blockers.append("source_receipt_path")
+            delta_value = value.get("target_delta")
+            delta_audit = self._resume_delta_audit(
+                delta_value if isinstance(delta_value, Mapping) else {},
+                source_target=source_target,
+                target=target,
+            )
+            if delta_audit["ready"] is not True:
+                blockers.extend(delta_audit["blockers"])
+        loopx_base = Path(str(value.get("loopx_base_checkout") or "."))
+        base_boundary_before_value = value.get("loopx_base_boundary_before")
+        base_boundary_after_value = value.get("loopx_base_boundary_after")
+        base_boundary_before_audit = self._loopx_base_boundary_audit(
+            base_boundary_before_value
+            if isinstance(base_boundary_before_value, Mapping)
+            else {},
+            loopx_base,
+        )
+        live_base_boundary = base_boundary_before_audit["observed"]
+        after_supplied = (
+            dict(base_boundary_after_value)
+            if isinstance(base_boundary_after_value, Mapping)
+            else {}
+        )
+        base_boundary_after_audit = {
+            "ready": live_base_boundary.get("ready") is True
+            and after_supplied == live_base_boundary,
+            "supplied_matches": after_supplied == live_base_boundary,
+            "observed": live_base_boundary,
+        }
+        if (
+            base_boundary_before_audit["ready"] is not True
+            or base_boundary_after_audit["ready"] is not True
+            or base_boundary_before_value != base_boundary_after_value
+        ):
+            blockers.append("resume_loopx_base_boundary")
+        if not self._roots_are_disjoint(path.parent, loopx_base):
+            blockers.append("resume_loopx_base_output_overlap")
+        expected_full = self._expected_regression_commands(
+            output_root=path.parent,
+            target=target,
+            loopx_base_checkout=loopx_base,
+        )
+        remediation_argv = (
+            str(Path(sys.executable).resolve()),
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp",
+            str(path.parent / "remediation-pytest"),
+            str(
+                self.root
+                / "tests"
+                / "unit"
+                / "productization"
+                / "test_phase2_final_regression.py"
+            ),
+            str(
+                self.root
+                / "tests"
+                / "unit"
+                / "productization"
+                / "test_phase2_freeze_audit.py"
+            ),
+        )
+        expected_reruns = {
+            "remediation-targeted-python": remediation_argv,
+            **{
+                command_id: expected_full[command_id]
+                for command_id in FINAL_REGRESSION_RESUME_RERUN_IDS
+            },
+        }
+        reruns_value = value.get("rerun_commands")
+        reruns = (
+            tuple(item for item in reruns_value if isinstance(item, Mapping))
+            if isinstance(reruns_value, Sequence)
+            and not isinstance(reruns_value, (str, bytes))
+            else ()
+        )
+        rerun_ids = tuple(str(item.get("command_id") or "") for item in reruns)
+        if rerun_ids != tuple(expected_reruns):
+            blockers.append("resume_rerun_set")
+        if value.get("remediation_command_ids") != [
+            "remediation-targeted-python"
+        ]:
+            blockers.append("resume_remediation_set")
+        rerun_by_id: dict[str, Mapping[str, Any]] = {}
+        for item in reruns:
+            command_id = str(item.get("command_id") or "")
+            argv_value = item.get("argv")
+            argv = (
+                tuple(str(part) for part in argv_value)
+                if isinstance(argv_value, Sequence)
+                and not isinstance(argv_value, (str, bytes))
+                else ()
+            )
+            if argv != expected_reruns.get(command_id):
+                blockers.append(f"resume_command_argv:{command_id}")
+            try:
+                cwd_ready = Path(str(item.get("cwd") or "")).resolve() == self.root
+            except OSError:
+                cwd_ready = False
+            if (
+                not cwd_ready
+                or item.get("ready") is not True
+                or int(item.get("returncode") or 0) != 0
+            ):
+                blockers.append(f"resume_command_failed:{command_id}")
+            for field in ("stdout", "stderr"):
+                try:
+                    member = _member(path.parent, item.get(field))
+                except Phase2FreezeError:
+                    blockers.append(f"resume_command_log:{command_id}:{field}")
+                    continue
+                if sha256_file(member) != item.get(f"{field}_sha256"):
+                    blockers.append(f"resume_command_log_digest:{command_id}:{field}")
+            rerun_by_id[command_id] = item
+        logical_value = value.get("logical_gates")
+        logical = (
+            tuple(item for item in logical_value if isinstance(item, Mapping))
+            if isinstance(logical_value, Sequence)
+            and not isinstance(logical_value, (str, bytes))
+            else ()
+        )
+        if tuple(str(item.get("command_id") or "") for item in logical) != FINAL_REGRESSION_COMMAND_IDS:
+            blockers.append("resume_logical_gate_set")
+        for item in logical:
+            command_id = str(item.get("command_id") or "")
+            source = str(item.get("source") or "")
+            if item.get("ready") is not True:
+                blockers.append(f"resume_logical_gate_failed:{command_id}")
+            if command_id in FINAL_REGRESSION_RESUME_RERUN_IDS:
+                rerun = rerun_by_id.get(command_id, {})
+                if (
+                    source != "rerun"
+                    or item.get("stdout_sha256") != rerun.get("stdout_sha256")
+                    or item.get("stderr_sha256") != rerun.get("stderr_sha256")
+                ):
+                    blockers.append(f"resume_logical_rerun:{command_id}")
+            else:
+                parent = inherited.get(command_id, {})
+                if (
+                    source != "inherited"
+                    or item.get("source_target_commit") != source_target
+                    or item.get("source_receipt_sha256") != source_sha
+                    or item.get("source_stdout_sha256") != parent.get("stdout_sha256")
+                    or item.get("source_stderr_sha256") != parent.get("stderr_sha256")
+                ):
+                    blockers.append(f"resume_logical_inheritance:{command_id}")
+        try:
+            loopx_path = _member(path.parent, value.get("loopx_result"))
+            loopx = _load_json(loopx_path)
+        except Phase2FreezeError:
+            loopx = {}
+            blockers.append("resume_loopx_result")
+        invariants = loopx.get("invariants")
+        restarts = loopx.get("target_restarts")
+        loopx_ready = (
+            sha256_file(loopx_path) == value.get("loopx_result_sha256")
+            if "loopx_path" in locals() and loopx_path.is_file()
+            else False
+        ) and (
+            loopx.get("schema") == "zyra.loopx-cross-version-upgrade/v1"
+            and loopx.get("ready") is True
+            and loopx.get("base_commit") == LOOPX_CROSS_VERSION_BASE_COMMIT
+            and loopx.get("target_commit") == target
+            and isinstance(restarts, Sequence)
+            and not isinstance(restarts, (str, bytes))
+            and len(restarts) == 2
+            and all(
+                isinstance(item, Mapping) and item.get("commit") == target
+                for item in restarts
+            )
+            and isinstance(invariants, Mapping)
+            and invariants.get("semantic_state_preserved") is True
+            and invariants.get("cursor_monotonic") is True
+            and invariants.get("duplicate_claim") is False
+            and invariants.get("duplicate_spend") is False
+            and invariants.get("duplicate_interaction") is False
+            and invariants.get("duplicate_canonical_commit") is False
+            and invariants.get("historical_install_preserved_and_ignored") is True
+            and invariants.get("new_install_or_extraction") is False
+            and invariants.get("independent_target_restart_count") == 2
+        )
+        if not loopx_ready or value.get("loopx_result_ready") is not True:
+            blockers.append("resume_loopx_invariants")
+        policy = value.get("python_test_policy")
+        policy = policy if isinstance(policy, Mapping) else {}
+        explicit_environment = value.get("explicit_environment")
+        if (
+            policy.get("path") != "config/release-python-tests.json"
+            or policy.get("sha256")
+            != sha256_file(self.root / "config" / "release-python-tests.json")
+        ):
+            blockers.append("resume_test_policy")
+        if (
+            not isinstance(explicit_environment, Mapping)
+            or dict(explicit_environment)
+            != self._expected_regression_environment(path.parent)
+        ):
+            blockers.append("resume_explicit_environment")
+        target_tree = self._git("rev-parse", f"{target}^{{tree}}").strip()
+        before = value.get("worktree_boundary_before")
+        after = value.get("worktree_boundary_after")
+        current = inspect_worktree(self.root, expected_head=target)
+        boundaries_ready = (
+            isinstance(before, Mapping)
+            and isinstance(after, Mapping)
+            and self._regression_boundary_ready(
+                before,
+                target=target,
+                target_tree=target_tree,
+            )
+            and self._regression_boundary_ready(
+                after,
+                target=target,
+                target_tree=target_tree,
+            )
+            and self._regression_boundary_ready(
+                current,
+                target=target,
+                target_tree=target_tree,
+            )
+        )
+        if not boundaries_ready:
+            blockers.append("resume_target_boundary")
+        return {
+            "schema": value.get("schema"),
+            "target_commit": value.get("target_commit"),
+            "target_matches": value.get("target_commit") == target,
+            "command_count": len(logical),
+            "all_commands_passed": len(logical) == len(FINAL_REGRESSION_COMMAND_IDS)
+            and all(item.get("ready") is True for item in logical),
+            "source_boundary_ready": source_audit.get("ready") is True,
+            "current_source_boundary_ready": boundaries_ready,
+            "receipt_sha256": actual_receipt_sha256,
+            "external_receipt_digest_required": True,
+            "external_receipt_digest_matches": actual_receipt_sha256 == expected_digest,
+            "source_receipt_audit": source_audit,
+            "target_delta_audit": delta_audit,
+            "loopx_result_ready": loopx_ready,
+            "loopx_base_boundary_before": base_boundary_before_audit,
+            "loopx_base_boundary_after": base_boundary_after_audit,
+            "blockers": sorted(set(blockers)),
+            "ready": value.get("ready") is True and not blockers,
+        }
+
     def _receipt_ready(
         self,
         path: Path,
@@ -1938,6 +2866,7 @@ class Phase2FreezeAuditor:
         *,
         expected_receipt_sha256: str = "",
     ) -> dict[str, Any]:
+        self._require_full_commit(target, label="regression target")
         raw_receipt = path.read_bytes()
         actual_receipt_sha256 = hashlib.sha256(raw_receipt).hexdigest()
         try:
@@ -1950,6 +2879,14 @@ class Phase2FreezeAuditor:
             raise Phase2FreezeError(
                 f"final regression receipt must be an object: {path}"
             )
+        if value.get("schema") == "zyra.phase2-final-regression-resume/v1":
+            return self._resume_receipt_ready(
+                path,
+                value,
+                target=target,
+                actual_receipt_sha256=actual_receipt_sha256,
+                expected_receipt_sha256=expected_receipt_sha256,
+            )
         commands = value.get("commands")
         commands = (
             commands
@@ -1958,6 +2895,35 @@ class Phase2FreezeAuditor:
             else ()
         )
         blockers: list[str] = []
+        loopx_base = Path(str(value.get("loopx_base_checkout") or "."))
+        base_boundary_before_value = value.get("loopx_base_boundary_before")
+        base_boundary_after_value = value.get("loopx_base_boundary_after")
+        base_boundary_before_audit = self._loopx_base_boundary_audit(
+            base_boundary_before_value
+            if isinstance(base_boundary_before_value, Mapping)
+            else {},
+            loopx_base,
+        )
+        live_base_boundary = base_boundary_before_audit["observed"]
+        after_supplied = (
+            dict(base_boundary_after_value)
+            if isinstance(base_boundary_after_value, Mapping)
+            else {}
+        )
+        base_boundary_after_audit = {
+            "ready": live_base_boundary.get("ready") is True
+            and after_supplied == live_base_boundary,
+            "supplied_matches": after_supplied == live_base_boundary,
+            "observed": live_base_boundary,
+        }
+        if (
+            base_boundary_before_audit["ready"] is not True
+            or base_boundary_after_audit["ready"] is not True
+            or base_boundary_before_value != base_boundary_after_value
+        ):
+            blockers.append("loopx_base_boundary")
+        if not self._roots_are_disjoint(path.parent, loopx_base):
+            blockers.append("loopx_base_output_overlap")
         expected_digest = expected_receipt_sha256.strip().casefold()
         if expected_digest and (
             not re.fullmatch(r"[0-9a-f]{64}", expected_digest)
@@ -1976,6 +2942,9 @@ class Phase2FreezeAuditor:
                 tuple(item for item in commands if isinstance(item, Mapping)),
                 output_root=path.parent,
                 target=target,
+                loopx_base_checkout=Path(
+                    str(value.get("loopx_base_checkout") or ".")
+                ),
             )
         )
         for item in commands:
@@ -2065,6 +3034,8 @@ class Phase2FreezeAuditor:
                 expected_digest and actual_receipt_sha256 == expected_digest
             ),
             "blockers": sorted(set(blockers)),
+            "loopx_base_boundary_before": base_boundary_before_audit,
+            "loopx_base_boundary_after": base_boundary_after_audit,
             "ready": ready,
         }
 
@@ -2077,6 +3048,7 @@ class Phase2FreezeAuditor:
     ) -> dict[str, Any]:
         """Verify an immutable final-regression receipt for gate reuse."""
 
+        self._require_full_commit(target_commit, label="final regression target")
         target = self._git("rev-parse", f"{target_commit}^{{commit}}").strip()
         if target != target_commit:
             raise Phase2FreezeError(
@@ -2100,10 +3072,16 @@ class Phase2FreezeAuditor:
         sealed_root: Path,
         preflight_root: Path,
         regression_receipt: Path,
+        regression_receipt_sha256: str,
         custody_report: Path,
         contract_report: Path,
         output_root: Path,
     ) -> dict[str, Any]:
+        self._require_full_commit(target_commit, label="freeze target")
+        if not re.fullmatch(r"[0-9a-f]{64}", regression_receipt_sha256.casefold()):
+            raise Phase2FreezeError(
+                "freeze regression receipt SHA-256 must be a full lowercase digest"
+            )
         paths = {
             "release_root": release_root.resolve(),
             "sealed_root": sealed_root.resolve(),
@@ -2112,17 +3090,25 @@ class Phase2FreezeAuditor:
             "custody_report": custody_report.resolve(),
             "contract_report": contract_report.resolve(),
         }
+        if not paths["regression_receipt"].is_file():
+            raise Phase2FreezeError("freeze regression receipt is missing")
+        expected_regression_sha = regression_receipt_sha256.casefold()
+        if sha256_file(paths["regression_receipt"]) != expected_regression_sha:
+            raise Phase2FreezeError(
+                "freeze regression receipt does not match its external SHA-256 anchor"
+            )
         target = self._target_audit(target_commit)
+        regression = self._receipt_ready(
+            paths["regression_receipt"],
+            target_commit,
+            expected_receipt_sha256=expected_regression_sha,
+        )
         release = self._release_audit(paths["release_root"], target_commit)
         preflight = self._preflight_audit(
             paths["preflight_root"],
             target_commit,
         )
         sealed = self._sealed_audit(paths["sealed_root"], target_commit)
-        regression = self._receipt_ready(
-            paths["regression_receipt"],
-            target_commit,
-        )
         custody = self._custody_audit(paths["custody_report"], target_commit)
         contract = self._contract_audit(paths["contract_report"], target_commit)
         checks = {

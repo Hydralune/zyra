@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sealed-root", required=True)
     parser.add_argument("--preflight-root", required=True)
     parser.add_argument("--regression-receipt", required=True)
+    parser.add_argument("--regression-receipt-sha256", required=True)
     parser.add_argument("--custody-report", required=True)
     parser.add_argument("--contract-report", required=True)
     parser.add_argument("--output-root", required=True)
@@ -50,6 +51,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             sealed_root=_path(arguments.sealed_root),
             preflight_root=_path(arguments.preflight_root),
             regression_receipt=_path(arguments.regression_receipt),
+            regression_receipt_sha256=arguments.regression_receipt_sha256,
             custody_report=_path(arguments.custody_report),
             contract_report=_path(arguments.contract_report),
             output_root=_path(arguments.output_root),
