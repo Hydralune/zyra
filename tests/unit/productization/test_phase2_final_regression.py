@@ -194,17 +194,21 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
-    target = "d" * 40
+    target = "e" * 40
     first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
     second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
+    third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
     second_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS
+    )
+    third_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS
     )
     final_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -214,6 +218,7 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
             (
                 *MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -228,7 +233,8 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
             parent = {
                 first: MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT,
                 second: first,
-                target: second,
+                third: second,
+                target: third,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -237,7 +243,9 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
                 return first_statuses
             if revisions == (first, second):
                 return second_statuses
-            if revisions == (second, target):
+            if revisions == (second, third):
+                return third_statuses
+            if revisions == (third, target):
                 return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
@@ -248,7 +256,8 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
                 MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT: "a" * 40,
                 first: "b" * 40,
                 second: "c" * 40,
-                target: "d" * 40,
+                third: "d" * 40,
+                target: "e" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -268,8 +277,9 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
     assert delta["linear_single_parent_chain"] is True
     assert delta["required_first_commit"] == first
     assert delta["required_second_commit"] == second
-    assert delta["commit_chain"] == [first, second, target]
-    assert delta["commit_count"] == 3
+    assert delta["required_third_commit"] == third
+    assert delta["commit_chain"] == [first, second, third, target]
+    assert delta["commit_count"] == 4
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -282,6 +292,9 @@ def test_supplement_delta_is_three_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][2]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][3]["allowed_paths"] == list(
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
@@ -306,7 +319,7 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact three-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact four-commit remediation chain"):
         MODULE._supplement_target_delta(target_commit=target)
 
 

@@ -285,17 +285,20 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
-def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
+def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
     monkeypatch,
 ) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
-    target = "d" * 40
+    target = "e" * 40
     source = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
     first = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT
     )
     second = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT
+    )
+    third = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT
     )
     first_statuses = "\n".join(
         f"M\t{path}"
@@ -307,6 +310,10 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS
     )
+    third_statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -316,6 +323,7 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
             (
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -327,7 +335,12 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
     def fake_git(*arguments: str) -> str:
         if arguments[:3] == ("rev-list", "--parents", "-n"):
             commit = arguments[-1]
-            parent = {first: source, second: first, target: second}[commit]
+            parent = {
+                first: source,
+                second: first,
+                third: second,
+                target: third,
+            }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
             revisions = arguments[-2:]
@@ -335,7 +348,9 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
                 return first_statuses
             if revisions == (first, second):
                 return second_statuses
-            if revisions == (second, target):
+            if revisions == (second, third):
+                return third_statuses
+            if revisions == (third, target):
                 return final_statuses
             if revisions == (source, target):
                 return cumulative_statuses
@@ -346,7 +361,8 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
                 source: "a" * 40,
                 first: "b" * 40,
                 second: "c" * 40,
-                target: "d" * 40,
+                third: "d" * 40,
+                target: "e" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -372,7 +388,8 @@ def test_supplement_delta_audit_matches_three_commit_bounded_production_fix(
     assert audit["linear_single_parent_chain"] is True
     assert audit["required_first_commit"] == first
     assert audit["required_second_commit"] == second
-    assert audit["commit_chain"] == [first, second, target]
+    assert audit["required_third_commit"] == third
+    assert audit["commit_chain"] == [first, second, third, target]
     assert audit["changed_paths"] == list(cumulative_paths)
     assert audit["bounded_production_change"] is True
     assert audit["production_or_configuration_changed"] is True
@@ -402,7 +419,7 @@ def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
 
     audit = auditor._supplement_delta_audit({}, target=target)
 
-    assert "supplement_target_not_exact_three_commit_chain" in audit["blockers"]
+    assert "supplement_target_not_exact_four_commit_chain" in audit["blockers"]
     assert audit["commit_path_changes"] == []
 
 

@@ -738,7 +738,7 @@ class CleanInstallRunner:
                     python_tag=f"cp{sys.version_info.major}{sys.version_info.minor}",
                     platform_tags=self._platform_tags(),
                 )
-            ports = self._allocate_ports(5)
+            ports = self._allocate_lifecycle_ports()
             receipts["ports"] = PortAvailabilityProbe().probe(
                 "127.0.0.1",
                 ports,
@@ -1010,6 +1010,16 @@ class CleanInstallRunner:
             receipts["install"] = install_receipt.to_dict()
             if run_product_lifecycle:
                 deployment_root = payload
+                # Bootstrap probes may import API modules that transiently use
+                # the advertised service ports.  Rotate to a freshly probed
+                # set immediately before lifecycle start so Windows socket
+                # teardown from those probes cannot poison the formal run.
+                receipts["bootstrap_ports"] = receipts["ports"]
+                ports, receipts["ports"] = self._refresh_lifecycle_ports(
+                    environment=environment,
+                    runner=runner,
+                    excluded_ports=ports,
+                )
                 lifecycle = ProcessLifecycle(
                     workspace / "processes",
                     environment=environment,
@@ -1177,14 +1187,41 @@ class CleanInstallRunner:
                 "PIP_NO_INPUT": "1",
                 "ZYRA_RELEASE_CLEANROOM": "1",
                 "ZYRA_STATE_ROOT": str(workspace / "product-state"),
-                "ZYRA_API_PORT": str(ports[0]),
-                "ZYRA_WEB_PORT": str(ports[1]),
-                "ZYRA_DEVICE_PORT": str(ports[2]),
-                "ZYRA_EDGE_PORT": str(ports[3]),
-                "ZYRA_CLOUD_PORT": str(ports[4]),
+                **CleanInstallRunner._port_environment(ports),
             }
         )
         return allowed
+
+    @staticmethod
+    def _port_environment(ports: Sequence[int]) -> dict[str, str]:
+        if len(ports) != 5:
+            raise ValueError("cleanroom requires exactly five declared ports")
+        return {
+            "ZYRA_API_PORT": str(ports[0]),
+            "ZYRA_WEB_PORT": str(ports[1]),
+            "ZYRA_DEPLOYMENT_PROFILE_BASE_PORT": str(ports[2]),
+        }
+
+    @classmethod
+    def _refresh_lifecycle_ports(
+        cls,
+        *,
+        environment: dict[str, str],
+        runner: CommandRunner,
+        excluded_ports: Iterable[int] = (),
+    ) -> tuple[list[int], dict[str, Any]]:
+        excluded = {int(item) for item in excluded_ports}
+        ports = cls._allocate_lifecycle_ports(excluded_ports=excluded)
+        availability = PortAvailabilityProbe().probe("127.0.0.1", ports)
+        availability = {
+            **availability,
+            "excluded_bootstrap_ports": sorted(excluded),
+            "disjoint_from_bootstrap": excluded.isdisjoint(ports),
+        }
+        selected = cls._port_environment(ports)
+        environment.update(selected)
+        runner.environment.update(selected)
+        return ports, availability
 
     @staticmethod
     def _isolation_audit(
@@ -1340,6 +1377,48 @@ class CleanInstallRunner:
             for probe in sockets:
                 probe.close()
         return ports
+
+    @staticmethod
+    def _allocate_lifecycle_ports(
+        *,
+        excluded_ports: Iterable[int] = (),
+    ) -> list[int]:
+        excluded = {int(item) for item in excluded_ports}
+        for _attempt in range(128):
+            sockets: list[socket.socket] = []
+            try:
+                selected: list[int] = []
+                for _ in range(2):
+                    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    probe.bind(("127.0.0.1", 0))
+                    sockets.append(probe)
+                    selected.append(int(probe.getsockname()[1]))
+                base_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                base_probe.bind(("127.0.0.1", 0))
+                sockets.append(base_probe)
+                base_port = int(base_probe.getsockname()[1])
+                candidate = [*selected, base_port, base_port + 1, base_port + 2]
+                if (
+                    base_port > 65533
+                    or len(set(candidate)) != 5
+                    or not excluded.isdisjoint(candidate)
+                ):
+                    continue
+                for port in (base_port + 1, base_port + 2):
+                    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    probe.bind(("127.0.0.1", port))
+                    sockets.append(probe)
+                return candidate
+            except OSError:
+                continue
+            finally:
+                for probe in sockets:
+                    probe.close()
+        raise CleanroomFailure(
+            "Fresh API, web, and deployment profile ports are unavailable.",
+            code="cleanroom_lifecycle_port_rotation_failed",
+            details={"excluded_ports": sorted(excluded)},
+        )
 
     @staticmethod
     def _venv_python(root: Path) -> Path:

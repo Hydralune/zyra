@@ -8,8 +8,11 @@ import time
 import tomllib
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+
+from zyra_orchestration.deployment import DeploymentOrchestrator
 
 from zyra_productization.release import (
     BoundaryScanner,
@@ -1264,6 +1267,76 @@ def test_cleanroom_bun_cache_stays_outside_release_payload(
     assert Path(environment["BUN_INSTALL_CACHE_DIR"]).is_relative_to(
         tmp_path / "cleanroom"
     )
+
+
+def test_cleanroom_rotates_bootstrap_ports_immediately_before_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initial = (41001, 41002, 41003, 41004, 41005)
+    refreshed = [42001, 42002, 42003, 42004, 42005]
+    environment = CleanInstallRunner._port_environment(initial)
+    runner = SimpleNamespace(environment=dict(environment))
+    monkeypatch.setattr(
+        CleanInstallRunner,
+        "_allocate_lifecycle_ports",
+        staticmethod(lambda *, excluded_ports=(): refreshed),
+    )
+    monkeypatch.setattr(
+        PortAvailabilityProbe,
+        "probe",
+        lambda self, host, ports: {
+            "ready": True,
+            "host": host,
+            "available": list(ports),
+            "occupied": [],
+        },
+    )
+
+    ports, receipt = CleanInstallRunner._refresh_lifecycle_ports(
+        environment=environment,
+        runner=runner,
+        excluded_ports=initial,
+    )
+
+    expected = CleanInstallRunner._port_environment(refreshed)
+    assert ports == refreshed
+    assert receipt["available"] == refreshed
+    assert receipt["excluded_bootstrap_ports"] == list(initial)
+    assert receipt["disjoint_from_bootstrap"] is True
+    assert {name: environment[name] for name in expected} == expected
+    assert {name: runner.environment[name] for name in expected} == expected
+    assert not set(environment.values()).intersection(str(item) for item in initial)
+
+
+def test_cleanroom_port_contract_drives_real_deployment_catalog(
+    tmp_path: Path,
+) -> None:
+    ports = [42001, 42002, 42100, 42101, 42102]
+    environment = CleanInstallRunner._port_environment(ports)
+
+    deployment = DeploymentOrchestrator(
+        tmp_path,
+        state_root=tmp_path / "deployment-state",
+        environment=environment,
+    )
+
+    assert deployment.api_port == ports[0]
+    assert deployment.web_port == ports[1]
+    assert [policy.port for policy in deployment.catalog.policies()] == ports[2:]
+
+
+def test_cleanroom_lifecycle_allocator_returns_real_disjoint_port_shape() -> None:
+    excluded = {8310, 8311, 8312}
+
+    ports = CleanInstallRunner._allocate_lifecycle_ports(
+        excluded_ports=excluded,
+    )
+
+    assert len(ports) == 5
+    assert len(set(ports)) == 5
+    assert excluded.isdisjoint(ports)
+    assert ports[3:] == [ports[2] + 1, ports[2] + 2]
+    assert PortAvailabilityProbe().probe("127.0.0.1", ports)["ready"] is True
 
 
 def test_release_policy_separates_phase2_evidence_from_runtime_payload() -> None:

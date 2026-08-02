@@ -79,6 +79,9 @@ FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT = (
 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT = (
     "cb0328abcbeef3dc7957954a7eaece19288f50e9"
 )
+FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT = (
+    "3290fe66b1f4018b49086212ff71b3b6f029bc97"
+)
 FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -95,7 +98,7 @@ FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
 )
-FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS = (
     "packages/orchestration/zyra_orchestration/task_graph.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "packages/symbolic/zyra_symbolic/topology.py",
@@ -104,6 +107,14 @@ FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_freeze_audit.py",
     "tests/unit/test_symbolic_control.py",
     "tests/unit/test_task_graph.py",
+)
+FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "packages/productization/zyra_productization/release/cleanroom.py",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+    "tests/unit/test_release_productization.py",
 )
 FINAL_REGRESSION_SUPPLEMENT_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
@@ -117,6 +128,7 @@ FINAL_REGRESSION_SUPPLEMENT_TESTS = (
     "tests/unit/productization/test_phase2_freeze_audit.py",
     "tests/unit/test_symbolic_control.py",
     "tests/unit/test_task_graph.py",
+    "tests/unit/test_release_productization.py",
 )
 FINAL_REGRESSION_SUPPLEMENT_RERUN_IDS = (
     "phase2-policy-contracts",
@@ -2689,12 +2701,14 @@ class Phase2FreezeAuditor:
         commit_chain = (
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT,
             target,
         )
         expected_parents = (
             source,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT,
             FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT,
+            FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT,
         )
         exact_chain = True
         for commit, expected_parent in zip(
@@ -2707,11 +2721,12 @@ class Phase2FreezeAuditor:
             ).split()
             if parents != [commit, expected_parent]:
                 exact_chain = False
-                blockers.append("supplement_target_not_exact_three_commit_chain")
+                blockers.append("supplement_target_not_exact_four_commit_chain")
                 break
         segment_allowlists = (
             FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+            FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS,
             FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
         )
         cumulative_allowed = tuple(
@@ -2719,6 +2734,7 @@ class Phase2FreezeAuditor:
                 (
                     *FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+                    *FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS,
                     *FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
                 )
             )
@@ -2890,6 +2906,9 @@ class Phase2FreezeAuditor:
             ),
             "required_second_commit": (
                 FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT
+            ),
+            "required_third_commit": (
+                FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT
             ),
             "commit_count": len(commit_chain),
             "commit_chain": list(commit_chain),
