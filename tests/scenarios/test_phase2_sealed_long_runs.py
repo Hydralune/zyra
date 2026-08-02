@@ -65,6 +65,93 @@ from zyra_runtime.provider_control_plane import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_sealed_validator_accepts_extended_true_production_checks() -> None:
+    required = {
+        "candidate_set": True,
+        "resource_decision": True,
+        "lease": True,
+        "attempt": True,
+        "physical_receipt": True,
+        "real_execution": True,
+    }
+
+    assert SealedLongRunValidator._production_control_checks_ready(
+        {
+            **required,
+            "loopx_pre_control_topology": True,
+            "loopx_pre_control_permission": True,
+        }
+    )
+    assert not SealedLongRunValidator._production_control_checks_ready(
+        {**required, "loopx_pre_control_topology": False}
+    )
+    assert not SealedLongRunValidator._production_control_checks_ready(
+        {key: value for key, value in required.items() if key != "lease"}
+    )
+
+
+def test_sealed_validator_binds_physical_custody_to_scenario_and_call_uri() -> None:
+    receipt = {
+        "digest": "receipt-digest",
+        "placement_decision_id": "decision-id",
+        "lease_id": "lease-id",
+        "physical_attempt_id": "attempt-id",
+    }
+    validation = {
+        "schema": "zyra.physical-dispatch-validation/v1",
+        "receipt_digest": "receipt-digest",
+        "location": "cloud",
+        "real_gate_closed": True,
+        "blockers": [],
+        "checks": {"cloud_live_request": True},
+    }
+    decision = {
+        "decision_id": "decision-id",
+        "run_id": "sealed-scenario-id",
+        "task_id": "task-id",
+    }
+    lease = {"fence_token_persisted": False}
+    acquired_lease = {"lease_id": "lease-id"}
+    attempt = {"attempt_id": "attempt-id", "lease_id": "lease-id"}
+    completion = {
+        "lease_id": "lease-id",
+        "attempt_id": "attempt-id",
+        "outcome": "succeeded",
+        "backend_receipt_ref": "deployment-dispatch://dispatch-id",
+    }
+    call = {
+        "ref_id": "dispatch-id",
+        "uri": "deployment-dispatch://dispatch-id",
+    }
+    values = {
+        "receipt": receipt,
+        "validation": validation,
+        "decision": decision,
+        "lease": lease,
+        "acquired_lease": acquired_lease,
+        "attempt": attempt,
+        "completion": completion,
+        "call": call,
+        "location": "cloud",
+        "scenario_run_id": "sealed-scenario-id",
+        "task_id": "task-id",
+    }
+
+    assert SealedLongRunValidator._physical_custody_binding_ready(**values)
+    assert not SealedLongRunValidator._physical_custody_binding_ready(
+        **{**values, "scenario_run_id": "canonical-owner-run-id"}
+    )
+    assert not SealedLongRunValidator._physical_custody_binding_ready(
+        **{
+            **values,
+            "completion": {
+                **completion,
+                "backend_receipt_ref": call["ref_id"],
+            },
+        }
+    )
+
+
 def test_inline_policy_persists_every_returned_production_event_before_readback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

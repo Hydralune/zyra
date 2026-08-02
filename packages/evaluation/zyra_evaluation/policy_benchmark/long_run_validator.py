@@ -747,7 +747,17 @@ class SealedLongRunValidator:
         ):
             blockers.append("physical_dispatch_bundle_digest")
         physical = load_json(physical_path)
-        blockers.extend(self._physical_bundle_blockers(physical, run_id, task_id))
+        scenario_run_id = str(run.get("scenario_run_id") or "")
+        if not scenario_run_id:
+            blockers.append("scenario_run_id_missing")
+        else:
+            blockers.extend(
+                self._physical_bundle_blockers(
+                    physical,
+                    scenario_run_id,
+                    task_id,
+                )
+            )
         claimed_path = _member(
             root,
             run.get("transition_index"),
@@ -858,7 +868,7 @@ class SealedLongRunValidator:
     @staticmethod
     def _physical_bundle_blockers(
         physical: Mapping[str, Any],
-        run_id: str,
+        scenario_run_id: str,
         task_id: str,
     ) -> list[str]:
         blockers: list[str] = []
@@ -910,31 +920,18 @@ class SealedLongRunValidator:
             attempt = _mapping(lease.get("attempt"))
             completion = _mapping(lease.get("completion"))
             call = _mapping(receipt.get("call_receipt"))
-            if (
-                validation.get("schema")
-                != "zyra.physical-dispatch-validation/v1"
-                or validation.get("receipt_digest") != receipt.get("digest")
-                or validation.get("location") != location
-                or validation.get("real_gate_closed") is not True
-                or validation.get("blockers") != []
-                or not all(
-                    item is True
-                    for item in _mapping(validation.get("checks")).values()
-                )
-                or decision.get("decision_id")
-                != receipt.get("placement_decision_id")
-                or decision.get("run_id") != run_id
-                or decision.get("task_id") != task_id
-                or acquired_lease.get("lease_id") != receipt.get("lease_id")
-                or attempt.get("attempt_id")
-                != receipt.get("physical_attempt_id")
-                or attempt.get("lease_id") != receipt.get("lease_id")
-                or completion.get("lease_id") != receipt.get("lease_id")
-                or completion.get("attempt_id")
-                != receipt.get("physical_attempt_id")
-                or completion.get("outcome") != "succeeded"
-                or completion.get("backend_receipt_ref") != call.get("ref_id")
-                or lease.get("fence_token_persisted") is not False
+            if not SealedLongRunValidator._physical_custody_binding_ready(
+                receipt=receipt,
+                validation=validation,
+                decision=decision,
+                lease=lease,
+                acquired_lease=acquired_lease,
+                attempt=attempt,
+                completion=completion,
+                call=call,
+                location=location,
+                scenario_run_id=scenario_run_id,
+                task_id=task_id,
             ):
                 blockers.append(f"physical_custody_chain:{index}")
         if tuple(locations) != ("local", "edge", "cloud", "cloud", "cloud"):
@@ -964,6 +961,63 @@ class SealedLongRunValidator:
         return blockers
 
     @staticmethod
+    def _physical_custody_binding_ready(
+        *,
+        receipt: Mapping[str, Any],
+        validation: Mapping[str, Any],
+        decision: Mapping[str, Any],
+        lease: Mapping[str, Any],
+        acquired_lease: Mapping[str, Any],
+        attempt: Mapping[str, Any],
+        completion: Mapping[str, Any],
+        call: Mapping[str, Any],
+        location: str,
+        scenario_run_id: str,
+        task_id: str,
+    ) -> bool:
+        checks = _mapping(validation.get("checks"))
+        return (
+            validation.get("schema")
+            == "zyra.physical-dispatch-validation/v1"
+            and validation.get("receipt_digest") == receipt.get("digest")
+            and validation.get("location") == location
+            and validation.get("real_gate_closed") is True
+            and validation.get("blockers") == []
+            and bool(checks)
+            and all(item is True for item in checks.values())
+            and decision.get("decision_id")
+            == receipt.get("placement_decision_id")
+            and decision.get("run_id") == scenario_run_id
+            and decision.get("task_id") == task_id
+            and acquired_lease.get("lease_id") == receipt.get("lease_id")
+            and attempt.get("attempt_id")
+            == receipt.get("physical_attempt_id")
+            and attempt.get("lease_id") == receipt.get("lease_id")
+            and completion.get("lease_id") == receipt.get("lease_id")
+            and completion.get("attempt_id")
+            == receipt.get("physical_attempt_id")
+            and completion.get("outcome") == "succeeded"
+            and completion.get("backend_receipt_ref") == call.get("uri")
+            and lease.get("fence_token_persisted") is False
+        )
+
+    @staticmethod
+    def _production_control_checks_ready(
+        checks: Mapping[str, Any],
+    ) -> bool:
+        required_checks = {
+            "candidate_set",
+            "resource_decision",
+            "lease",
+            "attempt",
+            "physical_receipt",
+            "real_execution",
+        }
+        return required_checks.issubset(checks) and all(
+            item is True for item in checks.values()
+        )
+
+    @staticmethod
     def _production_control_blockers(
         control: Mapping[str, Any],
         *,
@@ -986,17 +1040,7 @@ class SealedLongRunValidator:
         ):
             blockers.append("production_control_integrity")
         checks = _mapping(control.get("checks"))
-        required_checks = {
-            "candidate_set",
-            "resource_decision",
-            "lease",
-            "attempt",
-            "physical_receipt",
-            "real_execution",
-        }
-        if set(checks) != required_checks or not all(
-            checks.get(name) is True for name in required_checks
-        ):
+        if not SealedLongRunValidator._production_control_checks_ready(checks):
             blockers.append("production_control_checks")
         event_ids = tuple(str(item) for item in _sequence(control.get("production_event_ids")))
         if (
