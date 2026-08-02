@@ -1326,15 +1326,17 @@ def test_cleanroom_port_contract_drives_real_deployment_catalog(
 
 
 def test_cleanroom_lifecycle_allocator_returns_real_disjoint_port_shape() -> None:
-    excluded = {8310, 8311, 8312}
+    bootstrap = CleanInstallRunner._allocate_lifecycle_ports()
 
     ports = CleanInstallRunner._allocate_lifecycle_ports(
-        excluded_ports=excluded,
+        excluded_ports=bootstrap,
     )
 
     assert len(ports) == 5
     assert len(set(ports)) == 5
-    assert excluded.isdisjoint(ports)
+    assert set(bootstrap).isdisjoint(ports)
+    assert ports == list(range(ports[0], ports[0] + 5))
+    assert 12_000 <= ports[0] <= ports[-1] <= 19_999
     assert ports[3:] == [ports[2] + 1, ports[2] + 2]
     assert PortAvailabilityProbe().probe("127.0.0.1", ports)["ready"] is True
 

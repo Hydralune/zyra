@@ -194,14 +194,15 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_six_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
-    target = "f" * 40
+    target = "7" * 40
     first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
     second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
     third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
     fourth = MODULE.SUPPLEMENT_REQUIRED_FOURTH_COMMIT
+    fifth = MODULE.SUPPLEMENT_REQUIRED_FIFTH_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
@@ -214,6 +215,9 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
     fourth_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS
     )
+    fifth_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
@@ -224,6 +228,7 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
                 *MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -240,7 +245,8 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
                 second: first,
                 third: second,
                 fourth: third,
-                target: fourth,
+                fifth: fourth,
+                target: fifth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -253,7 +259,9 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
                 return third_statuses
             if revisions == (third, fourth):
                 return fourth_statuses
-            if revisions == (fourth, target):
+            if revisions == (fourth, fifth):
+                return fifth_statuses
+            if revisions == (fifth, target):
                 return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
@@ -266,7 +274,8 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
                 second: "c" * 40,
                 third: "d" * 40,
                 fourth: "e" * 40,
-                target: "f" * 40,
+                fifth: "f" * 40,
+                target: "7" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -288,8 +297,9 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
     assert delta["required_second_commit"] == second
     assert delta["required_third_commit"] == third
     assert delta["required_fourth_commit"] == fourth
-    assert delta["commit_chain"] == [first, second, third, fourth, target]
-    assert delta["commit_count"] == 5
+    assert delta["required_fifth_commit"] == fifth
+    assert delta["commit_chain"] == [first, second, third, fourth, fifth, target]
+    assert delta["commit_count"] == 6
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -308,6 +318,9 @@ def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][4]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][5]["allowed_paths"] == list(
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
@@ -332,7 +345,7 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact five-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact six-commit remediation chain"):
         MODULE._supplement_target_delta(target_commit=target)
 
 
@@ -357,14 +370,16 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
     second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
     third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
     fourth = MODULE.SUPPLEMENT_REQUIRED_FOURTH_COMMIT
-    target = "f" * 40
-    chain = (first, second, third, fourth, target)
-    parents = (source, first, second, third, fourth)
+    fifth = MODULE.SUPPLEMENT_REQUIRED_FIFTH_COMMIT
+    target = "7" * 40
+    chain = (first, second, third, fourth, fifth, target)
+    parents = (source, first, second, third, fourth, fifth)
     allowlists = (
         MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))

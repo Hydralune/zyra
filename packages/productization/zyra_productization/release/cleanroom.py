@@ -39,6 +39,11 @@ from .transactions import (
 )
 
 
+_LIFECYCLE_PORT_MIN = 12_000
+_LIFECYCLE_PORT_MAX = 19_999
+_LIFECYCLE_PORT_SCAN_STEP = 37
+
+
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -1384,30 +1389,32 @@ class CleanInstallRunner:
         excluded_ports: Iterable[int] = (),
     ) -> list[int]:
         excluded = {int(item) for item in excluded_ports}
-        for _attempt in range(128):
+        block_size = 5
+        # Port zero selects the OS dynamic client range.  Sequential profile
+        # health probes can then consume a not-yet-started adjacent server
+        # port.  Keep the full lifecycle block in a low service range instead.
+        base_count = (
+            _LIFECYCLE_PORT_MAX
+            - _LIFECYCLE_PORT_MIN
+            - block_size
+            + 2
+        )
+        starting_offset = os.getpid() % base_count
+        for attempt in range(min(base_count, 512)):
             sockets: list[socket.socket] = []
+            base_port = _LIFECYCLE_PORT_MIN + (
+                starting_offset
+                + (attempt * _LIFECYCLE_PORT_SCAN_STEP)
+            ) % base_count
+            candidate = list(range(base_port, base_port + block_size))
+            if not excluded.isdisjoint(candidate):
+                continue
             try:
-                selected: list[int] = []
-                for _ in range(2):
+                for port in candidate:
                     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    probe.bind(("127.0.0.1", 0))
                     sockets.append(probe)
-                    selected.append(int(probe.getsockname()[1]))
-                base_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                base_probe.bind(("127.0.0.1", 0))
-                sockets.append(base_probe)
-                base_port = int(base_probe.getsockname()[1])
-                candidate = [*selected, base_port, base_port + 1, base_port + 2]
-                if (
-                    base_port > 65533
-                    or len(set(candidate)) != 5
-                    or not excluded.isdisjoint(candidate)
-                ):
-                    continue
-                for port in (base_port + 1, base_port + 2):
-                    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
                     probe.bind(("127.0.0.1", port))
-                    sockets.append(probe)
                 return candidate
             except OSError:
                 continue
