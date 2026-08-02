@@ -1,0 +1,76 @@
+{
+  "schema": "zyra.phase2-aggregate-command-evidence/v1",
+  "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+  "commands": [
+    {
+      "name": "final_fix_targeted_unit",
+      "scope": "phase2 final regression and freeze audit unit tests",
+      "result": "52 passed",
+      "status": "passed"
+    },
+    {
+      "name": "final_regression_strict_reuse",
+      "scope": "one origin full regression, one three-gate direct resume, and a 12-segment target-bound supplement chain",
+      "result": "origin Python 1298 passed, 15 deselected, 74 subtests passed; direct resume inherited 11 successful gates and reran 3 logical gates plus 33 targeted tests; supplement 14/14 logical gates and final-target 250 passed plus 2 subtests",
+      "status": "passed",
+      "heavy_run_count": 1,
+      "duplicate_heavy_run_avoided": true
+    },
+    {
+      "name": "strongest_preflight_attempt_01",
+      "result": "failed during pytest basetemp cleanup with Windows ACL PermissionError/WinError 5; four failure receipts retained",
+      "status": "failed_preserved",
+      "counts_as_formal_success": false
+    },
+    {
+      "name": "strongest_preflight_attempt_02",
+      "result": "16/16 hard gates; sealed eligible; phase2_strongest_v1_revalidated",
+      "status": "passed",
+      "formal": true
+    },
+    {
+      "name": "sealed_scenarios",
+      "result": "2 real runs; 3144 and 7437 valid transitions; 0 failed attempts; 0 human interventions; 6 authorized model API calls",
+      "status": "passed"
+    },
+    {
+      "name": "sealed_independent_validation",
+      "result": "valid=true; blockers=[]; candidate commit exact",
+      "status": "passed"
+    },
+    {
+      "name": "release_and_cleanroom",
+      "result": "14/14 admission gates; pipeline ready; cleanroom ready; A/B archives byte-identical",
+      "status": "passed"
+    },
+    {
+      "name": "source_language_custody",
+      "result": "ok=true; violations=0; target exact; OpenClaw changes=0",
+      "status": "passed"
+    },
+    {
+      "name": "final_freeze",
+      "result": "ready=true; verdict=PASS; blockers=[]; 13/13 checks",
+      "status": "passed"
+    },
+    {
+      "name": "python_compile_and_diff_check",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "name": "independent_final_review",
+      "result": "PASS; P0=0; P1=0; P2=0; no heavy process rerun",
+      "status": "passed"
+    }
+  ],
+  "strict_reuse": {
+    "full_regression_origin_target": "f5a5036e9e2d05dc4e7b84b023b31d9ad18ef923",
+    "full_regression_origin_receipt_sha256": "20d46575cc0d1e819654e5d2c4cf57e31a7e1aacac9d82810e557e954e972c75",
+    "direct_resume_source_target": "7995b64e8fd48028f1e12d4c60a23f6df4784a2e",
+    "direct_resume_receipt_sha256": "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4",
+    "final_target": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+    "source_result_claimed_as_final_target_local_execution": false,
+    "supplement_chain_validated": true
+  }
+}

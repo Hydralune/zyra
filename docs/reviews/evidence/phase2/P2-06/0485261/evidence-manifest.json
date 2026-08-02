@@ -1,0 +1,75 @@
+{
+  "schema": "zyra.phase2-aggregate-evidence-manifest/v1",
+  "review_id": "P2-06-audit-and-fix",
+  "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+  "target_tree": "b61f75a2fe00c27bdd3d5d2ce13e08a601344ce7",
+  "verdict": "PASS_AFTER_FIX",
+  "review_artifacts": [
+    {
+      "path": "docs/reviews/evidence/phase2/P2-06/0485261/aggregate-review.json",
+      "sha256": "a94a21e73bd3639c23e0782af0a14f57e14f915af7e23eb265917120ef9fbea0"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-06/0485261/gate-matrix.json",
+      "sha256": "56de4b7ea2e45e182b551da45c8048c467a6e8d769e49bd3c6ffd0f34b1bbfe8"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-06/0485261/bucket-summary.json",
+      "sha256": "454b4a2442c20971a7c81511e008b9d79af7a11d4b02e5ec105996d936f104ad"
+    },
+    {
+      "path": "docs/reviews/evidence/phase2/P2-06/0485261/commands.json",
+      "sha256": "989984547127f0c0094b25c5072a97a9b2a0400f651eeab16449b846b1ef1c60"
+    },
+    {
+      "path": "docs/reviews/phase2/P2-06-aggregate-review.md",
+      "sha256": "100b22cd9034ff86efe6a881f7950e706e384b721c6cefd18f6b68a463419964"
+    },
+    {
+      "path": "docs/reviews/phase2/P2-final-independent-review.md",
+      "sha256": "c06d0594fe775723af808057cccd377c23186bc46cea4e558993882c592e798f"
+    },
+    {
+      "path": "docs/reviews/phase2/P2-exit-report.md",
+      "sha256": "3ca9602197929f898409f2bab9c3332d756c96923254eea8a6cc9844c4766421"
+    }
+  ],
+  "formal_external_evidence": [
+    {
+      "path": "docs/evidence/phase2/final/f5a5036/final-regression/final-regression.json",
+      "sha256": "20d46575cc0d1e819654e5d2c4cf57e31a7e1aacac9d82810e557e954e972c75",
+      "role": "full_regression_origin"
+    },
+    {
+      "path": "docs/evidence/phase2/final/7995b64/final-regression-resume/final-regression-resume.json",
+      "sha256": "b8d9ff131cd1206044160a7cea590de1ea6bdd668e8e428fceb70fef143c4df4",
+      "role": "direct_resume_source"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/final-regression-supplement/final-regression-supplement.json",
+      "sha256": "2764a4c39186e5cce23e99da9047a8ce4fe2482ee153681cc97a702e523c1353"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/sealed-attempt-01/sealed-evidence-index.json",
+      "sha256": "5952436587d48263dfa17b76f1b79b9bdf5ba4ee8739ff025b0d4543d6c457c3"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/release-attempt-01/phase2-final-0485261-offline-cache-v1.tar.gz",
+      "sha256": "f476a506e7dd60307844d33fee969cdb27336a089ce21c707adb76320ffabefd"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/freeze-inputs/source-language-custody-report.json",
+      "sha256": "fd517a671776aaa4a09f0f8cfed3cacfd33062223a24490f0074b216764c4d0e"
+    },
+    {
+      "path": "docs/evidence/phase2/final/0485261/final-freeze-audit/final-freeze-audit.json",
+      "sha256": "13aa8041f011acf945a5338bd208c159a21c5cc408815bf82c65ec270b1a8257"
+    }
+  ],
+  "failed_attempts_preserved": [
+    "docs/evidence/phase2/final/0485261/preflight-attempt-01"
+  ],
+  "formal_preflight": "docs/evidence/phase2/final/0485261/preflight",
+  "independent_review_passed": true,
+  "phase2_completion_eligible": true
+}

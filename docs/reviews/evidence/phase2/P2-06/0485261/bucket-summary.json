@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.phase2-aggregate-change-buckets/v1",
+  "algorithm": "git diff --numstat --no-renames over two non-overlapping ranges; path-first mutually exclusive buckets",
+  "ranges": [
+    {
+      "range": "ff460ab7c3c138ad021b64edc303fc282effb995..8c1a49464870a399b3cf0e3828ce43e5517bd231",
+      "role": "original_p2_06_digital_stage",
+      "file_count": 236,
+      "buckets": {
+        "production": {"files": 51, "additions": 7574, "deletions": 202},
+        "tests": {"files": 44, "additions": 2253, "deletions": 169},
+        "validation_scripts": {"files": 10, "additions": 929, "deletions": 18},
+        "config": {"files": 6, "additions": 611, "deletions": 54},
+        "docs_evidence": {"files": 122, "additions": 184002, "deletions": 0},
+        "other": {"files": 3, "additions": 26, "deletions": 4}
+      }
+    },
+    {
+      "range": "e536c366141305d54bbf5434fd7d4171e12826aa..0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+      "role": "aggregate_audit_fix",
+      "file_count": 70,
+      "buckets": {
+        "production": {"files": 34, "additions": 9781, "deletions": 843},
+        "tests": {"files": 23, "additions": 6136, "deletions": 322},
+        "validation_scripts": {"files": 11, "additions": 2086, "deletions": 25},
+        "config": {"files": 2, "additions": 37, "deletions": 11}
+      }
+    }
+  ],
+  "combined": {
+    "changed_file_observations": 306,
+    "additions": 213435,
+    "deletions": 1648,
+    "production": {"files": 85, "additions": 17355, "deletions": 1045},
+    "tests": {"files": 67, "additions": 8389, "deletions": 491},
+    "validation_scripts": {"files": 21, "additions": 3015, "deletions": 43},
+    "config": {"files": 8, "additions": 648, "deletions": 65},
+    "docs_evidence": {"files": 122, "additions": 184002, "deletions": 0},
+    "other": {"files": 3, "additions": 26, "deletions": 4},
+    "runtime_assets_vendor_like": {"files": 0, "additions": 0, "deletions": 0},
+    "generated_source": {"files": 0, "additions": 0, "deletions": 0},
+    "mock_fixture": {"files": 0, "additions": 0, "deletions": 0},
+    "openclaw": {"files": 0, "additions": 0, "deletions": 0}
+  },
+  "classification_notes": [
+    "Sealed canonical event trails and final evidence are docs/data and do not count as Zyra production implementation.",
+    "The embedded LoopX runtime was unchanged in both measured ranges and remains runtime-assets/vendor-like.",
+    "No mock or fixed fixture is counted as formal evidence."
+  ]
+}

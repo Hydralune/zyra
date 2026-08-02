@@ -1,0 +1,26 @@
+{
+  "schema": "zyra.phase2-aggregate-slice-gate-matrix/v1",
+  "target_commit": "0485261c8ba3e506c32eb2000ed50617b9b0b44d",
+  "target_tree": "b61f75a2fe00c27bdd3d5d2ce13e08a601344ce7",
+  "slice_count": 3,
+  "gates": [
+    {
+      "slice_id": "P2-S06-01",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S06-01-paired-optimization-review.md",
+      "aggregate_note": "The final target-bound preflight passed 16/16 gates and admitted all required mechanisms as activation_ready plus deterministic_ready."
+    },
+    {
+      "slice_id": "P2-S06-02",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S06-02-sealed-adversarial-long-run-review.md",
+      "aggregate_note": "Two real API sealed runs passed with 3144 and 7437 independently recomputed effective transitions, zero failed runs and zero human intervention."
+    },
+    {
+      "slice_id": "P2-S06-03",
+      "result": "PASS_AFTER_FIX",
+      "review": "docs/reviews/P2-S06-03-user-authorized-closure.md",
+      "aggregate_note": "The historical override record remains unchanged; the new final target supplies the previously missing regression, preflight, sealed, cleanroom, custody, freeze and independent-review gates."
+    }
+  ]
+}
