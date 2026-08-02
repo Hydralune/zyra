@@ -18,6 +18,8 @@ from typing import Any, Iterator
 
 import pytest
 
+from zyra_evaluation.scenario_runner.canonical import digest
+from zyra_evaluation.scenario_runner.models import FaultInjection
 from zyra_evaluation.scenario_runner.software_delivery import (
     SourceInventoryBuilder,
 )
@@ -31,7 +33,59 @@ def test_canonical_event_snapshot_uses_initialized_state_and_prebegin_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from apps.api.zyra_api import main as api_main
-    from apps.api.zyra_api.live_scenario_owners import CanonicalLiveScenarioOwners
+    from apps.api.zyra_api.live_scenario_owners import (
+        CanonicalLiveScenarioOwners,
+        LiveOwnerIntegrationError,
+        _canonical_checkpoint_head,
+        _checkpoint_lineage,
+    )
+
+    with pytest.raises(
+        LiveOwnerIntegrationError,
+        match="missing checkpoint_head",
+    ):
+        _canonical_checkpoint_head({})
+    with pytest.raises(
+        LiveOwnerIntegrationError,
+        match="must be a mapping or null",
+    ):
+        _canonical_checkpoint_head({"checkpoint_head": []})
+    assert _canonical_checkpoint_head({"checkpoint_head": None}) is None
+
+    with pytest.raises(
+        LiveOwnerIntegrationError,
+        match="canonical recovery checkpoint lineage is incomplete",
+    ):
+        _checkpoint_lineage(
+            checkpoint_head={"session_id": "scenario:incomplete"},
+            scenario_run_id="scenario-incomplete",
+            configuration_digest="configuration-incomplete",
+            fallback_session_id="scenario:fallback-must-not-apply",
+        )
+    with pytest.raises(
+        LiveOwnerIntegrationError,
+        match="canonical recovery checkpoint lineage is incomplete",
+    ):
+        _checkpoint_lineage(
+            checkpoint_head={},
+            scenario_run_id="scenario-empty-head",
+            configuration_digest="configuration-empty-head",
+            fallback_session_id="scenario:fallback-must-not-apply",
+        )
+    assert _checkpoint_lineage(
+        checkpoint_head=None,
+        scenario_run_id="scenario-initial-lineage",
+        configuration_digest="configuration-initial-lineage",
+        fallback_session_id="scenario:initial-lineage",
+    ) == (
+        "scenario:initial-lineage",
+        digest(
+            {
+                "scenario": "scenario-initial-lineage",
+                "configuration": "configuration-initial-lineage",
+            }
+        ),
+    )
 
     owner = CanonicalLiveScenarioOwners(
         project_root=ROOT,
@@ -52,6 +106,100 @@ def test_canonical_event_snapshot_uses_initialized_state_and_prebegin_cache(
     assert owner.canonical_event_snapshot() == (
         {"event_id": "persisted-event"},
     )
+
+
+def test_fault_checkpoint_reuses_canonical_recovery_lineage_signature(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from apps.api.zyra_api import main as api_main
+    from apps.api.zyra_api.live_scenario_owners import CanonicalLiveScenarioOwners
+
+    owner = CanonicalLiveScenarioOwners(
+        project_root=ROOT,
+        artifact_root=tmp_path / "artifacts",
+        scratch_root=tmp_path / "scratch",
+    )
+    state, _event = api_main.make_task_created_event("checkpoint lineage test")
+    owner.state = state
+    owner.scenario_run_id = "scenario-checkpoint-lineage"
+    state.metadata["query_session_id"] = "scenario:scenario-checkpoint-lineage"
+    owner._route_history.append({"route_id": "route-checkpoint-lineage"})
+
+    class Store:
+        saved: list[object] = []
+
+        @classmethod
+        def save_checkpoint(cls, value: object) -> None:
+            cls.saved.append(value)
+
+    committed: dict[str, Any] = {}
+
+    class RecoveryApi:
+        @staticmethod
+        def route_get(parts: tuple[str, ...]) -> SimpleNamespace:
+            assert parts == ("tasks", state.task_id, "recovery")
+            return SimpleNamespace(
+                status=200,
+                body={
+                    "checkpoint_head": {
+                        "session_id": state.metadata["query_session_id"],
+                        "workflow_signature": "canonical-workflow-signature",
+                    }
+                },
+            )
+
+        @staticmethod
+        def route_post(
+            parts: tuple[str, ...],
+            payload: dict[str, Any],
+        ) -> SimpleNamespace:
+            assert parts == ("tasks", state.task_id, "recovery", "checkpoints")
+            committed.update(payload)
+            return SimpleNamespace(
+                status=201,
+                body={
+                    "checkpoint": {
+                        "checkpoint_id": "checkpoint-lineage-child",
+                        "commit_revision": 2,
+                        "content_digest": "content-lineage-child",
+                        "signature": "signature-lineage-child",
+                    },
+                    "receipt": {"created": True},
+                },
+            )
+
+    monkeypatch.setattr(api_main, "get_store", lambda: Store())
+    monkeypatch.setattr(
+        api_main,
+        "get_recovery_runtime_api",
+        lambda _store: RecoveryApi(),
+    )
+
+    receipt = owner.checkpoint(
+        injection=FaultInjection(
+            injection_id="fault-checkpoint-lineage",
+            stage="recovery",
+            kind="tool_timeout",
+            after_effective_step=3,
+        ),
+        effective_step=3,
+        scenario_state={
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "configuration_digest": "scenario-configuration-signature",
+            "input_digest": "input-checkpoint-lineage",
+            "plan_digest": "plan-checkpoint-lineage",
+        },
+    )
+
+    assert Store.saved == [state]
+    assert committed["session_id"] == state.metadata["query_session_id"]
+    assert committed["workflow_signature"] == "canonical-workflow-signature"
+    assert committed["state_payload"]["configuration_digest"] == (
+        "scenario-configuration-signature"
+    )
+    assert receipt["checkpoint_id"] == "checkpoint-lineage-child"
 
 
 @pytest.mark.parametrize("cancelled", (True, False))

@@ -94,6 +94,7 @@ class LiveOwnerIntegrationError(RuntimeError):
 @dataclass(slots=True)
 class _CheckpointBinding:
     checkpoint_id: str
+    session_id: str
     workflow_signature: str
     graph_signature: str
     topology_signature: str
@@ -825,11 +826,20 @@ class CanonicalLiveScenarioOwners:
         api_main.get_store().save_checkpoint(state)
         state_value = to_jsonable(state)
         state_digest = digest(state_value)
-        workflow_signature = digest(
-            {
-                "scenario": self.scenario_run_id,
-                "configuration": scenario_state.get("configuration_digest"),
-            }
+        recovery_api = api_main.get_recovery_runtime_api(api_main.get_store())
+        recovery_view = _require_api_response(
+            recovery_api.route_get(("tasks", state.task_id, "recovery")),
+            expected=(HTTPStatus.OK,),
+            operation="inspect recovery checkpoint lineage",
+        )
+        checkpoint_head = _canonical_checkpoint_head(recovery_view)
+        session_id, workflow_signature = _checkpoint_lineage(
+            checkpoint_head=checkpoint_head,
+            scenario_run_id=self.scenario_run_id,
+            configuration_digest=scenario_state.get("configuration_digest"),
+            fallback_session_id=str(
+                state.metadata.get("query_session_id") or ""
+            ),
         )
         graph_signature = digest(
             {
@@ -845,7 +855,7 @@ class CanonicalLiveScenarioOwners:
         )
         owner_refs = {
             "task": state.task_id,
-            "session": str(state.metadata.get("query_session_id") or ""),
+            "session": session_id,
             "route": str(self._current_route().get("route_id") or ""),
         }
         version_refs = {
@@ -853,12 +863,12 @@ class CanonicalLiveScenarioOwners:
             "session": 1,
             "route": len(self._route_history),
         }
-        response = api_main.get_recovery_runtime_api(api_main.get_store()).route_post(
+        response = recovery_api.route_post(
             ("tasks", state.task_id, "recovery", "checkpoints"),
             {
                 "run_id": state.run_id,
                 "task_id": state.task_id,
-                "session_id": str(state.metadata.get("query_session_id") or ""),
+                "session_id": session_id,
                 "workflow_signature": workflow_signature,
                 "graph_signature": graph_signature,
                 "topology_signature": topology_signature,
@@ -898,6 +908,7 @@ class CanonicalLiveScenarioOwners:
             )
         binding = _CheckpointBinding(
             checkpoint_id=checkpoint_id,
+            session_id=session_id,
             workflow_signature=workflow_signature,
             graph_signature=graph_signature,
             topology_signature=topology_signature,
@@ -1033,7 +1044,7 @@ class CanonicalLiveScenarioOwners:
             {
                 "run_id": state.run_id,
                 "task_id": state.task_id,
-                "session_id": str(state.metadata.get("query_session_id") or ""),
+                "session_id": binding.session_id,
                 "workflow_signature": binding.workflow_signature,
                 "graph_signature": binding.graph_signature,
                 "topology_signature": binding.topology_signature,
@@ -1503,6 +1514,52 @@ def _require_api_response(
             f"{json.dumps(dict(response.body), ensure_ascii=False, sort_keys=True)}"
         )
     return dict(response.body)
+
+
+def _canonical_checkpoint_head(
+    recovery_view: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    if "checkpoint_head" not in recovery_view:
+        raise LiveOwnerIntegrationError(
+            "canonical recovery view is missing checkpoint_head"
+        )
+    checkpoint_head = recovery_view["checkpoint_head"]
+    if checkpoint_head is None:
+        return None
+    if not isinstance(checkpoint_head, Mapping):
+        raise LiveOwnerIntegrationError(
+            "canonical recovery checkpoint_head must be a mapping or null"
+        )
+    return checkpoint_head
+
+
+def _checkpoint_lineage(
+    *,
+    checkpoint_head: Mapping[str, Any] | None,
+    scenario_run_id: str,
+    configuration_digest: Any,
+    fallback_session_id: str,
+) -> tuple[str, str]:
+    if checkpoint_head is not None:
+        session_id = str(checkpoint_head.get("session_id") or "")
+        workflow_signature = str(
+            checkpoint_head.get("workflow_signature") or ""
+        )
+        if not session_id or not workflow_signature:
+            raise LiveOwnerIntegrationError(
+                "canonical recovery checkpoint lineage is incomplete"
+            )
+        return session_id, workflow_signature
+    if not fallback_session_id:
+        raise LiveOwnerIntegrationError(
+            "initial recovery checkpoint lineage requires a session identity"
+        )
+    return fallback_session_id, digest(
+        {
+            "scenario": scenario_run_id,
+            "configuration": configuration_digest,
+        }
+    )
 
 
 __all__ = [

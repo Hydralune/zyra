@@ -194,10 +194,10 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_nine_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
-    target = "8" * 40
+    target = "9" * 40
     first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
     second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
     third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
@@ -205,6 +205,7 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
     fifth = MODULE.SUPPLEMENT_REQUIRED_FIFTH_COMMIT
     sixth = MODULE.SUPPLEMENT_REQUIRED_SIXTH_COMMIT
     seventh = MODULE.SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
+    eighth = MODULE.SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
@@ -226,6 +227,9 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
     seventh_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS
     )
+    eighth_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
@@ -239,6 +243,7 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
                 *MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_SIXTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -258,7 +263,8 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
                 fifth: fourth,
                 sixth: fifth,
                 seventh: sixth,
-                target: seventh,
+                eighth: seventh,
+                target: eighth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -277,7 +283,9 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
                 return sixth_statuses
             if revisions == (sixth, seventh):
                 return seventh_statuses
-            if revisions == (seventh, target):
+            if revisions == (seventh, eighth):
+                return eighth_statuses
+            if revisions == (eighth, target):
                 return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
@@ -293,7 +301,8 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
                 fifth: "f" * 40,
                 sixth: "6" * 40,
                 seventh: "7" * 40,
-                target: "8" * 40,
+                eighth: "8" * 40,
+                target: "9" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -318,6 +327,7 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
     assert delta["required_fifth_commit"] == fifth
     assert delta["required_sixth_commit"] == sixth
     assert delta["required_seventh_commit"] == seventh
+    assert delta["required_eighth_commit"] == eighth
     assert delta["commit_chain"] == [
         first,
         second,
@@ -326,9 +336,10 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
         fifth,
         sixth,
         seventh,
+        eighth,
         target,
     ]
-    assert delta["commit_count"] == 8
+    assert delta["commit_count"] == 9
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -356,6 +367,9 @@ def test_supplement_delta_is_eight_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][7]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][8]["allowed_paths"] == list(
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
@@ -380,7 +394,7 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact eight-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact nine-commit remediation chain"):
         MODULE._supplement_target_delta(target_commit=target)
 
 
@@ -408,9 +422,30 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
     fifth = MODULE.SUPPLEMENT_REQUIRED_FIFTH_COMMIT
     sixth = MODULE.SUPPLEMENT_REQUIRED_SIXTH_COMMIT
     seventh = MODULE.SUPPLEMENT_REQUIRED_SEVENTH_COMMIT
-    target = "8" * 40
-    chain = (first, second, third, fourth, fifth, sixth, seventh, target)
-    parents = (source, first, second, third, fourth, fifth, sixth, seventh)
+    eighth = MODULE.SUPPLEMENT_REQUIRED_EIGHTH_COMMIT
+    target = "9" * 40
+    chain = (
+        first,
+        second,
+        third,
+        fourth,
+        fifth,
+        sixth,
+        seventh,
+        eighth,
+        target,
+    )
+    parents = (
+        source,
+        first,
+        second,
+        third,
+        fourth,
+        fifth,
+        sixth,
+        seventh,
+        eighth,
+    )
     allowlists = (
         MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
@@ -419,6 +454,7 @@ def test_supplement_delta_rejects_segment_and_cumulative_mutations(
         MODULE.SUPPLEMENT_FIFTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_SIXTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_SEVENTH_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_EIGHTH_ALLOWED_PATHS,
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))
