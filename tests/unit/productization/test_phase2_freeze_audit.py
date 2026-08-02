@@ -285,7 +285,7 @@ def test_resume_delta_audit_rejects_wrong_chain_before_any_diff(
     assert audit["commit_path_changes"] == []
 
 
-def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
+def test_supplement_delta_audit_matches_five_commit_bounded_production_fix(
     monkeypatch,
 ) -> None:
     auditor = Phase2FreezeAuditor(ROOT)
@@ -299,6 +299,9 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
     )
     third = (
         phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT
+    )
+    fourth = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FOURTH_COMMIT
     )
     first_statuses = "\n".join(
         f"M\t{path}"
@@ -314,6 +317,10 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS
     )
+    fourth_statuses = "\n".join(
+        f"M\t{path}"
+        for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FOURTH_ALLOWED_PATHS
+    )
     final_statuses = "\n".join(
         f"M\t{path}"
         for path in phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -324,6 +331,7 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS,
+                *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FOURTH_ALLOWED_PATHS,
                 *phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -339,7 +347,8 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
                 first: source,
                 second: first,
                 third: second,
-                target: third,
+                fourth: third,
+                target: fourth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -350,7 +359,9 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
                 return second_statuses
             if revisions == (second, third):
                 return third_statuses
-            if revisions == (third, target):
+            if revisions == (third, fourth):
+                return fourth_statuses
+            if revisions == (fourth, target):
                 return final_statuses
             if revisions == (source, target):
                 return cumulative_statuses
@@ -362,7 +373,8 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
                 first: "b" * 40,
                 second: "c" * 40,
                 third: "d" * 40,
-                target: "e" * 40,
+                fourth: "e" * 40,
+                target: "f" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -389,10 +401,15 @@ def test_supplement_delta_audit_matches_four_commit_bounded_production_fix(
     assert audit["required_first_commit"] == first
     assert audit["required_second_commit"] == second
     assert audit["required_third_commit"] == third
-    assert audit["commit_chain"] == [first, second, third, target]
+    assert audit["required_fourth_commit"] == fourth
+    assert audit["commit_chain"] == [first, second, third, fourth, target]
     assert audit["changed_paths"] == list(cumulative_paths)
     assert audit["bounded_production_change"] is True
     assert audit["production_or_configuration_changed"] is True
+
+    tampered = {**supplied, "diff_sha256": "0" * 64}
+    tamper_audit = auditor._supplement_delta_audit(tampered, target=target)
+    assert "supplement_delta_receipt_mismatch" in tamper_audit["blockers"]
 
 
 def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
@@ -419,8 +436,99 @@ def test_supplement_delta_audit_rejects_wrong_chain_before_diff(
 
     audit = auditor._supplement_delta_audit({}, target=target)
 
-    assert "supplement_target_not_exact_four_commit_chain" in audit["blockers"]
+    assert "supplement_target_not_exact_five_commit_chain" in audit["blockers"]
     assert audit["commit_path_changes"] == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_blocker"),
+    [
+        ("forbidden_path", "forbidden_supplement_change:M\tforbidden.py"),
+        ("missing_segment_path", "supplement_required_delta_incomplete"),
+        ("mode_change", "supplement_mode_or_type:"),
+        ("object_type_change", "supplement_mode_or_type:"),
+        (
+            "cumulative_extra",
+            "forbidden_supplement_cumulative:M\tforbidden.py",
+        ),
+        ("cumulative_missing", "supplement_cumulative_delta_incomplete"),
+    ],
+)
+def test_supplement_delta_audit_rejects_segment_and_cumulative_mutations(
+    monkeypatch,
+    mutation: str,
+    expected_blocker: str,
+) -> None:
+    auditor = Phase2FreezeAuditor(ROOT)
+    source = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SOURCE_TARGET
+    first = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FIRST_COMMIT
+    second = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_SECOND_COMMIT
+    third = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_THIRD_COMMIT
+    fourth = phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_REQUIRED_FOURTH_COMMIT
+    target = "f" * 40
+    chain = (first, second, third, fourth, target)
+    parents = (source, first, second, third, fourth)
+    allowlists = (
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FIRST_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_SECOND_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_THIRD_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FOURTH_ALLOWED_PATHS,
+        phase2_freeze.FINAL_REGRESSION_SUPPLEMENT_FINAL_ALLOWED_PATHS,
+    )
+    cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))
+    changed_path = allowlists[0][0]
+
+    def statuses(paths: tuple[str, ...]) -> str:
+        return "\n".join(f"M\t{path}" for path in paths)
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {parents[chain.index(commit)]}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            before, after = arguments[-2:]
+            if (before, after) == (source, target):
+                if mutation == "cumulative_extra":
+                    return statuses(cumulative) + "\nM\tforbidden.py"
+                if mutation == "cumulative_missing":
+                    return statuses(cumulative[:-1])
+                return statuses(cumulative)
+            index = chain.index(after)
+            paths = allowlists[index]
+            if index == 0 and mutation == "forbidden_path":
+                return "M\tforbidden.py\n" + statuses(paths[1:])
+            if index == 0 and mutation == "missing_segment_path":
+                return statuses(paths[:-1])
+            return statuses(paths)
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            path = arguments[-1]
+            mode = "100644"
+            object_type = "blob"
+            if revision == first and path == changed_path:
+                if mutation == "mode_change":
+                    mode = "100755"
+                elif mutation == "object_type_change":
+                    object_type = "commit"
+            blob = str((source, *chain).index(revision) + 1) * 40
+            return f"{mode} {object_type} {blob}\t{path}"
+        if arguments[:1] == ("rev-parse",):
+            return "a" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(auditor, "_git", fake_git)
+    monkeypatch.setattr(
+        phase2_freeze.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    audit = auditor._supplement_delta_audit({}, target=target)
+
+    assert any(
+        blocker == expected_blocker or blocker.startswith(expected_blocker)
+        for blocker in audit["blockers"]
+    )
 
 
 def test_resume_delta_audit_rejects_transient_mode_change(monkeypatch) -> None:

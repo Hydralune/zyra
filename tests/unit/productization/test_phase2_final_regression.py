@@ -194,13 +194,14 @@ def test_resume_delta_rejects_any_production_change(monkeypatch) -> None:
         )
 
 
-def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
+def test_supplement_delta_is_five_commit_bounded_and_production_explicit(
     monkeypatch,
 ) -> None:
-    target = "e" * 40
+    target = "f" * 40
     first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
     second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
     third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
+    fourth = MODULE.SUPPLEMENT_REQUIRED_FOURTH_COMMIT
     first_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS
     )
@@ -209,6 +210,9 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
     )
     third_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS
+    )
+    fourth_statuses = "\n".join(
+        f"M\t{path}" for path in MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS
     )
     final_statuses = "\n".join(
         f"M\t{path}" for path in MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
@@ -219,6 +223,7 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
                 *MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS,
+                *MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS,
                 *MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -234,7 +239,8 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
                 first: MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT,
                 second: first,
                 third: second,
-                target: third,
+                fourth: third,
+                target: fourth,
             }[commit]
             return f"{commit} {parent}"
         if arguments[:3] == ("diff", "--name-status", "--no-renames"):
@@ -245,7 +251,9 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
                 return second_statuses
             if revisions == (second, third):
                 return third_statuses
-            if revisions == (third, target):
+            if revisions == (third, fourth):
+                return fourth_statuses
+            if revisions == (fourth, target):
                 return final_statuses
             if revisions == (MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT, target):
                 return cumulative_statuses
@@ -257,7 +265,8 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
                 first: "b" * 40,
                 second: "c" * 40,
                 third: "d" * 40,
-                target: "e" * 40,
+                fourth: "e" * 40,
+                target: "f" * 40,
             }[revision]
             return f"100644 blob {blob}\t{arguments[-1]}"
         if arguments[:1] == ("rev-parse",):
@@ -278,8 +287,9 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
     assert delta["required_first_commit"] == first
     assert delta["required_second_commit"] == second
     assert delta["required_third_commit"] == third
-    assert delta["commit_chain"] == [first, second, third, target]
-    assert delta["commit_count"] == 4
+    assert delta["required_fourth_commit"] == fourth
+    assert delta["commit_chain"] == [first, second, third, fourth, target]
+    assert delta["commit_count"] == 5
     assert (
         delta["source_target_commit"]
         == MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
@@ -295,6 +305,9 @@ def test_supplement_delta_is_four_commit_bounded_and_production_explicit(
         MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS
     )
     assert delta["commit_path_changes"][3]["allowed_paths"] == list(
+        MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS
+    )
+    assert delta["commit_path_changes"][4]["allowed_paths"] == list(
         MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS
     )
     assert delta["bounded_production_change"] is True
@@ -319,7 +332,90 @@ def test_supplement_delta_rejects_wrong_chain_before_diff(monkeypatch) -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="exact four-commit remediation chain"):
+    with pytest.raises(ValueError, match="exact five-commit remediation chain"):
+        MODULE._supplement_target_delta(target_commit=target)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("forbidden_path", "forbidden change"),
+        ("missing_segment_path", "every bounded remediation file"),
+        ("mode_change", "mode or object type"),
+        ("object_type_change", "mode or object type"),
+        ("cumulative_extra", "forbidden cumulative change"),
+        ("cumulative_missing", "cumulative remediation delta is incomplete"),
+    ],
+)
+def test_supplement_delta_rejects_segment_and_cumulative_mutations(
+    monkeypatch,
+    mutation: str,
+    expected: str,
+) -> None:
+    source = MODULE.SUPPLEMENT_SOURCE_TARGET_COMMIT
+    first = MODULE.SUPPLEMENT_REQUIRED_FIRST_COMMIT
+    second = MODULE.SUPPLEMENT_REQUIRED_SECOND_COMMIT
+    third = MODULE.SUPPLEMENT_REQUIRED_THIRD_COMMIT
+    fourth = MODULE.SUPPLEMENT_REQUIRED_FOURTH_COMMIT
+    target = "f" * 40
+    chain = (first, second, third, fourth, target)
+    parents = (source, first, second, third, fourth)
+    allowlists = (
+        MODULE.SUPPLEMENT_FIRST_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_SECOND_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_THIRD_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_FOURTH_ALLOWED_PATHS,
+        MODULE.SUPPLEMENT_FINAL_ALLOWED_PATHS,
+    )
+    cumulative = tuple(dict.fromkeys(path for paths in allowlists for path in paths))
+    changed_path = allowlists[0][0]
+
+    def statuses(paths: tuple[str, ...]) -> str:
+        return "\n".join(f"M\t{path}" for path in paths)
+
+    def fake_git(*arguments: str) -> str:
+        if arguments[:3] == ("rev-list", "--parents", "-n"):
+            commit = arguments[-1]
+            return f"{commit} {parents[chain.index(commit)]}"
+        if arguments[:3] == ("diff", "--name-status", "--no-renames"):
+            before, after = arguments[-2:]
+            if (before, after) == (source, target):
+                if mutation == "cumulative_extra":
+                    return statuses(cumulative) + "\nM\tforbidden.py"
+                if mutation == "cumulative_missing":
+                    return statuses(cumulative[:-1])
+                return statuses(cumulative)
+            index = chain.index(after)
+            paths = allowlists[index]
+            if index == 0 and mutation == "forbidden_path":
+                return "M\tforbidden.py\n" + statuses(paths[1:])
+            if index == 0 and mutation == "missing_segment_path":
+                return statuses(paths[:-1])
+            return statuses(paths)
+        if arguments[0] == "ls-tree":
+            revision = arguments[1]
+            path = arguments[-1]
+            mode = "100644"
+            object_type = "blob"
+            if revision == first and path == changed_path:
+                if mutation == "mode_change":
+                    mode = "100755"
+                elif mutation == "object_type_change":
+                    object_type = "commit"
+            blob = str((source, *chain).index(revision) + 1) * 40
+            return f"{mode} {object_type} {blob}\t{path}"
+        if arguments[:1] == ("rev-parse",):
+            return "a" * 40
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(MODULE, "_git", fake_git)
+    monkeypatch.setattr(
+        MODULE.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b"bounded-diff"),
+    )
+
+    with pytest.raises(ValueError, match=expected):
         MODULE._supplement_target_delta(target_commit=target)
 
 

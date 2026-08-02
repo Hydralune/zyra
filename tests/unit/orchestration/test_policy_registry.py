@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import replace
 from pathlib import Path
 
@@ -181,6 +182,44 @@ def test_production_registry_resolves_activation_ready_strongest_by_default() ->
     baseline = registry.get(FAMILY, "phase1_deterministic_baseline")
     assert baseline.lifecycle is MechanismLifecycle.BASELINE
     assert baseline.activation_state == "standby"
+
+
+def test_release_registry_has_no_generated_evidence_runtime_dependency(
+    tmp_path: Path,
+) -> None:
+    release_root = tmp_path / "release-root"
+    config_path = release_root / "config" / "phase2" / "policies.yaml"
+    report_path = (
+        release_root
+        / "docs"
+        / "release"
+        / "phase2"
+        / "activation-readiness.json"
+    )
+    config_path.parent.mkdir(parents=True)
+    report_path.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / "config/phase2/policies.yaml", config_path)
+    shutil.copyfile(
+        ROOT / "docs/release/phase2/activation-readiness.json",
+        report_path,
+    )
+
+    registry = MechanismRegistry.load(release_root)
+
+    assert registry.resolve(FAMILY).profile_id == "phase2_strongest_v1"
+    diagnostic = registry.resolve(
+        FAMILY,
+        purpose=ResolutionPurpose.DIAGNOSTIC,
+        version="phase2_diagnostic_v1",
+    )
+    assert diagnostic.profile_id == "phase2_diagnostic_v1"
+    assert all(
+        binding.stage is ReadinessStage.ACTIVATION_READY
+        and binding.report_ref
+        == "docs/release/phase2/activation-readiness.json"
+        for binding in diagnostic.readiness
+    )
+    assert not (release_root / "docs/reviews/evidence").exists()
 
 
 def test_duplicate_family_version_is_rejected_for_same_or_different_digest() -> None:

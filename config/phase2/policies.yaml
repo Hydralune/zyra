@@ -192,24 +192,24 @@
       "readiness": [
         {
           "mechanism_id": "arg_designer",
-          "stage": "implementation_validated",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-01/MechanismEvidenceReadinessReport.json",
-          "report_digest": "124bc3d59f9770f3600d23a1d3b72c4115baa0f1d076da16d237a7ac27fded28"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "card",
-          "stage": "implementation_validated",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-02/MechanismEvidenceReadinessReport.json",
-          "report_digest": "6ad61b0f1c5f749ec1dcf5fd30dbec21d50369a707c82e4675ef4f2bddc0e244"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         },
         {
           "mechanism_id": "agentprune",
-          "stage": "implementation_validated",
+          "stage": "activation_ready",
           "status": "deterministic_ready",
-          "report_ref": "docs/reviews/evidence/P2-S03-03/MechanismEvidenceReadinessReport.json",
-          "report_digest": "6c6626536514289b2389e7d9ccffdd0ff8f730593785925cff597db2280967cc"
+          "report_ref": "docs/release/phase2/activation-readiness.json",
+          "report_digest": "a8eefb4ff766d4a8131df8c05431adad490a73ca88774c992bab879b92398fda"
         }
       ],
       "rollback_family": "topology_policy",
@@ -226,5 +226,5 @@
       "audit_gate_ids": []
     }
   ],
-  "registry_digest": "7defec9aa3159c653aea37dd0363fa5d877ce0309e033435368425276c823740"
+  "registry_digest": "fb96c696779d2e544b05a1e79366bdb7d619843a0ec0267670dce987dc103ffe"
 }

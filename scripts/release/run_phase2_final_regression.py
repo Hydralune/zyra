@@ -91,6 +91,9 @@ SUPPLEMENT_REQUIRED_SECOND_COMMIT = (
 SUPPLEMENT_REQUIRED_THIRD_COMMIT = (
     "3290fe66b1f4018b49086212ff71b3b6f029bc97"
 )
+SUPPLEMENT_REQUIRED_FOURTH_COMMIT = (
+    "361a9ac947150e31ba6cccfd54101e13fab1ca78"
+)
 SUPPLEMENT_FIRST_ALLOWED_PATHS = (
     "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
@@ -117,7 +120,7 @@ SUPPLEMENT_THIRD_ALLOWED_PATHS = (
     "tests/unit/test_symbolic_control.py",
     "tests/unit/test_task_graph.py",
 )
-SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+SUPPLEMENT_FOURTH_ALLOWED_PATHS = (
     "packages/productization/zyra_productization/release/cleanroom.py",
     "packages/productization/zyra_productization/release/phase2_freeze.py",
     "scripts/release/run_phase2_final_regression.py",
@@ -125,14 +128,24 @@ SUPPLEMENT_FINAL_ALLOWED_PATHS = (
     "tests/unit/productization/test_phase2_freeze_audit.py",
     "tests/unit/test_release_productization.py",
 )
+SUPPLEMENT_FINAL_ALLOWED_PATHS = (
+    "config/phase2/policies.yaml",
+    "packages/productization/zyra_productization/release/phase2_freeze.py",
+    "scripts/release/run_phase2_final_regression.py",
+    "tests/unit/orchestration/test_policy_registry.py",
+    "tests/unit/productization/test_phase2_final_regression.py",
+    "tests/unit/productization/test_phase2_freeze_audit.py",
+)
 SUPPLEMENT_REMEDIATION_TESTS = (
     "tests/scenarios/test_phase2_sealed_long_runs.py",
     "tests/unit/test_deployment_profiles_runtime.py",
     "tests/unit/orchestration/test_agentprune_optimizer.py",
     "tests/integration/test_spatial_temporal_pruning.py",
+    "tests/integration/test_mechanism_diagnostic_activation_rollback.py",
     "tests/integration/test_phase2_production_policy_main_path.py",
     "tests/integration/test_topology_policy_default_path.py",
     "tests/integration/test_topology_route_placement_projection.py",
+    "tests/unit/orchestration/test_policy_registry.py",
     "tests/unit/productization/test_phase2_final_regression.py",
     "tests/unit/productization/test_phase2_freeze_audit.py",
     "tests/unit/test_symbolic_control.py",
@@ -799,6 +812,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         SUPPLEMENT_REQUIRED_FIRST_COMMIT,
         SUPPLEMENT_REQUIRED_SECOND_COMMIT,
         SUPPLEMENT_REQUIRED_THIRD_COMMIT,
+        SUPPLEMENT_REQUIRED_FOURTH_COMMIT,
         target_commit,
     )
     expected_parents = (
@@ -806,6 +820,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         SUPPLEMENT_REQUIRED_FIRST_COMMIT,
         SUPPLEMENT_REQUIRED_SECOND_COMMIT,
         SUPPLEMENT_REQUIRED_THIRD_COMMIT,
+        SUPPLEMENT_REQUIRED_FOURTH_COMMIT,
     )
     for commit, expected_parent in zip(
         commit_chain,
@@ -815,13 +830,14 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         parents = _git("rev-list", "--parents", "-n", "1", commit).split()
         if parents != [commit, expected_parent]:
             raise ValueError(
-                "supplement target is not the exact four-commit remediation chain"
+                "supplement target is not the exact five-commit remediation chain"
             )
 
     segment_allowlists = (
         SUPPLEMENT_FIRST_ALLOWED_PATHS,
         SUPPLEMENT_SECOND_ALLOWED_PATHS,
         SUPPLEMENT_THIRD_ALLOWED_PATHS,
+        SUPPLEMENT_FOURTH_ALLOWED_PATHS,
         SUPPLEMENT_FINAL_ALLOWED_PATHS,
     )
     commit_path_changes: list[dict[str, Any]] = []
@@ -902,6 +918,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
                 *SUPPLEMENT_FIRST_ALLOWED_PATHS,
                 *SUPPLEMENT_SECOND_ALLOWED_PATHS,
                 *SUPPLEMENT_THIRD_ALLOWED_PATHS,
+                *SUPPLEMENT_FOURTH_ALLOWED_PATHS,
                 *SUPPLEMENT_FINAL_ALLOWED_PATHS,
             )
         )
@@ -987,6 +1004,7 @@ def _supplement_target_delta(*, target_commit: str) -> dict[str, Any]:
         "required_first_commit": SUPPLEMENT_REQUIRED_FIRST_COMMIT,
         "required_second_commit": SUPPLEMENT_REQUIRED_SECOND_COMMIT,
         "required_third_commit": SUPPLEMENT_REQUIRED_THIRD_COMMIT,
+        "required_fourth_commit": SUPPLEMENT_REQUIRED_FOURTH_COMMIT,
         "commit_count": len(commit_chain),
         "commit_chain": list(commit_chain),
         "commit_path_changes": commit_path_changes,
