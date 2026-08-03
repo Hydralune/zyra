@@ -53,17 +53,36 @@ export interface WorkbenchRuntime {
   close(reason?: unknown): void
 }
 
-function configuredClientOptions(): ZyraClientOptions {
-  if (typeof document === "undefined") return {}
-  const root = document.documentElement
-  const baseUrl = root.dataset.apiBaseUrl?.trim()
-  const token = root.dataset.apiToken?.trim()
+export interface WorkbenchClientConfiguration {
+  apiBaseUrl?: string
+  apiToken?: string
+  pageUrl?: string
+}
+
+export function resolveWorkbenchClientOptions(
+  configuration: WorkbenchClientConfiguration,
+): ZyraClientOptions {
+  const queryBaseUrl = configuration.pageUrl
+    ? new URL(configuration.pageUrl).searchParams.get("api")?.trim()
+    : undefined
+  const baseUrl = queryBaseUrl || configuration.apiBaseUrl?.trim()
+  const token = configuration.apiToken?.trim()
   return {
     ...(baseUrl ? { baseUrl } : {}),
     ...(token ? { token } : {}),
     clientName: "zyra-workbench",
     clientVersion: "0.2.0",
   }
+}
+
+function configuredClientOptions(): ZyraClientOptions {
+  if (typeof document === "undefined") return {}
+  const root = document.documentElement
+  return resolveWorkbenchClientOptions({
+    apiBaseUrl: root.dataset.apiBaseUrl,
+    apiToken: root.dataset.apiToken,
+    pageUrl: typeof window === "undefined" ? undefined : window.location.href,
+  })
 }
 
 export function createWorkbenchRuntime(
