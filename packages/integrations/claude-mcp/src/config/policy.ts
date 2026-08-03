@@ -258,7 +258,17 @@ export class McpServerPolicy {
       default_interactive_effect: snapshot.defaultInteractiveEffect,
       default_autonomous_effect: snapshot.defaultAutonomousEffect,
     });
-    if (calculated !== snapshot.digest) throw policyError("policy_snapshot_digest_mismatch", "MCP policy snapshot digest mismatch");
+    const legacyRulesDigest = sha256(snapshot.rules);
+    const legacyEmptySnapshot = snapshot.revision === 0
+      && snapshot.rules.length === 0
+      && snapshot.defaultInteractiveEffect === "ask"
+      && snapshot.defaultAutonomousEffect === "deny";
+    if (
+      calculated !== snapshot.digest
+      && (!legacyEmptySnapshot || legacyRulesDigest !== snapshot.digest)
+    ) {
+      throw policyError("policy_snapshot_digest_mismatch", "MCP policy snapshot digest mismatch");
+    }
     this.revisionValue = snapshot.revision;
     this.rulesValue = rules;
     this.defaultInteractiveEffect = snapshot.defaultInteractiveEffect;

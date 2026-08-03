@@ -355,7 +355,16 @@ export class McpConfigStore {
       this.servers.clear();
       for (const server of snapshot.servers) this.servers.set(server.serverId, cloneJson(server));
       const calculated = this.computeDigest();
-      if (calculated !== snapshot.digest) {
+      const legacyServerListDigest = sha256(snapshot.servers);
+      const legacyEmptySnapshot = snapshot.revision === 0
+        && snapshot.layers.length === 0
+        && snapshot.servers.length === 0
+        && snapshot.tombstones.length === 0
+        && snapshot.updatedAt === "1970-01-01T00:00:00.000Z";
+      if (
+        calculated !== snapshot.digest
+        && (!legacyEmptySnapshot || legacyServerListDigest !== snapshot.digest)
+      ) {
         throw configError("config_snapshot_digest_mismatch", "MCP config snapshot digest mismatch");
       }
       this.digestValue = calculated;

@@ -18,6 +18,7 @@ import {
   PluginHookRuntime,
   PluginManifestRuntime,
   PluginRuntime,
+  PluginSupplyChainRuntime,
   SkillCoordinator,
   SkillContextRuntime,
   SkillFrontmatterRuntime,
@@ -35,6 +36,7 @@ import {
   type JsonObject,
   type PluginHookExecutorOutput,
   type PluginManifest,
+  type PluginSupplyChainPolicy,
   type SkillDescriptor,
   type SkillInvocationRequest,
   type SkillParentContext,
@@ -45,6 +47,50 @@ import {
 import { digest } from "../../src/e02/index.ts";
 
 const instant = "2026-07-17T08:00:00.000Z";
+
+test("plugin supply-chain restore migrates only the empty legacy regex policy", () => {
+  const policy: PluginSupplyChainPolicy = {
+    workspaceRoot: "G:/workspace",
+    allowedExtensions: [".ts"],
+    deniedExtensions: [".exe"],
+    maximumFiles: 100,
+    maximumFileBytes: 1024,
+    maximumTotalBytes: 4096,
+    allowSymlinks: false,
+    allowNativeBinaries: false,
+    allowPackageScripts: false,
+    requireLicense: false,
+    forbiddenPathFragments: [".git/objects"],
+    forbiddenContentPatterns: ["child_process\\.execSync\\("],
+    metadata: { owner: "typescript-plugin-coordinator" },
+  };
+  const current = new PluginSupplyChainRuntime({ policy }).snapshot();
+  const { digest: _currentDigest, ...currentWithoutDigest } = current;
+  const legacyWithoutDigest = {
+    ...currentWithoutDigest,
+    policy: {
+      ...current.policy,
+      forbiddenContentPatterns: ["child_process.execSync("],
+    },
+  };
+  const legacy = {
+    ...legacyWithoutDigest,
+    digest: digest(legacyWithoutDigest),
+  };
+  const restored = new PluginSupplyChainRuntime({ policy, snapshot: legacy });
+  assert.equal(restored.snapshot().revision, 0);
+  assert.throws(
+    () => new PluginSupplyChainRuntime({
+      policy,
+      snapshot: {
+        ...legacy,
+        revision: 1,
+        digest: digest({ ...legacyWithoutDigest, revision: 1 }),
+      },
+    }),
+    /policy changed/i,
+  );
+});
 
 test("e02.live.skill.disk-reload atomically observes add change and delete before the next invocation", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-live-skill-"));

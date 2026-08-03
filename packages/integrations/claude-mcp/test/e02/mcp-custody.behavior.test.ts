@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "bun:test";
 
 import {
@@ -1034,6 +1035,40 @@ test("MCP config and policy resolve layered ownership before any connection atte
   });
   assert.equal(disabledDecision.effect, "deny");
   assert.equal(disabledDecision.reasonCode, "server_disabled");
+});
+
+test("MCP config migrates the legacy server-list digest without weakening restore validation", () => {
+  const empty = new McpConfigStore().snapshot();
+  const legacy = {
+    ...empty,
+    digest: createHash("sha256").update("[]").digest("hex"),
+  };
+  const restored = new McpConfigStore(legacy);
+  assert.equal(restored.revision, 0);
+  assert.equal(restored.list().length, 0);
+  assert.notEqual(restored.digest, legacy.digest);
+  assert.throws(
+    () => new McpConfigStore({ ...legacy, digest: "0".repeat(64) }),
+    /digest mismatch/i,
+  );
+  assert.throws(
+    () => new McpConfigStore({ ...legacy, revision: 1 }),
+    /digest mismatch/i,
+  );
+
+  const emptyPolicy = new McpServerPolicy().snapshot();
+  const legacyPolicy = { ...emptyPolicy, digest: legacy.digest };
+  const restoredPolicy = new McpServerPolicy(legacyPolicy);
+  assert.equal(restoredPolicy.revision, 0);
+  assert.notEqual(restoredPolicy.digest, legacyPolicy.digest);
+  assert.throws(
+    () => new McpServerPolicy({ ...legacyPolicy, digest: "0".repeat(64) }),
+    /digest mismatch/i,
+  );
+  assert.throws(
+    () => new McpServerPolicy({ ...legacyPolicy, defaultInteractiveEffect: "allow" }),
+    /digest mismatch/i,
+  );
 });
 
 test("MCP request journal fences effect receipts and exact committed replay across restore", () => {

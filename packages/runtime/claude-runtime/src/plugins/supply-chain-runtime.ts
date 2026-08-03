@@ -184,7 +184,12 @@ export class PluginSupplyChainRuntime {
     if (snapshot.version !== "zyra.plugin-supply-chain/v1") throw supplyError("unsupported_supply_snapshot", "unsupported plugin supply-chain snapshot version");
     const { digest: expected, ...withoutDigest } = snapshot;
     if (digest(withoutDigest) !== expected) throw supplyError("supply_snapshot_digest_mismatch", "plugin supply-chain snapshot digest mismatch");
-    if (digest(snapshot.policy) !== digest(this.policy)) throw supplyError("supply_policy_mismatch", "plugin supply-chain restore policy changed");
+    if (
+      digest(snapshot.policy) !== digest(this.policy)
+      && !isLegacyEmptySupplyPolicy(snapshot, this.policy)
+    ) {
+      throw supplyError("supply_policy_mismatch", "plugin supply-chain restore policy changed");
+    }
     this.receipts.clear();
     this.revision = snapshot.revision;
     for (const receipt of snapshot.receipts) this.receipts.set(receipt.receiptId, cloneJson(receipt));
@@ -264,6 +269,23 @@ function normalizePolicy(value: PluginSupplyChainPolicy): PluginSupplyChainPolic
   policy.deniedExtensions = [...new Set(policy.deniedExtensions.map((item) => item.toLowerCase()))].sort();
   if (policy.maximumFiles < 1 || policy.maximumFileBytes < 1 || policy.maximumTotalBytes < 1) throw supplyError("supply_limits_invalid", "plugin supply-chain limits must be positive");
   return policy;
+}
+
+function isLegacyEmptySupplyPolicy(
+  snapshot: PluginSupplyChainSnapshot,
+  currentPolicy: PluginSupplyChainPolicy,
+): boolean {
+  if (snapshot.revision !== 0 || snapshot.receipts.length !== 0) return false;
+  const legacyPolicy = normalizePolicy(snapshot.policy);
+  const legacyPattern = "child_process.execSync(";
+  const currentPattern = "child_process\\.execSync\\(";
+  if (
+    !legacyPolicy.forbiddenContentPatterns.includes(legacyPattern)
+    || !currentPolicy.forbiddenContentPatterns.includes(currentPattern)
+  ) return false;
+  legacyPolicy.forbiddenContentPatterns = legacyPolicy.forbiddenContentPatterns
+    .map((pattern) => pattern === legacyPattern ? currentPattern : pattern);
+  return digest(legacyPolicy) === digest(currentPolicy);
 }
 
 function mediaKind(extension: string): PluginScannedFile["mediaKind"] {
