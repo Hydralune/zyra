@@ -70,6 +70,20 @@ class SQLiteStoreTests(unittest.TestCase):
 
             self.assertEqual([event["payload"]["order"] for event in events], [1, 2])
 
+    def test_task_list_projects_durable_session_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = SQLiteStore(Path(tmpdir) / "zyra.sqlite3")
+            state = create_task_state("Continue one conversation.")
+            state.metadata["query_session_id"] = "session:conversation-001"
+            store.save_checkpoint(state)
+
+            tasks = store.list_tasks()
+
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0]["task_id"], state.task_id)
+            self.assertEqual(tasks[0]["session_id"], "session:conversation-001")
+            self.assertNotIn("checkpoint_json", tasks[0])
+
 
 if __name__ == "__main__":
     unittest.main()

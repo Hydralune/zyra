@@ -28,6 +28,7 @@ export interface CommandDefinition {
 export interface CommandContext {
   taskId?: string
   runId?: string
+  sessionId?: string
   taskStatus?: string
   taskActive?: boolean
   taskTerminal?: boolean

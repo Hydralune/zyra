@@ -171,12 +171,33 @@ class SQLiteStore:
         with self._connection() as connection:
             rows = connection.execute(
                 """
-                SELECT task_id, run_id, status, user_goal, root_node_id, created_at, updated_at
+                SELECT
+                    tasks.task_id,
+                    tasks.run_id,
+                    tasks.status,
+                    tasks.user_goal,
+                    tasks.root_node_id,
+                    tasks.created_at,
+                    tasks.updated_at,
+                    checkpoints.checkpoint_json
                 FROM tasks
-                ORDER BY updated_at DESC
+                LEFT JOIN checkpoints ON checkpoints.task_id = tasks.task_id
+                ORDER BY tasks.updated_at DESC
                 """
             ).fetchall()
-        return [dict(row) for row in rows]
+        values: list[dict[str, Any]] = []
+        for row in rows:
+            value = dict(row)
+            checkpoint_json = value.pop("checkpoint_json", None)
+            if checkpoint_json:
+                checkpoint = json.loads(str(checkpoint_json))
+                metadata = checkpoint.get("metadata")
+                if isinstance(metadata, dict):
+                    session_id = str(metadata.get("query_session_id") or "").strip()
+                    if session_id:
+                        value["session_id"] = session_id
+            values.append(value)
+        return values
 
     def task_events(self, task_id: str) -> list[dict[str, Any]]:
         self.initialize()

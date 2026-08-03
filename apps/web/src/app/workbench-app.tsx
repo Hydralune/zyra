@@ -65,6 +65,44 @@ function statusTone(task: TaskProjection): string {
   return "idle"
 }
 
+export interface ProductConversation {
+  key: string
+  title: string
+  latest: TaskProjection
+  turnCount: number
+}
+
+export function productConversationList(
+  tasks: readonly TaskProjection[],
+): ProductConversation[] {
+  const groups = new Map<string, TaskProjection[]>()
+  for (const task of tasks) {
+    const key = task.sessionId ?? `task:${task.taskId}`
+    const group = groups.get(key) ?? []
+    group.push(task)
+    groups.set(key, group)
+  }
+  return [...groups.entries()].map(([key, group]) => {
+    const ordered = [...group].sort((left, right) => {
+      const created = Date.parse(left.createdAt) - Date.parse(right.createdAt)
+      return created || left.taskId.localeCompare(right.taskId)
+    })
+    const latest = [...ordered].sort((left, right) => {
+      const updated = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
+      return updated || right.taskId.localeCompare(left.taskId)
+    })[0]!
+    return {
+      key,
+      title: ordered[0]?.userGoal || latest.userGoal || "未命名会话",
+      latest,
+      turnCount: ordered.length,
+    }
+  }).sort((left, right) => {
+    const updated = Date.parse(right.latest.updatedAt) - Date.parse(left.latest.updatedAt)
+    return updated || left.key.localeCompare(right.key)
+  })
+}
+
 export function seedProductPrompt(runtime: WorkbenchRuntime, prompt: string): void {
   runtime.router.openNewTask()
   runtime.drafts.set("new", prompt, prompt.length)
@@ -91,7 +129,9 @@ function AppNavigation({
   selectedTaskId?: string
   onNavigate: () => void
 }) {
-  const recent = tasks.slice(0, 12)
+  const recent = productConversationList(tasks).slice(0, 12)
+  const selectedTask = tasks.find((task) => task.taskId === selectedTaskId)
+  const selectedConversationKey = selectedTask?.sessionId ?? (selectedTask ? `task:${selectedTask.taskId}` : undefined)
   const navigate = (action: () => void) => {
     action()
     onNavigate()
@@ -142,26 +182,26 @@ function AppNavigation({
 
       <section className="product-recents" aria-labelledby="product-recents-heading">
         <div className="product-nav-section-heading">
-          <span id="product-recents-heading">最近任务</span>
-          <button type="button" aria-label="刷新最近任务" onClick={() => void runtime.workbench.refreshTasks({ preserveOnError: true })}>↻</button>
+          <span id="product-recents-heading">最近会话</span>
+          <button type="button" aria-label="刷新最近会话" onClick={() => void runtime.workbench.refreshTasks({ preserveOnError: true })}>↻</button>
         </div>
         <div className="product-recent-list">
-          {recent.length ? recent.map((task) => (
+          {recent.length ? recent.map((conversation) => (
             <button
               type="button"
-              key={task.taskId}
+              key={conversation.key}
               className="product-recent-task"
-              aria-current={selectedTaskId === task.taskId ? "page" : undefined}
-              onClick={() => navigate(() => runtime.router.openTask(task.taskId))}
+              aria-current={selectedConversationKey === conversation.key ? "page" : undefined}
+              onClick={() => navigate(() => runtime.router.openTask(conversation.latest.taskId))}
             >
-              <span className="product-recent-status" data-tone={statusTone(task)} aria-hidden="true" />
+              <span className="product-recent-status" data-tone={statusTone(conversation.latest)} aria-hidden="true" />
               <span>
-                <strong>{task.userGoal || "未命名任务"}</strong>
-                <small>{taskTime(task.updatedAt)}</small>
+                <strong>{conversation.title}</strong>
+                <small>{conversation.turnCount > 1 ? `${conversation.turnCount} 轮 · ` : ""}{taskTime(conversation.latest.updatedAt)}</small>
               </span>
             </button>
           )) : (
-            <p className="product-sidebar-empty">创建任务后会显示在这里。</p>
+            <p className="product-sidebar-empty">开始会话后会显示在这里。</p>
           )}
         </div>
       </section>
@@ -333,7 +373,7 @@ function MainRoute({
     )
   }
   if (route.kind === "task") {
-    return <ProductTaskDetail runtime={runtime} state={state.detail} />
+    return <ProductTaskDetail runtime={runtime} state={state.detail} tasks={state.list.tasks} />
   }
   return <ProductHome runtime={runtime} taskCount={state.list.total} />
 }
@@ -423,12 +463,14 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
           task={route.kind === "task" ? state.detail.task : undefined}
           onMenu={() => setSidebarOpen(true)}
         />
-        {!online || state.runtime.phase === "reconnecting" ? (
-          <ReconnectingState
-            failure={state.runtime.failure}
-            onRetry={() => void runtime.workbench.refreshRuntime({ reconnect: true })}
-          />
-        ) : null}
+        <div className="product-connection-slot">
+          {!online || state.runtime.phase === "reconnecting" ? (
+            <ReconnectingState
+              failure={state.runtime.failure}
+              onRetry={() => void runtime.workbench.refreshRuntime({ reconnect: true })}
+            />
+          ) : null}
+        </div>
         <main id="workbench-main" tabIndex={-1}>
           <MainRoute runtime={runtime} route={route} />
         </main>

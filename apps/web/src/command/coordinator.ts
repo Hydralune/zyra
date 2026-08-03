@@ -50,6 +50,7 @@ export interface SubmitOptions {
   origin?: QueueOrigin
   taskId?: string
   runId?: string
+  sessionId?: string
   taskStatus?: string
   taskActive?: boolean
   taskTerminal?: boolean
@@ -91,13 +92,22 @@ function activeContext(
   options: SubmitOptions,
 ): CommandContext {
   const selected = workbench.selectedTask()
+  const requestedTaskId = options.taskId ?? selected?.taskId
+  const snapshot = workbench.getSnapshot()
+  const contextualTask =
+    selected?.taskId === requestedTaskId
+      ? selected
+      : snapshot.detail.task?.taskId === requestedTaskId
+        ? snapshot.detail.task
+        : snapshot.list.tasks.find((task) => task.taskId === requestedTaskId)
   return {
-    taskId: options.taskId ?? selected?.taskId,
-    runId: options.runId ?? selected?.runId,
-    taskStatus: options.taskStatus ?? selected?.status,
-    taskActive: options.taskActive ?? selected?.active ?? false,
-    taskTerminal: options.taskTerminal ?? selected?.terminal ?? false,
-    transportEnabled: workbench.getSnapshot().transportEnabled,
+    taskId: requestedTaskId,
+    runId: options.runId ?? contextualTask?.runId,
+    sessionId: options.sessionId ?? contextualTask?.sessionId,
+    taskStatus: options.taskStatus ?? contextualTask?.status,
+    taskActive: options.taskActive ?? contextualTask?.active ?? false,
+    taskTerminal: options.taskTerminal ?? contextualTask?.terminal ?? false,
+    transportEnabled: snapshot.transportEnabled,
   }
 }
 
@@ -236,6 +246,7 @@ export class CommandCoordinator {
           value: normalized,
           origin: options.origin,
           taskId: context.taskId,
+          sessionId: context.sessionId,
           priority: "next",
           editable: true,
           visible: true,
@@ -270,7 +281,7 @@ export class CommandCoordinator {
           const result = await this.#execute(
             queued.value,
             fingerprint,
-            this.context({ taskId: queued.taskId }),
+            this.context({ taskId: queued.taskId, sessionId: queued.sessionId }),
             {
               origin: queued.origin,
               taskId: queued.taskId,
@@ -407,7 +418,7 @@ export class CommandCoordinator {
     try {
       let mutation: MutationResult | undefined
       if (parsed.kind === "prompt") {
-        mutation = await this.#createTask(parsed, controller.signal)
+        mutation = await this.#createTask(parsed, controller.signal, context.sessionId)
       } else {
         mutation = await this.#dispatchCommand(parsed, context, controller.signal)
       }
@@ -439,11 +450,16 @@ export class CommandCoordinator {
     }
   }
 
-  async #createTask(parsed: ParsedInput, signal: AbortSignal): Promise<MutationResult> {
+  async #createTask(
+    parsed: ParsedInput,
+    signal: AbortSignal,
+    sessionId?: string,
+  ): Promise<MutationResult> {
     const input = createGoal(parsed)
     return this.#lifecycle.create({
       goal: input.goal,
       autoRun: input.autoRun,
+      sessionId,
       signal,
     })
   }

@@ -61,6 +61,7 @@ function task(
   options: {
     goal?: string
     runId?: string
+    sessionId?: string
     updatedAt?: string
     nodes?: TaskProjection["planNodes"]
   } = {},
@@ -80,6 +81,7 @@ function task(
   return {
     taskId,
     runId,
+    sessionId: options.sessionId,
     rootNodeId: "node_root_001",
     userGoal: options.goal ?? `Goal for ${taskId}`,
     status,
@@ -88,7 +90,7 @@ function task(
     planNodes: nodes,
     artifacts: [],
     metadata: {},
-    binding: { taskId, runId },
+    binding: { taskId, runId, sessionId: options.sessionId },
     terminal,
     active,
   }
@@ -478,10 +480,12 @@ describe("command coordinator integration", () => {
     const overlays = new OverlayRuntime()
     const catalog = new CommandCatalog()
     let calls = 0
+    const createInputs: Array<{ goal: string; sessionId?: string }> = []
     let release: (() => void) | undefined
     const lifecycle = {
-      create: async (input: { goal: string; signal?: AbortSignal }) => {
+      create: async (input: { goal: string; sessionId?: string; signal?: AbortSignal }) => {
         calls += 1
+        createInputs.push({ goal: input.goal, sessionId: input.sessionId })
         if (options.deferred) {
           await new Promise<void>((resolve, reject) => {
             release = resolve
@@ -533,6 +537,7 @@ describe("command coordinator integration", () => {
       overlays,
       browser,
       calls: () => calls,
+      createInputs,
       release: () => release?.(),
     }
   }
@@ -561,6 +566,27 @@ describe("command coordinator integration", () => {
     })
     value.release()
     await first
+  })
+
+  test("keeps plain follow-ups in the selected canonical session", async () => {
+    const value = harness()
+    value.workbench.applyMutation(task("task_demo_001", "completed", {
+      sessionId: "session_demo_001",
+    }))
+    await value.commands.submit("Continue with one more check", {
+      taskId: "task_demo_001",
+      taskTerminal: true,
+    })
+    expect(value.createInputs[0]).toEqual({
+      goal: "Continue with one more check",
+      sessionId: "session_demo_001",
+    })
+
+    await value.commands.submit("/new Start separately")
+    expect(value.createInputs[1]).toEqual({
+      goal: "Start separately",
+      sessionId: undefined,
+    })
   })
 
   test("restores failure as an error and local overlay does not call lifecycle", async () => {

@@ -11,6 +11,7 @@ export interface QueuedSubmission {
   createdAt: number
   updatedAt: number
   taskId?: string
+  sessionId?: string
   editable: boolean
   visible: boolean
   remoteSafe: boolean
@@ -33,6 +34,7 @@ export interface EnqueueInput {
   priority?: QueuePriority
   origin?: QueueOrigin
   taskId?: string
+  sessionId?: string
   editable?: boolean
   visible?: boolean
   remoteSafe?: boolean
@@ -103,6 +105,7 @@ export class CommandQueue {
       createdAt: now,
       updatedAt: now,
       taskId: input.taskId,
+      sessionId: input.sessionId,
       editable: input.editable ?? true,
       visible: input.visible ?? true,
       remoteSafe: input.remoteSafe ?? false,

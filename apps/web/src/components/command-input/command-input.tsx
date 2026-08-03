@@ -428,6 +428,7 @@ export function CommandInput({
         origin,
         taskId: selectedTask?.taskId,
         runId: selectedTask?.runId,
+        sessionId: selectedTask?.sessionId,
         taskStatus: selectedTask?.status,
         taskActive: selectedTask?.active,
         taskTerminal: selectedTask?.terminal,
@@ -578,6 +579,18 @@ export function CommandInput({
         ? `suggestion-${suggestions[selectedSuggestion]!.definition.id}`
         : undefined
   const disabled = !command.enabled || !workbench.transportEnabled
+  const contextLabel = !selectedTask
+    ? "新任务"
+    : selectedTask.active
+      ? "当前会话 · 正在执行"
+      : selectedTask.terminal
+        ? "当前会话 · 可继续提问"
+        : "当前会话"
+  const placeholder = selectedTask?.active
+    ? "补充要求，新消息会排在当前任务之后"
+    : selectedTask?.terminal
+      ? "继续此会话，或输入 / 查看命令"
+      : "描述一个任务，或向 Zyra 提问"
   return (
     <footer className="command-dock">
       <QueuePreview runtime={runtime} selectedTask={selectedTask} />
@@ -609,7 +622,8 @@ export function CommandInput({
         ) : null}
         <div className="command-context">
           <span className={`status-marker ${selectedTask ? `status-${selectedTask.status}` : "status-idle"}`} aria-hidden="true" />
-          <span>{selectedTask ? selectedTask.userGoal || selectedTask.taskId : "新任务"}</span>
+          <span>{contextLabel}</span>
+          {selectedTask ? <span className="command-context-title">{selectedTask.userGoal || selectedTask.taskId}</span> : null}
           {inputBusy ? <span className="tag">正在执行 · 新指令将进入任务队列</span> : null}
         </div>
         <div className="command-editor">
@@ -618,7 +632,7 @@ export function CommandInput({
             id="workbench-command-input"
             value={value}
             rows={1}
-            placeholder={selectedTask?.active ? "补充要求，或输入 / 查看命令" : "描述一个任务，或向 Zyra 提问"}
+            placeholder={placeholder}
             aria-label="Zyra 任务输入"
             aria-expanded={effectiveSuggestionsOpen}
             aria-controls={

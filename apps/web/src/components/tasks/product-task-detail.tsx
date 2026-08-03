@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   ArtifactProjection,
   PlanNodeProjection,
@@ -33,6 +33,24 @@ export function productTaskProgress(
       ? Math.round((completed / total) * 100)
       : task.terminal ? 100 : 0,
   }
+}
+
+export function productConversationTasks(
+  selected: TaskProjection,
+  tasks: readonly TaskProjection[],
+): TaskProjection[] {
+  const sessionId = selected.sessionId
+  const values = new Map<string, TaskProjection>()
+  if (sessionId) {
+    for (const task of tasks) {
+      if (task.sessionId === sessionId) values.set(task.taskId, task)
+    }
+  }
+  values.set(selected.taskId, selected)
+  return [...values.values()].sort((left, right) => {
+    const created = Date.parse(left.createdAt) - Date.parse(right.createdAt)
+    return created || left.taskId.localeCompare(right.taskId)
+  })
 }
 
 export function extractArtifactText(value: unknown): string | undefined {
@@ -153,6 +171,7 @@ function TaskControls({
     lifecycleBusy: runtime.api.lifecycle.inFlight().length > 0,
     transportEnabled: runtime.workbench.getSnapshot().transportEnabled,
   })
+  const completed = ["completed", "succeeded", "verified"].includes(task.status.toLowerCase())
   return (
     <div className="product-task-controls">
       <button
@@ -177,7 +196,7 @@ function TaskControls({
           停止
         </button>
       ) : null}
-      {actions.resume.allowed ? (
+      {actions.resume.allowed && !completed ? (
         <button
           className="product-button product-button-primary"
           type="button"
@@ -188,7 +207,7 @@ function TaskControls({
             payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal },
           })}
         >
-          继续任务
+          重新运行
         </button>
       ) : null}
       <button className="product-button product-button-quiet" type="button" onClick={onAdvanced}>
@@ -210,9 +229,10 @@ function ArtifactPreview({
     phase: "idle" | "loading" | "ready" | "error"
     text?: string
   }>({ phase: "idle" })
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (!selected) {
+    if (!selected || !open) {
       setPreview({ phase: "idle" })
       return
     }
@@ -234,44 +254,129 @@ function ArtifactPreview({
       })
     })
     return () => controller.abort()
-  }, [runtime, selected?.artifactId, task.taskId])
+  }, [open, runtime, selected?.artifactId, task.taskId])
 
   if (!task.artifacts.length) return null
   return (
-    <section className="product-deliverables" aria-labelledby="product-deliverables-heading">
-      <div className="product-section-heading">
-        <div>
-          <p>Deliverables</p>
-          <h3 id="product-deliverables-heading">交付物</h3>
+    <details
+      className="product-disclosure product-deliverables"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="product-disclosure-icon" aria-hidden="true">◇</span>
+        <span><strong>交付物</strong><small>{task.artifacts.length} 个文件与结果</small></span>
+        <span className="product-disclosure-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="product-disclosure-content">
+        <div className="product-artifact-tabs" role="list">
+          {task.artifacts.map((artifact, index) => (
+            <span role="listitem" key={artifact.artifactId} data-active={index === task.artifacts.length - 1 || undefined}>
+              <span aria-hidden="true">{artifact.kind === "code" ? "⌘" : "◫"}</span>
+              {artifactLabel(artifact)}
+            </span>
+          ))}
         </div>
-        <span>{task.artifacts.length}</span>
+        {selected ? (
+          <div className="product-artifact-preview" data-phase={preview.phase}>
+            <header>
+              <div>
+                <strong>{artifactLabel(selected)}</strong>
+                <span>{selected.mediaType || selected.kind}</span>
+              </div>
+              <span className="product-verified">可追溯</span>
+            </header>
+            {preview.phase === "loading" ? <p className="product-muted">正在读取交付物…</p> : null}
+            {preview.phase === "error" ? <p className="product-error-copy">暂时无法预览：{preview.text}</p> : null}
+            {preview.phase === "ready" && preview.text ? <pre><code>{preview.text}</code></pre> : null}
+            {preview.phase === "ready" && !preview.text ? (
+              <p className="product-muted">此交付物不支持内联预览，可在运行详情中检查。</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      <div className="product-artifact-tabs" role="list">
-        {task.artifacts.map((artifact, index) => (
-          <span role="listitem" key={artifact.artifactId} data-active={index === task.artifacts.length - 1 || undefined}>
-            <span aria-hidden="true">{artifact.kind === "code" ? "⌘" : "◫"}</span>
-            {artifactLabel(artifact)}
-          </span>
-        ))}
-      </div>
-      {selected ? (
-        <div className="product-artifact-preview" data-phase={preview.phase}>
-          <header>
-            <div>
-              <strong>{artifactLabel(selected)}</strong>
-              <span>{selected.mediaType || selected.kind}</span>
+    </details>
+  )
+}
+
+function ConversationTurn({
+  runtime,
+  task,
+}: {
+  runtime: WorkbenchRuntime
+  task: TaskProjection
+}) {
+  const progress = productTaskProgress(task)
+  const metrics = taskMetrics(task)
+  const copy = statusCopy(task)
+  const summary = resultSummary(task)
+  return (
+    <div className="product-turn" data-task-status={task.status}>
+      <article className="product-message product-message-user">
+        <div className="product-message-body">
+          <span>你</span>
+          <p>{task.userGoal}</p>
+        </div>
+      </article>
+
+      <article className="product-message product-message-zyra" data-tone={copy.tone}>
+        <div className="product-avatar product-avatar-zyra" aria-hidden="true">Z</div>
+        <div className="product-message-body">
+          <div className="product-agent-meta">
+            <strong>Zyra</strong>
+            <time dateTime={task.updatedAt}>{relativeTime(task.updatedAt)}</time>
+          </div>
+          {summary ? (
+            <p className="product-answer">{summary}</p>
+          ) : task.active ? (
+            <div className="product-working-copy" role="status">
+              <span className="product-working-spinner" aria-hidden="true" />
+              <span><strong>{copy.title}</strong><small>{copy.detail}</small></span>
             </div>
-            <span className="product-verified">可追溯</span>
-          </header>
-          {preview.phase === "loading" ? <p className="product-muted">正在读取交付物…</p> : null}
-          {preview.phase === "error" ? <p className="product-error-copy">暂时无法预览：{preview.text}</p> : null}
-          {preview.phase === "ready" && preview.text ? <pre><code>{preview.text}</code></pre> : null}
-          {preview.phase === "ready" && !preview.text ? (
-            <p className="product-muted">此交付物不支持内联预览，可在运行详情中检查。</p>
-          ) : null}
+          ) : (
+            <div className="product-empty-answer" data-tone={copy.tone}>
+              <strong>{copy.title}</strong>
+              <span>{copy.detail}</span>
+            </div>
+          )}
+
+          <details className="product-disclosure product-run-summary" open={task.active || copy.tone === "danger" ? true : undefined}>
+            <summary>
+              <span className="product-disclosure-icon" data-tone={copy.tone} aria-hidden="true">
+                {task.active ? "·" : copy.tone === "danger" ? "!" : "✓"}
+              </span>
+              <span>
+                <strong>{copy.title}</strong>
+                <small>{progress.total ? `${progress.completed}/${progress.total} 步骤` : copy.eyebrow} · {formatDuration(metrics.elapsedMs)}</small>
+              </span>
+              <span className="product-disclosure-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div className="product-disclosure-content">
+              <div className="product-progress" aria-label={`任务进度 ${progress.percentage}%`}>
+                <span style={{ width: `${progress.percentage}%` }} />
+              </div>
+              <div className="product-result-facts">
+                <span><strong>{progress.completed}/{progress.total}</strong> 步骤</span>
+                <span><strong>{task.artifacts.length}</strong> 交付物</span>
+                <span><strong>{formatDuration(metrics.elapsedMs)}</strong> 用时</span>
+              </div>
+              {task.planNodes.length ? (
+                <ol className="product-plan-list">
+                  {task.planNodes.map((node) => (
+                    <li key={node.nodeId} data-status={node.status}>
+                      <span className="product-step-icon" aria-hidden="true">
+                        {COMPLETED_NODE_STATES.has(node.status.toLowerCase()) ? "✓" : node.status === "running" ? "·" : ""}
+                      </span>
+                      <span><strong>{nodeLabel(node)}</strong><small>{node.description || node.status}</small></span>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          </details>
+          <ArtifactPreview runtime={runtime} task={task} />
         </div>
-      ) : null}
-    </section>
+      </article>
+    </div>
   )
 }
 
@@ -279,16 +384,45 @@ function ProductDetailContent({
   runtime,
   state,
   task,
+  tasks,
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
   task: TaskProjection
+  tasks: readonly TaskProjection[]
 }) {
   const [advanced, setAdvanced] = useState(false)
-  const progress = useMemo(() => productTaskProgress(task), [task])
-  const metrics = useMemo(() => taskMetrics(task), [task])
   const copy = statusCopy(task)
-  const summary = resultSummary(task)
+  const timeline = useMemo(
+    () => productConversationTasks(task, tasks),
+    [task, tasks],
+  )
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [atBottom, setAtBottom] = useState(true)
+
+  const jumpToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const element = scrollRef.current
+    if (!element) return
+    element.scrollTo({ top: element.scrollHeight, behavior })
+    setAtBottom(true)
+  }, [])
+
+  const updateScrollState = useCallback(() => {
+    const element = scrollRef.current
+    if (!element) return
+    setAtBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 48)
+  }, [])
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => jumpToLatest("auto"))
+    return () => cancelAnimationFrame(frame)
+  }, [jumpToLatest, task.taskId])
+
+  useEffect(() => {
+    if (!atBottom) return
+    const frame = requestAnimationFrame(() => jumpToLatest("smooth"))
+    return () => cancelAnimationFrame(frame)
+  }, [atBottom, jumpToLatest, timeline.length, task.status, task.updatedAt])
 
   useEffect(() => {
     if (!advanced) return
@@ -301,85 +435,25 @@ function ProductDetailContent({
 
   return (
     <section className="product-task-view" data-task-status={task.status}>
-      <div className="product-task-scroll">
-        <header className="product-task-header">
-          <div className="product-task-title">
+      <div className="product-task-scroll" ref={scrollRef} onScroll={updateScrollState}>
+        <header className="product-session-toolbar">
+          <div className="product-session-status">
             <span className="product-status-dot" data-tone={copy.tone} aria-hidden="true" />
-            <div>
-              <p>{copy.eyebrow} · {relativeTime(task.updatedAt)}</p>
-              <h1>{task.userGoal || "未命名任务"}</h1>
-            </div>
+            <span><strong>{copy.eyebrow}</strong><small>{timeline.length > 1 ? `${timeline.length} 轮对话` : relativeTime(task.updatedAt)}</small></span>
           </div>
           <TaskControls runtime={runtime} task={task} onAdvanced={() => setAdvanced(true)} />
         </header>
 
-        <div className="product-conversation">
-          <article className="product-message product-message-user">
-            <div className="product-avatar product-avatar-user" aria-hidden="true">你</div>
-            <div>
-              <span>你</span>
-              <p>{task.userGoal}</p>
-            </div>
-          </article>
-
-          <article className="product-message product-message-zyra" data-tone={copy.tone}>
-            <div className="product-avatar product-avatar-zyra" aria-hidden="true">Z</div>
-            <div className="product-message-body">
-              <span>Zyra</span>
-              <div className="product-result-heading">
-                <div>
-                  <p>{copy.eyebrow}</p>
-                  <h2>{copy.title}</h2>
-                </div>
-                <strong>{progress.percentage}%</strong>
-              </div>
-              {summary ? (
-                <div className="product-final-answer">
-                  <span>最终回答</span>
-                  <p>{summary}</p>
-                </div>
-              ) : (
-                <p className="product-result-detail">{copy.detail}</p>
-              )}
-              <div className="product-progress" aria-label={`任务进度 ${progress.percentage}%`}>
-                <span style={{ width: `${progress.percentage}%` }} />
-              </div>
-              <div className="product-result-facts">
-                <span><strong>{progress.completed}/{progress.total}</strong> 步骤</span>
-                <span><strong>{task.artifacts.length}</strong> 交付物</span>
-                <span><strong>{formatDuration(metrics.elapsedMs)}</strong> 用时</span>
-              </div>
-            </div>
-          </article>
+        <div className="product-conversation" aria-label="会话消息">
+          {timeline.map((turn) => <ConversationTurn key={turn.taskId} runtime={runtime} task={turn} />)}
         </div>
-
-        {task.planNodes.length ? (
-          <section className="product-plan" aria-labelledby="product-plan-heading">
-            <div className="product-section-heading">
-              <div>
-                <p>Progress</p>
-                <h3 id="product-plan-heading">执行进度</h3>
-              </div>
-              <span>{progress.completed}/{progress.total}</span>
-            </div>
-            <ol>
-              {task.planNodes.map((node) => (
-                <li key={node.nodeId} data-status={node.status}>
-                  <span className="product-step-icon" aria-hidden="true">
-                    {COMPLETED_NODE_STATES.has(node.status.toLowerCase()) ? "✓" : node.status === "running" ? "•" : ""}
-                  </span>
-                  <div>
-                    <strong>{nodeLabel(node)}</strong>
-                    <small>{node.description || node.status}</small>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ) : null}
-
-        <ArtifactPreview runtime={runtime} task={task} />
       </div>
+
+      {!atBottom ? (
+        <button className="product-jump-latest" type="button" onClick={() => jumpToLatest()}>
+          ↓ 跳到最新
+        </button>
+      ) : null}
 
       {advanced ? (
         <div className="advanced-drawer" role="dialog" aria-modal="true" aria-label="高级运行详情">
@@ -405,9 +479,11 @@ function ProductDetailContent({
 export function ProductTaskDetail({
   runtime,
   state,
+  tasks = [],
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
+  tasks?: readonly TaskProjection[]
 }) {
   if (!state.taskId && state.phase === "idle") {
     return (
@@ -436,7 +512,7 @@ export function ProductTaskDetail({
         )
       }
     >
-      {state.task ? <ProductDetailContent runtime={runtime} state={state} task={state.task} /> : null}
+      {state.task ? <ProductDetailContent runtime={runtime} state={state} task={state.task} tasks={tasks} /> : null}
     </PhaseRegion>
   )
 }
