@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
+import type { TaskProjection } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import { useCommandSnapshot, useQueueSnapshot, useWorkbenchSnapshot } from "../../app/hooks.ts"
 import { applyCompletion, commandArgumentHint, completionContext } from "../../command/parser.ts"
 import { commandUsage, type CommandSuggestion } from "../../command/catalog.ts"
@@ -184,9 +185,14 @@ function ControlArgumentList({
   )
 }
 
-function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
+function QueuePreview({
+  runtime,
+  selectedTask,
+}: {
+  runtime: WorkbenchRuntime
+  selectedTask?: TaskProjection
+}) {
   const queue = useQueueSnapshot(runtime)
-  const selectedTask = runtime.workbench.selectedTask()
   const visible = queue.visible.slice(0, 8)
   if (!visible.length) return null
   return (
@@ -252,7 +258,13 @@ function QueuePreview({ runtime }: { runtime: WorkbenchRuntime }) {
   )
 }
 
-export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
+export function CommandInput({
+  runtime,
+  taskContext,
+}: {
+  runtime: WorkbenchRuntime
+  taskContext?: TaskProjection
+}) {
   const command = useCommandSnapshot(runtime)
   const control = useSyncExternalStore(
     runtime.controlCommands.subscribe,
@@ -267,7 +279,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false)
   const [submissionError, setSubmissionError] = useState<string>()
-  const selectedTask = runtime.workbench.selectedTask()
+  const selectedTask = taskContext
   const parsed = useMemo(() => runtime.commands.parse(value), [runtime, value])
   const completion = useMemo(
     () => completionContext(value, cursor, runtime.catalog),
@@ -568,7 +580,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
   const disabled = !command.enabled || !workbench.transportEnabled
   return (
     <footer className="command-dock">
-      <QueuePreview runtime={runtime} />
+      <QueuePreview runtime={runtime} selectedTask={selectedTask} />
       <div className="command-input-wrap" data-busy={command.busy || undefined}>
         {showSuggestions ? (
           <SuggestionList
@@ -597,8 +609,8 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
         ) : null}
         <div className="command-context">
           <span className={`status-marker ${selectedTask ? `status-${selectedTask.status}` : "status-idle"}`} aria-hidden="true" />
-          <span>{selectedTask ? selectedTask.userGoal || selectedTask.taskId : "New task"}</span>
-          {inputBusy ? <span className="tag">busy · new commands will use backend admission</span> : null}
+          <span>{selectedTask ? selectedTask.userGoal || selectedTask.taskId : "新任务"}</span>
+          {inputBusy ? <span className="tag">正在执行 · 新指令将进入任务队列</span> : null}
         </div>
         <div className="command-editor">
           <textarea
@@ -606,8 +618,8 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             id="workbench-command-input"
             value={value}
             rows={1}
-            placeholder={selectedTask?.active ? "Queue a follow-up or enter /command" : "Describe a task or enter /command"}
-            aria-label="Zyra command input"
+            placeholder={selectedTask?.active ? "补充要求，或输入 / 查看命令" : "描述一个任务，或向 Zyra 提问"}
+            aria-label="Zyra 任务输入"
             aria-expanded={effectiveSuggestionsOpen}
             aria-controls={
               showSuggestions
@@ -646,10 +658,10 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             className="command-submit"
             type="button"
             disabled={disabled || !value.trim()}
-            aria-label={inputBusy ? "Queue command" : "Submit command"}
+            aria-label={inputBusy ? "将指令加入队列" : "发送任务"}
             onClick={() => void submit("button")}
           >
-            {inputBusy ? "Queue" : "Run"}
+            {inputBusy ? "排队" : "发送"}
           </button>
         </div>
         <div className="command-footer" aria-live="polite">
@@ -657,7 +669,7 @@ export function CommandInput({ runtime }: { runtime: WorkbenchRuntime }) {
             {argumentHint ??
               (parsed.kind === "command" && parsed.definition
                 ? commandUsage(parsed.definition)
-                : "Enter to submit · Shift+Enter for newline · / for commands")}
+                : "Enter 发送 · Shift+Enter 换行 · 输入 / 查看命令")}
           </span>
           <span>{value.length.toLocaleString()} chars</span>
         </div>
