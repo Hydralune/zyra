@@ -45,7 +45,7 @@ PHYSICAL_DISPATCH_MECHANISM_ID = "zyra_physical_dispatch"
 PHYSICAL_DISPATCH_MECHANISM_VERSION = "physical_dispatch_v1"
 PHYSICAL_DISPATCH_VALIDATION_SCHEMA = "zyra.physical-dispatch-validation/v1"
 PHYSICAL_REROUTE_VALIDATION_SCHEMA = "zyra.physical-reroute-validation/v1"
-PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v6"
+PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v7"
 
 _LOCATION_TO_PROFILE = {
     "local": DeploymentProfile.DEVICE,
@@ -347,6 +347,7 @@ class PhysicalDispatchReceiptBuilder:
                 output.get("operator_execution_body")
             ),
             "contract_outputs": _mapping(output.get("contract_outputs")),
+            "domain_result": _mapping(output.get("domain_result")),
             "domain_artifact": _mapping(output.get("domain_artifact")),
             "output_contract_fulfilled": (
                 output.get("output_contract_fulfilled") is True
@@ -530,6 +531,9 @@ class PhysicalDispatchReceiptValidator:
             domain_artifact = _mapping(
                 receipt.input_signals.get("domain_artifact")
             )
+            domain_result = _mapping(
+                receipt.input_signals.get("domain_result")
+            )
             execution_digest = str(
                 receipt.input_signals.get("operator_execution_digest") or ""
             ).removeprefix("sha256:")
@@ -572,6 +576,12 @@ class PhysicalDispatchReceiptValidator:
                         and str(execution_body.get("domain_artifact_digest") or "")
                         .removeprefix("sha256:")
                         == artifact_digest
+                    ),
+                    "operator_domain_result_valid": bool(
+                        domain_result
+                        and str(execution_body.get("domain_result_digest") or "")
+                        .removeprefix("sha256:")
+                        == canonical_digest(domain_result)
                     ),
                     "operator_domain_effect_performed": (
                         receipt.input_signals.get("domain_effect_performed") is True
@@ -1106,6 +1116,7 @@ class PhysicalDispatchCallPort:
                 and output.get("output_contract_fulfilled") is True
                 and output.get("operator_execution_body")
                 and output.get("operator_execution_digest")
+                and output.get("domain_result")
                 and output.get("domain_artifact")
             )
         else:
@@ -1131,6 +1142,9 @@ class PhysicalDispatchCallPort:
                 "operator_execution_digest"
             ),
             "operator_adapter_id": output.get("operator_adapter_id"),
+            "domain_result_digest": _mapping(
+                output.get("operator_execution_body")
+            ).get("domain_result_digest"),
             "domain_artifact_digest": _mapping(
                 output.get("domain_artifact")
             ).get("content_digest"),

@@ -32,11 +32,16 @@ from .models import (
 )
 from .provider_dispatch import LiveProviderDispatchRuntime
 from .resource_control import process_environment_snapshot
+from ..goal_contracts import (
+    direct_response_contract,
+    goal_contract_matches_projection,
+    validate_direct_response,
+)
 
 
 _WORD = re.compile(r"[\w'-]+", re.UNICODE)
 _SECRET_MARKERS = ("secret", "token", "password", "api_key", "authorization")
-_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v6"
+_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v7"
 _ALLOWED_OPERATIONS = {
     "analyze-text",
     "compress-text",
@@ -1164,6 +1169,11 @@ class DeploymentNodeRuntime:
             operator=operator,
             operator_runtime=operator_runtime,
             goal=goal,
+            goal_contract=(
+                payload.get("goal_contract")
+                if isinstance(payload.get("goal_contract"), Mapping)
+                else None
+            ),
             layer_index=layer_index,
             workload=workload,
         )
@@ -1290,6 +1300,7 @@ class DeploymentNodeRuntime:
         operator: Mapping[str, Any],
         operator_runtime: str,
         goal: str,
+        goal_contract: Mapping[str, Any] | None,
         layer_index: int,
         workload: Workload,
     ) -> dict[str, Any]:
@@ -1300,7 +1311,7 @@ class DeploymentNodeRuntime:
             "total_tokens": max(2, min(128, len(goal_words) * 2 + 8)),
             "provider_called": self.policy.profile is DeploymentProfile.CLOUD,
         }
-        if (
+        is_code_worker = bool(
             operator_ref.startswith("worker:local-code-worker@")
             or (
                 str(operator.get("operator_type") or "") == "worker"
@@ -1309,7 +1320,46 @@ class DeploymentNodeRuntime:
                     "worker:local-memory-curator@"
                 )
             )
-        ):
+        )
+        response_contract = direct_response_contract(goal)
+        if response_contract is not None and is_code_worker:
+            if not goal_contract_matches_projection(goal, goal_contract):
+                raise DispatchRejected(
+                    "node_goal_contract_mismatch",
+                    "the physical operator received a stale or mismatched goal contract",
+                    operation=workload.operation,
+                    profile=self.policy.profile.value,
+                )
+            content = response_contract.expected_response
+            verification = validate_direct_response(goal, content)
+            if verification.get("passed") is not True:
+                raise DispatchRejected(
+                    "node_direct_response_verification_failed",
+                    "the deterministic response did not satisfy the user goal",
+                    operation=workload.operation,
+                    profile=self.policy.profile.value,
+                )
+            usage["completion_tokens"] = max(1, len(tuple(_WORD.findall(content))))
+            usage["total_tokens"] = int(usage["prompt_tokens"]) + int(
+                usage["completion_tokens"]
+            )
+            domain_result = {
+                "kind": "direct_response",
+                "goal_contract": response_contract.to_dict(),
+                "goal_contract_satisfied": True,
+                "verification": verification,
+                "final_answer_digest": digest(content),
+            }
+            artifact = {
+                "title": "Zyra final response",
+                "kind": "text",
+                "extension": ".txt",
+                "media_type": "text/plain; charset=utf-8",
+                "content": content,
+                "content_digest": digest(content),
+            }
+            adapter_id = "worker.local-code-worker.direct-response"
+        elif is_code_worker:
             function_name = "execute_phase2_goal"
             content = "\n".join(
                 (

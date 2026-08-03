@@ -227,6 +227,11 @@ from zyra_code_index import (
     CodeIndexWorkerProcessSupervisor,
 )
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
+from zyra_orchestration.goal_contracts import (
+    direct_response_contract,
+    goal_contract_matches_projection,
+    validate_direct_response,
+)
 from zyra_orchestration.deployment import DeploymentProfile
 from zyra_orchestration.topology_policy.production import (
     Phase2StrongestProductionBridge,
@@ -5377,6 +5382,9 @@ class _CanonicalFinalVerifierOwner:
         operator_domain_artifact = dict(
             physical_signals.get("domain_artifact") or {}
         )
+        operator_domain_result = dict(
+            physical_signals.get("domain_result") or {}
+        )
         memory_mutation_receipt = dict(
             receipt.get("memory_mutation_receipt")
             or (receipt.get("metadata") or {}).get(
@@ -5424,6 +5432,12 @@ class _CanonicalFinalVerifierOwner:
             state,
             node=state.plan_nodes.get(state.root_node_id),
             transition="inspect",
+        )
+        response_contract = direct_response_contract(state.user_goal)
+        final_answer = str(state.metadata.get("final_answer") or "").strip()
+        goal_verification = validate_direct_response(
+            state.user_goal,
+            final_answer,
         )
         checks = {
             "requirement_scope_bound": bool(
@@ -5527,6 +5541,13 @@ class _CanonicalFinalVerifierOwner:
                     for artifact in state.artifacts
                 )
             ),
+            "physical_domain_result_bound": bool(
+                operator_domain_result
+                and str(
+                    operator_execution_body.get("domain_result_digest") or ""
+                ).removeprefix("sha256:")
+                == canonical_digest(operator_domain_result)
+            ),
             "memory_owner_commit_bound": bool(
                 not memory_owner_commit_required
                 or (
@@ -5562,6 +5583,28 @@ class _CanonicalFinalVerifierOwner:
                 set(str(item) for item in receipt.get("event_refs") or ())
                 .intersection(
                     str(item.event_id) for item in events if item.event_id
+                )
+            ),
+            "goal_contract_projection_bound": bool(
+                goal_contract_matches_projection(
+                    state.user_goal,
+                    state.metadata.get("goal_contract")
+                    if isinstance(state.metadata.get("goal_contract"), Mapping)
+                    else None,
+                )
+            ),
+            "goal_contract_satisfied": bool(goal_verification.get("passed")),
+            "direct_response_artifact_bound": bool(
+                response_contract is None
+                or (
+                    final_answer
+                    and operator_domain_result.get("kind") == "direct_response"
+                    and physical_signals.get("operator_adapter_id")
+                    == "worker.local-code-worker.direct-response"
+                    and str(operator_domain_artifact.get("content") or "").strip()
+                    == final_answer
+                    and operator_domain_result.get("goal_contract_satisfied")
+                    is True
                 )
             ),
         }
@@ -5837,7 +5880,7 @@ def _ensure_phase2_production_workers(
         "phase2-operator-execution"
         not in tuple(str(item) for item in semantic.get("operations") or ())
         or semantic.get("runtime_implementation_version")
-        != "phase2-operator-execution-v6"
+        != "phase2-operator-execution-v7"
     ):
         process, client, health = orchestrator.processes.start_node(
             policy,
@@ -5848,7 +5891,7 @@ def _ensure_phase2_production_workers(
         "phase2-operator-execution"
         not in tuple(str(item) for item in semantic.get("operations") or ())
         or semantic.get("runtime_implementation_version")
-        != "phase2-operator-execution-v6"
+        != "phase2-operator-execution-v7"
     ):
         raise RuntimeError(
             "the production deployment node does not expose the current "
@@ -6840,6 +6883,10 @@ def _worker_retrieval_context(
 
 def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
     state = create_task_state(user_goal=user_goal)
+    response_contract = direct_response_contract(user_goal)
+    if response_contract is not None:
+        state.metadata["goal_contract"] = response_contract.to_dict()
+        state.metadata["interaction_mode"] = "direct_response"
     event = EventRecord(
         run_id=state.run_id,
         task_id=state.task_id,

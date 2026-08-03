@@ -64,12 +64,34 @@ function statusCopy(task: TaskProjection): {
 } {
   const normalized = task.status.toLowerCase()
   if (["completed", "succeeded", "verified"].includes(normalized)) {
+    const summary = resultSummary(task)
+    const goalContract = task.metadata.goal_contract
+    const requiresDirectResponse = Boolean(
+      goalContract
+      && typeof goalContract === "object"
+      && !Array.isArray(goalContract)
+      && (goalContract as Record<string, unknown>).kind === "direct_response",
+    )
+    if (requiresDirectResponse && !summary) {
+      return {
+        eyebrow: "结果未闭环",
+        title: "没有生成有效回答",
+        detail: "执行步骤已经结束，但最终回答没有满足用户目标。请查看运行详情。",
+        tone: "danger",
+      }
+    }
+    if (!summary && task.artifacts.length) {
+      return {
+        eyebrow: "执行已结束",
+        title: "交付物已生成",
+        detail: `已生成 ${task.artifacts.length} 个交付物，但运行时没有提供面向用户的最终总结。`,
+        tone: "idle",
+      }
+    }
     return {
       eyebrow: "Zyra 已完成",
       title: "任务已完成",
-      detail: task.artifacts.length
-        ? `已生成 ${task.artifacts.length} 个可追溯交付物。`
-        : "所有计划步骤已经完成。",
+      detail: "最终回答已通过任务目标验证。",
       tone: "success",
     }
   }
@@ -311,7 +333,14 @@ function ProductDetailContent({
                 </div>
                 <strong>{progress.percentage}%</strong>
               </div>
-              <p className="product-result-detail">{summary || copy.detail}</p>
+              {summary ? (
+                <div className="product-final-answer">
+                  <span>最终回答</span>
+                  <p>{summary}</p>
+                </div>
+              ) : (
+                <p className="product-result-detail">{copy.detail}</p>
+              )}
               <div className="product-progress" aria-label={`任务进度 ${progress.percentage}%`}>
                 <span style={{ width: `${progress.percentage}%` }} />
               </div>

@@ -70,6 +70,11 @@ from .pruning import (
     CommunicationOutcomeObservation,
 )
 from .snapshot import EnvironmentSnapshotBuilder
+from ..goal_contracts import (
+    direct_response_contract,
+    goal_contract_matches_projection,
+    validate_direct_response,
+)
 
 
 class Phase2ProductionPolicyError(RuntimeError):
@@ -1444,6 +1449,7 @@ class Phase2StrongestProductionBridge:
             "run_id": state.run_id,
             "task_id": state.task_id,
             "goal": state.user_goal,
+            "goal_contract": dict(state.metadata.get("goal_contract") or {}),
             "requirement_revision": policy_input.requirement_revision,
             "operator_ref": selected_ref,
             "operator": selected_candidate.to_dict(),
@@ -1576,6 +1582,9 @@ class Phase2StrongestProductionBridge:
         domain_artifact = dict(
             execution_output.get("domain_artifact") or {}
         )
+        domain_result = dict(
+            execution_output.get("domain_result") or {}
+        )
         physical_identity = dict(
             physical_payload.get("physical_identity") or {}
         )
@@ -1596,7 +1605,15 @@ class Phase2StrongestProductionBridge:
         observed_domain_digest = str(
             domain_artifact.get("content_digest") or ""
         ).removeprefix("sha256:")
+        observed_domain_result_digest = str(
+            execution_body.get("domain_result_digest") or ""
+        ).removeprefix("sha256:")
         expected_output_contract = tuple(selected_candidate.output_contract)
+        response_contract = direct_response_contract(state.user_goal)
+        response_verification = validate_direct_response(
+            state.user_goal,
+            domain_content,
+        )
         execution_checks = {
             "operation_is_operator_task": (
                 input_signals.get("workload_operation")
@@ -1640,6 +1657,15 @@ class Phase2StrongestProductionBridge:
                 .removeprefix("sha256:")
                 == observed_domain_digest
             ),
+            "domain_result_valid": bool(
+                domain_result
+                and observed_domain_result_digest
+                == canonical_digest(domain_result)
+                and canonical_digest(
+                    dict(input_signals.get("domain_result") or {})
+                )
+                == canonical_digest(domain_result)
+            ),
             "domain_effect_performed": (
                 execution_output.get("domain_effect_performed") is True
                 and bool(execution_output.get("operator_adapter_id"))
@@ -1663,6 +1689,25 @@ class Phase2StrongestProductionBridge:
                 and binding.get("worker_deployment_generation_id")
                 == input_signals.get("leased_worker_generation_id")
                 == physical_identity.get("generation_id")
+            ),
+            "goal_contract_satisfied": bool(
+                response_contract is None
+                or (
+                    goal_contract_matches_projection(
+                        state.user_goal,
+                        state.metadata.get("goal_contract")
+                        if isinstance(
+                            state.metadata.get("goal_contract"),
+                            Mapping,
+                        )
+                        else None,
+                    )
+                    and response_verification.get("passed") is True
+                    and domain_result.get("kind") == "direct_response"
+                    and execution_output.get("operator_adapter_id")
+                    == "worker.local-code-worker.direct-response"
+                    and domain_result.get("goal_contract_satisfied") is True
+                )
             ),
         }
         if not all(execution_checks.values()):
@@ -1766,6 +1811,11 @@ class Phase2StrongestProductionBridge:
                     "reconcile_before_retry": True,
                 },
             ) from error
+        if response_contract is not None:
+            state.metadata["final_answer"] = domain_content.strip()
+            state.metadata["goal_contract_verification"] = dict(
+                response_verification
+            )
         event = EventRecord(
             run_id=state.run_id,
             task_id=state.task_id,
@@ -1783,7 +1833,7 @@ class Phase2StrongestProductionBridge:
                 "operator_adapter_id": execution_output.get(
                     "operator_adapter_id"
                 ),
-                "domain_result": execution_output.get("domain_result"),
+                "domain_result": domain_result,
                 "fulfilled_output_contract": sorted(contract_outputs),
             },
         )

@@ -53,6 +53,8 @@ describe("product frontstage", () => {
     expect(app).toContain("<ProductTaskDetail")
     expect(detail).toContain("<TaskDetail runtime={runtime} state={state} />")
     expect(detail).toContain('className="advanced-drawer"')
+    expect(detail).toContain('className="product-final-answer"')
+    expect(detail).toContain("没有生成有效回答")
     expect(command).toContain("描述一个任务，或向 Zyra 提问")
     expect(command).toContain("const selectedTask = taskContext")
     expect(app).toContain('taskContext={route.kind === "task" ? state.detail.task : undefined}')

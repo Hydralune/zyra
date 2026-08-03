@@ -7236,6 +7236,33 @@ kbd {
   line-height: 1.7;
 }
 
+.product-final-answer {
+  margin: 14px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid #cfe7da;
+  border-radius: 12px;
+  background: #f2faf6;
+}
+
+.product-final-answer > span {
+  display: block;
+  margin: 0 0 5px;
+  color: #37835f;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.product-final-answer > p {
+  margin: 0;
+  color: #1f2d25;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 .product-progress {
   height: 5px;
   overflow: hidden;

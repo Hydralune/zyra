@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from apps.api.zyra_api import main as api
-from zyra_core import EventRecord, EventType, now_iso
+from zyra_core import EventRecord, EventType, PlanNodeStatus, now_iso
 from zyra_orchestration import ensure_default_graph, run_task_graph
 from zyra_orchestration.topology_policy import production as production_policy
 from zyra_orchestration.topology_policy.contracts import (
@@ -540,6 +540,58 @@ def test_communication_projection_requires_exact_edge_and_prior_window() -> None
             maximum_age_seconds=0,
         )
     ) == 1
+
+
+def test_direct_response_goal_completes_with_exact_answer_and_bound_receipt(
+) -> None:
+    state, created = api.make_task_created_event("测试，收到请回复ok")
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"direct-response:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+
+    assert state.status is PlanNodeStatus.COMPLETED
+    assert state.metadata["interaction_mode"] == "direct_response"
+    assert state.metadata["final_answer"] == "ok"
+    assert state.metadata["goal_contract_verification"]["passed"] is True
+    assert len(state.artifacts) == 1
+    artifact = state.artifacts[0]
+    assert artifact.title == "Zyra final response"
+    assert b"".join(
+        api.get_worker_pool_api().artifact_store.iter_bytes(artifact)
+    ).decode("utf-8") == "ok"
+
+    receipt = state.metadata["worker_pool_receipt"]
+    signals = receipt["physical_dispatch_receipt"]["payload"]["input_signals"]
+    assert signals["operator_adapter_id"] == (
+        "worker.local-code-worker.direct-response"
+    )
+    assert signals["domain_result"]["kind"] == "direct_response"
+    assert signals["domain_result"]["goal_contract_satisfied"] is True
+    assert receipt["physical_dispatch_validation"]["real_gate_closed"] is True
+    final_verifier = next(
+        item
+        for item in reversed(state.decisions)
+        if item.decision_type == "final_verifier"
+    )
+    assert final_verifier.selected == "passed"
+    assert all(item["passed"] for item in final_verifier.checks)
+    assert any(
+        item.event_type is EventType.EVALUATION
+        and item.payload.get("passed") is True
+        for item in events
+    )
 
 
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
