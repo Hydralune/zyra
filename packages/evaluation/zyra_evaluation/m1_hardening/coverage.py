@@ -310,7 +310,11 @@ class SourceToTargetCoverageReport:
         source_workspace: str | Path | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
-        self.source_workspace = Path(source_workspace).resolve() if source_workspace else self.project_root.parent
+        self.source_workspace = (
+            Path(source_workspace).resolve()
+            if source_workspace
+            else self.project_root / "provenance"
+        )
         self.entry_inspector = ProductionEntryInspector(self.project_root)
         self.table_reader = SourceGraphTableReader()
 

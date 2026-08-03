@@ -32,5 +32,6 @@ docs/evidence/phase2/preflight/*/MechanismEvidenceReadinessReport.json text eol=
 docs/evidence/phase2/sealed/*/independent-validation.json text eol=lf
 docs/evidence/phase2/sealed/*/sealed-evidence-index.json text eol=lf
 packages/integrations/loopx_runtime/** text=auto eol=lf whitespace=-blank-at-eol,-blank-at-eof
+provenance/** binary
 packages/integrations/zyra_integrations/loopx/runtime/*.json text eol=lf
 config/loopx/*.json text eol=lf

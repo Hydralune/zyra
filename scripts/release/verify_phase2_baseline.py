@@ -22,7 +22,7 @@ def parser() -> argparse.ArgumentParser:
         "--manifest",
         default="docs/release/phase2-baseline-manifest.json",
     )
-    result.add_argument("--workspace-root", default=str(PROJECT_ROOT.parent))
+    result.add_argument("--workspace-root", default=str(PROJECT_ROOT))
     result.add_argument("--require-clean", action="store_true")
     result.add_argument("--output", default="")
     return result

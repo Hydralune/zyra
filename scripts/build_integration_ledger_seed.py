@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from dataclasses import dataclass
@@ -7,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT.parent
+DEFAULT_SOURCE_WORKSPACE = ROOT / "provenance"
 INTEGRATIONS_PATH = ROOT / "packages" / "integrations"
 if str(INTEGRATIONS_PATH) not in sys.path:
     sys.path.insert(0, str(INTEGRATIONS_PATH))
@@ -91,17 +92,33 @@ class SourceBucket:
 
 
 def main() -> None:
-    ledger = InternalizationLedger(build_seed_entries())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--source-workspace",
+        default=str(DEFAULT_SOURCE_WORKSPACE),
+        help=(
+            "Source workspace used to refresh the historical seed. Defaults to "
+            "the repository-local provenance snapshot; pass an explicit upstream "
+            "workspace only when intentionally rebuilding the seed."
+        ),
+    )
+    args = parser.parse_args()
+    ledger = InternalizationLedger(
+        build_seed_entries(source_workspace=Path(args.source_workspace))
+    )
     output = package_seed_path()
     ledger.save(output)
     print(json.dumps({"output": str(output), "summary": ledger.summary().to_dict()}, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def build_seed_entries() -> list[InternalizationLedgerEntry]:
+def build_seed_entries(
+    *,
+    source_workspace: Path = DEFAULT_SOURCE_WORKSPACE,
+) -> list[InternalizationLedgerEntry]:
     entries: list[InternalizationLedgerEntry] = []
     seen: set[str] = set()
     for bucket in buckets():
-        for source_path in selected_paths(bucket):
+        for source_path in selected_paths(bucket, source_workspace=source_workspace):
             entry = entry_from_bucket(bucket, source_path)
             if entry.ledger_id in seen:
                 continue
@@ -111,8 +128,8 @@ def build_seed_entries() -> list[InternalizationLedgerEntry]:
     return sorted(entries, key=lambda item: (item.owner_unit, item.source_repo.lower(), item.capability_name, item.source_path))
 
 
-def selected_paths(bucket: SourceBucket) -> list[str]:
-    repo_root = WORKSPACE / bucket.repo
+def selected_paths(bucket: SourceBucket, *, source_workspace: Path) -> list[str]:
+    repo_root = source_workspace / bucket.repo
     paths: list[str] = []
     if not repo_root.exists():
         return paths

@@ -70841,7 +70841,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -70981,7 +70981,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71135,7 +71135,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71278,7 +71278,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71432,7 +71432,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71558,7 +71558,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71716,7 +71716,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71858,7 +71858,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -71984,7 +71984,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -72131,7 +72131,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -72305,7 +72305,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -72488,7 +72488,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -72670,7 +72670,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -72824,7 +72824,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -72964,7 +72964,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -73090,7 +73090,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -73234,7 +73234,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -73390,7 +73390,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -73543,7 +73543,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -73682,7 +73682,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -73821,7 +73821,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -73969,7 +73969,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74109,7 +74109,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74235,7 +74235,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74376,7 +74376,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74502,7 +74502,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74648,7 +74648,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74788,7 +74788,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -74933,7 +74933,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -75073,7 +75073,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -75215,7 +75215,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -75369,7 +75369,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -75509,7 +75509,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -75635,7 +75635,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -75774,7 +75774,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -75900,7 +75900,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -76038,7 +76038,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -76176,7 +76176,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -76320,7 +76320,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -76480,7 +76480,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -76635,7 +76635,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -76777,7 +76777,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -76917,7 +76917,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "primary",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
+        "source_graph_ref": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -77064,7 +77064,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md"
+        "source_graph_ref": "provenance/source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -77234,7 +77234,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md"
+        "source_graph_ref": "provenance/source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -77383,7 +77383,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -77557,7 +77557,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -77724,7 +77724,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -77877,7 +77877,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -78031,7 +78031,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -78157,7 +78157,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -78299,7 +78299,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -78425,7 +78425,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "contract-only",
-        "source_graph_ref": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
+        "source_graph_ref": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -78565,7 +78565,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
+        "source_graph_ref": "provenance/source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -78705,7 +78705,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
+        "source_graph_ref": "provenance/source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -78847,7 +78847,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
+        "source_graph_ref": "provenance/source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -78975,7 +78975,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
+        "source_graph_ref": "provenance/source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -79125,7 +79125,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "active",
-        "source_graph_ref": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
+        "source_graph_ref": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -79308,7 +79308,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
+        "source_graph_ref": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -79466,7 +79466,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "adapter",
-        "source_graph_ref": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
+        "source_graph_ref": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -79620,7 +79620,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
+        "source_graph_ref": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
       },
       "migration_strategy": "candidate_review",
       "milestone": "M1",
@@ -79746,7 +79746,7 @@
         "slice_id": "M1-S03B-01",
         "source_authority": "supplemental",
         "source_disposition": "reference-only",
-        "source_graph_ref": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
+        "source_graph_ref": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",

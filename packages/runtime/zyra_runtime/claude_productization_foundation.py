@@ -378,7 +378,11 @@ class FoundationExecutionRequest:
 class ClaudeProductizationFoundation:
     def __init__(self, project_root: str | Path, *, source_workspace_root: str | Path | None = None) -> None:
         self.project_root = Path(project_root).resolve()
-        self.source_workspace_root = Path(source_workspace_root).resolve() if source_workspace_root else self.project_root.parent
+        self.source_workspace_root = (
+            Path(source_workspace_root).resolve()
+            if source_workspace_root
+            else self.project_root / "provenance"
+        )
         self.source_root = self.source_workspace_root / PRIMARY_SOURCE_REPO
         self.source_pool_root = self.project_root / "vendor-runtimes" / "claude-code-runtime" / "productized" / PRIMARY_SOURCE_REPO
 

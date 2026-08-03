@@ -379,7 +379,11 @@ class M1InternalizationGate:
         source_workspace: str | Path | None = None,
     ) -> None:
         self.root = Path(project_root).resolve()
-        self.source_workspace = Path(source_workspace).resolve() if source_workspace else self.root.parent
+        self.source_workspace = (
+            Path(source_workspace).resolve()
+            if source_workspace
+            else self.root / "provenance"
+        )
 
     def evaluate(
         self,

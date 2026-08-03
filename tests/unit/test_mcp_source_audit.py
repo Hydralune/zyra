@@ -29,6 +29,7 @@ from zyra_integrations.mcp.source_audit import (
     audit_mcp_sources,
     source_decision,
 )
+from zyra_integrations.source_provenance import BundledSourceProvenance
 from scripts.sync_mcp_source_ledger import (
     DEFAULT_LEDGER_PATH,
     OWNER_UNIT,
@@ -73,14 +74,17 @@ class McpSourceAuditTests(unittest.TestCase):
                     self.assertNotIn("vendor", Path(target).parts)
                     self.assertNotIn("..", Path(target).parts)
 
-    def test_every_recorded_source_path_exists_in_the_review_workspace(self) -> None:
-        workspace = PROJECT_ROOT.parent
+    def test_every_recorded_source_path_has_verified_bundled_provenance(self) -> None:
+        provenance = BundledSourceProvenance(PROJECT_ROOT)
+        receipt = provenance.verify()
+
+        self.assertTrue(receipt["ready"])
+        self.assertGreaterEqual(receipt["source_file_count"], len(MCP_SOURCE_DECISIONS))
         for decision in MCP_SOURCE_DECISIONS:
             with self.subTest(source=decision.key):
-                self.assertTrue(
-                    (workspace / decision.repository / decision.source_path).is_file(),
-                    decision.key,
-                )
+                path = provenance.source_file(decision.repository, decision.source_path)
+                self.assertTrue(path.is_file(), decision.key)
+                self.assertTrue(path.is_relative_to(PROJECT_ROOT / "provenance"))
 
     def test_high_risk_source_boundaries_are_not_overclaimed(self) -> None:
         generated_skill = source_decision("claude-code-best", "src/skills/mcpSkills.ts")
@@ -173,7 +177,7 @@ class McpSourceAuditTests(unittest.TestCase):
             before = path.read_bytes()
             completed = subprocess.run(
                 [
-                    str(PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"),
+                    sys.executable,
                     str(PROJECT_ROOT / "scripts" / "sync_mcp_source_ledger.py"),
                     "--ledger-path",
                     str(path),

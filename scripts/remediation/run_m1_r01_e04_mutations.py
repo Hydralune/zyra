@@ -22,10 +22,10 @@ from typing import Any
 
 ZYRA_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = (
-    ZYRA_ROOT.parent
-    / "docs"
-    / "remediations"
-    / "M1-R01-claude-source-custody"
+    ZYRA_ROOT
+    / "provenance"
+    / "authority"
+    / "m1-r01-claude-source-custody"
     / "manifests"
     / "execution-04-mutation-manifest.jsonl"
 )
@@ -595,7 +595,7 @@ def run_all_mutations() -> dict[str, Any]:
         "execution_id": "E04",
         "candidate": _git_value("rev-parse", "HEAD"),
         "tree": _git_value("rev-parse", "HEAD^{tree}"),
-        "g0_manifest": str(MANIFEST.relative_to(ZYRA_ROOT.parent)).replace("\\", "/"),
+        "g0_manifest": str(MANIFEST.relative_to(ZYRA_ROOT)).replace("\\", "/"),
         "toolchain": {
             "python": sys.version.split()[0],
             "bun": _run([_bun_executable(), "--version"])["output_tail"].strip(),

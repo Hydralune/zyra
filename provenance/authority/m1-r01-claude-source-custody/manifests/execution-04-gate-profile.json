@@ -1,0 +1,77 @@
+{
+  "baseline_manifest_root": "../docs/remediations/M1-R01-claude-source-custody/manifests",
+  "candidate_output_root": "docs/reviews/evidence/M1-R01-v4/execution-04",
+  "cleanroom_command": ".venv\\Scripts\\python.exe scripts/remediation/cleanroom_m1_r01_e04.py",
+  "crash_restore_disable_commands": [
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py checkpoint-before-ack",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py final-checkpoint-before-terminal",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py lost-ack",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py host-disconnect",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py typescript-disconnect",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py duplicate-ack",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py disable",
+    ".venv\\Scripts\\python.exe scripts/remediation/run_m1_r01_e04_mutations.py --all"
+  ],
+  "default_path_commands": [
+    ".\\node_modules\\.bin\\bun.exe apps/code-worker/src/main.ts --stdio-probe",
+    ".\\node_modules\\.bin\\bun.exe dist/code-worker/main.js --stdio-probe",
+    "node dist/code-worker-node/main.js --stdio-probe",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py python-bridge",
+    ".venv\\Scripts\\python.exe scripts/remediation/probe_m1_r01_e04.py api-route"
+  ],
+  "execution_id": "E04",
+  "forbidden_dependency_patterns": [
+    "../claude-code-best",
+    "../opencode",
+    "../OpenClaw",
+    "../openclaw",
+    "vendor-runtimes",
+    "runtime-sources",
+    "source-pool",
+    "npm link",
+    "file:../",
+    "-e ../"
+  ],
+  "line_bucket_command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_candidate.py --line-buckets",
+  "profile_version": "1.0.0",
+  "record_id": "e04-gate-profile",
+  "record_type": "gate_profile",
+  "reviewer_required_outputs": [
+    "baseline-receipt.json",
+    "source-recovery-report.json",
+    "target-provenance-report.jsonl",
+    "reimplementation-exceptions.json",
+    "default-path-result.json",
+    "terminal-protocol-crash-matrix.json",
+    "python-owner-result.json",
+    "dependency-audit.json",
+    "build-and-test-result.json",
+    "cleanroom-result.json",
+    "mutation-results.json",
+    "line-buckets.json",
+    "candidate-gate-result.json"
+  ],
+  "schema_version": "4.0",
+  "similarity_diagnostic_command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_candidate.py --similarity",
+  "target_snapshot_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
+  "thresholds": {
+    "credited_domain_count": 8,
+    "default_path_required_passes": 8,
+    "dirty_cleanroom_path_count": 0,
+    "forbidden_dependency_count": 0,
+    "minimum_restart_epochs": 2,
+    "mutation_kill_rate": 1.0,
+    "python_logical_owner_count": 0,
+    "terminal_fault_points": 5
+  },
+  "typecheck_build_test_commands": [
+    ".\\node_modules\\.bin\\bun.exe run typecheck:e02",
+    ".\\node_modules\\.bin\\bun.exe run build",
+    ".\\node_modules\\.bin\\bun.exe test packages/runtime/claude-runtime/test packages/integrations/claude-mcp/test",
+    ".venv\\Scripts\\python.exe -m pytest tests/integration/test_e01_typescript_runtime_cutover.py tests/integration/test_code_worker_clean_productized_runtime.py -p no:cacheprovider --basetemp .tmp/e04-pytest"
+  ],
+  "validators": [
+    ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py",
+    ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_candidate.py"
+  ]
+}

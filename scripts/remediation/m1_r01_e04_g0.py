@@ -5,9 +5,10 @@ already frozen E01-E03 source inventories, revalidates every selected blob at
 the immutable upstream commit, inventories the current target owner, captures
 the two known default-path failures, and writes the seven schema-v4 inputs.
 
-The files under ``G:/agent-zoo/docs`` are authority inputs outside the Zyra Git
-repository.  This script refuses to overwrite them; a bad freeze must be
-explicitly abandoned instead of edited in place.
+The frozen authority inputs ship under ``zyra/provenance``. This script refuses
+to overwrite them; a bad freeze must be explicitly abandoned instead of edited
+in place. A new freeze additionally requires an explicit upstream source
+workspace, so verification never reaches outside the Zyra repository by default.
 """
 
 from __future__ import annotations
@@ -36,23 +37,26 @@ BASELINE_COMMIT = "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 BASELINE_TREE = "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00"
 
 ZYRA_ROOT = Path(__file__).resolve().parents[2]
-WORKSPACE_ROOT = ZYRA_ROOT.parent
-AUTHORITY_ROOT = WORKSPACE_ROOT / "docs" / "remediations" / "M1-R01-claude-source-custody"
+INTEGRATIONS_ROOT = ZYRA_ROOT / "packages" / "integrations"
+if str(INTEGRATIONS_ROOT) not in sys.path:
+    sys.path.insert(0, str(INTEGRATIONS_ROOT))
+
+from zyra_integrations.source_provenance import BundledSourceProvenance  # noqa: E402
+
+AUTHORITY_ROOT = ZYRA_ROOT / "provenance" / "authority" / "m1-r01-claude-source-custody"
 MANIFEST_ROOT = AUTHORITY_ROOT / "manifests"
+_EXTERNAL_SOURCE_WORKSPACE: Path | None = None
 
 SOURCE_REPOS = {
     "claude-code-best": {
-        "root": WORKSPACE_ROOT / "claude-code-best",
         "commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
         "tree": "38ad533a122dd662c12dec5aada600eba480baae",
     },
     "opencode": {
-        "root": WORKSPACE_ROOT / "opencode",
         "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
         "tree": "9aabba801accd1b3fd0da7b80bee5ecc9ffaba85",
     },
     "OpenClaw": {
-        "root": WORKSPACE_ROOT / "openclaw",
         "commit": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b",
         "tree": "ff37a77d65d9d1e0a4767c09cabe5865e284e6c2",
     },
@@ -373,7 +377,15 @@ def command_version(command: list[str], cwd: Path = ZYRA_ROOT) -> str:
 
 def source_blob(repo: str, snapshot: str, path: str) -> bytes:
     safe_relative(path)
-    return run(["git", "show", f"{snapshot}:{path}"], SOURCE_REPOS[repo]["root"]).stdout
+    if _EXTERNAL_SOURCE_WORKSPACE is not None:
+        return run(
+            ["git", "show", f"{snapshot}:{path}"],
+            _EXTERNAL_SOURCE_WORKSPACE / repo,
+        ).stdout
+    identity = SOURCE_REPOS[repo]
+    if snapshot != identity["commit"]:
+        raise ValueError(f"bundled source snapshot mismatch: {repo}:{snapshot}")
+    return BundledSourceProvenance(ZYRA_ROOT).source_file(repo, path).read_bytes()
 
 
 @lru_cache(maxsize=None)
@@ -891,7 +903,7 @@ def gate_profile(target_snapshot: str) -> dict[str, Any]:
         "record_id": "e04-gate-profile",
         "profile_version": "1.0.0",
         "target_snapshot_commit": target_snapshot,
-        "baseline_manifest_root": "../docs/remediations/M1-R01-claude-source-custody/manifests",
+        "baseline_manifest_root": "provenance/authority/m1-r01-claude-source-custody/manifests",
         "candidate_output_root": "docs/reviews/evidence/M1-R01-v4/execution-04",
         "validators": [
             f"{python} scripts/remediation/verify_m1_r01_e04_g0.py",
@@ -947,9 +959,11 @@ def gate_profile(target_snapshot: str) -> dict[str, Any]:
 
 
 def verify_source_repos() -> list[dict[str, Any]]:
+    if _EXTERNAL_SOURCE_WORKSPACE is None:
+        raise ValueError("a new G0 freeze requires an explicit source workspace")
     snapshots: list[dict[str, Any]] = []
     for name, expected in SOURCE_REPOS.items():
-        root = expected["root"]
+        root = _EXTERNAL_SOURCE_WORKSPACE / name
         commit = git_text(root, "rev-parse", "HEAD")
         tree = git_text(root, "rev-parse", "HEAD^{tree}")
         dirty = git_text(root, "status", "--porcelain=v1", "--untracked-files=all").splitlines()
@@ -1120,7 +1134,7 @@ def freeze(
             "performed": bool(refreeze_reason),
             "reason": refreeze_reason or None,
             "failed_candidate": failed_candidate or None,
-            "abandoned_archive": str(abandoned_archive.relative_to(WORKSPACE_ROOT)).replace("\\", "/") if abandoned_archive else None,
+            "abandoned_archive": str(abandoned_archive.relative_to(ZYRA_ROOT)).replace("\\", "/") if abandoned_archive else None,
             "inherited_baseline_receipt_sha256": (
                 sha256_file(abandoned_archive / "execution-04-baseline-receipt.json")
                 if abandoned_archive
@@ -1326,13 +1340,24 @@ def verify() -> dict[str, Any]:
 
 
 def main() -> int:
+    global _EXTERNAL_SOURCE_WORKSPACE
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("freeze", "refreeze", "verify"), nargs="?", default="verify")
     parser.add_argument("--abandon-reason", default="")
     parser.add_argument("--failed-candidate", default="")
     parser.add_argument("--inherit-abandoned", default="")
+    parser.add_argument(
+        "--source-workspace",
+        help=(
+            "Explicit upstream workspace required only for freeze/refreeze. "
+            "Ordinary verification uses bundled immutable provenance."
+        ),
+    )
     args = parser.parse_args()
     if args.mode in {"freeze", "refreeze"}:
+        if not args.source_workspace:
+            parser.error("freeze/refreeze requires --source-workspace")
+        _EXTERNAL_SOURCE_WORKSPACE = Path(args.source_workspace).resolve()
         if args.mode == "refreeze" and (not args.abandon_reason or not re.fullmatch(r"[0-9a-f]{40}", args.failed_candidate)):
             parser.error("refreeze requires --abandon-reason and a 40-hex --failed-candidate")
         freeze(

@@ -3,12 +3,20 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT.parent
+INTEGRATIONS_ROOT = ROOT / "packages" / "integrations"
+if str(INTEGRATIONS_ROOT) not in sys.path:
+    sys.path.insert(0, str(INTEGRATIONS_ROOT))
+
+from zyra_integrations.source_provenance import (  # noqa: E402
+    BundledSourceProvenance,
+    SourceProvenanceError,
+)
 LEDGER = (
     ROOT
     / "packages"
@@ -23,13 +31,13 @@ OWNERS = {
     "M2-S01B-01",
     "M2-S01B-02",
 }
-REPOSITORIES = {
-    "opencode": WORKSPACE / "opencode",
-    "OpenHands": WORKSPACE / "OpenHands",
-    "claude-code-best": WORKSPACE / "claude-code-best",
-    "oh-my-pi": WORKSPACE / "oh-my-pi",
-    "agent-framework": WORKSPACE / "agent-framework",
-    "agentscope": WORKSPACE / "agentscope",
+REPOSITORY_NAMES = {
+    "opencode",
+    "OpenHands",
+    "claude-code-best",
+    "oh-my-pi",
+    "agent-framework",
+    "agentscope",
 }
 
 
@@ -88,8 +96,22 @@ def resolve_commit(repository: Path, commit: str) -> str:
     return completed.stdout.strip()
 
 
-def audit(implementation_commit: str) -> dict[str, Any]:
+def audit(
+    implementation_commit: str,
+    *,
+    source_workspace: Path | None = None,
+) -> dict[str, Any]:
     implementation_commit = resolve_commit(ROOT, implementation_commit)
+    provenance = BundledSourceProvenance(ROOT) if source_workspace is None else None
+    source_mode = "bundled_provenance" if provenance is not None else "explicit_workspace"
+    repository_identities: dict[str, Any] = {}
+    if provenance is not None:
+        provenance.verify()
+        repository_identities = dict(provenance.manifest["repositories"])
+    repositories = {
+        name: source_workspace.resolve() / name
+        for name in REPOSITORY_NAMES
+    } if source_workspace is not None else {}
     document = json.loads(LEDGER.read_text(encoding="utf-8"))
     entries = [
         item
@@ -117,9 +139,49 @@ def audit(implementation_commit: str) -> dict[str, Any]:
         if projection_owner and not projection_owner.startswith("deferred"):
             canonical_projection_owners.add(projection_owner)
         repository = str(item.get("source_repo") or "")
-        repository_root = REPOSITORIES.get(repository)
+        repository_root = repositories.get(repository)
         source_commit = str(metadata.get("source_commit") or "").strip()
-        if repository_root is None or not repository_root.is_dir():
+        bundled_identity = repository_identities.get(repository)
+        if provenance is not None and bundled_identity is None:
+            findings.append(
+                {
+                    "code": "SOURCE_REPOSITORY_MISSING",
+                    "ledger_id": item.get("ledger_id"),
+                    "source_repo": repository,
+                    "blocking": production,
+                }
+            )
+        elif provenance is not None and source_commit != str(bundled_identity.get("commit") or ""):
+            findings.append(
+                {
+                    "code": "SOURCE_COMMIT_MISSING",
+                    "ledger_id": item.get("ledger_id"),
+                    "source_repo": repository,
+                    "source_commit": source_commit,
+                    "blocking": production,
+                }
+            )
+        elif provenance is not None:
+            for relative in source_paths(str(item.get("source_path") or "")):
+                try:
+                    provenance.source_file(repository, relative)
+                except SourceProvenanceError:
+                    findings.append(
+                        {
+                            "code": (
+                                "SOURCE_FILE_MISSING"
+                                if production
+                                else "CONFORMANCE_DESCRIPTOR_NOT_FILE"
+                            ),
+                            "ledger_id": item.get("ledger_id"),
+                            "source_repo": repository,
+                            "source_path": relative,
+                            "blocking": production,
+                        }
+                    )
+                else:
+                    source_file_count += 1
+        elif repository_root is None or not repository_root.is_dir():
             findings.append(
                 {
                     "code": "SOURCE_REPOSITORY_MISSING",
@@ -197,6 +259,7 @@ def audit(implementation_commit: str) -> dict[str, Any]:
     blocking = [item for item in findings if item["blocking"]]
     return {
         "schema": "zyra.m2-01-source-to-target-audit/v1",
+        "source_mode": source_mode,
         "implementation_commit": implementation_commit,
         "owner_units": sorted(OWNERS),
         "entry_count": len(entries),
@@ -219,8 +282,18 @@ def main() -> int:
         default="HEAD",
         help="Committed Zyra target to validate (default: HEAD).",
     )
+    parser.add_argument(
+        "--source-workspace",
+        help=(
+            "Optional explicit upstream workspace for a live Git rescan. "
+            "The default verifies Zyra's bundled immutable provenance."
+        ),
+    )
     args = parser.parse_args()
-    result = audit(args.implementation_commit)
+    result = audit(
+        args.implementation_commit,
+        source_workspace=Path(args.source_workspace) if args.source_workspace else None,
+    )
     if args.summary:
         for key in (
             "implementation_commit",

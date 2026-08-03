@@ -31,7 +31,7 @@ class Phase2BaselineVerifier:
         self.workspace_root = (
             workspace_root.resolve()
             if workspace_root is not None
-            else self.project_root.parent
+            else self.project_root
         )
 
     def verify(

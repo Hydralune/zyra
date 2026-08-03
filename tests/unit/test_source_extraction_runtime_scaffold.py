@@ -43,7 +43,7 @@ class SourceExtractionRetirementTests(unittest.TestCase):
                 with self.assertRaises(LegacySourcePoolRetiredError):
                     builder(
                         project_root=ROOT,
-                        source_workspace_root=ROOT.parent,
+                        source_workspace_root=ROOT / "provenance",
                         dry_run=True,
                     )
 

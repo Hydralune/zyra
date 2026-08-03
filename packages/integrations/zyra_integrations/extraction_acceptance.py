@@ -85,7 +85,9 @@ def build_m1_01b_acceptance_report(
     ledger: InternalizationLedger | None = None,
 ) -> M101BAcceptanceReport:
     root = Path(project_root).resolve()
-    source_root = Path(source_workspace_root or root.parent).resolve()
+    source_root = Path(
+        source_workspace_root or root / "provenance"
+    ).resolve()
     plan = claude_code_m1_01b_plan(project_root=root, source_workspace_root=source_root, dry_run=True)
     rule_audit = audit_extraction_plan(plan)
     rule_coverage = build_rule_coverage_report(rule_audit)

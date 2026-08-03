@@ -333,7 +333,11 @@ class M1HardeningService:
         policies: Iterable[GatePolicy] | None = None,
     ) -> None:
         self.root = Path(project_root).resolve()
-        self.source_workspace = Path(source_workspace).resolve() if source_workspace else self.root.parent
+        self.source_workspace = (
+            Path(source_workspace).resolve()
+            if source_workspace
+            else self.root / "provenance"
+        )
         self.artifact_root = Path(artifact_root).resolve() if artifact_root else self.root / ".tmp" / "m1-hardening"
         self.catalog = M1CapabilityCatalog(self.root, source_workspace=self.source_workspace)
         self.custody_catalog = M1CustodyCatalog()

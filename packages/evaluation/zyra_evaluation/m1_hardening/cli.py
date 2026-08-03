@@ -139,7 +139,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         project_root = Path(args.project_root).resolve()
-        source_workspace = Path(args.source_workspace).resolve() if args.source_workspace else project_root.parent
+        source_workspace = (
+            Path(args.source_workspace).resolve()
+            if args.source_workspace
+            else project_root / "provenance"
+        )
         artifact_root = Path(args.artifact_root).resolve() if args.artifact_root else project_root / ".tmp" / "m1-hardening"
         service = M1HardeningService(
             project_root,

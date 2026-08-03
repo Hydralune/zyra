@@ -399,7 +399,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "gate":
         minimum = args.minimum_effective_lines or minimum_effective_lines_for_unit(args.owner_unit)
-        source_root = Path(args.source_root).resolve() if args.source_root else project_root.parent
+        source_root = (
+            Path(args.source_root).resolve()
+            if args.source_root
+            else project_root / "provenance"
+        )
         payload = build_completion_gate_report(
             project_root,
             ledger,
@@ -416,7 +420,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "source-scan":
-        source_root = Path(args.source_root).resolve() if args.source_root else project_root.parent
+        source_root = (
+            Path(args.source_root).resolve()
+            if args.source_root
+            else project_root / "provenance"
+        )
         payload = build_source_scan_report(
             project_root,
             source_root,

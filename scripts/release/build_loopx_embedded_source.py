@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import zipfile
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -44,6 +47,10 @@ PACKAGED_METADATA_ROOT = (
     / "loopx"
     / "runtime"
 )
+PROVENANCE_ROOT = PROJECT_ROOT / "provenance" / "loopx"
+BUNDLED_SOURCE_ARCHIVE = PROVENANCE_ROOT / "loopx-v0.2.13.tar.gz"
+BUNDLED_TAG_OBJECT = PROVENANCE_ROOT / "v0.2.13.tag-object"
+BUNDLED_COMMIT_OBJECT = PROVENANCE_ROOT / "7232dca45ec2.commit-object"
 EXCLUSIONS = (
     {
         "pattern": ".git/**",
@@ -91,7 +98,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--source-root",
-        default=str(PROJECT_ROOT.parent / "long-horizon-systems" / "loopx"),
+        default="",
+        help=(
+            "Optional explicit upstream LoopX Git checkout. When omitted, the "
+            "repository-local immutable source archive is authoritative."
+        ),
+    )
+    parser.add_argument(
+        "--source-archive",
+        default=str(BUNDLED_SOURCE_ARCHIVE),
+        help="Repository-local LoopX archive used when --source-root is omitted.",
     )
     parser.add_argument("--project-root", default=str(PROJECT_ROOT))
     parser.add_argument(
@@ -145,22 +161,134 @@ def _tree_modes(source_root: Path) -> dict[str, str]:
     return modes
 
 
-def _excluded(path: str) -> bool:
-    return (
-        path == "AGENTS.md"
-        or path.startswith(".github/")
+@dataclass(frozen=True, slots=True)
+class SourceSnapshot:
+    files: Mapping[str, bytes]
+    modes: Mapping[str, str]
+    mode: str
+
+
+def _git_object_id(kind: str, payload: bytes) -> str:
+    header = f"{kind} {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload).hexdigest()  # noqa: S324 - Git identity
+
+
+def _tree_id(files: Mapping[str, bytes], modes: Mapping[str, str]) -> str:
+    root: dict[str, Any] = {}
+    for raw_path, payload in files.items():
+        pure = PurePosixPath(raw_path)
+        if pure.is_absolute() or ".." in pure.parts or not pure.parts:
+            raise RuntimeError(f"unsafe LoopX archive path: {raw_path}")
+        node = root
+        for part in pure.parts[:-1]:
+            child = node.setdefault(part, {})
+            if not isinstance(child, dict):
+                raise RuntimeError(f"LoopX archive path collision: {raw_path}")
+            node = child
+        name = pure.parts[-1]
+        if name in node:
+            raise RuntimeError(f"duplicate LoopX archive path: {raw_path}")
+        mode = modes.get(raw_path)
+        if mode not in {"100644", "100755", "120000"}:
+            raise RuntimeError(f"unsupported LoopX archive mode: {raw_path}:{mode}")
+        node[name] = (mode, _git_object_id("blob", payload))
+
+    def digest(node: Mapping[str, Any]) -> str:
+        entries: list[tuple[bytes, bytes]] = []
+        for name, value in node.items():
+            encoded_name = name.encode("utf-8")
+            if isinstance(value, dict):
+                object_id = digest(value)
+                mode = "40000"
+                order = encoded_name + b"/"
+            else:
+                mode, object_id = value
+                order = encoded_name
+            entry = (
+                f"{mode} ".encode("ascii")
+                + encoded_name
+                + b"\0"
+                + bytes.fromhex(object_id)
+            )
+            entries.append((order, entry))
+        payload = b"".join(entry for _, entry in sorted(entries, key=lambda item: item[0]))
+        return _git_object_id("tree", payload)
+
+    return digest(root)
+
+
+def _read_bundled_snapshot(source_archive: Path) -> SourceSnapshot:
+    source_archive = source_archive.resolve()
+    if source_archive != BUNDLED_SOURCE_ARCHIVE.resolve():
+        raise RuntimeError(
+            "an alternate LoopX archive requires an explicit --source-root provenance refresh"
+        )
+    files: dict[str, bytes] = {}
+    modes: dict[str, str] = {}
+    try:
+        with tarfile.open(source_archive, mode="r:gz") as bundle:
+            for member in bundle.getmembers():
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or ".." in path.parts:
+                    raise RuntimeError(f"unsafe LoopX archive member: {member.name}")
+                normalized = path.as_posix().strip("/")
+                if not normalized or member.isdir():
+                    continue
+                if normalized in files:
+                    raise RuntimeError(f"duplicate LoopX archive member: {normalized}")
+                if member.isfile():
+                    stream = bundle.extractfile(member)
+                    if stream is None:
+                        raise RuntimeError(f"LoopX archive member is unreadable: {normalized}")
+                    files[normalized] = stream.read()
+                    modes[normalized] = "100755" if member.mode & 0o111 else "100644"
+                elif member.issym():
+                    files[normalized] = member.linkname.encode("utf-8")
+                    modes[normalized] = "120000"
+                else:
+                    raise RuntimeError(
+                        f"unsupported LoopX archive member type: {normalized}"
+                    )
+    except (OSError, tarfile.TarError) as error:
+        raise RuntimeError(f"bundled LoopX archive is unreadable: {source_archive}") from error
+
+    tag_payload = BUNDLED_TAG_OBJECT.read_bytes()
+    commit_payload = BUNDLED_COMMIT_OBJECT.read_bytes()
+    tag_id = _git_object_id("tag", tag_payload)
+    commit_id = _git_object_id("commit", commit_payload)
+    if tag_id != LOOPX_SOURCE_COMMIT or commit_id != LOOPX_SOURCE_TREE_COMMIT:
+        raise RuntimeError(
+            f"bundled LoopX Git identity mismatch: tag={tag_id}, commit={commit_id}"
+        )
+    tag_lines = tag_payload.decode("utf-8", errors="strict").splitlines()
+    commit_lines = commit_payload.decode("utf-8", errors="strict").splitlines()
+    tag_fields = {
+        key: value
+        for line in tag_lines
+        if " " in line
+        for key, value in (line.split(" ", 1),)
+        if key in {"object", "type", "tag"}
+    }
+    commit_tree = next(
+        (line.split(" ", 1)[1] for line in commit_lines if line.startswith("tree ")),
+        "",
     )
+    archive_tree = _tree_id(files, modes)
+    if tag_fields != {
+        "object": LOOPX_SOURCE_TREE_COMMIT,
+        "type": "commit",
+        "tag": LOOPX_SOURCE_REF,
+    }:
+        raise RuntimeError(f"bundled LoopX tag payload is inconsistent: {tag_fields}")
+    if commit_tree != archive_tree:
+        raise RuntimeError(
+            f"bundled LoopX archive tree mismatch: commit={commit_tree}, archive={archive_tree}"
+        )
+    return SourceSnapshot(files=files, modes=modes, mode="bundled_provenance")
 
 
-def _archive_records(
-    source_root: Path,
-    embedded_root: Path,
-    *,
-    materialize_source: bool,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def _read_git_snapshot(source_root: Path) -> SourceSnapshot:
     modes = _tree_modes(source_root)
-    excluded_counts = {item["pattern"]: 0 for item in EXCLUSIONS}
-    records: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="zyra-loopx-source-") as raw:
         archive = Path(raw) / "loopx-source.zip"
         _git(
@@ -171,44 +299,66 @@ def _archive_records(
             LOOPX_SOURCE_REF,
         )
         with zipfile.ZipFile(archive) as bundle:
-            archive_files = {
+            files = {
                 name: bundle.read(name)
                 for name in bundle.namelist()
                 if not name.endswith("/")
             }
-        if materialize_source:
-            embedded_root.mkdir(parents=True, exist_ok=True)
-            for path, content in archive_files.items():
-                if _excluded(path):
-                    continue
-                target = embedded_root.joinpath(*PurePosixPath(path).parts)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(content)
-                target.chmod(0o755 if modes.get(path) == "100755" else 0o644)
-        for path in sorted(archive_files, key=lambda item: item.encode("utf-8")):
-            if path.startswith(".github/"):
-                excluded_counts[".github/**"] += 1
-                continue
-            if path == "AGENTS.md":
-                excluded_counts["AGENTS.md"] += 1
+    return SourceSnapshot(files=files, modes=modes, mode="explicit_upstream_git")
+
+
+def _excluded(path: str) -> bool:
+    return (
+        path == "AGENTS.md"
+        or path.startswith(".github/")
+    )
+
+
+def _archive_records(
+    snapshot: SourceSnapshot,
+    embedded_root: Path,
+    *,
+    materialize_source: bool,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    modes = snapshot.modes
+    excluded_counts = {item["pattern"]: 0 for item in EXCLUSIONS}
+    records: list[dict[str, Any]] = []
+    archive_files = snapshot.files
+    if any(mode == "120000" for mode in modes.values()):
+        raise RuntimeError("embedded LoopX source does not permit symlink members")
+    if materialize_source:
+        embedded_root.mkdir(parents=True, exist_ok=True)
+        for path, content in archive_files.items():
+            if _excluded(path):
                 continue
             target = embedded_root.joinpath(*PurePosixPath(path).parts)
-            if not target.is_file():
-                raise RuntimeError(f"embedded LoopX file is missing: {path}")
-            expected = archive_files[path]
-            actual = target.read_bytes()
-            if actual != expected:
-                raise RuntimeError(
-                    f"embedded LoopX file differs from {LOOPX_SOURCE_REF}: {path}"
-                )
-            records.append(
-                {
-                    "path": path,
-                    "size": len(expected),
-                    "sha256": stable_digest_bytes(expected),
-                    "executable": modes.get(path) == "100755",
-                }
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            target.chmod(0o755 if modes.get(path) == "100755" else 0o644)
+    for path in sorted(archive_files, key=lambda item: item.encode("utf-8")):
+        if path.startswith(".github/"):
+            excluded_counts[".github/**"] += 1
+            continue
+        if path == "AGENTS.md":
+            excluded_counts["AGENTS.md"] += 1
+            continue
+        target = embedded_root.joinpath(*PurePosixPath(path).parts)
+        if not target.is_file():
+            raise RuntimeError(f"embedded LoopX file is missing: {path}")
+        expected = archive_files[path]
+        actual = target.read_bytes()
+        if actual != expected:
+            raise RuntimeError(
+                f"embedded LoopX file differs from {LOOPX_SOURCE_REF}: {path}"
             )
+        records.append(
+            {
+                "path": path,
+                "size": len(expected),
+                "sha256": stable_digest_bytes(expected),
+                "executable": modes.get(path) == "100755",
+            }
+        )
     excluded_counts[".git/**"] = 0
     expected_paths = {str(item["path"]) for item in records}
     actual_paths = {
@@ -277,15 +427,19 @@ def _inventory(
     extensions = sorted(
         path.relative_to(embedded_root).as_posix()
         for path in embedded_root.rglob("extension.toml")
+        if not IGNORED_CACHE_PARTS.intersection(path.parts)
     )
     skills = sorted(
         path.relative_to(embedded_root).as_posix()
         for path in embedded_root.rglob("SKILL.md")
+        if not IGNORED_CACHE_PARTS.intersection(path.parts)
     )
     templates = sorted(
         path.relative_to(embedded_root).as_posix()
         for path in embedded_root.rglob("*")
         if path.is_file()
+        and not IGNORED_CACHE_PARTS.intersection(path.parts)
+        and path.suffix.casefold() not in {".pyc", ".pyo"}
         and (
             "template" in path.name.casefold()
             or path.suffix.casefold() in {".j2", ".jinja", ".tmpl"}
@@ -336,32 +490,37 @@ def _inventory(
 
 def build(
     *,
-    source_root: Path,
+    source_root: Path | None,
+    source_archive: Path,
     project_root: Path,
     output_path: Path | None,
     materialize_source: bool = False,
 ) -> dict[str, Any]:
-    source_root = source_root.resolve()
     project_root = project_root.resolve()
     embedded_root = (
         project_root / "packages" / "integrations" / "loopx_runtime"
     ).resolve()
-    tag_object = str(_git(source_root, "rev-parse", LOOPX_SOURCE_REF)).strip()
-    source_commit = str(
-        _git(source_root, "rev-parse", f"{LOOPX_SOURCE_REF}^{{commit}}")
-    ).strip()
-    object_type = str(_git(source_root, "cat-file", "-t", LOOPX_SOURCE_REF)).strip()
-    if (
-        tag_object != LOOPX_SOURCE_COMMIT
-        or source_commit != LOOPX_SOURCE_TREE_COMMIT
-        or object_type != "tag"
-    ):
-        raise RuntimeError(
-            "LoopX source identity mismatch: "
-            f"tag={tag_object}, peeled={source_commit}, type={object_type}"
-        )
+    if source_root is not None:
+        source_root = source_root.resolve()
+        tag_object = str(_git(source_root, "rev-parse", LOOPX_SOURCE_REF)).strip()
+        source_commit = str(
+            _git(source_root, "rev-parse", f"{LOOPX_SOURCE_REF}^{{commit}}")
+        ).strip()
+        object_type = str(_git(source_root, "cat-file", "-t", LOOPX_SOURCE_REF)).strip()
+        if (
+            tag_object != LOOPX_SOURCE_COMMIT
+            or source_commit != LOOPX_SOURCE_TREE_COMMIT
+            or object_type != "tag"
+        ):
+            raise RuntimeError(
+                "LoopX source identity mismatch: "
+                f"tag={tag_object}, peeled={source_commit}, type={object_type}"
+            )
+        snapshot = _read_git_snapshot(source_root)
+    else:
+        snapshot = _read_bundled_snapshot(source_archive)
     records, excluded_counts = _archive_records(
-        source_root,
+        snapshot,
         embedded_root,
         materialize_source=materialize_source,
     )
@@ -519,6 +678,7 @@ def build(
         "package_lock_digest": lock["lock_digest"],
         "archive_artifact_count": 0,
         "materialized_source": materialize_source,
+        "source_mode": snapshot.mode,
         "inventory": {
             key: len(value) if not isinstance(value, Mapping) else len(value)
             for key, value in inventory.items()
@@ -542,7 +702,8 @@ def _write_json(path: Path, value: Any) -> None:
 def run(argv: Sequence[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     result = build(
-        source_root=Path(arguments.source_root),
+        source_root=Path(arguments.source_root) if arguments.source_root else None,
+        source_archive=Path(arguments.source_archive),
         project_root=Path(arguments.project_root),
         output_path=Path(arguments.output).resolve() if arguments.output else None,
         materialize_source=arguments.materialize_source,

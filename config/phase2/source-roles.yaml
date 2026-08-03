@@ -44,7 +44,7 @@
           "source_languages": ["python"],
           "target_languages": ["python"],
           "migration_mode": "pinned_embedded_source_integration",
-          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/LoopX.md",
+          "source_analysis_ref": "provenance/phase2-analysis/LoopX.md",
           "target_paths": [
             "packages/integrations/loopx_runtime",
             "packages/integrations/zyra_integrations/loopx"
@@ -70,7 +70,7 @@
           "source_languages": ["python"],
           "target_languages": ["python"],
           "migration_mode": "cropped_same_language_migration",
-          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/ARG-Designer.md",
+          "source_analysis_ref": "provenance/phase2-analysis/ARG-Designer.md",
           "target_paths": [
             "packages/orchestration/zyra_orchestration/topology_policy/arg"
           ],
@@ -87,7 +87,7 @@
           "source_languages": ["python"],
           "target_languages": ["python"],
           "migration_mode": "cropped_same_language_migration",
-          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/CARD.md",
+          "source_analysis_ref": "provenance/phase2-analysis/CARD.md",
           "target_paths": [
             "packages/orchestration/zyra_orchestration/topology_policy/condition"
           ],
@@ -104,7 +104,7 @@
           "source_languages": ["python"],
           "target_languages": ["python"],
           "migration_mode": "cropped_same_language_migration",
-          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/AgentPrune.md",
+          "source_analysis_ref": "provenance/phase2-analysis/AgentPrune.md",
           "target_paths": [
             "packages/orchestration/zyra_orchestration/topology_policy/pruning"
           ],
@@ -144,7 +144,7 @@
           "source_languages": ["python"],
           "target_languages": ["python"],
           "migration_mode": "cropped_same_language_migration",
-          "source_analysis_ref": "root:long-horizon-systems/project-analysis-notes/MaAS.md",
+          "source_analysis_ref": "provenance/phase2-analysis/MaAS.md",
           "target_paths": [
             "packages/scheduler/zyra_scheduler/operator_policy"
           ],

@@ -80,13 +80,13 @@ def test_public_api_foundation_scenario_mutates_state_and_fails_closed() -> None
         with tempfile.TemporaryDirectory(dir=ROOT / ".tmp") as audit_directory:
             service = M1HardeningService(
                 ROOT,
-                source_workspace=ROOT.parent,
+                source_workspace=ROOT / "provenance",
                 artifact_root=Path(audit_directory),
             )
             outcome = service.audit(
                 HardeningContext(
                     project_root=ROOT,
-                    workspace_root=ROOT.parent,
+                    workspace_root=ROOT,
                     artifact_root=Path(audit_directory),
                     task=run.task_after,
                     events=run.events_after,

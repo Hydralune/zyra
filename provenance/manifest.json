@@ -1,0 +1,1267 @@
+{
+  "files": [
+    {
+      "category": "repository_license",
+      "path": "OpenHands/LICENSE",
+      "sha256": "90bd960a6d24cce8f64f3f2b9be5923d5b33e2650afd6fb683ced4be83e5bb94",
+      "size": 1398,
+      "source_path": "LICENSE",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/api/conversation-service/conversation-service.api.ts",
+      "sha256": "8b3b71220ee4df63cc76c0591fe7165653f175923ee3ded5915644a0f3083e1e",
+      "size": 2953,
+      "source_path": "frontend/src/api/conversation-service/conversation-service.api.ts",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/api/conversation-service/v1-conversation-service.api.ts",
+      "sha256": "76c27b4a50c72e9ef00c324cb63b1b1f15e2b6ae6b53f69c31bc1593c27afd0f",
+      "size": 19342,
+      "source_path": "frontend/src/api/conversation-service/v1-conversation-service.api.ts",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/api/event-service/event-service.api.ts",
+      "sha256": "13f23996256b69f891e3ae654791563944aaae00138fd583c94e27aaa4374504",
+      "size": 2670,
+      "source_path": "frontend/src/api/event-service/event-service.api.ts",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/api/event-service/event-service.types.ts",
+      "sha256": "963c0d670a1dda84288b95d28a4fc9f52e04657d9855171ff5b620279c14f29c",
+      "size": 158,
+      "source_path": "frontend/src/api/event-service/event-service.types.ts",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/api/sandbox-service/sandbox-service.api.ts",
+      "sha256": "1f3c3178188e235dd9a059bb38eca55a8441f60aff2fc41cb393536444e6df0d",
+      "size": 1786,
+      "source_path": "frontend/src/api/sandbox-service/sandbox-service.api.ts",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/routes/conversation.tsx",
+      "sha256": "16a0885a9c7ef89e4ae8fcadfdda6853c1a0cc1cc50692a87e9f21acced75968",
+      "size": 5215,
+      "source_path": "frontend/src/routes/conversation.tsx",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/frontend/src/routes/root-layout.tsx",
+      "sha256": "601c429a4085614a37bc00b59422926ca2a88ba86dc0ba95856406a0c11451db",
+      "size": 9114,
+      "source_path": "frontend/src/routes/root-layout.tsx",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/openhands/app_server/event/event_router.py",
+      "sha256": "d467b2c8bfce57d79924eafc398d0452b89d470da9cbb239f4fbda3cf5cecc4c",
+      "size": 3578,
+      "source_path": "openhands/app_server/event/event_router.py",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/openhands/app_server/event/event_service_base.py",
+      "sha256": "1fad51b9d8cec224f39777e78b88b1a51ef079e251c74d2e9c79fd519554f3fe",
+      "size": 8141,
+      "source_path": "openhands/app_server/event/event_service_base.py",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/openhands/app_server/event/event_store.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source_path": "openhands/app_server/event/event_store.py",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "repository_source",
+      "path": "OpenHands/openhands/app_server/sandbox/remote_sandbox_service.py",
+      "sha256": "99a6de8fee2eebf276fa9bf5284eea03a21a48b325fd97693abda24b4b3e8385",
+      "size": 45401,
+      "source_path": "openhands/app_server/sandbox/remote_sandbox_service.py",
+      "source_repository": "OpenHands"
+    },
+    {
+      "category": "provenance_documentation",
+      "path": "README.md",
+      "sha256": "d168892b0a64241df7d80eb97cfb21b0278a25114e18f560e39456053702a194",
+      "size": 433
+    },
+    {
+      "category": "repository_license",
+      "path": "agent-framework/LICENSE",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "size": 1141,
+      "source_path": "LICENSE",
+      "source_repository": "agent-framework"
+    },
+    {
+      "category": "repository_source",
+      "path": "agent-framework/python/packages/core/agent_framework/_mcp.py",
+      "sha256": "57d07909544ab7248831873c5e3cbb54160317d612312fc1acb07ce136f0eed4",
+      "size": 143047,
+      "source_path": "python/packages/core/agent_framework/_mcp.py",
+      "source_repository": "agent-framework"
+    },
+    {
+      "category": "repository_source",
+      "path": "agent-framework/python/packages/core/agent_framework/_skills.py",
+      "sha256": "7456b5192d5272b08602e1da23cc7ecd3452a3563aec57d7dc53016036c8d4b8",
+      "size": 152874,
+      "source_path": "python/packages/core/agent_framework/_skills.py",
+      "source_repository": "agent-framework"
+    },
+    {
+      "category": "repository_license",
+      "path": "agentscope/LICENSE",
+      "sha256": "4186bcadf358c60080060309769db6b2a352720d7353d827bb574c600fee9913",
+      "size": 20637,
+      "source_path": "LICENSE",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/examples/web_ui/frontend/src/api/chat.ts",
+      "sha256": "83b03bf7211f7dcb851378cdb431488cc5e6cb277314f2a9f7d7d40c3dd0ff07",
+      "size": 857,
+      "source_path": "examples/web_ui/frontend/src/api/chat.ts",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/examples/web_ui/frontend/src/api/session.ts",
+      "sha256": "30af866cea5446233fbb5369cfe6401cbf3c371fb15787fbec50164a0c54800c",
+      "size": 2550,
+      "source_path": "examples/web_ui/frontend/src/api/session.ts",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/app/_router/_session.py",
+      "sha256": "fe4ddfbec0f51a569e839ebbb9b077a183c311aeb50b6d12b90cecaa7a9477b4",
+      "size": 23433,
+      "source_path": "src/agentscope/app/_router/_session.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/app/_service/_session.py",
+      "sha256": "2aa1c6fac6597764dabc5e313582902f99f9755cc961747fd54aec87774878a0",
+      "size": 17867,
+      "source_path": "src/agentscope/app/_service/_session.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/app/_service/_session_projection.py",
+      "sha256": "d1ba89b5e67bfc875e045f50ca0d698866f13c5cda2b6ed7f0157658c1d70c58",
+      "size": 6691,
+      "source_path": "src/agentscope/app/_service/_session_projection.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/mcp/_config.py",
+      "sha256": "6811c8987796f73e42850fa9897c927d8ec721be86d97efb9d891662f9a1f3b6",
+      "size": 1656,
+      "source_path": "src/agentscope/mcp/_config.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/mcp/_mcp_client.py",
+      "sha256": "b050fb05d213cdddeb7fccb44c9207fe091821ec6be081ac088eff3a178aef81",
+      "size": 15082,
+      "source_path": "src/agentscope/mcp/_mcp_client.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/tool/_adapters.py",
+      "sha256": "28a29947a4dff311f9b7a3dc570b705e4d7aec66aba8226dad22434e84ea72a0",
+      "size": 13880,
+      "source_path": "src/agentscope/tool/_adapters.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "repository_source",
+      "path": "agentscope/src/agentscope/workspace/_mcp_gateway/_mcp_gateway_app.py",
+      "sha256": "8c15898fe018cdcfee7c7d0e012e534c0d68cc8b9fc26ae384aa86afa115d199",
+      "size": 8636,
+      "source_path": "src/agentscope/workspace/_mcp_gateway/_mcp_gateway_app.py",
+      "source_repository": "agentscope"
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-01-source-manifest.jsonl",
+      "sha256": "7b58eb1c445c63f614d7ddce6035946176400a6bd283ad667b4a6c42f7906e49",
+      "size": 212972
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-02-source-manifest.jsonl",
+      "sha256": "bf84545d4a76cf1d8fb7d35fa42d9377d192a3eed2b8bc2037fd2ce186348946",
+      "size": 882337
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-03-source-manifest.jsonl",
+      "sha256": "11f74159374981c7809bce42c5e2416a92610b1d5e19e7b90e4e293f8ecda335",
+      "size": 234659
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-baseline-receipt.json",
+      "sha256": "4e0c0f863590f3a8f19efe162c91b0dc348a5755efe0fa0f2898bb2ec6ad2d9b",
+      "size": 16425
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-gate-profile.json",
+      "sha256": "f98328edb854f264b614874daef18ce34fe76b6c7a59b8a88c086629fb8bb549",
+      "size": 3591
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-mutation-manifest.jsonl",
+      "sha256": "06a5dda223e665b80f5bc93bc3c93e19d784b92f8a495ddc1ab933ae6f03eaf6",
+      "size": 16959
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-python-owner-census.jsonl",
+      "sha256": "0277cf9783511afc6dbece61150a5131f885ad8938f521ff9774ae280bea3095",
+      "size": 2993966
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-reimplementation-exceptions.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-source-recovery-manifest.jsonl",
+      "sha256": "a25c13aa01bf6b947ba9466926d0994c900946cf0d2c07b4e92bd0be3b6ce517",
+      "size": 18768
+    },
+    {
+      "category": "authority_manifest",
+      "path": "authority/m1-r01-claude-source-custody/manifests/execution-04-target-provenance-map.jsonl",
+      "sha256": "357e45fe9374e1b54bb8e0858c7e53dea4aeee729038c4b660a8f31135e7373f",
+      "size": 49908
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/QueryEngine.ts",
+      "sha256": "3b0d95a1f6b08239d269af9926d7e90a450e7d9904cb07fd88784283808636d6",
+      "size": 47948,
+      "source_path": "src/QueryEngine.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/mcp/addCommand.ts",
+      "sha256": "f2e1262228ce4c6f56551b9bc71a8dc15d7fc62802c888c8cd5f91f2ff23685d",
+      "size": 9848,
+      "source_path": "src/commands/mcp/addCommand.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/mcp/index.ts",
+      "sha256": "5d445f74b1faf0be7e71a13237ea249384a6b784d36f15ec0072662ab806c104",
+      "size": 280,
+      "source_path": "src/commands/mcp/index.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/mcp/mcp.tsx",
+      "sha256": "31c7624c833102d0e087e7cba3c7e744a05183496e55739e083a1d609ce6ed1b",
+      "size": 3194,
+      "source_path": "src/commands/mcp/mcp.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/mcp/xaaIdpCommand.ts",
+      "sha256": "3138dd1d1876daef063974fdd914c90056bba90759779f5921e8558183826cdb",
+      "size": 10290,
+      "source_path": "src/commands/mcp/xaaIdpCommand.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/components/MCPServerApprovalDialog.tsx",
+      "sha256": "c7f0ca0116a4f4da0c9db563ee2fb3555284b4d6982222dbac15416dd8fc30be",
+      "size": 3315,
+      "source_path": "src/components/MCPServerApprovalDialog.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/components/PromptInput/PromptInput.tsx",
+      "sha256": "2ac064a9add87c97a1e3ccd02a1d40004dd425a646560e04e0c90ecf237cae7b",
+      "size": 99733,
+      "source_path": "src/components/PromptInput/PromptInput.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/components/PromptInput/PromptInputQueuedCommands.tsx",
+      "sha256": "8e80e3d5940a928c9b4733d641cba771816eb5ba1f0f7a1fc840eae6480cbc4a",
+      "size": 5503,
+      "source_path": "src/components/PromptInput/PromptInputQueuedCommands.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/constants/prompts.ts",
+      "sha256": "7dac778e089a7f002403df2a2efb6f0b9e4a450af21766680ab8948596c10f25",
+      "size": 54320,
+      "source_path": "src/constants/prompts.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/hooks/toolPermission/handlers/coordinatorHandler.ts",
+      "sha256": "42b906a3b0aa598b73df4702ef383e5c89aea8e890819db2f3ad91fec5f78f4a",
+      "size": 2374,
+      "source_path": "src/hooks/toolPermission/handlers/coordinatorHandler.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/hooks/useCommandQueue.ts",
+      "sha256": "5b6a32dedadae8d4b4dc4528fbcbfc433d20374de189cca819d043a2c74cb480",
+      "size": 543,
+      "source_path": "src/hooks/useCommandQueue.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/query.ts",
+      "sha256": "90fdeb9879ac48b954c716c731c325243d54e9b0cc64710ce5aa1031f888aeb1",
+      "size": 69400,
+      "source_path": "src/query.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/screens/REPL.tsx",
+      "sha256": "df408aa39209261660bf2b312e7b4e08add2ed0bec24e9da816e899c78a70f88",
+      "size": 258922,
+      "source_path": "src/screens/REPL.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/compact/autoCompact.ts",
+      "sha256": "1946b5ea23fa2eda91955378641258fb8f19e7742f06ce17d6caae7f2d3c921a",
+      "size": 12905,
+      "source_path": "src/services/compact/autoCompact.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/InProcessTransport.ts",
+      "sha256": "33fdfa0c958a7e11ce2e38ec958ed7d7b6a054bb21df7b772d61c45077b7da85",
+      "size": 1772,
+      "source_path": "src/services/mcp/InProcessTransport.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/MCPConnectionManager.tsx",
+      "sha256": "7e771a8f2e54a9b09177581ca64ba0d7a094299bd29135b576e72a315a591988",
+      "size": 2254,
+      "source_path": "src/services/mcp/MCPConnectionManager.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/SdkControlTransport.ts",
+      "sha256": "328be1f50e90090e01d6c2b24472e2566af13e898047be4a2d977d75cdef70f0",
+      "size": 4503,
+      "source_path": "src/services/mcp/SdkControlTransport.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/auth.ts",
+      "sha256": "fce615a24470f433b43976917a83db8ff388caeeb75a50ac543c48a70ea4a2e8",
+      "size": 88879,
+      "source_path": "src/services/mcp/auth.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/channelAllowlist.ts",
+      "sha256": "5a23572e33baf8afaf16cf54527a0377b1269b1c1fdcddc5343ba4a1984aeaff",
+      "size": 2838,
+      "source_path": "src/services/mcp/channelAllowlist.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/channelNotification.ts",
+      "sha256": "64c091a8fc5f52749e57fd1791fea73a0d7b0f471f05b61c74183b90b4a81805",
+      "size": 12540,
+      "source_path": "src/services/mcp/channelNotification.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/channelPermissions.ts",
+      "sha256": "5fbef5c227d726418c59088fb80d870b957017f256901b66f640990997c745ac",
+      "size": 8981,
+      "source_path": "src/services/mcp/channelPermissions.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/claudeai.ts",
+      "sha256": "da39c0cf0ddc16d4c9a18aea17dd5f97340a1b7b7330dac2061804e566997d96",
+      "size": 6126,
+      "source_path": "src/services/mcp/claudeai.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/client.ts",
+      "sha256": "b5ab2d6523b0908df59d00b1fbc5fd551cefe225ddd03931d7e859aea157ac59",
+      "size": 119456,
+      "source_path": "src/services/mcp/client.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/config.ts",
+      "sha256": "7ca19efbdddc3c4a0c9065e3125c9b73fc161f4ff743ab9d19b4b297cbe260a2",
+      "size": 51209,
+      "source_path": "src/services/mcp/config.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/elicitationHandler.ts",
+      "sha256": "100b1acb014bee4c5eb5463ce65077b8a38033baff8ee6c9f20f3a58341bc9fc",
+      "size": 10166,
+      "source_path": "src/services/mcp/elicitationHandler.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/envExpansion.ts",
+      "sha256": "22faa54899bd3c67d5a5c446e0d44f0670f57d5efc1f8198583e29c6c237c8b2",
+      "size": 1047,
+      "source_path": "src/services/mcp/envExpansion.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/headersHelper.ts",
+      "sha256": "1929f72cf719af79f6c112f16ea676a23f04a40e30c127ef0fed86821a17733b",
+      "size": 4718,
+      "source_path": "src/services/mcp/headersHelper.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/mcpStringUtils.ts",
+      "sha256": "6c734d21d0ef70ff22ffd230f7e27a1f88e1b5d77a1264f8696862dc55f1a022",
+      "size": 3968,
+      "source_path": "src/services/mcp/mcpStringUtils.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/normalization.ts",
+      "sha256": "afbee2dc0bf7e7521f07c1b4f6070cb7b0f59997047695d488d99c5433f63359",
+      "size": 879,
+      "source_path": "src/services/mcp/normalization.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/oauthPort.ts",
+      "sha256": "c111f24ba37063acaa7af701a54adbbb6a3c15a707a0fd68d34fc28eab0787be",
+      "size": 2325,
+      "source_path": "src/services/mcp/oauthPort.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/officialRegistry.ts",
+      "sha256": "cbbdee419c3de7f3343119952755bacc17fe1a36aa478e63ae18ecd3fb4e1642",
+      "size": 2013,
+      "source_path": "src/services/mcp/officialRegistry.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/types.ts",
+      "sha256": "f83c3f48edc2c899d75b1d981ac667b58298564729ed235c8e80a93357355dbd",
+      "size": 6962,
+      "source_path": "src/services/mcp/types.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/useManageMCPConnections.ts",
+      "sha256": "49e49d3e69f5fb657348ecb10b2176572577a2cb0ca77153006b8e0111be1741",
+      "size": 44873,
+      "source_path": "src/services/mcp/useManageMCPConnections.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/utils.ts",
+      "sha256": "65134f0615ecca763a4ec8d513cd6baab6d7ab88eec55193e77bf5c486d35855",
+      "size": 17931,
+      "source_path": "src/services/mcp/utils.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/vscodeSdkMcp.ts",
+      "sha256": "2d2455646d37f074bd364d6b97b28e3d0114e74b1939d34b2e18919c2b30fcb6",
+      "size": 3703,
+      "source_path": "src/services/mcp/vscodeSdkMcp.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/xaa.ts",
+      "sha256": "0f012ceed953c0852151439a1ec1f8f2c11c57b1a86af1271ab8b94bcf492188",
+      "size": 18286,
+      "source_path": "src/services/mcp/xaa.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/mcp/xaaIdpLogin.ts",
+      "sha256": "8db6698003019cb8ce0a14e1ac459c5817d6042db5ba6bcf884c3832b3bfb352",
+      "size": 16271,
+      "source_path": "src/services/mcp/xaaIdpLogin.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/services/tools/toolOrchestration.ts",
+      "sha256": "03b38972c5d0184bc385233bed8bc3b2a6d04e7c2049d372abcbc597d8c0aff4",
+      "size": 5573,
+      "source_path": "src/services/tools/toolOrchestration.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/skills/loadSkillsDir.ts",
+      "sha256": "d66e37fd2db4404b75330223831c5fd7f278afef58a92bc660fb86d002833744",
+      "size": 34415,
+      "source_path": "src/skills/loadSkillsDir.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/skills/mcpSkills.ts",
+      "sha256": "49e9c7de01fda557397ff3d8b867958c6549755015a4e2dd1587f6d5849a9d8a",
+      "size": 362,
+      "source_path": "src/skills/mcpSkills.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tasks/LocalAgentTask/LocalAgentTask.tsx",
+      "sha256": "315854ae3397b33d26879301f2a7f123023c3a7f1903086bd63fe7ff6af71d5f",
+      "size": 23622,
+      "source_path": "src/tasks/LocalAgentTask/LocalAgentTask.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/AgentTool/resumeAgent.ts",
+      "sha256": "3bb835c4ad5bce70eeaa82b803bbc19bce8059a3155e1474fa2ec3b4515d453e",
+      "size": 9339,
+      "source_path": "src/tools/AgentTool/resumeAgent.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/AgentTool/runAgent.ts",
+      "sha256": "d47202619ea025eb89c3acd99630710a2d07d1b85ad4e7b613cde38dd1845e0e",
+      "size": 35824,
+      "source_path": "src/tools/AgentTool/runAgent.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/ListMcpResourcesTool/ListMcpResourcesTool.ts",
+      "sha256": "18f2cd951d8de93a9f7cbfd1a78b679fc8d3a2700565529801369693dba04467",
+      "size": 3907,
+      "source_path": "src/tools/ListMcpResourcesTool/ListMcpResourcesTool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/ListMcpResourcesTool/prompt.ts",
+      "sha256": "cb13d4c8e22eb56257970e14b5cdfd9b46d7db1491ca107dde56f13e77c484fc",
+      "size": 776,
+      "source_path": "src/tools/ListMcpResourcesTool/prompt.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/MCPTool/MCPTool.ts",
+      "sha256": "e8c8695f9109ed02790d3ab66c247736a9fc5fe6b8f6b6ebf35385a55fe52228",
+      "size": 2170,
+      "source_path": "src/tools/MCPTool/MCPTool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/MCPTool/classifyForCollapse.ts",
+      "sha256": "2c5c063918240ecb778e02e5a8db57390ad925f0b2b95242690047922c39be5e",
+      "size": 15178,
+      "source_path": "src/tools/MCPTool/classifyForCollapse.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/MCPTool/prompt.ts",
+      "sha256": "cf108697cf0b5f6bc5ec038764df13411916b23c64ef96ae005095b0d355946c",
+      "size": 119,
+      "source_path": "src/tools/MCPTool/prompt.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/McpAuthTool/McpAuthTool.ts",
+      "sha256": "08974252d03060e2cc3e70a180a58e341bf31ca0e1d400a6874cec54a6fd15ff",
+      "size": 7873,
+      "source_path": "src/tools/McpAuthTool/McpAuthTool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/ReadMcpResourceTool/ReadMcpResourceTool.ts",
+      "sha256": "a4155489a2d6c2ce218673358e92dd305bed1b3ed4330768e2b4704edd0d3c97",
+      "size": 4654,
+      "source_path": "src/tools/ReadMcpResourceTool/ReadMcpResourceTool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/ReadMcpResourceTool/prompt.ts",
+      "sha256": "1a62620b9e9cf1f4ac8b728e8e446a1f6e34b4b0089e427772e4903ab2a80430",
+      "size": 544,
+      "source_path": "src/tools/ReadMcpResourceTool/prompt.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/SkillTool/SkillTool.ts",
+      "sha256": "5bc970cdd5641f24bbbbc4a42aa1cca638a54f31da901c127e54db47fc0609f1",
+      "size": 38271,
+      "source_path": "src/tools/SkillTool/SkillTool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/attachments.ts",
+      "sha256": "aff972d4583368046aacc150f02cbb6d951f08fad68f627d6a286f5997078a12",
+      "size": 127634,
+      "source_path": "src/utils/attachments.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/handlePromptSubmit.ts",
+      "sha256": "3cd8b139562101de37004693bd4bf59fdb270ad57c4ec17cce79cf2d8d31541e",
+      "size": 21712,
+      "source_path": "src/utils/handlePromptSubmit.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/mcpInstructionsDelta.ts",
+      "sha256": "480895e5591cdf059f59c2f9489f368e17226f695cce82627b97977fb82d8eec",
+      "size": 4770,
+      "source_path": "src/utils/mcpInstructionsDelta.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/mcpOutputStorage.ts",
+      "sha256": "3052655e8100da88f2acea7fc508a9cb71e196ffb73388fa25750432eeab6905",
+      "size": 7086,
+      "source_path": "src/utils/mcpOutputStorage.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/mcpValidation.ts",
+      "sha256": "23e852293ed44433e623d6be7ed2daf89d0c8ca5ac7eb96855103a38601794a2",
+      "size": 6300,
+      "source_path": "src/utils/mcpValidation.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/mcpWebSocketTransport.ts",
+      "sha256": "440e755b68b543304fde73dc0c52e818a4d4953c8fdc8fb0660992aec807861d",
+      "size": 6052,
+      "source_path": "src/utils/mcpWebSocketTransport.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/messageQueueManager.ts",
+      "sha256": "f3f9ff57032e2ca9aee905a2f7d5d1a114d01109e45fc034f6d0d675ab1af67b",
+      "size": 16572,
+      "source_path": "src/utils/messageQueueManager.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/permissions/permissions.ts",
+      "sha256": "d870af05ed74be1972dada45dbc5326c29e2129b72a9792fe97c8e29f0a6618e",
+      "size": 52210,
+      "source_path": "src/utils/permissions/permissions.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/plugins/loadPluginHooks.ts",
+      "sha256": "85e228a2df7783ed982587f735b30ea9f2916e0d9e64c9ac4a95347ef92b8bfb",
+      "size": 10066,
+      "source_path": "src/utils/plugins/loadPluginHooks.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/sessionRestore.ts",
+      "sha256": "f62c8f2beb572619d483f80d94369b9a2ea41362c0f7a0e2d25cf3d5b6b7254f",
+      "size": 20417,
+      "source_path": "src/utils/sessionRestore.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/toolResultStorage.ts",
+      "sha256": "db2bf39064319eefccebf49cf5c4521b42a13bc63caf2c57b21113f6204e6bcd",
+      "size": 38384,
+      "source_path": "src/utils/toolResultStorage.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/utils/worktree.ts",
+      "sha256": "2919ba19fa43711f911e027a3f488c60ffc166d6ca6be38235b668a8ac700c29",
+      "size": 50004,
+      "source_path": "src/utils/worktree.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "source_graph",
+      "path": "docs/milestones/source-graph-realignment-2026-07-08.md",
+      "sha256": "a8abba394270ad543b6b21c05cb0551c67cb0227c5a7d30b103450b9c82bc71c",
+      "size": 36118
+    },
+    {
+      "category": "repository_license",
+      "path": "hermes-agent/LICENSE",
+      "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+      "size": 1070,
+      "source_path": "LICENSE",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "repository_source",
+      "path": "hermes-agent/gateway/run.py",
+      "sha256": "7f7b93e6f777213c31cebccdb82f006debd4254ca34a1cd1eafc4740eb73b96d",
+      "size": 921481,
+      "source_path": "gateway/run.py",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "repository_source",
+      "path": "hermes-agent/mcp_serve.py",
+      "sha256": "bb5adbd1065f3cf26023c0deb84384a62df4a4e4dd54989f9ee4cb3a79163268",
+      "size": 32083,
+      "source_path": "mcp_serve.py",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "repository_source",
+      "path": "hermes-agent/tools/mcp_oauth.py",
+      "sha256": "132cebe691c284a221ec90b65c6338adc490578a56291f8eceb78c386ed02319",
+      "size": 34037,
+      "source_path": "tools/mcp_oauth.py",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "repository_source",
+      "path": "hermes-agent/tools/mcp_oauth_manager.py",
+      "sha256": "087a55918a259d2a81361dc813b11720770f4c45256bd2b8784704911857e98c",
+      "size": 32064,
+      "source_path": "tools/mcp_oauth_manager.py",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "repository_source",
+      "path": "hermes-agent/tools/mcp_tool.py",
+      "sha256": "379b7b15cbc9b5d87757ea6600153972558982439d48d12ff3b9d247a22404fd",
+      "size": 212148,
+      "source_path": "tools/mcp_tool.py",
+      "source_repository": "hermes-agent"
+    },
+    {
+      "category": "loopx_git_object",
+      "path": "loopx/7232dca45ec2.commit-object",
+      "sha256": "e55dc4de2c6aeb9a74d3e64a6970fe2332d239ccc25528697d851e610ffcde9b",
+      "size": 1062
+    },
+    {
+      "category": "loopx_source_archive",
+      "path": "loopx/loopx-v0.2.13.tar.gz",
+      "sha256": "065dd191648a23a89906775b33578fd36442445bfb1bcd75b36af776a28478e9",
+      "size": 10387294
+    },
+    {
+      "category": "loopx_git_object",
+      "path": "loopx/v0.2.13.tag-object",
+      "sha256": "03ea860c383c807425d2fa8852bd80f2fa6a45a5d302989ac534f9a01ae9928c",
+      "size": 141
+    },
+    {
+      "category": "repository_license",
+      "path": "oh-my-pi/LICENSE",
+      "sha256": "545636e19386d3d4e0ae6d77354527499999c3ebfbca61b9fa5aa4ead7c0b308",
+      "size": 1106,
+      "source_path": "LICENSE",
+      "source_repository": "oh-my-pi"
+    },
+    {
+      "category": "repository_source",
+      "path": "oh-my-pi/packages/coding-agent/src/jsonrpc/message-framing.ts",
+      "sha256": "1ebbbc1b0e24fa76967a08bf43222fb6dcba0c26e2fe0c5bcef56b3f98124c3c",
+      "size": 4813,
+      "source_path": "packages/coding-agent/src/jsonrpc/message-framing.ts",
+      "source_repository": "oh-my-pi"
+    },
+    {
+      "category": "repository_source",
+      "path": "oh-my-pi/packages/coding-agent/src/modes/acp/acp-client-bridge.ts",
+      "sha256": "6d75438e1830e52270629f4296d64651542364d3dbfb478797aa62898e7d4e84",
+      "size": 4802,
+      "source_path": "packages/coding-agent/src/modes/acp/acp-client-bridge.ts",
+      "source_repository": "oh-my-pi"
+    },
+    {
+      "category": "repository_source",
+      "path": "oh-my-pi/packages/coding-agent/src/modes/rpc/rpc-types.ts",
+      "sha256": "b27f21b2a4d6c66cacf49b48537d0684e86354c774c5691664e63386a059787e",
+      "size": 17008,
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts",
+      "source_repository": "oh-my-pi"
+    },
+    {
+      "category": "repository_license",
+      "path": "opencode/LICENSE",
+      "sha256": "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b",
+      "size": 1065,
+      "source_path": "LICENSE",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/components/prompt-input.tsx",
+      "sha256": "687d511f6f57b3b2407ee68f5ccc62e6bf336afb501be2c318d781f9f52255a2",
+      "size": 80861,
+      "source_path": "packages/app/src/components/prompt-input.tsx",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/components/prompt-input/history.ts",
+      "sha256": "5bcbd63523f07a60395d0d9777588c4fcf084b147bf4ff8e22c52953d3e44feb",
+      "size": 7522,
+      "source_path": "packages/app/src/components/prompt-input/history.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/components/prompt-input/slash-popover.tsx",
+      "sha256": "4d21e29dc6db85f77dd7af1cca8c735adc5c30fb5964d8893c958c27cccf0aa7",
+      "size": 16433,
+      "source_path": "packages/app/src/components/prompt-input/slash-popover.tsx",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/components/prompt-input/submission-state.ts",
+      "sha256": "a014ae606c4116b52687b2ca88f18a79b719f8054e161cc4762605aac4be839a",
+      "size": 939,
+      "source_path": "packages/app/src/components/prompt-input/submission-state.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/components/prompt-input/submit.ts",
+      "sha256": "2e2db6d2837528268860f1b48faf0ff1ec63f89dd757bed890c411e5f00cec53",
+      "size": 18060,
+      "source_path": "packages/app/src/components/prompt-input/submit.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/global-sync/child-store.ts",
+      "sha256": "f755bd48907389593164ed18171b32a50c15b95187d03ebda0e2e5dd0ba1962b",
+      "size": 12391,
+      "source_path": "packages/app/src/context/global-sync/child-store.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/global-sync/event-reducer.ts",
+      "sha256": "df81c15e205072712f1ec10cafe593df136f9468c1949ddb2fb5988a896245d5",
+      "size": 13721,
+      "source_path": "packages/app/src/context/global-sync/event-reducer.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/global-sync/session-cache.ts",
+      "sha256": "73b3c0b562654d21849e8745dcd04f158fce3e014b8ea7eb819e3e8a25ee1273",
+      "size": 1943,
+      "source_path": "packages/app/src/context/global-sync/session-cache.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/global-sync/session-trim.ts",
+      "sha256": "e1466014f94d2c3cd3d2e494a7dad1bb54186e1ce88e407b9bb45325a45c7aa6",
+      "size": 2206,
+      "source_path": "packages/app/src/context/global-sync/session-trim.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/layout.tsx",
+      "sha256": "c9d62771b6621cf5c11de7c99ea6eb4c18a8bf6967563482ac8abfe604f24f80",
+      "size": 34297,
+      "source_path": "packages/app/src/context/layout.tsx",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/server-sdk.tsx",
+      "sha256": "565d2e26af3576610aa237583dc908348e3cb74c95dcaed1a80092f10f7852d7",
+      "size": 10480,
+      "source_path": "packages/app/src/context/server-sdk.tsx",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/server-session.ts",
+      "sha256": "650e991cc6a9e50d4a409737ee303e3680ca2cfbfb83ca60901a737f68d0e884",
+      "size": 47643,
+      "source_path": "packages/app/src/context/server-session.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/context/server-sync.tsx",
+      "sha256": "c9b3baa3be91e8a7973ff35b0650cc826ff04c983c15e3cbd6268d86c47fc96e",
+      "size": 18216,
+      "source_path": "packages/app/src/context/server-sync.tsx",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/app/src/utils/session-route.ts",
+      "sha256": "db2947bd7f84732a7ce4085c321d782464c51ef6154c982633ef1e010683ccca",
+      "size": 1487,
+      "source_path": "packages/app/src/utils/session-route.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/core/src/config.ts",
+      "sha256": "6f6b9f1d325cc607f028d55dfb57e0db48421b82b008703e32b6f2f0b6e4a08c",
+      "size": 9624,
+      "source_path": "packages/core/src/config.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/core/src/id/id.ts",
+      "sha256": "d16dedfa7c10fbc95b8dc56ca745c4439e61a43621ddc409e0c2c0cd825d2783",
+      "size": 1393,
+      "source_path": "packages/core/src/id/id.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/core/src/util/retry.ts",
+      "sha256": "2baa6c91e82e33ac7c8ac9d996873424475fa104339a0dfe8e1042c1cddb6c3a",
+      "size": 1290,
+      "source_path": "packages/core/src/util/retry.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/auth.ts",
+      "sha256": "31fd4d42f8a93af80da830dcf0f9e819c9046f017db4f7669a33f042650078ee",
+      "size": 6506,
+      "source_path": "packages/opencode/src/mcp/auth.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/browser.ts",
+      "sha256": "b9204c16933a90f503bf2c28b76515b3cf4e5cacf65cd0d97848ccccee1f1a21",
+      "size": 1227,
+      "source_path": "packages/opencode/src/mcp/browser.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/catalog.ts",
+      "sha256": "1123ce304cd647e0945aa98743f411a69988f6dde63867aea78b74c72a5abe11",
+      "size": 5834,
+      "source_path": "packages/opencode/src/mcp/catalog.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/index.ts",
+      "sha256": "82c459309dfd005d25daecfabc1007d807d4bee23f6078434974277938a1c026",
+      "size": 37745,
+      "source_path": "packages/opencode/src/mcp/index.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/oauth-callback.ts",
+      "sha256": "81bb1d7960c67bd7e8ddf663d9b2c52591daa5245639ac35f818853cdb2f8e1d",
+      "size": 5828,
+      "source_path": "packages/opencode/src/mcp/oauth-callback.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/mcp/oauth-provider.ts",
+      "sha256": "daca068096c3a19068dbf1ab9b2ffe02e8611f235bf6b92cebfe7ab4ca1295bd",
+      "size": 8448,
+      "source_path": "packages/opencode/src/mcp/oauth-provider.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/opencode/src/session/tools.ts",
+      "sha256": "ec76a577f6f68d44c6202dcd3fae1d3b859c8a3bda603939364048ce033be095",
+      "size": 23424,
+      "source_path": "packages/opencode/src/session/tools.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/api.ts",
+      "sha256": "8cfc19f3d28da6ae6c9c23e1da6a754b08d8721b3dcb4020d150ec1ce9e28dea",
+      "size": 3966,
+      "source_path": "packages/protocol/src/api.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/errors.ts",
+      "sha256": "728e6410fa28cae9b76f50c5e5c9e94d86e2841c498956bbbc873210d298b2a7",
+      "size": 2784,
+      "source_path": "packages/protocol/src/errors.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/groups/event.ts",
+      "sha256": "93fd805e4a32cbd046bf2c03808aa9847ed11604b9f5a1b96334769dc0f294b3",
+      "size": 2260,
+      "source_path": "packages/protocol/src/groups/event.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/groups/health.ts",
+      "sha256": "f05ae84ea14b315a97f7df0fcb13916a0bee27ed088d47e811d023a00c66eff5",
+      "size": 511,
+      "source_path": "packages/protocol/src/groups/health.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/groups/session.ts",
+      "sha256": "43fcd8f64714d839dc3e2ee9d32e9f22a228e558b06716deb6a6485bf3c0825a",
+      "size": 14888,
+      "source_path": "packages/protocol/src/groups/session.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/middleware/authorization.ts",
+      "sha256": "ed00e20450c60228c8f340dea88e88a334aa8b612cc9c417d854b6dcca084a1b",
+      "size": 255,
+      "source_path": "packages/protocol/src/middleware/authorization.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "repository_source",
+      "path": "opencode/packages/protocol/src/middleware/schema-error.ts",
+      "sha256": "2e132d712094e6743b960da127511445d40f864921011643f65df9b3c4cbb5b6",
+      "size": 277,
+      "source_path": "packages/protocol/src/middleware/schema-error.ts",
+      "source_repository": "opencode"
+    },
+    {
+      "category": "phase2_analysis",
+      "path": "phase2-analysis/ARG-Designer.md",
+      "sha256": "27a054eb4c5d6318ee366388621c65e7e389326fa441b270f266b0cb2e3162c8",
+      "size": 39540
+    },
+    {
+      "category": "phase2_analysis",
+      "path": "phase2-analysis/AgentPrune.md",
+      "sha256": "414788cbfaefba2754a8ff4c5cf38de712ae647d4d5a19bbf92903bf680bd2e9",
+      "size": 25210
+    },
+    {
+      "category": "phase2_analysis",
+      "path": "phase2-analysis/CARD.md",
+      "sha256": "0f9dc928deb12f10caefa9316a08f3db413fd906759ed35d9efbfe4ac4efbf19",
+      "size": 40286
+    },
+    {
+      "category": "phase2_analysis",
+      "path": "phase2-analysis/LoopX.md",
+      "sha256": "d1aab5a28505abf4511fd70a10db9b0665d1f268a154909d48de5a65a134c1c8",
+      "size": 45461
+    },
+    {
+      "category": "phase2_analysis",
+      "path": "phase2-analysis/MaAS.md",
+      "sha256": "66e00be56fb6a7001af09f3f98fc8254f60ae56306dd70cb5d172a0aed69d6e0",
+      "size": 34413
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md",
+      "sha256": "e3eda5a639268c939c6b8a082253c4f23939d4361600ee0cc41665504df6c412",
+      "size": 12593
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md",
+      "sha256": "2dbf8f0eb36c325a03e6fef048be13f6fbd896a9fa47e4d6ec19d318d5cd973e",
+      "size": 28576
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md",
+      "sha256": "8b4d99290f2a5274b7a236d781b0b9cce3dd87f684a6ff29b3f01fc68b98d14e",
+      "size": 29711
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/claude-code-best/source-graph.md",
+      "sha256": "287a41856a3d68d9f7b6889de4810601427cfb45c82cca7a08d954e68a5415e8",
+      "size": 33124
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md",
+      "sha256": "67bdadd439639e3a96c69b137727a0b2acc7d72ed1ed101118c95203934777b3",
+      "size": 28707
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/langgraph/source-graph.md",
+      "sha256": "c4621b2b739edfaf0b64b0e28f49fe1a30772fccdb115020545ff9e0f8e3b459",
+      "size": 56920
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/oh-my-pi/source-to-target.md",
+      "sha256": "29724579493c2a0aff685b6cc29d92ccb42e9927a316ab8291ae2d37f6b974f2",
+      "size": 8004
+    },
+    {
+      "category": "source_graph",
+      "path": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md",
+      "sha256": "fd2ad9054620e6506afaf2c3456a8e70edac3482b9927b169f4393e5c36b30b0",
+      "size": 5551
+    }
+  ],
+  "loopx": {
+    "archive": "loopx/loopx-v0.2.13.tar.gz",
+    "commit": "7232dca45ec2ca996edc43b2d3558edc802c844e",
+    "commit_object_path": "loopx/7232dca45ec2.commit-object",
+    "tag": "v0.2.13",
+    "tag_object": "a2c072d412d90839132e1cf39c23dd431c394175",
+    "tag_object_path": "loopx/v0.2.13.tag-object",
+    "version": "0.2.13"
+  },
+  "repositories": {
+    "OpenHands": {
+      "commit": "c105a82387898e744423c8831d412e26495b38a9",
+      "license": "MIT (non-enterprise paths)",
+      "license_path": "LICENSE"
+    },
+    "agent-framework": {
+      "commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
+      "license": "MIT",
+      "license_path": "LICENSE"
+    },
+    "agentscope": {
+      "commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "license": "Apache-2.0",
+      "license_path": "LICENSE"
+    },
+    "claude-code-best": {
+      "commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+      "license": "USER-AUTHORIZED-PROJECT-REUSE",
+      "license_path": ""
+    },
+    "hermes-agent": {
+      "commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "license": "MIT",
+      "license_path": "LICENSE"
+    },
+    "oh-my-pi": {
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "license": "MIT",
+      "license_path": "LICENSE"
+    },
+    "opencode": {
+      "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "license": "MIT",
+      "license_path": "LICENSE"
+    }
+  },
+  "schema": "zyra.source-provenance/v1"
+}

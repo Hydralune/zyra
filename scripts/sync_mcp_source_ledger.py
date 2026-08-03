@@ -63,11 +63,11 @@ MCP_EVENTS = [
     "mcp_tool_result",
 ]
 SOURCE_GRAPH_REFS = {
-    "claude-code-best": "source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md",
-    "agent-framework": "source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md",
-    "opencode": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md",
-    "agentscope": "source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md",
-    "hermes-agent": "source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md",
+    "claude-code-best": "provenance/source-graphs/claude-code-best/batch-05-mcp-runtime-tools-auth.md",
+    "agent-framework": "provenance/source-graphs/agent-framework/batch-02-tools-skills-mcp-middleware.md",
+    "opencode": "provenance/source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md",
+    "agentscope": "provenance/source-graphs/agentscope/batch-04-mcp-workspace-gateway-security.md",
+    "hermes-agent": "provenance/source-graphs/hermes-agent/batch-08-plugins-providers-mcp-acp-source-verdict.md",
 }
 SOURCE_AUDIT_TEST = "tests/unit/test_mcp_source_audit.py"
 

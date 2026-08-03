@@ -3153,7 +3153,7 @@ def get_m1_hardening_api() -> M1HardeningApi:
         if _M1_HARDENING_API_INSTANCE is None or _M1_HARDENING_API_KEY != key:
             service = M1HardeningService(
                 PROJECT_ROOT,
-                source_workspace=PROJECT_ROOT.parent,
+                source_workspace=PROJECT_ROOT / "provenance",
                 artifact_root=hardening_root,
             )
             _M1_HARDENING_API_INSTANCE = M1HardeningApi(
@@ -3161,7 +3161,7 @@ def get_m1_hardening_api() -> M1HardeningApi:
                 default_baseline="8065bac109a3bed9ba01e0e92392fec4d05bfca3",
                 integration_service=M1IntegrationService(
                     PROJECT_ROOT,
-                    source_workspace=PROJECT_ROOT.parent,
+                    source_workspace=PROJECT_ROOT / "provenance",
                     artifact_root=hardening_root,
                     foundation_service=service,
                     reset_registry=m1_owner_probe_reset_registry(),

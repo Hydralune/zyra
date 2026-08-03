@@ -38,7 +38,7 @@ def build_payload(*, artifact_root: Path | None = None, clean_source: bool = Fal
     worker = ClaudeProductizationFoundationWorker(
         project_root=ROOT,
         artifact_root=artifact_root,
-        source_workspace_root=ROOT.parent,
+        source_workspace_root=ROOT / "provenance",
     )
     run = worker.run()
     assert_foundation_ready(run.probe_result)

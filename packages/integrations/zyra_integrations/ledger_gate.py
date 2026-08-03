@@ -119,7 +119,11 @@ def build_completion_gate_report(
     matrix = build_unit_matrix(ledger)
     policy_matrix = build_policy_matrix_report(ledger, owner_unit=owner_unit)
     source_scan = (
-        build_source_scan_report(project_root, source_root or project_root.parent, ledger)
+        build_source_scan_report(
+            project_root,
+            source_root or project_root / "provenance",
+            ledger,
+        )
         if include_source_scan
         else None
     )

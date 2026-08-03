@@ -235,7 +235,9 @@ def build_m1_01b_lineage_report(
     plan: ExtractionPlan | None = None,
 ) -> SourceTargetLineageReport:
     root = Path(project_root).resolve()
-    source_root = Path(source_workspace_root or root.parent).resolve()
+    source_root = Path(
+        source_workspace_root or root / "provenance"
+    ).resolve()
     active_plan = plan or claude_code_m1_01b_plan(project_root=root, source_workspace_root=source_root, dry_run=True)
     active_ledger = ledger or load_project_ledger(root, bootstrap=True)
     entries = active_ledger.by_owner_unit("M1-01B")
