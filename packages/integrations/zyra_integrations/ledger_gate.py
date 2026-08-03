@@ -345,8 +345,8 @@ def _source_scan_gate_findings(report: SourceScanReport) -> list[GateFinding]:
             GateFinding(
                 code=GateCode.SOURCE_EVIDENCE_MISSING,
                 severity=GateSeverity.WARNING,
-                message=f"{report.missing_source_count} source evidence paths were not found under source_root.",
-                remediation="Refresh source evidence with the source mapper, or explain why the source path is conceptual.",
+                message=f"{report.missing_source_count} source evidence identities could not be verified from source_root or bundled provenance.",
+                remediation="Refresh the integrity-checked provenance identity index, or explain why the source path is conceptual.",
                 metadata={"missing_source_count": report.missing_source_count},
             )
         )

@@ -377,12 +377,24 @@ class M1InternalizationGate:
         project_root: str | Path,
         *,
         source_workspace: str | Path | None = None,
+        external_workspace_roots: Iterable[str | Path] | None = None,
     ) -> None:
         self.root = Path(project_root).resolve()
         self.source_workspace = (
             Path(source_workspace).resolve()
             if source_workspace
             else self.root / "provenance"
+        )
+        default_external_roots = [self.root.parent]
+        if not self.source_workspace.is_relative_to(self.root):
+            default_external_roots.append(self.source_workspace)
+        self.external_workspace_roots = tuple(
+            Path(path).resolve()
+            for path in (
+                external_workspace_roots
+                if external_workspace_roots is not None
+                else default_external_roots
+            )
         )
 
     def evaluate(
@@ -432,6 +444,9 @@ class M1InternalizationGate:
                 "process_values": process_values,
                 "external_resolved_paths": external_paths,
                 "source_workspace": str(self.source_workspace),
+                "external_workspace_roots": [
+                    str(path) for path in self.external_workspace_roots
+                ],
                 "references": [reference.to_dict() for reference in references],
             }
         )
@@ -481,7 +496,10 @@ class M1InternalizationGate:
                 )
             if reference.resolved_path and not self._inside_project(reference.resolved_path):
                 resolved = Path(reference.resolved_path)
-                if self.source_workspace in resolved.parents or resolved == self.source_workspace:
+                if any(
+                    workspace == resolved or workspace in resolved.parents
+                    for workspace in self.external_workspace_roots
+                ):
                     findings.append(
                         Finding(
                             code="internalization.workspace_external_path",

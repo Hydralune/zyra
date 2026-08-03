@@ -35,6 +35,8 @@ SOURCE_REPOSITORIES = [
 SCANNED_SUFFIXES = {
     ".bat",
     ".cmd",
+    ".css",
+    ".html",
     ".js",
     ".json",
     ".jsx",
@@ -70,9 +72,16 @@ IGNORED_FILENAMES = {
 }
 
 _TEXT_RUNTIME_CALL = re.compile(
-    r"\b(?:Path|open|readFile|readFileSync|require|import|spawn|exec|chdir|cwd)\b",
+    r"\b(?:Path|open|readFile|readFileSync|require|import|spawn|exec|chdir|cwd)\b"
+    r"|\b[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\(",
     re.IGNORECASE,
 )
+_TEXT_POLICY_DECLARATION = re.compile(
+    r"\b(?:forbidden_runtime|forbidden_paths?|forbidden_repositories|forbidden\s+of)\b",
+    re.IGNORECASE,
+)
+_DECLARATIVE_SUFFIXES = {".css", ".html", ".json", ".toml", ".yaml", ".yml"}
+_SHELL_SUFFIXES = {".bat", ".cmd", ".ps1", ".sh"}
 
 
 def iter_scanned_files(root: Path = ROOT) -> list[Path]:
@@ -83,7 +92,10 @@ def iter_scanned_files(root: Path = ROOT) -> list[Path]:
         base = Path(directory)
         for name in sorted(filenames):
             path = base / name
-            if name in IGNORED_FILENAMES or path.suffix not in SCANNED_SUFFIXES:
+            if (
+                name in IGNORED_FILENAMES
+                or path.suffix.casefold() not in SCANNED_SUFFIXES
+            ):
                 continue
             files.append(path)
     return files
@@ -120,23 +132,6 @@ class PythonRuntimePathVisitor(ast.NodeVisitor):
         "search",
         "startswith",
     }
-    _RUNTIME_CALLS = {
-        "Path",
-        "call",
-        "check_call",
-        "check_output",
-        "chdir",
-        "exec",
-        "execute",
-        "open",
-        "Popen",
-        "read_bytes",
-        "read_text",
-        "run",
-        "spawn",
-        "write_bytes",
-        "write_text",
-    }
     _TEST_DATA_CALLS = {
         "assertEqual",
         "assertIn",
@@ -145,6 +140,22 @@ class PythonRuntimePathVisitor(ast.NodeVisitor):
         "write_bytes",
         "write_text",
     }
+    _AUDIT_RUNTIME_CALL_MARKERS = (
+        "path",
+        "open",
+        "read",
+        "write",
+        "load",
+        "import",
+        "require",
+        "spawn",
+        "exec",
+        "run",
+        "chdir",
+        "copy",
+        "move",
+        "install",
+    )
 
     def __init__(
         self,
@@ -163,7 +174,27 @@ class PythonRuntimePathVisitor(ast.NodeVisitor):
 
     @property
     def _is_test_source(self) -> bool:
-        return self.source_path is not None and "tests" in self.source_path.parts
+        return self.source_path is not None and "tests" in {
+            part.casefold() for part in self.source_path.parts
+        }
+
+    @property
+    def _is_audit_source(self) -> bool:
+        if self.source_path is None:
+            return False
+        parts = {part.casefold() for part in self.source_path.parts}
+        return bool(parts & {"tests", "remediation"})
+
+    def _audit_call_may_execute_dependency(self, call_name: str) -> bool:
+        lowered = call_name.casefold()
+        if (
+            lowered.startswith("assert")
+            or lowered.startswith("_contains")
+            or "fragment" in lowered
+            or lowered in {"classify_path", "rehearsalcommand"}
+        ):
+            return False
+        return any(marker in lowered for marker in self._AUDIT_RUNTIME_CALL_MARKERS)
 
     def visit_Assign(self, node: ast.Assign) -> None:
         value = self._literal(node.value)
@@ -181,11 +212,13 @@ class PythonRuntimePathVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         call_name = self._qualified(node.func).rsplit(".", 1)[-1]
-        if call_name in self._INSPECTION_CALLS:
-            return
-        if self._is_test_source and call_name in self._TEST_DATA_CALLS:
-            return
-        if call_name in self._RUNTIME_CALLS:
+        inspection_only = call_name in self._INSPECTION_CALLS
+        test_data_only = self._is_test_source and call_name in self._TEST_DATA_CALLS
+        audit_runtime_call = (
+            not self._is_audit_source
+            or self._audit_call_may_execute_dependency(call_name)
+        )
+        if not inspection_only and not test_data_only and audit_runtime_call:
             receiver = (
                 (node.func.value,)
                 if isinstance(node.func, ast.Attribute)
@@ -292,7 +325,8 @@ def verify_submission_boundary(
     for path in iter_scanned_files(root):
         text = path.read_text(encoding="utf-8", errors="ignore")
         relative = path.relative_to(root)
-        if path.suffix == ".py":
+        suffix = path.suffix.casefold()
+        if suffix == ".py":
             try:
                 tree = ast.parse(text, filename=str(relative))
             except SyntaxError as error:
@@ -313,7 +347,13 @@ def verify_submission_boundary(
                 )
             continue
         for line_number, line in enumerate(text.splitlines(), start=1):
-            if _TEXT_RUNTIME_CALL.search(line) is None:
+            policy_declaration = _TEXT_POLICY_DECLARATION.search(line) is not None
+            executable_text = (
+                suffix in _DECLARATIVE_SUFFIXES
+                or suffix in _SHELL_SUFFIXES
+                or _TEXT_RUNTIME_CALL.search(line) is not None
+            )
+            if policy_declaration or not executable_text:
                 continue
             normalized = line.replace("\\", "/").lower()
             for fragment in fragments:

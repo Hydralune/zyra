@@ -11,6 +11,7 @@ from typing import Any, Iterable
 from .ledger_models import InternalizationLedgerEntry, SourceEvidence, to_jsonable
 from .ledger_policy import ALLOWED_SOURCE_REPOS, classify_path, normalize_repo_path
 from .ledger_store import InternalizationLedger
+from .source_provenance import BundledSourceProvenance
 
 
 FORBIDDEN_LITERAL_PATTERNS = [
@@ -78,6 +79,9 @@ class SourcePathVerification:
     reason: str = ""
     symbols: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    identity_verified: bool = False
+    verification_method: str = "missing"
+    provenance_path: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return to_jsonable(self)
@@ -119,6 +123,9 @@ class SourceScanReport:
     missing_source_count: int = 0
     missing_target_count: int = 0
     unverified_evidence_count: int = 0
+    filesystem_source_count: int = 0
+    provenance_identity_count: int = 0
+    identity_verified_source_count: int = 0
 
     @property
     def ok(self) -> bool:
@@ -130,7 +137,12 @@ class SourceScanReport:
         return payload
 
 
-def verify_source_evidence(source_root: Path, entry: InternalizationLedgerEntry) -> list[SourcePathVerification]:
+def verify_source_evidence(
+    source_root: Path,
+    entry: InternalizationLedgerEntry,
+    *,
+    provenance: BundledSourceProvenance | None = None,
+) -> list[SourcePathVerification]:
     evidence_items = entry.source_evidence or [
         SourceEvidence(
             source_repo=entry.source_repo,
@@ -145,6 +157,12 @@ def verify_source_evidence(source_root: Path, entry: InternalizationLedgerEntry)
         source_path = evidence.source_path or entry.source_path
         absolute = source_root / source_repo / normalize_repo_path(source_path)
         exists = absolute.exists()
+        identity = (
+            provenance.source_identity(source_repo, source_path)
+            if provenance is not None and not exists
+            else None
+        )
+        identity_verified = exists or identity is not None
         verifications.append(
             SourcePathVerification(
                 source_repo=source_repo,
@@ -155,6 +173,19 @@ def verify_source_evidence(source_root: Path, entry: InternalizationLedgerEntry)
                 reason=evidence.reason,
                 symbols=list(evidence.symbols),
                 tags=list(evidence.tags),
+                identity_verified=identity_verified,
+                verification_method=(
+                    "filesystem"
+                    if exists
+                    else str(identity.get("method") or "missing")
+                    if identity is not None
+                    else "missing"
+                ),
+                provenance_path=(
+                    str(identity.get("provenance_path") or "")
+                    if identity is not None
+                    else ""
+                ),
             )
         )
     return verifications
@@ -194,9 +225,20 @@ def build_source_scan_report(
     *,
     include_tests: bool = False,
 ) -> SourceScanReport:
+    provenance: BundledSourceProvenance | None = None
+    bundled = BundledSourceProvenance(project_root)
+    if source_root.resolve() == bundled.root.resolve():
+        bundled.verify()
+        provenance = bundled
     source_verifications: list[SourcePathVerification] = []
     for entry in ledger.entries():
-        source_verifications.extend(verify_source_evidence(source_root, entry))
+        source_verifications.extend(
+            verify_source_evidence(
+                source_root,
+                entry,
+                provenance=provenance,
+            )
+        )
     target_verifications = verify_target_paths(project_root, ledger)
     scannable_files = list(
         iter_scannable_files(project_root, include_tests=include_tests)
@@ -205,7 +247,9 @@ def build_source_scan_report(
         project_root,
         scannable_files,
     )
-    missing_source_count = sum(1 for item in source_verifications if not item.exists_in_workspace)
+    missing_source_count = sum(
+        1 for item in source_verifications if not item.identity_verified
+    )
     missing_target_count = sum(1 for item in target_verifications if not item.exists_in_project)
     unverified_evidence_count = sum(1 for item in source_verifications if not item.reason and not item.symbols and not item.tags)
     return SourceScanReport(
@@ -218,6 +262,16 @@ def build_source_scan_report(
         missing_source_count=missing_source_count,
         missing_target_count=missing_target_count,
         unverified_evidence_count=unverified_evidence_count,
+        filesystem_source_count=sum(
+            item.exists_in_workspace for item in source_verifications
+        ),
+        provenance_identity_count=sum(
+            item.identity_verified and not item.exists_in_workspace
+            for item in source_verifications
+        ),
+        identity_verified_source_count=sum(
+            item.identity_verified for item in source_verifications
+        ),
     )
 
 

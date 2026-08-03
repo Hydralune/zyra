@@ -8,6 +8,7 @@ from zyra_evaluation.m1_hardening.contracts import GateStatus
 from zyra_evaluation.m1_hardening.coverage import SourceToTargetCoverageReport
 from zyra_evaluation.m1_hardening.custody import M1StateCustodyMap
 from zyra_evaluation.m1_hardening.disable import DisableModuleProbe, FunctionDisableProbe
+from zyra_evaluation.m1_hardening.dependency import M1InternalizationGate
 from zyra_evaluation.m1_hardening.evidence_graph import CausalEvidenceGraphGate
 from zyra_evaluation.m1_hardening.langgraph import LangGraphBoundaryGate
 from zyra_evaluation.m1_hardening.progress import LongHorizonProgressLedger, transition_event
@@ -17,6 +18,30 @@ from zyra_evaluation.m1_hardening.store import HardeningReportStore, ReportInteg
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_internalization_gate_keeps_external_workspace_detection_separate_from_provenance(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "zyra"
+    package_root = project_root / "packages"
+    package_root.mkdir(parents=True)
+    external = tmp_path / "claude-code-best" / "src"
+    (package_root / "absolute_source.py").write_text(
+        "from pathlib import Path\n"
+        f"SOURCE = Path({str(external)!r})\n",
+        encoding="utf-8",
+    )
+
+    report = M1InternalizationGate(project_root).evaluate(
+        scan_roots=("packages",),
+    )
+
+    assert "internalization.workspace_external_path" in {
+        finding.code for finding in report.findings
+    }
+    assert report.metrics["source_workspace"] == str(project_root / "provenance")
+    assert report.metrics["external_workspace_roots"] == [str(tmp_path)]
 
 
 def test_role_aware_coverage_and_custody_catalog_resolve_real_entries() -> None:

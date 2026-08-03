@@ -101,6 +101,35 @@ AUTHORITY_MANIFESTS = (
     "execution-04-gate-profile.json",
 )
 
+FOUNDATION_PRIMARY_SOURCE_PATHS = (
+    "src/Tool.ts",
+    "src/tools.ts",
+    "src/commands.ts",
+    "src/commands/compact",
+    "src/commands/context",
+    "src/tools/AgentTool/forkSubagent.ts",
+    "src/entrypoints/cli.tsx",
+    "src/commands/doctor",
+)
+
+FOUNDATION_REFERENCE_PATHS = (
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/01-query-engine.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/02-tool-system.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/04-plugin-system.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/07-permission-pipeline.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/08-agent-swarms.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/10-context-assembly.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/11-compact-system.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/13-bridge-system.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/14-ui-state-management.md",
+    "claudecode-related/claude-reviews-claude/architecture/zh-CN/15-services-api-layer.md",
+    "claudecode-related/Dive-into-Claude-Code/docs/build-your-own-agent_zh.md",
+)
+
+LEDGER_IDENTITY_INDEX = (
+    "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json"
+)
+
 LOOPX_TAG = "v0.2.13"
 LOOPX_TAG_OBJECT = "a2c072d412d90839132e1cf39c23dd431c394175"
 LOOPX_COMMIT = "7232dca45ec2ca996edc43b2d3558edc802c844e"
@@ -141,6 +170,33 @@ def _git_object_exists(repository: Path, commit: str, source_path: str) -> bool:
         timeout=120,
     )
     return completed.returncode == 0
+
+
+def _expand_git_paths(
+    repository: Path,
+    commit: str,
+    requested_paths: Sequence[str],
+) -> set[str]:
+    expanded: set[str] = set()
+    for source_path in requested_paths:
+        output = str(
+            _git(
+                repository,
+                "ls-tree",
+                "-r",
+                "--name-only",
+                commit,
+                "--",
+                source_path,
+            )
+        )
+        matches = {line.strip() for line in output.splitlines() if line.strip()}
+        if not matches:
+            raise RuntimeError(
+                f"required provenance source is missing: {repository.name}:{source_path}"
+            )
+        expanded.update(matches)
+    return expanded
 
 
 def _copy(source: Path, destination: Path) -> None:
@@ -244,6 +300,16 @@ def _record(
     return value
 
 
+def _utf8_lf_sha256(path: Path) -> str:
+    normalized = (
+        path.read_text(encoding="utf-8")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .encode("utf-8")
+    )
+    return hashlib.sha256(normalized).hexdigest()
+
+
 def build(*, workspace_root: Path, output_root: Path) -> dict[str, Any]:
     workspace_root = workspace_root.resolve()
     output_root = output_root.resolve()
@@ -285,6 +351,18 @@ def build(*, workspace_root: Path, output_root: Path) -> dict[str, Any]:
         if _git_object_exists(workspace_root / item[0], item[1], item[2])
     )
     requested_sources.update(_e04_recovery_sources(authority_source))
+    requested_sources.update(
+        (
+            "claude-code-best",
+            REPOSITORIES["claude-code-best"]["commit"],
+            source_path,
+        )
+        for source_path in _expand_git_paths(
+            workspace_root / "claude-code-best",
+            REPOSITORIES["claude-code-best"]["commit"],
+            FOUNDATION_PRIMARY_SOURCE_PATHS,
+        )
+    )
     for repository_name, commit, source_path in sorted(requested_sources):
         repository = workspace_root / repository_name
         destination = output_root / repository_name / source_path
@@ -326,6 +404,14 @@ def build(*, workspace_root: Path, output_root: Path) -> dict[str, Any]:
         destination = output_root / "source-graphs" / repository / filename
         _copy(source, destination)
         records.append(_record(output_root, destination, category="source_graph"))
+
+    for relative in FOUNDATION_REFERENCE_PATHS:
+        source = workspace_root.joinpath(*PurePosixPath(relative).parts)
+        destination = output_root.joinpath(*PurePosixPath(relative).parts)
+        _copy(source, destination)
+        records.append(
+            _record(output_root, destination, category="reference_source")
+        )
 
     for relative in LEGACY_SOURCE_GRAPH_INPUTS:
         source = workspace_root.joinpath(*PurePosixPath(relative).parts)
@@ -387,7 +473,8 @@ def build(*, workspace_root: Path, output_root: Path) -> dict[str, Any]:
     readme.write_text(
         "# Zyra bundled source provenance\n\n"
         "This directory is immutable, non-runtime evidence. It contains only the exact "
-        "source files reviewed by Zyra, their source graphs, frozen authority manifests, "
+        "source files reviewed by Zyra, their source graphs, frozen identity indexes, "
+        "frozen authority manifests, "
         "Phase 2 mechanism analyses, and the pinned LoopX source archive. Runtime code must "
         "never import or execute files from this directory. Rebuild it only through "
         "`scripts/build_source_provenance.py --workspace-root <explicit-source-workspace>`.\n",
@@ -399,6 +486,18 @@ def build(*, workspace_root: Path, output_root: Path) -> dict[str, Any]:
     manifest: dict[str, Any] = {
         "schema": PROVENANCE_SCHEMA,
         "repositories": repositories,
+        "identity_indexes": [
+            {
+                "kind": "internalization_ledger_source_evidence",
+                "path": LEDGER_IDENTITY_INDEX,
+                "normalization": "utf8_lf",
+                "sha256": _utf8_lf_sha256(
+                    PROJECT_ROOT.joinpath(
+                        *PurePosixPath(LEDGER_IDENTITY_INDEX).parts
+                    )
+                ),
+            }
+        ],
         "loopx": {
             "version": "0.2.13",
             "tag": LOOPX_TAG,

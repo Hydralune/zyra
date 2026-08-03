@@ -74,6 +74,43 @@ class SubmissionBoundaryTests(unittest.TestCase):
         self.assertTrue(visitor.violations)
         self.assertIn("long-horizon-systems", visitor.violations[0][1])
 
+    def test_path_existence_probe_does_not_hide_nested_parent_dependency(self) -> None:
+        tree = ast.parse(
+            "from pathlib import Path\n"
+            'available = Path("../long-horizon-systems/loopx").exists()\n'
+        )
+        visitor = PythonRuntimePathVisitor(fragments=forbidden_fragments())
+
+        visitor.visit(tree)
+
+        self.assertEqual(visitor.violations, [(2, "../long-horizon-systems")])
+
+    def test_custom_runtime_loader_is_scanned_without_a_call_allowlist(self) -> None:
+        tree = ast.parse(
+            'source = "../long-horizon-systems/loopx"\n'
+            "runtime = load_runtime(source)\n"
+        )
+        visitor = PythonRuntimePathVisitor(fragments=forbidden_fragments())
+
+        visitor.visit(tree)
+
+        self.assertEqual(visitor.violations, [(2, "../long-horizon-systems")])
+
+    def test_declarative_json_and_html_runtime_paths_are_rejected(self) -> None:
+        fixtures = {
+            "config.json": '{"sourceRoot": "../long-horizon-systems/loopx"}\n',
+            "index.html": '<script src="../long-horizon-systems/loopx/app.js"></script>\n',
+            "style.css": '@import "../long-horizon-systems/loopx/theme.css";\n',
+            "runtime.ts": 'loadRuntime("../long-horizon-systems/loopx")\n',
+        }
+        for filename, content in fixtures.items():
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / filename).write_text(content, encoding="utf-8")
+
+                with self.assertRaisesRegex(AssertionError, "long-horizon-systems"):
+                    verify_submission_boundary(root, verify_provenance=False)
+
     def test_tests_and_remediation_directories_are_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

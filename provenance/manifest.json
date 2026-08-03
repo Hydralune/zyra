@@ -99,8 +99,8 @@
     {
       "category": "provenance_documentation",
       "path": "README.md",
-      "sha256": "d168892b0a64241df7d80eb97cfb21b0278a25114e18f560e39456053702a194",
-      "size": 433
+      "sha256": "34c517498c15b380d20505c39dbf9843d55f5f956aa2386b3cc9b0d75be60385",
+      "size": 458
     },
     {
       "category": "repository_license",
@@ -276,6 +276,86 @@
     },
     {
       "category": "repository_source",
+      "path": "claude-code-best/src/Tool.ts",
+      "sha256": "99a0d2d0dc1a7e30dff3ac0ad7ad309f39da2ac7f9e184b6f341421719f8eb70",
+      "size": 29539,
+      "source_path": "src/Tool.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands.ts",
+      "sha256": "3bfd54c3cfcaed9f10d5dc15334cc49e42d0c9374e92d9a7058897701d95df64",
+      "size": 25185,
+      "source_path": "src/commands.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/compact/compact.ts",
+      "sha256": "9c9cf5fac07f60781b9bbf2bf183276475c1992eb5edc837924e26d0876866a6",
+      "size": 10081,
+      "source_path": "src/commands/compact/compact.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/compact/index.ts",
+      "sha256": "c79e0472999962a3e0734d41720122e54cd3f7c02df6d1feb6e61a397cee5b3f",
+      "size": 530,
+      "source_path": "src/commands/compact/index.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/compact/src/bootstrap/state.ts",
+      "sha256": "1b67b23d69472e85974285b26b5a4f14ff63563a9764701701b6eb71987b420b",
+      "size": 103,
+      "source_path": "src/commands/compact/src/bootstrap/state.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/context/context-noninteractive.ts",
+      "sha256": "a42cb3dfaff244d7b9ccc5f334594bed78bc8c1a9eb758196d5db2b81d937630",
+      "size": 10781,
+      "source_path": "src/commands/context/context-noninteractive.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/context/context.tsx",
+      "sha256": "db48e44f6cf06a16c52541c8f98ad689d5d544b6625ffeae03fd66db44ab3169",
+      "size": 2659,
+      "source_path": "src/commands/context/context.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/context/index.ts",
+      "sha256": "c5d27ea1a5310b7e032093309894053402c52616e8429786d34720555d573084",
+      "size": 695,
+      "source_path": "src/commands/context/index.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/doctor/doctor.tsx",
+      "sha256": "3310cea156fc35545c67b0b1a968f257e22d0fbe5d4965fe7e59fbbacd0d5d12",
+      "size": 273,
+      "source_path": "src/commands/doctor/doctor.tsx",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/commands/doctor/index.ts",
+      "sha256": "4c862ff1db1e6f382b484132cc284e6444f93db854c17ce065a0f49431028b39",
+      "size": 381,
+      "source_path": "src/commands/doctor/index.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
       "path": "claude-code-best/src/commands/mcp/addCommand.ts",
       "sha256": "f2e1262228ce4c6f56551b9bc71a8dc15d7fc62802c888c8cd5f91f2ff23685d",
       "size": 9848,
@@ -336,6 +416,14 @@
       "sha256": "7dac778e089a7f002403df2a2efb6f0b9e4a450af21766680ab8948596c10f25",
       "size": 54320,
       "source_path": "src/constants/prompts.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/entrypoints/cli.tsx",
+      "sha256": "bd00aefd26ddf6e17d7b3dc8947f218a57924658a7578761c62aaba798429320",
+      "size": 13417,
+      "source_path": "src/entrypoints/cli.tsx",
       "source_repository": "claude-code-best"
     },
     {
@@ -596,6 +684,22 @@
     },
     {
       "category": "repository_source",
+      "path": "claude-code-best/src/tools.ts",
+      "sha256": "4307f3f7dec2916299cc2fa5c45df8b95fd9a1945be7ac918ccd3d47a42f18cb",
+      "size": 17294,
+      "source_path": "src/tools.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
+      "path": "claude-code-best/src/tools/AgentTool/forkSubagent.ts",
+      "sha256": "7b7df86fa267dcd519de48b047b55bd51d715d362a33cacbcc0ba4e4866e8d96",
+      "size": 8792,
+      "source_path": "src/tools/AgentTool/forkSubagent.ts",
+      "source_repository": "claude-code-best"
+    },
+    {
+      "category": "repository_source",
       "path": "claude-code-best/src/tools/AgentTool/resumeAgent.ts",
       "sha256": "3bb835c4ad5bce70eeaa82b803bbc19bce8059a3155e1474fa2ec3b4515d453e",
       "size": 9339,
@@ -777,6 +881,72 @@
       "size": 50004,
       "source_path": "src/utils/worktree.ts",
       "source_repository": "claude-code-best"
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/Dive-into-Claude-Code/docs/build-your-own-agent_zh.md",
+      "sha256": "bd0c936ebd584e78d19b19ad37c91f45d4da86f8561f05207447508c909cf66b",
+      "size": 10509
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/01-query-engine.md",
+      "sha256": "a17bd0bbc349f8b357a00f27c33ec4aa421b8267a3d6608f67e351a7ca2922b1",
+      "size": 15834
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/02-tool-system.md",
+      "sha256": "57842d5d8ab2bd9c1d1341dfacee2523255ee0c92f9e70d9b9ebebaa8d247d6d",
+      "size": 15863
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/04-plugin-system.md",
+      "sha256": "eaac2601aece697311970e0e5aa8068155f855af69b2ff776b068c071f66f427",
+      "size": 10221
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/07-permission-pipeline.md",
+      "sha256": "1279a56e52be012c7f82a37e33ea66bddb2b470b45b5fb48902255df7645420c",
+      "size": 13183
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/08-agent-swarms.md",
+      "sha256": "faad1b9a9fef920d1e2d15b37128924ad08c4e316de0a0de7d07dd80fda73f8e",
+      "size": 10574
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/10-context-assembly.md",
+      "sha256": "60a06e9cdb141ebeddb9bce807a9526e4791ba5f5644ec0e57d7e3777eb77ece",
+      "size": 15736
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/11-compact-system.md",
+      "sha256": "c2232b2918e22c9bf58af8f566cb99ca5f258f04f018de54e557e6c1875c1888",
+      "size": 11910
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/13-bridge-system.md",
+      "sha256": "45bca37f365345c34fd0d86f95ec29f88287d7f5802078179ffc60a3be66f6ed",
+      "size": 8728
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/14-ui-state-management.md",
+      "sha256": "d730f93acad2ff45378c8dabd271f39919650fec6fa747716cba348dac1efbf6",
+      "size": 33842
+    },
+    {
+      "category": "reference_source",
+      "path": "claudecode-related/claude-reviews-claude/architecture/zh-CN/15-services-api-layer.md",
+      "sha256": "7bb51d90909a4789e7af62e64f61ab6304d71980d6f3adb355f156c64a5f7edc",
+      "size": 26659
     },
     {
       "category": "source_graph",
@@ -1215,6 +1385,14 @@
       "path": "source-graphs/opencode/batch-06-mcp-plugin-acp-control-plane.md",
       "sha256": "fd2ad9054620e6506afaf2c3456a8e70edac3482b9927b169f4393e5c36b30b0",
       "size": 5551
+    }
+  ],
+  "identity_indexes": [
+    {
+      "kind": "internalization_ledger_source_evidence",
+      "normalization": "utf8_lf",
+      "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+      "sha256": "c6a02097f295f14f384c40033fb9d3e5b7180f7e8ad7cc8c732ebd826909330a"
     }
   ],
   "loopx": {

@@ -545,6 +545,7 @@ class InternalizationLedgerAuditor:
             "dist",
             "docs",
             "node_modules",
+            "provenance",
             "tests",
             "tmp",
         }

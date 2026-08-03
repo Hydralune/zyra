@@ -46,6 +46,7 @@ class BundledSourceProvenance:
         self.manifest_path = self.root / "manifest.json"
         self._manifest: Mapping[str, Any] | None = None
         self._records: tuple[ProvenanceFile, ...] | None = None
+        self._source_identities: frozenset[tuple[str, str]] | None = None
 
     @property
     def manifest(self) -> Mapping[str, Any]:
@@ -140,6 +141,7 @@ class BundledSourceProvenance:
             raise SourceProvenanceError(
                 f"source provenance path set changed: extra={extra[:20]}, missing={missing[:20]}"
             )
+        identity_indexes = self._verified_identity_indexes()
         return {
             "schema": "zyra.source-provenance-verification/v1",
             "ready": True,
@@ -149,7 +151,34 @@ class BundledSourceProvenance:
             "source_file_count": sum(
                 record.category == "repository_source" for record in self.records
             ),
+            "identity_index_count": len(identity_indexes),
+            "source_identity_count": len(self._load_source_identities()),
         }
+
+    def source_identity(self, repository: str, source_path: str) -> dict[str, Any] | None:
+        normalized = self._safe_relative(source_path)
+        for record in self.records:
+            if (
+                record.category == "repository_source"
+                and record.source_repository == repository
+                and record.source_path == normalized
+            ):
+                return {
+                    "verified": True,
+                    "method": "bundled_source_file",
+                    "repository": repository,
+                    "source_path": normalized,
+                    "provenance_path": record.path,
+                }
+        if (repository, normalized) in self._load_source_identities():
+            return {
+                "verified": True,
+                "method": "frozen_ledger_identity",
+                "repository": repository,
+                "source_path": normalized,
+                "provenance_path": self._ledger_identity_path(),
+            }
+        return None
 
     def source_file(self, repository: str, source_path: str) -> Path:
         normalized = self._safe_relative(source_path)
@@ -172,6 +201,101 @@ class BundledSourceProvenance:
                 f"source provenance file changed: {repository}:{normalized}"
             )
         return path
+
+    def _verified_identity_indexes(self) -> tuple[Mapping[str, Any], ...]:
+        raw = self.manifest.get("identity_indexes")
+        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+            raise SourceProvenanceError("source provenance identity indexes must be an array")
+        indexes: list[Mapping[str, Any]] = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, Mapping):
+                raise SourceProvenanceError(
+                    f"source provenance identity index {index} must be an object"
+                )
+            path_value = self._safe_relative(str(item.get("path") or ""))
+            digest = str(item.get("sha256") or "")
+            kind = str(item.get("kind") or "")
+            normalization = str(item.get("normalization") or "binary")
+            if (
+                _SHA256.fullmatch(digest) is None
+                or not kind
+                or normalization not in {"binary", "utf8_lf"}
+            ):
+                raise SourceProvenanceError(
+                    f"invalid source provenance identity index: {path_value}"
+                )
+            path = self.project_root.joinpath(*PurePosixPath(path_value).parts)
+            try:
+                path.relative_to(self.project_root)
+            except ValueError as error:
+                raise SourceProvenanceError(
+                    f"source provenance identity index escapes project: {path_value}"
+                ) from error
+            if not path.is_file() or path.is_symlink():
+                raise SourceProvenanceError(
+                    f"source provenance identity index is missing: {path_value}"
+                )
+            payload = path.read_bytes()
+            if normalization == "utf8_lf":
+                try:
+                    payload = (
+                        payload.decode("utf-8")
+                        .replace("\r\n", "\n")
+                        .replace("\r", "\n")
+                        .encode("utf-8")
+                    )
+                except UnicodeError as error:
+                    raise SourceProvenanceError(
+                        f"source provenance identity index is not UTF-8: {path_value}"
+                    ) from error
+            actual = hashlib.sha256(payload).hexdigest()
+            if actual != digest:
+                raise SourceProvenanceError(
+                    f"source provenance identity index changed: {path_value}"
+                )
+            indexes.append(item)
+        return tuple(indexes)
+
+    def _ledger_identity_path(self) -> str:
+        for item in self._verified_identity_indexes():
+            if item.get("kind") == "internalization_ledger_source_evidence":
+                return self._safe_relative(str(item.get("path") or ""))
+        raise SourceProvenanceError(
+            "internalization ledger source identity index is missing"
+        )
+
+    def _load_source_identities(self) -> frozenset[tuple[str, str]]:
+        if self._source_identities is None:
+            relative = self._ledger_identity_path()
+            path = self.project_root.joinpath(*PurePosixPath(relative).parts)
+            try:
+                document = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                raise SourceProvenanceError(
+                    f"source identity index is unreadable: {relative}: {error}"
+                ) from error
+            entries = document.get("entries") if isinstance(document, Mapping) else None
+            if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+                raise SourceProvenanceError(
+                    "internalization ledger source identity entries must be an array"
+                )
+            identities: set[tuple[str, str]] = set()
+            for entry in entries:
+                if not isinstance(entry, Mapping):
+                    continue
+                evidence = entry.get("source_evidence")
+                if not isinstance(evidence, Sequence) or isinstance(evidence, (str, bytes)):
+                    evidence = ()
+                for item in evidence:
+                    if not isinstance(item, Mapping) or item.get("exists_in_workspace") is not True:
+                        continue
+                    repository = str(item.get("source_repo") or entry.get("source_repo") or "")
+                    source_path = str(item.get("source_path") or entry.get("source_path") or "")
+                    if not repository or not source_path:
+                        continue
+                    identities.add((repository, self._safe_relative(source_path)))
+            self._source_identities = frozenset(identities)
+        return self._source_identities
 
     @staticmethod
     def _safe_relative(value: str) -> str:

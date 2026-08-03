@@ -27,6 +27,7 @@ from zyra_integrations import (
     SourceEvidence,
     TargetBinding,
     TestEntry,
+    load_seed_ledger,
     package_seed_path,
     stable_ledger_id,
 )
@@ -115,6 +116,21 @@ def build_seed_entries(
     *,
     source_workspace: Path = DEFAULT_SOURCE_WORKSPACE,
 ) -> list[InternalizationLedgerEntry]:
+    source_workspace = source_workspace.resolve()
+    if source_workspace == DEFAULT_SOURCE_WORKSPACE.resolve():
+        # The M1 seed is a frozen first-stage artifact.  Re-emitting that
+        # canonical package asset is the only repository-local operation that
+        # preserves later lifecycle/status/evidence amendments.  A live source
+        # rescan remains available by passing an explicit upstream workspace.
+        return sorted(
+            load_seed_ledger().entries(),
+            key=lambda item: (
+                item.owner_unit,
+                item.source_repo.lower(),
+                item.capability_name,
+                item.source_path,
+            ),
+        )
     entries: list[InternalizationLedgerEntry] = []
     seen: set[str] = set()
     for bucket in buckets():
@@ -124,7 +140,9 @@ def build_seed_entries(
                 continue
             seen.add(entry.ledger_id)
             entries.append(entry)
-    entries.extend(legacy_active_entries(seen))
+    entries.extend(
+        legacy_active_entries(seen, source_workspace=source_workspace)
+    )
     return sorted(entries, key=lambda item: (item.owner_unit, item.source_repo.lower(), item.capability_name, item.source_path))
 
 
@@ -205,7 +223,11 @@ def entry_from_bucket(bucket: SourceBucket, source_path: str) -> Internalization
     return entry
 
 
-def legacy_active_entries(seen: set[str]) -> list[InternalizationLedgerEntry]:
+def legacy_active_entries(
+    seen: set[str],
+    *,
+    source_workspace: Path,
+) -> list[InternalizationLedgerEntry]:
     entries: list[InternalizationLedgerEntry] = []
     specs: list[dict[str, Any]] = [
         {
@@ -346,7 +368,7 @@ def legacy_active_entries(seen: set[str]) -> list[InternalizationLedgerEntry]:
             owner_unit=spec["owner_unit"],
             milestone="M1",
             downstream_units=downstream_units(spec["owner_unit"]),
-            source_evidence=[SourceEvidence(source_repo=spec["repo"], source_path=spec["source_path"], exists_in_workspace=(WORKSPACE / spec["repo"] / spec["source_path"]).exists(), reason="legacy M0 source-to-target ledger")],
+            source_evidence=[SourceEvidence(source_repo=spec["repo"], source_path=spec["source_path"], exists_in_workspace=(source_workspace / spec["repo"] / spec["source_path"]).exists(), reason="legacy M0 source-to-target ledger")],
             tags=["legacy-m0", "main-path", "seeded"],
             metadata={"source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#internalization-index", "legacy": True},
         )
