@@ -24,10 +24,11 @@ class ClaudeProductizationFoundationCliTests(unittest.TestCase):
                     tmp,
                 ],
                 cwd=ROOT,
-                check=True,
+                check=False,
                 text=True,
                 capture_output=True,
             )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
 
         payload = json.loads(completed.stdout)
 
@@ -81,8 +82,24 @@ class ClaudeProductizationFoundationCliTests(unittest.TestCase):
                         "vendor-runtimes",
                     ),
                 )
+            workspace_packages = {
+                "claude-mcp": "packages/integrations/claude-mcp",
+                "provider-control-plane": "packages/runtime/provider-control-plane",
+                "skill-memory-runtime": "packages/memory/skill-memory-runtime",
+            }
+            for package_name, relative_path in workspace_packages.items():
+                shutil.copytree(
+                    clean_root / relative_path,
+                    clean_root / "node_modules" / "@zyra" / package_name,
+                )
             env = dict(os.environ)
             env.pop("PYTHONPATH", None)
+            local_bun = ROOT / "node_modules" / "bun" / "bin" / (
+                "bun.exe" if os.name == "nt" else "bun"
+            )
+            bun_executable = str(local_bun) if local_bun.is_file() else shutil.which("bun")
+            self.assertTrue(bun_executable, "Bun 1.2.15 is required for the TypeScript runtime")
+            env["ZYRA_BUN_EXECUTABLE"] = str(bun_executable)
             completed = subprocess.run(
                 [
                     sys.executable,
@@ -94,10 +111,11 @@ class ClaudeProductizationFoundationCliTests(unittest.TestCase):
                 ],
                 cwd=clean_root,
                 env=env,
-                check=True,
+                check=False,
                 text=True,
                 capture_output=True,
             )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
 
         payload = json.loads(completed.stdout)
         audit = payload["cleanRuntimeAudit"]

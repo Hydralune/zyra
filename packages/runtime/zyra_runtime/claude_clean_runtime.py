@@ -282,7 +282,6 @@ class ClaudeCleanRuntimeAuditor:
             self.project_root / "packages" / "workers" / "zyra_workers" / "typescript_claude_runtime.py",
             self.project_root / "packages" / "runtime" / "claude-runtime" / "src" / "query-engine.ts",
             self.project_root / "packages" / "runtime" / "claude-runtime" / "src" / "stdio.ts",
-            self.project_root / "packages" / "runtime" / "zyra_runtime" / "claude_query_engine_runtime.py",
             self.project_root / "packages" / "runtime" / "zyra_runtime" / "claude_runtime_contracts.py",
             self.project_root / "scripts" / "verify_claude_productization_foundation.py",
         ]

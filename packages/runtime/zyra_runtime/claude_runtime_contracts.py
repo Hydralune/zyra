@@ -1,20 +1,41 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from zyra_core import now_iso, to_jsonable
 
-from .tool_runtime_foundation import TOOL_LOOP_FOUNDATION_OWNER_UNIT, tool_foundation_contract_summary
-
-
 OWNER_UNIT = "M1-02A"
-TOOL_LOOP_OWNER_UNIT = TOOL_LOOP_FOUNDATION_OWNER_UNIT
+TOOL_LOOP_OWNER_UNIT = "M1-02C"
 PRIMARY_SOURCE_REPO = "claude-code-best"
 PRODUCTIZED_RUNTIME_ID = "zyra-claude-code-productized-runtime"
 PRODUCTIZED_CONTRACT_SOURCE = "zyra-claude-productized"
+
+_TYPESCRIPT_CUTOVER_TARGETS = {
+    "packages/runtime/zyra_runtime/claude_input_processor.py": "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
+    "packages/runtime/zyra_runtime/compact_restore_policy_runtime.py": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    "packages/runtime/zyra_runtime/compact_restore_runtime.py": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts",
+    "packages/runtime/zyra_runtime/model_api_runtime.py": "packages/runtime/claude-runtime/src/provider/request-runtime.ts",
+    "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py": "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
+    "packages/runtime/zyra_runtime/runtime_budget_state.py": "packages/runtime/claude-runtime/src/budget.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_budget_policy.py": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_cleanroom.py": "packages/runtime/claude-runtime/src/productization/runtime-config.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_concurrency.py": "packages/runtime/claude-runtime/src/tools.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_continuation.py": "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py": "packages/runtime/claude-runtime/src/contracts.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_failure_policy.py": "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_foundation.py": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_foundation_audit.py": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_output_store.py": "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py": "packages/runtime/claude-runtime/src/permission/coordinator.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_settlement.py": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_streaming.py": "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
+    "packages/workers/zyra_workers/code_query_loop.py": "packages/runtime/claude-runtime/src/query-engine.ts",
+}
 
 
 class ClaudeRuntimeSurface(StrEnum):
@@ -223,13 +244,19 @@ def build_productized_claude_runtime_contracts(
     source_root = Path(source_workspace_root).resolve() / PRIMARY_SOURCE_REPO if source_workspace_root else None
     source_available = bool(source_root and source_root.exists())
     source_to_target = default_claude_source_to_target()
-    query_contract = _query_contract(source_to_target, source_available=source_available if include_source_availability else None)
-    session_contract = _session_contract(source_to_target, source_available=source_available if include_source_availability else None)
-    tool_loop_contract = _tool_loop_contract(source_to_target, source_available=source_available if include_source_availability else None)
+    query_contract = _normalize_cutover_paths(
+        _query_contract(source_to_target, source_available=source_available if include_source_availability else None)
+    )
+    session_contract = _normalize_cutover_paths(
+        _session_contract(source_to_target, source_available=source_available if include_source_availability else None)
+    )
+    tool_loop_contract = _normalize_cutover_paths(
+        _tool_loop_contract(source_to_target, source_available=source_available if include_source_availability else None)
+    )
     inventory = _runtime_inventory(source_to_target, project_path=project_path)
     health = _runtime_health(source_to_target, project_path=project_path)
     state_custody = _state_custody(source_to_target)
-    default_path = {
+    default_path = _normalize_cutover_paths({
         "workerRuntime": "packages/workers/zyra_workers/code_worker_runtime.py",
         "queryInputProcessor": "packages/runtime/zyra_runtime/claude_input_processor.py",
         "contextAssemblyFoundation": "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
@@ -277,7 +304,7 @@ def build_productized_claude_runtime_contracts(
         "requiresNodeSidecar": False,
         "requiresVendorRuntime": False,
         "stateStores": sorted(set(_state_custody(source_to_target).values())),
-    }
+    })
     return ClaudeRuntimeContractBundle(
         runtime_id=PRODUCTIZED_RUNTIME_ID,
         owner_unit=OWNER_UNIT,
@@ -296,7 +323,7 @@ def build_productized_claude_runtime_contracts(
 
 
 def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
-    return (
+    source_to_target = (
         ClaudeSourceToTarget(
             source_repo=PRIMARY_SOURCE_REPO,
             source_path="src/QueryEngine.ts",
@@ -832,6 +859,25 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             upstream_signals=("QueryEngine", "ToolUseContext", "session lifecycle", "control command"),
         ),
     )
+    return tuple(
+        replace(
+            item,
+            target_paths=tuple(_TYPESCRIPT_CUTOVER_TARGETS.get(path, path) for path in item.target_paths),
+        )
+        for item in source_to_target
+    )
+
+
+def _normalize_cutover_paths(value: Any) -> Any:
+    if isinstance(value, str):
+        return _TYPESCRIPT_CUTOVER_TARGETS.get(value, value)
+    if isinstance(value, dict):
+        return {key: _normalize_cutover_paths(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_cutover_paths(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_normalize_cutover_paths(item) for item in value)
+    return value
 
 
 def contract_metadata(bundle: ClaudeRuntimeContractBundle | None = None) -> dict[str, str]:
@@ -1203,7 +1249,18 @@ def _tool_loop_contract(source_to_target: Iterable[ClaudeSourceToTarget], *, sou
             ClaudeRuntimeSurface.PERMISSION_RUNTIME,
         }
     ]
-    foundation = tool_foundation_contract_summary()
+    foundation_rows = [
+        item
+        for item in source_to_target
+        if item.surface
+        in {
+            ClaudeRuntimeSurface.TOOL_REGISTRY,
+            ClaudeRuntimeSurface.TOOL_EXECUTOR,
+            ClaudeRuntimeSurface.TOOL_SCHEDULER,
+            ClaudeRuntimeSurface.TOOL_RESULT_BUDGET,
+            ClaudeRuntimeSurface.PERMISSION_RUNTIME,
+        }
+    ]
     contract = {
         "source": PRODUCTIZED_CONTRACT_SOURCE,
         "upstreamSource": PRIMARY_SOURCE_REPO,
@@ -1211,8 +1268,8 @@ def _tool_loop_contract(source_to_target: Iterable[ClaudeSourceToTarget], *, sou
         "runtimeId": PRODUCTIZED_RUNTIME_ID,
         "inventoryExists": True,
         "sourceFiles": sorted(set(source_files)),
-        "supplementalSources": foundation["sourceRepos"],
-        "sourceDecisionLedger": foundation["sourceLedger"],
+        "supplementalSources": sorted({item.source_repo for item in foundation_rows}),
+        "sourceDecisionLedger": [item.to_dict() for item in foundation_rows],
         "targetFiles": _target_paths_for(
             source_to_target,
             ClaudeRuntimeSurface.TOOL_REGISTRY,

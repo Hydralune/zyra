@@ -45,6 +45,10 @@ from .browser_session import (
 )
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .claude_foundation_worker import (
+    ClaudeFoundationWorkerRun,
+    ClaudeProductizationFoundationWorker,
+)
 from .retrieval_context_runtime import (
     WorkerRetrievalContext,
     WorkerRetrievalContextRuntime,
@@ -187,6 +191,8 @@ __all__ = [
     "BrowserUseRuntimePaths",
     "CodeWorkerRun",
     "CodeWorkerRuntime",
+    "ClaudeFoundationWorkerRun",
+    "ClaudeProductizationFoundationWorker",
     "WorkerRetrievalContext",
     "WorkerRetrievalContextRuntime",
     "WorkerRetrievalRecoveryReference",

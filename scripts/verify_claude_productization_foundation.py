@@ -25,6 +25,7 @@ from zyra_runtime import (  # noqa: E402
     assert_clean_runtime_probe,
     assert_clean_runtime_report,
     assert_foundation_ready,
+    build_productized_claude_runtime_contracts,
     clean_runtime_metadata,
     clean_runtime_probe,
     disconnect_evidence_from_worker_result,
@@ -77,9 +78,13 @@ def _build_clean_payload(*, artifact_root: Path | None = None) -> dict[str, Any]
         assert_foundation_ready(foundation_run.probe_result)
 
         state = create_task_state("Clean source CodeWorker runtime verification.")
+        runtime_workspace = runtime_root / "workspace"
+        clean_input = runtime_workspace / "clean" / "result.txt"
+        clean_input.parent.mkdir(parents=True, exist_ok=True)
+        clean_input.write_text("clean runtime ok", encoding="utf-8")
         code_runtime = CodeWorkerRuntime(
             project_root=ROOT,
-            workspace_root=runtime_root / "workspace",
+            workspace_root=runtime_workspace,
             artifact_root=runtime_root / "artifacts",
         )
         code_run = code_runtime.run(
@@ -91,8 +96,8 @@ def _build_clean_payload(*, artifact_root: Path | None = None) -> dict[str, Any]
                 constraints={
                     "tool_plan": [
                         {
-                            "tool_name": "file_write",
-                            "arguments": {"path": "clean/result.txt", "content": "clean runtime ok"},
+                            "tool_name": "file_read",
+                            "arguments": {"path": "clean/result.txt"},
                         },
                         {"tool_name": "file_read", "arguments": {"path": "clean/result.txt"}},
                     ],
@@ -105,6 +110,13 @@ def _build_clean_payload(*, artifact_root: Path | None = None) -> dict[str, Any]
                 },
             )
         )
+        if not code_run.worker_result.ok:
+            raise AssertionError(
+                "clean-source CodeWorker default path failed: "
+                f"error={code_run.worker_result.error!r}; "
+                f"summary={code_run.worker_result.summary!r}; "
+                f"metadata={dict(code_run.worker_result.metadata)!r}"
+            )
         disconnected_runtime = CodeWorkerRuntime(
             project_root=ROOT,
             workspace_root=runtime_root / "disconnect-workspace",
@@ -148,7 +160,11 @@ def _build_clean_payload(*, artifact_root: Path | None = None) -> dict[str, Any]
         audit = ClaudeCleanRuntimeAuditor(
             project_root=ROOT,
             source_workspace_root=source_workspace,
-            contracts=code_runtime.runtime_contracts,
+            contracts=build_productized_claude_runtime_contracts(
+                project_root=ROOT,
+                include_source_availability=True,
+                source_workspace_root=source_workspace,
+            ),
         ).audit(
             sidecar_used=code_run.worker_result.metadata.get("sidecar_contracts_used") == "true",
             default_path_exercised=code_run.worker_result.ok,
