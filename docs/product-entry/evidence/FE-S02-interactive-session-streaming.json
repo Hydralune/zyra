@@ -1,0 +1,151 @@
+{
+  "schema": "zyra.product-entry-slice-evidence.v1",
+  "slice_id": "FE-S02",
+  "slice": "Zyra产品入口纠偏执行切片/slice-02-interactive-session-streaming.md",
+  "status": "verified",
+  "verified_at": "2026-08-04",
+  "base_commit": "87fe4901bff7451073dce5177ed24fc32f38bf48",
+  "implementation_commit": "fab56a03b9839594832f78ec327ee6472be81d62",
+  "evidence_commit": "the Git commit containing this evidence record",
+  "entries": [
+    "zyra",
+    "zyra <goal>",
+    "zyra resume <task-or-session-id>",
+    "zyra ls"
+  ],
+  "canonical_contract": {
+    "task_session_owner": "server task store and task-backed session resolver",
+    "event_owner": "typescript.RuntimeEventSpine",
+    "observation_protocol": "capabilities -> paged snapshot -> SSE",
+    "revision": "server generation:global-sequence",
+    "client_only_state": [
+      "draft",
+      "cursor position",
+      "input history",
+      "paste ref",
+      "layout",
+      "search query",
+      "follow",
+      "unread"
+    ],
+    "polling_fallback": false,
+    "alternate_screen": false
+  },
+  "real_path_evidence": {
+    "interactive_task": {
+      "result": "passed",
+      "events": ["model", "artifact", "terminal"],
+      "line_transcript": true
+    },
+    "real_tool_event": {
+      "result": "passed",
+      "owner": "runtime-event-spine OMP RPC mapper",
+      "events": ["runtime.tool.called", "runtime.tool.succeeded"],
+      "observed_via_resume_snapshot": true
+    },
+    "web_cli_continuity": {
+      "result": "passed",
+      "web_client": "apps/web TaskApi",
+      "matching_fields": ["taskId", "runId", "updatedAt"]
+    },
+    "resume": {
+      "result": "passed",
+      "server_session_resolution": "resolved",
+      "duplicate_task_created": false,
+      "task_total_unchanged": true
+    },
+    "long_transcript": {
+      "transitions": 2101,
+      "test_budget": 128,
+      "evicted_from_recent_search": 1973,
+      "canonical_revision_preserved": "1:2101"
+    }
+  },
+  "input_evidence": {
+    "ctrl_j_multiline": "passed on real byte-stream input driver",
+    "enter_atomic_submit": "passed",
+    "bracketed_paste": "large body displayed as digest ref and expanded only on submit",
+    "escape_stash_restore": "passed",
+    "history_boundary": "first/last multiline boundary enforced",
+    "slash_and_path_completion": "passed",
+    "external_editor": "VISUAL/EDITOR, shell=false, private temporary file"
+  },
+  "negative_evidence": {
+    "sse_disabled": "disconnected and stopped; no stream or polling fallback invoked",
+    "cursor_missing": "rejected before transport access",
+    "unknown_schema": "fail closed",
+    "duplicate_exact": "deduplicated without rendering side effect",
+    "duplicate_conflict": "fail closed",
+    "reordered_or_gap": "fail closed",
+    "search_disabled": "observable experience degradation; canonical revision still advances",
+    "pipe": "append-only lines and no alternate-screen sequence",
+    "tool_progress": "footer-only transient state; no stale transcript overwrite"
+  },
+  "claude_reference": {
+    "repository_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "adopted_or_adapted": [
+      "multiline and bounded history",
+      "large paste ref",
+      "slash/ref completion",
+      "external editor",
+      "ephemeral progress",
+      "sticky follow/unread/search/resize",
+      "native scrollback"
+    ],
+    "rejected": [
+      "Ink/React root",
+      "alternate screen",
+      "process-local transcript owner",
+      "Claude session or event schema",
+      "runtime dependency or copied source"
+    ]
+  },
+  "verification": [
+    {
+      "command": "bun run --cwd apps/cli typecheck && bun run --cwd apps/cli test && bun run --cwd apps/cli build",
+      "result": "21 passed; typecheck and 0.53 MB bundle passed"
+    },
+    {
+      "command": "bun run --cwd packages/core/typed-api-client typecheck && bun run --cwd packages/core/typed-api-client test",
+      "result": "18 passed; typecheck passed"
+    },
+    {
+      "command": "bun run --cwd apps/web typecheck",
+      "result": "passed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_cli_noninteractive_foundation.py -q",
+      "result": "5 passed in 94.65s"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "buckets": {
+    "production": {"files": 13, "lines": 2452},
+    "test": {"files": 2, "lines": 670},
+    "runtime_assets": {"files": 0},
+    "generated_tracked": {"files": 0},
+    "data": {"files": 0},
+    "adapter_only": {"files": 0},
+    "mock_fixture": {
+      "description": "restricted to negative contract tests; real-path acceptance uses daemon, Web TaskApi, session resolver, and runtime event spine"
+    }
+  },
+  "boundaries": {
+    "apps_api_modified": false,
+    "runtime_owner_modified": false,
+    "permission_owner_modified": false,
+    "public_persistence_schema_modified": false,
+    "web_modified": false,
+    "second_canonical_state_source_created": false,
+    "claude_runtime_dependency_added": false,
+    "terminal_node_enabled": false,
+    "real_terminal_dispatch_claimed": false,
+    "fe_s03_implemented": false,
+    "user_untracked_zyra_egg_info_touched": false
+  },
+  "next_candidate": "FE-S03",
+  "next_candidate_authorized": false
+}
