@@ -1,0 +1,165 @@
+{
+  "schema": "zyra.product-entry-slice-evidence.v1",
+  "slice_id": "FE-S03",
+  "slice": "Zyra产品入口纠偏执行切片/slice-03-control-permission-recovery.md",
+  "status": "verified",
+  "verified_at": "2026-08-04",
+  "base_commit": "62d11091527dd092f3d18acf6fd4d2871fa43130",
+  "implementation_commits": [
+    "bea4c566b734eb9b4533808b664565d8fe7af9f8",
+    "21cfbdb3876fc0a58d01adf4b0a0f089d9fdba5d",
+    "c8892f86f4aac29d1bd64a246fbc4ca00db6fc0f"
+  ],
+  "verified_head": "c8892f86f4aac29d1bd64a246fbc4ca00db6fc0f",
+  "evidence_commit": "the Git commit containing this evidence record",
+  "canonical_contract": {
+    "command_owner": "PromptQueueRuntime and RuntimeControlDispatcher",
+    "permission_owner": "typescript.PermissionCoordinator",
+    "event_owner": "typescript.RuntimeEventSpine",
+    "task_session_owner": "server task store and task-backed session resolver",
+    "daemon_process_owner": "apps/cli pid and generation state",
+    "client_canonical_queue_created": false,
+    "permission_token_persisted": false,
+    "polling_fallback": false
+  },
+  "command_evidence": {
+    "priority_order": ["now", "next", "later"],
+    "same_priority_order": "server FIFO",
+    "canonical_queue_read": true,
+    "cancel_and_retry": "passed with canonical request_id and retry_of",
+    "idempotency": "duplicate request produced one succeeded effect",
+    "stale_revision": "rejected with canonical actual revision and automatic_retry=false",
+    "cli_web_parity": "same task/session canonical revision observed by CLI and Web"
+  },
+  "permission_evidence": {
+    "custody": "memory-only; explicit token required for process reattachment",
+    "deny": "accepted canonical deny receipt, no permit and no effect",
+    "allow": "accepted canonical allow receipt, permit consumed by the exact e02 command",
+    "execution_replay": "same permit/tool_call returned replayed=true for the same executionId",
+    "human_intervention_count": "interactive allow decision=1; policy/system response=0; sealed=0",
+    "cli_web_parity": "both clients observed the same settled request",
+    "restart": "new Bun process reattached to pending permission session and settled it",
+    "sealed": "high-risk mutation rejected without human wait in under five seconds"
+  },
+  "recovery_evidence": {
+    "disconnect": "bounded cursor resume from the last server cursor",
+    "gap": "canonical snapshot replacement",
+    "duplicate_render": "suppressed by monotonic canonical sequence without an unbounded event-id cache",
+    "retry_budget": 6,
+    "draft": "TerminalPrompt remains process-local and alive during reconnect",
+    "restart_view": "task/session and pending/terminal state are re-read from server owners"
+  },
+  "daemon_evidence": {
+    "default_stop_with_active_task": "rejected",
+    "force_stop": "committed",
+    "audit_schema": "zyra.cli-daemon-stop-audit.v1",
+    "audit_file": "daemon-stop-audit.jsonl",
+    "audit_contains_secret": false
+  },
+  "negative_evidence": {
+    "permission_adapter_disabled": "fail closed before query or resolve",
+    "permission_expired": "proof construction rejected",
+    "revision_conflict": "no mutation auto-retry",
+    "event_gap": "snapshot replacement rather than transcript reconstruction",
+    "event_duplicate": "one rendered record",
+    "missing_ack": "existing typed transport/runner tests do not infer completion",
+    "sealed_manual_wait": false
+  },
+  "contract_compatibility_remediation": [
+    "command request IDs use the frozen request_ typed-client prefix",
+    "session revision counts session_control_revision rather than command audit events",
+    "permission normalizer admits deployed zyra.permission-api.v1 and v2",
+    "CLI and Web accept deployed bearer_token while retaining custody_token compatibility"
+  ],
+  "claude_reference": {
+    "repository_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "adapted": [
+      "now/next/later and stable queue presentation",
+      "sticky permission visibility",
+      "bounded reconnect state and draft retention"
+    ],
+    "rejected": [
+      "module-level canonical queue",
+      "local permission owner",
+      "screen transcript recovery",
+      "Claude wire schema or runtime dependency"
+    ]
+  },
+  "verification": [
+    {
+      "command": "bun run --cwd apps/cli typecheck && bun run --cwd apps/cli test && bun run --cwd apps/cli build",
+      "result": "29 passed; typecheck and 0.57 MB bundle passed"
+    },
+    {
+      "command": "bun run --cwd packages/commands typecheck && bun run --cwd packages/commands test",
+      "result": "29 passed; typecheck passed"
+    },
+    {
+      "command": "bun run --cwd packages/core/typed-api-client typecheck && bun run --cwd packages/core/typed-api-client test",
+      "result": "19 passed; typecheck passed"
+    },
+    {
+      "command": "bun run --cwd apps/web typecheck && bun test ./apps/web/test/permission-sealed-control-integration.test.ts",
+      "result": "16 passed; typecheck passed"
+    },
+    {
+      "command": "bun test ./packages/runtime/claude-runtime/test/e02/permission-custody.behavior.test.ts",
+      "result": "20 passed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_cli_control_permission_recovery.py -q",
+      "result": "2 passed in 35.90s"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_command_input_queue_control.py -q",
+      "result": "2 passed in 30.56s"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_permission_console_api.py -q",
+      "result": "2 passed in 12.75s"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_cli_noninteractive_foundation.py -q",
+      "result": "6 passed in 147.80s"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "buckets": {
+    "production": {"files": 14, "added_lines": 1323, "deleted_lines": 59},
+    "test": {"files": 6, "added_lines": 791, "deleted_lines": 0},
+    "docs_before_evidence": {"files": 3, "added_lines": 66, "deleted_lines": 17},
+    "runtime_assets": {"files": 0},
+    "generated_tracked": {"files": 0},
+    "data": {"files": 0},
+    "adapter_only": {"files": 0},
+    "mock_fixture": "unit-only; completion evidence includes real API, runtime, daemon, Web and independent Bun processes"
+  },
+  "boundaries": {
+    "apps_api_modified": true,
+    "apps_api_change": "canonical session revision calculation only",
+    "permission_runtime_audit_modified": true,
+    "permission_policy_modified": false,
+    "permission_owner_transferred": false,
+    "public_persistence_schema_modified": false,
+    "web_modified": true,
+    "second_canonical_state_source_created": false,
+    "claude_runtime_dependency_added": false,
+    "terminal_node_enabled": false,
+    "real_terminal_dispatch_claimed": false,
+    "fe_s04_implemented": false,
+    "user_untracked_zyra_egg_info_touched": false
+  },
+  "known_baseline_incompatibility": {
+    "tests": [
+      "test_permission_session_mode_api_is_custody_bound_revisioned_and_no_store",
+      "test_structured_permission_api_authorizes_only_the_exact_shell_retry"
+    ],
+    "reason": "legacy assertions expect pre-Gate-00A Python result/tool_result shapes or a retired shell route; current authoritative TypeScript permission suites pass",
+    "introduced_by_fe_s03": false
+  },
+  "next_candidate": "FE-S04",
+  "next_candidate_authorized": false
+}
