@@ -273,6 +273,7 @@ const [baseUrl,taskId,sessionId,token]=process.argv.slice(1); const api=new CliA
         assert restarted["receipt"]["accepted"] is True
         assert restarted["receipt"]["effect"] == "allow"
         assert restarted["receipt"]["permit_id"]
+        assert restarted["receipt"]["decision"]["human_intervention_count"] == 1
 
         allowed_status, allowed_result, _ = _request(
             base_url,

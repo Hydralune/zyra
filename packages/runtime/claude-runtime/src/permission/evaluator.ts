@@ -79,6 +79,30 @@ const READ_ONLY_TOOLS = new Set([
 
 const EDIT_TOOLS = new Set(["file_write", "file_edit", "notebook_edit"]);
 
+function approvalHumanIntervention(response: PermissionApprovalResponse): number {
+  const metadata = optionalObject(response.metadata);
+  const channel = typeof metadata.channel === "string"
+    ? metadata.channel.trim().toLowerCase()
+    : "";
+  const responder = response.responder.trim().toLowerCase();
+  const nonHumanChannels = new Set([
+    "policy",
+    "sealed",
+    "classifier",
+    "hook",
+    "system",
+    "autonomous",
+    "benchmark_policy",
+  ]);
+  const nonHumanResponders = new Set([
+    "policy",
+    "system",
+    "sealed-policy",
+    "autonomous-policy",
+  ]);
+  return nonHumanChannels.has(channel) || nonHumanResponders.has(responder) ? 0 : 1;
+}
+
 export class PermissionEvaluator {
   readonly runtime: E02RuntimeIdentity;
   readonly parser = new PermissionRuleParser();
@@ -288,6 +312,7 @@ export class PermissionEvaluator {
     }
     const original = this.decisions.get(result.continuation.decisionId);
     if (!original) throw new Error(`permission approval refers to unknown decision ${result.continuation.decisionId}`);
+    const humanInterventionDelta = approvalHumanIntervention(response);
     const resumedBase = {
       ...cloneJson(original),
       effect: result.effect,
@@ -297,12 +322,14 @@ export class PermissionEvaluator {
         : "exact durable response denied the request",
       continuationRequestId: result.continuation.requestId,
       evaluatedAt: response.respondedAt,
+      humanInterventionCount: original.humanInterventionCount + humanInterventionDelta,
       metadata: {
         ...original.metadata,
         approval_response_id: response.responseId,
         approval_response_digest: result.responseDigest,
         approval_responder: response.responder,
         exact_approval_binding: true,
+        human_intervention_delta: humanInterventionDelta,
       },
     } satisfies Omit<PermissionDecisionRecord, "decisionId"> & { decisionId?: string };
     const decisionId = deterministicId("permission-resume-decision", resumedBase, 40);

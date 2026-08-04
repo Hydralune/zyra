@@ -1179,6 +1179,7 @@ function safePermissionDecision(value: unknown): JsonObject {
     request_fingerprint: asString(decision.requestFingerprint),
     original_arguments_digest: asString(decision.originalArgumentsDigest),
     final_arguments_digest: asString(decision.finalArgumentsDigest),
+    human_intervention_count: nonNegativeInteger(decision.humanInterventionCount, 0),
     continuation_request_id: asString(decision.continuationRequestId) || null,
     evaluated_at: asString(decision.evaluatedAt),
     request_binding: transportJson(asObject(decision.requestBinding)),

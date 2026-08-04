@@ -987,8 +987,28 @@ test("permission evaluator approval resumes exact ASK and rejects policy revisio
   assert.equal(approved.errorCode, null);
   assert.equal(approved.decision?.effect, "allow");
   assert.equal(approved.decision?.reasonCode, "exact_approval_allow");
+  assert.equal(approved.decision?.humanInterventionCount, 1);
+  assert.equal(approved.decision?.metadata.human_intervention_delta, 1);
   assert.equal(approved.decision?.metadata.exact_approval_binding, true);
   assert.equal(evaluator.continuations.get(freshAsk.continuationRequestId!)?.status, "consumed");
+  const automatedRequest = {
+    ...request,
+    toolCallId: "permission-call-evaluator-approval-policy",
+  };
+  const automatedIdentity = PermissionIdentity.create(automatedRequest);
+  const automatedAsk = evaluator.evaluate(automatedRequest);
+  const automatedResponse = response(
+    automatedIdentity,
+    automatedAsk.continuationRequestId!,
+    "deny",
+    "policy",
+  );
+  automatedResponse.responder = "system";
+  automatedResponse.metadata = { channel: "policy" };
+  const automated = evaluator.resumeApproval(automatedResponse);
+  assert.equal(automated.accepted, true);
+  assert.equal(automated.decision?.humanInterventionCount, 0);
+  assert.equal(automated.decision?.metadata.human_intervention_delta, 0);
 });
 
 test("ACP permission transport correlates exact continuation and rejects forged response fields", () => {
@@ -1267,6 +1287,7 @@ test("permission approval runtime deduplicates delivery, emits receipt, and resu
   assert.equal(resumed.accepted, true);
   assert.equal(resumed.effect, "allow");
   assert.equal(resumed.decision?.reasonCode, "exact_approval_allow");
+  assert.equal(resumed.decision?.humanInterventionCount, 1);
   assert.equal(approvals.get(first.requestId)?.status, "responded");
   assert.equal(audit.query({ kind: "approval_resumed" }).length, 1);
   const duplicate = approvals.respond(response(identity, first.requestId, "allow", "approval-runtime"));
