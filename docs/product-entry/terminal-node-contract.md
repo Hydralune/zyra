@@ -14,14 +14,20 @@ runtime owner              = Zyra BackendRegistry + ResourceScheduler
 listener owner             = 当前 CLI 进程，或显式 daemon 子进程
 ```
 
-Gate 基线提交为 `931deeff0cedd19a23da65f2c9f58be22c956315`。现有 backend registry、HTTP transport、remote control client、workspace attestation 和 Python backend dispatch service 已经证明主要协议可运行；但当前 contract 仍有四个阻断差异：
+Gate 初始源码基线为 `931deeff0cedd19a23da65f2c9f58be22c956315`，
+三份规格提交为 `a9bc7c1aa1805059b25e713c50abef34598f7b8e`，FE-G00R
+实现验证提交为 `fd272ba`（核心实现 `843ef9c`）。现有 backend registry、HTTP
+transport、remote control client、workspace attestation 和 Python backend dispatch
+service 已经证明主要协议可运行。初始审计发现的四项阻断差异现均已收口：
 
-1. capability secret 会通过 endpoint projection/transport metadata 泄露；
-2. `POST /backends` 不限制自注册只能是 `edge_http + local`，且 revision 可省略；
-3. sealed run 的 `excluded_backend_ids` 没有从产品主路径接到选择请求；
-4. transport consumer 接受缺失 digest 的 frame 并自行补算，无法证明发送方提供了逐帧 digest。
+1. capability secret 曾通过 endpoint projection/transport metadata 泄露；
+2. `POST /backends` 曾未限制自注册只能是 `edge_http + local`，且 revision 可省略；
+3. sealed run 的 `excluded_backend_ids` 曾未从产品主路径接到选择请求；
+4. transport consumer 曾接受缺失 digest 的 frame 并自行补算，无法证明发送方提供了逐帧 digest。
 
-因此本 Gate **停止在文档层，状态 BLOCKED**。不得在 FE-G00 内修改 server/schema，也不得宣称 terminal node 已达到可发布或 sealed 证据标准。
+因此本 Gate 当前为 **PASS（contract/reference baseline）**。这只表示 FE-S04
+所依赖的服务端 contract 已就绪；TypeScript capability-prefix listener、进程生命周期、
+真实端节点 dispatch 和发布证据仍属于 FE-S04/FE-S06，尚未实现。
 
 ## 2. Canonical owner 与信任边界
 
@@ -41,14 +47,14 @@ LoopX claim、terminal process pid、BackendLease 和 permission custody token �
 
 | 契约项 | source owner | 既有/后续真实测试入口 |
 |---|---|---|
-| definition、kind/location、envelope、selection exclusion | `packages/scheduler/zyra_scheduler/backend_registry/models.py` | `tests/unit/test_backend_registry.py`；后续 terminal registration authority test |
+| definition、kind/location、envelope、selection exclusion | `packages/scheduler/zyra_scheduler/backend_registry/models.py`、`registry.py`、`integration.py` | `tests/unit/test_backend_registry.py`；`tests/integration/test_product_entry_sealed_terminal_exclusion.py` |
 | registry revision、selection、validation | `packages/scheduler/zyra_scheduler/backend_registry/registry.py`、`store.py`、`policy.py` | `tests/unit/test_backend_registry.py`、`tests/unit/scheduler/test_backend_registry_router_delays.py` |
-| HTTP request/frame/sequence/digest/redaction | `packages/scheduler/zyra_scheduler/backend_registry/transport.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 digest/sequence/capability mutation tests |
+| HTTP request/frame/sequence/digest/redaction | `packages/scheduler/zyra_scheduler/backend_registry/transport.py` | `tests/integration/test_backend_failover_dispatch.py`；`tests/unit/test_product_entry_terminal_contract.py` |
 | cancel/drain/resume/status/generation | `packages/scheduler/zyra_scheduler/backend_registry/remote_control.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 kill/restart/zombie tests |
 | dispatch/control listener 参考实现 | `packages/workers/zyra_workers/backend_dispatch_service.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 TypeScript listener parity test |
 | workspace root 与前后 attestation | `packages/scheduler/zyra_scheduler/backend_registry/workspace_attestation.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 real root/symlink/cwd mutation test |
-| public registration API | `apps/api/zyra_api/provider_backend_api.py` | 后续 API registration identity/revision/redaction tests |
-| production selection construction | `apps/api/zyra_api/main.py`、backend registry integration | 后续 sealed `excluded_backend_ids` end-to-end/mutation test |
+| public registration API | `apps/api/zyra_api/provider_backend_api.py` | `tests/unit/test_product_entry_terminal_contract.py` |
+| production selection construction | `apps/api/zyra_api/main.py`、`packages/orchestration/zyra_orchestration/task_graph.py`、backend registry integration | `tests/integration/test_product_entry_sealed_terminal_exclusion.py`；sealed/recovery 相邻回归 |
 
 ## 3. Listener 启动、注册和停止时序
 
@@ -77,8 +83,8 @@ CLI/daemon start
 所有路径实际位于不可猜测的 capability prefix 之后：
 
 ```text
-http://127.0.0.1:<random-port>/<capability-token>/health
-http://127.0.0.1:<random-port>/<capability-token>/v1/dispatch
+http://127.0.0.1:<random-port>/capability/<capability-token>/health
+http://127.0.0.1:<random-port>/capability/<capability-token>/v1/dispatch
 ...
 ```
 
@@ -205,7 +211,10 @@ terminal node 的合法子集固定为：
 
 ### 7.2 `POST /backends`
 
-现有注册入口接受 `BackendDefinition` 字段加可选 `expected_revision`，成功返回 HTTP 200，response schema `zyra.provider-backend-api/v1`，state owner 为 `python.BackendRegistryStore`。终端自注册要求比通用 API 更严格：
+注册入口现在接受 `BackendDefinition`、必填 `expected_revision` 和必填
+`terminal_registration={generation, owner_id, capability_token}`，成功返回 HTTP 200，
+response schema `zyra.provider-backend-api/v1`，state owner 为
+`python.BackendRegistryStore`。终端自注册固定要求：
 
 - `expected_revision` 必填；409 后重新读取 registry revision，绝不 last-write-wins；
 - API 必须能证明调用者只能注册/更新自己的 `edge_http + local` generation；
@@ -213,7 +222,10 @@ terminal node 的合法子集固定为：
 - endpoint/health endpoint 必须是 loopback capability URL；
 - list/detail projection 必须用 opaque endpoint identity，不能返回 token path。
 
-当前 `BackendRegistry.validate_definition` 只对 HTTP URL 做 absolute URL 校验，对 kind/location/loopback/调用者所有权均未做上述限制；`expected_revision` 也可省略。因此此项在 server contract 不变的前提下无法满足。
+FE-G00R 在 API authority 层强制 `edge_http + local`、无 command/docker、loopback、
+`/capability/<token>`、generation/owner、listener health identity/capability 回显和 revision
+fence。owner 冲突、非 loopback、错误 generation、错误 capability path、listener 未就绪和
+stale revision 均有负向测试。token 只以 digest 进入受保护 metadata。
 
 ## 8. Workspace、cwd 与 attestation
 
@@ -239,7 +251,10 @@ capability token 是 listener 的 bearer secret，只允许出现在内存中的
 - `_redact_url` 必须把整个 path token 替换为 opaque marker，而非只去掉 query/userinfo；
 - registry list/detail 不能通过 `BackendDefinition.to_dict()` 原样回传 endpoint。
 
-当前事实：`BackendDefinition.to_dict()` 原样包含 endpoint，registry snapshot/list 又直接序列化 definition；`HttpBackendTransport._redact_url()` 保留 path，只去除 userinfo/query。若 token 放在 path，会被 API projection 和 transport metadata 泄露。此为发布阻断项 T-01。
+FE-G00R 保留内部 `to_dict()` 供 canonical persistence 使用，新增 `to_public_dict()`：
+public list/health projection 清空 endpoint/health endpoint，只返回不可逆 endpoint identity，
+并过滤敏感 metadata。`_redact_url()` 只保留 scheme/host/port 和 `/[OPAQUE]`；测试会在
+API projection 与 transport metadata 中搜索 token。T-01 已解决。
 
 ## 10. Disable、health、zombie 与 failover
 
@@ -255,14 +270,16 @@ capability token 是 listener 的 bearer secret，只允许出现在内存中的
 | 已观察输出或外部效果不确定 | 不透明重试；进入 reconcile/reconcile_required |
 | disable/unregister revision conflict | 不覆盖新 definition；把旧 listener 隔离并告警 |
 
-现有真实 HTTP failover/control/attestation 相邻测试：
+当前真实 HTTP failover/control/attestation 相邻测试：
 
 ```text
-.venv\Scripts\python.exe -m pytest tests\unit\test_backend_registry.py tests\integration\test_backend_failover_dispatch.py -q
-9 passed in 13.67s
+.venv\Scripts\python.exe -m pytest tests\unit\test_backend_registry.py tests\integration\test_backend_failover_dispatch.py tests\integration\test_product_entry_sealed_terminal_exclusion.py -q
+10 passed in 14.37s（含 sealed exclusion 行为测试）
 ```
 
-该结果证明既有 Python 主路径可用，不证明尚不存在的 TypeScript capability-prefix listener 已完成。
+此外 backend/task-graph/provider 相邻回归为 `21 passed`，sealed/recovery 长链为
+最终 HEAD `12 passed`（128.20s）。这些结果证明 Python contract 主路径可用，不证明尚不存在的
+TypeScript capability-prefix listener 已完成。
 
 ## 11. Sealed 排除
 
@@ -276,7 +293,11 @@ sealed/competition run 中，发起该 run 的本机 terminal backend 必须进�
 4. 如果排除后无合法 backend，fail closed，不回退使用 terminal；
 5. mutation test 移除 exclusion 时必须出现可观测差异并被安全 gate 拒绝。
 
-数据模型已包含 `excluded_backend_ids`，registry policy 也会执行过滤；但当前常规 integration construction 固定传空 tuple，只有局部 recovery 代码构造排除集合。没有从 sealed admission 到主 dispatch selection 的完整接线证据。此为 T-03。
+FE-G00R 新增 registry-owned terminal id 枚举；task-graph 主 dispatch 在 sealed、
+sealed_autonomous、formal_benchmark 或 sealed competition mode 下把这些 id 加入
+`excluded_backend_ids`，recovery successor 同样保留排除。lease reason 记录被排除的
+backend id（不含 endpoint/token）。真实行为测试证明：sealed 请求从未尝试 terminal；
+移除接线的 interactive 对照会先选择 terminal 并产生可观测 failover。T-03 已解决。
 
 ## 12. 明确排除项
 
@@ -295,15 +316,17 @@ FE-S04 及本 contract 不包括：
 
 | ID | 严重度 | 当前事实 | 要求 | 决定 |
 |---|---|---|---|---|
-| T-01 | Blocker / security | definition projection 原样含 endpoint；transport redaction 保留 path | capability path 在任何 projection/metadata 中不可见 | 必须先授权 server projection/redaction contract 变更 |
-| T-02 | Blocker / authority | `POST /backends` 接受全部 kind/location，revision 可省略 | terminal 只能 revision-fenced 注册自身 `edge_http + local` | 必须先授权注册 policy/identity contract 变更 |
-| T-03 | Blocker / sealed evidence | 主 dispatch construction 未接 sealed terminal exclusion | sealed run 全路径带 `excluded_backend_ids` | 必须先授权 admission/scheduler integration 变更 |
-| T-04 | Blocker / integrity | frame digest 缺失时 receiver 本地补算并接受 | 发送方 digest 必填并验证 | 必须先授权收紧 decoder contract；保留兼容策略需明确版本化 |
+| T-01 | Resolved / security | public definition/registry projection 使用 opaque identity；transport path 为 `/[OPAQUE]` | capability path 在 public projection/metadata 中不可见 | `test_public_backend_projection_and_transport_metadata_hide_capability_path` |
+| T-02 | Resolved / authority | revision + terminal proof 必填；只允许 attested loopback `edge_http + local` owner | terminal 只能 revision-fenced 注册自身 generation | registration 正/负向测试通过 |
+| T-03 | Resolved / sealed evidence | 主 dispatch 与 recovery 接入 terminal ids；retry 保留 request exclusions；lease 留安全 reason | sealed run 全路径带 `excluded_backend_ids` | sealed/interactive mutation 对照通过 |
+| T-04 | Resolved / integrity | receiver 拒绝缺失/错误 digest，并按 expected sequence 拒绝 gap/duplicate/reorder | 发送方 digest 必填并验证 | frame mutation 测试通过 |
 | T-05 | Latent hazard | `BackendTransportRequest` 空 digest fallback 与 canonical M0 digest 口径不同 | production 只走 router 显式 digest | FE-S04 测试锁死 canonical path；不在 Gate 改代码 |
 | T-06 | Expected implementation | Python handler 无 capability prefix | TypeScript listener 必须 prefix-routed | 属 FE-S04，不复用无 prefix 暴露方式 |
 | T-07 | Missing product | `apps/cli` / listener 尚不存在 | 实现并通过真实 HTTP/kill/restart/attestation tests | 属 FE-S04，当前不可报通过 |
 
-**Stop 决定：** 当前 parent 的“FE-S04 不改 server contract”与 T-01 至 T-04 冲突。应先修订 parent/slice 边界并由用户明确授权相应 server contract 收口；在此之前 FE-S04 不可执行，FE-G00 不可判为通过。
+**当前决定：** parent 已增加 FE-G00R 作为唯一 server-contract 前置例外，用户已明确
+授权且 T-01..T-04 已完成。FE-G00 可以判为通过；FE-S04 的剩余工作只实现 listener、
+process lifecycle、attestation 与真实端节点证据，不再重复修改这些 contract。
 
 ## 14. 后续行为测试 contract
 

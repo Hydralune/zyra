@@ -109,7 +109,10 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 
 ## 6. D5 长会话压力验收基线
 
-以下测试集由 Gate 冻结；`apps/cli` 尚不存在，所以当前状态是 **specified / not executed**，不是 pass。
+以下测试集由 Gate 冻结；`apps/cli` 尚不存在，所以当前状态是
+**specified / execution deferred to FE-S02 and FE-S06**，不是产品测试 pass。parent 已显式
+修订 Gate 时序：FE-G00 只需冻结压力向量与失败后的回修规则；真实 TTY/pipe 通过证据必须在
+CLI 存在后生成，不能用 mock transcript 提前替代。
 
 | ID | 场景 | 输入/故障 | 必须观察到的结果 | 禁止结果 | 归属 |
 |---|---|---|---|---|---|
@@ -142,6 +145,10 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 ## 8. Gate 决定
 
 - 是否需要继续学习 Claude Code CLI：**需要，但方式是定向参考 + 转化为 Zyra contract/test，不是继续无边界阅读。**
-- 当前已完成七个目标行为的源码追踪、owner 映射和采纳裁决；这足以进入实现前基线。
+- 当前已完成七个目标行为的源码追踪、owner 映射和采纳裁决；这足以通过
+  contract/reference Gate 并进入实现候选。
 - 后续只在某个 slice 出现具体交互/恢复问题时回到对应源码点，不再把 Claude 仓库当总体蓝图。
-- 因 client/terminal contract 仍有阻断项且 D5 尚不可执行，本文件不授权 FE-S01，也不将 Gate 标为 pass。
+- client/session 与 terminal contract 的 C-01/T-01..T-04 已由 FE-G00R 在提交
+  `fd272ba` 收口；D5 真实执行按 parent 修订保留给 FE-S02/S06。
+- 因此 FE-G00 当前为 **PASS（contract/reference baseline）**。这只把 FE-S01
+  确定为下一候选，不构成 FE-S01 授权，也不表示任何 CLI 行为已经实现。

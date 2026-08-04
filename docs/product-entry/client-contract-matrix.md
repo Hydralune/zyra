@@ -3,16 +3,19 @@
 ## 1. 文档身份与结论
 
 - Gate：`FE-G00 Contract / Reference Baseline`
-- 基线提交：`931deeff0cedd19a23da65f2c9f58be22c956315`
+- 初始源码基线：`931deeff0cedd19a23da65f2c9f58be22c956315`
+- 三份规格提交：`a9bc7c1aa1805059b25e713c50abef34598f7b8e`
+- FE-G00R 实现验证提交：`fd272ba`（核心实现提交 `843ef9c`）
 - 基线时间：`2026-08-04T08:45:42+08:00`
 - 观测工具链：Node.js `v22.17.0`、Python `3.13.9`、Bun `1.2.15`（通过 `npx bun@1.2.15`；Bun 未加入 PATH）
 - 包版本：`@zyra/typed-api-client@0.1.0`、`@zyra/commands@0.1.0`、`@zyra/web@0.1.0`
 - 目标 CLI：TypeScript + Bun，位置 `apps/cli`，可执行名 `zyra`
-- 当前事实：`apps/cli`、CLI daemon owner 和通用 session collection API 均不存在；
+- 当前事实：`apps/cli` 和 CLI daemon owner 尚不存在；task-backed 的只读
+  `GET /sessions` / `GET /sessions/{session_id}` resolver 已由 FE-G00R 落地。
   `Get-Command zyra` 返回未绑定，二进制名当前未被 PATH 中其他命令占用。
-- Gate 结论：**文档基线已形成，但实现准入为 BLOCKED**。在本文和
-  `terminal-node-contract.md` 的阻断差异得到授权并收口前，不得把 FE-S01
-  标记为已授权或开始修改产品代码。
+- Gate 结论：**PASS（contract/reference baseline）**。C-01 与 T-01..T-04
+  已在 FE-G00R 收口并由真实 API、typed-client、registry/failover 和 sealed
+  回归验证。FE-S01 现在可以被唯一确定为下一候选，但仍未获得执行授权。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -45,6 +48,7 @@
 |---|---|
 | health/readiness | `zyra.health.v1`、`zyra.runtime-readiness.v1` |
 | task list/detail/mutation | `zyra.task-list.v1`、`zyra.task-detail.v1`、`zyra.task-mutation.v1` |
+| session list/detail | `zyra.session-list.v1`、`zyra.session-detail.v1`；owner 固定为 `task_store_projection` |
 | event legacy/ingress | `zyra.task-events.v1`、`zyra.event-ingress-capabilities.v1`、`zyra.event-ingress-snapshot.v1`、`zyra.event-ingress-delta.v1`、`zyra.event-ingress-sse.v1` |
 | command | `zyra.task-control-command.v1`、`zyra.command-queue.v1`、`zyra.command-cancel.v1`；共享 queue/receipt protocol 另有 `zyra.control/v1`、`zyra.command-queue/v1`、`zyra.command-receipt/v1` |
 | permission | `zyra.permission-control.v2` |
@@ -80,8 +84,8 @@ heartbeat 等 non-effective/live-only 事件不得被 UI 计为有效长程 step
 | 进入工作台：`zyra` | `GET /health`；`GET /runtime/readiness`；`GET /tasks?cursor&limit&status`；选中任务后使用 event-ingress 四件套 | 新建 `apps/cli` shell；HTTP 复用 `@zyra/typed-api-client` | API readiness、task store、event ingress | 只读；task projection 带服务端 revision | task list cursor；事件 signed cursor/generation；gap 后 snapshot | 展示 pending request；解决动作仍走 permission API | TTY 进入 line transcript；非 TTY 无 goal 时返回用法错误 | API 不可达显示 disconnected；readiness 503 显示 degraded，不伪装空任务 | 默认入口、空列表、readiness 503、cursor gap、非 TTY 空输入 | `ADAPT` |
 | 快速发起：`zyra "<goal>"` | `POST /tasks`（`auto_run=true`）；随后 event-ingress capabilities/snapshot/delta/SSE | CLI task adapter | task API + runtime | 客户端生成 idempotency key；服务端 receipt 为准 | 首次 snapshot 后 SSE；断线从最后确认 cursor 恢复 | 运行中出现权限请求时显式等待 | TTY 转交交互 transcript；非 TTY 等价 `run`，stdout JSONL | 创建失败不产生伪 task；409 显示 receipt/conflict；断线不取消 task | task create、duplicate replay、permission wait、reconnect | `ADAPT` |
 | 自动化运行：`zyra run <goal 或 -f>` | `POST /tasks`；event-ingress；必要时读 `GET /tasks/{task_id}`、artifact endpoints | CLI non-interactive adapter | task/event/artifact APIs | 创建 idempotency；不重放未知结果写请求 | cursor journal 落客户端运行目录；gap 取 snapshot | 默认不可交互：需要人工的动作返回明确 pending/exit，不自动允许 | stdout 只允许 JSONL；人类诊断到 stderr；支持 pipe/tee/EPIPE | 固定退出码 0..5；协议污染、断线、权限等待分别可判定 | JSONL purity、pipe/tee、EPIPE、SIGINT、exit code、cursor resume | `ADAPT` |
-| 恢复：`zyra resume <task-or-session>` | task：`GET /tasks/{id}`、`POST /tasks/{id}/run`、event-ingress；session：**无通用 `GET /sessions` / `GET /sessions/{id}` contract** | task resume 可复用；session resolver 未定义 | task API 已有；session 只有嵌入 task/command/permission/event 的身份 | run 请求需 idempotency；command 需 expected session revision | task 可 cursor 恢复；session 到 task 的权威解析缺失 | 保留后端 pending permission，不本地清空 | 两种模式均需先输出被解析的 canonical task/session identity | task 不存在 404；session 歧义/不存在必须 fail closed | task resume、重复 resume、session ambiguity、restart recovery | task=`ADAPT`；session=`BLOCKED` |
-| 列表：`zyra ls` | `GET /tasks?cursor&limit&status`；**无 session collection API** | CLI list projection | task API | 只读 | task cursor 翻页；cursor 无效重新取第一页并告警 | 只显示摘要，不把 permission 变成本地状态 | TTY 表格/短列表；非 TTY JSONL | API 失败不输出空成功结果 | pagination、filters、JSONL、session absence | task=`REUSE`；session=`BLOCKED` |
+| 恢复：`zyra resume <task-or-session>` | task：`GET /tasks/{id}`、`POST /tasks/{id}/run`、event-ingress；session：`GET /sessions/{session_id}` | task resume 可复用；session 使用 typed resolver | task store；session 是只读 task projection，不是第二 owner | resolver 只读；run 请求需 idempotency；command 需 expected session revision | task 用 event cursor；session 仅在唯一候选时返回 `resume_task_id` | 保留后端 pending permission，不本地清空 | 两种模式均先输出 canonical task/session identity | task/session 不存在 404；多候选为 `ambiguous` 且不返回 resume target | task resume、重复 resume、session ambiguity/not-found/restart | `REUSE + ADAPT` |
+| 列表：`zyra ls` | `GET /tasks?cursor&limit&status`；`GET /sessions?cursor&limit&status` | typed client + CLI list projection | task store；session 为 task-backed projection | 只读 | task/session cursor 分域；cursor scope/字段异常 fail closed | 只显示摘要，不把 permission 变成本地状态 | TTY 表格/短列表；非 TTY JSONL | API 失败不输出空成功结果；不能由本地历史补 session | pagination、filters、JSONL、cursor mismatch | `REUSE + ADAPT` |
 | 场景闭环：`zyra scenario <ls/create/start/cancel/verify/evidence>` | `GET /scenarios/registry`；`GET/POST /scenarios/runs`；`GET /scenarios/runs/{id}`；`POST .../start`；`POST .../cancel`；`POST .../verify`；`GET .../evidence` | CLI scenario adapter；Web workbench 可继续复用 | `scenario_api` / scenario runner | create/start/cancel/verify 均携带 request identity/idempotency；revision conflict 不覆盖 | run 状态轮询或 task events；evidence 409 表示尚未形成 | sealed 场景沿用 runtime permission/zero-human policy | TTY 显示阶段；非 TTY 每次状态变化一条 JSONL | 409/422/503 保留 error code 与 retryability | lifecycle、duplicate create/start、evidence-not-ready、sealed rejection | `REUSE + ADAPT` |
 | 打开状态面：`zyra ui` | 进程启动前 `GET /health` / `GET /runtime/readiness`；Web 自身继续走 typed API；**无 server-side UI lifecycle endpoint** | 新建本地 UI launcher；`@zyra/web` 仍拥有前端 app | API 不拥有浏览器/本地 dev server 进程 | launcher 使用 pid/port generation 防重；不写 runtime state | UI 重启后由 Web 自己用 cursor/snapshot 恢复 | 浏览器复杂审批仍调用 permission API | TTY 可打印 URL；非 TTY 输出结构化 launcher receipt | 端口冲突、子进程早退、API 未就绪需非零退出 | already-running、random port、child exit、API degraded | launcher=`CREATE`；API=`REUSE` |
 | 常驻入口：`zyra daemon <start/stop/status>` | daemon 启动后探测 `GET /health` / `GET /runtime/readiness`；**无 daemon lifecycle HTTP contract** | 新建 CLI-owned process supervisor；只拥有本地进程与 pid/generation | Zyra API 仍拥有 runtime state | start/stop 以 pid+generation 幂等；旧 pid 不得杀新进程 | API/task 恢复仍由 server store + event cursor 完成 | daemon 不代替 permission owner | TTY human；非 TTY JSONL receipt | stale pid、zombie、startup timeout、stop timeout fail closed | double start、stale pid、generation fence、crash recovery | process=`CREATE`；runtime=`REUSE` |
@@ -99,13 +103,12 @@ heartbeat 等 non-effective/live-only 事件不得被 UI 计为有效长程 step
 | Task create | `POST /tasks`，body `{goal, auto_run, session_id?, worker_pool?}` | 201 | task API/runtime | 生成 idempotency，持有 receipt | `REUSE` |
 | Task cancel | `POST /tasks/{task_id}/cancel`，body `{reason}` | 200 | task runtime | 显示 canonical resulting state | `REUSE` |
 | Task run/resume | `POST /tasks/{task_id}/run`，body `{requested_by}` | 200 | task runtime | 不将 HTTP 超时解释为未执行 | `REUSE` |
-| Session collection | `GET /sessions`、`GET /sessions/{id}` | 不存在 | 未定义 | 禁止用本地历史伪造 | `BLOCKED` |
+| Session list | `GET /sessions?cursor=&limit=&status=`；`zyra.session-list.v1` | 200 | task store projection | 翻页、筛选、校验 `state_owner=task_store_projection` | `REUSE` |
+| Session detail/resolver | `GET /sessions/{session_id}`；`zyra.session-detail.v1` | 200；不存在 404 | task store projection | 仅在 `resolution=resolved` 时消费 `resume_task_id`；`ambiguous` fail closed | `REUSE` |
 
-`session_id` 当前是 task、command、permission、event 中的关联 identity，而不是有独立 collection contract 的资源。因此：
-
-- FE-S01 可以冻结 task-only 的 resume/list adapter；
-- 公开承诺 `resume <session>` 或 `ls` 中列出 session 前，必须由 parent 明确选择：新增只读 session resolver contract，或从公开 CLI 语法中删除 session 语义；
-- Gate 不替这个产品决策做 schema 修改。
+`session_id` 仍是 task、command、permission、event 中的关联 identity，不是新的
+canonical store。session API 只聚合 task state：单一候选返回 `resolved + resume_task_id`；
+多候选返回 `ambiguous + resume_task_id=null`；不存在返回 404。客户端禁止用本地历史消除歧义。
 
 ### 4.2 Event / state
 
@@ -213,7 +216,7 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | `cli-noninteractive-jsonl` | stdout purity、stderr 分流、pipe/tee、EPIPE、SIGINT、JSONL input/output | FE-S01 / FE-S06 |
 | `cli-event-recovery` | snapshot、SSE、delta、cursor resume、generation change、gap fallback | FE-S01 / FE-S03 |
 | `cli-command-permission` | now/next/later、FIFO、409、取消、permission wait/deny/timeout、sealed fail closed | FE-S03 |
-| `cli-session-resolution` | task resume、session ambiguity/not-found/restart | **阻断；先解决 session contract** |
+| `cli-session-resolution` | task resume、session ambiguity/not-found/restart；只接受 task-backed owner | FE-S01 / FE-S03 |
 | `cli-daemon-process` | double start、stale pid、generation fence、crash/zombie、stop timeout | FE-S01 / FE-S06 |
 | `web-downshift-regression` | Web task/event/permission/scenario 能力仍真实可达 | FE-S05 |
 | `shared-client-parity` | 同一 request 在 CLI/Web 的 method/path/body/status/cursor 语义一致 | FE-S05 / FE-S06 |
@@ -222,11 +225,11 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 
 | slice | contract / owner | 主要失败路径 | 必须测试 | 当前准入 |
 |---|---|---|---|---|
-| FE-S01 | typed API task/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、stale pid、unknown mutation outcome、JSONL pollution | command surface、create/run、cursor resume、daemon fence、pipe/EPIPE/exit | 唯一候选 Base；未授权，且受 C-01/T blockers 阻断 |
+| FE-S01 | typed API task/session/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、session ambiguity、stale pid、unknown mutation outcome、JSONL pollution | command surface、create/run/resume、cursor resume、daemon fence、pipe/EPIPE/exit | 唯一下一候选；contract 已就绪，未授权 |
 | FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | 待 FE-S01 |
 | FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | 待 FE-S02 |
-| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | **BLOCKED：T-01..T-04** |
-| FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04/阻断收口 |
+| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | T-01..T-04 已收口；仍需实现尚不存在的 CLI listener |
+| FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04 |
 | FE-S06 | release/automation owner；runtime owners 不变 | offline 包缺依赖、Windows entry 失败、D5/比赛证据断链 | cleanroom install、binary、JSONL、D5、sealed scenario、evidence bundle | 最终候选 |
 
 ## 8. 赛题证据映射
@@ -240,20 +243,24 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | 端边云 | local/terminal、edge runtime、cloud provider/model 的物理 dispatch receipt；终端节点 contract 见配套文档 |
 | 零人工闭环 | sealed run 中低风险 allowlist 自动执行，高风险/未知确定性拒绝并 recovery/replan |
 
-## 9. 阻断差异与 Gate 决定
+## 9. 差异收口与 Gate 决定
 
 | ID | 差异 | 影响 | Gate 行为 |
 |---|---|---|---|
-| C-01 | 无通用 session collection/resolver API，却冻结了 `resume <task-or-session>` | 无法可靠解析 session，也不能实现 session list/restart 行为测试 | 停止；parent 选择新增只读 contract 或缩减 CLI 语法 |
+| C-01 | 初始无通用 session collection/resolver API | FE-G00R 已新增 task-backed list/detail；歧义/不存在 fail closed | **RESOLVED**；真实 API + typed normalizer 测试通过 |
 | C-02 | daemon/UI launcher owner、pid/generation/路径尚未形成实现 contract | 可能产生重复 daemon、误杀新进程或将客户端状态冒充 runtime state | 先在 FE-S01 明确本地 contract；不得改后端 owner |
-| C-03 | terminal-node contract 存在安全/调度阻断项 | 端侧真实 dispatch 和 sealed 证据无法按当前 parent 承诺成立 | 见 `terminal-node-contract.md`；未解决前不得宣称 Gate pass |
-| C-04 | D5 压力测试目前只有验收定义，`apps/cli` 尚不存在 | 无法产生 80/120 列终端宽度与长会话的真实通过证据 | 本 Gate 冻结测试，不能伪报通过 |
+| C-03 | terminal-node contract 初始存在 T-01..T-04 | FE-G00R 已收口 projection、authority、sealed exclusion 与 digest | **RESOLVED**；见 `terminal-node-contract.md` |
+| C-04 | D5 压力测试目前只有验收定义，`apps/cli` 尚不存在 | 不能在实现前产生真实 TTY 通过证据 | **DEFERRED BY PARENT REVISION**：本 Gate 冻结向量；FE-S02/S06 执行，失败则回修 D5 |
 
-因此，本文件完成的是“contract inventory + 缺口裁决”，不是产品实现完成证据。FE-S01 仍是唯一候选 Base，但当前为**未授权且被 Gate 阻断**。
+因此，FE-G00 的 contract/reference Gate 已通过；这不是 CLI 产品完成证据。FE-S01
+是唯一下一候选，必须等待用户再次明确授权并记录新的 BASE_COMMIT。
 
 ## 10. 基线验证记录
 
 - 工作树检查时只有用户原有未跟踪目录 `zyra.egg-info/`；本文不触碰它。
-- 真实后端相邻验证：`.venv\Scripts\python.exe -m pytest tests\unit\test_backend_registry.py tests\integration\test_backend_failover_dispatch.py -q`，结果 `9 passed`（13.67s）。
-- 本 Gate 未运行 CLI/D5 测试：`apps/cli` 不存在；把测试写进表格不等于通过。
-- 本 Gate 没有修改 production、test、runtime-assets、generated、data 或 schema 文件。
+- FE-G00R 定向测试：session API、terminal registration/redaction/frame、sealed exclusion 共 `6 passed`。
+- typed client：`typecheck:web` 通过；session contract `3 passed`。
+- backend/task-graph/provider 相邻回归 `21 passed`；registry/failover/exclusion 重验 `10 passed`。
+- 最终 HEAD sealed/recovery 长链回归 `12 passed`（128.20s）。
+- D5 未运行：`apps/cli` 仍不存在；其真实执行证据保留给 FE-S02/S06，本文不伪报通过。
+- production/test/schema 改动只属于已授权 FE-G00R；未创建 `apps/cli`，未转移 canonical owner。
