@@ -245,6 +245,7 @@ console.log(JSON.stringify({opened,pending:pending.map(p=>p.requestId),receipt:r
         assert not first["receipt"].get("permit_id")
         assert any(item["responseAccepted"] is True for item in first["web"])
 
+        allow_tool_call_id = f"toolcall_{uuid4().hex}"
         status, _, _ = _request(
             base_url,
             f"/tasks/{state.task_id}/commands",
@@ -252,7 +253,7 @@ console.log(JSON.stringify({opened,pending:pending.map(p=>p.requestId),receipt:r
             payload={
                 "text": "/e02-reload",
                 "actor_id": "fe-s03-permission",
-                "tool_call_id": f"toolcall_{uuid4().hex}",
+                "tool_call_id": allow_tool_call_id,
             },
         )
         assert status == 403
@@ -272,6 +273,36 @@ const [baseUrl,taskId,sessionId,token]=process.argv.slice(1); const api=new CliA
         assert restarted["receipt"]["accepted"] is True
         assert restarted["receipt"]["effect"] == "allow"
         assert restarted["receipt"]["permit_id"]
+
+        allowed_status, allowed_result, _ = _request(
+            base_url,
+            f"/tasks/{state.task_id}/commands",
+            method="POST",
+            payload={
+                "text": "/e02-reload",
+                "actor_id": "fe-s03-permission",
+                "tool_call_id": allow_tool_call_id,
+                "permit_id": restarted["receipt"]["permit_id"],
+            },
+        )
+        assert allowed_status == 201, allowed_result
+        assert allowed_result["command_result"]["status"] == "completed"
+        replay_status, replay_result, _ = _request(
+            base_url,
+            f"/tasks/{state.task_id}/commands",
+            method="POST",
+            payload={
+                "text": "/e02-reload",
+                "actor_id": "fe-s03-permission",
+                "tool_call_id": allow_tool_call_id,
+                "permit_id": restarted["receipt"]["permit_id"],
+            },
+        )
+        assert replay_status == 201, replay_result
+        assert replay_result["command_result"]["completedAt"] == allowed_result["command_result"]["completedAt"]
+        assert allowed_result["command_result"]["receipt"]["replayed"] is False
+        assert replay_result["command_result"]["receipt"]["replayed"] is True
+        assert replay_result["command_result"]["receipt"]["executionId"] == allowed_result["command_result"]["receipt"]["executionId"]
 
         query = urlencode(
             {
