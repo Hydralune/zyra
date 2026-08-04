@@ -1,0 +1,139 @@
+{
+  "schema": "zyra.product-entry-slice-evidence.v1",
+  "slice_id": "FE-S01",
+  "slice": "Zyra产品入口纠偏执行切片/slice-01-noninteractive-cli-foundation.md",
+  "status": "verified",
+  "verified_at": "2026-08-04",
+  "base_commit": "026e5149db85781ffe6b8bb9c0cee419b4275560",
+  "implementation_commit": "3de2eb8c0e9f5dc4679d3cb8ab7809da3cfab9fe",
+  "evidence_commit": "the Git commit containing this evidence record",
+  "contract": {
+    "binary": "zyra",
+    "workspace": "apps/cli",
+    "runtime": "TypeScript + Bun; Node-compatible bundle",
+    "stdout": "JSONL only",
+    "stderr": "human diagnostics only",
+    "exit_codes": {
+      "0": "success",
+      "1": "task, scenario, or execution-contract failure",
+      "2": "usage or input error",
+      "3": "daemon unavailable or startup health failure",
+      "4": "explicit cancellation or signal policy",
+      "5": "verifier or completion-gate failure"
+    }
+  },
+  "real_path_evidence": {
+    "ordinary_run": {
+      "result": "passed",
+      "owners": [
+        "task API",
+        "runtime event ingress",
+        "task event replay",
+        "final verifier",
+        "completion gate"
+      ]
+    },
+    "sealed_cancel": {
+      "result": "passed",
+      "exit_code": 4,
+      "receipt_operation": "task.cancel",
+      "receipt_status": "committed"
+    },
+    "sealed_scenario": {
+      "result": "passed",
+      "lifecycle": [
+        "registry",
+        "create",
+        "start",
+        "verify",
+        "evidence"
+      ],
+      "dirty_default_preflight": "failed closed with scenario_preflight_dirty",
+      "clean_preflight": "server-validated clean targets admitted and completed"
+    },
+    "daemon": {
+      "result": "passed",
+      "auto_started": true,
+      "survived_starting_cli_exit": true,
+      "status_reachable_and_managed": true,
+      "explicitly_stopped_after_test": true
+    }
+  },
+  "negative_evidence": {
+    "usage_without_goal": "exit 2 and no task id",
+    "unreachable_daemon_with_autostart_disabled": "exit 3 and no task id",
+    "unknown_event_schema": "fail closed",
+    "incompatible_api_version": "fail closed without fallback",
+    "disabled_typed_transport": "fail closed without Web fallback",
+    "event_disconnect_without_verifier": "exit 5; printed events are not inferred as success",
+    "epipe": "writer closes quietly without partial JSON",
+    "dirty_scenario_preflight": "exit 1 with safe dirty_kinds projection"
+  },
+  "verification": [
+    {
+      "command": "bun test ./apps/cli/test ./packages/core/typed-api-client/test",
+      "result": "28 passed, 0 failed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\integration\\test_cli_noninteractive_foundation.py -q",
+      "result": "4 passed in 94.03s"
+    },
+    {
+      "command": "bun run typecheck",
+      "result": "passed; includes apps/cli, typed client, commands, Web, and adjacent TypeScript packages"
+    },
+    {
+      "command": "bun run build:cli",
+      "result": "passed; apps/cli/dist/zyra.js"
+    },
+    {
+      "command": "node apps/cli/dist/zyra.js --version",
+      "result": "exit 0; two valid JSONL records"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "buckets": {
+    "production": {
+      "files": 11,
+      "lines": 2357,
+      "description": "CLI source plus shared typed client composition"
+    },
+    "test": {
+      "files": 3,
+      "lines": 598,
+      "description": "parser/writer/contract tests and real API/runtime/daemon integration"
+    },
+    "config_generated": {
+      "description": "workspace/package/tsconfig and bun.lock metadata only"
+    },
+    "runtime_assets": {
+      "files": 0
+    },
+    "data": {
+      "files": 0
+    },
+    "adapter_only": {
+      "files": 0
+    },
+    "mock_fixture": {
+      "description": "fetch fakes are restricted to pure negative contract tests; no real-path acceptance relies on them"
+    }
+  },
+  "boundaries": {
+    "apps_api_modified": false,
+    "runtime_owner_modified": false,
+    "permission_owner_modified": false,
+    "public_persistence_schema_modified": false,
+    "web_modified": false,
+    "second_canonical_state_source_created": false,
+    "claude_runtime_dependency_added": false,
+    "terminal_node_enabled": false,
+    "real_terminal_dispatch_claimed": false,
+    "user_untracked_zyra_egg_info_touched": false
+  },
+  "next_candidate": "FE-S02",
+  "next_candidate_authorized": false
+}

@@ -10,12 +10,12 @@
 - 观测工具链：Node.js `v22.17.0`、Python `3.13.9`、Bun `1.2.15`（通过 `npx bun@1.2.15`；Bun 未加入 PATH）
 - 包版本：`@zyra/typed-api-client@0.1.0`、`@zyra/commands@0.1.0`、`@zyra/web@0.1.0`
 - 目标 CLI：TypeScript + Bun，位置 `apps/cli`，可执行名 `zyra`
-- 当前事实：`apps/cli` 和 CLI daemon owner 尚不存在；task-backed 的只读
-  `GET /sessions` / `GET /sessions/{session_id}` resolver 已由 FE-G00R 落地。
-  `Get-Command zyra` 返回未绑定，二进制名当前未被 PATH 中其他命令占用。
-- Gate 结论：**PASS（contract/reference baseline）**。C-01 与 T-01..T-04
-  已在 FE-G00R 收口并由真实 API、typed-client、registry/failover 和 sealed
-  回归验证。FE-S01 现在可以被唯一确定为下一候选，但仍未获得执行授权。
+- 当前事实：FE-S01 已在 `apps/cli` 建立 TypeScript + Bun 非交互入口与本地
+  daemon process owner；task-backed 的只读 `GET /sessions` /
+  `GET /sessions/{session_id}` resolver 继续由 FE-G00R 提供。
+- Gate 结论：**PASS（contract/reference baseline）**；FE-S01 也已按用户独立授权
+  完成。CLI 只新增客户端 transport、writer 和 pid/generation 状态，不改变
+  task/event/scenario/runtime canonical owner。FE-S02 仅为未授权的下一候选。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -186,11 +186,11 @@ daemon/UI lifecycle 是缺失的**客户端本地进程契约**，不是新增�
 | code | 含义 |
 |---:|---|
 | 0 | 请求完成且达到命令定义的成功终态 |
-| 1 | 用户输入/CLI usage 错误 |
-| 2 | API 不可达、连接中断且未能在边界内恢复 |
-| 3 | runtime/task/场景失败终态 |
-| 4 | permission/安全策略确定性拒绝或非交互等待人工 |
-| 5 | contract、cursor、revision、digest 或内部不变量失败 |
+| 1 | task/场景执行失败，或读取到不可接受的执行 contract |
+| 2 | CLI usage/参数/输入文件错误 |
+| 3 | daemon/API 不可达，或启动后未在边界内通过 health contract |
+| 4 | 显式取消、signal policy 中断；后续非交互 permission wait 也保留此码 |
+| 5 | final verifier 或 completion gate 未达标、缺失，或场景 evidence verify 失败 |
 
 退出码只表达当前命令观察到的结果；不得用 CLI 进程退出推断 daemon/task 已停止。
 
@@ -208,7 +208,8 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 
 ## 7. 行为测试目录（后续 slice 的冻结验收）
 
-这些是测试 contract，不代表当前已存在的 `apps/cli` 测试：
+这些是分阶段测试 contract；FE-S01 已实现其中 walking skeleton 对应的真实测试，
+完整 TTY/重连/压力向量仍归后继 slice：
 
 | 测试组 | 必测场景 | 归属 slice |
 |---|---|---|
@@ -225,8 +226,8 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 
 | slice | contract / owner | 主要失败路径 | 必须测试 | 当前准入 |
 |---|---|---|---|---|
-| FE-S01 | typed API task/session/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、session ambiguity、stale pid、unknown mutation outcome、JSONL pollution | command surface、create/run/resume、cursor resume、daemon fence、pipe/EPIPE/exit | 唯一下一候选；contract 已就绪，未授权 |
-| FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | 待 FE-S01 |
+| FE-S01 | typed API task/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、dirty preflight、stream disconnect、unknown schema/version、JSONL pollution | command surface、real run/cancel/scenario、daemon survival、pipe/EPIPE/exit | **COMPLETED**；见 FE-S01 evidence/self-review |
+| FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | 下一候选；未授权 |
 | FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | 待 FE-S02 |
 | FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | T-01..T-04 已收口；仍需实现尚不存在的 CLI listener |
 | FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04 |
@@ -248,12 +249,12 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | ID | 差异 | 影响 | Gate 行为 |
 |---|---|---|---|
 | C-01 | 初始无通用 session collection/resolver API | FE-G00R 已新增 task-backed list/detail；歧义/不存在 fail closed | **RESOLVED**；真实 API + typed normalizer 测试通过 |
-| C-02 | daemon/UI launcher owner、pid/generation/路径尚未形成实现 contract | 可能产生重复 daemon、误杀新进程或将客户端状态冒充 runtime state | 先在 FE-S01 明确本地 contract；不得改后端 owner |
+| C-02 | daemon/UI launcher owner、pid/generation/路径初始未形成实现 contract | 可能产生重复 daemon、误杀新进程或将客户端状态冒充 runtime state | **CLI daemon RESOLVED IN FE-S01**；UI launcher 仍归后续 slice，后端 owner 未改 |
 | C-03 | terminal-node contract 初始存在 T-01..T-04 | FE-G00R 已收口 projection、authority、sealed exclusion 与 digest | **RESOLVED**；见 `terminal-node-contract.md` |
-| C-04 | D5 压力测试目前只有验收定义，`apps/cli` 尚不存在 | 不能在实现前产生真实 TTY 通过证据 | **DEFERRED BY PARENT REVISION**：本 Gate 冻结向量；FE-S02/S06 执行，失败则回修 D5 |
+| C-04 | D5 完整压力测试仍含尚未实现的 TTY 行为 | FE-S01 只能验证 non-TTY JSONL/EPIPE/daemon walking skeleton | **PARTIAL**：FE-S01 向量已通过；FE-S02/S06 执行完整 D5，失败则回修 |
 
-因此，FE-G00 的 contract/reference Gate 已通过；这不是 CLI 产品完成证据。FE-S01
-是唯一下一候选，必须等待用户再次明确授权并记录新的 BASE_COMMIT。
+因此，FE-G00 的 contract/reference Gate 与 FE-S01 非交互 walking skeleton 均已通过。
+这仍不是完整交互 CLI 产品完成证据；FE-S02 是下一候选，但记录候选不构成授权。
 
 ## 10. 基线验证记录
 
@@ -262,5 +263,9 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 - typed client：`typecheck:web` 通过；session contract `3 passed`。
 - backend/task-graph/provider 相邻回归 `21 passed`；registry/failover/exclusion 重验 `10 passed`。
 - 最终 HEAD sealed/recovery 长链回归 `12 passed`（128.20s）。
-- D5 未运行：`apps/cli` 仍不存在；其真实执行证据保留给 FE-S02/S06，本文不伪报通过。
-- production/test/schema 改动只属于已授权 FE-G00R；未创建 `apps/cli`，未转移 canonical owner。
+- FE-S01：CLI + typed-client `28 passed`；真实 API/runtime/daemon 集成 `4 passed`；
+  全仓 TypeScript typecheck、CLI build 与 Node 执行通过。
+- D5 仅完成 FE-S01 可执行向量；TTY/长会话/完整压力证据保留给 FE-S02/S06，
+  本文不伪报通过。
+- FE-S01 未修改 `apps/api`、runtime owner、public persistence schema 或 Web，
+  未启用 terminal node，也未声明 `real_terminal_dispatch_claimed`。
