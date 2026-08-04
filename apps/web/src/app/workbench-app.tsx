@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { TaskProjection } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "./runtime.ts"
 import {
   useAnnouncementSnapshot,
+  useCommandSnapshot,
   useLayoutSnapshot,
+  useLiveSyncSnapshot,
+  useMediaQuery,
   useOnlineStatus,
   useRoute,
   useWorkbenchSnapshot,
@@ -65,6 +68,15 @@ function statusTone(task: TaskProjection): string {
   return "idle"
 }
 
+/** Text equivalent for the colour-only status dot in the conversation list. */
+function statusText(task: TaskProjection): string {
+  const tone = statusTone(task)
+  if (tone === "active") return "进行中"
+  if (tone === "success") return "已完成"
+  if (tone === "danger") return "未完成"
+  return "等待中"
+}
+
 export interface ProductConversation {
   key: string
   title: string
@@ -106,28 +118,35 @@ export function productConversationList(
 export function seedProductPrompt(runtime: WorkbenchRuntime, prompt: string): void {
   runtime.router.openNewTask()
   runtime.drafts.set("new", prompt, prompt.length)
-  globalThis.setTimeout(() => {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("zyra:restore-command-draft", {
-        detail: { value: prompt, cursor: prompt.length },
-      }))
-    }
-    runtime.focus.focusId("workbench-command-input")
-  }, 0)
+  if (typeof window === "undefined") return
+  // The composer is already mounted on the home route, so its draft scope does
+  // not change; the event is what tells it to pick the seeded draft up.
+  window.dispatchEvent(new CustomEvent("zyra:restore-command-draft", {
+    detail: { value: prompt, cursor: prompt.length },
+  }))
+  runtime.focus.focusId("workbench-command-input")
 }
 
 function AppNavigation({
   runtime,
   routeKind,
   tasks,
+  listPhase,
   selectedTaskId,
+  drawer,
+  open,
   onNavigate,
+  navigationRef,
 }: {
   runtime: WorkbenchRuntime
   routeKind: string
   tasks: readonly TaskProjection[]
+  listPhase: string
   selectedTaskId?: string
+  drawer: boolean
+  open: boolean
   onNavigate: () => void
+  navigationRef: React.RefObject<HTMLElement | null>
 }) {
   const recent = productConversationList(tasks).slice(0, 12)
   const selectedTask = tasks.find((task) => task.taskId === selectedTaskId)
@@ -136,8 +155,18 @@ function AppNavigation({
     action()
     onNavigate()
   }
+  // Off-canvas on a narrow viewport means visually gone but still in the tab
+  // order unless it is explicitly removed from the accessibility tree.
+  const hidden = drawer && !open
   return (
-    <nav className="app-nav product-sidebar" aria-label="Zyra">
+    <nav
+      ref={navigationRef}
+      className="app-nav product-sidebar"
+      aria-label="Zyra 会话导航"
+      id="product-sidebar"
+      aria-hidden={hidden || undefined}
+      inert={hidden ? true : undefined}
+    >
       <div className="product-brand-row">
         <button className="brand" type="button" onClick={() => navigate(() => runtime.router.openTasks())}>
           <span className="brand-mark" aria-hidden="true">Z</span>
@@ -183,10 +212,17 @@ function AppNavigation({
       <section className="product-recents" aria-labelledby="product-recents-heading">
         <div className="product-nav-section-heading">
           <span id="product-recents-heading">最近会话</span>
-          <button type="button" aria-label="刷新最近会话" onClick={() => void runtime.workbench.refreshTasks({ preserveOnError: true })}>↻</button>
+          <button
+            type="button"
+            aria-label="刷新最近会话"
+            disabled={listPhase === "loading"}
+            onClick={() => void runtime.workbench.refreshTasks({ preserveOnError: true })}
+          >
+            ↻
+          </button>
         </div>
         <div className="product-recent-list">
-          {recent.length ? recent.map((conversation) => (
+          {recent.map((conversation) => (
             <button
               type="button"
               key={conversation.key}
@@ -197,12 +233,26 @@ function AppNavigation({
               <span className="product-recent-status" data-tone={statusTone(conversation.latest)} aria-hidden="true" />
               <span>
                 <strong>{conversation.title}</strong>
-                <small>{conversation.turnCount > 1 ? `${conversation.turnCount} 轮 · ` : ""}{taskTime(conversation.latest.updatedAt)}</small>
+                <small>
+                  <span className="sr-only">{statusText(conversation.latest)} · </span>
+                  {conversation.turnCount > 1 ? `${conversation.turnCount} 轮 · ` : ""}
+                  {taskTime(conversation.latest.updatedAt)}
+                </small>
               </span>
             </button>
-          )) : (
+          ))}
+          {!recent.length && listPhase === "loading" ? (
+            <p className="product-sidebar-empty" role="status">正在载入会话…</p>
+          ) : null}
+          {!recent.length && listPhase === "error" ? (
+            <p className="product-sidebar-empty" role="status">
+              无法读取会话列表。
+              <button type="button" onClick={() => void runtime.workbench.refreshTasks({ preserveOnError: true })}>重试</button>
+            </p>
+          ) : null}
+          {!recent.length && !["loading", "error"].includes(listPhase) ? (
             <p className="product-sidebar-empty">开始会话后会显示在这里。</p>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -222,25 +272,58 @@ function TopBar({
   online,
   routeKind,
   task,
+  drawer,
+  sidebarOpen,
   onMenu,
+  menuRef,
 }: {
   runtime: WorkbenchRuntime
   online: boolean
   routeKind: string
   task?: TaskProjection
+  drawer: boolean
+  sidebarOpen: boolean
   onMenu: () => void
+  menuRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const state = useWorkbenchSnapshot(runtime)
+  const live = useLiveSyncSnapshot(runtime)
   const phase = online ? state.runtime.phase : "reconnecting"
   const title = task?.userGoal
     || (routeKind === "settings" ? "高级 Workbench" : "Zyra")
+  const subtitle = task
+    ? live.live && !live.paused
+      ? "进行中 · 实时更新"
+      : statusText(task)
+    : "动态异构多智能体工作空间"
+  const runtimeLabel = !online
+    ? "离线"
+    : state.runtime.readiness?.ready
+      ? "运行时就绪"
+      : state.runtime.phase === "loading"
+        ? "正在检查"
+        : "运行时不可用"
   return (
     <header className="top-bar product-topbar">
       <div className="product-topbar-title">
-        <button className="product-menu-button" type="button" aria-label="打开侧边栏" onClick={onMenu}>☰</button>
+        {drawer ? (
+          <button
+            ref={menuRef}
+            className="product-menu-button"
+            type="button"
+            aria-label="打开会话导航"
+            aria-controls="product-sidebar"
+            aria-expanded={sidebarOpen}
+            onClick={onMenu}
+          >
+            ☰
+          </button>
+        ) : null}
         <div>
-          <strong>{title}</strong>
-          {task ? <small>{task.status} · {task.taskId}</small> : <small>动态异构多智能体工作空间</small>}
+          {/* The goal is the page identity; the opaque task id belongs in the
+              tooltip and the advanced surfaces, not in the primary line. */}
+          <strong title={task ? `${title}\n${task.taskId}` : title}>{title}</strong>
+          <small>{subtitle}</small>
         </div>
       </div>
       <div className="product-topbar-actions">
@@ -253,18 +336,11 @@ function TopBar({
           className="runtime-pill"
           type="button"
           data-phase={phase}
+          title={`${runtimeLabel} · 查看运行时状态`}
           onClick={() => void runtime.commands.submit("/status", { origin: "button" })}
         >
           <span className="connection-dot" aria-hidden="true" />
-          <span>
-            {!online
-              ? "离线"
-              : state.runtime.readiness?.ready
-                ? "运行时就绪"
-                : state.runtime.phase === "loading"
-                  ? "正在检查"
-                  : "运行时不可用"}
-          </span>
+          <span>{runtimeLabel}</span>
         </button>
       </div>
     </header>
@@ -319,7 +395,44 @@ function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
   )
 }
 
-function ProductHome({ runtime, taskCount }: { runtime: WorkbenchRuntime; taskCount: number }) {
+function ProductHome({
+  runtime,
+  taskCount,
+  listPhase,
+}: {
+  runtime: WorkbenchRuntime
+  taskCount: number
+  listPhase: string
+}) {
+  const command = useCommandSnapshot(runtime)
+  const creating =
+    command.active
+    && ["validating", "dispatching"].includes(command.active.phase)
+    && !command.active.value.trimStart().startsWith("/")
+      ? command.active.value
+      : undefined
+  // Submitting from the home screen clears the composer before the backend
+  // returns a task to route to.  Without this the message just disappears.
+  if (creating) {
+    return (
+      <section className="product-home product-home-creating">
+        <div className="product-home-inner">
+          <p className="product-creating-goal">{creating}</p>
+          <p className="product-creating-status" role="status">
+            <span className="product-working-spinner" aria-hidden="true" />
+            <span>正在创建任务并准备执行资源…</span>
+          </p>
+          <button
+            className="product-button product-button-quiet"
+            type="button"
+            onClick={() => runtime.commands.cancelActive("已取消创建任务。")}
+          >
+            取消
+          </button>
+        </div>
+      </section>
+    )
+  }
   return (
     <section className="product-home">
       <div className="product-home-inner">
@@ -340,12 +453,19 @@ function ProductHome({ runtime, taskCount }: { runtime: WorkbenchRuntime; taskCo
             </button>
           ))}
         </div>
-        <div className="product-capability-strip" aria-label="Zyra capabilities">
+        <div className="product-capability-strip">
           <span>长程目标保持</span>
           <span>动态多智能体</span>
           <span>端边云调度</span>
           <span>可追溯交付</span>
-          {taskCount ? <strong>{taskCount} 个历史任务</strong> : null}
+          {/* Never present an unread list as "0 tasks". */}
+          {listPhase === "error" ? (
+            <strong data-tone="danger">历史会话读取失败</strong>
+          ) : listPhase === "loading" && !taskCount ? (
+            <strong>正在读取历史会话…</strong>
+          ) : taskCount ? (
+            <strong>{taskCount} 个历史任务</strong>
+          ) : null}
         </div>
       </div>
     </section>
@@ -375,8 +495,17 @@ function MainRoute({
   if (route.kind === "task") {
     return <ProductTaskDetail runtime={runtime} state={state.detail} tasks={state.list.tasks} />
   }
-  return <ProductHome runtime={runtime} taskCount={state.list.total} />
+  return (
+    <ProductHome
+      runtime={runtime}
+      taskCount={state.list.total}
+      listPhase={state.list.phase}
+    />
+  )
 }
+
+/** Matches the stylesheet breakpoint where the sidebar becomes an overlay drawer. */
+export const SIDEBAR_DRAWER_QUERY = "(max-width: 860px)"
 
 export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   const route = useRoute(runtime)
@@ -384,7 +513,10 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   const layout = useLayoutSnapshot(runtime)
   const announcements = useAnnouncementSnapshot(runtime)
   const online = useOnlineStatus()
+  const drawer = useMediaQuery(SIDEBAR_DRAWER_QUERY)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const navigationRef = useRef<HTMLElement | null>(null)
+  const menuRef = useRef<HTMLButtonElement | null>(null)
   const routeTaskId = route.kind === "task" ? route.taskId : undefined
   const bootstrapKey = useMemo(
     () => `${route.kind}:${routeTaskId ?? ""}:${route.query.status ?? ""}:${route.query.cursor ?? ""}`,
@@ -401,10 +533,13 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   }, [bootstrapKey])
 
   useEffect(() => {
-    if (state.runtime.phase === "ready") runtime.announcer.announce("Zyra runtime ready.")
-    else if (state.runtime.phase === "reconnecting") runtime.announcer.announce("Connection lost. Zyra is reconnecting.")
+    if (state.runtime.phase === "ready") runtime.announcer.announce("Zyra 运行时就绪。")
+    else if (state.runtime.phase === "reconnecting") runtime.announcer.announce("连接中断，正在重新连接 Zyra。")
     else if (state.runtime.phase === "error") {
-      runtime.announcer.announce(state.runtime.failure?.message ?? "Zyra runtime is unavailable.", "assertive")
+      runtime.announcer.announce(
+        state.runtime.failure?.message ?? "Zyra 运行时不可用。",
+        "assertive",
+      )
     }
   }, [runtime, state.runtime.generation, state.runtime.phase])
 
@@ -413,17 +548,58 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
     else runtime.focus.routeFocus(route.query.focus)
   }, [route.kind, route.query.focus, runtime])
 
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen((current) => {
+      if (current) requestAnimationFrame(() => menuRef.current?.focus())
+      return false
+    })
+  }, [])
+
+  // A drawer that is only translated off-screen still traps keyboard users, so
+  // opening it must move focus in and closing it must give focus back.
+  useEffect(() => {
+    if (!drawer) {
+      setSidebarOpen(false)
+      return
+    }
+    if (!sidebarOpen) return
+    const frame = requestAnimationFrame(() => {
+      navigationRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [drawer, sidebarOpen])
+
+  useEffect(() => {
+    if (!drawer || !sidebarOpen) return
+    const onFocusIn = (event: FocusEvent) => {
+      const navigation = navigationRef.current
+      if (!navigation || navigation.contains(event.target as Node)) return
+      if (menuRef.current === event.target) return
+      navigation.querySelector<HTMLElement>("button:not([disabled])")?.focus()
+    }
+    document.addEventListener("focusin", onFocusIn)
+    return () => document.removeEventListener("focusin", onFocusIn)
+  }, [drawer, sidebarOpen])
+
   useEffect(() => {
     const handleGlobalKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      if (
+        (event.ctrlKey || event.metaKey)
+        && !event.altKey
+        && event.key.toLowerCase() === "k"
+        // A modal overlay owns the keyboard while it is open.
+        && !runtime.overlays.active()
+      ) {
         event.preventDefault()
+        setSidebarOpen(false)
         runtime.router.openNewTask()
         runtime.focus.focusId("workbench-command-input")
         return
       }
       if (event.key === "Escape") {
         if (sidebarOpen) {
-          setSidebarOpen(false)
+          event.preventDefault()
+          closeSidebar()
           return
         }
         if (runtime.overlays.handleEscape()) {
@@ -435,7 +611,7 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
     }
     window.addEventListener("keydown", handleGlobalKey)
     return () => window.removeEventListener("keydown", handleGlobalKey)
-  }, [runtime, sidebarOpen])
+  }, [closeSidebar, runtime, sidebarOpen])
 
   useEffect(() => () => runtime.close("React workbench unmounted."), [runtime])
 
@@ -451,21 +627,41 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
         runtime={runtime}
         routeKind={route.kind}
         tasks={state.list.tasks}
+        listPhase={state.list.phase}
         selectedTaskId={state.selectedTaskId}
-        onNavigate={() => setSidebarOpen(false)}
+        drawer={drawer}
+        open={sidebarOpen}
+        navigationRef={navigationRef}
+        onNavigate={closeSidebar}
       />
-      {sidebarOpen ? <button className="product-sidebar-scrim" type="button" aria-label="关闭侧边栏" onClick={() => setSidebarOpen(false)} /> : null}
+      {drawer && sidebarOpen ? (
+        <button className="product-sidebar-scrim" type="button" aria-label="关闭会话导航" onClick={closeSidebar} />
+      ) : null}
       <div className="app-stage product-stage">
         <TopBar
           runtime={runtime}
           online={online}
           routeKind={route.kind}
           task={route.kind === "task" ? state.detail.task : undefined}
+          drawer={drawer}
+          sidebarOpen={sidebarOpen}
+          menuRef={menuRef}
           onMenu={() => setSidebarOpen(true)}
         />
         <div className="product-connection-slot">
-          {!online || state.runtime.phase === "reconnecting" ? (
+          {!online ? (
             <ReconnectingState
+              tone="offline"
+              onRetry={() => void runtime.workbench.refreshRuntime({ reconnect: true })}
+            />
+          ) : state.runtime.phase === "reconnecting" ? (
+            <ReconnectingState
+              failure={state.runtime.failure}
+              onRetry={() => void runtime.workbench.refreshRuntime({ reconnect: true })}
+            />
+          ) : state.runtime.phase === "error" ? (
+            <ReconnectingState
+              tone="error"
               failure={state.runtime.failure}
               onRetry={() => void runtime.workbench.refreshRuntime({ reconnect: true })}
             />

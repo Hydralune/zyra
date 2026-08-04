@@ -66,18 +66,31 @@ export function ErrorState({
 export function ReconnectingState({
   failure,
   onRetry,
+  tone = "reconnecting",
+  label,
+  retryLabel = "立即重试",
 }: {
   failure?: RequestFailure
   onRetry: () => void
+  tone?: "offline" | "reconnecting" | "error"
+  label?: string
+  retryLabel?: string
 }) {
+  const defaultLabel =
+    tone === "offline"
+      ? "浏览器已离线，Zyra 暂停了自动更新"
+      : tone === "error"
+        ? "运行时不可用"
+        : "正在重新连接 Zyra"
   return (
-    <div className="connection-banner" role="status" aria-live="polite">
+    <div className="connection-banner" data-tone={tone} role="status" aria-live="polite">
       <span className="connection-dot" aria-hidden="true" />
       <span>
-        Reconnecting to Zyra
-        {failure?.attempt ? ` · attempt ${failure.attempt}` : ""}
+        {label ?? defaultLabel}
+        {failure?.attempt ? ` · 第 ${failure.attempt} 次尝试` : ""}
+        {tone === "error" && failure?.message ? ` · ${failure.message}` : ""}
       </span>
-      <button type="button" onClick={onRetry}>Retry now</button>
+      <button type="button" onClick={onRetry}>{retryLabel}</button>
     </div>
   )
 }

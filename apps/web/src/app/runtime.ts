@@ -11,6 +11,7 @@ import { OverlayRuntime } from "../shell/overlay-runtime.ts"
 import { createBrowserRouter, WorkbenchRouter } from "../shell/router.ts"
 import { WorkbenchController } from "../shell/workbench-controller.ts"
 import { WorkbenchRouteLoader } from "../shell/route-loader.ts"
+import { TaskLiveSync } from "../shell/task-live-sync.ts"
 import { AccessibilityAnnouncer } from "../shell/accessibility-announcer.ts"
 import {
   createCanonicalProjectionStore,
@@ -37,6 +38,7 @@ export interface WorkbenchRuntime {
   announcer: AccessibilityAnnouncer
   workbench: WorkbenchController
   routeLoader: WorkbenchRouteLoader
+  liveSync: TaskLiveSync
   catalog: ReturnType<typeof defaultCommandCatalog>
   history: CommandHistory
   drafts: CommandDraftStore
@@ -107,6 +109,7 @@ export function createWorkbenchRuntime(
   const announcer = new AccessibilityAnnouncer()
   const workbench = new WorkbenchController(api.tasks)
   const routeLoader = new WorkbenchRouteLoader(workbench)
+  const liveSync = new TaskLiveSync(workbench)
   const catalog = defaultCommandCatalog()
   const history = options.history ?? browserCommandHistory()
   const drafts = browserCommandDraftStore()
@@ -260,6 +263,7 @@ export function createWorkbenchRuntime(
   let projectionRouteGeneration = 0
   const bindProjectionRoute = (taskId?: string) => {
     const generation = ++projectionRouteGeneration
+    liveSync.bind(taskId)
     void controlCommands.bindTask(taskId).catch((error) => {
       notifications.push({
         id: `command-queue-restore-${generation}`,
@@ -304,6 +308,7 @@ export function createWorkbenchRuntime(
     announcer,
     workbench,
     routeLoader,
+    liveSync,
     catalog,
     history,
     drafts,
@@ -341,6 +346,7 @@ export function createWorkbenchRuntime(
       experimentConsole.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
+      liveSync.close()
       routeLoader.close(String(reason ?? "Workbench closed."))
       workbench.close(String(reason ?? "Workbench closed."))
       notifications.close()

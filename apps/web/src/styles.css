@@ -1,5 +1,11 @@
 :root {
-  color-scheme: dark;
+  /*
+   * The dark tokens below stay available for the advanced/evidence surfaces,
+   * which opt back in with their own `color-scheme: dark`.  The document itself
+   * follows the light product shell so the pre-mount page and the root
+   * scrollbar do not flash dark.
+   */
+  color-scheme: light dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   color: #eef1f6;
@@ -435,9 +441,8 @@ body,
 body {
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 60% -20%, rgb(53 95 81 / 0.18), transparent 38%),
-    var(--bg);
+  color: #18201c;
+  background: #fbfcfb;
 }
 
 button,
@@ -6467,13 +6472,13 @@ kbd {
 }
 
 .product-sidebar .brand strong {
-  font-size: 14px;
+  font-size: 15px;
   letter-spacing: -0.01em;
 }
 
 .product-sidebar .brand small {
   color: var(--subtle);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .product-sidebar-close,
@@ -6518,7 +6523,7 @@ kbd {
 }
 
 .product-new-task > span:nth-child(2) {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 680;
 }
 
@@ -6528,7 +6533,7 @@ kbd {
   border-radius: 5px;
   color: var(--subtle);
   background: #f6f7f7;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -6572,7 +6577,7 @@ kbd {
 
 .product-primary-nav button span:last-child {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6592,7 +6597,7 @@ kbd {
   justify-content: space-between;
   padding: 0 9px 8px;
   color: var(--subtle);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6657,13 +6662,13 @@ kbd {
 }
 
 .product-recent-task strong {
-  font-size: 11px;
-  font-weight: 590;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .product-recent-task small {
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .product-recent-status {
@@ -6689,7 +6694,7 @@ kbd {
 .product-sidebar-empty {
   margin: 10px;
   color: var(--subtle);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -6730,12 +6735,12 @@ kbd {
 }
 
 .product-sidebar-footer strong {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .product-sidebar-footer small {
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .product-user-avatar {
@@ -6798,14 +6803,14 @@ kbd {
 }
 
 .product-topbar-title strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 680;
 }
 
 .product-topbar-title small {
   max-width: min(52vw, 650px);
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .product-topbar .runtime-pill {
@@ -6814,7 +6819,7 @@ kbd {
   border-color: #e0e5e2;
   color: #68736d;
   background: #fff;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .product-topbar .runtime-pill:hover {
@@ -6835,7 +6840,7 @@ kbd {
   border-radius: 9px;
   color: #425049;
   background: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
   transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
@@ -6889,6 +6894,35 @@ kbd {
   text-align: center;
 }
 
+.product-home-creating .product-home-inner {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: min(620px, 100%);
+}
+
+.product-creating-goal {
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 14px;
+  color: #2e3933;
+  background: #edf0ee;
+  font-size: 14px;
+  line-height: 1.68;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.product-creating-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: #5a665f;
+  font-size: 13px;
+}
+
 .product-orbit {
   position: relative;
   display: grid;
@@ -6933,11 +6967,10 @@ kbd {
 .product-orbit i:nth-of-type(3) { inset: 13px 9px auto auto; background: #d3aaef; }
 
 .product-kicker,
-.product-section-heading p,
 .advanced-center-heading .eyebrow {
   margin: 0;
   color: #318261;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 760;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -7076,22 +7109,6 @@ kbd {
   margin-inline: auto;
 }
 
-.product-task-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 25px;
-  border-bottom: 1px solid #e8ece9;
-}
-
-.product-task-title {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: 12px;
-}
-
 .product-status-dot {
   width: 10px;
   height: 10px;
@@ -7111,26 +7128,6 @@ kbd {
 
 .product-status-dot[data-tone="success"] { border-color: #e3f2ea; background: #4c9871; }
 .product-status-dot[data-tone="danger"] { border-color: #fae6e4; background: #bd4d4d; }
-
-.product-task-title > div {
-  min-width: 0;
-}
-
-.product-task-title p {
-  margin: 0 0 6px;
-  color: #7e8983;
-  font-size: 10px;
-}
-
-.product-task-title h1 {
-  max-width: 680px;
-  margin: 0;
-  color: #1d2621;
-  font-size: clamp(22px, 3vw, 32px);
-  font-weight: 690;
-  letter-spacing: -0.035em;
-  line-height: 1.24;
-}
 
 .product-task-controls {
   display: flex;
@@ -7163,11 +7160,6 @@ kbd {
   font-weight: 750;
 }
 
-.product-avatar-user {
-  color: #fff;
-  background: #66736c;
-}
-
 .product-avatar-zyra {
   border: 1px solid #afe0c4;
   color: #0f7149;
@@ -7178,8 +7170,8 @@ kbd {
 .product-message-body > span {
   display: block;
   margin-bottom: 6px;
-  color: #7e8983;
-  font-size: 9px;
+  color: #78837d;
+  font-size: 11px;
   font-weight: 680;
 }
 
@@ -7211,69 +7203,6 @@ kbd {
 .product-message-zyra[data-tone="active"] .product-message-body { border-color: #cae6d7; }
 .product-message-zyra[data-tone="danger"] .product-message-body { border-color: #efd7d5; }
 
-.product-result-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.product-result-heading p {
-  margin: 0 0 4px;
-  color: #27875c;
-  font-size: 9px;
-  font-weight: 730;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.product-result-heading h2 {
-  margin: 0;
-  color: #1f2923;
-  font-size: 18px;
-  font-weight: 680;
-}
-
-.product-result-heading > strong {
-  color: #2a7e59;
-  font-size: 21px;
-  font-variant-numeric: tabular-nums;
-}
-
-.product-result-detail {
-  margin: 11px 0 15px;
-  color: #5d6862;
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.product-final-answer {
-  margin: 14px 0 16px;
-  padding: 14px 16px;
-  border: 1px solid #cfe7da;
-  border-radius: 12px;
-  background: #f2faf6;
-}
-
-.product-final-answer > span {
-  display: block;
-  margin: 0 0 5px;
-  color: #37835f;
-  font-size: 8px;
-  font-weight: 760;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.product-final-answer > p {
-  margin: 0;
-  color: #1f2d25;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.65;
-  white-space: pre-wrap;
-}
-
 .product-progress {
   height: 5px;
   overflow: hidden;
@@ -7294,73 +7223,14 @@ kbd {
   flex-wrap: wrap;
   gap: 8px 20px;
   margin-top: 12px;
-  color: #85908a;
-  font-size: 9px;
+  color: #7d8781;
+  font-size: 11px;
 }
 
 .product-result-facts strong {
   color: #48564e;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-.product-plan,
-.product-deliverables {
-  margin-top: 20px;
-  padding: 21px;
-  border: 1px solid #e3e8e5;
-  border-radius: 16px;
-  background: #fff;
-}
-
-.product-section-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.product-section-heading h3 {
-  margin: 3px 0 0;
-  color: #29332e;
-  font-size: 15px;
-}
-
-.product-section-heading > span {
-  min-width: 28px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  color: #617068;
-  background: #f0f3f1;
-  font-size: 9px;
-  text-align: center;
-}
-
-.product-plan ol {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 9px;
-  margin: 17px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.product-plan li {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  align-items: center;
-  min-width: 0;
-  min-height: 58px;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid #e8ecea;
-  border-radius: 11px;
-  background: #fafbfa;
-}
-
-.product-plan li[data-status="running"] {
-  border-color: #bfe0ce;
-  background: #f4fbf7;
 }
 
 .product-step-icon {
@@ -7375,76 +7245,44 @@ kbd {
   font-size: 11px;
 }
 
-.product-plan li[data-status="completed"] .product-step-icon,
-.product-plan li[data-status="succeeded"] .product-step-icon,
-.product-plan li[data-status="verified"] .product-step-icon {
-  border-color: #b5dec7;
-  color: #1d8154;
-  background: #e7f7ee;
-}
-
-.product-plan li[data-status="running"] .product-step-icon {
-  color: #fff;
-  background: #278d60;
-  animation: product-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes product-pulse {
-  50% { box-shadow: 0 0 0 5px rgb(39 141 96 / 0.1); }
-}
-
-.product-plan li > div {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.product-plan li strong,
-.product-plan li small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.product-plan li strong {
-  color: #3d4942;
-  font-size: 10px;
-}
-
-.product-plan li small {
-  color: #8c9691;
-  font-size: 9px;
-}
-
 .product-artifact-tabs {
   display: flex;
   gap: 7px;
   margin-top: 15px;
+  padding-bottom: 3px;
   overflow-x: auto;
   scrollbar-width: thin;
 }
 
-.product-artifact-tabs > span {
+.product-artifact-tabs > button {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
+  min-height: 32px;
   max-width: 260px;
-  padding: 7px 10px;
+  padding: 7px 11px;
   overflow: hidden;
   border: 1px solid #e1e6e3;
   border-radius: 9px;
-  color: #66716b;
+  color: #5c665f;
   background: #f8f9f8;
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.product-artifact-tabs > span[data-active="true"] {
-  border-color: #bcdcca;
-  color: #246f4d;
+.product-artifact-tabs > button:hover {
+  border-color: #c9d4ce;
+  background: #f2f5f3;
+}
+
+.product-artifact-tabs > button[data-active="true"] {
+  border-color: #9fd0b4;
+  color: #1d6a48;
   background: #edf8f2;
+  font-weight: 640;
 }
 
 .product-artifact-preview {
@@ -7478,61 +7316,84 @@ kbd {
   white-space: nowrap;
 }
 
-.product-artifact-preview > header strong { color: #3b4740; font-size: 10px; }
-.product-artifact-preview > header span { color: #929c97; font-size: 8px; }
-.product-artifact-preview > header .product-verified { color: #257b53; font-weight: 700; }
+.product-artifact-preview > header strong { color: #3b4740; font-size: 12px; }
+.product-artifact-preview > header span { color: #828c87; font-size: 11px; }
+.product-artifact-preview > header .product-verified { color: #257b53; font-size: 11px; font-weight: 700; }
 
 .product-artifact-preview pre {
   max-height: 330px;
   margin: 0;
-  padding: 17px;
+  padding: 16px;
   overflow: auto;
   color: #33413a;
   background: #f7f9f8;
-  font-size: 10px;
-  line-height: 1.65;
+  font-size: 12px;
+  line-height: 1.7;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.product-artifact-preview:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 .product-muted,
 .product-error-copy {
   margin: 0;
-  padding: 20px;
-  color: #7f8a84;
-  font-size: 10px;
+  padding: 16px;
+  color: #77817c;
+  font-size: 12px;
 }
 
 .product-error-copy { color: var(--danger); }
 
 /* Conversation-first task interaction ------------------------------------ */
 
+/*
+ * The session toolbar is a real row of the task grid rather than a sticky
+ * overlay: it cannot cover the first turn, and the scroll region below it owns
+ * exactly one scrollbar.
+ */
 .product-task-view {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
+.product-session-toolbar,
+.product-stale-notice {
+  flex: 0 0 auto;
+}
+
 .product-task-scroll {
-  padding: 0 clamp(24px, 5vw, 72px) 36px;
-  scroll-padding-block: 70px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px clamp(24px, 5vw, 72px) 30px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .product-task-scroll > * {
   width: min(880px, 100%);
+  margin-inline: auto;
 }
 
 .product-session-toolbar {
-  position: sticky;
+  position: relative;
   z-index: 8;
-  top: 0;
   display: flex;
-  min-height: 56px;
+  min-height: 54px;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 10px 0;
-  border-bottom: 1px solid #edf0ee;
-  background: rgb(251 252 251 / 0.92);
-  backdrop-filter: blur(14px);
+  padding: 8px clamp(24px, 5vw, 72px);
+  border-bottom: 1px solid #eaeeec;
+  background: #fbfcfb;
 }
 
 .product-session-status {
@@ -7543,8 +7404,8 @@ kbd {
 }
 
 .product-session-status .product-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   margin: 0;
   border-width: 2px;
 }
@@ -7553,27 +7414,27 @@ kbd {
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 7px;
+  gap: 8px;
 }
 
 .product-session-status strong {
   overflow: hidden;
-  color: #56625b;
-  font-size: 10px;
-  font-weight: 680;
+  color: #45514a;
+  font-size: 12px;
+  font-weight: 660;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .product-session-status small {
   flex: 0 0 auto;
-  color: #99a19d;
-  font-size: 9px;
+  color: #7d867f;
+  font-size: 11px;
 }
 
 .product-session-toolbar .product-task-controls .product-button {
   min-height: 30px;
-  padding: 5px 9px;
+  padding: 5px 10px;
   border-color: transparent;
   background: transparent;
 }
@@ -7584,20 +7445,74 @@ kbd {
   transform: none;
 }
 
+/*
+ * A refresh in flight is progress information, not an interruption: it reads as
+ * a hairline under the toolbar instead of replacing the transcript.
+ */
+.product-sync-bar {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.product-sync-bar[data-busy]::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #37a374, transparent);
+  animation: product-sync-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes product-sync-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(400%); }
+}
+
+.product-stale-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px clamp(24px, 5vw, 72px);
+  border-bottom: 1px solid #f0e3cd;
+  color: #7d5a1c;
+  background: #fdf7ea;
+  font-size: 12px;
+}
+
+.product-stale-notice button {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-weight: 660;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .product-conversation {
+  display: grid;
   gap: 0;
-  padding: 26px 0 20px;
+  padding: 24px 0 20px;
 }
 
 .product-turn {
   display: grid;
-  gap: 22px;
-  padding-bottom: 34px;
+  gap: 20px;
+  padding-bottom: 32px;
 }
 
 .product-turn + .product-turn {
   padding-top: 28px;
   border-top: 1px solid #edf0ee;
+}
+
+.product-turn-pending {
+  opacity: 0.82;
 }
 
 .product-message-user {
@@ -7612,20 +7527,27 @@ kbd {
 
 .product-message-user .product-message-body > span {
   margin: 0 5px 5px 0;
+  font-size: 11px;
   text-align: right;
 }
 
 .product-message-user p {
   display: block;
   max-width: none;
-  padding: 10px 13px;
+  padding: 11px 14px;
   border: 0;
   border-radius: 14px 4px 14px 14px;
   color: #2e3933;
   background: #edf0ee;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.68;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.product-turn-pending .product-message-user p {
+  border: 1px dashed #cfd8d3;
+  background: #f6f8f7;
 }
 
 .product-message-zyra {
@@ -7661,62 +7583,58 @@ kbd {
 
 .product-agent-meta strong {
   color: #334039;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .product-agent-meta time {
-  color: #9ba49f;
-  font-size: 9px;
+  color: #8b948f;
+  font-size: 11px;
 }
 
 .product-answer {
   margin: 0;
   color: #26312b;
-  font-size: 14px;
-  line-height: 1.78;
+  font-size: 15px;
+  line-height: 1.8;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.product-working-copy,
-.product-empty-answer {
+.product-working-copy {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 9px;
   margin: 2px 0 4px;
-  color: #56635c;
+  color: #5a665f;
+  font-size: 13px;
 }
 
-.product-working-copy > span:last-child,
 .product-empty-answer {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 4px;
   min-width: 0;
 }
 
-.product-working-copy strong,
-.product-working-copy small,
-.product-empty-answer strong,
-.product-empty-answer span {
-  display: block;
-}
-
-.product-working-copy strong,
 .product-empty-answer strong {
   color: #344139;
-  font-size: 12px;
+  font-size: 13px;
 }
 
-.product-working-copy small,
 .product-empty-answer span {
-  margin-top: 3px;
-  color: #7d8882;
-  font-size: 10px;
-  line-height: 1.55;
+  color: #6f7a74;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.product-empty-answer[data-tone="danger"] strong {
+  color: #a33e3e;
 }
 
 .product-working-spinner {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   flex: 0 0 auto;
-  margin-top: 2px;
   border: 2px solid #cce7d8;
   border-top-color: #268b5d;
   border-radius: 999px;
@@ -7724,6 +7642,8 @@ kbd {
 }
 
 @keyframes product-spin { to { transform: rotate(360deg); } }
+
+/* Secondary evidence: present, collapsed, one keyboard stop away. */
 
 .product-disclosure {
   margin-top: 14px;
@@ -7740,7 +7660,7 @@ kbd {
   min-height: 46px;
   align-items: center;
   gap: 9px;
-  padding: 8px 10px;
+  padding: 8px 11px;
   color: #4d5a53;
   cursor: pointer;
   list-style: none;
@@ -7750,6 +7670,11 @@ kbd {
 .product-disclosure > summary::-webkit-details-marker { display: none; }
 
 .product-disclosure > summary:hover { background: #f8faf9; }
+
+.product-disclosure > summary:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -2px;
+}
 
 .product-disclosure > summary > span:nth-child(2) {
   display: grid;
@@ -7765,13 +7690,13 @@ kbd {
 }
 
 .product-disclosure > summary strong {
-  color: #445149;
-  font-size: 10px;
+  color: #3f4b44;
+  font-size: 12px;
 }
 
 .product-disclosure > summary small {
-  color: #8c9691;
-  font-size: 9px;
+  color: #7f8a84;
+  font-size: 11px;
 }
 
 .product-disclosure-icon {
@@ -7782,7 +7707,7 @@ kbd {
   border-radius: 8px;
   color: #377959;
   background: #eaf6ef;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -7805,16 +7730,24 @@ kbd {
 .product-disclosure[open] .product-disclosure-chevron { transform: rotate(180deg); }
 
 .product-disclosure-content {
-  padding: 12px;
+  padding: 13px;
   border-top: 1px solid #edf0ee;
   background: #fafbfa;
 }
 
 .product-run-summary .product-progress { height: 4px; }
 
+.product-run-summary .product-result-facts {
+  font-size: 11px;
+}
+
+.product-run-summary .product-result-facts strong {
+  font-size: 12px;
+}
+
 .product-plan-list {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   margin: 13px 0 0;
   padding: 0;
   list-style: none;
@@ -7823,51 +7756,153 @@ kbd {
 .product-plan-list li {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  align-items: start;
+  gap: 9px;
   min-height: 34px;
+  padding: 4px 0;
 }
 
 .product-plan-list li > span:last-child {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
 }
 
-.product-plan-list strong,
+.product-plan-list strong {
+  overflow: hidden;
+  color: #43504a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .product-plan-list small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #7f8a84;
+  font-size: 11px;
+}
+
+.product-plan-list small > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.product-plan-list strong { color: #4b5850; font-size: 10px; }
-.product-plan-list small { color: #919a95; font-size: 9px; }
+.product-step-state,
+.product-step-tool {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.product-step-state {
+  color: #5c6862;
+  background: #eef1ef;
+}
+
+.product-step-tool {
+  color: #2c6f52;
+  background: #e8f5ee;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.product-plan-list li[data-status="running"] .product-step-state,
+.product-plan-list li[data-status="active"] .product-step-state,
+.product-plan-list li[data-status="dispatched"] .product-step-state {
+  color: #1c7b52;
+  background: #e3f5ec;
+}
+
+.product-plan-list li[data-status="failed"] .product-step-state,
+.product-plan-list li[data-status="error"] .product-step-state,
+.product-plan-list li[data-status="cancelled"] .product-step-state,
+.product-plan-list li[data-status="canceled"] .product-step-state {
+  color: #a3423f;
+  background: #fdeceb;
+}
 
 .product-plan-list .product-step-icon {
-  width: 21px;
-  height: 21px;
+  width: 22px;
+  height: 22px;
   border-radius: 7px;
+  font-size: 11px;
+}
+
+.product-plan-list li[data-status="completed"] .product-step-icon,
+.product-plan-list li[data-status="succeeded"] .product-step-icon,
+.product-plan-list li[data-status="verified"] .product-step-icon {
+  border-color: #b5dec7;
+  color: #1d8154;
+  background: #e7f7ee;
+}
+
+.product-plan-list li[data-status="running"] .product-step-icon,
+.product-plan-list li[data-status="active"] .product-step-icon,
+.product-plan-list li[data-status="dispatched"] .product-step-icon {
+  border-color: #278d60;
+  color: #fff;
+  background: #278d60;
+  animation: product-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes product-pulse {
+  50% { box-shadow: 0 0 0 5px rgb(39 141 96 / 0.1); }
+}
+
+.product-plan-list li[data-status="failed"] .product-step-icon,
+.product-plan-list li[data-status="error"] .product-step-icon,
+.product-plan-list li[data-status="cancelled"] .product-step-icon,
+.product-plan-list li[data-status="canceled"] .product-step-icon {
+  border-color: #efcfcc;
+  color: #a3423f;
+  background: #fff2f1;
+}
+
+.product-evidence-link {
+  margin-top: 12px;
+  padding: 5px 0;
+  border: 0;
+  color: #24714e;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.product-evidence-link:hover {
+  text-decoration: underline;
 }
 
 .product-deliverables .product-artifact-tabs { margin-top: 0; }
 
-.product-deliverables .product-artifact-preview { margin-top: 9px; }
+.product-deliverables .product-artifact-preview { margin-top: 10px; }
 
 .product-jump-latest {
   position: absolute;
   z-index: 20;
   right: clamp(28px, 6vw, 86px);
-  bottom: 14px;
-  min-height: 32px;
-  padding: 6px 11px;
+  bottom: 16px;
+  min-height: 34px;
+  padding: 7px 14px;
   border: 1px solid #d8dfdb;
   border-radius: 999px;
-  color: #536058;
+  color: #3f4b44;
   background: #fff;
-  box-shadow: 0 7px 22px rgb(34 48 41 / 0.12);
-  font-size: 9px;
+  box-shadow: 0 8px 24px rgb(34 48 41 / 0.16);
+  font-size: 11px;
+  font-weight: 620;
   cursor: pointer;
+}
+
+.product-jump-latest:hover {
+  border-color: #b9c6bf;
 }
 
 /* Composer */
@@ -7901,48 +7936,53 @@ kbd {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   padding: 10px 14px 0;
-  color: #88928d;
-  font-size: 9px;
+  color: #77817c;
+  font-size: 11px;
 }
 
 .product-shell .command-context-title {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #a0a8a4;
+  color: #97a09b;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .product-shell .command-editor {
-  align-items: center;
-  padding: 5px 6px 4px 8px;
+  align-items: end;
+  padding: 5px 6px 5px 8px;
 }
 
+/*
+ * `max-height` is the contract the composer's auto-size reads at runtime: the
+ * field grows with the draft up to this height, then scrolls internally.
+ */
 .product-shell .command-editor textarea {
-  min-height: 47px;
-  max-height: 170px;
-  padding: 11px 10px;
+  min-height: 46px;
+  max-height: 220px;
+  padding: 12px 10px;
+  overflow-y: hidden;
   color: #26312b;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .product-shell .command-editor textarea::placeholder {
-  color: #a2aaa6;
+  color: #98a19c;
 }
 
 .product-shell .command-submit {
-  min-width: 62px;
-  min-height: 38px;
+  min-width: 64px;
+  min-height: 40px;
   border-color: #167d53;
   border-radius: 11px;
   color: #fff;
   background: #16865a;
   box-shadow: 0 5px 14px rgb(22 134 90 / 0.18);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .product-shell .command-submit:hover:not(:disabled) {
@@ -7950,9 +7990,9 @@ kbd {
 }
 
 .product-shell .command-footer {
-  padding: 0 14px 9px;
-  color: #9aa39e;
-  font-size: 8px;
+  padding: 0 14px 10px;
+  color: #8d9792;
+  font-size: 11px;
 }
 
 .product-shell .command-suggestions {
@@ -7973,6 +8013,40 @@ kbd {
   border-color: #dce3df;
   color: var(--text);
   background: #fff;
+}
+
+.product-shell .connection-banner {
+  min-height: 38px;
+  border-bottom-color: #efe0c4;
+  color: #7c5a1b;
+  background: #fdf6e8;
+  font-size: 12px;
+}
+
+.product-shell .connection-banner[data-tone="offline"] {
+  border-bottom-color: #dde3e0;
+  color: #566159;
+  background: #f2f5f3;
+}
+
+.product-shell .connection-banner[data-tone="error"] {
+  border-bottom-color: #f2d4d1;
+  color: #9c3f3f;
+  background: #fdf1f0;
+}
+
+.product-shell .connection-banner[data-tone="error"] .connection-dot {
+  background: #bd4d4d;
+  box-shadow: 0 0 0 3px rgb(189 77 77 / 0.14);
+}
+
+.product-shell .connection-banner[data-tone="offline"] .connection-dot {
+  background: #8b968f;
+  box-shadow: 0 0 0 3px rgb(139 150 143 / 0.16);
+}
+
+.product-shell .connection-banner button {
+  font-weight: 640;
 }
 
 /* Advanced surfaces remain available without dominating the product UI. */
@@ -8085,7 +8159,7 @@ kbd {
 .advanced-drawer-header p {
   margin: 0;
   color: var(--accent-strong);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -8138,6 +8212,12 @@ kbd {
   }
 }
 
+/*
+ * Below this width the sidebar becomes an overlay drawer.  `SIDEBAR_DRAWER_QUERY`
+ * in workbench-app.tsx must stay in sync with this breakpoint: the shell relies
+ * on it to decide when the drawer needs `inert`, focus containment and a menu
+ * button.
+ */
 @media (max-width: 860px) {
   .product-shell {
     grid-template-columns: minmax(0, 1fr);
@@ -8159,14 +8239,15 @@ kbd {
   .product-sidebar-close,
   .product-menu-button {
     display: grid;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     place-items: center;
     border: 0;
     border-radius: 9px;
-    color: #657069;
+    color: #4f5a54;
     background: transparent;
     cursor: pointer;
+    font-size: 17px;
   }
 
   .product-sidebar-close:hover,
@@ -8182,6 +8263,11 @@ kbd {
     border: 0;
     background: rgb(24 33 28 / 0.28);
     backdrop-filter: blur(2px);
+  }
+
+  .product-session-toolbar,
+  .product-stale-notice {
+    padding-inline: 26px;
   }
 
   .product-task-scroll {
@@ -8210,7 +8296,6 @@ kbd {
     padding: 0 12px;
   }
 
-  .product-topbar-title small,
   .product-topbar .product-button {
     display: none;
   }
@@ -8220,7 +8305,8 @@ kbd {
   }
 
   .product-topbar .runtime-pill {
-    min-width: 30px;
+    min-width: 34px;
+    min-height: 34px;
     justify-content: center;
     padding: 6px;
   }
@@ -8249,7 +8335,7 @@ kbd {
 
   .product-home-copy {
     margin-top: 10px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .product-starter-grid {
@@ -8266,25 +8352,17 @@ kbd {
     display: none;
   }
 
+  .product-session-toolbar,
+  .product-stale-notice {
+    padding-inline: 14px;
+  }
+
   .product-task-scroll {
-    padding: 0 14px 24px;
-  }
-
-  .product-task-header {
-    display: grid;
-    gap: 16px;
-  }
-
-  .product-task-title h1 {
-    font-size: 21px;
-  }
-
-  .product-task-controls {
-    justify-content: flex-start;
+    padding: 4px 14px 24px;
   }
 
   .product-conversation {
-    padding-top: 24px;
+    padding-top: 20px;
   }
 
   .product-message {
@@ -8309,29 +8387,29 @@ kbd {
     gap: 7px;
   }
 
-  .product-plan {
-    padding: 15px;
-  }
-
   .product-message-user .product-message-body {
-    max-width: 88%;
+    max-width: 90%;
   }
 
+  /*
+   * The session toolbar wraps instead of dropping controls: on a phone the
+   * status line and the stop/refresh actions are exactly what a person needs
+   * while a long-running task is in flight.
+   */
   .product-session-toolbar {
-    min-height: 50px;
+    display: grid;
+    min-height: 0;
+    gap: 8px;
+    padding-block: 9px;
   }
 
-  .product-session-toolbar .product-task-controls .product-button:first-child {
-    display: none;
+  .product-session-toolbar .product-task-controls {
+    justify-content: flex-start;
   }
 
   .product-jump-latest {
     right: 16px;
-    bottom: 10px;
-  }
-
-  .product-plan ol {
-    grid-template-columns: 1fr;
+    bottom: 12px;
   }
 
   .product-shell .command-dock {
@@ -8342,15 +8420,19 @@ kbd {
     border-radius: 15px;
   }
 
-  .product-shell .command-context,
+  /*
+   * Which session the composer will post into is never optional context, so the
+   * context row stays and only the goal echo is dropped.
+   */
+  .product-shell .command-context-title,
   .product-shell .command-footer > span:last-child {
     display: none;
   }
 
   .product-shell .command-editor textarea {
-    min-height: 43px;
-    padding: 9px 7px;
-    font-size: 12px;
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 14px;
   }
 
   .product-shell .command-footer {
@@ -8379,8 +8461,17 @@ kbd {
   .advanced-drawer-panel,
   .product-progress > span,
   .product-disclosure-chevron,
-  .product-working-spinner {
+  .product-working-spinner,
+  .product-sync-bar[data-busy]::after,
+  .product-plan-list li[data-status="running"] .product-step-icon,
+  .product-plan-list li[data-status="active"] .product-step-icon,
+  .product-plan-list li[data-status="dispatched"] .product-step-icon {
     transition: none;
     animation: none;
+  }
+
+  .product-working-spinner {
+    border-top-color: #268b5d;
+    border-right-color: #268b5d;
   }
 }

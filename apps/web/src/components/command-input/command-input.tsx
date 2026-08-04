@@ -29,8 +29,26 @@ import {
 } from "../../features/permissions/index.ts"
 import type { PaletteEntry } from "../../../../../packages/commands/src/index.ts"
 
+const COMPOSER_FALLBACK_MAX_HEIGHT_PX = 220
+
 function cursorAt(textarea: HTMLTextAreaElement): number {
   return textarea.selectionStart ?? textarea.value.length
+}
+
+/**
+ * Grows the composer with its content up to the CSS `max-height`, so a
+ * multi-paragraph goal stays readable while it is being written instead of
+ * scrolling inside a one-line box.
+ */
+function autoSizeComposer(textarea: HTMLTextAreaElement | null): void {
+  if (!textarea || typeof getComputedStyle !== "function") return
+  const maximum =
+    Number.parseFloat(getComputedStyle(textarea).maxHeight)
+    || COMPOSER_FALLBACK_MAX_HEIGHT_PX
+  textarea.style.height = "auto"
+  const next = Math.min(textarea.scrollHeight, maximum)
+  textarea.style.height = `${next}px`
+  textarea.style.overflowY = textarea.scrollHeight > maximum ? "auto" : "hidden"
 }
 
 function setSelection(textarea: HTMLTextAreaElement, position: number): void {
@@ -199,14 +217,14 @@ function QueuePreview({
     <section className="queue-preview" aria-labelledby="queue-preview-heading">
       <header>
         <span id="queue-preview-heading">
-          Queued input <strong>{queue.pendingCount}</strong>
+          排队中的输入 <strong>{queue.pendingCount}</strong>
         </span>
         <button
           type="button"
           onClick={() => runtime.queue.removeSettled()}
           disabled={!queue.entries.some((entry) => ["committed", "failed", "cancelled"].includes(entry.phase))}
         >
-          Clear settled
+          清除已完成
         </button>
       </header>
       <ol>
@@ -226,7 +244,7 @@ function QueuePreview({
                   }))
                 }}
               >
-                Edit
+                编辑
               </button>
             ) : null}
             {entry.phase === "failed" || entry.phase === "cancelled" ? (
@@ -245,14 +263,14 @@ function QueuePreview({
                   await runtime.commands.drain()
                 })()
               }}>
-                Retry
+                重试
               </button>
             ) : null}
           </li>
         ))}
       </ol>
       {queue.visible.length > visible.length ? (
-        <p className="queue-overflow">{queue.visible.length - visible.length} more queued items</p>
+        <p className="queue-overflow">另有 {queue.visible.length - visible.length} 条排队输入</p>
       ) : null}
     </section>
   )
@@ -345,11 +363,16 @@ export function CommandInput({
       setValue(detail.value)
       const position = detail.cursor ?? detail.value.length
       setCursor(position)
+      setSuggestionsDismissed(false)
       if (textareaRef.current) setSelection(textareaRef.current, position)
     }
     window.addEventListener("zyra:restore-command-draft", restore)
     return () => window.removeEventListener("zyra:restore-command-draft", restore)
   }, [])
+
+  useEffect(() => {
+    autoSizeComposer(textareaRef.current)
+  }, [value])
 
   const chooseSuggestion = useCallback((suggestion: CommandSuggestion) => {
     if (!suggestion.availability.enabled) return
@@ -445,6 +468,10 @@ export function CommandInput({
         setValue(restored.value)
         setCursor(restored.cursor)
         if (textareaRef.current) setSelection(textareaRef.current, restored.cursor)
+      } else if (textareaRef.current) {
+        // The draft could not be restored, but the person still needs the
+        // caret back where they can react to the failure.
+        textareaRef.current.focus({ preventScroll: true })
       }
     }
   }, [command.enabled, draftScope, runtime, selectedTask, value])
@@ -521,11 +548,23 @@ export function CommandInput({
       return
     }
     if (decision.action === "cancel" || decision.action === "restore-queue") {
-      if (runtime.overlays.handleEscape()) return
-      if (runtime.controlCommands.cancelActive()) return
-      if (inputBusy && runtime.commands.cancelActive()) return
+      // The shell also listens for Escape on window.  Whatever the composer
+      // resolves here is the only thing that should happen for this keypress.
+      if (runtime.overlays.handleEscape()) {
+        event.stopPropagation()
+        return
+      }
+      if (runtime.controlCommands.cancelActive()) {
+        event.stopPropagation()
+        return
+      }
+      if (inputBusy && runtime.commands.cancelActive()) {
+        event.stopPropagation()
+        return
+      }
       const popped = runtime.queue.popEditable(value, cursorAt(event.currentTarget))
       if (popped) {
+        event.stopPropagation()
         setValue(popped.value)
         setCursor(popped.cursor)
         runtime.drafts.set(draftScope, popped.value, popped.cursor)
@@ -579,18 +618,24 @@ export function CommandInput({
         ? `suggestion-${suggestions[selectedSuggestion]!.definition.id}`
         : undefined
   const disabled = !command.enabled || !workbench.transportEnabled
+  // A plain message always starts a new turn inside the selected session; only
+  // a busy coordinator makes it queue.  The copy has to say which one happens.
   const contextLabel = !selectedTask
-    ? "新任务"
-    : selectedTask.active
-      ? "当前会话 · 正在执行"
-      : selectedTask.terminal
-        ? "当前会话 · 可继续提问"
-        : "当前会话"
-  const placeholder = selectedTask?.active
-    ? "补充要求，新消息会排在当前任务之后"
-    : selectedTask?.terminal
-      ? "继续此会话，或输入 / 查看命令"
+    ? "新会话"
+    : inputBusy
+      ? "当前会话 · 新消息将进入队列"
+      : selectedTask.active
+        ? "当前会话 · 正在执行"
+        : "当前会话 · 可继续对话"
+  const placeholder = inputBusy
+    ? "继续输入，消息会排队等待当前指令完成"
+    : selectedTask
+      ? "在这个会话里继续，或输入 / 使用命令"
       : "描述一个任务，或向 Zyra 提问"
+  const hint = argumentHint
+    ?? (parsed.kind === "command" && parsed.definition
+      ? commandUsage(parsed.definition)
+      : "Enter 发送 · Shift+Enter 换行 · 输入 / 查看命令")
   return (
     <footer className="command-dock">
       <QueuePreview runtime={runtime} selectedTask={selectedTask} />
@@ -624,7 +669,6 @@ export function CommandInput({
           <span className={`status-marker ${selectedTask ? `status-${selectedTask.status}` : "status-idle"}`} aria-hidden="true" />
           <span>{contextLabel}</span>
           {selectedTask ? <span className="command-context-title">{selectedTask.userGoal || selectedTask.taskId}</span> : null}
-          {inputBusy ? <span className="tag">正在执行 · 新指令将进入任务队列</span> : null}
         </div>
         <div className="command-editor">
           <textarea
@@ -654,6 +698,7 @@ export function CommandInput({
               runtime.drafts.set(draftScope, event.target.value, position)
               setSuggestionsDismissed(false)
               setSubmissionError(undefined)
+              autoSizeComposer(event.target)
             }}
             onCompositionStart={() => {
               runtime.controlCommands.input.compositionStart()
@@ -678,14 +723,14 @@ export function CommandInput({
             {inputBusy ? "排队" : "发送"}
           </button>
         </div>
-        <div className="command-footer" aria-live="polite">
-          <span id="command-argument-hint">
-            {argumentHint ??
-              (parsed.kind === "command" && parsed.definition
-                ? commandUsage(parsed.definition)
-                : "Enter 发送 · Shift+Enter 换行 · 输入 / 查看命令")}
-          </span>
-          <span>{value.length.toLocaleString()} chars</span>
+        {/*
+          The hint is reachable through `aria-describedby`; announcing the whole
+          footer on every keystroke would read the character count aloud
+          continuously.
+        */}
+        <div className="command-footer">
+          <span id="command-argument-hint">{hint}</span>
+          <span aria-hidden="true">{value.length.toLocaleString()} 字符</span>
         </div>
         <CommandQueuePanel
           runtime={runtime.controlCommands}

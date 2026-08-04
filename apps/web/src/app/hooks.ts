@@ -43,6 +43,14 @@ export function useLayoutSnapshot(runtime: WorkbenchRuntime) {
   )
 }
 
+export function useLiveSyncSnapshot(runtime: WorkbenchRuntime) {
+  return useSyncExternalStore(
+    runtime.liveSync.subscribe,
+    runtime.liveSync.getSnapshot,
+    runtime.liveSync.getSnapshot,
+  )
+}
+
 export function useAnnouncementSnapshot(runtime: WorkbenchRuntime) {
   return useSyncExternalStore(
     runtime.announcer.subscribe,
@@ -70,6 +78,30 @@ export function useRoute(runtime: WorkbenchRuntime): WorkbenchRoute {
   const [route, setRoute] = useState(() => runtime.router.start())
   useEffect(() => runtime.router.listen((next) => setRoute(next)), [runtime])
   return route
+}
+
+/**
+ * Mirrors a CSS media query into React state so JavaScript-owned behaviour
+ * (focus trapping, `inert`, drawer semantics) stays aligned with the breakpoint
+ * the stylesheet actually uses.
+ */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window === "undefined" || typeof window.matchMedia !== "function"
+      ? false
+      : window.matchMedia(query).matches,
+  )
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return
+    }
+    const list = window.matchMedia(query)
+    const update = () => setMatches(list.matches)
+    update()
+    list.addEventListener("change", update)
+    return () => list.removeEventListener("change", update)
+  }, [query])
+  return matches
 }
 
 export function useOnlineStatus(): boolean {

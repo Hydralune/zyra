@@ -34,6 +34,14 @@ export interface TaskDetailState {
   generation: number
   loadedAt?: number
   failure?: RequestFailure
+  /**
+   * A background refresh is in flight for a projection that is already
+   * rendered.  The surface keeps showing the current turn instead of
+   * collapsing back into a loading skeleton.
+   */
+  syncing?: boolean
+  /** When the last background refresh failed while a projection stayed visible. */
+  staleSince?: number
 }
 
 export interface RuntimeState {
@@ -364,21 +372,35 @@ export class WorkbenchController {
     })
   }
 
-  async loadTask(taskId: string): Promise<TaskDetailState> {
+  /**
+   * `background: true` refreshes a projection that is already on screen.  The
+   * detail state keeps its `ready` phase and current task so live polling never
+   * replaces a running conversation with a loading skeleton, and a transient
+   * refresh failure marks the projection stale instead of erasing it.
+   */
+  async loadTask(
+    taskId: string,
+    options: { background?: boolean } = {},
+  ): Promise<TaskDetailState> {
     this.#assertUsable()
-    const generation = this.#snapshot.detail.generation + 1
+    const previous = this.#snapshot.detail
+    const background =
+      options.background === true &&
+      previous.taskId === taskId &&
+      previous.phase === "ready" &&
+      previous.task?.taskId === taskId
+    const generation = previous.generation + 1
     const controller = this.#replaceController("detail")
     this.#replace({
       selectedTaskId: taskId,
-      detail: {
-        taskId,
-        phase: "loading",
-        task:
-          this.#snapshot.detail.task?.taskId === taskId
-            ? this.#snapshot.detail.task
-            : undefined,
-        generation,
-      },
+      detail: background
+        ? { ...previous, generation, syncing: true }
+        : {
+            taskId,
+            phase: "loading",
+            task: previous.task?.taskId === taskId ? previous.task : undefined,
+            generation,
+          },
     })
     try {
       const task = await this.#tasks.get(taskId, {
@@ -403,8 +425,24 @@ export class WorkbenchController {
       return this.#snapshot.detail
     } catch (error) {
       if (!this.#isCurrent("detail", controller, generation)) return this.#snapshot.detail
-      if (controller.signal.aborted) return this.#snapshot.detail
+      if (controller.signal.aborted) {
+        if (background) {
+          this.#replace({ detail: { ...this.#snapshot.detail, syncing: false } })
+        }
+        return this.#snapshot.detail
+      }
       const missing = notFound(error)
+      if (background && !missing) {
+        this.#replace({
+          detail: {
+            ...this.#snapshot.detail,
+            syncing: false,
+            staleSince: this.#clock.now(),
+            failure: errorFailure(error, 1),
+          },
+        })
+        return this.#snapshot.detail
+      }
       this.#replace({
         detail: {
           taskId,
@@ -588,6 +626,10 @@ export class WorkbenchController {
   #reconcileSelectedTask(tasks: readonly TaskProjection[]): void {
     const selected = this.#snapshot.selectedTaskId
     if (!selected) return
+    // A list refresh must never supersede a detail request that is still in
+    // flight: bumping the detail generation here would silently discard the
+    // authoritative detail projection when both run concurrently.
+    if (this.#controllers.has("detail")) return
     const task = tasks.find((candidate) => candidate.taskId === selected)
     if (!task) return
     if (
@@ -602,7 +644,7 @@ export class WorkbenchController {
         taskId: task.taskId,
         task: cloneTask(task),
         phase: "ready",
-        generation: this.#snapshot.detail.generation + 1,
+        generation: this.#snapshot.detail.generation,
         loadedAt: this.#snapshot.list.loadedAt,
       },
     })
