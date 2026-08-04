@@ -16,7 +16,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .typed_transport import (
     API_VERSION,
@@ -37,6 +37,7 @@ from .event_stream_ingress import (
     EventIngressError,
     sse_headers,
 )
+from .session_api import paginate_sessions, session_detail
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_PATHS = [
@@ -59,6 +60,8 @@ PACKAGE_PATHS = [
 # comparisons.  This manifest is kept beside the handlers so submission and
 # reachability audits can verify the public surface without importing the API.
 ZYRA_DYNAMIC_API_ROUTES = (
+    ("GET", "/sessions"),
+    ("GET", "/sessions/{session_id}"),
     ("GET", "/experiments/registry"),
     ("GET", "/experiments/runs"),
     ("GET", "/experiments/runs/{experiment_id}"),
@@ -1233,6 +1236,13 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 BackendLocation(str(item))
                 for item in (request.get("constraints") or {}).get("allowed_locations") or ()
             )
+            excluded_backend_ids = {
+                *[str(item) for item in request.get("excluded_refs") or () if str(item)],
+                *([str(before.get("backend_id"))] if before.get("backend_id") else []),
+            }
+            sealed_terminal_exclusion = _task_is_sealed_control(state, request)
+            if sealed_terminal_exclusion:
+                excluded_backend_ids.update(registry.terminal_backend_ids())
             selection = BackendSelectionRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
@@ -1241,10 +1251,7 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 preferred_backend_id=None,
                 required_capabilities=("code-change",),
                 allowed_locations=locations,
-                excluded_backend_ids=tuple({
-                    *[str(item) for item in request.get("excluded_refs") or () if str(item)],
-                    *([str(before.get("backend_id"))] if before.get("backend_id") else []),
-                }),
+                excluded_backend_ids=tuple(sorted(excluded_backend_ids)),
                 workspace_root=str(workspace),
                 artifact_root=str(artifact_root_path()),
                 provider_route_id=str(provider.get("route_id") or "") or None,
@@ -1255,7 +1262,11 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 provider_transport_id=str(provider.get("transport_id") or ""),
                 m0_execution_ref=str(state.metadata.get("m0_execution_ref") or ""),
                 turn_id=str(state.metadata.get("turn_id") or f"recovery:{request.get('plan_id')}"),
-                metadata={"recovery_plan_id": str(request.get("plan_id") or "")},
+                metadata={
+                    "recovery_plan_id": str(request.get("plan_id") or ""),
+                    "sealed_terminal_exclusion": sealed_terminal_exclusion,
+                    "excluded_backend_ids": tuple(sorted(excluded_backend_ids)),
+                },
             )
             lease = registry.acquire(selection)
             after = lease.to_dict()
@@ -8925,6 +8936,30 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(error.status, error.response())
                 return
             self._send_json(HTTPStatus.OK, page)
+            return
+
+        if parts == ["sessions"]:
+            try:
+                page = paginate_sessions(
+                    store.list_tasks(),
+                    parse_qs(parsed.query, keep_blank_values=True),
+                )
+            except TypedTransportError as error:
+                self._send_json(error.status, error.response())
+                return
+            self._send_json(HTTPStatus.OK, page)
+            return
+
+        if len(parts) == 2 and parts[0] == "sessions":
+            try:
+                body = session_detail(store.list_tasks(), unquote(parts[1]))
+            except KeyError:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "session_not_found", "session_id": unquote(parts[1])},
+                )
+                return
+            self._send_json(HTTPStatus.OK, body)
             return
 
         if len(parts) == 2 and parts[0] == "tasks":

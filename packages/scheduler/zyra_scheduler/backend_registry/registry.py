@@ -99,6 +99,16 @@ class BackendRegistry:
     def definitions(self, *, runtime_worker: str = "") -> list[BackendDefinition]:
         return self.store.definitions(runtime_worker=runtime_worker)
 
+    def terminal_backend_ids(self) -> tuple[str, ...]:
+        """Return the registered CLI-terminal backends that sealed runs must exclude."""
+        return tuple(
+            sorted(
+                definition.backend_id
+                for definition in self.store.definitions()
+                if definition.metadata.get("terminal_registration") is True
+            )
+        )
+
     def health(self, backend_id: str) -> BackendHealthRecord:
         self.definition(backend_id)
         health = self.store.get_health(backend_id)
@@ -392,7 +402,7 @@ class BackendRegistry:
             "provider_state_owned": False,
             "backend_state_owned": True,
             "counts": self.store.counts(),
-            "backends": [item.to_dict() for item in self.store.definitions()],
+            "backends": [item.to_public_dict() for item in self.store.definitions()],
             "health": [item.to_dict() for item in self.health_snapshot()],
         }
 

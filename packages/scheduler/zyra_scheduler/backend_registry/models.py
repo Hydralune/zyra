@@ -133,6 +133,19 @@ class BackendDefinition:
         value["location"] = self.location.value
         return value
 
+    def to_public_dict(self) -> dict[str, Any]:
+        value = self.to_dict()
+        endpoint_values = [item for item in (self.endpoint, self.health_endpoint) if item]
+        value["endpoint"] = None
+        value["health_endpoint"] = None
+        value["endpoint_identity"] = (
+            f"sha256:{hashlib.sha256('|'.join(endpoint_values).encode('utf-8')).hexdigest()}"
+            if endpoint_values
+            else None
+        )
+        value["metadata"] = _public_backend_metadata(self.metadata)
+        return value
+
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> BackendDefinition:
         return cls(
@@ -154,6 +167,38 @@ class BackendDefinition:
             latency_weight=float(value.get("latency_weight", 0.0)),
             metadata=dict(value.get("metadata") or {}),
         )
+
+
+def _public_backend_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
+    sensitive_markers = {
+        "capability",
+        "credential",
+        "cwd",
+        "endpoint",
+        "path",
+        "root",
+        "secret",
+        "token",
+        "url",
+    }
+    result: dict[str, Any] = {}
+    for raw_name, raw_value in value.items():
+        name = str(raw_name)
+        normalized = name.casefold().replace("-", "_")
+        if any(marker in normalized for marker in sensitive_markers):
+            continue
+        if isinstance(raw_value, Mapping):
+            result[name] = _public_backend_metadata(raw_value)
+        elif isinstance(raw_value, (str, int, float, bool)) or raw_value is None:
+            rendered = str(raw_value) if isinstance(raw_value, str) else ""
+            result[name] = "[REDACTED]" if "://" in rendered else raw_value
+        elif isinstance(raw_value, Sequence) and not isinstance(raw_value, (str, bytes, bytearray)):
+            result[name] = [
+                "[REDACTED]" if isinstance(item, str) and "://" in item else item
+                for item in raw_value
+                if isinstance(item, (str, int, float, bool)) or item is None
+            ]
+    return result
 
 
 @dataclass(frozen=True, slots=True)

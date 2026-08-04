@@ -105,6 +105,28 @@ export interface TaskListProjection {
   cursor?: string
 }
 
+export interface SessionProjection {
+  sessionId: string
+  taskIds: string[]
+  activeTaskIds: string[]
+  latestTaskId: string
+  resumeTaskId?: string
+  resolution: "resolved" | "ambiguous"
+  taskCount: number
+  statuses: string[]
+  active: boolean
+  terminal: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface SessionListProjection {
+  sessions: SessionProjection[]
+  total: number
+  cursor?: string
+  stateOwner: "task_store_projection"
+}
+
 export interface TaskMutationProjection {
   task: TaskProjection
   events: EventProjection[]
@@ -426,6 +448,74 @@ export function normalizeTaskList(value: unknown): TaskListProjection {
   }
 }
 
+export function normalizeSession(value: unknown, index = 0): SessionProjection {
+  const item = responseRecord(value, `session[${index}]`)
+  const resolution = responseString(item.resolution, `session[${index}].resolution`)
+  if (resolution !== "resolved" && resolution !== "ambiguous") {
+    throw new ResponseValidationError("Session resolution is unsupported.", { resolution })
+  }
+  const sessionId = normalizeIdentity("session", item.session_id ?? item.sessionId)
+  const taskIds = identifierArray("task", item.task_ids ?? item.taskIds, `session[${index}].task_ids`)
+  const activeTaskIds = identifierArray(
+    "task",
+    item.active_task_ids ?? item.activeTaskIds,
+    `session[${index}].active_task_ids`,
+  )
+  const latestTaskId = normalizeIdentity("task", item.latest_task_id ?? item.latestTaskId)
+  const resumeTaskId = optionalIdentity("task", item.resume_task_id ?? item.resumeTaskId)
+  if (resolution === "resolved" && !resumeTaskId) {
+    throw new ResponseValidationError("Resolved session omitted resume task identity.", { session_id: sessionId })
+  }
+  if (resolution === "ambiguous" && resumeTaskId) {
+    throw new ResponseValidationError("Ambiguous session exposed a resume task identity.", { session_id: sessionId })
+  }
+  if (!taskIds.includes(latestTaskId) || (resumeTaskId && !taskIds.includes(resumeTaskId))) {
+    throw new ResponseValidationError("Session task identities are inconsistent.", { session_id: sessionId })
+  }
+  return {
+    sessionId,
+    taskIds,
+    activeTaskIds,
+    latestTaskId,
+    resumeTaskId,
+    resolution,
+    taskCount: responseInteger(item.task_count ?? item.taskCount, `session[${index}].task_count`),
+    statuses: stringArray(item.statuses, `session[${index}].statuses`),
+    active: responseBoolean(item.active, `session[${index}].active`),
+    terminal: responseBoolean(item.terminal, `session[${index}].terminal`),
+    createdAt: optionalTimestamp(item.created_at ?? item.createdAt, `session[${index}].created_at`),
+    updatedAt: optionalTimestamp(item.updated_at ?? item.updatedAt, `session[${index}].updated_at`),
+  }
+}
+
+export function normalizeSessionList(value: unknown): SessionListProjection {
+  const body = objectBody(value, "session list response")
+  const stateOwner = responseString(body.state_owner ?? body.stateOwner, "session list.state_owner")
+  if (stateOwner !== "task_store_projection") {
+    throw new ResponseValidationError("Session list owner is not task-backed.", { state_owner: stateOwner })
+  }
+  const sessions = responseArray(body.sessions ?? [], "session list.sessions", normalizeSession)
+  const total = responseInteger(body.total ?? sessions.length, "session list.total")
+  if (total < sessions.length) {
+    throw new ResponseValidationError("Session list total is smaller than returned session count.", { total })
+  }
+  return {
+    sessions,
+    total,
+    cursor: optionalResponseString(body.cursor, "session list.cursor"),
+    stateOwner,
+  }
+}
+
+export function normalizeSessionDetail(value: unknown): SessionProjection {
+  const body = objectBody(value, "session detail response")
+  const stateOwner = responseString(body.state_owner ?? body.stateOwner, "session detail.state_owner")
+  if (stateOwner !== "task_store_projection") {
+    throw new ResponseValidationError("Session detail owner is not task-backed.", { state_owner: stateOwner })
+  }
+  return normalizeSession(body.session)
+}
+
 export function normalizeTaskEvents(value: unknown): EventProjection[] {
   const body = objectBody(value, "task events response")
   return responseArray(body.events ?? [], "task events.events", normalizeEvent)
@@ -511,6 +601,8 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.readiness, normalizeReadiness)
   registry.register(CONTRACT_NAMES.taskList, normalizeTaskList)
   registry.register(CONTRACT_NAMES.taskDetail, normalizeTaskDetail)
+  registry.register(CONTRACT_NAMES.sessionList, normalizeSessionList)
+  registry.register(CONTRACT_NAMES.sessionDetail, normalizeSessionDetail)
   registry.register(CONTRACT_NAMES.taskEvents, normalizeTaskEvents)
   registry.register(CONTRACT_NAMES.taskEventIngressCapabilities, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskEventIngressSnapshot, normalizeEventIngressEnvelope)

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import ipaddress
+import json
+import secrets
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
 from zyra_runtime.provider_control_plane import (
     ProviderControlPlaneClient,
@@ -18,9 +23,20 @@ from zyra_scheduler.backend_registry import (
     BackendDefinition,
     BackendRegistry,
     BackendRegistryStore,
+    BackendKind,
+    BackendLocation,
+    RemoteBackendControlClient,
+    RemoteBackendControlError,
     backend_registry_path,
     ensure_default_backends,
 )
+
+
+class TerminalRegistrationError(ValueError):
+    def __init__(self, code: str, message: str, *, status: HTTPStatus = HTTPStatus.UNPROCESSABLE_ENTITY) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status = status
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +148,7 @@ class ProviderBackendApi:
             if parts and parts[0] == "backends":
                 with self._backend_registry() as registry:
                     if list(parts) == ["backends"]:
-                        result = [item.to_dict() for item in registry.definitions()]
+                        result = [item.to_public_dict() for item in registry.definitions()]
                     elif list(parts) == ["backends", "health"]:
                         result = registry.summary()
                     elif list(parts) == ["backends", "events"]:
@@ -242,14 +258,25 @@ class ProviderBackendApi:
                 definition = BackendDefinition.from_dict(
                     _mapping(payload.get("backend"), "backend")
                 )
+                if payload.get("expected_revision") is None:
+                    raise TerminalRegistrationError(
+                        "terminal_registration_revision_required",
+                        "Terminal backend registration requires expected_revision.",
+                    )
+                expected_revision = int(payload["expected_revision"])
+                registration = _mapping(
+                    payload.get("terminal_registration"),
+                    "terminal_registration",
+                )
                 with self._backend_registry() as registry:
+                    definition = _validate_terminal_registration(
+                        registry,
+                        definition,
+                        registration,
+                    )
                     revision = registry.register(
                         definition,
-                        expected_revision=(
-                            int(payload["expected_revision"])
-                            if payload.get("expected_revision") is not None
-                            else None
-                        ),
+                        expected_revision=expected_revision,
                     )
                 return self._ok(
                     {"backend_id": definition.backend_id, "registry_revision": revision},
@@ -292,6 +319,8 @@ class ProviderBackendApi:
                 )
         except ProviderControlPlanePortError as error:
             return self._provider_error(error)
+        except TerminalRegistrationError as error:
+            return self._error(error.status, error.code, str(error))
         except (TypeError, ValueError, RuntimeError, KeyError) as error:
             return self._error(
                 HTTPStatus.CONFLICT,
@@ -380,3 +409,146 @@ def _mapping(value: Any, name: str) -> dict[str, Any]:
 
 def _truthy(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_terminal_registration(
+    registry: BackendRegistry,
+    definition: BackendDefinition,
+    registration: Mapping[str, Any],
+) -> BackendDefinition:
+    if definition.kind is not BackendKind.EDGE_HTTP or definition.location is not BackendLocation.LOCAL:
+        raise TerminalRegistrationError(
+            "terminal_registration_scope_rejected",
+            "Terminal registration is restricted to edge_http transport at local location.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    if definition.command or definition.docker_image:
+        raise TerminalRegistrationError(
+            "terminal_registration_executable_rejected",
+            "Terminal registration may not define a process command or Docker image.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    if not definition.enabled:
+        raise TerminalRegistrationError(
+            "terminal_registration_disabled",
+            "Terminal registration must be enabled after its listener is ready.",
+        )
+
+    generation = str(registration.get("generation") or "").strip()
+    owner_id = str(registration.get("owner_id") or "").strip()
+    token = str(registration.get("capability_token") or "")
+    if not generation or len(generation.encode("utf-8")) > 256:
+        raise TerminalRegistrationError("terminal_generation_invalid", "Terminal generation is required.")
+    if not owner_id or len(owner_id.encode("utf-8")) > 256:
+        raise TerminalRegistrationError("terminal_owner_invalid", "Terminal owner identity is required.")
+    if len(token) < 32 or len(token.encode("utf-8")) > 512:
+        raise TerminalRegistrationError(
+            "terminal_capability_invalid",
+            "Terminal capability token must contain at least 32 characters.",
+        )
+
+    endpoint = str(definition.endpoint or "")
+    parsed = urlparse(endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.port is None:
+        raise TerminalRegistrationError(
+            "terminal_endpoint_invalid",
+            "Terminal endpoint must be an absolute loopback URL with an explicit random port.",
+        )
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise TerminalRegistrationError(
+            "terminal_endpoint_credentials_rejected",
+            "Terminal endpoint may not contain userinfo, query, or fragment data.",
+        )
+    if not _loopback_host(parsed.hostname):
+        raise TerminalRegistrationError(
+            "terminal_endpoint_not_loopback",
+            "Terminal endpoint must bind to loopback.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    path_segments = [part for part in parsed.path.split("/") if part]
+    if (
+        len(path_segments) != 2
+        or path_segments[0] != "capability"
+        or not secrets.compare_digest(path_segments[-1], token)
+    ):
+        raise TerminalRegistrationError(
+            "terminal_capability_mismatch",
+            "Terminal endpoint capability path does not match registration proof.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    expected_health = f"{endpoint.rstrip('/')}/health"
+    if definition.health_endpoint and definition.health_endpoint != expected_health:
+        raise TerminalRegistrationError(
+            "terminal_health_endpoint_mismatch",
+            "Terminal health endpoint must remain under the capability URL.",
+        )
+
+    metadata_text = json.dumps(dict(definition.metadata), sort_keys=True, default=str)
+    if token in metadata_text:
+        raise TerminalRegistrationError(
+            "terminal_capability_metadata_leak",
+            "Terminal capability token may not be persisted in metadata.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    existing = next(
+        (item for item in registry.definitions() if item.backend_id == definition.backend_id),
+        None,
+    )
+    if existing is not None and existing.metadata.get("terminal_owner_id") != owner_id:
+        raise TerminalRegistrationError(
+            "terminal_owner_conflict",
+            "Terminal backend owner identity does not match the existing definition.",
+            status=HTTPStatus.CONFLICT,
+        )
+
+    capability_digest = f"sha256:{hashlib.sha256(token.encode('utf-8')).hexdigest()}"
+    normalized_definition = replace(
+        definition,
+        health_endpoint=expected_health,
+        metadata={
+            **dict(definition.metadata),
+            "allowed_hosts": (parsed.hostname,),
+            "terminal_registration": True,
+            "terminal_generation": generation,
+            "terminal_owner_id": owner_id,
+            "terminal_capability_digest": capability_digest,
+        },
+    )
+
+    try:
+        health = RemoteBackendControlClient(normalized_definition).health()
+    except (RemoteBackendControlError, OSError, ValueError) as error:
+        raise TerminalRegistrationError(
+            "terminal_listener_not_ready",
+            "Terminal listener health could not be attested.",
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
+        ) from error
+    if not health.ok or not health.accepting:
+        raise TerminalRegistrationError(
+            "terminal_listener_not_ready",
+            "Terminal listener health is not ready for registration.",
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
+        )
+    if health.generation != generation or health.runtime_worker != definition.runtime_worker:
+        raise TerminalRegistrationError(
+            "terminal_listener_identity_mismatch",
+            "Terminal listener generation or runtime worker does not match registration proof.",
+            status=HTTPStatus.CONFLICT,
+        )
+    if not set(definition.capabilities).issubset(health.capabilities):
+        raise TerminalRegistrationError(
+            "terminal_listener_capability_mismatch",
+            "Terminal listener health omitted registered capabilities.",
+            status=HTTPStatus.CONFLICT,
+        )
+
+    return normalized_definition
+
+
+def _loopback_host(value: str) -> bool:
+    if value.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False

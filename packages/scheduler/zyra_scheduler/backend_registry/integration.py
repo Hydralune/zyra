@@ -36,12 +36,17 @@ def dispatch_worker_callable(
     idempotency_key: str,
     required_capabilities: tuple[str, ...] = (),
     allowed_locations: tuple[BackendLocation, ...] = (),
+    excluded_backend_ids: tuple[str, ...] = (),
+    exclude_terminal_backends: bool = False,
     interruptible: bool = False,
 ) -> BackendDispatchOutcome[T]:
     store = BackendRegistryStore(backend_registry_path(artifact_root))
     try:
         registry = BackendRegistry(store)
         ensure_default_backends(registry)
+        excluded = set(excluded_backend_ids)
+        if exclude_terminal_backends:
+            excluded.update(registry.terminal_backend_ids())
         request = BackendSelectionRequest(
             run_id=run_id,
             task_id=task_id,
@@ -50,7 +55,7 @@ def dispatch_worker_callable(
             preferred_backend_id=preferred_backend_id,
             required_capabilities=required_capabilities,
             allowed_locations=allowed_locations,
-            excluded_backend_ids=(),
+            excluded_backend_ids=tuple(sorted(excluded)),
             workspace_root=str(Path(workspace_root).expanduser().resolve()),
             artifact_root=str(Path(artifact_root).expanduser().resolve()),
             provider_route_id=provider_route_id,
@@ -61,7 +66,11 @@ def dispatch_worker_callable(
             provider_transport_id=provider_transport_id,
             m0_execution_ref=m0_execution_ref,
             turn_id=turn_id,
-            metadata={"source": "zyra_orchestration.task_graph"},
+            metadata={
+                "source": "zyra_orchestration.task_graph",
+                "sealed_terminal_exclusion": exclude_terminal_backends,
+                "excluded_backend_ids": tuple(sorted(excluded)),
+            },
         )
         return BackendDispatchRuntime(registry).dispatch_callable(
             request,

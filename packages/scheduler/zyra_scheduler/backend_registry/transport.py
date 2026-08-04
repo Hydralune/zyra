@@ -109,7 +109,9 @@ class BackendTransportFrame:
         }
         supplied = str(value.get("digest") or "")
         expected = checksum(body)
-        if supplied and supplied != expected:
+        if not supplied:
+            raise ValueError("backend transport frame digest is required")
+        if supplied != expected:
             raise ValueError("backend transport frame digest mismatch")
         return cls(**body, digest=expected)
 
@@ -1362,7 +1364,9 @@ def _redact_url(value: str) -> str:
     hostname = parsed.hostname or ""
     if parsed.port is not None:
         hostname = f"{hostname}:{parsed.port}"
-    return urllib.parse.urlunparse(parsed._replace(netloc=hostname, query="", fragment=""))
+    return urllib.parse.urlunparse(
+        parsed._replace(netloc=hostname, path="/[OPAQUE]", params="", query="", fragment="")
+    )
 
 
 def _close_all(values: Iterable[Any]) -> None:

@@ -1080,6 +1080,17 @@ def _dispatch_selected_worker_callable(
         )
         return runtime.run(request)
 
+    competition_mode = str(
+        state.metadata.get("competition_mode")
+        or state.metadata.get("execution_mode")
+        or ""
+    ).strip().casefold()
+    sealed_terminal_exclusion = bool(
+        state.metadata.get("sealed")
+        or state.metadata.get("formal_benchmark")
+        or state.metadata.get("sealed_autonomous")
+        or "sealed" in competition_mode
+    )
     outcome = dispatch_worker_callable(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -1098,6 +1109,7 @@ def _dispatch_selected_worker_callable(
         turn_id=turn_id,
         operation=execute,
         idempotency_key=f"worker-dispatch:{request.request_id}",
+        exclude_terminal_backends=sealed_terminal_exclusion,
     )
     backend_events = [event_record_from_backend(event) for event in outcome.events]
     worker_run = replace(
@@ -1111,6 +1123,7 @@ def _dispatch_selected_worker_callable(
         "final_envelope": to_jsonable(outcome.final_envelope),
         "attempts": [to_jsonable(item) for item in outcome.attempts],
         "backend_changed": outcome.backend_changed,
+        "sealed_terminal_exclusion": sealed_terminal_exclusion,
         "dispatch_session": to_jsonable(outcome.session),
         "recovery_inputs": [to_jsonable(item) for item in outcome.recovery_inputs],
         "transport_responses": [
