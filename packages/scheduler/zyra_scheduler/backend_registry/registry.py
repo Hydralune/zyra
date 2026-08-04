@@ -226,6 +226,11 @@ class BackendRegistry:
                 request,
                 previous_backend_id=(previous.backend_id if previous else None),
             )
+            if request.excluded_backend_ids:
+                reasons.append(
+                    "excluded backends: "
+                    + ", ".join(sorted(set(request.excluded_backend_ids)))
+                )
             health = self.health(selected.backend_id)
             acquired_at = now_timestamp()
             body = {

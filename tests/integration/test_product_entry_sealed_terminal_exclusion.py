@@ -75,6 +75,8 @@ def test_sealed_dispatch_excludes_registered_terminal_backend() -> None:
         )
         assert sealed.final_lease.backend_id != terminal_backend_id
         assert terminal_backend_id not in {item.backend_id for item in sealed.attempts}
+        assert terminal_backend_id in sealed.final_lease.reason
+        assert "excluded backends" in sealed.final_lease.reason
 
         interactive = dispatch_worker_callable(
             **shared,
