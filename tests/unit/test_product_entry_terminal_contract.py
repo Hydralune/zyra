@@ -46,8 +46,12 @@ def test_remote_frame_requires_sender_digest_and_strict_sequence() -> None:
     with pytest.raises(ValueError, match="digest mismatch"):
         BackendTransportFrame.from_wire({**valid, "digest": "0" * 64}, expected_sequence=1)
 
-    with pytest.raises(ValueError, match="sequence mismatch"):
-        BackendTransportFrame.from_wire(valid, expected_sequence=2)
+    for actual_sequence, expected_sequence in ((1, 2), (3, 2), (2, 3)):
+        with pytest.raises(ValueError, match="sequence mismatch"):
+            BackendTransportFrame.from_wire(
+                _frame_wire(sequence=actual_sequence),
+                expected_sequence=expected_sequence,
+            )
 
 
 def test_public_backend_projection_and_transport_metadata_hide_capability_path() -> None:
