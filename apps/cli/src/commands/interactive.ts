@@ -14,6 +14,7 @@ import { CliPermissionSession } from "../control/permission.ts"
 import { TerminalPrompt } from "../input/terminal-prompt.ts"
 import { LineTranscriptRenderer } from "../render/line-renderer.ts"
 import { SessionProjection } from "../session/projection.ts"
+import type { TerminalNodeStatus } from "../terminal/server.ts"
 import type { CommandOutcome } from "../runner.ts"
 
 const LOCAL_COMMANDS = ["/help", "/exit", "/edit", "/restore", "/cancel-draft", ...ACTIVE_CONTROL_COMMANDS] as const
@@ -116,10 +117,11 @@ export async function observeTask(input: {
   stderr?: Writable
   signal: AbortSignal
   resume: boolean
+  terminalStatus?: () => TerminalNodeStatus
 }): Promise<CommandOutcome> {
   let capabilities = await input.api.ingressCapabilities(input.task.taskId)
   let projection = new SessionProjection({ taskId: input.task.taskId, generation: capabilities.generation })
-  const renderer = new LineTranscriptRenderer(input.output)
+  const renderer = new LineTranscriptRenderer(input.output, undefined, input.terminalStatus)
   renderer.header({
     cwd: input.cwd,
     taskId: input.task.taskId,
@@ -300,6 +302,7 @@ async function submit(input: {
   stdin?: Readable
   stderr?: Writable
   signal: AbortSignal
+  terminalStatus?: () => TerminalNodeStatus
 }): Promise<CommandOutcome> {
   const created = await input.api.createPendingTask(input.goal, false)
   return observeTask({
@@ -311,6 +314,7 @@ async function submit(input: {
     resume: false,
     stdin: input.stdin,
     stderr: input.stderr,
+    terminalStatus: input.terminalStatus,
   })
 }
 
@@ -322,6 +326,7 @@ export async function executeInteractive(input: {
   stderr: Writable
   signal: AbortSignal
   cwd?: string
+  terminalStatus?: () => TerminalNodeStatus
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   if (input.command.goal) return submit({
@@ -333,6 +338,7 @@ export async function executeInteractive(input: {
     stdin: input.stdin,
     stderr: input.stderr,
     signal: input.signal,
+    terminalStatus: input.terminalStatus,
   })
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   if (!tty) throw new CliTaskError("zyra without a goal requires an interactive terminal.", "interactive_terminal_required")
@@ -375,6 +381,7 @@ export async function executeInteractive(input: {
         stdin: input.stdin,
         stderr: input.stderr,
         signal: input.signal,
+        terminalStatus: input.terminalStatus,
       })
     }
     return last
@@ -391,6 +398,7 @@ export async function executeResume(input: {
   stderr: Writable
   signal: AbortSignal
   cwd?: string
+  terminalStatus?: () => TerminalNodeStatus
 }): Promise<CommandOutcome> {
   const resolved = await input.api.resolveTask(input.command.identity)
   return observeTask({
@@ -402,5 +410,6 @@ export async function executeResume(input: {
     resume: true,
     stdin: input.stdin,
     stderr: input.stderr,
+    terminalStatus: input.terminalStatus,
   })
 }

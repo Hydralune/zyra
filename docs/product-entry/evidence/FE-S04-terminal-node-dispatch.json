@@ -1,0 +1,113 @@
+{
+  "schema": "zyra.product-entry-slice-evidence/v1",
+  "slice_id": "FE-S04",
+  "title": "same-machine terminal node and real HTTP dispatch",
+  "status": "passed",
+  "base_commit": "1169797e42a705c74e4201ba0372019db31bbbf1",
+  "claims": {
+    "real_terminal_dispatch_claimed": true,
+    "real_edge_dispatch_claimed_modified": false,
+    "terminal_location": "local",
+    "terminal_kind": "edge_http",
+    "runtime_worker": "CodeWorkerRuntime",
+    "server_contract_modified": false,
+    "fourth_protocol_created": false
+  },
+  "listener": {
+    "bind": "127.0.0.1:0",
+    "capability_token_bytes": 32,
+    "capability_prefix": "/capability/[OPAQUE]",
+    "endpoint_count": 8,
+    "frame_kinds": [
+      "accepted",
+      "progress",
+      "stdout",
+      "stderr",
+      "artifact",
+      "heartbeat",
+      "result",
+      "error",
+      "cancelled"
+    ],
+    "safe_shutdown": [
+      "drain",
+      "bounded_settle_or_cancel",
+      "revision_fenced_disable",
+      "listener_close"
+    ]
+  },
+  "owner_invariants": {
+    "backend_registry": "python.BackendRegistryStore",
+    "placement_and_lease": "WorkerDispatchRouter/BackendRegistry",
+    "permission": "typescript.PermissionCoordinator",
+    "workspace_attestation": "WorkspaceAttestationRuntime plus terminal containment",
+    "listener_process": "apps/cli TerminalNodeLifecycle"
+  },
+  "real_behavior": {
+    "registration_via_http": true,
+    "python_to_typescript_http_transport": true,
+    "permission_receipt_required": true,
+    "workspace_mutation_observed": true,
+    "two_terminal_failover": true,
+    "failed_backend_health": "unavailable",
+    "failover_events": [
+      "backend.dispatch.failed",
+      "backend.failover.committed"
+    ],
+    "sealed_terminal_dispatch_count": 0,
+    "normal_exit_disabled_definition": true
+  },
+  "negative_guards": [
+    "missing_capability_token",
+    "wrong_capability_token",
+    "external_host_header",
+    "path_parent_escape",
+    "symlink_or_junction_escape",
+    "artifact_root_not_directory",
+    "permission_receipt_mismatch",
+    "unknown_action",
+    "input_digest_mutation",
+    "request_budget_overflow",
+    "idempotency_collision",
+    "drain_rejects_new_dispatch"
+  ],
+  "verification": [
+    {
+      "command": "node_modules/.bin/tsc.exe -p apps/cli/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "bun test ./test (cwd=apps/cli)",
+      "result": "35 passed"
+    },
+    {
+      "command": "pytest terminal contract/action/sealed/typescript listener/backend failover with repository basetemp",
+      "result": "14 passed"
+    },
+    {
+      "command": "pytest FE-S01..FE-S03 CLI adjacent integration with repository basetemp",
+      "result": "8 passed"
+    },
+    {
+      "command": "bun run build and dist/zyra.js --version",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "competition_mapping": {
+    "supports": [
+      "REQ-FAULT-01",
+      "SCORE-UX",
+      "SCORE-ROBUST"
+    ],
+    "does_not_claim": [
+      "real edge runtime",
+      "REQ-EDGE-01 replacement",
+      "FE-S05 Web completion",
+      "FE-S06 release completion"
+    ]
+  }
+}

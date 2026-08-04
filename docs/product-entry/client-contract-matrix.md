@@ -15,7 +15,7 @@
   revision/idempotency 与 cursor/gap 恢复；task-backed session resolver 继续由 FE-G00R 提供。
 - Gate 结论：**PASS（contract/reference baseline）**；FE-S01 也已按用户独立授权
   完成。CLI 只新增客户端 transport、writer 和 pid/generation 状态，不改变
-  task/event/scenario/command/permission/runtime canonical owner。FE-S04 仅为未授权的下一候选。
+  task/event/scenario/command/permission/runtime canonical owner。FE-S04 已完成；FE-S05 仅为未授权的下一候选。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -239,7 +239,7 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | FE-S01 | typed API task/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、dirty preflight、stream disconnect、unknown schema/version、JSONL pollution | command surface、real run/cancel/scenario、daemon survival、pipe/EPIPE/exit | **COMPLETED**；见 FE-S01 evidence/self-review |
 | FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | **COMPLETED**；见 FE-S02 evidence/self-review |
 | FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | **COMPLETED**；见 FE-S03 evidence/self-review |
-| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | 下一候选；未授权；T-01..T-04 contract 已收口 |
+| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | **COMPLETED**；见 FE-S04 evidence/self-review；terminal claim=true，edge claim 未变 |
 | FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04 |
 | FE-S06 | release/automation owner；runtime owners 不变 | offline 包缺依赖、Windows entry 失败、D5/比赛证据断链 | cleanroom install、binary、JSONL、D5、sealed scenario、evidence bundle | 最终候选 |
 
@@ -263,8 +263,8 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | C-03 | terminal-node contract 初始存在 T-01..T-04 | FE-G00R 已收口 projection、authority、sealed exclusion 与 digest | **RESOLVED**；见 `terminal-node-contract.md` |
 | C-04 | D5 完整压力测试仍含尚未实现的 TTY 行为 | FE-S01 只能验证 non-TTY JSONL/EPIPE/daemon walking skeleton | **PARTIAL**：FE-S01 向量已通过；FE-S02/S06 执行完整 D5，失败则回修 |
 
-因此，FE-G00 的 contract/reference Gate 与 FE-S01 非交互 walking skeleton 均已通过。
-这仍不是完整前端产品完成证据；FE-S04 是下一候选，但记录候选不构成授权。
+因此，FE-G00 的 contract/reference Gate 与 FE-S01～FE-S04 均已通过。
+这仍不是完整前端产品完成证据；FE-S05 是下一候选，但记录候选不构成授权。
 
 ## 10. 基线验证记录
 

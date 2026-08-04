@@ -112,8 +112,9 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 以下测试集由 Gate 冻结。FE-S02 已实现其中的交互输入、服务端 snapshot/SSE、行式
 transcript、有界搜索窗口、follow/unread、80/120 列重排、tool progress 折叠、pipe
 兼容和 resume 主路径；FE-S03 已实现服务端 command queue、permission custody、cursor/gap
-恢复和 daemon stop 保护；FE-S04、FE-S05、FE-S06 归属的终端节点、Web 入口和最终
-cleanroom 仍保持后续边界。真实 daemon 证据不能由 mock transcript 替代。
+恢复和 daemon stop 保护；FE-S04 已实现真实同机 terminal listener、注册、typed action、
+失效转移和退出 disable。FE-S05、FE-S06 归属的 Web 入口和最终 cleanroom 仍保持后续
+边界。真实 daemon/terminal 证据不能由 mock transcript 替代。
 
 | ID | 场景 | 输入/故障 | 必须观察到的结果 | 禁止结果 | 归属 |
 |---|---|---|---|---|---|
@@ -177,5 +178,7 @@ permission state 或 runtime dependency。
 - 后续只在某个 slice 出现具体交互/恢复问题时回到对应源码点，不再把 Claude 仓库当总体蓝图。
 - client/session 与 terminal contract 的 C-01/T-01..T-04 已由 FE-G00R 在提交
   `fd272ba` 收口；D5 真实执行按 parent 修订保留给 FE-S02/S06。
-- 因此 FE-G00 当前为 **PASS（contract/reference baseline）**。这只把 FE-S01
-  确定为下一候选，不构成 FE-S01 授权，也不表示任何 CLI 行为已经实现。
+- FE-G00 的 contract/reference baseline 结论为 **PASS**；该 Gate 当时只确定 FE-S01
+  候选，不曾以规格审计冒充 CLI 行为实现。
+- FE-S04 已在独立授权下完成：CLI 复用 Zyra typed action 与 BackendRegistry HTTP contract，
+  未复制 Claude session/permission owner，也未把 terminal 叙述成 edge。FE-S05 仍须单独授权。

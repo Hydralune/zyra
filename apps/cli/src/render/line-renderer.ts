@@ -24,13 +24,24 @@ function wrap(value: string, width: number): string[] {
 export class LineTranscriptRenderer {
   readonly #output: Writable
   readonly #tty: boolean
+  readonly #terminalStatus?: () => {
+    accepting: boolean
+    draining: boolean
+    active_dispatches: number
+    generation: string
+  }
   readonly #startedAt = Date.now()
   #lastRenderedSequence = 0
   #statusVisible = false
 
-  constructor(output: Writable, tty = Boolean((output as Writable & { isTTY?: boolean }).isTTY)) {
+  constructor(
+    output: Writable,
+    tty = Boolean((output as Writable & { isTTY?: boolean }).isTTY),
+    terminalStatus?: () => { accepting: boolean; draining: boolean; active_dispatches: number; generation: string },
+  ) {
     this.#output = output
     this.#tty = tty
+    this.#terminalStatus = terminalStatus
   }
 
   get alternateScreenUsed(): false { return false }
@@ -58,7 +69,10 @@ export class LineTranscriptRenderer {
     const elapsed = Math.floor((Date.now() - this.#startedAt) / 1000)
     const degraded = view.evicted ? ` · recent-only(-${view.evicted})` : ""
     const unread = view.unread ? ` · unread ${view.unread}` : ""
-    const terminal = " · terminal n/a(FE-S04)"
+    const terminalStatus = this.#terminalStatus?.()
+    const terminal = terminalStatus
+      ? ` · terminal ${terminalStatus.draining ? "draining" : terminalStatus.accepting ? "ready" : "unavailable"}/${terminalStatus.active_dispatches} (${terminalStatus.generation.slice(0, 8)})`
+      : " · terminal unavailable"
     const line = `[${view.connection}] ${view.action} · step ${view.steps} · ${elapsed}s · permissions ${view.pendingPermissions}${unread}${degraded}${terminal}`
     if (!this.#tty) return
     this.#output.write(`${CLEAR_LINE}${line.slice(0, widthOf(this.#output) - 1)}`)

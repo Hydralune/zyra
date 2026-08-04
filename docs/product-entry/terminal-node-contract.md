@@ -34,10 +34,12 @@ FE-G00B 已在基线 `237bc123f45b0e2326edd1512539c6fce7146201` 上完成收口�
    file/search/shell/artifact action 则可经 `dispatch_payload` 获得 terminal lease、HTTP envelope
    和 transport receipt。
 
-因此本 Gate 当前为 **PASS（contract/reference baseline + FE-G00B remediation）**。这只表示
-FE-S04 所依赖的服务端 contract 已就绪；TypeScript capability-prefix listener、进程生命周期、
-真实 CLI 端节点 dispatch 和发布证据仍属于 FE-S04/FE-S06，尚未实现，也未声明
-`real_terminal_dispatch_claimed`。
+因此本 Gate 当前为 **PASS（contract/reference baseline + FE-G00B remediation + FE-S04
+listener）**。FE-S04 已在 `1169797e42a705c74e4201ba0372019db31bbbf1` 基线上实现
+TypeScript capability-prefix listener、CLI 进程生命周期、真实 typed action HTTP dispatch、
+双 terminal 失效转移和 sealed 零 dispatch，并在安全与跨语言行为测试通过后声明
+`real_terminal_dispatch_claimed=true`。这仍不代表真实 edge，`real_edge_dispatch_claimed`
+未修改；发布 cleanroom 与最终材料仍属于 FE-S06。
 
 ## 2. Canonical owner 与信任边界
 
@@ -60,9 +62,9 @@ LoopX claim、terminal process pid、BackendLease 和 permission custody token �
 | definition、kind/location、envelope、selection exclusion | `packages/scheduler/zyra_scheduler/backend_registry/models.py`、`registry.py`、`integration.py` | `tests/unit/test_backend_registry.py`；`tests/integration/test_product_entry_sealed_terminal_exclusion.py` |
 | registry revision、selection、validation | `packages/scheduler/zyra_scheduler/backend_registry/registry.py`、`store.py`、`policy.py` | `tests/unit/test_backend_registry.py`、`tests/unit/scheduler/test_backend_registry_router_delays.py` |
 | HTTP request/frame/sequence/digest/redaction | `packages/scheduler/zyra_scheduler/backend_registry/transport.py` | `tests/integration/test_backend_failover_dispatch.py`；`tests/unit/test_product_entry_terminal_contract.py` |
-| cancel/drain/resume/status/generation | `packages/scheduler/zyra_scheduler/backend_registry/remote_control.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 kill/restart/zombie tests |
-| dispatch/control listener 参考实现 | `packages/workers/zyra_workers/backend_dispatch_service.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 TypeScript listener parity test |
-| workspace root 与前后 attestation | `packages/scheduler/zyra_scheduler/backend_registry/workspace_attestation.py` | `tests/integration/test_backend_failover_dispatch.py`；后续 real root/symlink/cwd mutation test |
+| cancel/drain/resume/status/generation | `packages/scheduler/zyra_scheduler/backend_registry/remote_control.py`、`apps/cli/src/terminal/server.ts` | `tests/integration/test_backend_failover_dispatch.py`；`apps/cli/test/terminal-node.test.ts` |
+| dispatch/control listener | `apps/cli/src/terminal/server.ts`、`actions.ts`；Python reference=`packages/workers/zyra_workers/backend_dispatch_service.py` | `apps/cli/test/terminal-node.test.ts`；`tests/integration/test_product_entry_typescript_terminal_node.py` |
+| workspace root 与前后 attestation | `packages/scheduler/zyra_scheduler/backend_registry/workspace_attestation.py`、CLI startup-root containment | `tests/integration/test_product_entry_typescript_terminal_node.py`；TS root/symlink/junction negative tests |
 | public registration API | `apps/api/zyra_api/provider_backend_api.py` | `tests/unit/test_product_entry_terminal_contract.py` |
 | production selection construction | `apps/api/zyra_api/main.py`、`packages/orchestration/zyra_orchestration/task_graph.py`、backend registry integration | `tests/integration/test_product_entry_sealed_terminal_exclusion.py`；sealed/recovery 相邻回归 |
 
@@ -343,14 +345,14 @@ FE-S04 及本 contract 不包括：
 | T-03 | Resolved / sealed evidence | 主 dispatch 与 recovery 接入 terminal ids；retry 保留 request exclusions；lease 留安全 reason | sealed run 全路径带 `excluded_backend_ids` | sealed/interactive mutation 对照通过 |
 | T-04 | Resolved / integrity | receiver 拒绝缺失/错误 digest，并按 expected sequence 拒绝 gap/duplicate/reorder | 发送方 digest 必填并验证 | frame mutation 测试通过 |
 | T-05 | Latent hazard | `BackendTransportRequest` 空 digest fallback 与 canonical M0 digest 口径不同 | production 只走 router 显式 digest | FE-S04 测试锁死 canonical path；不在 Gate 改代码 |
-| T-06 | Expected implementation | Python handler 无 capability prefix | TypeScript listener 必须 prefix-routed | 属 FE-S04，不复用无 prefix 暴露方式 |
-| T-07 | Missing product | `apps/cli` / listener 尚不存在 | 实现并通过真实 HTTP/kill/restart/attestation tests | 属 FE-S04，当前不可报通过 |
+| T-06 | Resolved / listener security | TypeScript listener 只接受每进程高熵 capability prefix 下的八端点；错误/缺失 token 统一 404 | 不复用 Python reference 的无 prefix 暴露方式 | TS endpoint/token/Host 负向测试 |
+| T-07 | Resolved / product | `run/scenario/interactive/resume` 进程启用 listener，正常退出 drain+disable+close；真实 Python transport 可达 | 真实 HTTP/kill/attestation/lifecycle | TS behavior + cross-language integration tests |
 | T-08 | Resolved / lifecycle | terminal owner 可在 drain 后 revision-fenced disable 自己的既有 definition | 首次 disabled、active lease、stale/identity mismatch 必须拒绝 | FE-G00B registration lifecycle tests |
 | T-09 | Resolved / dispatch | product permission-approved typed action 经 BackendRegistry HTTP transport；`worker.run` 排除 terminal | lease/envelope/transport + permission/result receipt；移除 delegation 有差异 | FE-G00B real HTTP + mutation tests |
 
-**当前决定：** FE-G00R 与用户单独授权的 FE-G00B 已完成，T-01..T-04、T-08、T-09
-均已收口。FE-G00/FE-G00B 可以判为通过；FE-S04 仍须重新取得明确授权，其剩余工作只实现
-listener、process lifecycle、attestation 与真实 CLI 端节点证据，不再重复修改这些 contract。
+**当前决定：** FE-G00R、FE-G00B 与用户单独授权的 FE-S04 均已完成，T-01..T-09
+全部收口。FE-S04 没有修改服务端 contract、没有新增第四套协议，也没有形成 edge claim。
+FE-S05 只是下一候选，未获授权。
 
 ## 14. 后续行为测试 contract
 

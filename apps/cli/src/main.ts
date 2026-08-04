@@ -22,6 +22,7 @@ import { executeRun, type CommandOutcome } from "./runner.ts"
 import { executeScenario } from "./scenario.ts"
 import { executeInteractive, executeResume } from "./commands/interactive.ts"
 import { executeList } from "./commands/list.ts"
+import { TerminalNodeLifecycle } from "./terminal/lifecycle.ts"
 
 export interface MainEnvironment {
   stdout?: Writable
@@ -180,6 +181,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       startupTimeoutMs: command.startupTimeoutMs,
     })
     const lineMode = command.kind === "interactive" || command.kind === "resume"
+    const terminalMode = lineMode || command.kind === "run" || command.kind === "scenario"
     const listTty = command.kind === "ls" && Boolean((stdout as Writable & { isTTY?: boolean }).isTTY)
     if (!lineMode && !listTty) {
       output.event({
@@ -208,21 +210,36 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       : undefined
     cancelTimer?.unref()
     let outcome: CommandOutcome
+    let terminal: TerminalNodeLifecycle | undefined
     try {
+      if (terminalMode) {
+        terminal = await TerminalNodeLifecycle.create({
+          baseUrl: command.baseUrl,
+          token,
+          timeoutMs: Math.min(command.timeoutMs, 15_000),
+          startupRoot: process.cwd(),
+        })
+        const registration = await terminal.start()
+        if (lineMode) stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
+      }
       if (command.kind === "run") outcome = await executeRun({ command, api, output, signal: signal.controller.signal })
       else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
       else if (command.kind === "interactive") {
-        outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal })
+        outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
       } else if (command.kind === "resume") {
-        outcome = await executeResume({ command, api, stdin, stdout, stderr, signal: signal.controller.signal })
+        outcome = await executeResume({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
       } else {
         outcome = await executeList({ command, api, stdout, jsonl: output })
       }
     } finally {
-      clearTimeout(timer)
-      if (cancelTimer) clearTimeout(cancelTimer)
-      signal.dispose()
-      api.close("CLI command complete")
+      try {
+        await terminal?.stop("Zyra CLI session complete")
+      } finally {
+        clearTimeout(timer)
+        if (cancelTimer) clearTimeout(cancelTimer)
+        signal.dispose()
+        api.close("CLI command complete")
+      }
     }
     if (!lineMode && !listTty) output.result({
       ok: outcome.exitCode === CliExitCode.SUCCESS,
