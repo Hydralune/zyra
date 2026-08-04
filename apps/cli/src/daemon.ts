@@ -1,0 +1,418 @@
+import { spawn } from "node:child_process"
+import {
+  access,
+  mkdir,
+  open,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises"
+import { constants as fsConstants, existsSync } from "node:fs"
+import { homedir, platform, tmpdir } from "node:os"
+import { basename, dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import {
+  ACTIVE_TASK_STATUSES,
+  OPERATION_NAMES,
+  ZyraTypedApiClient,
+  type ApiHealth,
+  type TaskListProjection,
+} from "@zyra/typed-api-client"
+import { CliDaemonError, CliTaskError } from "./contracts.ts"
+
+export const DAEMON_STATE_SCHEMA = "zyra.cli-daemon-state.v1" as const
+
+export interface DaemonState {
+  schema: typeof DAEMON_STATE_SCHEMA
+  pid: number
+  generation: string
+  base_url: string
+  started_at: string
+  project_id: string
+}
+
+export interface DaemonStatus {
+  reachable: boolean
+  managed: boolean
+  pid?: number
+  generation?: string
+  baseUrl: string
+  staleState: boolean
+}
+
+export interface DaemonOptions {
+  baseUrl: string
+  autoStart: boolean
+  startupTimeoutMs: number
+  token?: string
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds))
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === code
+}
+
+function stateDirectory(): string {
+  const explicit = process.env.ZYRA_CLI_STATE_DIR?.trim()
+  if (explicit) return resolve(explicit)
+  if (platform() === "win32") {
+    const local = process.env.LOCALAPPDATA?.trim()
+    return resolve(local || join(homedir(), "AppData", "Local"), "Zyra", "cli")
+  }
+  const xdg = process.env.XDG_STATE_HOME?.trim()
+  return resolve(xdg || join(homedir(), ".local", "state"), "zyra", "cli")
+}
+
+function statePath(): string {
+  return join(stateDirectory(), "daemon.json")
+}
+
+function lockPath(): string {
+  return join(stateDirectory(), "daemon.lock")
+}
+
+function normalizeDaemonUrl(value: string): URL {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new CliDaemonError("The Zyra daemon URL must use HTTP or HTTPS.")
+  }
+  if (url.username || url.password || (url.pathname !== "/" && url.pathname !== "")) {
+    throw new CliDaemonError("The Zyra daemon URL must be an origin without credentials or a path.")
+  }
+  return url
+}
+
+function isLoopback(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "")
+  return host === "127.0.0.1" || host === "localhost" || host === "::1"
+}
+
+function processAlive(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return isErrno(error, "EPERM")
+  }
+}
+
+function markerExists(candidate: string): boolean {
+  return existsSync(join(candidate, "package.json"))
+    && existsSync(join(candidate, "scripts", "dev_api.py"))
+    && existsSync(join(candidate, "apps", "api"))
+}
+
+export function resolveProjectRoot(): string {
+  const explicit = process.env.ZYRA_PROJECT_ROOT?.trim()
+  if (explicit) {
+    const selected = resolve(explicit)
+    if (!markerExists(selected)) throw new CliDaemonError("ZYRA_PROJECT_ROOT is not a Zyra source tree.")
+    return selected
+  }
+  const seeds = [process.cwd(), dirname(fileURLToPath(import.meta.url))]
+  for (const seed of seeds) {
+    let candidate = resolve(seed)
+    for (;;) {
+      if (markerExists(candidate)) return candidate
+      const parent = dirname(candidate)
+      if (parent === candidate) break
+      candidate = parent
+    }
+  }
+  throw new CliDaemonError(
+    "Cannot locate the Zyra source tree required by the repository-local daemon launcher.",
+  )
+}
+
+async function readState(): Promise<DaemonState | undefined> {
+  try {
+    const decoded: unknown = JSON.parse(await readFile(statePath(), "utf8"))
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return undefined
+    const value = decoded as Record<string, unknown>
+    if (
+      value.schema !== DAEMON_STATE_SCHEMA
+      || !Number.isSafeInteger(value.pid)
+      || typeof value.generation !== "string"
+      || typeof value.base_url !== "string"
+      || typeof value.started_at !== "string"
+      || typeof value.project_id !== "string"
+    ) return undefined
+    return value as unknown as DaemonState
+  } catch (error) {
+    if (isErrno(error, "ENOENT") || error instanceof SyntaxError) return undefined
+    throw new CliDaemonError("Cannot read the local Zyra daemon state.", {}, { cause: error })
+  }
+}
+
+async function writeState(value: DaemonState): Promise<void> {
+  const directory = stateDirectory()
+  await mkdir(directory, { recursive: true })
+  const temporary = join(directory, `daemon-${process.pid}-${crypto.randomUUID()}.tmp`)
+  await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: "utf8", mode: 0o600 })
+  await rename(temporary, statePath())
+}
+
+async function removeState(): Promise<void> {
+  try {
+    await rm(statePath(), { force: true })
+  } catch (error) {
+    throw new CliDaemonError("Cannot remove stale local daemon state.", {}, { cause: error })
+  }
+}
+
+async function probeHealth(baseUrl: string, token?: string, timeoutMs = 5_000): Promise<boolean> {
+  const client = new ZyraTypedApiClient({
+    baseUrl,
+    token,
+    timeoutMs,
+    retry: { attempts: 1 },
+    clientName: "zyra-cli-health",
+    clientVersion: "0.1.0",
+  })
+  try {
+    const response = await client.endpoint<ApiHealth>(OPERATION_NAMES.health, {
+      timeoutMs,
+      coordinationKey: "daemon.health",
+      deduplicate: true,
+    })
+    return response.data.service === "zyra-api" && response.data.apiVersion === "1.0"
+  } catch {
+    return false
+  } finally {
+    client.close("health probe complete")
+  }
+}
+
+async function pythonCommand(projectRoot: string): Promise<string> {
+  const explicit = process.env.ZYRA_PYTHON?.trim()
+  const candidates = explicit
+    ? [explicit]
+    : platform() === "win32"
+      ? [join(projectRoot, ".venv", "Scripts", "python.exe"), "python"]
+      : [join(projectRoot, ".venv", "bin", "python"), "python3", "python"]
+  for (const candidate of candidates) {
+    if (!candidate.includes("/") && !candidate.includes("\\")) return candidate
+    try {
+      await access(candidate, fsConstants.X_OK)
+      return candidate
+    } catch {
+      // Try the next bounded launcher candidate.
+    }
+  }
+  throw new CliDaemonError("No Python runtime is available for the repository-local Zyra daemon.")
+}
+
+async function acquireLaunchLock(deadline: number): Promise<Awaited<ReturnType<typeof open>>> {
+  await mkdir(stateDirectory(), { recursive: true })
+  for (;;) {
+    try {
+      return await open(lockPath(), "wx", 0o600)
+    } catch (error) {
+      if (!isErrno(error, "EEXIST")) throw error
+      try {
+        const observed = await stat(lockPath())
+        if (Date.now() - observed.mtimeMs > 5 * 60_000) await rm(lockPath(), { force: true })
+      } catch (stateError) {
+        if (!isErrno(stateError, "ENOENT")) throw stateError
+      }
+      if (Date.now() >= deadline) {
+        throw new CliDaemonError("Timed out waiting for another Zyra daemon launcher.")
+      }
+      await sleep(100)
+    }
+  }
+}
+
+async function releaseLaunchLock(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
+  await handle.close()
+  await rm(lockPath(), { force: true })
+}
+
+async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> {
+  const url = normalizeDaemonUrl(options.baseUrl)
+  if (!isLoopback(url)) {
+    throw new CliDaemonError("Automatic daemon startup is restricted to loopback addresses.")
+  }
+  if (url.protocol !== "http:") {
+    throw new CliDaemonError("The repository-local daemon launcher supports loopback HTTP only.")
+  }
+  const deadline = Date.now() + options.startupTimeoutMs
+  const lock = await acquireLaunchLock(deadline)
+  try {
+    if (await probeHealth(options.baseUrl, options.token)) {
+      const existing = await readState()
+      if (existing) return existing
+      return {
+        schema: DAEMON_STATE_SCHEMA,
+        pid: 0,
+        generation: "external",
+        base_url: options.baseUrl,
+        started_at: new Date().toISOString(),
+        project_id: "external",
+      }
+    }
+    const prior = await readState()
+    if (prior && processAlive(prior.pid)) {
+      while (Date.now() < deadline) {
+        if (await probeHealth(options.baseUrl, options.token)) return prior
+        await sleep(200)
+      }
+      throw new CliDaemonError("The recorded Zyra daemon process did not become healthy.", {
+        pid: prior.pid,
+        generation: prior.generation,
+      })
+    }
+    if (prior) await removeState()
+    const projectRoot = resolveProjectRoot()
+    const python = await pythonCommand(projectRoot)
+    const port = Number(url.port || "80")
+    const child = spawn(python, [join(projectRoot, "scripts", "dev_api.py")], {
+      cwd: projectRoot,
+      detached: true,
+      windowsHide: true,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        ZYRA_API_HOST: url.hostname,
+        ZYRA_API_PORT: String(port),
+      },
+    })
+    if (!child.pid) throw new CliDaemonError("The Zyra daemon process did not expose a pid.")
+    child.unref()
+    const state: DaemonState = {
+      schema: DAEMON_STATE_SCHEMA,
+      pid: child.pid,
+      generation: crypto.randomUUID(),
+      base_url: options.baseUrl,
+      started_at: new Date().toISOString(),
+      project_id: basename(projectRoot),
+    }
+    try {
+      await writeState(state)
+      while (Date.now() < deadline) {
+        if (await probeHealth(options.baseUrl, options.token)) return state
+        if (!processAlive(state.pid)) {
+          await removeState()
+          throw new CliDaemonError("The Zyra daemon exited before becoming healthy.", {
+            pid: state.pid,
+            generation: state.generation,
+          })
+        }
+        await sleep(250)
+      }
+      throw new CliDaemonError("Timed out waiting for the Zyra daemon health contract.", {
+        pid: state.pid,
+        generation: state.generation,
+      })
+    } catch (error) {
+      if (processAlive(state.pid)) {
+        try {
+          process.kill(state.pid, "SIGKILL")
+        } catch (killError) {
+          if (!isErrno(killError, "ESRCH")) {
+            throw new CliDaemonError("Cannot clean up the failed Zyra daemon launch.", {
+              pid: state.pid,
+              generation: state.generation,
+            }, { cause: killError })
+          }
+        }
+      }
+      await removeState().catch(() => undefined)
+      throw error
+    }
+  } finally {
+    await releaseLaunchLock(lock)
+  }
+}
+
+export async function daemonStatus(options: Pick<DaemonOptions, "baseUrl" | "token">): Promise<DaemonStatus> {
+  const state = await readState()
+  const reachable = await probeHealth(options.baseUrl, options.token)
+  const selected = state?.base_url === options.baseUrl ? state : undefined
+  return {
+    reachable,
+    managed: Boolean(selected && processAlive(selected.pid)),
+    pid: selected?.pid,
+    generation: selected?.generation,
+    baseUrl: options.baseUrl,
+    staleState: Boolean(selected && !processAlive(selected.pid)),
+  }
+}
+
+export async function ensureDaemon(options: DaemonOptions): Promise<DaemonStatus> {
+  const status = await daemonStatus(options)
+  if (status.reachable) return status
+  if (!options.autoStart) {
+    throw new CliDaemonError("The Zyra daemon is unavailable and automatic startup is disabled.")
+  }
+  await startManagedDaemon(options)
+  const started = await daemonStatus(options)
+  if (!started.reachable) throw new CliDaemonError("The Zyra daemon did not pass its health contract.")
+  return started
+}
+
+async function activeTaskIds(baseUrl: string, token?: string): Promise<string[]> {
+  const client = new ZyraTypedApiClient({
+    baseUrl,
+    token,
+    timeoutMs: 10_000,
+    retry: { attempts: 1 },
+    clientName: "zyra-cli-daemon",
+    clientVersion: "0.1.0",
+  })
+  try {
+    const response = await client.endpoint<TaskListProjection>(OPERATION_NAMES.taskList, {
+      query: { limit: 1_000 },
+      coordinationKey: "daemon.active-tasks",
+    })
+    return response.data.tasks
+      .filter((task) => ACTIVE_TASK_STATUSES.has(task.status))
+      .map((task) => task.taskId)
+      .sort()
+  } finally {
+    client.close("active task inspection complete")
+  }
+}
+
+export async function stopManagedDaemon(
+  options: Pick<DaemonOptions, "baseUrl" | "token"> & { force: boolean; timeoutMs?: number },
+): Promise<DaemonStatus> {
+  const state = await readState()
+  if (!state || state.base_url !== options.baseUrl || !processAlive(state.pid)) {
+    throw new CliTaskError(
+      "The reachable daemon is not owned by this Zyra CLI state record and will not be stopped.",
+      "daemon_not_managed",
+    )
+  }
+  if (!options.force && await probeHealth(options.baseUrl, options.token)) {
+    const active = await activeTaskIds(options.baseUrl, options.token)
+    if (active.length) {
+      throw new CliTaskError(
+        "The Zyra daemon has active tasks; use --force=true only when explicit cancellation is intended.",
+        "daemon_active_tasks",
+        { active_task_ids: active },
+      )
+    }
+  }
+  try {
+    process.kill(state.pid, options.force ? "SIGKILL" : "SIGTERM")
+  } catch (error) {
+    if (!isErrno(error, "ESRCH")) throw new CliDaemonError("Cannot stop the managed Zyra daemon.", {}, { cause: error })
+  }
+  const deadline = Date.now() + Math.max(1_000, options.timeoutMs ?? 15_000)
+  while (Date.now() < deadline && processAlive(state.pid)) await sleep(100)
+  if (processAlive(state.pid)) {
+    throw new CliDaemonError("The managed Zyra daemon did not stop within the bounded timeout.", {
+      pid: state.pid,
+      generation: state.generation,
+    })
+  }
+  await removeState()
+  return daemonStatus(options)
+}

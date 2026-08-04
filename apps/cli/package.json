@@ -1,0 +1,24 @@
+{
+  "name": "@zyra/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "zyra": "./dist/zyra.js"
+  },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "bun test ./test",
+    "build": "bun build src/index.ts --outfile dist/zyra.js --target node"
+  },
+  "dependencies": {
+    "@zyra/commands": "workspace:*",
+    "@zyra/typed-api-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.15",
+    "@types/node": "22.15.29",
+    "typescript": "5.8.3"
+  }
+}

@@ -4,6 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.2.15",
   "workspaces": [
+    "apps/cli",
     "apps/code-worker",
     "apps/web",
     "packages/core/typed-api-client",
@@ -18,7 +19,10 @@
     "packages/runtime/runtime-event-spine"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json && tsc -p packages/memory/curator-state-machine/tsconfig.json && tsc -p packages/memory/retrieval-algorithms/tsconfig.json && tsc -p packages/memory/skill-memory-runtime/tsconfig.json && tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json && tsc -p packages/memory/curator-state-machine/tsconfig.json && tsc -p packages/memory/retrieval-algorithms/tsconfig.json && tsc -p packages/memory/skill-memory-runtime/tsconfig.json && tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/cli/tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "typecheck:cli": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/cli/tsconfig.json",
+    "test:cli": "bun test ./apps/cli/test",
+    "cli": "bun apps/cli/src/index.ts",
     "typecheck:web": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "test:web": "bun test ./packages/core/typed-api-client/test ./apps/web/test ./apps/web/src/features/long-horizon/loopx",
     "build:web": "bun run --cwd apps/web build",
@@ -35,9 +39,10 @@
     "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
     "typecheck:e02": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",
     "typecheck:e03": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
-    "build": "bun run build:bun && bun run build:node",
+    "build": "bun run build:bun && bun run build:node && bun run build:cli",
     "build:bun": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun",
     "build:node": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker-node --target node",
+    "build:cli": "bun run --cwd apps/cli build",
     "runtime:health": "bun apps/code-worker/src/main.ts --health",
     "runtime:built:health": "bun run runtime:built:bun:health && bun run runtime:built:node:health",
     "runtime:built:bun:health": "bun dist/code-worker/main.js --health",

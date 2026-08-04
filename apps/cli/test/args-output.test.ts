@@ -1,0 +1,135 @@
+import { describe, expect, test } from "bun:test"
+import { Writable } from "node:stream"
+import { parseCliArgs } from "../src/args.ts"
+import { CliUsageError } from "../src/contracts.ts"
+import { JsonlWriter } from "../src/output.ts"
+import { runMain } from "../src/main.ts"
+
+class Capture extends Writable {
+  text = ""
+
+  override _write(
+    chunk: Buffer | string,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
+    this.text += chunk.toString()
+    callback()
+  }
+}
+
+class BrokenPipe extends Writable {
+  override _write(
+    _chunk: Buffer | string,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
+    const error = new Error("pipe closed") as NodeJS.ErrnoException
+    error.code = "EPIPE"
+    callback(error)
+  }
+}
+
+describe("FE-S01 CLI argument and output contract", () => {
+  test("uses @zyra/commands argument binding for run and scenario", () => {
+    const run = parseCliArgs([
+      "run",
+      "--base-url=http://127.0.0.1:9010",
+      "--autostart=false",
+      "--timeout=90s",
+      "return",
+      "a",
+      "verified",
+      "answer",
+    ])
+    expect(run.kind).toBe("run")
+    if (run.kind !== "run") throw new Error("run command expected")
+    expect(run.goal).toBe("return a verified answer")
+    expect(run.autoStart).toBeFalse()
+    expect(run.timeoutMs).toBe(90_000)
+
+    const scenario = parseCliArgs([
+      "scenario",
+      "create",
+      "--scenario-id=foundation.short-owner-chain",
+      "--labels={\"source\":\"cli\"}",
+      "exercise",
+      "the",
+      "real",
+      "owners",
+    ])
+    expect(scenario.kind).toBe("scenario")
+    if (scenario.kind !== "scenario") throw new Error("scenario command expected")
+    expect(scenario.input).toBe("exercise the real owners")
+    expect(scenario.labels).toEqual({ source: "cli" })
+  })
+
+  test("rejects missing goals and invalid origins as usage errors", () => {
+    expect(() => parseCliArgs(["run"])).toThrow(CliUsageError)
+    expect(() => parseCliArgs(["run", "--base-url=file:///tmp/socket", "goal"])).toThrow(CliUsageError)
+    expect(() => parseCliArgs(["run", "--file=a", "goal"])).toThrow(CliUsageError)
+  })
+
+  test("writes parseable JSONL, strips ANSI, and redacts tokens and paths", () => {
+    const capture = new Capture()
+    const writer = new JsonlWriter(capture)
+    expect(writer.write({
+      schema: "example/v1",
+      message: "\u001b[31mplain\u001b[0m",
+      token: "top-secret",
+      cwd: "G:\\private\\workspace",
+    })).toBeTrue()
+    const line = capture.text.trim()
+    expect(line).not.toContain("\u001b")
+    expect(line).not.toContain("top-secret")
+    expect(line).not.toContain("G:\\private")
+    expect(JSON.parse(line)).toEqual({
+      schema: "example/v1",
+      message: "plain",
+      token: "[redacted]",
+      cwd: "[redacted]",
+    })
+  })
+
+  test("stops writing quietly when a pipe consumer closes", async () => {
+    const writer = new JsonlWriter(new BrokenPipe())
+    expect(writer.write({ schema: "example/v1" })).toBeTrue()
+    await Bun.sleep(0)
+    expect(writer.closed).toBeTrue()
+    expect(writer.error).toBeUndefined()
+    expect(writer.write({ schema: "example/v1", ignored: true })).toBeFalse()
+  })
+
+  test("keeps human help on stderr and stdout as JSONL only", async () => {
+    const stdout = new Capture()
+    const stderr = new Capture()
+    const code = await runMain(["--help"], { stdout, stderr })
+    expect(code).toBe(0)
+    expect(stderr.text).toContain("Zyra CLI command surface")
+    const lines = stdout.text.trim().split("\n").map((line) => JSON.parse(line))
+    expect(lines).toHaveLength(2)
+    expect(lines[0].type).toBe("event")
+    expect(lines[1]).toMatchObject({ type: "result", exit_code: 0 })
+    expect(stdout.text).not.toContain("\u001b")
+  })
+
+  test("maps usage and unavailable daemon to deterministic exit codes", async () => {
+    const badOut = new Capture()
+    const badErr = new Capture()
+    expect(await runMain(["run"], { stdout: badOut, stderr: badErr })).toBe(2)
+    expect(JSON.parse(badOut.text.trim()).exit_code).toBe(2)
+
+    const offlineOut = new Capture()
+    const offlineErr = new Capture()
+    const code = await runMain([
+      "run",
+      "--base-url=http://127.0.0.1:18992",
+      "--autostart=false",
+      "goal",
+    ], { stdout: offlineOut, stderr: offlineErr })
+    expect(code).toBe(3)
+    const result = JSON.parse(offlineOut.text.trim().split("\n").at(-1)!)
+    expect(result).toMatchObject({ type: "result", exit_code: 3 })
+    expect(result.task_id).toBeUndefined()
+  })
+})

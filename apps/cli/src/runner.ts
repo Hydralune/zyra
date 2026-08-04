@@ -1,0 +1,325 @@
+import { readFile } from "node:fs/promises"
+import {
+  RequestCancelledError,
+  type EventProjection,
+  type TaskMutationProjection,
+  type TaskProjection,
+} from "@zyra/typed-api-client"
+import { CliApi, type IngressFrame } from "./api.ts"
+import {
+  CliExitCode,
+  CliTaskError,
+  CliUsageError,
+  type RunCommand,
+} from "./contracts.ts"
+import type { CliOutput } from "./output.ts"
+
+export interface CommandOutcome {
+  exitCode: CliExitCode
+  status: string
+  taskId?: string
+  runId?: string
+  verifier?: Readonly<Record<string, unknown>>
+  result?: Readonly<Record<string, unknown>>
+}
+
+interface VerifierEvidence {
+  final?: Readonly<Record<string, unknown>>
+  gate?: Readonly<Record<string, unknown>>
+}
+
+interface EventAccumulator {
+  seen: Set<string>
+  verifier: VerifierEvidence
+}
+
+function eventPayload(frame: IngressFrame): Readonly<Record<string, unknown>> {
+  const value = frame.event.payload
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : {}
+}
+
+function captureVerifier(
+  payload: Readonly<Record<string, unknown>>,
+  evidence: VerifierEvidence,
+): void {
+  if (payload.schema === "zyra.production-independent-final-verifier/v2") {
+    evidence.final = payload
+  }
+  if (payload.schema === "zyra.production-adaptive-depth-completion-gate/v1") {
+    evidence.gate = payload
+  }
+}
+
+function emitFrame(output: CliOutput, frame: IngressFrame, accumulator: EventAccumulator): void {
+  captureVerifier(eventPayload(frame), accumulator.verifier)
+  if (accumulator.seen.has(frame.eventId)) return
+  accumulator.seen.add(frame.eventId)
+  output.event(
+    {
+      schema: "zyra.cli-task-event.v1",
+      source: "event-ingress",
+      sequence: frame.sequence,
+      previous_sequence: frame.previousSequence,
+      event_id: frame.eventId,
+      event_type: frame.eventType,
+      event: frame.event,
+    },
+    {
+      taskId: frame.taskId,
+      runId: typeof frame.event.runId === "string" ? frame.event.runId : undefined,
+      cursor: frame.cursor,
+      generation: frame.generation,
+    },
+  )
+}
+
+function emitLegacyEvent(
+  output: CliOutput,
+  event: EventProjection,
+  accumulator: EventAccumulator,
+): void {
+  captureVerifier(event.payload, accumulator.verifier)
+  if (accumulator.seen.has(event.eventId)) return
+  accumulator.seen.add(event.eventId)
+  output.event(
+    {
+      schema: "zyra.cli-task-event.v1",
+      source: "task-events-replay",
+      event_id: event.eventId,
+      event_type: event.eventType,
+      created_at: event.createdAt,
+      payload: event.payload,
+    },
+    { taskId: event.taskId, runId: event.runId },
+  )
+}
+
+async function goalFrom(command: RunCommand): Promise<string> {
+  if (command.goal) return command.goal
+  if (!command.file) throw new CliTaskError("Task goal is missing.", "goal_missing")
+  let content: string
+  try {
+    content = await readFile(command.file, "utf8")
+  } catch {
+    throw new CliUsageError("Cannot read the UTF-8 task goal file.")
+  }
+  const goal = content.trim()
+  const bytes = new TextEncoder().encode(goal).byteLength
+  if (!goal || bytes > 256 * 1024) {
+    throw new CliUsageError("Task goal file must contain at most 256 KiB of non-empty UTF-8 text.")
+  }
+  return goal
+}
+
+export function classifyTaskOutcome(
+  task: TaskProjection,
+  evidence: VerifierEvidence,
+): CommandOutcome {
+  const verifier = {
+    schema: "zyra.cli-verifier-summary.v1",
+    present: Boolean(evidence.final),
+    passed: evidence.final?.passed === true,
+    completion_gate_present: Boolean(evidence.gate),
+    completion_gate_passed: evidence.gate?.hard_conditions_passed === true,
+    final_verifier_receipt_ref: evidence.final?.verifier_receipt_ref,
+    failed_conditions: Array.isArray(evidence.gate?.failed_conditions)
+      ? evidence.gate?.failed_conditions
+      : [],
+  }
+  const result = {
+    schema: "zyra.cli-task-result.v1",
+    task_status: task.status,
+    final_answer: typeof task.metadata.final_answer === "string"
+      ? task.metadata.final_answer
+      : undefined,
+    artifact_ids: task.artifacts.map((artifact) => artifact.artifactId),
+  }
+  if (task.status === "cancelled") {
+    return {
+      exitCode: CliExitCode.CANCELLED,
+      status: "cancelled",
+      taskId: task.taskId,
+      runId: task.runId,
+      verifier,
+      result,
+    }
+  }
+  if (evidence.final && evidence.final.passed !== true) {
+    return {
+      exitCode: CliExitCode.VERIFIER_FAILED,
+      status: "verifier_failed",
+      taskId: task.taskId,
+      runId: task.runId,
+      verifier,
+      result,
+    }
+  }
+  if (evidence.gate && evidence.gate.hard_conditions_passed !== true) {
+    return {
+      exitCode: CliExitCode.VERIFIER_FAILED,
+      status: "verifier_failed",
+      taskId: task.taskId,
+      runId: task.runId,
+      verifier,
+      result,
+    }
+  }
+  if (task.status === "completed") {
+    if (!evidence.final || !evidence.gate) {
+      return {
+        exitCode: CliExitCode.VERIFIER_FAILED,
+        status: "verifier_evidence_missing",
+        taskId: task.taskId,
+        runId: task.runId,
+        verifier,
+        result,
+      }
+    }
+    return {
+      exitCode: CliExitCode.SUCCESS,
+      status: "completed",
+      taskId: task.taskId,
+      runId: task.runId,
+      verifier,
+      result,
+    }
+  }
+  return {
+    exitCode: CliExitCode.TASK_FAILED,
+    status: task.status || "failed",
+    taskId: task.taskId,
+    runId: task.runId,
+    verifier,
+    result,
+  }
+}
+
+export async function executeRun(input: {
+  command: RunCommand
+  api: CliApi
+  output: CliOutput
+  signal: AbortSignal
+}): Promise<CommandOutcome> {
+  const goal = await goalFrom(input.command)
+  const created = await input.api.createPendingTask(goal, input.command.sealed)
+  const task = created.task
+  const accumulator: EventAccumulator = { seen: new Set(), verifier: {} }
+  for (const event of created.events) emitLegacyEvent(input.output, event, accumulator)
+  input.output.event(
+    {
+      schema: "zyra.cli-task-submission.v1",
+      task_id: task.taskId,
+      run_id: task.runId,
+      status: task.status,
+      receipt: created.receipt,
+    },
+    { taskId: task.taskId, runId: task.runId },
+  )
+
+  const firstPage = await input.api.openIngress(task.taskId)
+  for (const frame of firstPage.frames) emitFrame(input.output, frame, accumulator)
+  let cursor = firstPage.cursor
+  let generation = firstPage.generation
+  const runController = new AbortController()
+  let cancellation: Promise<TaskMutationProjection> | undefined
+  const cancel = () => {
+    if (cancellation) return
+    runController.abort(input.signal.reason ?? "CLI interrupted")
+    cancellation = input.api.cancelTask(
+      task,
+      input.signal.reason instanceof Error
+        ? input.signal.reason.message
+        : String(input.signal.reason || "Cancelled by Zyra CLI signal policy."),
+    )
+  }
+  input.signal.addEventListener("abort", cancel, { once: true })
+  if (input.signal.aborted) cancel()
+
+  let settled = false
+  const runPromise = input.api.runTask(task, runController.signal)
+    .then((value) => ({ ok: true as const, value }))
+    .catch((error: unknown) => ({ ok: false as const, error }))
+    .finally(() => { settled = true })
+
+  let ingressError: unknown
+  while (!settled && !input.signal.aborted) {
+    try {
+      const page = await input.api.nextIngress(task.taskId, cursor, generation)
+      cursor = page.cursor
+      generation = page.generation
+      for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
+    } catch (error) {
+      ingressError = error
+      while (!settled && !input.signal.aborted) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
+      }
+      break
+    }
+  }
+
+  if (input.signal.aborted) {
+    input.signal.removeEventListener("abort", cancel)
+    cancel()
+    const cancelled = await cancellation
+    for (const event of cancelled?.events ?? []) emitLegacyEvent(input.output, event, accumulator)
+    if (cancelled) {
+      input.output.event(
+        {
+          schema: "zyra.cli-cancel-receipt.v1",
+          task_id: cancelled.task.taskId,
+          run_id: cancelled.task.runId,
+          status: cancelled.task.status,
+          receipt: cancelled.receipt,
+        },
+        { taskId: cancelled.task.taskId, runId: cancelled.task.runId },
+      )
+    }
+    void runPromise.then(() => undefined)
+    const finalTask = cancelled?.task ?? await input.api.task(task.taskId)
+    const replay = await input.api.events(task.taskId)
+    for (const event of replay) emitLegacyEvent(input.output, event, accumulator)
+    return {
+      ...classifyTaskOutcome(finalTask, accumulator.verifier),
+      exitCode: CliExitCode.CANCELLED,
+      status: "cancelled",
+    }
+  }
+
+  const run = await runPromise
+  input.signal.removeEventListener("abort", cancel)
+  for (let attempts = 0; attempts < 8; attempts += 1) {
+    try {
+      const page = await input.api.nextIngress(task.taskId, cursor, generation, 100)
+      cursor = page.cursor
+      generation = page.generation
+      for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
+      if (page.caughtUp && !page.frames.length) break
+    } catch (error) {
+      ingressError ??= error
+      break
+    }
+  }
+
+  let finalTask: TaskProjection
+  let replay: readonly EventProjection[]
+  try {
+    [finalTask, replay] = await Promise.all([
+      input.api.task(task.taskId),
+      input.api.events(task.taskId),
+    ])
+  } catch (error) {
+    if (ingressError) throw ingressError
+    throw error
+  }
+  for (const event of replay) emitLegacyEvent(input.output, event, accumulator)
+
+  if (!run.ok && !(run.error instanceof RequestCancelledError)) {
+    const outcome = classifyTaskOutcome(finalTask, accumulator.verifier)
+    if (outcome.exitCode !== CliExitCode.SUCCESS && outcome.exitCode !== CliExitCode.VERIFIER_FAILED) {
+      throw run.error
+    }
+  }
+  return classifyTaskOutcome(finalTask, accumulator.verifier)
+}

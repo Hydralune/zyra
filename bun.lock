@@ -10,6 +10,22 @@
         "typescript": "5.8.3",
       },
     },
+    "apps/cli": {
+      "name": "@zyra/cli",
+      "version": "0.1.0",
+      "bin": {
+        "zyra": "./dist/zyra.js",
+      },
+      "dependencies": {
+        "@zyra/commands": "workspace:*",
+        "@zyra/typed-api-client": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "1.2.15",
+        "@types/node": "22.15.29",
+        "typescript": "5.8.3",
+      },
+    },
     "apps/code-worker": {
       "name": "zyra-code-worker",
       "version": "0.2.0",
@@ -110,6 +126,8 @@
     "@zyra/claude-mcp": ["@zyra/claude-mcp@workspace:packages/integrations/claude-mcp"],
 
     "@zyra/claude-runtime": ["@zyra/claude-runtime@workspace:packages/runtime/claude-runtime"],
+
+    "@zyra/cli": ["@zyra/cli@workspace:apps/cli"],
 
     "@zyra/commands": ["@zyra/commands@workspace:packages/commands"],
 
