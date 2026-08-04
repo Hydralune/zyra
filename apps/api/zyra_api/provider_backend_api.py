@@ -428,12 +428,6 @@ def _validate_terminal_registration(
             "Terminal registration may not define a process command or Docker image.",
             status=HTTPStatus.FORBIDDEN,
         )
-    if not definition.enabled:
-        raise TerminalRegistrationError(
-            "terminal_registration_disabled",
-            "Terminal registration must be enabled after its listener is ready.",
-        )
-
     generation = str(registration.get("generation") or "").strip()
     owner_id = str(registration.get("owner_id") or "").strip()
     token = str(registration.get("capability_token") or "")
@@ -494,14 +488,58 @@ def _validate_terminal_registration(
         (item for item in registry.definitions() if item.backend_id == definition.backend_id),
         None,
     )
+    capability_digest = f"sha256:{hashlib.sha256(token.encode('utf-8')).hexdigest()}"
+    if not definition.enabled and existing is None:
+        raise TerminalRegistrationError(
+            "terminal_registration_disabled",
+            "A terminal backend must be registered enabled before it can be disabled.",
+        )
     if existing is not None and existing.metadata.get("terminal_owner_id") != owner_id:
         raise TerminalRegistrationError(
             "terminal_owner_conflict",
             "Terminal backend owner identity does not match the existing definition.",
             status=HTTPStatus.CONFLICT,
         )
+    if (
+        existing is not None
+        and existing.metadata.get("terminal_generation") != generation
+    ):
+        raise TerminalRegistrationError(
+            "terminal_generation_conflict",
+            "Terminal generation does not match the existing definition.",
+            status=HTTPStatus.CONFLICT,
+        )
+    if existing is not None and not secrets.compare_digest(
+        str(existing.metadata.get("terminal_capability_digest") or ""),
+        capability_digest,
+    ):
+        raise TerminalRegistrationError(
+            "terminal_capability_owner_mismatch",
+            "Terminal capability proof does not match the existing definition.",
+            status=HTTPStatus.FORBIDDEN,
+        )
+    if existing is not None and (
+        definition.endpoint != existing.endpoint
+        or definition.runtime_worker != existing.runtime_worker
+        or definition.kind is not existing.kind
+        or definition.location is not existing.location
+    ):
+        raise TerminalRegistrationError(
+            "terminal_definition_identity_conflict",
+            "Terminal transport identity cannot change within a process generation.",
+            status=HTTPStatus.CONFLICT,
+        )
 
-    capability_digest = f"sha256:{hashlib.sha256(token.encode('utf-8')).hexdigest()}"
+    if not definition.enabled:
+        health = registry.health(existing.backend_id)
+        if health.current_leases:
+            raise TerminalRegistrationError(
+                "terminal_disable_active_leases",
+                "Terminal backend must drain active leases before disable.",
+                status=HTTPStatus.CONFLICT,
+            )
+        return replace(existing, enabled=False)
+
     normalized_definition = replace(
         definition,
         health_endpoint=expected_health,

@@ -90,6 +90,19 @@ class WorkerDispatchRouter:
         idempotency_key: str,
         interruptible: bool = True,
     ) -> WorkerDispatchResult[T]:
+        terminal_ids = set(self.registry.terminal_backend_ids())
+        if terminal_ids:
+            request = replace(
+                request,
+                excluded_backend_ids=tuple(
+                    sorted({*request.excluded_backend_ids, *terminal_ids})
+                ),
+                metadata={
+                    **dict(request.metadata),
+                    "terminal_callable_exclusion": True,
+                    "terminal_callable_excluded_backend_ids": tuple(sorted(terminal_ids)),
+                },
+            )
         return self.dispatch(
             request,
             operation_name="worker.run",

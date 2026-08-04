@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import socket
 import threading
+from dataclasses import replace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -16,6 +17,9 @@ from zyra_scheduler.backend_registry import (
     BackendDefinition,
     BackendKind,
     BackendLocation,
+    BackendRegistry,
+    BackendRegistryStore,
+    backend_registry_path,
 )
 from zyra_scheduler.backend_registry.models import checksum
 from zyra_scheduler.backend_registry.transport import BackendTransportFrame, _redact_url
@@ -165,6 +169,18 @@ def test_terminal_registration_is_revision_fenced_scoped_and_health_attested() -
             assert wrong_kind is not None
             assert wrong_kind.status == HTTPStatus.FORBIDDEN
 
+            first_disabled = api.handle_post(
+                ["backends"],
+                {
+                    "backend": {**backend, "enabled": False},
+                    "expected_revision": revision,
+                    "terminal_registration": proof,
+                },
+            )
+            assert first_disabled is not None
+            assert first_disabled.status == HTTPStatus.UNPROCESSABLE_ENTITY
+            assert first_disabled.body["error"] == "terminal_registration_disabled"
+
             non_loopback = api.handle_post(
                 ["backends"],
                 {
@@ -267,6 +283,128 @@ def test_terminal_registration_is_revision_fenced_scoped_and_health_attested() -
             assert owner_conflict is not None
             assert owner_conflict.status == HTTPStatus.CONFLICT
             assert owner_conflict.body["error"] == "terminal_owner_conflict"
+
+            generation_conflict = api.handle_post(
+                ["backends"],
+                {
+                    "backend": backend,
+                    "expected_revision": current_revision,
+                    "terminal_registration": {
+                        **proof,
+                        "generation": "different-process-generation",
+                    },
+                },
+            )
+            assert generation_conflict is not None
+            assert generation_conflict.status == HTTPStatus.CONFLICT
+            assert generation_conflict.body["error"] == "terminal_generation_conflict"
+
+            replacement_token = "terminal-replacement-token-0123456789abcdef0123456789"
+            token_conflict = api.handle_post(
+                ["backends"],
+                {
+                    "backend": {
+                        **backend,
+                        "endpoint": (
+                            f"http://127.0.0.1:{server.server_address[1]}"
+                            f"/capability/{replacement_token}"
+                        ),
+                    },
+                    "expected_revision": current_revision,
+                    "terminal_registration": {
+                        **proof,
+                        "capability_token": replacement_token,
+                    },
+                },
+            )
+            assert token_conflict is not None
+            assert token_conflict.status == HTTPStatus.FORBIDDEN
+            assert token_conflict.body["error"] == "terminal_capability_owner_mismatch"
+
+            registry_store = BackendRegistryStore(
+                backend_registry_path(root / "artifacts")
+            )
+            try:
+                registry = BackendRegistry(registry_store)
+                active_health = registry.health(backend_id)
+                registry_store.put_health(
+                    replace(
+                        active_health,
+                        current_leases=1,
+                        revision=active_health.revision + 1,
+                    )
+                )
+            finally:
+                registry_store.close()
+            active_disable = api.handle_post(
+                ["backends"],
+                {
+                    "backend": {**backend, "enabled": False},
+                    "expected_revision": current_revision,
+                    "terminal_registration": proof,
+                },
+            )
+            assert active_disable is not None
+            assert active_disable.status == HTTPStatus.CONFLICT
+            assert active_disable.body["error"] == "terminal_disable_active_leases"
+
+            registry_store = BackendRegistryStore(
+                backend_registry_path(root / "artifacts")
+            )
+            try:
+                registry = BackendRegistry(registry_store)
+                drained_health = registry.health(backend_id)
+                registry_store.put_health(
+                    replace(
+                        drained_health,
+                        current_leases=0,
+                        revision=drained_health.revision + 1,
+                    )
+                )
+            finally:
+                registry_store.close()
+
+            disabled = api.handle_post(
+                ["backends"],
+                {
+                    "backend": {**backend, "enabled": False},
+                    "expected_revision": current_revision,
+                    "terminal_registration": proof,
+                },
+            )
+            assert disabled is not None
+            assert disabled.status == HTTPStatus.OK, disabled.body
+            disabled_revision = int(disabled.body["result"]["registry_revision"])
+            assert disabled_revision > current_revision
+
+            disabled_listing = api.handle_get(["backends"], {})
+            assert disabled_listing is not None
+            disabled_backend = next(
+                item
+                for item in disabled_listing.body["result"]
+                if item["backend_id"] == backend_id
+            )
+            assert disabled_backend["enabled"] is False
+
+            disabled_health = api.handle_get(["backends", "health"], {})
+            assert disabled_health is not None
+            health_item = next(
+                item
+                for item in disabled_health.body["result"]["health"]
+                if item["backend_id"] == backend_id
+            )
+            assert health_item["status"] == "disabled"
+
+            stale_disable = api.handle_post(
+                ["backends"],
+                {
+                    "backend": {**backend, "enabled": False},
+                    "expected_revision": current_revision,
+                    "terminal_registration": proof,
+                },
+            )
+            assert stale_disable is not None
+            assert stale_disable.status == HTTPStatus.CONFLICT
     finally:
         server.shutdown()
         server.server_close()

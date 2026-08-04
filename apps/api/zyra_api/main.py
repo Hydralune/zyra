@@ -598,6 +598,7 @@ from zyra_scheduler.worker_pool import (
     SchedulerDispatchContext as PhysicalSchedulerDispatchContext,
 )
 from zyra_scheduler.backend_registry import (
+    BackendRegistryActionDispatchPort,
     BackendDefinition,
     BackendKind,
     BackendLocation,
@@ -4444,6 +4445,11 @@ def _run_typescript_agent_request(
         permission_state_path=permission_state_path(),
         tool_registry=default_tool_registry(),
         runtime_services={
+            "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
+                state,
+                workspace_root=worker_workspace_root,
+                route_sources=(constraints,),
+            ),
             "workspace_edit_port": WorkspaceEditPort(
                 workspace_manager,
                 workspace_access,
@@ -6667,6 +6673,10 @@ def _graph_workspace_runtime_binding(
     if worker_name == "CodeWorkerRuntime":
         services.update(
             {
+                "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
+                    state,
+                    workspace_root=workspace_root,
+                ),
                 "workspace_isolation_runtime": WorkspaceIsolationRuntime(
                     manager,
                     artifact_store=LocalArtifactStore(artifact_root_path()),
@@ -6675,6 +6685,36 @@ def _graph_workspace_runtime_binding(
             }
         )
     return workspace_root, services
+
+
+def _code_worker_backend_action_dispatch_port(
+    state: Any,
+    *,
+    workspace_root: str | Path,
+    route_sources: Sequence[Mapping[str, Any]] = (),
+) -> BackendRegistryActionDispatchPort | None:
+    def resolve_route() -> Mapping[str, Any]:
+        sources: list[Mapping[str, Any]] = [*route_sources]
+        for key in ("provider_route_ref", "provider_route"):
+            value = state.metadata.get(key)
+            if isinstance(value, Mapping):
+                sources.append(value)
+        merged: dict[str, Any] = {}
+        for source in sources:
+            merged.update(dict(source))
+        return merged
+
+    port = BackendRegistryActionDispatchPort(
+        registry_path=backend_registry_path(artifact_root_path()),
+        workspace_root=workspace_root,
+        artifact_root=artifact_root_path(),
+        route_resolver=resolve_route,
+        terminal_dispatch_enabled=lambda: not _task_is_sealed_control(state, {}),
+        runtime_worker="CodeWorkerRuntime",
+    )
+    if port.available_actions():
+        return port
+    return None
 
 
 def get_permission_store() -> JsonPermissionStore:
@@ -12435,6 +12475,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     permission_state_path=permission_state_path(),
                     tool_registry=default_tool_registry(),
                     runtime_services={
+                        "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
+                            state,
+                            workspace_root=worker_workspace_root,
+                            route_sources=(constraints,),
+                        ),
                         "workspace_edit_port": WorkspaceEditPort(
                             workspace_manager,
                             workspace_access,

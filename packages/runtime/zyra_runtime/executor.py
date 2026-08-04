@@ -119,6 +119,9 @@ class ToolExecutor:
         self._workspace_gateway_required = bool(
             context.runtime_services.get("workspace_gateway_required", False)
         )
+        self._backend_action_dispatch_port = context.runtime_services.get(
+            "backend_action_dispatch_port"
+        )
         self._permission_execution_view = _PermissionExecutionView(
             workspace_root=self._workspace_root,
             registry=self._registry,
@@ -270,6 +273,10 @@ class ToolExecutor:
         # the last side-effect boundary so direct ToolExecutor callers cannot
         # bypass the runtime by relying on an old ALLOW decision.
         try:
+            if call.tool_name == "web_search" and authorized:
+                delegated = self._dispatch_backend_action(call, permission_grant)
+                if delegated is not None:
+                    return delegated
             if call.tool_name == "file_read":
                 result = self._file_read(call, authorized=authorized)
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
@@ -1253,6 +1260,91 @@ class ToolExecutor:
                 "permission_arguments_digest": value("arguments_digest"),
                 "permission_execution_grant_consumed": "true",
                 "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+            },
+        )
+
+    def _dispatch_backend_action(
+        self,
+        call: ToolCall,
+        permission_grant: Any,
+    ) -> ToolResult | None:
+        port = self._backend_action_dispatch_port
+        if port is None:
+            return None
+        handles = getattr(port, "handles", None)
+        available = getattr(port, "available", None)
+        dispatch = getattr(port, "dispatch_action", None)
+        if not (
+            callable(handles)
+            and callable(available)
+            and callable(dispatch)
+            and handles(call.tool_name)
+            and available(call.tool_name)
+        ):
+            return None
+
+        def grant_value(name: str) -> str:
+            if isinstance(permission_grant, Mapping):
+                return str(permission_grant.get(name) or "")
+            return str(getattr(permission_grant, name, "") or "")
+
+        permission_receipt = {
+            "receipt_id": grant_value("permit_id") or grant_value("receipt_digest"),
+            "binding_id": grant_value("decision_id"),
+            "tool_call_id": call.tool_call_id,
+            "command_digest": grant_value("physical_arguments_digest"),
+            "grant_digest": grant_value("receipt_digest"),
+            "allowed": True,
+            "reason": "typescript.PermissionCoordinator permit consumed",
+            "authority_type": type(self._permission_authority).__name__,
+        }
+        projection = dispatch(
+            run_id=call.run_id,
+            task_id=call.task_id,
+            node_id=call.node_id,
+            tool_name=call.tool_name,
+            tool_call_id=call.tool_call_id,
+            arguments=call.arguments,
+            metadata=call.metadata,
+            permission_receipt=permission_receipt,
+        )
+        if not isinstance(projection, Mapping) or projection.get("schema") != (
+            "zyra.backend-action-dispatch-result/v1"
+        ):
+            raise RuntimeError("backend action dispatch result schema is invalid")
+        raw_result = projection.get("tool_result")
+        receipt = projection.get("dispatch_receipt")
+        if not isinstance(raw_result, Mapping) or not isinstance(receipt, Mapping):
+            raise RuntimeError("backend action dispatch result is incomplete")
+        raw_output = raw_result.get("output") or {}
+        raw_metadata = raw_result.get("metadata") or {}
+        if not isinstance(raw_output, Mapping) or not isinstance(raw_metadata, Mapping):
+            raise RuntimeError("terminal action result output or metadata is invalid")
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=raw_result.get("ok") is True,
+            summary=str(raw_result.get("summary") or "Terminal action completed"),
+            output={
+                **dict(raw_output),
+                "backend_action_dispatch_receipt": dict(receipt),
+            },
+            error=(str(raw_result.get("error")) if raw_result.get("error") else None),
+            metadata={
+                **{str(key): str(value) for key, value in raw_metadata.items()},
+                "backend_action_dispatch_routed": "true",
+                "backend_action_dispatch_receipt_schema": str(receipt.get("schema") or ""),
+                "backend_action_dispatch_session_id": str(
+                    receipt.get("dispatch_session_id") or ""
+                ),
+                "backend_action_dispatch_lease_id": str(
+                    receipt.get("backend_lease_id") or ""
+                ),
+                "backend_action_dispatch_envelope_id": str(
+                    receipt.get("envelope_id") or ""
+                ),
+                "permission_effect": str(PermissionEffect.ALLOW),
+                "permission_decision_id": grant_value("decision_id"),
+                "permission_execution_grant_consumed": "true",
             },
         )
 

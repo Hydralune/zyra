@@ -61,9 +61,10 @@ class GatewayRuntimeBundle:
     worker_id: str
     required: bool
     sealed: bool
+    backend_action_dispatch_port: Any | None = None
 
     def descriptor(self) -> dict[str, Any]:
-        return {
+        descriptor = {
             "runtime": self.runtime.descriptor(),
             "state_custody": self.state_store.custody_descriptor(),
             "backend": self.backend.descriptor(),
@@ -83,12 +84,18 @@ class GatewayRuntimeBundle:
             "permission_owner": "typescript.PermissionCoordinator",
             "workspace_owner": "WorkspaceManagerRuntime",
         }
+        if self.backend_action_dispatch_port is not None:
+            descriptor["backend_action_dispatch"] = {
+                "enabled": True,
+                "port_type": type(self.backend_action_dispatch_port).__name__,
+            }
+        return descriptor
 
 
 class GatewayRuntimeBundleRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._bundles: dict[tuple[str, str, str, int], GatewayRuntimeBundle] = {}
+        self._bundles: dict[tuple[str, str, str, int, int], GatewayRuntimeBundle] = {}
 
     def get_or_create(
         self,
@@ -101,7 +108,14 @@ class GatewayRuntimeBundleRegistry:
     ) -> GatewayRuntimeBundle:
         workspace = Path(workspace_root).resolve()
         artifacts = Path(artifact_root).resolve()
-        key = (str(workspace), str(artifacts), str(worker_id), id(workspace_edit_port))
+        action_port = dict(runtime_services or {}).get("backend_action_dispatch_port")
+        key = (
+            str(workspace),
+            str(artifacts),
+            str(worker_id),
+            id(workspace_edit_port),
+            id(action_port),
+        )
         with self._lock:
             existing = self._bundles.get(key)
             if existing is not None:
@@ -364,6 +378,7 @@ def build_gateway_runtime_bundle(
         worker_id=str(worker_id),
         required=required,
         sealed=sealed,
+        backend_action_dispatch_port=services.get("backend_action_dispatch_port"),
     )
 
 

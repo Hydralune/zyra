@@ -1,15 +1,20 @@
-# FE-S04 activation contract divergence
+# FE-S04 activation contract divergence（FE-G00B 已收口）
 
 ## Verdict
 
-FE-S04 production implementation is stopped before listener code is added. The
-activation baseline is `93dbaf9661481f255fd3eab1d322619d4f8fad97`.
+FE-S04 production implementation was stopped before listener code was added. The
+activation baseline was `93dbaf9661481f255fd3eab1d322619d4f8fad97`.
 
 The FE-S04 slice requires implementation to stop when the active HEAD no longer
 supports the frozen FE-G00 lifecycle and dispatch claims without a server-side
 contract change. Two such differences are present. Implementing only a
 capability-prefixed HTTP listener would produce a reachable demo endpoint, but
 would not satisfy the product main path or the normal-exit lifecycle contract.
+
+The separately authorized FE-G00B remediation used base
+`237bc123f45b0e2326edd1512539c6fce7146201` and has now resolved both differences.
+This document remains the historical stop record; it is not an active blocker and
+does not itself authorize resuming FE-S04.
 
 ## D-01: revision-fenced disable is not expressible
 
@@ -89,3 +94,27 @@ implement both contracts without changing canonical owners:
 
 No `real_terminal_dispatch_claimed` or `real_edge_dispatch_claimed` value was
 changed. No listener or alternate protocol was added.
+
+## FE-G00B resolution
+
+Status: **RESOLVED**.
+
+1. `POST /backends` now admits only a disable update for an already registered
+   terminal whose owner, generation, capability digest and immutable transport
+   identity match. It retains the expected-revision fence, rejects active leases,
+   and moves canonical registry health to `disabled`. First-disabled and stale or
+   mismatched updates remain rejected.
+2. `BackendRegistryActionDispatchPort` routes only permission-approved typed
+   file/search/shell/artifact actions through
+   `WorkerDispatchRouter.dispatch_payload`. The result contains permission,
+   backend lease, envelope, transport and gateway execution receipts.
+3. `dispatch_callable(worker.run)` now excludes every terminal definition at the
+   router boundary. Interactive terminal execution is therefore reachable only
+   through the typed action lane; sealed/formal control does not install that lane
+   and the port also rejects forced dispatch.
+4. A real loopback BackendDispatchService test proves HTTP selection and a
+   delegation-removal mutation proves the local action becomes observable instead.
+
+FE-S04 may become the next candidate only after this remediation is committed and
+the user explicitly reauthorizes it. The listener, CLI lifecycle and real terminal
+claim remain unimplemented here.

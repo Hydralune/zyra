@@ -72,6 +72,16 @@ class BackendRegistry:
                         last_checked_at=now_timestamp(),
                     )
                 )
+            elif not normalized.enabled and health.status is not BackendHealthStatus.DISABLED:
+                self.store.put_health(
+                    replace(
+                        health,
+                        status=BackendHealthStatus.DISABLED,
+                        revision=health.revision + 1,
+                        reason="definition disabled",
+                        last_checked_at=now_timestamp(),
+                    )
+                )
             elif health.status is BackendHealthStatus.DISABLED and normalized.enabled:
                 self.store.put_health(
                     replace(

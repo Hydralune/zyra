@@ -25,9 +25,19 @@ service 已经证明主要协议可运行。初始审计发现的四项阻断差
 3. sealed run 的 `excluded_backend_ids` 曾未从产品主路径接到选择请求；
 4. transport consumer 曾接受缺失 digest 的 frame 并自行补算，无法证明发送方提供了逐帧 digest。
 
-因此本 Gate 当前为 **PASS（contract/reference baseline）**。这只表示 FE-S04
-所依赖的服务端 contract 已就绪；TypeScript capability-prefix listener、进程生命周期、
-真实端节点 dispatch 和发布证据仍属于 FE-S04/FE-S06，尚未实现。
+FE-S04 激活复核随后发现正常退出 disable 与产品物理动作 dispatch 两项潜在差异；
+FE-G00B 已在基线 `237bc123f45b0e2326edd1512539c6fce7146201` 上完成收口：
+
+5. 首次 disabled 注册继续拒绝；同 owner/generation/token 的既有 terminal definition 可在
+   active lease 已清零后以 expected revision 更新为 `enabled=false`；
+6. 不可序列化的 `worker.run` 永远排除 terminal；已通过 canonical permission 的 typed
+   file/search/shell/artifact action 则可经 `dispatch_payload` 获得 terminal lease、HTTP envelope
+   和 transport receipt。
+
+因此本 Gate 当前为 **PASS（contract/reference baseline + FE-G00B remediation）**。这只表示
+FE-S04 所依赖的服务端 contract 已就绪；TypeScript capability-prefix listener、进程生命周期、
+真实 CLI 端节点 dispatch 和发布证据仍属于 FE-S04/FE-S06，尚未实现，也未声明
+`real_terminal_dispatch_claimed`。
 
 ## 2. Canonical owner 与信任边界
 
@@ -227,6 +237,12 @@ FE-G00R 在 API authority 层强制 `edge_http + local`、无 command/docker、l
 fence。owner 冲突、非 loopback、错误 generation、错误 capability path、listener 未就绪和
 stale revision 均有负向测试。token 只以 digest 进入受保护 metadata。
 
+FE-G00B 增加的唯一 mutation 例外是正常退出 disable：definition 必须已经存在，owner、
+generation、capability token digest 和 endpoint/runtime/kind/location 必须与既有 definition
+完全一致，expected revision 必须命中，且 `current_leases == 0`。该更新不再要求已经 drain 的
+listener 仍回报 accepting/healthy；registry 同步把 health 转为 `disabled`。首次 disabled、
+active lease、stale revision 以及 owner/generation/token/transport identity mismatch 均 fail closed。
+
 ## 8. Workspace、cwd 与 attestation
 
 启动时冻结 `workspace_roots[]` 与 `artifact_roots[]`。每次 dispatch：
@@ -270,6 +286,9 @@ API projection 与 transport metadata 中搜索 token。T-01 已解决。
 | 已观察输出或外部效果不确定 | 不透明重试；进入 reconcile/reconcile_required |
 | disable/unregister revision conflict | 不覆盖新 definition；把旧 listener 隔离并告警 |
 
+FE-G00B 已让 `POST /backends` 表达上述 revision-fenced disable，但只提供服务端 mutation
+authority；FE-S04 仍须实现 listener 的 drain、bounded settle/cancel、disable 调用和 close 时序。
+
 当前真实 HTTP failover/control/attestation 相邻测试：
 
 ```text
@@ -295,9 +314,12 @@ sealed/competition run 中，发起该 run 的本机 terminal backend 必须进�
 
 FE-G00R 新增 registry-owned terminal id 枚举；task-graph 主 dispatch 在 sealed、
 sealed_autonomous、formal_benchmark 或 sealed competition mode 下把这些 id 加入
-`excluded_backend_ids`，recovery successor 同样保留排除。lease reason 记录被排除的
-backend id（不含 endpoint/token）。真实行为测试证明：sealed 请求从未尝试 terminal；
-移除接线的 interactive 对照会先选择 terminal 并产生可观测 failover。T-03 已解决。
+`excluded_backend_ids`，recovery successor 同样保留排除。FE-G00B 又把所有不可序列化
+`dispatch_callable(worker.run)` 的 terminal id 排除固定在 router boundary；interactive action
+只能走 typed `dispatch_payload`，不能靠整个 worker callable 偶然失败后 failover。sealed
+CodeWorker 不安装 action delegation port，port 自身的 execution-mode fence 也会拒绝强制调用。
+lease reason 只记录安全 backend identity，不含 endpoint/token。T-03 已解决并由 action-lane
+mutation 对照继续锁定。
 
 ## 12. 明确排除项
 
@@ -323,10 +345,12 @@ FE-S04 及本 contract 不包括：
 | T-05 | Latent hazard | `BackendTransportRequest` 空 digest fallback 与 canonical M0 digest 口径不同 | production 只走 router 显式 digest | FE-S04 测试锁死 canonical path；不在 Gate 改代码 |
 | T-06 | Expected implementation | Python handler 无 capability prefix | TypeScript listener 必须 prefix-routed | 属 FE-S04，不复用无 prefix 暴露方式 |
 | T-07 | Missing product | `apps/cli` / listener 尚不存在 | 实现并通过真实 HTTP/kill/restart/attestation tests | 属 FE-S04，当前不可报通过 |
+| T-08 | Resolved / lifecycle | terminal owner 可在 drain 后 revision-fenced disable 自己的既有 definition | 首次 disabled、active lease、stale/identity mismatch 必须拒绝 | FE-G00B registration lifecycle tests |
+| T-09 | Resolved / dispatch | product permission-approved typed action 经 BackendRegistry HTTP transport；`worker.run` 排除 terminal | lease/envelope/transport + permission/result receipt；移除 delegation 有差异 | FE-G00B real HTTP + mutation tests |
 
-**当前决定：** parent 已增加 FE-G00R 作为唯一 server-contract 前置例外，用户已明确
-授权且 T-01..T-04 已完成。FE-G00 可以判为通过；FE-S04 的剩余工作只实现 listener、
-process lifecycle、attestation 与真实端节点证据，不再重复修改这些 contract。
+**当前决定：** FE-G00R 与用户单独授权的 FE-G00B 已完成，T-01..T-04、T-08、T-09
+均已收口。FE-G00/FE-G00B 可以判为通过；FE-S04 仍须重新取得明确授权，其剩余工作只实现
+listener、process lifecycle、attestation 与真实 CLI 端节点证据，不再重复修改这些 contract。
 
 ## 14. 后续行为测试 contract
 

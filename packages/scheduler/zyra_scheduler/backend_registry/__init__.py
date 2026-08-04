@@ -1,4 +1,9 @@
 from .defaults import backend_registry_path, default_backend_definitions, ensure_default_backends
+from .action_dispatch import (
+    BackendActionRoute,
+    BackendRegistryActionDispatchPort,
+    TERMINAL_ACTION_CAPABILITIES,
+)
 from .control import (
     ACTIVE_DISPATCHES,
     ActiveDispatchRegistry,
@@ -80,6 +85,7 @@ from .workspace_attestation import (
 __all__ = [
     "ACTIVE_DISPATCHES",
     "ActiveDispatchRegistry",
+    "BackendActionRoute",
     "BackendControlAction",
     "BackendControlEvent",
     "BackendControlReceipt",
@@ -109,6 +115,7 @@ __all__ = [
     "BackendRecoveryIntent",
     "BackendRecoveryInput",
     "BackendRegistry",
+    "BackendRegistryActionDispatchPort",
     "BackendRegistryStore",
     "BackendResourceLimits",
     "BackendSelectionRequest",
@@ -133,6 +140,7 @@ __all__ = [
     "RemoteDispatchStatus",
     "SideEffectFence",
     "SideEffectFenceStatus",
+    "TERMINAL_ACTION_CAPABILITIES",
     "WorkerDispatchResult",
     "WorkerDispatchRouter",
     "WorkspacePolicy",

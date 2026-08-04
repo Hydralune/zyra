@@ -339,6 +339,16 @@ class GatewayToolExecutionRouter:
                 policy.reason,
                 metadata={"sandbox_gateway_failure_signal_id": signal.signal_id},
             )
+        remote = self._dispatch_backend_action_after_permission(
+            call,
+            identity,
+            policy=policy,
+            permission_grant=permission_grant,
+            permission_authority=permission_authority,
+            permission_execution_context=permission_execution_context,
+        )
+        if remote is not None:
+            return remote
         if self.bundle.workspace_edit_port is None and not self.bundle.required:
             return self._execute_host_compatibility(
                 call,
@@ -775,6 +785,13 @@ class GatewayToolExecutionRouter:
                     "sandbox_gateway_failure_signal_id": signal.signal_id,
                 },
             )
+        remote = self._dispatch_authorized_backend_action(
+            call,
+            identity,
+            permission.safe_dict(),
+        )
+        if remote is not None:
+            return remote
         file_receipt = artifact_port.commit(request)
         outcome = (
             GatewayOutcome.QUARANTINED
@@ -924,6 +941,13 @@ class GatewayToolExecutionRouter:
         )
         if not permission.allowed:
             return self._error(call, "permission_grant_required", permission.reason)
+        remote = self._dispatch_authorized_backend_action(
+            call,
+            identity,
+            permission.safe_dict(),
+        )
+        if remote is not None:
+            return remote
         result = self.bundle.workspace_edit_port.delete_file(
             logical_path,
             idempotency_key=str(call.arguments.get("idempotency_key") or call.tool_call_id),
@@ -958,6 +982,176 @@ class GatewayToolExecutionRouter:
             output={"path": logical_path, "gateway_receipt": receipt.safe_dict()},
             error=None if result.ok else str(result.error or "workspace_delete_failed"),
             metadata=self.bundle.event_projector.tool_metadata(receipt),
+        )
+
+    def _dispatch_backend_action_after_permission(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        *,
+        policy: Any,
+        permission_grant: Any,
+        permission_authority: Any,
+        permission_execution_context: Any,
+    ) -> ToolResult | None:
+        if not self._backend_action_available(call.tool_name):
+            return None
+        permission = self.bundle.permission_bridge.consume_non_command(
+            call=call,
+            grant=permission_grant,
+            authority=permission_authority,
+            execution_context=permission_execution_context,
+            policy=policy,
+        )
+        if not permission.allowed:
+            signal = self.bundle.signal_emitter.permission_blocked(
+                identity,
+                invocation_id=stable_identifier(
+                    "gateway-invocation",
+                    call.tool_call_id,
+                    call.tool_name,
+                ),
+                reason=permission.reason,
+                sealed=self.bundle.sealed,
+                causation_id=call.tool_call_id,
+            )
+            return self._error(
+                call,
+                "permission_denied" if self.bundle.sealed else "permission_grant_required",
+                permission.reason,
+                metadata={
+                    "sandbox_gateway_permission_receipt_id": permission.receipt_id,
+                    "sandbox_gateway_failure_signal_id": signal.signal_id,
+                },
+            )
+        return self._dispatch_authorized_backend_action(
+            call,
+            identity,
+            permission.safe_dict(),
+        )
+
+    def _dispatch_authorized_backend_action(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        permission_receipt: Mapping[str, Any],
+    ) -> ToolResult | None:
+        if not self._backend_action_available(call.tool_name):
+            return None
+        port = self.bundle.backend_action_dispatch_port
+        projection = port.dispatch_action(
+            run_id=identity.run_id,
+            task_id=identity.task_id,
+            node_id=identity.node_id,
+            tool_name=call.tool_name,
+            tool_call_id=call.tool_call_id,
+            arguments=call.arguments,
+            metadata=call.metadata,
+            permission_receipt=permission_receipt,
+        )
+        if not isinstance(projection, Mapping) or projection.get("schema") != (
+            "zyra.backend-action-dispatch-result/v1"
+        ):
+            raise RuntimeError("backend action dispatch result schema is invalid")
+        raw_result = projection.get("tool_result")
+        receipt = projection.get("dispatch_receipt")
+        if not isinstance(raw_result, Mapping) or not isinstance(receipt, Mapping):
+            raise RuntimeError("backend action dispatch result is incomplete")
+        raw_output = raw_result.get("output") or {}
+        raw_metadata = raw_result.get("metadata") or {}
+        if not isinstance(raw_output, Mapping) or not isinstance(raw_metadata, Mapping):
+            raise RuntimeError("terminal action result output or metadata is invalid")
+        routed_ok = raw_result.get("ok") is True
+        route = self.route(call.tool_name)
+        if route.operation is None:
+            raise RuntimeError("terminal action has no sandbox gateway operation")
+        invocation = invocation_for(
+            identity,
+            surface=GatewaySurface.CODE_WORKER,
+            action=route.operation,
+            tool_call_id=call.tool_call_id,
+            logical_name=call.tool_name,
+            arguments={
+                "tool_name": call.tool_name,
+                "arguments_digest": content_digest(call.arguments),
+            },
+            policy_digest=self.bundle.policy_runtime.policy_digest,
+            idempotency_key=f"terminal-action:{call.tool_call_id}",
+            causation_id=call.tool_call_id,
+        )
+        gateway_receipt = GatewayExecutionReceipt(
+            receipt_id=stable_identifier(
+                "gateway-execution",
+                str(receipt.get("dispatch_session_id") or ""),
+                str(receipt.get("backend_lease_id") or ""),
+                invocation.binding_digest,
+            ),
+            invocation=invocation,
+            outcome=GatewayOutcome.COMMITTED if routed_ok else GatewayOutcome.FAILED,
+            result_digest=content_digest(raw_result),
+            permission_consumption_id=str(permission_receipt.get("receipt_id") or ""),
+            owner_epoch_before=identity.owner_epoch,
+            owner_epoch_after=identity.owner_epoch,
+            backend_generation=identity.generation,
+            failure_code=(str(raw_result.get("error") or "") if not routed_ok else ""),
+            metadata={
+                "backend_action_dispatch": True,
+                "backend_id": str(receipt.get("backend_id") or ""),
+                "backend_kind": str(receipt.get("backend_kind") or ""),
+                "backend_location": str(receipt.get("backend_location") or ""),
+                "backend_lease_id": str(receipt.get("backend_lease_id") or ""),
+                "envelope_id": str(receipt.get("envelope_id") or ""),
+            },
+        )
+        self.bundle.receipt_journal.append(
+            gateway_receipt,
+            idempotency_key=f"terminal-action:{call.tool_call_id}",
+        )
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=routed_ok,
+            summary=str(raw_result.get("summary") or "Terminal action completed"),
+            output={
+                **dict(raw_output),
+                "backend_action_dispatch_receipt": dict(receipt),
+                "gateway_receipt": gateway_receipt.safe_dict(),
+            },
+            error=(str(raw_result.get("error")) if raw_result.get("error") else None),
+            metadata={
+                **{str(key): str(value) for key, value in raw_metadata.items()},
+                **self.bundle.event_projector.tool_metadata(gateway_receipt),
+                "sandbox_gateway_routed": "true",
+                "backend_action_dispatch_routed": "true",
+                "backend_action_dispatch_receipt_schema": str(receipt.get("schema") or ""),
+                "backend_action_dispatch_session_id": str(
+                    receipt.get("dispatch_session_id") or ""
+                ),
+                "backend_action_dispatch_lease_id": str(
+                    receipt.get("backend_lease_id") or ""
+                ),
+                "backend_action_dispatch_envelope_id": str(
+                    receipt.get("envelope_id") or ""
+                ),
+                "sandbox_gateway_permission_receipt_id": str(
+                    permission_receipt.get("receipt_id") or ""
+                ),
+                "permission_execution_grant_consumed": "true",
+            },
+        )
+
+    def _backend_action_available(self, tool_name: str) -> bool:
+        port = self.bundle.backend_action_dispatch_port
+        if port is None:
+            return False
+        handles = getattr(port, "handles", None)
+        available = getattr(port, "available", None)
+        dispatch = getattr(port, "dispatch_action", None)
+        return bool(
+            callable(handles)
+            and callable(available)
+            and callable(dispatch)
+            and handles(tool_name)
+            and available(tool_name)
         )
 
     def _ensure_session(self, identity: WorkerGatewayIdentity) -> Any:

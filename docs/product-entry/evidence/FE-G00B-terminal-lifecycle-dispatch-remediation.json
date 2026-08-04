@@ -1,0 +1,92 @@
+{
+  "schema": "zyra.product-entry-slice-evidence.v1",
+  "slice_id": "FE-G00B",
+  "slice": "Zyra产品入口纠偏执行切片/gate-00b-terminal-lifecycle-dispatch-remediation.md",
+  "status": "verified",
+  "verified_at": "2026-08-05",
+  "base_commit": "237bc123f45b0e2326edd1512539c6fce7146201",
+  "implementation_commits": [
+    "the Git commit containing this evidence record"
+  ],
+  "verified_head": "the Git commit containing this evidence record",
+  "canonical_contract": {
+    "definition_owner": "python.BackendRegistryStore",
+    "permission_owner": "typescript.PermissionCoordinator",
+    "placement_and_lease_owner": "python.BackendRegistry and WorkerDispatchRouter",
+    "workspace_owner": "WorkspaceManagerRuntime",
+    "terminal_callable_selected": false,
+    "new_endpoint_added": false,
+    "new_transport_protocol_added": false,
+    "real_terminal_dispatch_claimed": false,
+    "real_edge_dispatch_claimed": false
+  },
+  "lifecycle_evidence": {
+    "first_disabled_registration": "rejected",
+    "same_owner_generation_disable": "revision-fenced and accepted only after active leases drain",
+    "canonical_health_after_disable": "disabled",
+    "active_lease_disable": "rejected",
+    "stale_revision": "rejected without automatic retry",
+    "owner_mismatch": "rejected",
+    "generation_mismatch": "rejected",
+    "capability_token_mismatch": "rejected",
+    "transport_identity_change": "rejected"
+  },
+  "dispatch_evidence": {
+    "payload_schema": "zyra.terminal-action/v1",
+    "result_schema": "zyra.terminal-action-result/v1",
+    "receipt_schema": "zyra.backend-action-dispatch-receipt/v1",
+    "gateway_receipt_schema": "zyra.gateway-execution-receipt.v1",
+    "operations": [
+      "tool.file_read",
+      "tool.file_write",
+      "tool.file_edit",
+      "tool.file_delete",
+      "tool.web_search",
+      "tool.shell",
+      "tool.artifact_write"
+    ],
+    "backend_lease_observed": true,
+    "http_envelope_observed": true,
+    "transport_receipt_observed": true,
+    "permission_consumption_observed": true,
+    "api_product_binding_observed": true,
+    "worker_run_terminal_exclusion_observed": true
+  },
+  "negative_and_mutation_evidence": {
+    "delegation_removed": "same shell executed locally and wrote the workspace marker",
+    "delegation_enabled": "terminal executed the shell and local marker remained absent",
+    "sealed_action_port": "unavailable and forced dispatch rejected",
+    "worker_callable_preferred_terminal": "terminal was never attempted",
+    "capability_secret_in_action_metadata": false,
+    "workspace_root_in_user_dispatch_receipt": false,
+    "artifact_root_in_user_dispatch_receipt": false
+  },
+  "verification": [
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\test_product_entry_terminal_contract.py tests\\integration\\test_product_entry_terminal_action_dispatch.py tests\\unit\\test_backend_registry.py tests\\unit\\scheduler\\test_backend_registry_router_delays.py tests\\integration\\test_backend_failover_dispatch.py tests\\integration\\test_product_entry_sealed_terminal_exclusion.py tests\\integration\\test_sandbox_gateway_worker_integration.py -q",
+      "result": "27 passed"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m compileall -q <FE-G00B production modules>",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "baseline_non_regression_control": {
+    "test": "ApiControlCommandTests.test_code_worker_endpoint_suspends_unapproved_workspace_write",
+    "observation": "query_plan_ok remained false with all FE-G00B API injection points temporarily removed",
+    "classification": "pre-existing current-baseline expectation mismatch; no temporary control edit retained"
+  },
+  "scope_exclusions": [
+    "TypeScript capability-prefix listener",
+    "CLI or daemon listener lifecycle",
+    "kill/restart/zombie evidence",
+    "real_terminal_dispatch_claimed",
+    "real_edge_dispatch_claimed",
+    "FE-S04 implementation",
+    "FE-S05 implementation"
+  ]
+}

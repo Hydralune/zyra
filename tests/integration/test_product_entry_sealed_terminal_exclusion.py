@@ -83,6 +83,7 @@ def test_sealed_dispatch_excludes_registered_terminal_backend() -> None:
             idempotency_key="terminal-exclusion:interactive",
             exclude_terminal_backends=False,
         )
-        assert interactive.attempts[0].backend_id == terminal_backend_id
+        assert interactive.attempts[0].backend_id != terminal_backend_id
         assert interactive.final_lease.backend_id != terminal_backend_id
-        assert interactive.backend_changed is True
+        assert terminal_backend_id not in {item.backend_id for item in interactive.attempts}
+        assert terminal_backend_id in interactive.final_lease.reason
