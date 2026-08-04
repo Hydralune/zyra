@@ -25,6 +25,7 @@ export class LineTranscriptRenderer {
   readonly #output: Writable
   readonly #tty: boolean
   readonly #startedAt = Date.now()
+  #lastRenderedSequence = 0
   #statusVisible = false
 
   constructor(output: Writable, tty = Boolean((output as Writable & { isTTY?: boolean }).isTTY)) {
@@ -40,9 +41,17 @@ export class LineTranscriptRenderer {
   }
 
   record(record: TranscriptRecord): void {
+    if (record.sequence <= this.#lastRenderedSequence) return
+    this.#lastRenderedSequence = record.sequence
     this.#clearStatus()
     const refs = record.refs.length ? ` [${record.refs.join(", ")}]` : ""
     this.#append(`${String(record.sequence).padStart(6, "0")} ${record.kind.padEnd(8)} ${record.summary}${refs}`)
+  }
+
+  recovery(input: { reason: string; cursor?: string; generation: number; snapshot: boolean }): void {
+    this.#clearStatus()
+    const mode = input.snapshot ? "snapshot replacement" : "cursor resume"
+    this.#append(`[recovery] ${mode} · generation ${input.generation}${input.cursor ? ` · cursor ${input.cursor}` : ""} · ${input.reason}`)
   }
 
   status(view: SessionViewSnapshot): void {

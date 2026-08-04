@@ -172,6 +172,7 @@ export function normalizePermissionControl(
   )
   if (
     schema !== "zyra.permission-api.v2"
+    && schema !== "zyra.permission-api.v1"
     && schema !== "zyra.permission-api/v1"
   ) {
     throw new ResponseValidationError(

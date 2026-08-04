@@ -95,7 +95,7 @@ export function createCommandIdentity(input: {
   const token = input.nonce?.trim() || randomToken()
   const suffix = commandHash(`${fingerprint}:${token}`)
   return {
-    requestId: `controlreq_${suffix.slice(0, 24)}`,
+    requestId: `request_${suffix.slice(0, 24)}`,
     commandId: `cmd_${suffix.slice(8, 32)}`,
     idempotencyKey: `zyra-command:${fingerprint}:${suffix.slice(0, 12)}`,
     fingerprint,

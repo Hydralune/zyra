@@ -13425,7 +13425,10 @@ def _control_context_for_task(
         return state
 
     def revision(_session_id: str) -> int:
-        return len(store.task_events(state.task_id)) + len(state.metadata.get("control_mutations") or ())
+        # Command lifecycle events are audit evidence, not session mutations.
+        # Counting requested/validated/started events here made a command
+        # invalidate its own expected_session_revision before execution.
+        return int(state.metadata.get("session_control_revision") or 0)
 
     def checkpoint(request: ControlCommandRequest, descriptor: Any) -> str:
         store.save_checkpoint(state)

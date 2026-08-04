@@ -1,17 +1,110 @@
 import { readdir } from "node:fs/promises"
 import type { Readable, Writable } from "node:stream"
-import type { TaskProjection } from "@zyra/typed-api-client"
+import { ZyraApiError, type TaskProjection } from "@zyra/typed-api-client"
 import { CliApi } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
+import {
+  ACTIVE_CONTROL_COMMANDS,
+  CliControlSession,
+  formatCommandQueue,
+  formatCommandReceipt,
+  parseControlIntent,
+} from "../control/commands.ts"
+import { CliPermissionSession } from "../control/permission.ts"
 import { TerminalPrompt } from "../input/terminal-prompt.ts"
 import { LineTranscriptRenderer } from "../render/line-renderer.ts"
 import { SessionProjection } from "../session/projection.ts"
 import type { CommandOutcome } from "../runner.ts"
 
-const LOCAL_COMMANDS = ["/help", "/exit", "/edit", "/restore", "/cancel-draft"] as const
+const LOCAL_COMMANDS = ["/help", "/exit", "/edit", "/restore", "/cancel-draft", ...ACTIVE_CONTROL_COMMANDS] as const
 
 function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "cancelled", "killed"].includes(task.status)
+}
+
+function recoveryNeedsSnapshot(error: unknown): boolean {
+  if (error instanceof CliTaskError) {
+    return ["gap", "cursor", "generation", "order", "binding"].some((marker) => error.code.includes(marker))
+  }
+  return error instanceof ZyraApiError && ["conflict", "not_found", "version", "protocol"].includes(error.category)
+}
+
+function wait(milliseconds: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      signal.removeEventListener("abort", abort)
+      resolve()
+    }
+    const timer = setTimeout(finish, milliseconds)
+    const abort = () => { clearTimeout(timer); reject(signal.reason) }
+    signal.addEventListener("abort", abort, { once: true })
+  })
+}
+
+function controlError(error: unknown): string {
+  if (error instanceof CliTaskError) {
+    const revision = error.details.actual === undefined ? "" : ` (canonical revision ${String(error.details.actual)})`
+    return `${error.code}: ${error.message}${revision}`
+  }
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+async function runActiveControlLoop(input: {
+  terminal: TerminalPrompt
+  controls: CliControlSession
+  permissions: CliPermissionSession
+  stderr: Writable
+  signal: AbortSignal
+}): Promise<void> {
+  while (!input.signal.aborted) {
+    const result = await input.terminal.read()
+    if (result.kind === "exit" || result.text === "/exit") {
+      input.stderr.write("\r\ncontrol input detached; canonical task observation continues\n")
+      return
+    }
+    if (result.text === "/help") {
+      input.stderr.write(`${ACTIVE_CONTROL_COMMANDS.join("  ")}\nPlain text redirects the active task through /change; /now|/next|/later take a slash command.\n`)
+      continue
+    }
+    try {
+      const intent = parseControlIntent(result.text)
+      if (intent.kind === "queue") {
+        input.stderr.write(`${formatCommandQueue(await input.controls.queue(input.signal, true))}\n`)
+      } else if (intent.kind === "task-cancel") {
+        const task = await input.controls.cancelTask(intent.reason)
+        input.stderr.write(`task cancel committed · ${task.taskId} · ${task.status}\n`)
+      } else if (intent.kind === "task-continue") {
+        const task = await input.controls.continueTask(input.signal)
+        input.stderr.write(`task continuation committed · ${task.taskId} · ${task.status}\n`)
+      } else if (intent.kind === "command-cancel") {
+        const response = await input.controls.cancelCommand(intent.requestId, input.signal)
+        input.stderr.write(`command cancellation committed · ${intent.requestId} · ${JSON.stringify(response)}\n`)
+      } else if (intent.kind === "command-retry") {
+        input.stderr.write(`${formatCommandReceipt(await input.controls.retry(intent.requestId, input.signal))}\n`)
+      } else if (intent.kind === "permission") {
+        const response = await input.permissions.resolve({
+          requestId: intent.requestId,
+          effect: intent.effect,
+          feedback: intent.feedback,
+          signal: input.signal,
+        })
+        const receipt = response.receipt && typeof response.receipt === "object"
+          ? response.receipt as Record<string, unknown>
+          : {}
+        input.stderr.write(`permission ${intent.effect} committed · ${intent.requestId} · accepted ${receipt.accepted === true}\n`)
+      } else {
+        input.stderr.write(`${formatCommandReceipt(await input.controls.submit(intent.text, {
+          mode: intent.mode,
+          priority: intent.priority,
+          signal: input.signal,
+        }))}\n`)
+      }
+    } catch (error) {
+      input.stderr.write(`control rejected · ${controlError(error)}\n`)
+    }
+  }
 }
 
 export async function observeTask(input: {
@@ -19,11 +112,13 @@ export async function observeTask(input: {
   task: TaskProjection
   cwd: string
   output: Writable
+  stdin?: Readable
+  stderr?: Writable
   signal: AbortSignal
   resume: boolean
 }): Promise<CommandOutcome> {
-  const capabilities = await input.api.ingressCapabilities(input.task.taskId)
-  const projection = new SessionProjection({ taskId: input.task.taskId, generation: capabilities.generation })
+  let capabilities = await input.api.ingressCapabilities(input.task.taskId)
+  let projection = new SessionProjection({ taskId: input.task.taskId, generation: capabilities.generation })
   const renderer = new LineTranscriptRenderer(input.output)
   renderer.header({
     cwd: input.cwd,
@@ -54,48 +149,122 @@ export async function observeTask(input: {
     return { exitCode: input.task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED, status: input.task.status, taskId: input.task.taskId, runId: input.task.runId }
   }
 
+  const tty = Boolean((input.stdin as Readable & { isTTY?: boolean } | undefined)?.isTTY)
+  let terminal: TerminalPrompt | undefined
+  let controls: CliControlSession | undefined
+  let permissions: CliPermissionSession | undefined
+  let controlsPromise: Promise<void> | undefined
+  if (tty && input.stdin && input.stderr) {
+    terminal = new TerminalPrompt({ stdin: input.stdin, stderr: input.stderr, candidates: LOCAL_COMMANDS })
+    controls = new CliControlSession({ api: input.api, task: input.task })
+    permissions = new CliPermissionSession({
+      api: input.api,
+      task: input.task,
+      custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
+    })
+    const permissionAvailable = await permissions.open(input.signal)
+    if (!permissionAvailable) {
+      input.stderr.write(`permission controls fail closed · ${permissions.custodyError?.code ?? "permission_custody_unavailable"}\n`)
+    }
+    input.stderr.write("active controls · /help lists queue, control, recovery, and permission actions\n")
+  }
   let runSettled = false
   let runResult: Promise<unknown> | undefined
   if (["pending", "paused", "interrupted"].includes(input.task.status)) {
     runResult = input.api.runTask(input.task, input.signal).finally(() => { runSettled = true })
   }
+  if (terminal && controls && permissions && input.stderr) {
+    controlsPromise = runActiveControlLoop({ terminal, controls, permissions, stderr: input.stderr, signal: input.signal })
+  }
   projection.connected()
   renderer.status(projection.snapshot())
   try {
     let windows = 0
+    let recoveryAttempts = 0
     while (!projection.terminal && !input.signal.aborted) {
-      let closedCursor: string | undefined
-      for await (const message of input.api.streamIngress(
-        input.task.taskId,
-        cursor,
-        capabilities.generation,
-        input.signal,
-      )) {
-        if (message.kind === "event") {
-          const record = projection.apply(message.frame)
-          if (record) renderer.record(record)
-          renderer.status(projection.snapshot())
-        } else if (message.kind === "heartbeat" || message.kind === "close") {
-          if (message.sequence < projection.snapshot().lastSequence) {
-            throw new CliTaskError("SSE cursor regressed behind rendered state.", "contract_cursor_regression")
+      try {
+        let closedCursor: string | undefined
+        for await (const message of input.api.streamIngress(
+          input.task.taskId,
+          cursor,
+          capabilities.generation,
+          input.signal,
+        )) {
+          if (message.kind === "event") {
+            const record = projection.apply(message.frame)
+            if (message.frame.cursor) cursor = message.frame.cursor
+            if (record) renderer.record(record)
+            renderer.status(projection.snapshot())
+          } else if (message.kind === "heartbeat" || message.kind === "close") {
+            if (message.sequence < projection.snapshot().lastSequence) {
+              throw new CliTaskError("SSE cursor regressed behind rendered state.", "contract_cursor_regression")
+            }
+            cursor = message.cursor
+            if (message.kind === "close") closedCursor = message.cursor
+            renderer.status(projection.snapshot())
           }
-          cursor = message.cursor
-          if (message.kind === "close") closedCursor = message.cursor
-          renderer.status(projection.snapshot())
         }
-      }
-      if (!closedCursor && !projection.terminal) {
-        throw new CliTaskError("SSE disconnected without a resumable close cursor.", "event_stream_disconnected", {
-          recovery: "Run zyra resume with the same task or session identity.",
-          revision: projection.snapshot().revision,
+        if (!closedCursor && !projection.terminal) {
+          throw new CliTaskError("SSE disconnected without a close frame; retaining the last server cursor.", "event_stream_disconnected", {
+            revision: projection.snapshot().revision,
+            cursor_present: Boolean(cursor),
+          })
+        }
+        recoveryAttempts = 0
+        windows += 1
+        // A completed mutation response is canonical server state. One SSE
+        // window that closes after it settles is the bounded final drain; the
+        // final task read below validates terminal state without polling.
+        if (runSettled && closedCursor) break
+        if (windows > 10_000) throw new CliTaskError("Interactive stream exceeded its bounded reconnect window.", "event_stream_budget")
+      } catch (error) {
+        if (input.signal.aborted) throw input.signal.reason
+        recoveryAttempts += 1
+        projection.disconnected()
+        renderer.status(projection.snapshot())
+        if (recoveryAttempts > 6) {
+          throw new CliTaskError("Event ingress recovery exhausted its bounded retry budget.", "event_stream_recovery_exhausted", {
+            task_id: input.task.taskId,
+            revision: projection.snapshot().revision,
+            cursor_present: Boolean(cursor),
+          })
+        }
+        await wait(Math.min(2_000, 100 * (2 ** (recoveryAttempts - 1))), input.signal)
+        let snapshot = recoveryNeedsSnapshot(error)
+        if (!snapshot) {
+          try {
+            const probed = await input.api.ingressCapabilities(input.task.taskId, cursor, capabilities.generation)
+            snapshot = probed.generation !== capabilities.generation
+            capabilities = probed
+          } catch (probeError) {
+            if (!recoveryNeedsSnapshot(probeError)) throw probeError
+            snapshot = true
+          }
+        }
+        if (snapshot) {
+          capabilities = await input.api.ingressCapabilities(input.task.taskId)
+          const replacement = new SessionProjection({ taskId: input.task.taskId, generation: capabilities.generation })
+          let replacementCursor = ""
+          for await (const page of input.api.snapshotIngress(input.task.taskId, capabilities.generation)) {
+            replacementCursor = page.cursor
+            for (const frame of page.frames) {
+              const record = replacement.apply(frame)
+              if (record) renderer.record(record)
+            }
+          }
+          projection = replacement
+          cursor = replacementCursor
+        }
+        projection.recovering(snapshot ? "event_snapshot_replaced" : "event_cursor_resumed")
+        renderer.recovery({
+          reason: error instanceof Error ? error.message : "event ingress disconnected",
+          cursor,
+          generation: capabilities.generation,
+          snapshot,
         })
+        projection.connected()
+        renderer.status(projection.snapshot())
       }
-      windows += 1
-      // A completed mutation response is canonical server state. One SSE
-      // window that closes after it settles is the bounded final drain; the
-      // final task read below validates terminal state without polling.
-      if (runSettled && closedCursor) break
-      if (windows > 10_000) throw new CliTaskError("Interactive stream exceeded its bounded reconnect window.", "event_stream_budget")
     }
     if (input.signal.aborted) throw input.signal.reason
     await runResult
@@ -116,6 +285,9 @@ export async function observeTask(input: {
     projection.disconnected()
     renderer.finish(projection.snapshot())
     throw error
+  } finally {
+    terminal?.close()
+    await controlsPromise?.catch(() => undefined)
   }
 }
 
@@ -125,10 +297,21 @@ async function submit(input: {
   api: CliApi
   cwd: string
   output: Writable
+  stdin?: Readable
+  stderr?: Writable
   signal: AbortSignal
 }): Promise<CommandOutcome> {
   const created = await input.api.createPendingTask(input.goal, false)
-  return observeTask({ api: input.api, task: created.task, cwd: input.cwd, output: input.output, signal: input.signal, resume: false })
+  return observeTask({
+    api: input.api,
+    task: created.task,
+    cwd: input.cwd,
+    output: input.output,
+    signal: input.signal,
+    resume: false,
+    stdin: input.stdin,
+    stderr: input.stderr,
+  })
 }
 
 export async function executeInteractive(input: {
@@ -141,7 +324,16 @@ export async function executeInteractive(input: {
   cwd?: string
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
-  if (input.command.goal) return submit({ goal: input.command.goal, command: input.command, api: input.api, cwd, output: input.stdout, signal: input.signal })
+  if (input.command.goal) return submit({
+    goal: input.command.goal,
+    command: input.command,
+    api: input.api,
+    cwd,
+    output: input.stdout,
+    stdin: input.stdin,
+    stderr: input.stderr,
+    signal: input.signal,
+  })
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   if (!tty) throw new CliTaskError("zyra without a goal requires an interactive terminal.", "interactive_terminal_required")
   const references = await readdir(cwd, { withFileTypes: true })
@@ -174,7 +366,16 @@ export async function executeInteractive(input: {
         input.stderr.write("Use Ctrl+E while editing a draft to open VISUAL/EDITOR.\n")
         continue
       }
-      last = await submit({ goal: line, command: input.command, api: input.api, cwd, output: input.stdout, signal: input.signal })
+      last = await submit({
+        goal: line,
+        command: input.command,
+        api: input.api,
+        cwd,
+        output: input.stdout,
+        stdin: input.stdin,
+        stderr: input.stderr,
+        signal: input.signal,
+      })
     }
     return last
   } finally {
@@ -185,7 +386,9 @@ export async function executeInteractive(input: {
 export async function executeResume(input: {
   command: ResumeCommand
   api: CliApi
+  stdin: Readable
   stdout: Writable
+  stderr: Writable
   signal: AbortSignal
   cwd?: string
 }): Promise<CommandOutcome> {
@@ -197,5 +400,7 @@ export async function executeResume(input: {
     output: input.stdout,
     signal: input.signal,
     resume: true,
+    stdin: input.stdin,
+    stderr: input.stderr,
   })
 }

@@ -12,6 +12,14 @@ export interface TranscriptRecord {
   refs: readonly string[]
 }
 
+export interface PendingPermissionView {
+  requestId: string
+  reason?: string
+  risk?: string
+  expiresAt?: string
+  eventId: string
+}
+
 export interface SessionViewSnapshot {
   taskId: string
   generation: number
@@ -20,6 +28,7 @@ export interface SessionViewSnapshot {
   action: string
   steps: number
   pendingPermissions: number
+  pendingPermissionRequests: readonly PendingPermissionView[]
   connection: "connecting" | "live" | "disconnected" | "complete"
   records: readonly TranscriptRecord[]
   evicted: number
@@ -49,7 +58,30 @@ function refsFor(event: Readonly<Record<string, unknown>>, inline: Readonly<Reco
     const id = text(objectValue(artifact).artifactId)
     if (id) refs.add(`artifact:${id}`)
   }
+  const requestId = text(inline.request_id) ?? text(inline.requestId)
+  if (requestId) refs.add(`permission:${requestId}`)
   return [...refs]
+}
+
+function permissionFields(frame: IngressFrame): PendingPermissionView {
+  const event = frame.event
+  const inline = objectValue(event.inline)
+  const payload = objectValue(event.payload)
+  const nested = objectValue(inline.permission_request ?? payload.permission_request ?? payload.request)
+  const requestId = text(inline.request_id)
+    ?? text(inline.requestId)
+    ?? text(payload.request_id)
+    ?? text(payload.requestId)
+    ?? text(nested.request_id)
+    ?? text(nested.requestId)
+    ?? frame.eventId
+  return Object.freeze({
+    requestId,
+    reason: text(inline.reason) ?? text(payload.reason) ?? text(nested.reason),
+    risk: text(inline.risk) ?? text(inline.risk_level) ?? text(payload.risk) ?? text(nested.risk),
+    expiresAt: text(inline.expires_at) ?? text(payload.expires_at) ?? text(nested.expires_at),
+    eventId: frame.eventId,
+  })
 }
 
 function classify(eventType: string): TranscriptKind {
@@ -82,6 +114,13 @@ function summarize(frame: IngressFrame): TranscriptRecord {
     const bytes = typeof inline.delta_bytes === "number" ? inline.delta_bytes : undefined
     if (bytes !== undefined) parts.push(`${bytes} bytes`)
   }
+  if (frame.eventType.startsWith("runtime.permission.")) {
+    const permission = permissionFields(frame)
+    if (permission.requestId) parts.push(permission.requestId)
+    if (permission.risk) parts.push(`risk ${permission.risk}`)
+    if (permission.reason) parts.push(permission.reason)
+    if (permission.expiresAt) parts.push(`expires ${permission.expiresAt}`)
+  }
   return Object.freeze({
     sequence: frame.sequence,
     eventId: frame.eventId,
@@ -100,7 +139,7 @@ export class SessionProjection {
   readonly #seen = new Map<number, string>()
   #lastSequence = 0
   #steps = 0
-  #pendingPermissions = 0
+  readonly #pendingPermissions = new Map<string, PendingPermissionView>()
   #action = "snapshot"
   #connection: SessionViewSnapshot["connection"] = "connecting"
   #evicted = 0
@@ -134,9 +173,13 @@ export class SessionProjection {
     this.#steps += 1
     this.#action = frame.eventType
     if (["runtime.task.completed", "runtime.task.failed", "runtime.task.cancelled"].includes(frame.eventType)) this.#terminal = true
-    if (frame.eventType === "runtime.permission.pending") this.#pendingPermissions += 1
-    if (frame.eventType === "runtime.permission.allowed" || frame.eventType === "runtime.permission.denied") {
-      this.#pendingPermissions = Math.max(0, this.#pendingPermissions - 1)
+    if (frame.eventType === "runtime.permission.pending") {
+      const permission = permissionFields(frame)
+      this.#pendingPermissions.set(permission.requestId, permission)
+    }
+    if (["runtime.permission.allowed", "runtime.permission.denied", "runtime.permission.expired", "runtime.permission.cancelled"].includes(frame.eventType)) {
+      const permission = permissionFields(frame)
+      this.#pendingPermissions.delete(permission.requestId)
     }
     const record = summarize(frame)
     const transientProgress = frame.eventType === "runtime.tool.progress"
@@ -154,6 +197,7 @@ export class SessionProjection {
   connected(): void { this.#connection = "live" }
   disconnected(): void { this.#connection = "disconnected" }
   complete(): void { this.#connection = "complete" }
+  recovering(action = "event_stream_recovering"): void { this.#connection = "connecting"; this.#action = action }
 
   follow(enabled: boolean): void {
     this.#follow = enabled
@@ -179,7 +223,8 @@ export class SessionProjection {
       lastSequence: this.#lastSequence,
       action: this.#action,
       steps: this.#steps,
-      pendingPermissions: this.#pendingPermissions,
+      pendingPermissions: this.#pendingPermissions.size,
+      pendingPermissionRequests: Object.freeze([...this.#pendingPermissions.values()]),
       connection: this.#connection,
       records: Object.freeze([...this.#records]),
       evicted: this.#evicted,

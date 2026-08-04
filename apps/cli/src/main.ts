@@ -214,7 +214,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       else if (command.kind === "interactive") {
         outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal })
       } else if (command.kind === "resume") {
-        outcome = await executeResume({ command, api, stdout, signal: signal.controller.signal })
+        outcome = await executeResume({ command, api, stdin, stdout, stderr, signal: signal.controller.signal })
       } else {
         outcome = await executeList({ command, api, stdout, jsonl: output })
       }

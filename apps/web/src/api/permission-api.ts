@@ -149,14 +149,14 @@ export class PermissionApi {
     })
     const projection = requireOk(response.data, response.raw.status)
     const session = record(projection.raw.session, "permission session")
-    const token = sensitiveToken(session.custody_token)
+    const token = sensitiveToken(session.bearer_token ?? session.custody_token)
     const claim = freezeClaim({
       ...binding,
       custodyToken: token,
       custodyId: boundedOptional(session.custody_id, 512),
       custodyFingerprint: boundedOptional(session.custody_fingerprint, 512),
       created: session.created === true,
-      verified: session.custody_verified !== false,
+      verified: session.verified !== false && session.custody_verified !== false,
     })
     this.#claims.set(bindingKey(binding), claim)
     return freezeClaim(claim)

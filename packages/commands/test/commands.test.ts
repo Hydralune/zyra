@@ -334,6 +334,7 @@ describe("policy and request", () => {
       argv: ["worker_failure", "--target", "worker_01"],
     })
     expect(first.priority).toBe("now")
+    expect(first.requestId).toMatch(/^request_/)
     expect(first.idempotencyKey).not.toBe(second.idempotencyKey)
   })
 

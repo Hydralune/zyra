@@ -10,12 +10,12 @@
 - 观测工具链：Node.js `v22.17.0`、Python `3.13.9`、Bun `1.2.15`（通过 `npx bun@1.2.15`；Bun 未加入 PATH）
 - 包版本：`@zyra/typed-api-client@0.1.0`、`@zyra/commands@0.1.0`、`@zyra/web@0.1.0`
 - 目标 CLI：TypeScript + Bun，位置 `apps/cli`，可执行名 `zyra`
-- 当前事实：FE-S01 已在 `apps/cli` 建立 TypeScript + Bun 非交互入口与本地
-  daemon process owner；task-backed 的只读 `GET /sessions` /
-  `GET /sessions/{session_id}` resolver 继续由 FE-G00R 提供。
+- 当前事实：FE-S01 已建立非交互入口与 daemon process owner，FE-S02 已建立行式交互
+  snapshot/SSE 观察，FE-S03 已接入 runtime-owned command queue、permission custody、
+  revision/idempotency 与 cursor/gap 恢复；task-backed session resolver 继续由 FE-G00R 提供。
 - Gate 结论：**PASS（contract/reference baseline）**；FE-S01 也已按用户独立授权
   完成。CLI 只新增客户端 transport、writer 和 pid/generation 状态，不改变
-  task/event/scenario/runtime canonical owner。FE-S02 仅为未授权的下一候选。
+  task/event/scenario/command/permission/runtime canonical owner。FE-S04 仅为未授权的下一候选。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -132,6 +132,11 @@ canonical store。session API 只聚合 task state：单一候选返回 `resolve
 
 `@zyra/commands` 的 `zyra.control/v1`、`zyra.command-queue/v1`、`zyra.command-receipt/v1` 是共享 contract。Claude 风格的 `now > next > later`、同优先级 FIFO 和稳定 snapshot 只作为 UX 适配，不能取代 runtime queue owner。
 
+FE-S03 实际接入时确认两项既有 contract 兼容修正：共享 command request identity 使用 typed
+client 已冻结的 `request_` 前缀；服务端 session revision 只统计 canonical
+`session_control_revision`，不再把同一命令的 requested/validated/started 审计事件计为 mutation，
+从而避免命令在执行前使自己的 expected revision 失效。两项均不改变 command owner。
+
 ### 4.4 Permission
 
 | 操作 | 精确 contract | 约束 |
@@ -141,6 +146,11 @@ canonical store。session API 只聚合 task state：单一候选返回 `resolve
 | 摘要/请求 | `GET /permissions`；`GET /permissions/requests`；`GET /permissions/requests/{request_id}` | CLI/Web 只展示，custody token 不进日志/transcript |
 | 裁决 | `POST /permissions/requests/{request_id}/resolve` | 200；400/401/403/404/408/409/410/422 保持原 error code；只有 runtime 接受 allow/deny |
 | 其他治理 | expire、rules、mode、decisions 的 typed endpoints | CLI 不新增“跳过全部权限”开关；sealed/competition 一律遵循 zero-human/fail-closed policy |
+
+当前部署同时存在 `zyra.permission-api.v2` 控制响应和 session open 返回的
+`zyra.permission-api.v1`；typed normalizer 明确接受这两个已部署 schema（以及冻结的 slash-v1
+兼容拼写）。CLI/Web session adapter 同时读取 `bearer_token` 与旧 `custody_token` 字段，token
+只通过 Authorization header 使用，不进入持久状态或 transcript。
 
 ### 4.5 Artifact
 
@@ -227,9 +237,9 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | slice | contract / owner | 主要失败路径 | 必须测试 | 当前准入 |
 |---|---|---|---|---|
 | FE-S01 | typed API task/event/scenario；CLI I/O 与 daemon pid/generation 只归 `apps/cli` | usage、API unavailable、dirty preflight、stream disconnect、unknown schema/version、JSONL pollution | command surface、real run/cancel/scenario、daemon survival、pipe/EPIPE/exit | **COMPLETED**；见 FE-S01 evidence/self-review |
-| FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | 下一候选；未授权 |
-| FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | 待 FE-S02 |
-| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | T-01..T-04 已收口；仍需实现尚不存在的 CLI listener |
+| FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | **COMPLETED**；见 FE-S02 evidence/self-review |
+| FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | **COMPLETED**；见 FE-S03 evidence/self-review |
+| FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | 下一候选；未授权；T-01..T-04 contract 已收口 |
 | FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04 |
 | FE-S06 | release/automation owner；runtime owners 不变 | offline 包缺依赖、Windows entry 失败、D5/比赛证据断链 | cleanroom install、binary、JSONL、D5、sealed scenario、evidence bundle | 最终候选 |
 
@@ -254,7 +264,7 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | C-04 | D5 完整压力测试仍含尚未实现的 TTY 行为 | FE-S01 只能验证 non-TTY JSONL/EPIPE/daemon walking skeleton | **PARTIAL**：FE-S01 向量已通过；FE-S02/S06 执行完整 D5，失败则回修 |
 
 因此，FE-G00 的 contract/reference Gate 与 FE-S01 非交互 walking skeleton 均已通过。
-这仍不是完整交互 CLI 产品完成证据；FE-S02 是下一候选，但记录候选不构成授权。
+这仍不是完整前端产品完成证据；FE-S04 是下一候选，但记录候选不构成授权。
 
 ## 10. 基线验证记录
 
@@ -265,7 +275,12 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 - 最终 HEAD sealed/recovery 长链回归 `12 passed`（128.20s）。
 - FE-S01：CLI + typed-client `28 passed`；真实 API/runtime/daemon 集成 `4 passed`；
   全仓 TypeScript typecheck、CLI build 与 Node 执行通过。
+- FE-S02：CLI `21 passed`，真实 daemon/task/session/Web/event-ingress 回归 `5 passed`。
+- FE-S03：CLI `29 passed`、commands `29 passed`、typed client `19 passed`、Web permission
+  `16 passed`；真实 command/permission/restart/parity `2 passed`、canonical queue `2 passed`、
+  permission console `2 passed`、CLI/daemon 邻接回归 `6 passed`。
 - D5 仅完成 FE-S01 可执行向量；TTY/长会话/完整压力证据保留给 FE-S02/S06，
   本文不伪报通过。
-- FE-S01 未修改 `apps/api`、runtime owner、public persistence schema 或 Web，
-  未启用 terminal node，也未声明 `real_terminal_dispatch_claimed`。
+- FE-S03 只修正 command revision 计算、已部署 permission schema/token 的客户端兼容；未修改
+  permission policy、runtime owner、public persistence schema，未启用 terminal node，也未声明
+  `real_terminal_dispatch_claimed`。

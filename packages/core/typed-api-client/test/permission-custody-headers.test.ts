@@ -4,6 +4,7 @@ import {
   HeaderPolicy,
   redactHeaders,
 } from "../src/headers.ts"
+import { normalizePermissionControl } from "../src/normalizers.ts"
 
 function context() {
   return {
@@ -17,6 +18,20 @@ function context() {
 }
 
 describe("permission session custody headers", () => {
+  test("admits the deployed permission-api v1 schema", () => {
+    expect(normalizePermissionControl({
+      schema: "zyra.permission-api.v1",
+      ok: true,
+      operation: "permission.session.open",
+      state_owner: "typescript.PermissionCoordinator",
+      session_id: "permission-console:test",
+    })).toMatchObject({
+      schema: "zyra.permission-api.v1",
+      ok: true,
+      sessionId: "permission-console:test",
+    })
+  })
+
   test("explicit session custody takes precedence over ambient API auth", async () => {
     const policy = new HeaderPolicy({
       version: { requested: "1.0" },

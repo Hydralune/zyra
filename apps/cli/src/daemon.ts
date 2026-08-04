@@ -42,6 +42,24 @@ export interface DaemonStatus {
   staleState: boolean
 }
 
+export interface DaemonStopAudit {
+  schema: "zyra.cli-daemon-stop-audit.v1"
+  audit_id: string
+  phase: "rejected" | "committed"
+  forced: boolean
+  signal: "SIGTERM" | "SIGKILL" | "none"
+  pid: number
+  generation: string
+  base_url: string
+  active_task_ids: readonly string[]
+  recorded_at: string
+  reason: string
+}
+
+export interface DaemonStopStatus extends DaemonStatus {
+  audit: DaemonStopAudit
+}
+
 export interface DaemonOptions {
   baseUrl: string
   autoStart: boolean
@@ -74,6 +92,20 @@ function statePath(): string {
 
 function lockPath(): string {
   return join(stateDirectory(), "daemon.lock")
+}
+
+function auditPath(): string {
+  return join(stateDirectory(), "daemon-stop-audit.jsonl")
+}
+
+async function appendDaemonAudit(value: DaemonStopAudit): Promise<void> {
+  await mkdir(stateDirectory(), { recursive: true })
+  const handle = await open(auditPath(), "a", 0o600)
+  try {
+    await handle.appendFile(`${JSON.stringify(value)}\n`, "utf8")
+  } finally {
+    await handle.close()
+  }
 }
 
 function normalizeDaemonUrl(value: string): URL {
@@ -382,7 +414,7 @@ async function activeTaskIds(baseUrl: string, token?: string): Promise<string[]>
 
 export async function stopManagedDaemon(
   options: Pick<DaemonOptions, "baseUrl" | "token"> & { force: boolean; timeoutMs?: number },
-): Promise<DaemonStatus> {
+): Promise<DaemonStopStatus> {
   const state = await readState()
   if (!state || state.base_url !== options.baseUrl || !processAlive(state.pid)) {
     throw new CliTaskError(
@@ -390,18 +422,32 @@ export async function stopManagedDaemon(
       "daemon_not_managed",
     )
   }
-  if (!options.force && await probeHealth(options.baseUrl, options.token)) {
-    const active = await activeTaskIds(options.baseUrl, options.token)
-    if (active.length) {
-      throw new CliTaskError(
-        "The Zyra daemon has active tasks; use --force=true only when explicit cancellation is intended.",
-        "daemon_active_tasks",
-        { active_task_ids: active },
-      )
-    }
+  const reachable = await probeHealth(options.baseUrl, options.token)
+  const active = reachable ? await activeTaskIds(options.baseUrl, options.token) : []
+  const auditId = `daemon_stop_${crypto.randomUUID().replaceAll("-", "")}`
+  if (!options.force && active.length) {
+    await appendDaemonAudit({
+      schema: "zyra.cli-daemon-stop-audit.v1",
+      audit_id: auditId,
+      phase: "rejected",
+      forced: false,
+      signal: "none",
+      pid: state.pid,
+      generation: state.generation,
+      base_url: options.baseUrl,
+      active_task_ids: Object.freeze([...active]),
+      recorded_at: new Date().toISOString(),
+      reason: "active_tasks_protected",
+    })
+    throw new CliTaskError(
+      "The Zyra daemon has active tasks; use --force=true only when explicit cancellation is intended.",
+      "daemon_active_tasks",
+      { active_task_ids: active, audit_id: auditId, audit_persisted: true },
+    )
   }
+  const signal = options.force ? "SIGKILL" : "SIGTERM"
   try {
-    process.kill(state.pid, options.force ? "SIGKILL" : "SIGTERM")
+    process.kill(state.pid, signal)
   } catch (error) {
     if (!isErrno(error, "ESRCH")) throw new CliDaemonError("Cannot stop the managed Zyra daemon.", {}, { cause: error })
   }
@@ -414,5 +460,19 @@ export async function stopManagedDaemon(
     })
   }
   await removeState()
-  return daemonStatus(options)
+  const audit: DaemonStopAudit = Object.freeze({
+    schema: "zyra.cli-daemon-stop-audit.v1",
+    audit_id: auditId,
+    phase: "committed",
+    forced: options.force,
+    signal,
+    pid: state.pid,
+    generation: state.generation,
+    base_url: options.baseUrl,
+    active_task_ids: Object.freeze([...active]),
+    recorded_at: new Date().toISOString(),
+    reason: options.force && active.length ? "force_stop_with_active_tasks" : "managed_daemon_stop",
+  })
+  await appendDaemonAudit(audit)
+  return { ...(await daemonStatus(options)), audit }
 }

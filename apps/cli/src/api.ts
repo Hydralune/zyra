@@ -1,9 +1,18 @@
 import {
+  admitQueueSnapshot,
+  transportBody,
+  type CommandQueueSnapshot,
+  type CommandTransportRequest,
+} from "@zyra/commands"
+import {
   OPERATION_NAMES,
   createIdempotencyKey,
+  normalizeIdempotencyKey,
   normalizeIdentity,
   readServerSentEvents,
+  type ControlCommandProjection,
   type EventProjection,
+  type PermissionControlProjection,
   type SessionListProjection,
   type SessionProjection,
   type TaskListProjection,
@@ -71,6 +80,20 @@ export interface ScenarioRun {
   raw: Readonly<Record<string, unknown>>
 }
 
+export interface PermissionBinding {
+  taskId: string
+  runId: string
+  sessionId: string
+}
+
+export interface PermissionSessionClaim extends PermissionBinding {
+  custodyToken: string
+  custodyId?: string
+  custodyFingerprint?: string
+  created: boolean
+  verified: boolean
+}
+
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new CliTaskError(`${label} must be an object.`, "contract_invalid")
@@ -97,6 +120,80 @@ function booleanValue(value: unknown, label: string): boolean {
     throw new CliTaskError(`${label} must be a boolean.`, "contract_invalid")
   }
   return value
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+function permissionBinding(value: PermissionBinding): PermissionBinding {
+  return Object.freeze({
+    taskId: normalizeIdentity("task", value.taskId),
+    runId: normalizeIdentity("run", value.runId),
+    sessionId: permissionSessionIdentity(value.sessionId),
+  })
+}
+
+function permissionSessionIdentity(value: unknown): string {
+  const rendered = typeof value === "string" ? value.trim() : ""
+  if (
+    !rendered
+    || rendered === "."
+    || rendered === ".."
+    || !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/.test(rendered)
+  ) {
+    throw new CliTaskError("Permission session identity is invalid.", "permission_contract_invalid")
+  }
+  return rendered
+}
+
+function permissionIdentifier(value: unknown, label: string): string {
+  const rendered = typeof value === "string" ? value.trim() : ""
+  if (
+    !rendered
+    || rendered === "."
+    || rendered === ".."
+    || !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/.test(rendered)
+  ) {
+    throw new CliTaskError(`${label} is invalid.`, "permission_contract_invalid")
+  }
+  return rendered
+}
+
+function permissionBindingKey(value: PermissionBinding): string {
+  return `${value.taskId}\u0000${value.runId}\u0000${value.sessionId}`
+}
+
+function permissionToken(value: unknown): string {
+  const token = typeof value === "string"
+    ? value.replace(/^Bearer\s+/i, "").trim()
+    : ""
+  if (!token || /[\u0000\r\n]/.test(token) || new TextEncoder().encode(token).byteLength > 8_192) {
+    throw new CliTaskError(
+      "Permission custody is unavailable; the runtime did not issue or verify a bearer token.",
+      "permission_custody_missing",
+    )
+  }
+  return token
+}
+
+function permissionHeaders(tokenValue: string): Headers {
+  const headers = new Headers()
+  headers.set("Authorization", `Bearer ${permissionToken(tokenValue)}`)
+  headers.set("Cache-Control", "no-store")
+  return headers
+}
+
+function permissionOk(
+  projection: PermissionControlProjection,
+  status: number,
+): PermissionControlProjection {
+  if (projection.ok && status >= 200 && status < 300) return projection
+  throw new CliTaskError(
+    projection.message ?? `Permission operation ${projection.operation} failed.`,
+    projection.error ?? "permission_request_failed",
+    { operation: projection.operation, status },
+  )
 }
 
 function schema(value: Record<string, unknown>, expected: string, label: string): void {
@@ -296,6 +393,251 @@ export class CliApi {
     return response.data
   }
 
+  async submitControlCommand(request: CommandTransportRequest): Promise<Readonly<Record<string, unknown>>> {
+    const body = transportBody(request)
+    const response = await this.client.endpoint<ControlCommandProjection, typeof body>(
+      OPERATION_NAMES.taskControlCommand,
+      {
+        path: { task_id: request.taskId },
+        body,
+        binding: {
+          taskId: request.taskId,
+          runId: request.runId,
+          sessionId: request.sessionId,
+          requestId: request.requestId,
+          controlCommandId: request.commandId,
+        },
+        idempotencyKey: request.idempotencyKey,
+        signal: request.signal,
+        timeoutMs: request.timeoutMs ?? this.timeoutMs,
+        coordinationKey: `cli.control-command:${request.taskId}:${request.idempotencyKey}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({
+      ...response.data.raw,
+      task: response.data.task,
+      control_request: response.data.controlRequest,
+      command: response.data.command,
+      command_result: response.data.commandResult,
+      event: response.data.event,
+      intervention_counted: response.data.interventionCounted,
+      receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true",
+    })
+  }
+
+  async commandQueue(input: {
+    taskId: string
+    sessionId?: string
+    includeTerminal?: boolean
+    signal?: AbortSignal
+  }): Promise<CommandQueueSnapshot> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const response = await this.client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskCommandQueue,
+      {
+        path: { task_id: taskId },
+        query: {
+          session_id: input.sessionId,
+          include_terminal: input.includeTerminal === true,
+        },
+        binding: { taskId, sessionId: input.sessionId },
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.command-queue:${taskId}:${input.sessionId ?? "*"}`,
+        latestWins: true,
+      },
+    )
+    return admitQueueSnapshot(response.data, {
+      taskId,
+      sessionId: input.sessionId,
+      restored: input.includeTerminal === true,
+    })
+  }
+
+  async cancelControlCommand(input: {
+    taskId: string
+    requestId: string
+    reason: string
+    idempotencyKey?: string
+    signal?: AbortSignal
+  }): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const requestId = normalizeIdentity("request", input.requestId)
+    const reason = input.reason.trim()
+    if (!reason) throw new TypeError("Command cancellation reason is required.")
+    const candidateBody = { reason }
+    const idempotencyKey = normalizeIdempotencyKey(
+      input.idempotencyKey
+        ?? createIdempotencyKey(
+          OPERATION_NAMES.taskCommandCancel,
+          { taskId, requestId },
+          candidateBody,
+        ),
+    )
+    const body = { ...candidateBody, idempotency_key: idempotencyKey }
+    const response = await this.client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskCommandCancel,
+      {
+        path: { task_id: taskId, request_id: requestId },
+        body,
+        binding: { taskId, requestId },
+        idempotencyKey,
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.command-cancel:${taskId}:${requestId}:${idempotencyKey}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
+  async openPermissionSession(
+    binding: PermissionBinding,
+    input: { custodyToken?: string; externalSessionExists?: boolean; signal?: AbortSignal } = {},
+  ): Promise<PermissionSessionClaim> {
+    const normalized = permissionBinding(binding)
+    const body = {
+      session_id: normalized.sessionId,
+      run_id: normalized.runId,
+      task_id: normalized.taskId,
+      external_session_exists: input.externalSessionExists === true,
+    }
+    const headers = input.custodyToken ? permissionHeaders(input.custodyToken) : undefined
+    const response = await this.client.endpoint<PermissionControlProjection, typeof body>(
+      OPERATION_NAMES.permissionSessionOpen,
+      {
+        body,
+        headers,
+        binding: { taskId: normalized.taskId, runId: normalized.runId },
+        idempotencyKey: createIdempotencyKey(
+          OPERATION_NAMES.permissionSessionOpen,
+          { taskId: normalized.taskId, runId: normalized.runId },
+          body,
+        ),
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.open:${permissionBindingKey(normalized)}`,
+        deduplicate: true,
+      },
+    )
+    const projection = permissionOk(response.data, response.raw.status)
+    const session = record(projection.raw.session, "permission session")
+    const custodyToken = permissionToken(
+      session.bearer_token ?? session.custody_token ?? input.custodyToken,
+    )
+    return Object.freeze({
+      ...normalized,
+      custodyToken,
+      custodyId: optionalString(session.custody_id),
+      custodyFingerprint: optionalString(session.custody_fingerprint),
+      created: session.created === true,
+      verified: session.verified !== false && session.custody_verified !== false,
+    })
+  }
+
+  async resumePermissionSession(
+    binding: PermissionBinding,
+    custodyToken: string,
+    signal?: AbortSignal,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const normalized = permissionBinding(binding)
+    const body = {
+      session_id: normalized.sessionId,
+      run_id: normalized.runId,
+      task_id: normalized.taskId,
+    }
+    const response = await this.client.endpoint<PermissionControlProjection, typeof body>(
+      OPERATION_NAMES.permissionSessionResume,
+      {
+        path: { session_id: normalized.sessionId },
+        body,
+        headers: permissionHeaders(custodyToken),
+        binding: { taskId: normalized.taskId, runId: normalized.runId },
+        idempotencyKey: createIdempotencyKey(
+          OPERATION_NAMES.permissionSessionResume,
+          { taskId: normalized.taskId, runId: normalized.runId },
+          body,
+        ),
+        signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.resume:${permissionBindingKey(normalized)}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
+  async permissionRequests(
+    binding: PermissionBinding,
+    custodyToken: string,
+    input: { status?: string; pendingOnly?: boolean; limit?: number; signal?: AbortSignal } = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const normalized = permissionBinding(binding)
+    const response = await this.client.endpoint<PermissionControlProjection>(
+      OPERATION_NAMES.permissionRequests,
+      {
+        query: {
+          task_id: normalized.taskId,
+          run_id: normalized.runId,
+          session_id: normalized.sessionId,
+          status: input.status,
+          pending_only: input.pendingOnly,
+          limit: Math.max(1, Math.min(1_000, input.limit ?? 200)),
+        },
+        headers: permissionHeaders(custodyToken),
+        binding: { taskId: normalized.taskId, runId: normalized.runId },
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.requests:${permissionBindingKey(normalized)}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
+  async resolvePermission(input: {
+    binding: PermissionBinding
+    custodyToken: string
+    requestId: string
+    responseId: string
+    effect: "allow" | "deny"
+    consoleResponse: Readonly<Record<string, unknown>>
+    feedback?: string
+    signal?: AbortSignal
+  }): Promise<Readonly<Record<string, unknown>>> {
+    const binding = permissionBinding(input.binding)
+    const requestId = permissionIdentifier(input.requestId, "Permission request identity")
+    const responseId = permissionIdentifier(input.responseId, "Permission response identity")
+    const body = {
+      task_id: binding.taskId,
+      run_id: binding.runId,
+      session_id: binding.sessionId,
+      effect: input.effect,
+      response_id: responseId,
+      idempotency_key: normalizeIdempotencyKey(responseId),
+      console_response: JSON.parse(JSON.stringify(input.consoleResponse)) as Record<string, unknown>,
+      display_responder: "zyra-cli",
+      feedback: input.feedback?.trim() || undefined,
+      require_identity_echo: true,
+    }
+    const response = await this.client.endpoint<PermissionControlProjection, typeof body>(
+      OPERATION_NAMES.permissionRequestResolve,
+      {
+        path: { request_id: requestId },
+        body,
+        headers: permissionHeaders(input.custodyToken),
+        binding: { taskId: binding.taskId, runId: binding.runId },
+        idempotencyKey: body.idempotency_key,
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.resolve:${permissionBindingKey(binding)}:${requestId}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
   async task(taskId: string): Promise<TaskProjection> {
     const selected = normalizeIdentity("task", taskId)
     const response = await this.client.endpoint<TaskProjection>(OPERATION_NAMES.taskGet, {
@@ -368,13 +710,13 @@ export class CliApi {
     return response.data
   }
 
-  async ingressCapabilities(taskId: string, cursor?: string): Promise<IngressCapabilities> {
+  async ingressCapabilities(taskId: string, cursor?: string, expectedGeneration?: number): Promise<IngressCapabilities> {
     const selected = normalizeIdentity("task", taskId)
     const capabilitiesResponse = await this.client.endpoint<Record<string, unknown>>(
       OPERATION_NAMES.taskEventIngressCapabilities,
       {
         path: { task_id: selected },
-        query: { generation: 1, cursor },
+        query: { generation: expectedGeneration, cursor },
         binding: { taskId: selected },
         timeoutMs: Math.min(this.timeoutMs, 30_000),
         coordinationKey: `cli.ingress.capabilities:${selected}`,

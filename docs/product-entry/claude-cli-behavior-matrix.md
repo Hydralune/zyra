@@ -111,8 +111,9 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 
 以下测试集由 Gate 冻结。FE-S02 已实现其中的交互输入、服务端 snapshot/SSE、行式
 transcript、有界搜索窗口、follow/unread、80/120 列重排、tool progress 折叠、pipe
-兼容和 resume 主路径；FE-S03、FE-S04、FE-S05、FE-S06 归属的权限、终端节点、Web
-入口和最终 cleanroom 仍保持后续边界。真实 daemon 证据不能由 mock transcript 替代。
+兼容和 resume 主路径；FE-S03 已实现服务端 command queue、permission custody、cursor/gap
+恢复和 daemon stop 保护；FE-S04、FE-S05、FE-S06 归属的终端节点、Web 入口和最终
+cleanroom 仍保持后续边界。真实 daemon 证据不能由 mock transcript 替代。
 
 | ID | 场景 | 输入/故障 | 必须观察到的结果 | 禁止结果 | 归属 |
 |---|---|---|---|---|---|
@@ -143,6 +144,19 @@ transcript、有界搜索窗口、follow/unread、80/120 列重排、tool progre
 | Claude 自有 session/message wire schema | `REJECT` | 只消费 `zyra.event-ingress/v1`、`zyra.runtime-event/v1` 和 task-backed session resolver | strict schema/binding/generation/order/cursor negative tests |
 
 FE-S02 的参考行为已经转化成 Zyra 自有代码和测试，不以“读过源码”作为完成证据。
+
+### 6.2 FE-S03 实际转化结果（2026-08-04）
+
+| Claude 参考行为 | 裁决 | Zyra 独立实现 | 可执行证据 |
+|---|---|---|---|
+| `messageQueueManager` 的 `now > next > later`、同优先级 FIFO 和稳定 snapshot | `ADAPT` | `CliControlSession` 复用 `@zyra/commands` 构造 request/receipt，但排序、sequence、取消和 retry target 只读取 `PromptQueueRuntime` 的 canonical queue | CLI queue 单测 + 真实 API priority/FIFO/cancel/retry 集成 |
+| permission sticky wait、待决详情和输入区裁决 | `ADAPT` | `CliPermissionSession` 只持进程内 custody，展示 reason/risk/deadline；allow/deny 绑定完整 challenge proof 并等待 `typescript.PermissionCoordinator` receipt | proof/expired/disabled 单测 + CLI/Web deny/allow/restart 真实测试 |
+| 断线状态、有限重订阅与草稿保留 | `ADAPT` | SSE 从最后 server cursor 有界退避；gap/generation/cursor conflict 重新 snapshot；renderer 用单一最大 sequence 去重，不保存第二份 transcript | cursor resume 与 gap snapshot replacement 单测 |
+| module-level canonical queue、本地 permission owner、断线后从 UI 文本重建 | `REJECT` | 已发送命令、pending permission、revision、cursor 和终态均不落本地 owner；custody token 不持久化 | owner 检查、adapter-disable fail-closed、进程重启真实测试 |
+| daemon/task 生命周期绑在当前 REPL | `REJECT` | `/exit` 只 detach 控制输入；daemon stop 查询活动 task，默认拒绝，force 产生持久 audit | 完整 CLI daemon 集成回归 |
+
+FE-S03 采用的是 Claude CLI 的用户问题与交互不变量；没有复制其源码、wire schema、queue、
+permission state 或 runtime dependency。
 
 ## 7. 赛题映射
 

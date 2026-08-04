@@ -164,6 +164,25 @@ def _get(base_url: str, path: str) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
+def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        base_url + path,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Zyra-Api-Version": "1.0",
+            "X-Zyra-Client": "fe-s03-integration",
+            "X-Zyra-Client-Version": "0.1.0",
+            "X-Request-Id": f"request_{uuid4().hex}",
+            "Idempotency-Key": f"fe-s03:{uuid4().hex}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> None:
     with _real_api(tmp_path) as base_url:
         completed = _run_cli(
@@ -335,6 +354,90 @@ def test_cli_autostarts_managed_daemon_and_leaves_it_alive(tmp_path: Path) -> No
         )
         if managed_started:
             assert stopped.returncode == 0, stopped.stderr
+
+
+def test_cli_daemon_stop_protects_active_tasks_and_force_is_audited(
+    tmp_path: Path,
+) -> None:
+    base_url = _unused_loopback_origin()
+    environment = _isolated_daemon_environment(tmp_path)
+    managed_started = False
+    force_stopped = False
+    try:
+        started = _run_cli(
+            base_url,
+            "scenario",
+            "registry",
+            "--startup-timeout=90s",
+            timeout=120,
+            environment=environment,
+            auto_start=True,
+        )
+        assert started.returncode == 0, started.stderr
+        _records(started)
+        managed_started = True
+
+        created = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Remain pending while FE-S03 verifies daemon stop protection.",
+                "auto_run": False,
+            },
+        )
+        task_id = created["task"]["task_id"]
+
+        rejected = _run_cli(
+            base_url,
+            "daemon",
+            "stop",
+            "--startup-timeout=30s",
+            timeout=60,
+            environment=environment,
+        )
+        rejected_records = _records(rejected)
+        assert rejected.returncode == 1, rejected.stderr
+        error = rejected_records[-1]["error"]
+        assert error["code"] == "daemon_active_tasks"
+        assert task_id in error["details"]["active_task_ids"]
+        assert error["details"]["audit_persisted"] is True
+
+        forced = _run_cli(
+            base_url,
+            "daemon",
+            "stop",
+            "--force=true",
+            "--startup-timeout=30s",
+            timeout=60,
+            environment=environment,
+        )
+        forced_records = _records(forced)
+        assert forced.returncode == 0, forced.stderr
+        audit = forced_records[-1]["result"]["audit"]
+        assert audit["phase"] == "committed"
+        assert audit["forced"] is True
+        assert task_id in audit["active_task_ids"]
+        force_stopped = True
+
+        audit_path = Path(environment["ZYRA_CLI_STATE_DIR"]) / "daemon-stop-audit.jsonl"
+        audit_records = [
+            json.loads(line)
+            for line in audit_path.read_text(encoding="utf-8").splitlines()
+            if line
+        ]
+        assert [item["phase"] for item in audit_records] == ["rejected", "committed"]
+        assert audit_records[-1]["audit_id"] == audit["audit_id"]
+    finally:
+        if managed_started and not force_stopped:
+            _run_cli(
+                base_url,
+                "daemon",
+                "stop",
+                "--force=true",
+                "--startup-timeout=30s",
+                timeout=60,
+                environment=environment,
+            )
 
 
 def test_cli_interactive_stream_resume_list_and_web_share_server_identity(
