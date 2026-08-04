@@ -1,4 +1,4 @@
-import type { Writable } from "node:stream"
+import type { Readable, Writable } from "node:stream"
 import {
   RequestCancelledError,
   ZyraApiError,
@@ -20,10 +20,13 @@ import {
 import { CliOutput } from "./output.ts"
 import { executeRun, type CommandOutcome } from "./runner.ts"
 import { executeScenario } from "./scenario.ts"
+import { executeInteractive, executeResume } from "./commands/interactive.ts"
+import { executeList } from "./commands/list.ts"
 
 export interface MainEnvironment {
   stdout?: Writable
   stderr?: Writable
+  stdin?: Readable
   signal?: AbortSignal
   token?: string
 }
@@ -132,6 +135,7 @@ function bridgeSignal(external?: AbortSignal): {
 export async function runMain(argv: readonly string[], environment: MainEnvironment = {}): Promise<number> {
   const stdout = environment.stdout ?? process.stdout
   const stderr = environment.stderr ?? process.stderr
+  const stdin = environment.stdin ?? process.stdin
   let command: CliCommand | undefined
   let output: CliOutput | undefined
   const requestId = `request_${crypto.randomUUID().replaceAll("-", "")}`
@@ -175,12 +179,16 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       autoStart: command.autoStart,
       startupTimeoutMs: command.startupTimeoutMs,
     })
-    output.event({
-      schema: "zyra.cli-daemon-connection.v1",
-      reachable: daemon.reachable,
-      managed: daemon.managed,
-      generation: daemon.generation,
-    })
+    const lineMode = command.kind === "interactive" || command.kind === "resume"
+    const listTty = command.kind === "ls" && Boolean((stdout as Writable & { isTTY?: boolean }).isTTY)
+    if (!lineMode && !listTty) {
+      output.event({
+        schema: "zyra.cli-daemon-connection.v1",
+        reachable: daemon.reachable,
+        managed: daemon.managed,
+        generation: daemon.generation,
+      })
+    }
     const api = new CliApi({
       baseUrl: command.baseUrl,
       token,
@@ -201,16 +209,22 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     cancelTimer?.unref()
     let outcome: CommandOutcome
     try {
-      outcome = command.kind === "run"
-        ? await executeRun({ command, api, output, signal: signal.controller.signal })
-        : await executeScenario({ command, api, output })
+      if (command.kind === "run") outcome = await executeRun({ command, api, output, signal: signal.controller.signal })
+      else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
+      else if (command.kind === "interactive") {
+        outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal })
+      } else if (command.kind === "resume") {
+        outcome = await executeResume({ command, api, stdout, signal: signal.controller.signal })
+      } else {
+        outcome = await executeList({ command, api, stdout, jsonl: output })
+      }
     } finally {
       clearTimeout(timer)
       if (cancelTimer) clearTimeout(cancelTimer)
       signal.dispose()
       api.close("CLI command complete")
     }
-    output.result({
+    if (!lineMode && !listTty) output.result({
       ok: outcome.exitCode === CliExitCode.SUCCESS,
       exit_code: outcome.exitCode,
       status: outcome.status,
@@ -228,6 +242,11 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       requestId,
       command: commandLabel(command),
     })
+    const lineMode = command?.kind === "interactive" || command?.kind === "resume"
+    if (lineMode) {
+      stderr.write(`Zyra: ${error.message}\n`)
+      return error.exitCode
+    }
     output.diagnostic(error.message)
     output.result({
       ok: false,

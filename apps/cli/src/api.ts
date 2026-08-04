@@ -2,9 +2,14 @@ import {
   OPERATION_NAMES,
   createIdempotencyKey,
   normalizeIdentity,
+  readServerSentEvents,
   type EventProjection,
+  type SessionListProjection,
+  type SessionProjection,
+  type TaskListProjection,
   type TaskMutationProjection,
   type TaskProjection,
+  ZyraApiError,
   ZyraTypedApiClient,
 } from "@zyra/typed-api-client"
 import { CliTaskError, CliVerifierError } from "./contracts.ts"
@@ -38,6 +43,20 @@ export interface IngressPage {
   caughtUp: boolean
   nextSequence: number
 }
+
+export interface IngressCapabilities {
+  taskId: string
+  generation: number
+  subscriptionCursor: string
+  subscriptionSequence: number
+  sseAvailable: boolean
+  raw: Readonly<Record<string, unknown>>
+}
+
+export type IngressStreamMessage =
+  | { kind: "ready"; taskId: string; generation: number; sequence: number }
+  | { kind: "event"; taskId: string; generation: number; sequence: number; frame: IngressFrame }
+  | { kind: "heartbeat" | "close"; taskId: string; generation: number; sequence: number; cursor: string }
 
 export interface ScenarioRun {
   schema: "zyra.scenario-run/v1"
@@ -134,7 +153,7 @@ function parseScenarioRun(value: unknown): ScenarioRun {
   }
 }
 
-function parseFrame(value: unknown, taskId: string, generation: number): IngressFrame {
+export function parseIngressFrame(value: unknown, taskId: string, generation: number): IngressFrame {
   const selected = record(value, "event ingress frame")
   schema(selected, FRAME_SCHEMA, "event ingress frame")
   if (selected.kind !== "event") {
@@ -179,7 +198,7 @@ function parseIngressPage(
   if (!Array.isArray(selected.frames)) {
     throw new CliTaskError("Event ingress page omitted frames.", "contract_frames_missing")
   }
-  const frames = selected.frames.map((entry) => parseFrame(entry, taskId, generation))
+  const frames = selected.frames.map((entry) => parseIngressFrame(entry, taskId, generation))
   let previous = integerValue(selected.fromSequence, "event ingress from sequence")
   for (const frame of frames) {
     if (frame.previousSequence !== previous || frame.sequence <= previous) {
@@ -289,6 +308,53 @@ export class CliApi {
     return response.data
   }
 
+  async tasks(input: { status?: string; limit?: number; cursor?: string } = {}): Promise<TaskListProjection> {
+    const response = await this.client.endpoint<TaskListProjection>(OPERATION_NAMES.taskList, {
+      query: { status: input.status, limit: input.limit ?? 100, cursor: input.cursor },
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.task.list:${input.status ?? "all"}:${input.cursor ?? "first"}`,
+      latestWins: true,
+    })
+    return response.data
+  }
+
+  async sessions(input: { status?: string; limit?: number; cursor?: string } = {}): Promise<SessionListProjection> {
+    const response = await this.client.endpoint<SessionListProjection>(OPERATION_NAMES.sessionList, {
+      query: { status: input.status, limit: input.limit ?? 100, cursor: input.cursor },
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.session.list:${input.status ?? "all"}:${input.cursor ?? "first"}`,
+      latestWins: true,
+    })
+    return response.data
+  }
+
+  async session(sessionId: string): Promise<SessionProjection> {
+    const selected = normalizeIdentity("session", sessionId)
+    const response = await this.client.endpoint<SessionProjection>(OPERATION_NAMES.sessionGet, {
+      path: { session_id: selected },
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.session.get:${selected}:${Date.now()}`,
+      latestWins: true,
+    })
+    return response.data
+  }
+
+  async resolveTask(identity: string): Promise<{ task: TaskProjection; session?: SessionProjection }> {
+    try {
+      return { task: await this.task(identity) }
+    } catch (error) {
+      if (!(error instanceof TypeError) && (!(error instanceof ZyraApiError) || error.category !== "not_found")) throw error
+    }
+    const session = await this.session(identity)
+    if (session.resolution !== "resolved" || !session.resumeTaskId) {
+      throw new CliTaskError("Session resolver is ambiguous and cannot select a task.", "session_resolution_ambiguous", {
+        session_id: session.sessionId,
+        task_count: session.taskCount,
+      })
+    }
+    return { task: await this.task(session.resumeTaskId), session }
+  }
+
   async events(taskId: string): Promise<readonly EventProjection[]> {
     const selected = normalizeIdentity("task", taskId)
     const response = await this.client.endpoint<EventProjection[]>(OPERATION_NAMES.taskEvents, {
@@ -302,13 +368,13 @@ export class CliApi {
     return response.data
   }
 
-  async openIngress(taskId: string): Promise<IngressPage> {
+  async ingressCapabilities(taskId: string, cursor?: string): Promise<IngressCapabilities> {
     const selected = normalizeIdentity("task", taskId)
     const capabilitiesResponse = await this.client.endpoint<Record<string, unknown>>(
       OPERATION_NAMES.taskEventIngressCapabilities,
       {
         path: { task_id: selected },
-        query: { generation: 1 },
+        query: { generation: 1, cursor },
         binding: { taskId: selected },
         timeoutMs: Math.min(this.timeoutMs, 30_000),
         coordinationKey: `cli.ingress.capabilities:${selected}`,
@@ -317,23 +383,38 @@ export class CliApi {
     )
     const capabilities = record(capabilitiesResponse.data, "event ingress capabilities")
     schema(capabilities, CAPABILITIES_SCHEMA, "event ingress capabilities")
+    const generation = integerValue(capabilities.generation, "event ingress generation")
+    const subscriptionCursor = stringValue(capabilities.subscriptionCursor, "event ingress subscription cursor")
+    const subscriptionSequence = integerValue(capabilities.subscriptionSequence, "event ingress subscription sequence")
+    const transports = Array.isArray(capabilities.transports) ? capabilities.transports : []
+    const sseAvailable = transports.some((entry) => {
+      const transport = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? entry as Record<string, unknown>
+        : {}
+      return transport.kind === "sse" && transport.available === true
+    })
     if (
       capabilities.protocol !== INGRESS_PROTOCOL
       || capabilities.taskId !== selected
       || capabilities.canonicalOwner !== "typescript.RuntimeEventSpine"
       || capabilities.canonicalWriteAllowed !== false
       || capabilities.snapshotRequired !== true
+      || capabilities.subscribeBeforeSnapshot !== true
     ) {
       throw new CliTaskError("Event ingress capabilities violate the canonical read-only contract.", "contract_ingress_capabilities_invalid")
     }
+    return { taskId: selected, generation, subscriptionCursor, subscriptionSequence, sseAvailable, raw: capabilities }
+  }
+
+  async *snapshotIngress(taskId: string, generation: number): AsyncGenerator<IngressPage> {
+    const selected = normalizeIdentity("task", taskId)
     let cursor: string | undefined
-    let page: IngressPage | undefined
     for (let pages = 0; pages < 10_000; pages += 1) {
       const response = await this.client.endpoint<Record<string, unknown>>(
         OPERATION_NAMES.taskEventIngressSnapshot,
         {
           path: { task_id: selected },
-          query: { cursor, generation: 1, limit: 500 },
+          query: { cursor, generation, limit: 500 },
           binding: { taskId: selected },
           timeoutMs: Math.min(this.timeoutMs, 30_000),
           coordinationKey: `cli.ingress.snapshot:${selected}:${cursor ?? "first"}`,
@@ -341,16 +422,77 @@ export class CliApi {
         },
       )
       const current = parseIngressPage(response.data, selected, SNAPSHOT_SCHEMA)
-      page = page
-        ? { ...current, frames: [...page.frames, ...current.frames] }
-        : current
+      yield current
       cursor = current.cursor
-      if (!current.hasMore) break
+      if (!current.hasMore) {
+        if (!current.caughtUp) {
+          throw new CliTaskError("Event ingress snapshot did not reach a delta cursor.", "contract_snapshot_incomplete")
+        }
+        return
+      }
     }
-    if (!page || !page.caughtUp) {
-      throw new CliTaskError("Event ingress snapshot did not reach a delta cursor.", "contract_snapshot_incomplete")
+    throw new CliTaskError("Event ingress snapshot exceeded the bounded page budget.", "contract_snapshot_budget")
+  }
+
+  async openIngress(taskId: string): Promise<IngressPage> {
+    const capabilities = await this.ingressCapabilities(taskId)
+    let combined: IngressPage | undefined
+    for await (const page of this.snapshotIngress(capabilities.taskId, capabilities.generation)) {
+      combined = combined ? { ...page, frames: [...combined.frames, ...page.frames] } : page
     }
-    return page
+    if (!combined) throw new CliTaskError("Event ingress snapshot returned no page.", "contract_snapshot_incomplete")
+    return combined
+  }
+
+  async *streamIngress(
+    taskId: string,
+    cursor: string,
+    generation: number,
+    signal?: AbortSignal,
+  ): AsyncGenerator<IngressStreamMessage> {
+    const selected = normalizeIdentity("task", taskId)
+    if (!cursor) throw new CliTaskError("Event stream requires a server cursor.", "contract_cursor_missing")
+    const handle = await this.client.openEndpointStream(OPERATION_NAMES.taskEventIngressSse, {
+      path: { task_id: selected },
+      query: { cursor, generation, limit: 500, wait_ms: 750, stream_ms: 5_000, heartbeat_ms: 1_000 },
+      binding: { taskId: selected },
+      signal,
+      timeoutMs: Math.min(this.timeoutMs, 15_000),
+      headers: { Accept: "text/event-stream" },
+    })
+    try {
+      for await (const event of readServerSentEvents(handle.response)) {
+        let value: Record<string, unknown>
+        try {
+          value = record(JSON.parse(event.data), `SSE ${event.event} frame`)
+        } catch (error) {
+          if (error instanceof CliTaskError) throw error
+          throw new CliTaskError(`SSE ${event.event} frame contains malformed JSON.`, "contract_stream_json_invalid")
+        }
+        schema(value, FRAME_SCHEMA, `SSE ${event.event} frame`)
+        const kind = stringValue(value.kind, "SSE frame kind")
+        const frameTaskId = stringValue(value.taskId, "SSE task id")
+        const frameGeneration = integerValue(value.generation, "SSE generation")
+        const sequence = integerValue(value.sequence, "SSE sequence")
+        if (frameTaskId !== selected || frameGeneration !== generation) {
+          throw new CliTaskError("SSE frame binding changed without resynchronization.", "contract_stream_binding_invalid")
+        }
+        if (event.event !== kind) {
+          throw new CliTaskError("SSE named event and payload kind disagree.", "contract_stream_kind_invalid")
+        }
+        if (kind === "event") {
+          yield { kind, taskId: selected, generation, sequence, frame: parseIngressFrame(value, selected, generation) }
+        } else if (kind === "ready") {
+          yield { kind, taskId: selected, generation, sequence }
+        } else if (kind === "heartbeat" || kind === "close") {
+          yield { kind, taskId: selected, generation, sequence, cursor: stringValue(value.cursor, "SSE cursor") }
+        } else {
+          throw new CliTaskError("SSE returned an unknown frame kind.", "contract_stream_kind_unknown")
+        }
+      }
+    } finally {
+      handle.close("CLI event stream window complete")
+    }
   }
 
   async nextIngress(taskId: string, cursor: string, generation: number, waitMs = 750): Promise<IngressPage> {

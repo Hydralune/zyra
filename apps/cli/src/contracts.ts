@@ -10,7 +10,15 @@ export enum CliExitCode {
   VERIFIER_FAILED = 5,
 }
 
-export type CliCommandName = "run" | "scenario" | "daemon" | "help" | "version"
+export type CliCommandName =
+  | "interactive"
+  | "resume"
+  | "ls"
+  | "run"
+  | "scenario"
+  | "daemon"
+  | "help"
+  | "version"
 
 export interface CommonOptions {
   baseUrl: string
@@ -25,6 +33,22 @@ export interface RunCommand extends CommonOptions {
   file?: string
   cancelAfterMs?: number
   sealed: boolean
+}
+
+export interface InteractiveCommand extends CommonOptions {
+  kind: "interactive"
+  goal?: string
+}
+
+export interface ResumeCommand extends CommonOptions {
+  kind: "resume"
+  identity: string
+}
+
+export interface ListCommand extends CommonOptions {
+  kind: "ls"
+  status?: string
+  limit: number
 }
 
 export type ScenarioAction =
@@ -72,6 +96,9 @@ export interface VersionCommand {
 }
 
 export type CliCommand =
+  | InteractiveCommand
+  | ResumeCommand
+  | ListCommand
   | RunCommand
   | ScenarioCommand
   | DaemonCommand

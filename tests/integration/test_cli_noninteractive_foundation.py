@@ -335,3 +335,110 @@ def test_cli_autostarts_managed_daemon_and_leaves_it_alive(tmp_path: Path) -> No
         )
         if managed_started:
             assert stopped.returncode == 0, stopped.stderr
+
+
+def test_cli_interactive_stream_resume_list_and_web_share_server_identity(
+    tmp_path: Path,
+) -> None:
+    with _real_api(tmp_path) as base_url:
+        completed = _run_cli(
+            base_url,
+            "--timeout=3m",
+            "Return exactly FE-S02-INTEGRATION and produce independently verifiable evidence.",
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert "\x1b[?1049" not in completed.stdout
+        assert "session task_" in completed.stdout
+        assert "revision 1:" in completed.stdout
+        assert "model" in completed.stdout
+        assert "artifact" in completed.stdout
+        assert "[complete]" in completed.stdout
+        task_id = completed.stdout.split("session ", 1)[1].split(" ", 1)[0]
+
+        listed = _run_cli(base_url, "ls", "--limit=100")
+        list_records = _records(listed)
+        projection = list_records[-1]["result"]
+        assert projection["state_owner"] == "task_store_projection"
+        assert any(item["task_id"] == task_id for item in projection["tasks"])
+        session = next(
+            item for item in projection["sessions"]
+            if item["resume_task_id"] == task_id
+        )
+
+        web_probe = subprocess.run(
+            [
+                str(BUN),
+                "-e",
+                (
+                    "import {ZyraApiClient} from './apps/web/src/api/client.ts';"
+                    "import {TaskApi} from './apps/web/src/api/task-api.ts';"
+                    f"const client=new ZyraApiClient({{baseUrl:{json.dumps(base_url)}}});"
+                    "const api=new TaskApi(client);"
+                    f"const task=await api.get({json.dumps(task_id)});"
+                    "console.log(JSON.stringify({taskId:task.taskId,runId:task.runId,"
+                    "updatedAt:task.updatedAt,sessionId:task.sessionId}));client.close();"
+                ),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+        )
+        assert web_probe.returncode == 0, web_probe.stderr
+        observed = json.loads(web_probe.stdout)
+        assert observed["taskId"] == task_id
+        task_projection = next(
+            item for item in projection["tasks"] if item["task_id"] == task_id
+        )
+        assert observed["runId"] == task_projection["run_id"]
+        assert observed["updatedAt"] == task_projection["updated_at"]
+
+        before = _get(base_url, "/tasks?limit=100")["total"]
+        from apps.api.zyra_api import main as api_main
+
+        rpc_id = f"rpc-{uuid4().hex}"
+        tool_call_id = f"toolcall-{uuid4().hex}"
+        request_id = f"request-{uuid4().hex}"
+        context = {
+            "identity": {
+                "runId": observed["runId"],
+                "sessionId": session["session_id"],
+                "taskId": task_id,
+                "workerId": "fe-s02-real-tool-worker",
+            },
+            "requestId": request_id,
+            "producerSequence": 1,
+            "receivedAt": "2026-08-04T00:00:01.000Z",
+        }
+        called = api_main.get_runtime_event_spine_bridge().append_omp_rpc_frame(
+            {
+                "type": "host_tool_call",
+                "payload": {
+                    "id": rpc_id,
+                    "tool_call_id": tool_call_id,
+                    "tool_name": "mcp_list_resources",
+                    "arguments": {},
+                },
+            },
+            context=context,
+        )
+        context["producerSequence"] = 2
+        context["receivedAt"] = "2026-08-04T00:00:02.000Z"
+        succeeded = api_main.get_runtime_event_spine_bridge().append_omp_rpc_frame(
+            {
+                "type": "host_tool_result",
+                "payload": {"id": rpc_id, "result": {"resources": []}},
+            },
+            context=context,
+        )
+        assert called["results"][0]["eventType"] == "runtime.tool.called"
+        assert succeeded["results"][0]["eventType"] == "runtime.tool.succeeded"
+        resumed = _run_cli(base_url, "resume", session["session_id"])
+        after = _get(base_url, "/tasks?limit=100")["total"]
+        assert resumed.returncode == 0, resumed.stderr
+        assert f"session {task_id}" in resumed.stdout
+        assert "revision 1:" in resumed.stdout
+        assert "tool" in resumed.stdout
+        assert before == after

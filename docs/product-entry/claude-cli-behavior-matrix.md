@@ -109,10 +109,10 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 
 ## 6. D5 长会话压力验收基线
 
-以下测试集由 Gate 冻结；`apps/cli` 尚不存在，所以当前状态是
-**specified / execution deferred to FE-S02 and FE-S06**，不是产品测试 pass。parent 已显式
-修订 Gate 时序：FE-G00 只需冻结压力向量与失败后的回修规则；真实 TTY/pipe 通过证据必须在
-CLI 存在后生成，不能用 mock transcript 提前替代。
+以下测试集由 Gate 冻结。FE-S02 已实现其中的交互输入、服务端 snapshot/SSE、行式
+transcript、有界搜索窗口、follow/unread、80/120 列重排、tool progress 折叠、pipe
+兼容和 resume 主路径；FE-S03、FE-S04、FE-S05、FE-S06 归属的权限、终端节点、Web
+入口和最终 cleanroom 仍保持后续边界。真实 daemon 证据不能由 mock transcript 替代。
 
 | ID | 场景 | 输入/故障 | 必须观察到的结果 | 禁止结果 | 归属 |
 |---|---|---|---|---|---|
@@ -130,6 +130,19 @@ CLI 存在后生成，不能用 mock transcript 提前替代。
 | D5-12 | sealed 长程 | permission/terminal exclusion/fault recovery | zero-human、确定性拒绝/replan、真实 receipts | 手工点击补救、terminal 被选作 sealed worker | FE-S04/S06 |
 
 通过标准：所有测试必须走真实 typed API/event/runtime/worker 路径；mock、预录 transcript、fixture 或 UI repaint 不能替代 receipt/cursor/dispatch/permission 证据。若任何 D5 测试失败，应修订对应 parent/slice 的设计约束，不能只调渲染参数掩盖。
+
+### 6.1 FE-S02 实际转化结果（2026-08-04）
+
+| Claude 参考行为 | 裁决 | Zyra 独立实现 | 可执行证据 |
+|---|---|---|---|
+| PromptInput multiline、首末行 history、长 paste ref、slash/ref completion、external editor | `ADAPT` | `apps/cli/src/input/` 的非权威 `PromptDraft`/`PromptHistory` 与安全 editor 子进程；提交才展开 paste，取消草稿可恢复 | `apps/cli/test/interactive-session.test.ts` multiline/paste/history/completion/cancel tests |
+| REPL ephemeral progress replacement | `ADAPT` | 只折叠连续 `runtime.tool.progress`；有效 settled event 仍追加，完整输出以 digest/artifact ref 表示 | tool-progress folding test + 真实 daemon tool called/succeeded snapshot |
+| sticky follow、unread、recent search budget、resize 后重排 | `ADAPT` | `SessionProjection` 只持 viewport/search 状态；512 条 recent search budget 不改变 server revision/cursor；resize 清本地 search query | 2,101-transition pressure、follow/unread/search-disable/resize tests |
+| native terminal scrollback + small footer | `ADOPT/ADAPT` | `LineTranscriptRenderer` 逐行追加；仅 TTY 当前状态行使用 erase-line；pipe 不输出 footer 控制 | 80/120 列、pipe、tool output、alternate-screen negative tests |
+| Ink/React root、alternate screen、进程内 transcript owner | `REJECT` | 未引入相关依赖；renderer 的 `alternateScreenUsed` 恒为 false；resume 从服务端 snapshot/cursor 重建观察投影 | CLI dependency/build audit + real daemon resume test |
+| Claude 自有 session/message wire schema | `REJECT` | 只消费 `zyra.event-ingress/v1`、`zyra.runtime-event/v1` 和 task-backed session resolver | strict schema/binding/generation/order/cursor negative tests |
+
+FE-S02 的参考行为已经转化成 Zyra 自有代码和测试，不以“读过源码”作为完成证据。
 
 ## 7. 赛题映射
 

@@ -87,6 +87,50 @@ const RUN_SPECS: readonly CommandArgumentSpec[] = [
   },
 ]
 
+const INTERACTIVE_SPECS: readonly CommandArgumentSpec[] = [
+  ...COMMON_SPECS,
+  {
+    name: "goal",
+    kind: "string",
+    required: false,
+    variadic: true,
+    maximumBytes: 256 * 1024,
+    description: "Start an interactive task with this goal.",
+  },
+]
+
+const RESUME_SPECS: readonly CommandArgumentSpec[] = [
+  ...COMMON_SPECS,
+  {
+    name: "identity",
+    kind: "identity",
+    required: true,
+    maximumBytes: 512,
+    description: "Task or task-backed session identity.",
+  },
+]
+
+const LIST_SPECS: readonly CommandArgumentSpec[] = [
+  ...COMMON_SPECS,
+  {
+    name: "status",
+    kind: "string",
+    required: false,
+    flag: "--status",
+    maximumBytes: 64,
+    description: "Server-side task and session status filter.",
+  },
+  {
+    name: "limit",
+    kind: "integer",
+    required: false,
+    flag: "--limit",
+    minimum: 1,
+    maximum: 1_000,
+    description: "Maximum tasks and sessions to return.",
+  },
+]
+
 const SCENARIO_SPECS: readonly CommandArgumentSpec[] = [
   ...COMMON_SPECS,
   { name: "scenarioId", kind: "identity", required: false, flag: "--scenario-id", description: "Scenario definition id." },
@@ -184,13 +228,23 @@ function preflight(value: unknown): readonly Readonly<Record<string, unknown>>[]
 }
 
 export function parseCliArgs(argv: readonly string[]): CliCommand {
-  if (!argv.length || argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
+  if (argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
     return { kind: "help" }
   }
   if (argv[0] === "--version" || argv[0] === "-V" || argv[0] === "version") {
     return { kind: "version" }
   }
   const command = argv[0]!
+  if (!argv.length || command.startsWith("-")) {
+    const values = bound(argv, INTERACTIVE_SPECS)
+    return {
+      kind: "interactive",
+      ...common(values),
+      goal: typeof values.goal === "string" && values.goal.trim()
+        ? values.goal.trim()
+        : undefined,
+    }
+  }
   if (command === "run") {
     const values = bound(argv.slice(1), RUN_SPECS)
     const goal = typeof values.goal === "string" ? values.goal.trim() : undefined
@@ -254,21 +308,45 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
       force: values.force === true,
     }
   }
-  if (["resume", "ls", "ui"].includes(command) || !command.startsWith("-")) {
-    throw new CliUsageError(`${command} is part of the fixed Zyra command surface but is not available in FE-S01.`)
+  if (command === "resume") {
+    const values = bound(argv.slice(1), RESUME_SPECS)
+    return {
+      kind: "resume",
+      ...common(values),
+      identity: String(values.identity),
+    }
+  }
+  if (command === "ls") {
+    const values = bound(argv.slice(1), LIST_SPECS)
+    return {
+      kind: "ls",
+      ...common(values),
+      status: typeof values.status === "string" ? values.status.trim().toLowerCase() : undefined,
+      limit: Number(values.limit ?? 100),
+    }
+  }
+  if (command === "ui") {
+    throw new CliUsageError("zyra ui is fixed to FE-S05 and is not available yet.")
+  }
+  if (!command.startsWith("-")) {
+    const values = bound(argv, INTERACTIVE_SPECS)
+    const goal = typeof values.goal === "string" ? values.goal.trim() : ""
+    if (!goal) throw new CliUsageError("Interactive goal must not be empty.")
+    return { kind: "interactive", ...common(values), goal }
   }
   throw new CliUsageError(`Unknown Zyra CLI option: ${command}`)
 }
 
 export const CLI_USAGE = `Zyra CLI command surface
 
-  zyra                              interactive session (FE-S02)
-  zyra "<goal>"                     interactive task (FE-S02)
+  zyra                              interactive session
+  zyra "<goal>"                     interactive task with live events
   zyra run <goal | -f file>         non-interactive JSONL execution
-  zyra resume <task|session>        resume and observe (FE-S02)
-  zyra ls                           list tasks and sessions (FE-S02)
+  zyra resume <task|session>        resume from server snapshot/cursor
+  zyra ls                           list canonical tasks and sessions
   zyra scenario <action> [...]      scenario lifecycle over the daemon API
   zyra ui                           launch daemon and Web UI (later slice)
   zyra daemon <start|stop|status>   local daemon supervision
 
-FE-S01 emits JSONL on stdout and plain diagnostics on stderr.`
+Interactive TTY mode uses an append-only line transcript. Non-TTY commands emit
+JSONL on stdout and plain diagnostics on stderr.`
