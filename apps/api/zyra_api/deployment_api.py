@@ -330,5 +330,8 @@ def get_deployment_api() -> DeploymentApiFacade:
 def reset_deployment_api() -> None:
     global _API, _KEY
     with _LOCK:
+        prior = _API
         _API = None
         _KEY = ""
+    if prior is not None:
+        prior.orchestrator.processes.stop_all()

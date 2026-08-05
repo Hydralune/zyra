@@ -338,8 +338,16 @@ class DeploymentProcessManager:
                 self._mark_failed(component_id)
                 self.stop(component_id, tolerate_missing=True)
                 raise
+            runtime_identity = dict(health.get("runtime_identity") or {})
+            runtime_pid = int(runtime_identity.get("pid") or record.pid)
+            runtime_create_time = float(
+                runtime_identity.get("process_create_time")
+                or record.process_create_time
+            )
             updated = replace(
                 record,
+                pid=runtime_pid,
+                process_create_time=runtime_create_time,
                 status=(
                     LifecycleStatus.READY
                     if health.get("status") == "ready"
@@ -355,6 +363,9 @@ class DeploymentProcessManager:
             managed = self._managed.get(component_id)
             if managed is not None:
                 managed.record = updated
+            if runtime_pid != record.pid and policy.resource is not None:
+                self.resources.forget(record.pid)
+                self.resources.apply(runtime_pid, policy.resource)
             return updated, client, health
 
     def start(
@@ -561,19 +572,30 @@ class DeploymentProcessManager:
             self.store.save_process(stopping, expected_revision=revision)
             if managed is not None:
                 process = managed.process
-                if process.poll() is None:
-                    graceful = False
-                    if managed.spec.shutdown is not None:
-                        try:
-                            receipt = dict(managed.spec.shutdown())
-                            graceful = (
-                                receipt.get("accepted") is True
-                                or receipt.get("stopped") is True
-                                or receipt.get("ready") is True
-                            )
-                        except BaseException:
-                            graceful = False
+                graceful = False
+                if managed.spec.shutdown is not None:
+                    try:
+                        receipt = dict(managed.spec.shutdown())
+                        graceful = (
+                            receipt.get("accepted") is True
+                            or receipt.get("stopped") is True
+                            or receipt.get("ready") is True
+                        )
+                    except BaseException:
+                        graceful = False
+                if record.pid != process.pid:
                     if graceful:
+                        exit_code = self._wait_recovered_process(
+                            record,
+                            timeout_seconds,
+                        )
+                    else:
+                        exit_code = self._terminate_recovered_process(
+                            record,
+                            timeout_seconds,
+                        )
+                else:
+                    if graceful and process.poll() is None:
                         try:
                             process.wait(timeout=timeout_seconds)
                         except subprocess.TimeoutExpired:
@@ -585,9 +607,10 @@ class DeploymentProcessManager:
                         except subprocess.TimeoutExpired:
                             process.kill()
                             process.wait(timeout=max(1.0, timeout_seconds / 2))
-                exit_code = process.returncode
+                    exit_code = process.returncode
                 managed.log_stream.close()
                 self.resources.forget(process.pid)
+                self.resources.forget(record.pid)
                 self._managed.pop(component_id, None)
             else:
                 exit_code = self._terminate_recovered_process(record, timeout_seconds)
@@ -603,6 +626,36 @@ class DeploymentProcessManager:
                 expected_revision=current[1] if current else None,
             )
             return stopped
+
+    def _wait_recovered_process(
+        self,
+        record: ProcessRecord,
+        timeout_seconds: float,
+    ) -> int | None:
+        try:
+            process = psutil.Process(record.pid)
+            if (
+                record.process_create_time > 0
+                and abs(process.create_time() - record.process_create_time) >= 0.01
+            ):
+                return record.exit_code
+            try:
+                return process.wait(timeout=timeout_seconds)
+            except psutil.TimeoutExpired:
+                return self._terminate_recovered_process(
+                    record,
+                    max(1.0, timeout_seconds / 2),
+                )
+        except psutil.NoSuchProcess:
+            return record.exit_code
+        except psutil.AccessDenied as error:
+            raise ProcessUnavailable(
+                "deployment_process_termination_denied",
+                "recovered process cannot be observed during shutdown",
+                operation="stop",
+                profile=record.profile,
+                details={"pid": record.pid},
+            ) from error
 
     def _terminate_recovered_process(
         self,

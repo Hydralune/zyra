@@ -797,6 +797,8 @@ class SealedLongRunRunner:
                         ).relative_to(self.evidence_root).as_posix(),
                     }
                 )
+            finally:
+                self._shutdown_deployment_runtime()
         boundary_after = inspect_worktree(
             self.project_root,
             expected_head=str(self.manifest["candidate_commit"]),
@@ -1637,6 +1639,7 @@ class SealedLongRunRunner:
         if prior is not None:
             for name in (
                 "reset_browser_runtime",
+                "reset_deployment_api",
                 "reset_terminal_api",
                 "reset_mcp_runtime",
                 "reset_memory_curator_runtime",
@@ -1657,6 +1660,13 @@ class SealedLongRunRunner:
                         pass
             return importlib.reload(prior)
         return importlib.import_module(module_name)
+
+    @staticmethod
+    def _shutdown_deployment_runtime() -> None:
+        prior = sys.modules.get("apps.api.zyra_api.main")
+        callback = getattr(prior, "reset_deployment_api", None)
+        if callable(callback):
+            callback()
 
 
 __all__ = [

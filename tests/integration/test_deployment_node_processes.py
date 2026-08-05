@@ -286,6 +286,7 @@ def test_three_real_profiles_dispatch_recover_and_restart(tmp_path: Path) -> Non
             clients[profile] = client
             original_pids.append(record.pid)
             assert record.pid != psutil.Process().pid
+            assert record.pid == int(health["runtime_identity"]["pid"])
             assert health["profile"] == profile.value
             assert health["credential_values_exposed"] is False
 
