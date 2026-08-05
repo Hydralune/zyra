@@ -255,10 +255,10 @@ function preflight(value: unknown): readonly Readonly<Record<string, unknown>>[]
 }
 
 export function parseCliArgs(argv: readonly string[]): CliCommand {
-  if (argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
+  if (argv[0] === "--help" || argv[0] === "-h") {
     return { kind: "help" }
   }
-  if (argv[0] === "--version" || argv[0] === "-V" || argv[0] === "version") {
+  if (argv[0] === "--version" || argv[0] === "-V") {
     return { kind: "version" }
   }
   const command = argv[0]!

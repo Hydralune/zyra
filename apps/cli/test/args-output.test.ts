@@ -35,6 +35,15 @@ class BrokenPipe extends Writable {
 }
 
 describe("FE-S01 CLI argument and output contract", () => {
+  test("exposes exactly eight product entries without bare help/version commands", () => {
+    expect(parseCliArgs(["--help"]).kind).toBe("help")
+    expect(parseCliArgs(["-h"]).kind).toBe("help")
+    expect(parseCliArgs(["--version"]).kind).toBe("version")
+    expect(parseCliArgs(["-V"]).kind).toBe("version")
+    expect(parseCliArgs(["help"])).toMatchObject({ kind: "interactive", goal: "help" })
+    expect(parseCliArgs(["version"])).toMatchObject({ kind: "interactive", goal: "version" })
+  })
+
   test("uses @zyra/commands argument binding for run and scenario", () => {
     const run = parseCliArgs([
       "run",

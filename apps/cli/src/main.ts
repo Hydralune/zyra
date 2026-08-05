@@ -152,7 +152,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     })
     if (command.kind === "help") {
       output.diagnostic(CLI_USAGE)
-      output.event({ schema: "zyra.cli-help.v1", command_count: 9 })
+      output.event({ schema: "zyra.cli-help.v1", command_count: 8 })
       output.result({ ok: true, exit_code: CliExitCode.SUCCESS, status: "help" })
       return CliExitCode.SUCCESS
     }
