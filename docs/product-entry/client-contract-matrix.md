@@ -15,7 +15,8 @@
   revision/idempotency 与 cursor/gap 恢复；task-backed session resolver 继续由 FE-G00R 提供。
 - Gate 结论：**PASS（contract/reference baseline）**；FE-S01～FE-S05 已分别按用户授权
   完成实现与验证。CLI/Web 只新增客户端 transport、投影、writer 和 pid/generation 状态，
-  不改变 task/event/scenario/command/permission/runtime canonical owner。FE-S06 仍未授权。
+  不改变 task/event/scenario/command/permission/runtime canonical owner。FE-S06 已于
+  2026-08-05 获独立授权并进入 release/automation 收口。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -264,8 +265,9 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | C-03 | terminal-node contract 初始存在 T-01..T-04 | FE-G00R 已收口 projection、authority、sealed exclusion 与 digest | **RESOLVED**；见 `terminal-node-contract.md` |
 | C-04 | D5 完整压力测试仍含尚未实现的 TTY 行为 | FE-S01 只能验证 non-TTY JSONL/EPIPE/daemon walking skeleton | **PARTIAL**：FE-S01 向量已通过；FE-S02/S06 执行完整 D5，失败则回修 |
 
-因此，FE-G00 的 contract/reference Gate 与 FE-S01～FE-S05 均已通过。
-FE-S06 是下一候选，但记录候选不构成授权。
+因此，FE-G00 的 contract/reference Gate 与 FE-S01～FE-S05 均已通过。FE-S06 已于
+2026-08-05 获单独授权；其 release/automation 结论只由同一最终 HEAD 的 evidence receipt
+判定，不从候选状态或历史验证继承。
 
 ## 10. 基线验证记录
 
@@ -285,3 +287,24 @@ FE-S06 是下一候选，但记录候选不构成授权。
 - FE-S03 只修正 command revision 计算、已部署 permission schema/token 的客户端兼容；未修改
   permission policy、runtime owner、public persistence schema，未启用 terminal node，也未声明
   `real_terminal_dispatch_claimed`。
+
+## 11. FE-S06 自动化与发布收口
+
+最终产品命令面固定为第 3 节的八个入口。`zyra run` 的输入源是 goal 参数、`--file` 或
+non-TTY stdin 三选一；stdout 始终是 strict JSONL，human diagnostic 只进入 stderr。Bun 源码
+入口与 `bun build --target node` 产物必须通过同一 help/JSONL probe，Node 产物的依赖闭包只能
+到 `@zyra/commands` 和 `@zyra/typed-api-client`，不得包含 Web、React、DOM、TUI 或工作区外
+source path。
+
+发布验收由 `scripts/verify_product_entry_release.py` 和 productization cleanroom 共同执行：
+
+- 连续两次构建 Node CLI 并比较字节 digest；
+- 分别执行 Bun direct 与 Node artifact，验证八命令面和 JSONL record schema；
+- 固定记录退出码 0..5、当前 host 实测状态和未获得平台的 `unavailable`；
+- 审计 capability/token/credential/root/cwd 脱敏和依赖闭包；
+- 不发布 npm、不做 installer 或 code signing；
+- 正式 release bundle 不依赖 `G:/agent-zoo/claude-code-best`。
+
+FE-S06 不改变 task/session/event/permission/terminal/scenario owner。最终完成与否仍必须同时满足
+cleanroom、双域 sealed scenario、跨入口同事实和浏览器级 Web 验证，任何环境或授权缺口都应在
+FE-S06 evidence 中显式列为 blocker，而不是降级成静态文档结论。

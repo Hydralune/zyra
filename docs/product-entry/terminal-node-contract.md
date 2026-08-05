@@ -352,7 +352,8 @@ FE-S04 及本 contract 不包括：
 
 **当前决定：** FE-G00R、FE-G00B 与用户单独授权的 FE-S04 均已完成，T-01..T-09
 全部收口。FE-S04 没有修改服务端 contract、没有新增第四套协议，也没有形成 edge claim。
-FE-S05 只是下一候选，未获授权。
+FE-S05 已完成产品/证据分层；FE-S06 已获授权，只重验 terminal lifecycle、真实 dispatch、
+failover、sealed exclusion 和 release offline，不改变本 contract 的 owner 或 claim。
 
 ## 14. 后续行为测试 contract
 

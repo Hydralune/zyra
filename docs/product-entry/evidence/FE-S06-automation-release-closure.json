@@ -1,0 +1,224 @@
+{
+  "schema": "zyra.product-entry-slice-evidence/v1",
+  "slice_id": "FE-S06",
+  "title": "Automation, real-scenario, and release closure",
+  "status": "blocked_pending_explicit_external_authorization_and_browser",
+  "base_commit": "9aefa2f00e111044a275ab6097f552bafcfb2aea",
+  "implementation_commits": [
+    "e657134759455cee988bcc09197ad4dc4d8f6eec",
+    "8ad3902d142da773fbdf9a3cf8fd5bec71e35a6f",
+    "3aaa57ba17f9ebe6b95a12c842111e55afbcf23f",
+    "fec73cdc19b50e3cd1fe0bd03c7e6f6f2c3eb1c4"
+  ],
+  "command_surface": {
+    "count": 8,
+    "entries": [
+      "zyra",
+      "zyra <goal>",
+      "zyra run",
+      "zyra resume",
+      "zyra ls",
+      "zyra scenario",
+      "zyra ui",
+      "zyra daemon"
+    ],
+    "bare_help_command": false,
+    "bare_version_command": false,
+    "meta_options": [
+      "--help/-h",
+      "--version/-V"
+    ],
+    "hidden_python_wrapper_commands": false
+  },
+  "noninteractive_contract": {
+    "inputs": [
+      "goal argument",
+      "UTF-8 file",
+      "non-TTY stdin"
+    ],
+    "inputs_mutually_exclusive": true,
+    "stdin_max_bytes": 262144,
+    "stdout": "strict JSONL",
+    "diagnostics": "stderr",
+    "epipe_cancels_server_task": false,
+    "exit_codes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "node_release": {
+    "verifier_schema": "zyra.product-entry-release-verification/v1",
+    "verifier_source_commit": "fec73cdc19b50e3cd1fe0bd03c7e6f6f2c3eb1c4",
+    "verifier_digest": "1aef95f361388bbcc256e4e38f9563a64a01031203ab815f616412c4a7e8a4cb",
+    "artifact_sha256": "a8e66d8365c4bbb637d9745176f0c8400ed9bdf4cf5fa0f865c2b654262068d9",
+    "artifact_size": 642459,
+    "double_build_byte_identical": true,
+    "bun_direct_ready": true,
+    "node_built_ready": true,
+    "both_command_count": 8,
+    "dependency_closure": [
+      "@zyra/cli",
+      "@zyra/commands",
+      "@zyra/typed-api-client"
+    ],
+    "dom_react_tui_runtime_present": false,
+    "claude_code_best_runtime_present": false,
+    "platforms": {
+      "windows": "passed",
+      "linux": "unavailable",
+      "darwin": "unavailable"
+    },
+    "distribution_scope": {
+      "npm_publish": false,
+      "installer": false,
+      "code_signing": false
+    }
+  },
+  "candidate_bundle": {
+    "source_commit": "8ad3902d142da773fbdf9a3cf8fd5bec71e35a6f",
+    "release_id": "FE-S06-8ad3902",
+    "format": "zip",
+    "size": 46183082,
+    "reproducibility_a_sha256": "c3a8a7124715fb7fed3b1976fd8bdf2ba70e81f186c1f677e8dd5eb7fc0b5d54",
+    "reproducibility_b_sha256": "c3a8a7124715fb7fed3b1976fd8bdf2ba70e81f186c1f677e8dd5eb7fc0b5d54",
+    "byte_identical": true,
+    "partial_receipts": [
+      "source-custody",
+      "bundle-verification",
+      "legacy-source-retirement",
+      "sbom-verification",
+      "benchmark-link"
+    ],
+    "final_ci_report": "missing_after_frontend_tool-session_interruption",
+    "full_release_pass_claimed": false,
+    "final_head_rerun_required": true
+  },
+  "browser_validation": {
+    "api_http_status": 200,
+    "web_http_status": 200,
+    "product_marker_present": true,
+    "browser_runtime_status": "unavailable",
+    "available_browser_instances": 0,
+    "click_or_screenshot_claimed": false,
+    "fallback_browser_claimed": false,
+    "verification_processes_cleaned": true
+  },
+  "real_scenario_status": [
+    {
+      "id": 1,
+      "status": "passed",
+      "evidence": "real CLI-to-Web task/run projection integration"
+    },
+    {
+      "id": 2,
+      "status": "passed",
+      "evidence": "real CLI/Web command and permission parity integrations"
+    },
+    {
+      "id": 3,
+      "status": "passed",
+      "evidence": "daemon survival and real terminal failover integration"
+    },
+    {
+      "id": 4,
+      "status": "passed",
+      "evidence": "cursor/snapshot/idempotency recovery integration"
+    },
+    {
+      "id": 5,
+      "status": "blocked",
+      "evidence": "final software-delivery sealed run requires explicit provider credential/data egress authorization"
+    },
+    {
+      "id": 6,
+      "status": "blocked",
+      "evidence": "final cross-source-research sealed run requires explicit provider credential and RFC/IANA/MDN egress authorization"
+    },
+    {
+      "id": 7,
+      "status": "blocked",
+      "evidence": "sealed exclusion regression passed; same-final-head official sealed receipt still requires authorization"
+    },
+    {
+      "id": 8,
+      "status": "passed",
+      "evidence": "real TypeScript terminal listener to Python registry/router dispatch; location LOCAL"
+    },
+    {
+      "id": 9,
+      "status": "passed_with_final_sealed_receipt_pending",
+      "evidence": "real recovery/failover integration"
+    },
+    {
+      "id": 10,
+      "status": "blocked",
+      "evidence": "product/evidence HTTP routes passed; browser-level interaction unavailable"
+    }
+  ],
+  "verification": [
+    {
+      "command": "bun run test:cli",
+      "result": "42 passed; 298 assertions"
+    },
+    {
+      "command": "bun run test:web",
+      "result": "309 passed; 1874 assertions"
+    },
+    {
+      "command": "bun run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pytest release/product-entry unit group",
+      "result": "54 passed"
+    },
+    {
+      "command": "pytest tests/integration/test_legacy_source_retirement.py",
+      "result": "7 passed"
+    },
+    {
+      "command": "real piped stdin to API/runtime integration",
+      "result": "1 passed"
+    },
+    {
+      "command": "cross-entry/terminal/registry/failover/sealed-exclusion integration group",
+      "result": "31 passed"
+    },
+    {
+      "command": "scripts/verify_product_entry_release.py",
+      "result": "ready on Windows; Linux/macOS unavailable"
+    },
+    {
+      "command": "browser runtime discovery",
+      "result": "unavailable; zero instances"
+    }
+  ],
+  "blockers": [
+    {
+      "code": "external_provider_and_source_authorization_required",
+      "blocks_completion": true,
+      "required_action": "user explicitly authorizes reading configured Zhipu/DeepSeek/Kimi credentials and sending sealed task content to those providers and RFC/IANA/MDN public sources"
+    },
+    {
+      "code": "browser_instance_unavailable",
+      "blocks_completion": true,
+      "required_action": "user connects an in-app or supported browser instance for browser-level product/evidence verification"
+    },
+    {
+      "code": "final_head_release_admission_rerun_required",
+      "blocks_completion": true,
+      "required_action": "rerun full release graph after final evidence head is frozen"
+    }
+  ],
+  "does_not_claim": [
+    "FE-S06 completed",
+    "official same-head dual-domain sealed PASS",
+    "browser click or screenshot PASS",
+    "Linux or macOS compatibility PASS",
+    "candidate partial release receipts as full CI admission"
+  ]
+}

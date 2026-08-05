@@ -1,53 +1,85 @@
 # Zyra CLI
 
-FE-S03 在 FE-S02 的四个交互入口上增加 runtime-owned 控制、权限与恢复闭环：
+Zyra CLI 是长程任务的默认工作入口；Web 是同一后端事实的观察、证据和复杂治理入口。CLI 不拥有 task、session、event、permission、terminal、artifact 或 scenario 的 canonical state，也不包含第二套 Agent runtime。
+
+## 命令面
 
 ```text
-zyra
-zyra "目标"
-zyra resume <task-or-session-id>
-zyra ls
+zyra                              interactive session
+zyra "<goal>"                     interactive task with live events
+zyra run <goal | -f file | stdin> non-interactive JSONL execution
+zyra resume <task|session>        resume from server snapshot/cursor
+zyra ls                           list canonical tasks and sessions
+zyra scenario <action> [...]      scenario lifecycle over the daemon API
+zyra ui [--task <id>]             ensure daemon, start Web, open product route
+zyra daemon <start|stop|status>   local daemon supervision
 ```
 
-`zyra "目标"` 创建服务端 task 后消费 event-ingress snapshot 与 SSE。`resume` 通过
-task-backed session resolver 读取同一 task 的服务端 snapshot/cursor，不重建或重复提交
-task。`ls` 展示服务端 task/session projection；`generation:sequence` 是 CLI 显示的真实观察
-revision。
+没有隐藏的产品命令。CLI 通过 `@zyra/typed-api-client` 和 `@zyra/commands` 接入现有 Zyra API；不包装 Python 运维脚本，也不依赖 Web、React、DOM、Ink 或 `claude-code-best`。
 
-交互 transcript 使用普通终端 scrollback。事实事件逐行追加，只有 TTY 的一条底部状态行
-会就地更新；没有 alternate screen、Ink、React 或全屏布局。重定向到 pipe/tee 时保留纯行式
-内容，不输出状态行控制序列。
+## 非交互执行
 
-本地输入行为：
+```powershell
+zyra run "inspect this repository"
+zyra run --file .\goal.md
+Get-Content .\goal.md | zyra run
+zyra run "inspect this repository" | Tee-Object .\run.jsonl
+```
 
-- 行尾 `\` 继续多行输入；`/edit` 使用 `VISUAL`/`EDITOR`；
-- `/cancel-draft` 安全暂存未提交草稿，`/restore` 恢复；
-- 长 paste 在 draft 内折叠为 digest ref，只在提交时展开；
-- `/help` 与 `/exit` 只控制本地 REPL，不是 runtime command。
+goal 参数、`--file` 和 piped stdin 三者互斥。stdin 只在非 TTY 时读取，最大 256 KiB；空输入、超限、文件读取错误或同时提供多个来源均以 usage error 结束。任务创建成功后，CLI 消费服务端 snapshot/SSE/cursor，final verifier 决定成功或 verifier failure。
 
-task、session、tool、artifact、permission、终态和 cursor 都来自服务端。本地 draft、history、
-search、follow、unread 和布局不是 canonical state。SSE 不可用、cursor 无效、schema 不兼容、
-事件乱序或断流时，CLI 使用最后确认的服务端 cursor 做有限重连；cursor/generation/gap
-失效时重新读取 canonical snapshot。恢复记录会明确标注 `cursor resume` 或
-`snapshot replacement`，不会轮询或从屏幕文本猜测任务状态。
+non-TTY stdout 的每一行都是独立合法 JSON object；诊断、help 和 warning 只写 stderr。writer 尊重 backpressure，消费者提前关闭时安静处理 EPIPE，不据此取消服务端任务。固定退出码为：
 
-运行中的 TTY 会同时开放这些控制输入：
+| code | 含义 |
+|---:|---|
+| 0 | 命令达到定义的成功终态 |
+| 1 | task/scenario 执行失败或 runtime contract 不可接受 |
+| 2 | 参数、输入或文件 usage 错误 |
+| 3 | daemon/API 不可达或未通过 readiness |
+| 4 | 显式取消、signal 中断或 non-interactive permission wait |
+| 5 | final verifier/completion/evidence gate 未通过 |
 
-- `/queue` 只读取服务端 command queue；`/now`、`/next`、`/later` 映射真实 priority；
-- `/interrupt`、`/redirect`、`/continue`、`/cancel`、`/cancel-command` 和 `/retry` 都调用
-  canonical task/command endpoint；
-- `/approve <request_id>` 与 `/deny <request_id>` 使用 permission response challenge 的完整
-  identity、revision、deadline 与 proof，提交后只认 runtime receipt；
-- 普通文本在活动 task 中按 `/change` 投递，不建立本地已发送命令队列；409 revision conflict
-  会显示 canonical revision，绝不自动覆盖或自动重试 mutation。
+## 交互、恢复与控制
 
-permission custody token 仅存于当前进程内，不写 transcript、日志或 CLI state。进程重启后如
-需重新取得已有 permission session 的 custody，必须由调用方显式提供
-`ZYRA_PERMISSION_CUSTODY_TOKEN`；缺失或失效时权限动作 fail closed，task/event 观察仍可继续。
-sealed autonomous 模式不会等待 CLI 人工输入，高风险或未知动作仍由 runtime 确定性拒绝。
+交互界面使用普通终端 scrollback，不使用 alternate screen。事实事件逐行追加，只有 TTY 的底部状态行可原位更新；80/120 列、resize、search、scrollback、follow/unread 和长 transcript 都只改变本地投影。
 
-`zyra daemon stop` 在查询到活动任务时默认拒绝，并向 CLI state 目录追加不含秘密的
-`daemon-stop-audit.jsonl` 记录；只有显式 `--force=true` 才会强制停止并返回 committed audit。
+- 行尾 `\` 继续多行输入；`/edit` 使用 `VISUAL`/`EDITOR`。
+- `/cancel-draft` 暂存未提交草稿，`/restore` 恢复；大 paste 以 digest ref 折叠。
+- `/now`、`/next`、`/later`、`/interrupt`、`/redirect`、`/continue`、`/cancel`、`/cancel-command`、`/retry` 全部调用 canonical command API。
+- `/approve`、`/deny` 绑定完整 permission challenge/revision/deadline/proof，只认 runtime receipt。
+- SSE 断线从最后确认 cursor 有界重连；gap、generation 或 cursor 失效时读取 canonical snapshot，不从 transcript 猜测状态。
+- `/exit` 只退出当前 listener。daemon 和 task 继续运行；再次执行 `resume` 恢复同一 task-backed session。
 
-终端节点和 `zyra ui` 分别属于 FE-S04、FE-S05，FE-S03 不实现 terminal transport 或新的
-permission policy。
+permission custody token 仅存在于当前进程内。需要在重启后恢复裁决 custody 时，调用方必须显式提供 `ZYRA_PERMISSION_CUSTODY_TOKEN`；缺失或失效时 fail closed。sealed autonomous 模式从不等待人工批准。
+
+## Daemon、terminal node 与 Web
+
+`zyra daemon start|status|stop` 使用 pid、generation、health/readiness 和 revision fence 管理本地 daemon。存在活动任务时，普通 stop 拒绝；只有显式 `--force=true` 才执行强制停止并写无秘密 audit。
+
+`run`、`scenario`、interactive 和 `resume` 在进程期间注册 loopback terminal node。listener 使用每代高熵 capability path、Host/loopback/root/attestation/digest/sequence 校验，结束时 drain、revision-fenced disable 并关闭；它不是 edge，也不会成为 sealed run 的执行节点。
+
+`zyra ui` 确保 daemon 可用，构建并启动既有 Web 产品入口，然后生成绑定同一 API/task 的 URL。launcher 只拥有本地 Web 进程状态，不复制后端事实。
+
+## 安全输出
+
+所有 JSONL、诊断和公开 projection 都执行防御性脱敏：capability path、URL userinfo、credential/token 字段、内部 Windows/Unix root/cwd 和 ANSI 控制序列不能进入公开输出。真实 endpoint、cwd 和 token 只保留在相应安全 owner 内。
+
+## 构建与发布验证
+
+开发入口由 Bun 直接执行：
+
+```powershell
+bun apps/cli/src/index.ts --help
+```
+
+Node 发布产物使用固定目标构建：
+
+```powershell
+bun build apps/cli/src/index.ts --outfile dist/cli/zyra.js --target node
+node dist/cli/zyra.js --help
+python scripts/verify_product_entry_release.py
+```
+
+release verifier 连续构建两次并比较字节 digest，同时验证 Bun/Node 双入口、八命令面、JSONL、0..5 退出码声明、依赖闭包和无 DOM/React/TUI runtime。Windows 是当前主验证环境；Linux/macOS 只有在相应 host 可获得时才记为 passed，否则必须显式记为 unavailable。
+
+本阶段不发布 npm、不制作安装器、不做代码签名。正式 bundle 和 cleanroom 必须离线运行且不依赖 `G:/agent-zoo/claude-code-best` 或其它工作区外源码。
