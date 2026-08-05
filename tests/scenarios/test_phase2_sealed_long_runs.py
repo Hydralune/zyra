@@ -27,7 +27,9 @@ from zyra_evaluation.policy_benchmark.sealed_long_run import (
 from zyra_evaluation.policy_benchmark.sealed_physical import (
     SealedPhysicalDispatchRuntime,
     SealedPhysicalDispatchError,
+    _free_port_block,
     _receipt_evidence,
+    _release_port_block,
     _sealed_route_projection,
 )
 from zyra_evaluation.scenario_runner.live_models import TierKind, TierObservation
@@ -63,6 +65,22 @@ from zyra_runtime.provider_control_plane import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_sealed_physical_port_blocks_are_reserved_until_release() -> None:
+    first = _free_port_block()
+    second = _free_port_block()
+    try:
+        assert first != second
+    finally:
+        _release_port_block(first)
+        _release_port_block(second)
+
+    reused = _free_port_block()
+    try:
+        assert reused == first
+    finally:
+        _release_port_block(reused)
 
 
 def test_sealed_validator_accepts_extended_true_production_checks() -> None:

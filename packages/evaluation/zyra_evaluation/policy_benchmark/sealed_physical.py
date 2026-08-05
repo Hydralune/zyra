@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import socket
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -69,6 +70,8 @@ _PROVIDER_CREDENTIAL = {
     "deepseek": "DEEPSEEK_API_KEY",
     "kimi-platform": "KIMI_API_KEY",
 }
+_PORT_BLOCK_LOCK = threading.Lock()
+_RESERVED_PORT_BLOCKS: set[int] = set()
 
 
 class SealedPhysicalDispatchError(RuntimeError):
@@ -88,23 +91,32 @@ def _digest(value: Any) -> str:
 
 
 def _free_port_block(count: int = 3) -> int:
-    for base in range(49_000, 61_000, count):
-        sockets: list[socket.socket] = []
-        try:
-            for port in range(base, base + count):
-                item = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                item.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                item.bind(("127.0.0.1", port))
-                sockets.append(item)
-            return base
-        except OSError:
-            continue
-        finally:
-            for item in sockets:
-                item.close()
+    with _PORT_BLOCK_LOCK:
+        for base in range(49_000, 61_000, count):
+            if base in _RESERVED_PORT_BLOCKS:
+                continue
+            sockets: list[socket.socket] = []
+            try:
+                for port in range(base, base + count):
+                    item = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    item.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    item.bind(("127.0.0.1", port))
+                    sockets.append(item)
+                _RESERVED_PORT_BLOCKS.add(base)
+                return base
+            except OSError:
+                continue
+            finally:
+                for item in sockets:
+                    item.close()
     raise SealedPhysicalDispatchError(
         "no free deployment port block is available"
     )
+
+
+def _release_port_block(base: int) -> None:
+    with _PORT_BLOCK_LOCK:
+        _RESERVED_PORT_BLOCKS.discard(base)
 
 
 def _loopback(endpoint: str) -> bool:
@@ -230,31 +242,36 @@ class SealedPhysicalDispatchRuntime:
                 "every sealed live-model capability requires its configured credential"
             )
         deployment_root = self.state_root / "deployment"
-        catalog = ProfileCatalog.defaults(
-            self.project_root,
-            host="127.0.0.1",
-            base_port=_free_port_block(),
-            environment=self.environment,
-        )
-        deployment_store = DeploymentStateStore(
-            deployment_root / "deployment.sqlite3"
-        )
-        manager = DeploymentProcessManager(
-            project_root=self.project_root,
-            state_root=deployment_root,
-            store=deployment_store,
-            environment=self.environment,
-        )
-        pool = WorkerPoolFoundationRuntime(
-            self.state_root / "worker-pool.sqlite3",
-            attestation_secret=hashlib.sha256(
-                f"sealed:{scenario_run_id}".encode("utf-8")
-            ).digest(),
-            default_lease_ttl_seconds=180,
-        )
-        evidence_store = PhysicalDispatchEvidenceStore(
-            self.state_root / "physical-evidence"
-        )
+        base_port = _free_port_block()
+        try:
+            catalog = ProfileCatalog.defaults(
+                self.project_root,
+                host="127.0.0.1",
+                base_port=base_port,
+                environment=self.environment,
+            )
+            deployment_store = DeploymentStateStore(
+                deployment_root / "deployment.sqlite3"
+            )
+            manager = DeploymentProcessManager(
+                project_root=self.project_root,
+                state_root=deployment_root,
+                store=deployment_store,
+                environment=self.environment,
+            )
+            pool = WorkerPoolFoundationRuntime(
+                self.state_root / "worker-pool.sqlite3",
+                attestation_secret=hashlib.sha256(
+                    f"sealed:{scenario_run_id}".encode("utf-8")
+                ).digest(),
+                default_lease_ttl_seconds=180,
+            )
+            evidence_store = PhysicalDispatchEvidenceStore(
+                self.state_root / "physical-evidence"
+            )
+        except BaseException:
+            _release_port_block(base_port)
+            raise
         call_ports: list[PhysicalDispatchCallPort] = []
         scheduler_receipts: list[dict[str, Any]] = []
         lease_receipts: list[dict[str, Any]] = []
@@ -635,6 +652,7 @@ class SealedPhysicalDispatchRuntime:
         finally:
             for call_port in call_ports:
                 call_port.close()
+            _release_port_block(base_port)
 
     @staticmethod
     def _tier(
