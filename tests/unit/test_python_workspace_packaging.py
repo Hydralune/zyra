@@ -89,3 +89,16 @@ def test_declared_workspace_packages_are_importable_without_test_path_bootstrap(
             sys.modules.pop(name, None)
             if original is not None:
                 sys.modules[name] = original
+
+
+def test_test_bootstrap_prefers_active_source_tree() -> None:
+    modules = (
+        "zyra_api",
+        "zyra_evaluation",
+        "zyra_orchestration",
+        "zyra_symbolic",
+    )
+    for name in modules:
+        imported = importlib.import_module(name)
+        source = Path(imported.__file__ or "").resolve()
+        assert source.is_relative_to(ROOT), (name, source, ROOT)

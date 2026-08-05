@@ -244,6 +244,18 @@ class PythonRuntimePathVisitor(ast.NodeVisitor):
         for fragment in self.fragments:
             if fragment.replace("\\", "/").lower() in lowered:
                 return fragment
+        try:
+            path = Path(candidate)
+            resolved = path.resolve() if path.is_absolute() else (self.root / path).resolve()
+            outside_root = not resolved.is_relative_to(self.root)
+        except (OSError, RuntimeError, ValueError):
+            outside_root = False
+            resolved = Path()
+        if outside_root:
+            parts = {part.casefold() for part in resolved.parts}
+            for repository in SOURCE_REPOSITORIES:
+                if repository.casefold() in parts:
+                    return repository
         return None
 
     def _literal(self, node: ast.AST) -> Any:
