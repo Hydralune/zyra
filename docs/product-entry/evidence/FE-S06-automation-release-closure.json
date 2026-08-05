@@ -2,13 +2,19 @@
   "schema": "zyra.product-entry-slice-evidence/v1",
   "slice_id": "FE-S06",
   "title": "Automation, real-scenario, and release closure",
-  "status": "pending_final_head_sealed_and_release_admission",
+  "status": "ready_for_exact_evidence_head_sealed_and_release_admission",
   "base_commit": "9aefa2f00e111044a275ab6097f552bafcfb2aea",
   "implementation_commits": [
     "e657134759455cee988bcc09197ad4dc4d8f6eec",
     "8ad3902d142da773fbdf9a3cf8fd5bec71e35a6f",
     "3aaa57ba17f9ebe6b95a12c842111e55afbcf23f",
-    "fec73cdc19b50e3cd1fe0bd03c7e6f6f2c3eb1c4"
+    "fec73cdc19b50e3cd1fe0bd03c7e6f6f2c3eb1c4",
+    "7fe6389348c6a75280c13c15acedb7efaf0834f1",
+    "90fd8e05c4a982bbdd5b609c19e95f43b77bd172",
+    "c465b2042d19f2699d4d8efbcfc2e010dd131d0c",
+    "18079a96e3661a58fe674e1bfa0ba72437e1f917",
+    "5fb42b83a421f45bbb187041661690915b79c46c",
+    "9be019e083a7676de8788abd8061715f962ade8f"
   ],
   "command_surface": {
     "count": 8,
@@ -79,31 +85,30 @@
     }
   },
   "candidate_bundle": {
-    "source_commit": "8ad3902d142da773fbdf9a3cf8fd5bec71e35a6f",
-    "release_id": "FE-S06-8ad3902",
+    "source_commit": "90fd8e05c4a982bbdd5b609c19e95f43b77bd172",
+    "release_id": "FE-S06-90fd8e0",
     "format": "zip",
-    "size": 46183082,
-    "reproducibility_a_sha256": "c3a8a7124715fb7fed3b1976fd8bdf2ba70e81f186c1f677e8dd5eb7fc0b5d54",
-    "reproducibility_b_sha256": "c3a8a7124715fb7fed3b1976fd8bdf2ba70e81f186c1f677e8dd5eb7fc0b5d54",
+    "size": 46195645,
+    "reproducibility_a_sha256": "a5f43a7f635420ff8afaceb6d75574410cccd3b5984b288f537bec684d83908b",
+    "reproducibility_b_sha256": "a5f43a7f635420ff8afaceb6d75574410cccd3b5984b288f537bec684d83908b",
     "byte_identical": true,
-    "partial_receipts": [
-      "source-custody",
-      "bundle-verification",
-      "legacy-source-retirement",
-      "sbom-verification",
-      "benchmark-link"
+    "mandatory_gate_count": 14,
+    "passed_gate_count": 13,
+    "failed_gates": [
+      "python-tests"
     ],
-    "final_ci_report": "missing_after_frontend_tool-session_interruption",
+    "final_ci_report": "generated; historical candidate failed closed on python-tests",
     "full_release_pass_claimed": false,
+    "python_failure_root_causes_remediated": true,
     "final_head_rerun_required": true
   },
   "sealed_candidate": {
-    "candidate_commit": "b04785f6c9cccbf9dd19c623476a565cadf38e06",
-    "manifest_id": "p2-s06-03-final-b04785f6c9cc",
+    "candidate_commit": "90fd8e05c4a982bbdd5b609c19e95f43b77bd172",
+    "manifest_id": "p2-s06-03-final-90fd8e05c4a9",
     "run_count": 2,
     "failed_run_count": 0,
     "human_intervention_count": 0,
-    "index_digest": "874b16528a39d001c787ce572eaa3a22903ef050d31bfb6d8be0aa6353be8d79",
+    "index_digest": "57b360a521708554d174216ec3792841fc53eb5db111ac92e0133306229aaad5",
     "runs": [
       {
         "run_key": "software-sdk",
@@ -112,8 +117,8 @@
         "valid_transition_count": 3232,
         "invalid_transition_count": 0,
         "unsafe_commit_count": 0,
-        "artifact_digest": "249c181b563144bbe7698d9e9e44ab4b184ded5deee70eb98722a44aed7f199d",
-        "verifier_digest": "26937bcb7c363329f9da34dcbd7272d23bd4e36d9f4cfd197a29594836cd02df"
+        "artifact_digest": "df0c7a26dd74f2f83f2ee5240f2c6f74f54f8a3fd6a2dff4281bb27d31183569",
+        "verifier_digest": "754654c5b60ac1b1bf2a5b1b1a6e0c910dc17e64ae564224156982d02fcbb582"
       },
       {
         "run_key": "technical-intelligence",
@@ -122,8 +127,8 @@
         "valid_transition_count": 7437,
         "invalid_transition_count": 0,
         "unsafe_commit_count": 0,
-        "artifact_digest": "045bf03a5fb6af7d9d5aa9aa6730c03b202a013e7054a2efebc47559be4aacda",
-        "verifier_digest": "c0bbb8a7324082e66dd1f8a81e1a84aa36a02fa75c12d6a90232fbd82505bec6"
+        "artifact_digest": "c812e6008c21a69c72464dc95dd617b0187985e5102769155ea5504b1b186a38",
+        "verifier_digest": "0c9bbfc0f57e6fabd9ebc591f0cce967b20537712a6c5fa0de608642880a629d"
       }
     ],
     "physical_dispatch": {
@@ -254,6 +259,22 @@
     {
       "command": "browser runtime discovery",
       "result": "unavailable; zero instances"
+    },
+    {
+      "command": "release-policy pytest command in a new clean worktree at 9be019e",
+      "result": "1398 passed; 15 deselected; 3 warnings; 80 subtests passed; exit 0"
+    },
+    {
+      "command": "known-polluter ordering regression",
+      "result": "237 passed"
+    },
+    {
+      "command": "production dispatch/recovery/provider cascade regression",
+      "result": "63 passed"
+    },
+    {
+      "command": "clean-worktree daemon and product supervisor rerun",
+      "result": "3 passed"
     }
   ],
   "blockers": [

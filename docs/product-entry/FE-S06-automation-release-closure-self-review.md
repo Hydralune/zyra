@@ -4,7 +4,7 @@
 
 FE-S06 已完成 CLI/automation/release 代码建设和本地真实路径回归。用户在 2026-08-05
 明确授权本次官方双域 sealed 场景使用三个已配置 provider，并将冻结任务内容发送到智谱、
-DeepSeek、Kimi 及场景指定的 RFC/IANA/MDN 公共来源；绑定候选 `b04785f` 的两个 run 均由
+DeepSeek、Kimi 及场景指定的 RFC/IANA/MDN 公共来源；绑定候选 `90fd8e0` 的两个 run 均由
 独立 verifier 判定通过。
 
 用户同时明确选择按 Codex CLI 环境收口：浏览器控制运行时没有可连接实例，因此浏览器点击/
@@ -12,8 +12,9 @@ DeepSeek、Kimi 及场景指定的 RFC/IANA/MDN 公共来源；绑定候选 `b04
 产品/证据路由和 CLI/Web 跨入口集成作为可执行替代证据。该限制不再阻断 FE-S06，但会保留在
 最终 verdict 中。
 
-当前只剩 evidence 更新后的最终 HEAD release admission 与 sealed 复验；在其完成前本文仍不把
-FE-S06 写成 completed。
+`9be019e` 的全新 clean worktree 已通过 release policy 使用的完整 Python 门：1,398 passed、
+15 deselected、80 subtests passed。当前只剩本 evidence 更新提交形成的最终 HEAD release
+admission 与 sealed 复验；在其完成前本文仍不把 FE-S06 写成 completed。
 
 ## 实现与修复
 
@@ -31,6 +32,13 @@ FE-S06 写成 completed。
 - legacy-source release gate 原先把 `provenance/**` 冻结证据副本误判为 runtime source copy；
   现在只把该路径排除出 blob runtime 判定，forbidden source-pool path 检查保持不变，并有负向
   回归测试。
+- sealed runner 以进程内 reservation 原子保留端口块，避免并行双域场景获得相同 endpoint；
+  deployment reset 会关闭自己拥有的真实节点，Windows venv launcher/runtime PID 分离也由
+  authenticated health identity 重新绑定。
+- CLI daemon 通过 generation-bound handoff 文件和 `/health` process identity 绑定真实 Python
+  runtime PID；status/stop 不再把短命 venv launcher 当作 daemon。
+- pytest API cleanup 纳入 deployment owner，workspace import 测试恢复原模块对象；测试 bootstrap
+  覆盖 pyproject 声明的全部源码根，并断言关键包来自当前 worktree，消除主仓库 editable 包混入。
 
 ## 八入口与输出契约
 
@@ -55,6 +63,10 @@ permission wait、5 verifier/completion gate。pipe consumer 离开不会取消�
   terminal、UI launcher 回归）。
 - Web 全量：`309 passed / 1,874 assertions`。
 - 全仓 TypeScript typecheck：通过；Web production build：通过。
+- `9be019e` 全新 clean worktree、release policy 原样 Python 门：`1,398 passed / 15 deselected /
+  80 subtests passed`，72 分 3 秒；三项 collection warning 不影响结果。
+- 已知污染源后接历史失败用例：`237 passed`；生产调度/恢复/provider/backend 级联复验：
+  `63 passed`；clean-worktree CLI daemon 与 product supervisor 复验：`3 passed`。
 - release/product-entry Python 单元组：`54 passed`；legacy retirement：`7 passed`。
 - CLI real piped stdin -> API/runtime：`1 passed`。
 - CLI/Web/terminal/registry/failover/sealed-exclusion 真实集成组：`31 passed`。
@@ -62,13 +74,14 @@ permission wait、5 verifier/completion gate。pipe consumer 离开不会取消�
   formal owner/work-unit contract 不一致而失败，没有追溯改写第一阶段测试。
 - Bun/Node 双入口 Node artifact：字节双构建一致、依赖闭包只有 `@zyra/cli`、
   `@zyra/commands`、`@zyra/typed-api-client`，Windows passed；Linux/macOS host unavailable。
-- candidate release graph 生成了两份字节一致的 46,183,082-byte zip 和五类 admission receipt；
-  前台工具会话中断后父进程没有写出最终 `ci-report.json`，因此只记录 bundle digest 与 partial
-  receipts，不声称 14-gate admission PASS，最终 HEAD 必须重跑。
-- 官方双域 sealed 候选 `b04785f`：2 runs、0 failed、human intervention 0；software-delivery
+- `90fd8e0` release graph 生成两份字节一致的 46,195,645-byte zip，SHA-256
+  `a5f43a7f635420ff8afaceb6d75574410cccd3b5984b288f537bec684d83908b`；14 个 mandatory gate
+  中 13 个通过，唯一失败为当时的 Python regression，随后稳定 contract 与测试隔离根因均已修复。
+  该历史 candidate 不冒充最终 admission PASS，最终 evidence HEAD 必须重跑。
+- 官方双域 sealed 候选 `90fd8e0`：2 runs、0 failed、human intervention 0；software-delivery
   3,232 个有效 transition，cross-source-research 7,437 个有效 transition，二者 invalid=0、
   unsafe commit=0，local/edge/cloud real gate 均关闭，三个 cloud provider 均返回 HTTP 200；
-  index digest `874b16528a39d001c787ce572eaa3a22903ef050d31bfb6d8be0aa6353be8d79`。
+  index digest `57b360a521708554d174216ec3792841fc53eb5db111ac92e0133306229aaad5`。
 
 ## 十个最终场景状态
 
