@@ -362,6 +362,10 @@ def test_cli_autostarts_managed_daemon_and_leaves_it_alive(tmp_path: Path) -> No
         assert projection["reachable"] is True
         assert projection["managed"] is True
         assert isinstance(projection["pid"], int) and projection["pid"] > 0
+        health = _get(base_url, "/health")
+        assert projection["pid"] == health["process_id"]
+        assert projection["generation"] == health["cli_daemon_generation"]
+        assert not list(Path(environment["ZYRA_CLI_STATE_DIR"]).glob("daemon-runtime-*.json"))
         managed_started = True
     finally:
         stopped = _run_cli(

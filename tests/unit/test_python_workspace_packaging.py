@@ -70,6 +70,7 @@ def test_declared_workspace_packages_are_importable_without_test_path_bootstrap(
         "zyra_workspace",
     )
     original_path = list(sys.path)
+    original_modules = {name: sys.modules.get(name) for name in modules}
     try:
         sys.path[:] = [
             item
@@ -84,3 +85,7 @@ def test_declared_workspace_packages_are_importable_without_test_path_bootstrap(
             assert imported.__file__
     finally:
         sys.path[:] = original_path
+        for name, original in original_modules.items():
+            sys.modules.pop(name, None)
+            if original is not None:
+                sys.modules[name] = original

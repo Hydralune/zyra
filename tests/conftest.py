@@ -12,6 +12,7 @@ _API_MODULE = "apps.api.zyra_api.main"
 _API_RESETTERS = (
     "reset_api_product_bootstrap",
     "reset_browser_runtime",
+    "reset_deployment_api",
     "reset_worker_pool_api",
     "reset_runtime_event_spine_bridge",
     "reset_fault_runtime_api",

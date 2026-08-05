@@ -8011,6 +8011,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "service": "zyra-api",
                     "phase": "m5-resource-scheduler-fault-recovery",
                     "api_version": API_VERSION,
+                    "process_id": os.getpid(),
+                    "cli_daemon_generation": (
+                        os.environ.get("ZYRA_CLI_DAEMON_GENERATION") or None
+                    ),
                     "capabilities": [
                         "typed_transport",
                         "idempotent_task_lifecycle",

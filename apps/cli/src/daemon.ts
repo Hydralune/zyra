@@ -23,6 +23,7 @@ import {
 import { CliDaemonError, CliTaskError } from "./contracts.ts"
 
 export const DAEMON_STATE_SCHEMA = "zyra.cli-daemon-state.v1" as const
+const DAEMON_RUNTIME_IDENTITY_SCHEMA = "zyra.cli-daemon-runtime-identity.v1" as const
 
 export interface DaemonState {
   schema: typeof DAEMON_STATE_SCHEMA
@@ -31,6 +32,18 @@ export interface DaemonState {
   base_url: string
   started_at: string
   project_id: string
+}
+
+interface DaemonRuntimeIdentity {
+  schema: typeof DAEMON_RUNTIME_IDENTITY_SCHEMA
+  generation: string
+  pid: number
+}
+
+interface DaemonHealthIdentity {
+  healthy: boolean
+  generation?: string
+  pid?: number
 }
 
 export interface DaemonStatus {
@@ -96,6 +109,10 @@ function lockPath(): string {
 
 function auditPath(): string {
   return join(cliStateDirectory(), "daemon-stop-audit.jsonl")
+}
+
+function runtimeIdentityPath(generation: string): string {
+  return join(cliStateDirectory(), `daemon-runtime-${generation}.json`)
 }
 
 async function appendDaemonAudit(value: DaemonStopAudit): Promise<void> {
@@ -199,6 +216,14 @@ async function removeState(): Promise<void> {
 }
 
 async function probeHealth(baseUrl: string, token?: string, timeoutMs = 5_000): Promise<boolean> {
+  return (await probeHealthIdentity(baseUrl, token, timeoutMs)).healthy
+}
+
+async function probeHealthIdentity(
+  baseUrl: string,
+  token?: string,
+  timeoutMs = 5_000,
+): Promise<DaemonHealthIdentity> {
   const client = new ZyraTypedApiClient({
     baseUrl,
     token,
@@ -213,11 +238,39 @@ async function probeHealth(baseUrl: string, token?: string, timeoutMs = 5_000): 
       coordinationKey: "daemon.health",
       deduplicate: true,
     })
-    return response.data.service === "zyra-api" && response.data.apiVersion === "1.0"
+    const healthy = response.data.service === "zyra-api" && response.data.apiVersion === "1.0"
+    const rawPid = response.data.raw.process_id
+    const rawGeneration = response.data.raw.cli_daemon_generation
+    return {
+      healthy,
+      pid: Number.isSafeInteger(rawPid) && Number(rawPid) > 0 ? Number(rawPid) : undefined,
+      generation: typeof rawGeneration === "string" && rawGeneration ? rawGeneration : undefined,
+    }
   } catch {
-    return false
+    return { healthy: false }
   } finally {
     client.close("health probe complete")
+  }
+}
+
+async function readRuntimeIdentity(
+  path: string,
+  generation: string,
+): Promise<DaemonRuntimeIdentity | undefined> {
+  try {
+    const decoded: unknown = JSON.parse(await readFile(path, "utf8"))
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return undefined
+    const value = decoded as Record<string, unknown>
+    if (
+      value.schema !== DAEMON_RUNTIME_IDENTITY_SCHEMA
+      || value.generation !== generation
+      || !Number.isSafeInteger(value.pid)
+      || Number(value.pid) <= 0
+    ) return undefined
+    return value as unknown as DaemonRuntimeIdentity
+  } catch (error) {
+    if (isErrno(error, "ENOENT") || error instanceof SyntaxError) return undefined
+    throw new CliDaemonError("Cannot read the Zyra daemon runtime identity.", {}, { cause: error })
   }
 }
 
@@ -304,6 +357,9 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
     const projectRoot = resolveProjectRoot()
     const python = await resolvePythonCommand(projectRoot)
     const port = Number(url.port || "80")
+    const generation = crypto.randomUUID()
+    const runtimeIdentity = runtimeIdentityPath(generation)
+    await rm(runtimeIdentity, { force: true })
     const child = spawn(python, [join(projectRoot, "scripts", "dev_api.py")], {
       cwd: projectRoot,
       detached: true,
@@ -313,23 +369,44 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
         ...process.env,
         ZYRA_API_HOST: url.hostname,
         ZYRA_API_PORT: String(port),
+        ZYRA_CLI_DAEMON_GENERATION: generation,
+        ZYRA_CLI_DAEMON_RUNTIME_IDENTITY: runtimeIdentity,
       },
     })
     if (!child.pid) throw new CliDaemonError("The Zyra daemon process did not expose a pid.")
     child.unref()
-    const state: DaemonState = {
+    let state: DaemonState = {
       schema: DAEMON_STATE_SCHEMA,
       pid: child.pid,
-      generation: crypto.randomUUID(),
+      generation,
       base_url: options.baseUrl,
       started_at: new Date().toISOString(),
       project_id: basename(projectRoot),
     }
     try {
       await writeState(state)
+      const launcherPid = child.pid
+      const handoffDeadline = Math.min(deadline, Date.now() + 10_000)
       while (Date.now() < deadline) {
-        if (await probeHealth(options.baseUrl, options.token)) return state
+        const handedOff = await readRuntimeIdentity(runtimeIdentity, generation)
+        if (handedOff && handedOff.pid !== state.pid) {
+          state = { ...state, pid: handedOff.pid }
+          await writeState(state)
+        }
+        const health = await probeHealthIdentity(options.baseUrl, options.token)
+        if (health.healthy && health.generation === generation) {
+          if (health.pid && health.pid !== state.pid) {
+            state = { ...state, pid: health.pid }
+            await writeState(state)
+          }
+          await rm(runtimeIdentity, { force: true })
+          return state
+        }
         if (!processAlive(state.pid)) {
+          if (state.pid === launcherPid && Date.now() < handoffDeadline) {
+            await sleep(100)
+            continue
+          }
           await removeState()
           throw new CliDaemonError("The Zyra daemon exited before becoming healthy.", {
             pid: state.pid,
@@ -355,6 +432,7 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
           }
         }
       }
+      await rm(runtimeIdentity, { force: true }).catch(() => undefined)
       await removeState().catch(() => undefined)
       throw error
     }
