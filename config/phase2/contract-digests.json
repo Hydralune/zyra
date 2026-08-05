@@ -49,7 +49,7 @@
     {
       "config_id": "source_roles",
       "path": "config/phase2/source-roles.yaml",
-      "sha256": "429c531402c1ebbb7142946562bb617c17e1847107d4ebf0273a5d86b12a5844"
+      "sha256": "c2a2ee3edeca088b524b1c166e97967710ccdc6eccd3fc35fbc233700bf3961a"
     },
     {
       "config_id": "state_owners",

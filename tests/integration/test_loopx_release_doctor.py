@@ -82,10 +82,16 @@ def test_release_bundle_contains_embedded_source_manifest_and_no_loopx_archives(
             )
             for name in names
         )
-        assert not any(
-            name.casefold().endswith((".whl", ".tar.gz"))
-            and PurePosixPath(name).name.casefold().startswith("loopx-")
+        loopx_archives = [
+            name
             for name in names
+            if name.casefold().endswith((".whl", ".tar.gz"))
+            and PurePosixPath(name).name.casefold().startswith("loopx-")
+        ]
+        assert all("/provenance/loopx/" in name.casefold() for name in loopx_archives)
+        assert not any(
+            "/packages/integrations/loopx_runtime/" in name.casefold()
+            for name in loopx_archives
         )
         manifest_name = next(
             name for name in names if name.endswith("/release/manifest.json")

@@ -875,13 +875,17 @@ class StrongestPreflightRunner:
             readiness_report=readiness_report,
             raw_receipt_refs=raw_refs,
         ).to_dict()
+        try:
+            manifest_ref = self.manifest.path.relative_to(
+                self.repository_root
+            ).as_posix()
+        except ValueError:
+            manifest_ref = f"external/{self.manifest.path.name}"
         inventory: dict[str, Any] = {
             "schema": STRONGEST_PREFLIGHT_INVENTORY_SCHEMA,
             "preflight_id": self.manifest.preflight_id,
             "implementation_commit": implementation_commit,
-            "manifest": self.manifest.path.relative_to(
-                self.repository_root
-            ).as_posix(),
+            "manifest": manifest_ref,
             "manifest_digest": self.manifest.manifest_digest,
             "files": [],
         }
