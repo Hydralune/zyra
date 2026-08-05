@@ -9,14 +9,23 @@ import {
 const SENSITIVE_KEY = /(authorization|cookie|credential|password|secret|token|cwd|workspace[_-]?path|event[_-]?log|sqlite|permission[_-]?store|artifact[_-]?root|tool[_-]?workspace)/i
 const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/
 const UNIX_ABSOLUTE_PATH = /^\/(?!\/)/
+const EMBEDDED_WINDOWS_ABSOLUTE_PATH = /(^|[\s("'=])([A-Za-z]:[\\/][^\s"'<>|]*)/g
+const EMBEDDED_UNIX_ABSOLUTE_PATH = /(^|[\s("'=])(\/(?!\/)[^\s"'<>]*)/g
+const CAPABILITY_PATH = /([\\/]capability[\\/])[^\\/?#\s]+/gi
+const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi
 const ANSI_ESCAPE = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\))/g
 
 function scrubString(value: string): string {
-  const withoutAnsi = value.replace(ANSI_ESCAPE, "")
+  const withoutAnsi = value
+    .replace(ANSI_ESCAPE, "")
+    .replace(CAPABILITY_PATH, "$1[redacted]")
+    .replace(URL_USERINFO, "$1[redacted]@")
   if (WINDOWS_ABSOLUTE_PATH.test(withoutAnsi) || UNIX_ABSOLUTE_PATH.test(withoutAnsi)) {
     return "[redacted-path]"
   }
   return withoutAnsi
+    .replace(EMBEDDED_WINDOWS_ABSOLUTE_PATH, "$1[redacted-path]")
+    .replace(EMBEDDED_UNIX_ABSOLUTE_PATH, "$1[redacted-path]")
 }
 
 export function sanitizeForOutput(

@@ -260,6 +260,14 @@ class PlatformPlanner:
                 "node",
             ),
             (
+                venv_python,
+                "scripts/verify_product_entry_release.py",
+                "--output",
+                "dist/cli/zyra.js",
+                "--report",
+                "dist/product-entry-release.json",
+            ),
+            (
                 "bun",
                 "build",
                 "apps/web/index.html",
@@ -957,6 +965,17 @@ class CleanInstallRunner:
                             "dist/code-worker",
                             "--target",
                             "bun",
+                        ],
+                        payload,
+                    ),
+                    (
+                        [
+                            str(python),
+                            "scripts/verify_product_entry_release.py",
+                            "--output",
+                            "dist/cli/zyra.js",
+                            "--report",
+                            "dist/product-entry-release.json",
                         ],
                         payload,
                     ),

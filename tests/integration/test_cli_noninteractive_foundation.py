@@ -35,6 +35,7 @@ def _run_cli(
     timeout: int = 180,
     environment: dict[str, str] | None = None,
     auto_start: bool = False,
+    stdin_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     command = [
         str(BUN),
@@ -53,6 +54,7 @@ def _run_cli(
         encoding="utf-8",
         timeout=timeout,
         env=environment,
+        input=stdin_text,
     )
 
 
@@ -205,6 +207,25 @@ def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> Non
             for record in records[:-1]
         )
         assert _get(base_url, "/health")["service"] == "zyra-api"
+
+
+def test_cli_run_reads_piped_stdin_without_polluting_jsonl(tmp_path: Path) -> None:
+    with _real_api(tmp_path) as base_url:
+        completed = _run_cli(
+            base_url,
+            "run",
+            "--timeout=3m",
+            stdin_text=(
+                "Return exactly FE-S06-STDIN and produce independently "
+                "verifiable evidence.\n"
+            ),
+        )
+        records = _records(completed)
+        assert completed.returncode == 0, completed.stderr
+        assert records[-1]["exit_code"] == 0
+        task = _get(base_url, f"/tasks/{records[-1]['task_id']}")["task"]
+        assert task["user_goal"].startswith("Return exactly FE-S06-STDIN")
+        assert all(line.startswith("{") for line in completed.stdout.splitlines())
 
 
 def test_cli_signal_policy_submits_real_cancel_receipt(tmp_path: Path) -> None:

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Writable } from "node:stream"
+import { Readable, Writable } from "node:stream"
 import type {
   TaskMutationProjection,
   TaskProjection,
@@ -93,6 +93,7 @@ describe("FE-S01 run result and fail-closed contracts", () => {
       },
       api: fake,
       output,
+      stdin: Readable.from([]),
       signal: new AbortController().signal,
     })
     expect(outcome.exitCode).toBe(CliExitCode.VERIFIER_FAILED)

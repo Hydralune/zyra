@@ -10,6 +10,7 @@ import {
   CliError,
   CliExitCode,
   CliTaskError,
+  CliUsageError,
   type CliCommand,
 } from "./contracts.ts"
 import {
@@ -160,6 +161,14 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       output.result({ ok: true, exit_code: CliExitCode.SUCCESS, status: "version" })
       return CliExitCode.SUCCESS
     }
+    if (
+      command.kind === "run"
+      && !command.goal
+      && !command.file
+      && (stdin as Readable & { isTTY?: boolean }).isTTY === true
+    ) {
+      throw new CliUsageError("zyra run requires a goal, --file, or piped stdin.")
+    }
     const token = environment.token ?? (process.env.ZYRA_API_TOKEN?.trim() || undefined)
     if (command.kind === "daemon") {
       const outcome = await daemonCommand(command, token)
@@ -245,7 +254,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         const registration = await terminal.start()
         if (lineMode) stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
       }
-      if (command.kind === "run") outcome = await executeRun({ command, api, output, signal: signal.controller.signal })
+      if (command.kind === "run") outcome = await executeRun({ command, api, output, stdin, signal: signal.controller.signal })
       else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
       else if (command.kind === "interactive") {
         outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import type { Readable } from "node:stream"
 import {
   RequestCancelledError,
   type EventProjection,
@@ -8,7 +9,6 @@ import {
 import { CliApi, type IngressFrame } from "./api.ts"
 import {
   CliExitCode,
-  CliTaskError,
   CliUsageError,
   type RunCommand,
 } from "./contracts.ts"
@@ -96,19 +96,60 @@ function emitLegacyEvent(
   )
 }
 
-async function goalFrom(command: RunCommand): Promise<string> {
-  if (command.goal) return command.goal
-  if (!command.file) throw new CliTaskError("Task goal is missing.", "goal_missing")
-  let content: string
+const MAX_GOAL_BYTES = 256 * 1024
+
+async function readStdinGoal(stdin: Readable, signal: AbortSignal): Promise<string> {
+  if ((stdin as Readable & { isTTY?: boolean }).isTTY === true) {
+    throw new CliUsageError("zyra run requires a goal, --file, or piped stdin.")
+  }
+  const chunks: Buffer[] = []
+  let bytes = 0
+  const read = (async () => {
+    for await (const chunk of stdin) {
+      if (signal.aborted) throw signal.reason
+      const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8")
+      bytes += value.byteLength
+      if (bytes > MAX_GOAL_BYTES) {
+        throw new CliUsageError("Piped task goal must not exceed 256 KiB of UTF-8 input.")
+      }
+      chunks.push(value)
+    }
+    return Buffer.concat(chunks).toString("utf8")
+  })()
+  let rejectAbort: (reason?: unknown) => void = () => undefined
+  const onAbort = () => rejectAbort(signal.reason)
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject
+    if (signal.aborted) reject(signal.reason)
+    else signal.addEventListener("abort", onAbort, { once: true })
+  })
   try {
-    content = await readFile(command.file, "utf8")
-  } catch {
-    throw new CliUsageError("Cannot read the UTF-8 task goal file.")
+    return await Promise.race([read, aborted])
+  } finally {
+    signal.removeEventListener("abort", onAbort)
+  }
+}
+
+export async function goalFrom(
+  command: RunCommand,
+  stdin: Readable,
+  signal: AbortSignal,
+): Promise<string> {
+  if (command.goal) return command.goal
+  let content: string
+  if (command.file) {
+    try {
+      content = await readFile(command.file, "utf8")
+    } catch {
+      throw new CliUsageError("Cannot read the UTF-8 task goal file.")
+    }
+  } else {
+    content = await readStdinGoal(stdin, signal)
   }
   const goal = content.trim()
   const bytes = new TextEncoder().encode(goal).byteLength
-  if (!goal || bytes > 256 * 1024) {
-    throw new CliUsageError("Task goal file must contain at most 256 KiB of non-empty UTF-8 text.")
+  if (!goal || bytes > MAX_GOAL_BYTES) {
+    throw new CliUsageError("Task goal input must contain at most 256 KiB of non-empty UTF-8 text.")
   }
   return goal
 }
@@ -200,9 +241,10 @@ export async function executeRun(input: {
   command: RunCommand
   api: CliApi
   output: CliOutput
+  stdin: Readable
   signal: AbortSignal
 }): Promise<CommandOutcome> {
-  const goal = await goalFrom(input.command)
+  const goal = await goalFrom(input.command, input.stdin, input.signal)
   const created = await input.api.createPendingTask(goal, input.command.sealed)
   const task = created.task
   const accumulator: EventAccumulator = { seen: new Set(), verifier: {} }

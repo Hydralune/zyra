@@ -262,6 +262,7 @@ class ReleaseDoctor:
         required = {
             "git": shutil.which("git"),
             "bun": self._resolve_bun(),
+            "node": shutil.which("node"),
             "python": sys.executable,
         }
         missing = sorted(name for name, path in required.items() if not path)

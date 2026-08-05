@@ -277,7 +277,6 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
     const goal = typeof values.goal === "string" ? values.goal.trim() : undefined
     const file = typeof values.file === "string" ? values.file : undefined
     if (goal && file) throw new CliUsageError("Use either a goal or --file, not both.")
-    if (!goal && !file) throw new CliUsageError("zyra run requires a goal or --file.")
     return {
       kind: "run",
       ...common(values),
@@ -375,7 +374,7 @@ export const CLI_USAGE = `Zyra CLI command surface
 
   zyra                              interactive session
   zyra "<goal>"                     interactive task with live events
-  zyra run <goal | -f file>         non-interactive JSONL execution
+  zyra run <goal | -f file | stdin> non-interactive JSONL execution
   zyra resume <task|session>        resume from server snapshot/cursor
   zyra ls                           list canonical tasks and sessions
   zyra scenario <action> [...]      scenario lifecycle over the daemon API

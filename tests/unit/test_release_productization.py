@@ -714,6 +714,18 @@ def test_platform_plans_cover_windows_linux_and_offline() -> None:
     assert linux.install_commands[0][0] == "python3"
     assert "\\" in windows.lifecycle_commands["doctor"][0]
     assert "/" in linux.lifecycle_commands["doctor"][0]
+    for plan in (windows, linux):
+        verifier = next(
+            command
+            for command in plan.install_commands
+            if "scripts/verify_product_entry_release.py" in command
+        )
+        assert verifier[-4:] == (
+            "--output",
+            "dist/cli/zyra.js",
+            "--report",
+            "dist/product-entry-release.json",
+        )
 
 
 def test_port_probe_fails_when_required_port_is_occupied() -> None:
