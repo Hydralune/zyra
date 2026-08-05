@@ -16,6 +16,7 @@ LEGACY_ROOTS = ("vendor", "vendor-runtimes")
 NON_RUNTIME_EVIDENCE_PREFIXES = (
     "docs/evidence/",
     "docs/reviews/evidence/",
+    "provenance/",
 )
 FORBIDDEN_POOL_SEGMENTS = {
     "vendor",

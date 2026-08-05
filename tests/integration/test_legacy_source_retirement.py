@@ -119,6 +119,12 @@ class LegacySourceRetirementTests(unittest.TestCase):
                 size=1,
             ),
             GitFile(
+                path="provenance/claude-code-best/src/query.ts",
+                mode="100644",
+                blob_id=legacy_blob,
+                size=1,
+            ),
+            GitFile(
                 path="third_party/NOTICE.md",
                 mode="100644",
                 blob_id=retained_notice_blob,
@@ -147,6 +153,12 @@ class LegacySourceRetirementTests(unittest.TestCase):
             any(
                 finding.path
                 == "docs/evidence/phase2/run/command.stdout.txt"
+                for finding in findings
+            )
+        )
+        self.assertFalse(
+            any(
+                finding.path == "provenance/claude-code-best/src/query.ts"
                 for finding in findings
             )
         )
