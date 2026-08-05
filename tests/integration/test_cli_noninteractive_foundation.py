@@ -63,6 +63,7 @@ def _isolated_daemon_environment(tmp_path: Path) -> dict[str, str]:
     environment.update(
         {
             "ZYRA_PROJECT_ROOT": str(ROOT),
+            "ZYRA_PYTHON": sys.executable,
             "ZYRA_CLI_STATE_DIR": str(tmp_path / "cli-state"),
             "ZYRA_SQLITE_PATH": str(tmp_path / "api.sqlite3"),
             "ZYRA_EVENT_LOG": str(tmp_path / "events.jsonl"),
