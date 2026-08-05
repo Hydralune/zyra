@@ -250,15 +250,23 @@ def _probe_entry(
     records = _parse_jsonl(completed.stdout)
     missing = [line for line in EXPECTED_COMMAND_LINES if line not in completed.stderr]
     schemas = sorted({str(record.get("schema") or "") for record in records})
+    help_payload = records[0].get("payload")
+    command_count = (
+        help_payload.get("command_count")
+        if isinstance(help_payload, Mapping)
+        else None
+    )
     return {
         "ready": not missing
         and schemas == ["zyra.cli-record.v1", "zyra.cli-result.v1"]
+        and command_count == len(EXPECTED_COMMAND_LINES)
         and records[-1].get("exit_code") == 0,
         "entry": label,
         "returncode": completed.returncode,
         "record_count": len(records),
         "schemas": schemas,
         "exit_code": records[-1].get("exit_code"),
+        "command_count": command_count,
         "missing_command_lines": missing,
         "stdout_jsonl": True,
         "stdout_sha256": hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest(),
