@@ -2,7 +2,7 @@
   "schema": "zyra.product-entry-slice-evidence/v1",
   "slice_id": "FE-S06",
   "title": "Automation, real-scenario, and release closure",
-  "status": "blocked_pending_explicit_external_authorization_and_browser",
+  "status": "pending_final_head_sealed_and_release_admission",
   "base_commit": "9aefa2f00e111044a275ab6097f552bafcfb2aea",
   "implementation_commits": [
     "e657134759455cee988bcc09197ad4dc4d8f6eec",
@@ -97,6 +97,57 @@
     "full_release_pass_claimed": false,
     "final_head_rerun_required": true
   },
+  "sealed_candidate": {
+    "candidate_commit": "b04785f6c9cccbf9dd19c623476a565cadf38e06",
+    "manifest_id": "p2-s06-03-final-b04785f6c9cc",
+    "run_count": 2,
+    "failed_run_count": 0,
+    "human_intervention_count": 0,
+    "index_digest": "874b16528a39d001c787ce572eaa3a22903ef050d31bfb6d8be0aa6353be8d79",
+    "runs": [
+      {
+        "run_key": "software-sdk",
+        "domain": "software_delivery",
+        "passed": true,
+        "valid_transition_count": 3232,
+        "invalid_transition_count": 0,
+        "unsafe_commit_count": 0,
+        "artifact_digest": "249c181b563144bbe7698d9e9e44ab4b184ded5deee70eb98722a44aed7f199d",
+        "verifier_digest": "26937bcb7c363329f9da34dcbd7272d23bd4e36d9f4cfd197a29594836cd02df"
+      },
+      {
+        "run_key": "technical-intelligence",
+        "domain": "cross_source_research",
+        "passed": true,
+        "valid_transition_count": 7437,
+        "invalid_transition_count": 0,
+        "unsafe_commit_count": 0,
+        "artifact_digest": "045bf03a5fb6af7d9d5aa9aa6730c03b202a013e7054a2efebc47559be4aacda",
+        "verifier_digest": "c0bbb8a7324082e66dd1f8a81e1a84aa36a02fa75c12d6a90232fbd82505bec6"
+      }
+    ],
+    "physical_dispatch": {
+      "tiers": [
+        "device",
+        "edge",
+        "cloud"
+      ],
+      "real_gate_closed": true,
+      "simulated": false,
+      "edge_loss_recovery_observed": true,
+      "artifact_continuity": true,
+      "cloud_providers": [
+        "zhipu/glm-5.2",
+        "deepseek/deepseek-v4-flash",
+        "kimi-platform/kimi-k2.7-code"
+      ],
+      "all_cloud_response_status": 200,
+      "credentials_redacted": true
+    },
+    "product_terminal_listener_started": false,
+    "product_terminal_dispatch_count": 0,
+    "final_head_rerun_required": true
+  },
   "browser_validation": {
     "api_http_status": 200,
     "web_http_status": 200,
@@ -105,7 +156,15 @@
     "available_browser_instances": 0,
     "click_or_screenshot_claimed": false,
     "fallback_browser_claimed": false,
-    "verification_processes_cleaned": true
+    "verification_processes_cleaned": true,
+    "codex_cli_limitation_accepted_by_user": true,
+    "blocks_completion": false,
+    "accepted_alternative_evidence": [
+      "Web full test",
+      "Web production build",
+      "real product/evidence HTTP routes",
+      "real CLI/Web cross-entry integration"
+    ]
   },
   "real_scenario_status": [
     {
@@ -130,18 +189,18 @@
     },
     {
       "id": 5,
-      "status": "blocked",
-      "evidence": "final software-delivery sealed run requires explicit provider credential/data egress authorization"
+      "status": "passed_pending_final_head_rerun",
+      "evidence": "3232 valid transitions, zero invalid/unsafe commits, artifact and verifier digest bound"
     },
     {
       "id": 6,
-      "status": "blocked",
-      "evidence": "final cross-source-research sealed run requires explicit provider credential and RFC/IANA/MDN egress authorization"
+      "status": "passed_pending_final_head_rerun",
+      "evidence": "7437 valid transitions, zero invalid/unsafe commits, three live provider HTTP 200 receipts"
     },
     {
       "id": 7,
-      "status": "blocked",
-      "evidence": "sealed exclusion regression passed; same-final-head official sealed receipt still requires authorization"
+      "status": "passed_pending_final_head_rerun",
+      "evidence": "human intervention zero; product terminal listener not started; terminal exclusion regression passed"
     },
     {
       "id": 8,
@@ -150,13 +209,13 @@
     },
     {
       "id": 9,
-      "status": "passed_with_final_sealed_receipt_pending",
-      "evidence": "real recovery/failover integration"
+      "status": "passed_pending_final_head_rerun",
+      "evidence": "both sealed domains observed edge loss, safe recovery, and artifact continuity"
     },
     {
       "id": 10,
-      "status": "blocked",
-      "evidence": "product/evidence HTTP routes passed; browser-level interaction unavailable"
+      "status": "passed_with_codex_cli_browser_unavailable",
+      "evidence": "product/evidence HTTP routes, Web full suite/build, and cross-entry passed; user accepted Codex CLI browser limitation"
     }
   ],
   "verification": [
@@ -199,24 +258,13 @@
   ],
   "blockers": [
     {
-      "code": "external_provider_and_source_authorization_required",
-      "blocks_completion": true,
-      "required_action": "user explicitly authorizes reading configured Zhipu/DeepSeek/Kimi credentials and sending sealed task content to those providers and RFC/IANA/MDN public sources"
-    },
-    {
-      "code": "browser_instance_unavailable",
-      "blocks_completion": true,
-      "required_action": "user connects an in-app or supported browser instance for browser-level product/evidence verification"
-    },
-    {
       "code": "final_head_release_admission_rerun_required",
       "blocks_completion": true,
-      "required_action": "rerun full release graph after final evidence head is frozen"
+      "required_action": "rerun official sealed scenarios and full release graph after final evidence head is frozen"
     }
   ],
   "does_not_claim": [
     "FE-S06 completed",
-    "official same-head dual-domain sealed PASS",
     "browser click or screenshot PASS",
     "Linux or macOS compatibility PASS",
     "candidate partial release receipts as full CI admission"

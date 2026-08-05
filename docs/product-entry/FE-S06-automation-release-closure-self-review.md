@@ -2,15 +2,18 @@
 
 ## 当前结论
 
-FE-S06 已完成 CLI/automation/release 代码建设和本地真实路径回归，但截至本 evidence commit
-仍有两个不能由实现侧自行绕过的最终验收入口：
+FE-S06 已完成 CLI/automation/release 代码建设和本地真实路径回归。用户在 2026-08-05
+明确授权本次官方双域 sealed 场景使用三个已配置 provider，并将冻结任务内容发送到智谱、
+DeepSeek、Kimi 及场景指定的 RFC/IANA/MDN 公共来源；绑定候选 `b04785f` 的两个 run 均由
+独立 verifier 判定通过。
 
-1. 官方双域 sealed 场景需要读取本机三个已配置 provider 凭据，并向智谱、DeepSeek、Kimi
-   以及场景指定的 RFC/IANA/MDN 公共来源发送任务内容；当前没有这项具体外发授权。
-2. Web 产品面/证据面的浏览器级验收需要可连接的浏览器实例；本次浏览器运行时枚举结果为空。
+用户同时明确选择按 Codex CLI 环境收口：浏览器控制运行时没有可连接实例，因此浏览器点击/
+截图保持 `unavailable`，不宣称 browser PASS；Web 全量测试、production build、真实 HTTP
+产品/证据路由和 CLI/Web 跨入口集成作为可执行替代证据。该限制不再阻断 FE-S06，但会保留在
+最终 verdict 中。
 
-因此本文不把 FE-S06 写成 completed，也不继承旧 HEAD 的 sealed/browser 结论。其余已完成项、
-失败修复和阻断边界如下。
+当前只剩 evidence 更新后的最终 HEAD release admission 与 sealed 复验；在其完成前本文仍不把
+FE-S06 写成 completed。
 
 ## 实现与修复
 
@@ -38,8 +41,8 @@ FE-S06 已完成 CLI/automation/release 代码建设和本地真实路径回归�
 | `zyra run` | goal/file/stdin，strict JSONL，0..5 exit | unit + real piped-stdin API integration + release probe |
 | `zyra resume` | task-backed session/cursor/snapshot 恢复 | CLI recovery + real API integration |
 | `zyra ls` | canonical task/session projection | CLI contract tests |
-| `zyra scenario` | daemon scenario lifecycle/evidence | scenario/dual-domain integration；最终 sealed 外发仍待授权 |
-| `zyra ui` | 复用 daemon，启动既有 Web 产品路由 | launcher、HTTP route、跨入口 integration；浏览器实例不可用 |
+| `zyra scenario` | daemon scenario lifecycle/evidence | 双域官方 sealed：2 passed / 0 failed，独立 verifier 通过 |
+| `zyra ui` | 复用 daemon，启动既有 Web 产品路由 | launcher、HTTP route、跨入口 integration；浏览器实例 unavailable（用户接受 CLI 环境限制） |
 | `zyra daemon` | pid/generation/readiness 与 active-task stop guard | daemon integration |
 
 退出码固定为 0 success、1 task/scenario failure、2 usage/input、3 daemon/API、4 cancel/signal/
@@ -62,6 +65,10 @@ permission wait、5 verifier/completion gate。pipe consumer 离开不会取消�
 - candidate release graph 生成了两份字节一致的 46,183,082-byte zip 和五类 admission receipt；
   前台工具会话中断后父进程没有写出最终 `ci-report.json`，因此只记录 bundle digest 与 partial
   receipts，不声称 14-gate admission PASS，最终 HEAD 必须重跑。
+- 官方双域 sealed 候选 `b04785f`：2 runs、0 failed、human intervention 0；software-delivery
+  3,232 个有效 transition，cross-source-research 7,437 个有效 transition，二者 invalid=0、
+  unsafe commit=0，local/edge/cloud real gate 均关闭，三个 cloud provider 均返回 HTTP 200；
+  index digest `874b16528a39d001c787ce572eaa3a22903ef050d31bfb6d8be0aa6353be8d79`。
 
 ## 十个最终场景状态
 
@@ -71,12 +78,12 @@ permission wait、5 verifier/completion gate。pipe consumer 离开不会取消�
 | 2 | Web/CLI 控制 revision/permission/receipt 一致 | command/permission parity integrations | PASS |
 | 3 | CLI 退出，daemon/task 继续，terminal 真实 failover | daemon + terminal cross-language integration | PASS |
 | 4 | 重开从 cursor/snapshot 恢复，无重复副作用 | recovery/idempotency integration | PASS |
-| 5 | software-delivery clean state + verifier artifact | 官方 final sealed run 待外发授权 | BLOCKED |
-| 6 | cross-source-research clean state + verifier artifact | 官方 final sealed run 待 provider/公共来源外发授权 | BLOCKED |
-| 7 | sealed human=0、terminal dispatch=0 | 现有 exclusion regression 通过；同最终 HEAD 官方 sealed run 待授权 | BLOCKED |
+| 5 | software-delivery clean state + verifier artifact | 3,232 valid、0 invalid、artifact/verifier digest 绑定 | PASS（最终 HEAD 待复验） |
+| 6 | cross-source-research clean state + verifier artifact | 7,437 valid、0 invalid、三个 provider 真实 200 | PASS（最终 HEAD 待复验） |
+| 7 | sealed human=0、terminal dispatch=0 | human=0；官方 runner 不启动产品 terminal listener；既有 terminal exclusion regression 通过 | PASS（最终 HEAD 待复验） |
 | 8 | interactive terminal 真实 dispatch，LOCAL | TypeScript listener -> Python registry/router real HTTP | PASS |
-| 9 | 异常/需求变化/节点失效后自主恢复 | recovery/failover integrations | PASS；最终双域 sealed receipt 待授权 |
-| 10 | Web drill-down 至六类关键证据 | production/evidence HTTP route 通过；浏览器实例为空 | BLOCKED |
+| 9 | 异常/需求变化/节点失效后自主恢复 | 两域均观察 edge loss、safe fail-closed recovery 和 artifact continuity | PASS（最终 HEAD 待复验） |
+| 10 | Web drill-down 至六类关键证据 | production/evidence HTTP route、Web full test、cross-entry 通过；浏览器实例为空 | PASS_WITH_CODEX_CLI_BROWSER_UNAVAILABLE |
 
 ## Claude CLI 学习完成门
 
@@ -98,8 +105,8 @@ pipe/tee 已进入 CLI/真实 API 测试。生产依赖闭包没有参考仓库�
 | adapter-only | 0 | 关键结论由真实 API/process/HTTP/build/receipt 路径支撑 |
 | mock/fixture | release 纯审计单测和 CLI fake streams | 只锁定失败边界；不替代 sealed、browser、terminal 或 release receipt |
 
-## 剩余授权边界
+## 剩余收口边界
 
-在用户明确授权指定 provider/公共来源外发、并提供一个可连接浏览器实例前，FE-S06 保持
-`in_progress`。不得通过跳过 provider、复用旧 sealed receipt、静态 Web 数据、HTTP marker
-或源码审阅把这两项改写成通过。
+外部 provider/公共来源授权已取得并完成候选验证；浏览器限制已由用户明确选择按 Codex CLI
+环境记为 `unavailable`。FE-S06 仅在 evidence commit 后的最终 HEAD 再次通过双域 sealed 与
+完整 release admission 后才能置为 completed。不得复用候选 receipt 冒充最终 HEAD 结果。
