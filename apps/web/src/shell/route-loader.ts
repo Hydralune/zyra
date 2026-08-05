@@ -77,7 +77,10 @@ export class WorkbenchRouteLoader {
       phase: "loading",
       generation,
       startedAt: Date.now(),
-      taskId: route.kind === "task" ? route.taskId : undefined,
+      taskId:
+        route.kind === "task" || route.kind === "evidence"
+          ? route.taskId
+          : undefined,
     }
     this.#active = record
     this.#remember(record)
@@ -123,7 +126,9 @@ export class WorkbenchRouteLoader {
     active.phase = "cancelled"
     active.error = reason
     active.settledAt = Date.now()
-    if (active.routeKind === "task") this.#workbench.cancelRequest("detail", reason)
+    if (active.routeKind === "task" || active.routeKind === "evidence") {
+      this.#workbench.cancelRequest("detail", reason)
+    }
     if (active.routeKind === "tasks") this.#workbench.cancelRequest("list", reason)
     this.#remember(active)
     this.#publish()
@@ -153,7 +158,7 @@ export class WorkbenchRouteLoader {
         cursor: route.query.cursor,
         preserveOnError: true,
       }))
-    } else if (route.kind === "task") {
+    } else if (route.kind === "task" || route.kind === "evidence") {
       operations.push(this.#workbench.loadTask(route.taskId))
       if (this.#workbench.getSnapshot().list.phase === "idle") {
         operations.push(this.#workbench.refreshTasks({ preserveOnError: true }))
@@ -170,9 +175,12 @@ export class WorkbenchRouteLoader {
       focus: parsed.searchParams.get("focus") as WorkbenchRoute["query"]["focus"] ?? undefined,
       overlay: parsed.searchParams.get("overlay") ?? undefined,
     }
-    if (record.routeKind === "task" && record.taskId) {
+    if (
+      (record.routeKind === "task" || record.routeKind === "evidence")
+      && record.taskId
+    ) {
       return {
-        kind: "task",
+        kind: record.routeKind,
         taskId: record.taskId,
         path: parsed.pathname,
         query,

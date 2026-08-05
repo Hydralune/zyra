@@ -3,6 +3,7 @@ const TASK_ID_PATTERN = /^task[_:-][A-Za-z0-9][A-Za-z0-9._:-]{2,240}$/
 export type WorkbenchRoute =
   | { kind: "tasks"; path: "/tasks"; query: RouteQuery }
   | { kind: "task"; path: string; taskId: string; query: RouteQuery }
+  | { kind: "evidence"; path: string; taskId: string; query: RouteQuery }
   | { kind: "new-task"; path: "/tasks/new"; query: RouteQuery }
   | { kind: "settings"; path: "/settings"; query: RouteQuery }
   | { kind: "not-found"; path: string; attemptedPath: string; query: RouteQuery }
@@ -121,6 +122,17 @@ export function parseWorkbenchRoute(location: Pick<RouteLocation, "pathname" | "
     return { kind: "settings", path: "/settings", query }
   }
   const parts = path.split("/").filter(Boolean)
+  if (parts.length === 3 && parts[0] === "tasks" && parts[2] === "evidence") {
+    const taskId = decodePathSegment(parts[1] ?? "")
+    if (taskId && TASK_ID_PATTERN.test(taskId)) {
+      return {
+        kind: "evidence",
+        path: `/tasks/${encodeURIComponent(taskId)}/evidence`,
+        taskId,
+        query,
+      }
+    }
+  }
   if (parts.length === 2 && parts[0] === "tasks") {
     const taskId = decodePathSegment(parts[1] ?? "")
     if (taskId && TASK_ID_PATTERN.test(taskId)) {
@@ -151,6 +163,18 @@ export function taskRoute(taskId: string, query: RouteQuery = {}): WorkbenchRout
   return {
     kind: "task",
     path: `/tasks/${encodeURIComponent(taskId)}`,
+    taskId,
+    query: { ...query },
+  }
+}
+
+export function evidenceRoute(taskId: string, query: RouteQuery = {}): WorkbenchRoute {
+  if (!TASK_ID_PATTERN.test(taskId)) {
+    throw new TypeError(`Invalid evidence route identity: ${taskId}`)
+  }
+  return {
+    kind: "evidence",
+    path: `/tasks/${encodeURIComponent(taskId)}/evidence`,
     taskId,
     query: { ...query },
   }
@@ -273,6 +297,10 @@ export class WorkbenchRouter {
     }), { replace: options.replace })
   }
 
+  openEvidence(taskId: string, options: { replace?: boolean } = {}): WorkbenchRoute {
+    return this.navigate(evidenceRoute(taskId, { focus: "task-detail" }), options)
+  }
+
   openTasks(options: { replace?: boolean; status?: string; cursor?: string } = {}): WorkbenchRoute {
     return this.navigate(tasksRoute({
       focus: "task-list",
@@ -346,7 +374,10 @@ export class WorkbenchRouter {
     return {
       zyraWorkbench: true,
       route: route.kind,
-      taskId: route.kind === "task" ? route.taskId : undefined,
+      taskId:
+        route.kind === "task" || route.kind === "evidence"
+          ? route.taskId
+          : undefined,
       updatedAt: Date.now(),
     }
   }

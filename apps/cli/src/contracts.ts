@@ -16,6 +16,7 @@ export type CliCommandName =
   | "ls"
   | "run"
   | "scenario"
+  | "ui"
   | "daemon"
   | "help"
   | "version"
@@ -87,6 +88,13 @@ export interface DaemonCommand extends CommonOptions {
   force: boolean
 }
 
+export interface UiCommand extends CommonOptions {
+  kind: "ui"
+  webPort: number
+  open: boolean
+  taskId?: string
+}
+
 export interface HelpCommand {
   kind: "help"
 }
@@ -101,6 +109,7 @@ export type CliCommand =
   | ListCommand
   | RunCommand
   | ScenarioCommand
+  | UiCommand
   | DaemonCommand
   | HelpCommand
   | VersionCommand

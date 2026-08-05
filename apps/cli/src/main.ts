@@ -23,6 +23,7 @@ import { executeScenario } from "./scenario.ts"
 import { executeInteractive, executeResume } from "./commands/interactive.ts"
 import { executeList } from "./commands/list.ts"
 import { TerminalNodeLifecycle } from "./terminal/lifecycle.ts"
+import { launchUi } from "./ui.ts"
 
 export interface MainEnvironment {
   stdout?: Writable
@@ -150,7 +151,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     })
     if (command.kind === "help") {
       output.diagnostic(CLI_USAGE)
-      output.event({ schema: "zyra.cli-help.v1", command_count: 8 })
+      output.event({ schema: "zyra.cli-help.v1", command_count: 9 })
       output.result({ ok: true, exit_code: CliExitCode.SUCCESS, status: "help" })
       return CliExitCode.SUCCESS
     }
@@ -190,6 +191,28 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         managed: daemon.managed,
         generation: daemon.generation,
       })
+    }
+    if (command.kind === "ui") {
+      const receipt = await launchUi({
+        baseUrl: command.baseUrl,
+        webPort: command.webPort,
+        startupTimeoutMs: command.startupTimeoutMs,
+        open: command.open,
+        taskId: command.taskId,
+      })
+      output.diagnostic(
+        receipt.browser_opened
+          ? `Zyra product entry opened: ${receipt.url}`
+          : `Zyra product entry ready: ${receipt.url}`,
+      )
+      output.event({ ...receipt })
+      output.result({
+        ok: true,
+        exit_code: CliExitCode.SUCCESS,
+        status: receipt.already_running ? "already-running" : "started",
+        result: { ...receipt },
+      })
+      return CliExitCode.SUCCESS
     }
     const api = new CliApi({
       baseUrl: command.baseUrl,

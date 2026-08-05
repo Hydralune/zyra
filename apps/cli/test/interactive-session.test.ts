@@ -53,12 +53,17 @@ function frame(sequence: number, eventType = "runtime.text.delta", overrides: Pa
 }
 
 describe("FE-S02 interactive command surface", () => {
-  test("parses the four interactive top-level entries without taking over later ui", () => {
+  test("parses interactive entries and delegates ui to the FE-S05 launcher", () => {
     expect(parseCliArgs([])).toMatchObject({ kind: "interactive", goal: undefined })
     expect(parseCliArgs(["inspect", "this", "workspace"])).toMatchObject({ kind: "interactive", goal: "inspect this workspace" })
     expect(parseCliArgs(["resume", "task_test"])).toMatchObject({ kind: "resume", identity: "task_test" })
     expect(parseCliArgs(["ls", "--limit=25"])).toMatchObject({ kind: "ls", limit: 25 })
-    expect(() => parseCliArgs(["ui"])).toThrow("FE-S05")
+    expect(parseCliArgs(["ui"])).toMatchObject({
+      kind: "ui",
+      webPort: 5173,
+      open: true,
+      taskId: undefined,
+    })
   })
 
   test("keeps multiline and large paste drafts atomic and recoverable", () => {

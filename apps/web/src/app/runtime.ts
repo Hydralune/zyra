@@ -290,12 +290,18 @@ export function createWorkbenchRuntime(
     })
   }
   const unsubscribeProjectionRoute = router.listen((route) => {
-    bindProjectionRoute(route.kind === "task" ? route.taskId : undefined)
+    bindProjectionRoute(
+      route.kind === "task" || route.kind === "evidence"
+        ? route.taskId
+        : undefined,
+    )
   })
   let closed = false
   const initialRoute = router.current
   bindProjectionRoute(
-    initialRoute.kind === "task" ? initialRoute.taskId : undefined,
+    initialRoute.kind === "task" || initialRoute.kind === "evidence"
+      ? initialRoute.taskId
+      : undefined,
   )
   return {
     api,

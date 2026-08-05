@@ -75,7 +75,7 @@ function isErrno(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException | undefined)?.code === code
 }
 
-function stateDirectory(): string {
+export function cliStateDirectory(): string {
   const explicit = process.env.ZYRA_CLI_STATE_DIR?.trim()
   if (explicit) return resolve(explicit)
   if (platform() === "win32") {
@@ -87,19 +87,19 @@ function stateDirectory(): string {
 }
 
 function statePath(): string {
-  return join(stateDirectory(), "daemon.json")
+  return join(cliStateDirectory(), "daemon.json")
 }
 
 function lockPath(): string {
-  return join(stateDirectory(), "daemon.lock")
+  return join(cliStateDirectory(), "daemon.lock")
 }
 
 function auditPath(): string {
-  return join(stateDirectory(), "daemon-stop-audit.jsonl")
+  return join(cliStateDirectory(), "daemon-stop-audit.jsonl")
 }
 
 async function appendDaemonAudit(value: DaemonStopAudit): Promise<void> {
-  await mkdir(stateDirectory(), { recursive: true })
+  await mkdir(cliStateDirectory(), { recursive: true })
   const handle = await open(auditPath(), "a", 0o600)
   try {
     await handle.appendFile(`${JSON.stringify(value)}\n`, "utf8")
@@ -183,7 +183,7 @@ async function readState(): Promise<DaemonState | undefined> {
 }
 
 async function writeState(value: DaemonState): Promise<void> {
-  const directory = stateDirectory()
+  const directory = cliStateDirectory()
   await mkdir(directory, { recursive: true })
   const temporary = join(directory, `daemon-${process.pid}-${crypto.randomUUID()}.tmp`)
   await writeFile(temporary, `${JSON.stringify(value)}\n`, { encoding: "utf8", mode: 0o600 })
@@ -221,7 +221,7 @@ async function probeHealth(baseUrl: string, token?: string, timeoutMs = 5_000): 
   }
 }
 
-async function pythonCommand(projectRoot: string): Promise<string> {
+export async function resolvePythonCommand(projectRoot: string): Promise<string> {
   const explicit = process.env.ZYRA_PYTHON?.trim()
   const candidates = explicit
     ? [explicit]
@@ -241,7 +241,7 @@ async function pythonCommand(projectRoot: string): Promise<string> {
 }
 
 async function acquireLaunchLock(deadline: number): Promise<Awaited<ReturnType<typeof open>>> {
-  await mkdir(stateDirectory(), { recursive: true })
+  await mkdir(cliStateDirectory(), { recursive: true })
   for (;;) {
     try {
       return await open(lockPath(), "wx", 0o600)
@@ -302,7 +302,7 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
     }
     if (prior) await removeState()
     const projectRoot = resolveProjectRoot()
-    const python = await pythonCommand(projectRoot)
+    const python = await resolvePythonCommand(projectRoot)
     const port = Number(url.port || "80")
     const child = spawn(python, [join(projectRoot, "scripts", "dev_api.py")], {
       cwd: projectRoot,

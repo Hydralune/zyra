@@ -12,6 +12,101 @@ import type { PolicyEvidenceRuntime } from "./runtime.ts"
 
 const VIRTUAL_WINDOW = 80
 
+type PhysicalLocation = "LOCAL" | "EDGE" | "CLOUD" | "UNKNOWN"
+type EvidenceTruth = "real" | "simulated" | "degraded" | "missing" | "stale"
+
+export interface PhysicalDispatchViewModel {
+  location: PhysicalLocation
+  lane: "terminal" | "local" | "edge" | "cloud" | "unknown"
+  label: string
+  truth: EvidenceTruth
+  realGateClosed: boolean
+  backendId?: string
+  terminalId?: string
+  attemptId?: string
+  leaseId?: string
+  permissionRef?: string
+  failoverCount: number
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function optionalText(value: unknown): string | undefined {
+  const selected = typeof value === "string" ? value.trim() : ""
+  return selected || undefined
+}
+
+export function physicalDispatchViewModel(
+  transition: PolicyEvidenceTransition,
+): PhysicalDispatchViewModel | undefined {
+  if (transition.contract_kind !== "physical_dispatch_receipt") return undefined
+  const details = record(transition.details)
+  const identity = record(details.physical_identity)
+  const validation = record(details.physical_validation)
+  const rawLocation = optionalText(identity.location)?.toLowerCase()
+  const location: PhysicalLocation =
+    rawLocation === "local"
+      ? "LOCAL"
+      : rawLocation === "edge"
+        ? "EDGE"
+        : rawLocation === "cloud"
+          ? "CLOUD"
+          : "UNKNOWN"
+  const terminalId = optionalText(identity.terminal_id)
+  const lane =
+    location === "LOCAL" && terminalId
+      ? "terminal"
+      : location === "LOCAL"
+        ? "local"
+        : location === "EDGE"
+          ? "edge"
+          : location === "CLOUD"
+            ? "cloud"
+            : "unknown"
+  const realGateClosed = validation.real_gate_closed === true
+  const truth: EvidenceTruth =
+    transition.integrity === "missing"
+      ? "missing"
+      : transition.integrity === "stale"
+        ? "stale"
+        : transition.execution === "real"
+          && transition.integrity === "verified"
+          && realGateClosed
+          ? "real"
+          : transition.execution === "simulated"
+            ? "simulated"
+            : "degraded"
+  const recoveryEvidence = Array.isArray(details.recovery_evidence)
+    ? details.recovery_evidence
+    : []
+  return Object.freeze({
+    location,
+    lane,
+    label:
+      lane === "terminal"
+        ? "TERMINAL · LOCAL"
+        : lane === "local"
+          ? "LOCAL PROCESS"
+          : lane === "edge"
+            ? "EDGE RUNTIME"
+            : lane === "cloud"
+              ? "CLOUD PROVIDER"
+              : "UNVERIFIED LOCATION",
+    truth,
+    realGateClosed,
+    backendId: optionalText(identity.backend_id),
+    terminalId,
+    attemptId: optionalText(details.physical_attempt_id),
+    leaseId: optionalText(details.lease_id),
+    permissionRef: optionalText(details.permission_ref),
+    failoverCount: recoveryEvidence.length,
+  })
+}
+
 function compact(value: unknown, maximum = 32): string {
   const selected = String(value || "")
   if (!selected) return "—"
@@ -56,6 +151,48 @@ function EvidenceReference({
       <span>{reference.kind}</span>
       <strong>{compact(reference.id, 24)}</strong>
     </button>
+  )
+}
+
+function PhysicalDispatchSummary({
+  transition,
+}: {
+  transition: PolicyEvidenceTransition
+}) {
+  const dispatch = physicalDispatchViewModel(transition)
+  if (!dispatch) return null
+  return (
+    <div
+      className="physical-dispatch-summary"
+      data-physical-location={dispatch.location}
+      data-physical-lane={dispatch.lane}
+      data-evidence-truth={dispatch.truth}
+      data-real-gate-closed={dispatch.realGateClosed || undefined}
+    >
+      <div>
+        <strong>{dispatch.label}</strong>
+        <span className="tag">{dispatch.truth}</span>
+        <span className="tag">
+          {dispatch.realGateClosed ? "real gate closed" : "real gate open"}
+        </span>
+      </div>
+      <dl>
+        <div><dt>Backend</dt><dd>{dispatch.backendId ?? "not supplied"}</dd></div>
+        <div><dt>Attempt</dt><dd>{dispatch.attemptId ?? "missing"}</dd></div>
+        <div><dt>Lease</dt><dd>{dispatch.leaseId ?? "missing"}</dd></div>
+        <div><dt>Permission</dt><dd>{dispatch.permissionRef ?? "missing"}</dd></div>
+        <div><dt>Failover</dt><dd>{dispatch.failoverCount}</dd></div>
+        {dispatch.terminalId ? (
+          <div><dt>Terminal</dt><dd>{dispatch.terminalId}</dd></div>
+        ) : null}
+      </dl>
+      {dispatch.truth !== "real" ? (
+        <p>
+          This receipt is visible for diagnosis but is not evidence of successful
+          physical execution.
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -274,6 +411,7 @@ export function PolicyEvidenceView({
                 />
               ))}
             </div>
+            <PhysicalDispatchSummary transition={item} />
           </li>
         ))}
       </ol>

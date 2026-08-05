@@ -18,6 +18,7 @@ import { EmptyState, ReconnectingState } from "../components/status/request-stat
 import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { ScenarioWorkbench } from "../features/scenarios/index.ts"
 import { ExperimentWorkbench } from "../features/experiments/index.ts"
+import { EvidenceWorkbench } from "../features/evidence/index.ts"
 
 const STARTER_PROMPTS = [
   {
@@ -194,10 +195,12 @@ function AppNavigation({
         </button>
         <button
           type="button"
-          aria-current={routeKind === "settings" ? "page" : undefined}
-          onClick={() => navigate(() => runtime.router.openSettings())}
+          disabled={!selectedTaskId}
+          aria-current={routeKind === "evidence" ? "page" : undefined}
+          title={selectedTaskId ? "打开当前任务的完整证据链" : "选择任务后查看证据"}
+          onClick={() => selectedTaskId && navigate(() => runtime.router.openEvidence(selectedTaskId))}
         >
-          <span aria-hidden="true">⌘</span><span>高级 Workbench</span>
+          <span aria-hidden="true">⌘</span><span>证据中心</span>
         </button>
         <button
           type="button"
@@ -206,6 +209,13 @@ function AppNavigation({
           onClick={() => selectedTaskId && navigate(() => runtime.router.openTask(selectedTaskId))}
         >
           <span aria-hidden="true">◇</span><span>交付物</span>
+        </button>
+        <button
+          type="button"
+          aria-current={routeKind === "settings" ? "page" : undefined}
+          onClick={() => navigate(() => runtime.router.openSettings())}
+        >
+          <span aria-hidden="true">⚙</span><span>系统与场景</span>
         </button>
       </div>
 
@@ -495,6 +505,9 @@ function MainRoute({
   if (route.kind === "task") {
     return <ProductTaskDetail runtime={runtime} state={state.detail} tasks={state.list.tasks} />
   }
+  if (route.kind === "evidence") {
+    return <EvidenceWorkbench runtime={runtime} state={state.detail} />
+  }
   return (
     <ProductHome
       runtime={runtime}
@@ -517,7 +530,10 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigationRef = useRef<HTMLElement | null>(null)
   const menuRef = useRef<HTMLButtonElement | null>(null)
-  const routeTaskId = route.kind === "task" ? route.taskId : undefined
+  const routeTaskId =
+    route.kind === "task" || route.kind === "evidence"
+      ? route.taskId
+      : undefined
   const bootstrapKey = useMemo(
     () => `${route.kind}:${routeTaskId ?? ""}:${route.query.status ?? ""}:${route.query.cursor ?? ""}`,
     [route.kind, route.query.cursor, route.query.status, routeTaskId],
@@ -642,7 +658,11 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
           runtime={runtime}
           online={online}
           routeKind={route.kind}
-          task={route.kind === "task" ? state.detail.task : undefined}
+          task={
+            route.kind === "task" || route.kind === "evidence"
+              ? state.detail.task
+              : undefined
+          }
           drawer={drawer}
           sidebarOpen={sidebarOpen}
           menuRef={menuRef}
@@ -673,7 +693,11 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
         {route.kind !== "settings" ? (
           <CommandInput
             runtime={runtime}
-            taskContext={route.kind === "task" ? state.detail.task : undefined}
+            taskContext={
+              route.kind === "task" || route.kind === "evidence"
+                ? state.detail.task
+                : undefined
+            }
           />
         ) : null}
       </div>

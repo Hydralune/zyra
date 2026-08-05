@@ -13,9 +13,9 @@
 - 当前事实：FE-S01 已建立非交互入口与 daemon process owner，FE-S02 已建立行式交互
   snapshot/SSE 观察，FE-S03 已接入 runtime-owned command queue、permission custody、
   revision/idempotency 与 cursor/gap 恢复；task-backed session resolver 继续由 FE-G00R 提供。
-- Gate 结论：**PASS（contract/reference baseline）**；FE-S01 也已按用户独立授权
-  完成。CLI 只新增客户端 transport、writer 和 pid/generation 状态，不改变
-  task/event/scenario/command/permission/runtime canonical owner。FE-S04 已完成；FE-S05 仅为未授权的下一候选。
+- Gate 结论：**PASS（contract/reference baseline）**；FE-S01～FE-S05 已分别按用户授权
+  完成实现与验证。CLI/Web 只新增客户端 transport、投影、writer 和 pid/generation 状态，
+  不改变 task/event/scenario/command/permission/runtime canonical owner。FE-S06 仍未授权。
 
 本文只冻结客户端如何使用既有 Zyra contract，不新增 API、schema 或状态 owner。
 
@@ -174,7 +174,8 @@ client 已冻结的 `request_` 前缀；服务端 session revision 只统计 can
 
 ### 4.7 Daemon 与 UI launcher
 
-daemon/UI lifecycle 是缺失的**客户端本地进程契约**，不是新增后端 task/session schema 的理由。后续实现若获授权，owner 仅可持有：
+daemon/UI lifecycle 是**客户端本地进程契约**，不是新增后端 task/session schema 的理由。FE-S05
+已在既有 `ui` 命令路由实现 launcher；owner 仅持有：
 
 - pid、generation、启动时间、监听地址、日志位置和 child process 状态；
 - start/stop/status 的本地 idempotency fence；
@@ -240,7 +241,7 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | FE-S02 | input/viewport 是本地临时 owner；event ingress 是 transcript 事实源 | paste/editor failure、event gap、resize、用户滚动时误 re-pin | multiline/history/ref、80/120 列、long transcript、search/scrollback | **COMPLETED**；见 FE-S02 evidence/self-review |
 | FE-S03 | `@zyra/commands` + permission runtime | 409、取消冲突、permission timeout/expired、disconnect/recovery | priority/FIFO/idempotency、allow/deny、sealed fail closed、cursor gap | **COMPLETED**；见 FE-S03 evidence/self-review |
 | FE-S04 | BackendRegistry/Scheduler/attestation；CLI listener 仅拥有本地进程 | capability 泄露、越权注册、digest/sequence、zombie、root escape、sealed self-selection | registration authority、real HTTP dispatch/failover、kill/restart、attestation、exclusion mutation | **COMPLETED**；见 FE-S04 evidence/self-review；terminal claim=true，edge claim 未变 |
-| FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | 待 S04 |
+| FE-S05 | CLI/Web 共用 typed adapter；Web 只拥有表现 state | projection divergence、Web 能力被误删、浏览器本地状态冒充后端 | parity、Web task/event/permission/scenario regression、redaction | **COMPLETED**；见 FE-S05 evidence/self-review；浏览器运行环境 unavailable 已如实记录 |
 | FE-S06 | release/automation owner；runtime owners 不变 | offline 包缺依赖、Windows entry 失败、D5/比赛证据断链 | cleanroom install、binary、JSONL、D5、sealed scenario、evidence bundle | 最终候选 |
 
 ## 8. 赛题证据映射
@@ -259,12 +260,12 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 | ID | 差异 | 影响 | Gate 行为 |
 |---|---|---|---|
 | C-01 | 初始无通用 session collection/resolver API | FE-G00R 已新增 task-backed list/detail；歧义/不存在 fail closed | **RESOLVED**；真实 API + typed normalizer 测试通过 |
-| C-02 | daemon/UI launcher owner、pid/generation/路径初始未形成实现 contract | 可能产生重复 daemon、误杀新进程或将客户端状态冒充 runtime state | **CLI daemon RESOLVED IN FE-S01**；UI launcher 仍归后续 slice，后端 owner 未改 |
+| C-02 | daemon/UI launcher owner、pid/generation/路径初始未形成实现 contract | 可能产生重复 daemon、误杀新进程或将客户端状态冒充 runtime state | **RESOLVED**；CLI daemon 归 FE-S01，UI launcher 归 FE-S05；均只持有本地进程身份，后端 owner 未改 |
 | C-03 | terminal-node contract 初始存在 T-01..T-04 | FE-G00R 已收口 projection、authority、sealed exclusion 与 digest | **RESOLVED**；见 `terminal-node-contract.md` |
 | C-04 | D5 完整压力测试仍含尚未实现的 TTY 行为 | FE-S01 只能验证 non-TTY JSONL/EPIPE/daemon walking skeleton | **PARTIAL**：FE-S01 向量已通过；FE-S02/S06 执行完整 D5，失败则回修 |
 
-因此，FE-G00 的 contract/reference Gate 与 FE-S01～FE-S04 均已通过。
-这仍不是完整前端产品完成证据；FE-S05 是下一候选，但记录候选不构成授权。
+因此，FE-G00 的 contract/reference Gate 与 FE-S01～FE-S05 均已通过。
+FE-S06 是下一候选，但记录候选不构成授权。
 
 ## 10. 基线验证记录
 

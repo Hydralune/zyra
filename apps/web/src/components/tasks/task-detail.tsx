@@ -253,7 +253,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         </div>
       </dl>
 
-      <section className="detail-section" aria-labelledby="recent-events-heading">
+      <section id="evidence-canonical-events" className="detail-section" aria-labelledby="recent-events-heading">
         <div className="section-heading">
           <h3 id="recent-events-heading">Canonical events</h3>
           <span>{recentEvents.length}</span>
@@ -286,13 +286,21 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         )}
       </section>
 
-      <TopologyWorkbench runtime={runtime} task={task} />
+      <div id="evidence-topology" className="evidence-section-anchor">
+        <TopologyWorkbench runtime={runtime} task={task} />
+      </div>
 
-      <LoopXWorkbench runtime={runtime} task={task} />
+      <div id="evidence-long-horizon" className="evidence-section-anchor">
+        <LoopXWorkbench runtime={runtime} task={task} />
+      </div>
 
-      <PermissionWorkbench runtime={runtime} task={task} />
+      <div id="evidence-controls" className="evidence-section-anchor">
+        <PermissionWorkbench runtime={runtime} task={task} />
+      </div>
 
-      <SessionConsoleWorkbench runtime={runtime} task={task} />
+      <div id="evidence-continuity-placement" className="evidence-section-anchor">
+        <SessionConsoleWorkbench runtime={runtime} task={task} />
+      </div>
 
       <div id="mcp-runtime-panel">
         <McpWorkbench
@@ -314,9 +322,13 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         <BoundSubagentWorkbench runtime={runtime} task={task} />
       </div>
 
-      <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
+      <div id="evidence-recovery" className="evidence-section-anchor">
+        <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
+      </div>
 
-      <CausalTraceWorkbench runtime={runtime} task={task} />
+      <div id="evidence-causal-trace" className="evidence-section-anchor">
+        <CausalTraceWorkbench runtime={runtime} task={task} />
+      </div>
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">
@@ -348,6 +360,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </section>
 
       <section
+        id="evidence-artifacts"
         className="detail-section"
         aria-label="Artifact projection and viewer"
         data-artifact-selector-count={artifactPanel.rows.length}
@@ -360,7 +373,9 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
 
       <BrowserWorkbench runtime={runtime} task={task} />
 
-      <TerminalWorkbench runtime={runtime} task={task} />
+      <div id="evidence-terminal" className="evidence-section-anchor">
+        <TerminalWorkbench runtime={runtime} task={task} />
+      </div>
     </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   PolicyEvidenceRuntime,
   PolicyEvidenceStore,
   PolicyEvidenceView,
+  physicalDispatchViewModel,
 } from "../src/features/topology/policy/index.ts"
 
 function transition(
@@ -319,6 +320,85 @@ describe("policy evidence admission and incremental projection", () => {
     expect(markup).toContain('data-evidence-ref-kind="attempt"')
     expect(markup).toContain("deterministic_ready")
     expect(markup).toContain("Export with digest")
+  })
+
+  test("renders a terminal receipt as LOCAL and never as EDGE", () => {
+    const terminal = transition(9, {
+      details: {
+        physical_identity: {
+          location: "local",
+          backend_id: "terminal-backend-9",
+          terminal_id: "terminal-9",
+        },
+        physical_attempt_id: "attempt-9",
+        lease_id: "lease-9",
+        permission_ref: "permission-9",
+        recovery_evidence: [{ event_id: "failover-9" }],
+        physical_validation: { real_gate_closed: true },
+      },
+    })
+    expect(physicalDispatchViewModel(terminal)).toEqual({
+      location: "LOCAL",
+      lane: "terminal",
+      label: "TERMINAL · LOCAL",
+      truth: "real",
+      realGateClosed: true,
+      backendId: "terminal-backend-9",
+      terminalId: "terminal-9",
+      attemptId: "attempt-9",
+      leaseId: "lease-9",
+      permissionRef: "permission-9",
+      failoverCount: 1,
+    })
+    const runtime = new PolicyEvidenceRuntime({
+      api: {} as never,
+      query: { taskId: "task-policy" },
+    })
+    runtime.store.append({
+      ...page(9, 1, { hasMore: false }),
+      transitions: [terminal],
+    })
+    const markup = renderToStaticMarkup(<PolicyEvidenceView runtime={runtime} />)
+    expect(markup).toContain('data-physical-location="LOCAL"')
+    expect(markup).toContain('data-physical-lane="terminal"')
+    expect(markup).toContain("TERMINAL · LOCAL")
+    expect(markup).not.toContain('data-physical-location="EDGE"')
+  })
+
+  test("does not promote a configured or stale dispatch into real evidence", () => {
+    const configured = transition(10, {
+      execution: "degraded",
+      integrity: "stale",
+      details: {
+        physical_identity: {
+          backend_id: "edge-by-name-only",
+        },
+        physical_validation: { real_gate_closed: false },
+      },
+    })
+    expect(physicalDispatchViewModel(configured)).toMatchObject({
+      location: "UNKNOWN",
+      lane: "unknown",
+      truth: "stale",
+      realGateClosed: false,
+    })
+    const openGate = transition(11, {
+      execution: "real",
+      integrity: "verified",
+      details: {
+        physical_identity: {
+          location: "cloud",
+          backend_id: "cloud-configured-but-not-validated",
+        },
+        physical_validation: { real_gate_closed: false },
+      },
+    })
+    expect(physicalDispatchViewModel(openGate)).toMatchObject({
+      location: "CLOUD",
+      lane: "cloud",
+      truth: "degraded",
+      realGateClosed: false,
+    })
   })
 
   test("adapter and permission-style failures become degraded, never empty success", async () => {

@@ -217,6 +217,14 @@ describe("workbench router", () => {
       taskId: "task_demo_001",
       query: { focus: "task-detail", status: "running" },
     })
+    expect(parseWorkbenchRoute({
+      pathname: "/tasks/task_demo_001/evidence",
+      search: "",
+    })).toMatchObject({
+      kind: "evidence",
+      taskId: "task_demo_001",
+      path: "/tasks/task_demo_001/evidence",
+    })
     expect(parseWorkbenchRoute({ pathname: "/tasks/not-valid", search: "" }).kind).toBe("not-found")
   })
 
@@ -228,13 +236,15 @@ describe("workbench router", () => {
     router.listen((_route, transition) => kinds.push(transition.kind))
     router.openTask("task_demo_001")
     expect(browser.location.pathname).toBe("/tasks/task_demo_001")
+    router.openEvidence("task_demo_001")
+    expect(browser.location.pathname).toBe("/tasks/task_demo_001/evidence")
     router.updateQuery({ overlay: "command-help" })
     expect(browser.location.search).toContain("overlay=command-help")
     browser.pop("/settings")
     expect(router.current.kind).toBe("settings")
     browser.pop("/broken")
     expect(router.recover().kind).toBe("tasks")
-    expect(kinds).toEqual(["push", "replace", "pop", "pop", "recover"])
+    expect(kinds).toEqual(["push", "push", "replace", "pop", "pop", "recover"])
     router.close()
     expect(browser.listeners.size).toBe(0)
   })

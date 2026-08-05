@@ -29,6 +29,282 @@
   --shadow: 0 24px 64px rgb(0 0 0 / 0.42);
 }
 
+/* FE-S05 keeps the everyday product route calm while giving evidence a stable,
+   linkable route. Every state colour is paired with visible text. */
+.evidence-route {
+  min-width: 0;
+  height: 100%;
+  overflow: auto;
+  padding: clamp(20px, 3vw, 44px);
+  background:
+    radial-gradient(circle at 85% 0%, rgb(89 112 239 / 9%), transparent 32rem),
+    var(--surface, #f7f8fa);
+}
+
+.evidence-route-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1440px;
+  margin: 0 auto 20px;
+}
+
+.evidence-route-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(26px, 4vw, 42px);
+  letter-spacing: -0.035em;
+}
+
+.evidence-route-header p:last-child {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted, #667085);
+  line-height: 1.65;
+}
+
+.evidence-route-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.evidence-route-identity {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  max-width: 1440px;
+  margin: 0 auto 14px;
+  overflow: hidden;
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 14px;
+  background: rgb(15 23 42 / 10%);
+}
+
+.evidence-route-identity > div {
+  min-width: 0;
+  padding: 12px 14px;
+  background: rgb(255 255 255 / 94%);
+}
+
+.evidence-route-identity dt {
+  color: var(--muted, #667085);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.evidence-route-identity dd {
+  overflow: hidden;
+  margin: 4px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-route-warning,
+.evidence-truth-legend {
+  max-width: 1440px;
+  margin: 12px auto;
+  padding: 12px 14px;
+  border: 1px solid rgb(185 107 20 / 28%);
+  border-radius: 12px;
+  background: rgb(255 247 229 / 88%);
+  color: #7a4510;
+  line-height: 1.55;
+}
+
+.evidence-layer-index {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.evidence-layer-index > a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px 10px;
+  padding: 14px;
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 92%);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 5%);
+}
+
+.evidence-layer-index > a:hover,
+.evidence-layer-index > a:focus-visible {
+  border-color: rgb(79 70 229 / 40%);
+  outline: none;
+  box-shadow: 0 12px 30px rgb(79 70 229 / 12%);
+}
+
+.evidence-layer-index strong,
+.evidence-layer-index small {
+  display: block;
+}
+
+.evidence-layer-index small,
+.evidence-layer-index p {
+  color: var(--muted, #667085);
+}
+
+.evidence-layer-index p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.evidence-layer-count,
+.evidence-layer-status {
+  align-self: start;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgb(15 23 42 / 6%);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+[data-evidence-source-status="live"] .evidence-layer-status,
+[data-evidence-source-status="live"] {
+  --evidence-state: #18794e;
+}
+
+[data-evidence-source-status="degraded"] .evidence-layer-status,
+[data-evidence-source-status="degraded"],
+[data-evidence-source-status="stale"] .evidence-layer-status,
+[data-evidence-source-status="stale"] {
+  --evidence-state: #a15c08;
+}
+
+[data-evidence-source-status="missing"] .evidence-layer-status,
+[data-evidence-source-status="missing"] {
+  --evidence-state: #b42318;
+}
+
+.evidence-layer-status,
+.evidence-route-identity [data-evidence-source-status] {
+  color: var(--evidence-state, currentColor);
+}
+
+.evidence-route > .task-detail-panel {
+  max-width: 1440px;
+  height: auto;
+  margin: 28px auto 0;
+  overflow: visible;
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 7%);
+}
+
+.evidence-route .task-detail-scroll {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.evidence-section-anchor {
+  scroll-margin-top: 20px;
+}
+
+.evidence-scenario-layer {
+  max-width: 1440px;
+  margin: 28px auto 0;
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.evidence-scenario-layer > header p:last-child {
+  max-width: 760px;
+  color: var(--muted, #667085);
+}
+
+.physical-dispatch-summary {
+  margin: 10px 0 2px;
+  padding: 12px;
+  border: 1px solid rgb(15 23 42 / 12%);
+  border-radius: 10px;
+  background: rgb(248 250 252 / 90%);
+}
+
+.physical-dispatch-summary > div:first-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.physical-dispatch-summary dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.physical-dispatch-summary dt {
+  color: var(--muted, #667085);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.physical-dispatch-summary dd {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.physical-dispatch-summary[data-evidence-truth="real"] {
+  border-color: rgb(24 121 78 / 35%);
+  background: rgb(236 253 245 / 74%);
+}
+
+.physical-dispatch-summary[data-evidence-truth="simulated"],
+.physical-dispatch-summary[data-evidence-truth="degraded"],
+.physical-dispatch-summary[data-evidence-truth="stale"] {
+  border-color: rgb(161 92 8 / 35%);
+  background: rgb(255 247 229 / 74%);
+}
+
+.physical-dispatch-summary[data-evidence-truth="missing"] {
+  border-color: rgb(180 35 24 / 35%);
+  background: rgb(254 243 242 / 74%);
+}
+
+.physical-dispatch-summary p {
+  margin: 10px 0 0;
+  color: #8a4b08;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .evidence-route {
+    padding: 14px;
+  }
+
+  .evidence-route-header {
+    display: block;
+  }
+
+  .evidence-route-actions {
+    justify-content: flex-start;
+    margin-top: 14px;
+  }
+}
+
 .policy-evidence-view,
 .policy-metric-projection {
   margin-top: 1rem;

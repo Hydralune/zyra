@@ -113,8 +113,9 @@ JSONL record 至少包含 `schema`、`type`、`timestamp`、`task_id/request_id`
 transcript、有界搜索窗口、follow/unread、80/120 列重排、tool progress 折叠、pipe
 兼容和 resume 主路径；FE-S03 已实现服务端 command queue、permission custody、cursor/gap
 恢复和 daemon stop 保护；FE-S04 已实现真实同机 terminal listener、注册、typed action、
-失效转移和退出 disable。FE-S05、FE-S06 归属的 Web 入口和最终 cleanroom 仍保持后续
-边界。真实 daemon/terminal 证据不能由 mock transcript 替代。
+失效转移和退出 disable；FE-S05 已建立 Web 产品/证据分层、跨入口一致性和 `zyra ui`
+launcher。FE-S06 的最终 cleanroom 仍保持后续边界。真实 daemon/terminal/Web 证据不能由
+mock transcript 或静态成功卡片替代。
 
 | ID | 场景 | 输入/故障 | 必须观察到的结果 | 禁止结果 | 归属 |
 |---|---|---|---|---|---|
@@ -181,4 +182,6 @@ permission state 或 runtime dependency。
 - FE-G00 的 contract/reference baseline 结论为 **PASS**；该 Gate 当时只确定 FE-S01
   候选，不曾以规格审计冒充 CLI 行为实现。
 - FE-S04 已在独立授权下完成：CLI 复用 Zyra typed action 与 BackendRegistry HTTP contract，
-  未复制 Claude session/permission owner，也未把 terminal 叙述成 edge。FE-S05 仍须单独授权。
+  未复制 Claude session/permission owner，也未把 terminal 叙述成 edge。
+- FE-S05 已在独立授权下完成：只参考 Claude CLI 的入口/恢复行为并转化为 Zyra contract，
+  `zyra ui` 打开既有 Web，CLI 与 Web 仍是同一 runtime 的两个客户端；FE-S06 未被自动授权。

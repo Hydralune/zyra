@@ -1,0 +1,129 @@
+{
+  "schema": "zyra.product-entry-slice-evidence/v1",
+  "slice_id": "FE-S05",
+  "title": "Web product/evidence layering and cross-entry continuity",
+  "status": "passed_with_browser_environment_unavailable",
+  "base_commit": "ce56dc112bbe68686a16879f182abf10c74bfe61",
+  "claims": {
+    "product_route": "/tasks and /tasks/{task_id}",
+    "evidence_route": "/tasks/{task_id}/evidence",
+    "second_web_created": false,
+    "second_projection_store_created": false,
+    "cli_web_local_sync_created": false,
+    "desktop_shell_created": false,
+    "server_contract_modified": false
+  },
+  "owner_invariants": {
+    "web_state": "canonical event projection only",
+    "task_session_event": "existing Zyra API/runtime owners",
+    "graph": "GraphStateCustody",
+    "permission": "PermissionStateStore/PermissionApprovalRuntime",
+    "physical_dispatch": "ResourceScheduler/BackendRegistry receipts",
+    "artifact": "LocalArtifactStore",
+    "ui_launcher": "apps/cli local pid/generation identity only"
+  },
+  "truth_labels": {
+    "physical_execution": [
+      "real",
+      "simulated",
+      "degraded",
+      "missing",
+      "stale"
+    ],
+    "terminal": "TERMINAL · LOCAL only when terminal_id and location=local are explicit",
+    "edge": "EDGE RUNTIME only when location=edge is explicit",
+    "configured_or_selected_is_execution": false
+  },
+  "cross_entry": {
+    "cli_created_task_seen_by_web": true,
+    "shared_task_run_session_identity": true,
+    "shared_command_request_and_revision": true,
+    "duplicate_effect_count": 1,
+    "optional_http_replay_header_present": false,
+    "projection_cursor_observed": true
+  },
+  "launcher": {
+    "daemon_readiness_required": true,
+    "loopback_only": true,
+    "credential_in_url": false,
+    "first_random_port_started": true,
+    "second_random_port_reused": true,
+    "same_pid": 50420,
+    "same_generation": "1f76c70e-f42e-484d-915c-2568283ec852",
+    "product_http_status": 200,
+    "evidence_http_status": 200,
+    "marker_present": true,
+    "verification_web_process_cleaned": true,
+    "daemon_stop": "refused_by_active_task_guard; no force used"
+  },
+  "scale": {
+    "policy_transitions": 2105,
+    "policy_incremental_cursor": true,
+    "policy_mounted_window": 80,
+    "large_topology_adjacent_nodes": 2400,
+    "large_timeline_adjacent_rows": 5000
+  },
+  "browser_validation": {
+    "status": "unavailable",
+    "reason": "browser runtime reported no available browser instances",
+    "click_or_screenshot_claimed": false,
+    "fallback_browser_claimed": false
+  },
+  "verification": [
+    {
+      "command": "bun run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "bun run test:web",
+      "result": "309 passed; 1874 assertions"
+    },
+    {
+      "command": "bun run test:cli",
+      "result": "40 passed; 285 assertions"
+    },
+    {
+      "command": "pytest tests/integration/test_product_entry_web_cross_entry.py",
+      "result": "1 passed"
+    },
+    {
+      "command": "pytest tests/integration/test_cli_control_permission_recovery.py",
+      "result": "2 passed"
+    },
+    {
+      "command": "pytest TypeScript terminal real registration/dispatch/failover",
+      "result": "1 passed"
+    },
+    {
+      "command": "bun run build:web and bun run build:cli",
+      "result": "passed"
+    },
+    {
+      "command": "real zyra ui first launch plus repeated --web-port=0",
+      "result": "started then already_running with same pid/generation"
+    },
+    {
+      "command": "GET product and evidence SPA routes",
+      "result": "200 with zyra-product-entry marker"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "competition_mapping": {
+    "preserves": [
+      "SCORE-ORG",
+      "SCORE-NOISE",
+      "REQ-TRACE-01",
+      "REQ-EDGE-01",
+      "SCORE-ROBUST"
+    ],
+    "does_not_claim": [
+      "configured placement as physical execution",
+      "terminal as edge",
+      "browser click or screenshot verification",
+      "FE-S06 release completion"
+    ]
+  }
+}

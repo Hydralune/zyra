@@ -277,11 +277,13 @@ function TaskControls({
   runtime,
   task,
   onAdvanced,
+  onEvidence,
   advancedRef,
 }: {
   runtime: WorkbenchRuntime
   task: TaskProjection
   onAdvanced: () => void
+  onEvidence: () => void
   advancedRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const actions = taskActionSet(task, {
@@ -327,6 +329,13 @@ function TaskControls({
           重新运行
         </button>
       ) : null}
+      <button
+        className="product-button product-button-quiet"
+        type="button"
+        onClick={onEvidence}
+      >
+        完整证据
+      </button>
       <button
         ref={advancedRef}
         className="product-button product-button-quiet"
@@ -859,6 +868,7 @@ function ProductDetailContent({
           task={task}
           advancedRef={advancedTriggerRef}
           onAdvanced={() => setAdvanced(true)}
+          onEvidence={() => runtime.router.openEvidence(task.taskId)}
         />
         <span className="product-sync-bar" data-busy={busy || undefined} aria-hidden="true" />
       </header>

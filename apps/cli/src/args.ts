@@ -155,6 +155,33 @@ const DAEMON_SPECS: readonly CommandArgumentSpec[] = [
   { name: "force", kind: "boolean", required: false, flag: "--force", description: "Stop a managed daemon even when tasks are active." },
 ]
 
+const UI_SPECS: readonly CommandArgumentSpec[] = [
+  ...COMMON_SPECS,
+  {
+    name: "webPort",
+    kind: "integer",
+    required: false,
+    flag: "--web-port",
+    minimum: 0,
+    maximum: 65_535,
+    description: "Loopback Web port; use 0 for an ephemeral port.",
+  },
+  {
+    name: "open",
+    kind: "boolean",
+    required: false,
+    flag: "--open",
+    description: "Open the product route in the system browser.",
+  },
+  {
+    name: "taskId",
+    kind: "identity",
+    required: false,
+    flag: "--task",
+    description: "Open an existing canonical task directly.",
+  },
+]
+
 function tokens(values: readonly string[]): CommandToken[] {
   let offset = 0
   return values.map((value) => {
@@ -326,7 +353,14 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
     }
   }
   if (command === "ui") {
-    throw new CliUsageError("zyra ui is fixed to FE-S05 and is not available yet.")
+    const values = bound(argv.slice(1), UI_SPECS)
+    return {
+      kind: "ui",
+      ...common(values),
+      webPort: Number(values.webPort ?? 5173),
+      open: values.open === undefined ? true : values.open === true,
+      taskId: values.taskId as string | undefined,
+    }
   }
   if (!command.startsWith("-")) {
     const values = bound(argv, INTERACTIVE_SPECS)
@@ -345,7 +379,7 @@ export const CLI_USAGE = `Zyra CLI command surface
   zyra resume <task|session>        resume from server snapshot/cursor
   zyra ls                           list canonical tasks and sessions
   zyra scenario <action> [...]      scenario lifecycle over the daemon API
-  zyra ui                           launch daemon and Web UI (later slice)
+  zyra ui [--task <id>]             ensure daemon, start Web, open product route
   zyra daemon <start|stop|status>   local daemon supervision
 
 Interactive TTY mode uses an append-only line transcript. Non-TTY commands emit
