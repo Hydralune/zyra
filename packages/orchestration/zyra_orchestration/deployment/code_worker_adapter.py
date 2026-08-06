@@ -1,0 +1,689 @@
+from __future__ import annotations
+
+import hashlib
+import ipaddress
+import json
+from pathlib import Path
+from typing import Any, Mapping
+from urllib.parse import urlparse
+
+from zyra_core import AgentMessage, AgentRole, MessageIntent, to_jsonable
+from zyra_runtime import JsonPermissionStore, WorkerRequest
+from zyra_runtime.artifacts import LocalArtifactStore
+from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
+from zyra_workers import CodeWorkerRuntime
+from zyra_workspace import (
+    WorkspaceEditPort,
+    WorkspaceManagerConfig,
+    WorkspaceManagerRuntime,
+)
+
+
+def execute_code_worker_operator(
+    *,
+    payload: Mapping[str, Any],
+    node_id: str,
+    node_data_root: str | Path,
+) -> dict[str, Any]:
+    """Run the existing TypeScript CodeWorker loop inside a deployment node.
+
+    The function is an infrastructure adapter only.  Model iteration, tool
+    selection, permission decisions, observation and revision remain owned by
+    ``CodeWorkerRuntime`` and its TypeScript QueryEngine.
+    """
+
+    context = _required_mapping(payload.get("code_worker_context"), "code_worker_context")
+    project_root = _required_path(context.get("project_root"), "project_root")
+    if project_root != Path.cwd().resolve():
+        raise ValueError("physical CodeWorker project root does not match the node release root")
+    artifact_root = _required_path(context.get("artifact_root"), "artifact_root")
+    workspace_config = _required_mapping(
+        context.get("workspace_manager"), "workspace_manager"
+    )
+    workspace_session_id = str(workspace_config.get("session_id") or "").strip()
+    if not workspace_session_id:
+        raise ValueError("workspace manager session_id is required")
+    provider_constraints = _required_mapping(
+        context.get("provider_constraints"), "provider_constraints"
+    )
+    provider_database = _required_path(
+        provider_constraints.get("provider_control_plane_database_path"),
+        "provider_control_plane_database_path",
+    )
+    if provider_database != (
+        artifact_root / ".provider-control-plane" / "provider.sqlite3"
+    ).resolve():
+        raise ValueError("provider database is not owned by the task artifact root")
+
+    run_id = str(payload.get("run_id") or "")
+    task_id = str(payload.get("task_id") or "")
+    goal = str(payload.get("goal") or "")
+    layer_index = int(payload.get("layer_index") or 0)
+    if not run_id or not task_id or not goal or layer_index < 1:
+        raise ValueError("physical CodeWorker identity, goal or layer is incomplete")
+
+    manager = WorkspaceManagerRuntime(
+        WorkspaceManagerConfig(
+            state_root=_required_path(workspace_config.get("state_root"), "workspace state root"),
+            data_root=_required_path(workspace_config.get("data_root"), "workspace data root"),
+            local_enabled=workspace_config.get("local_enabled") is True,
+            default_backend_id=str(
+                workspace_config.get("default_backend_id") or "local-default"
+            ),
+            lease_ttl_seconds=max(
+                30, int(workspace_config.get("lease_ttl_seconds") or 1800)
+            ),
+            reservation_ttl_seconds=max(
+                5, int(workspace_config.get("reservation_ttl_seconds") or 300)
+            ),
+            max_receipts=max(128, int(workspace_config.get("max_receipts") or 4096)),
+        )
+    )
+    worker_id = f"physical-code-worker:{node_id}"
+    access = manager.acquire_for_worker(
+        task_id=task_id,
+        session_id=workspace_session_id,
+        worker_id=worker_id,
+    )
+    workspace_root = manager.internal_task_root(access)
+    before = _workspace_manifest(workspace_root)
+    edit_port = WorkspaceEditPort(
+        manager,
+        access,
+        worker_id=worker_id,
+        run_id=run_id,
+        task_id=task_id,
+        node_id=node_id,
+        artifact_store=LocalArtifactStore(artifact_root),
+    )
+
+    constraints = {
+        **dict(provider_constraints),
+        "model_transport": "http_sse",
+        "model_name": str(
+            context.get("model_id")
+            or provider_constraints.get("model_name")
+            or payload.get("model")
+            or ""
+        ),
+        "permission_mode": "acceptEdits",
+        "permission_interactive": False,
+        "permission_headless": True,
+        "session_id": (
+            f"physical:{task_id}:layer:{layer_index}:"
+            f"{str(payload.get('operator_ref') or '')}"
+        ),
+        "max_turns": max(2, min(24, int(context.get("max_turns") or 12))),
+        "tool_result_budget_chars": 120_000,
+        "query_context_budget_chars": 128_000,
+        "model_output_token_limit": max(
+            512, min(32_768, int(context.get("model_output_token_limit") or 8192))
+        ),
+        "disable_retrieval_context": True,
+        "physical_dispatch_task": True,
+        "physical_dispatch_goal_digest": _digest(goal),
+        "synthetic_turns_forbidden": True,
+    }
+    execution_prompt = _execution_prompt(
+        goal,
+        delivery_contract=(
+            payload.get("delivery_contract")
+            if isinstance(payload.get("delivery_contract"), Mapping)
+            else {}
+        ),
+        goal_contract=(
+            payload.get("goal_contract")
+            if isinstance(payload.get("goal_contract"), Mapping)
+            else {}
+        ),
+    )
+    request = WorkerRequest(
+        run_id=run_id,
+        task_id=task_id,
+        node_id=node_id,
+        worker_name="CodeWorkerRuntime",
+        messages=[
+            AgentMessage(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                sender_role=AgentRole.USER,
+                receiver_role=AgentRole.WORKER,
+                intent=MessageIntent.REQUEST,
+                content=execution_prompt,
+                metadata={
+                    "source": "physical-dispatch",
+                    "goal_digest": _digest(goal),
+                    "workspace_owner": "WorkspaceManagerRuntime",
+                },
+            )
+        ],
+        constraints=constraints,
+        metadata={
+            "origin": "phase2-physical-operator",
+            "physical_node_id": node_id,
+            "provider_route_id": str(
+                provider_constraints.get("provider_route_id") or ""
+            ),
+        },
+    )
+    runtime = CodeWorkerRuntime(
+        project_root=project_root,
+        workspace_root=workspace_root,
+        artifact_root=artifact_root,
+        permission_store=JsonPermissionStore(
+            Path(node_data_root).resolve()
+            / "code-worker-permissions"
+            / f"{_safe_id(task_id)}.json"
+        ),
+        permission_state_path=(
+            Path(node_data_root).resolve()
+            / "code-worker-permission-state"
+            / f"{_safe_id(task_id)}.json"
+        ),
+        permission_accept_edits_available=True,
+        runtime_services={
+            "workspace_edit_port": edit_port,
+            "workspace_gateway_required": True,
+            "sandbox_gateway_state_root": (
+                Path(node_data_root).resolve()
+                / "code-worker-sandbox"
+                / _safe_id(task_id)
+            ),
+        },
+    )
+    run = runtime.run(request)
+    runtime_events = [to_jsonable(item) for item in run.event_records]
+    current_access = edit_port.current_access()
+    workspace_root = manager.internal_task_root(current_access)
+    after = _workspace_manifest(workspace_root)
+    workspace_delta = _workspace_delta(before, after)
+    evidence = dict(run.execution_evidence)
+    if not run.worker_result.ok:
+        raise RuntimeError(
+            "canonical TypeScript CodeWorker failed: "
+            f"{run.worker_result.error or 'unknown'}: {run.worker_result.summary}"
+        )
+    if evidence.get("provider_called") is not True:
+        raise RuntimeError(
+            "canonical TypeScript CodeWorker completed without a real provider response"
+        )
+    if not str(evidence.get("final_text") or "").strip() and not any(
+        workspace_delta[name] for name in ("created", "modified", "deleted")
+    ):
+        raise RuntimeError(
+            "canonical TypeScript CodeWorker produced neither a final response nor a workspace mutation"
+        )
+
+    provider_call = _provider_evidence(
+        project_root=project_root,
+        database_path=provider_database,
+        execution_evidence=evidence,
+        runtime_events=runtime_events,
+        task_payload_digest=_digest(dict(payload)),
+        goal_digest=_digest(goal),
+        expected_initial_prompt_digest=_digest(execution_prompt),
+    )
+    if provider_call.get("task_execution_verified") is not True:
+        raise RuntimeError("provider evidence is not bound to the physical task execution")
+    return {
+        "schema": "zyra.physical-code-worker-execution/v1",
+        "runtime_worker": "CodeWorkerRuntime",
+        "gateway": "DeploymentNodeRuntime",
+        "canonical_runtime_owner": "typescript",
+        "python_runtime_role": "physical-process-durability-side-effect-host",
+        "worker_result": to_jsonable(run.worker_result),
+        "runtime_events": runtime_events,
+        "runtime_artifacts": [to_jsonable(item) for item in run.worker_result.artifacts],
+        "execution_evidence": evidence,
+        "provider_call": provider_call,
+        "workspace": {
+            "workspace_id": current_access.workspace_id,
+            "owner_epoch": current_access.owner_epoch,
+            "lease_id": current_access.lease_id,
+            "physical_location_redacted": True,
+        },
+        "workspace_delta": workspace_delta,
+        "final_text": str(evidence.get("final_text") or ""),
+    }
+
+
+def _execution_prompt(
+    goal: str,
+    *,
+    delivery_contract: Mapping[str, Any],
+    goal_contract: Mapping[str, Any],
+) -> str:
+    requirements: list[str] = []
+    expected_response = str(
+        goal_contract.get("expected_response") or ""
+    )
+    if expected_response:
+        requirements.append(
+            "Your entire final response must be exactly this text, with no "
+            f"prefix, suffix, quotes, or Markdown: {expected_response}"
+        )
+    for path in delivery_contract.get("required_paths") or ():
+        if str(path):
+            requirements.append(
+                f"The governed workspace must contain this file: {path}"
+            )
+    expected_contents = delivery_contract.get("expected_file_contents")
+    if isinstance(expected_contents, Mapping):
+        for path, specification in expected_contents.items():
+            if not isinstance(specification, Mapping):
+                continue
+            expected_text = str(specification.get("expected_text") or "")
+            requirements.append(
+                f"The exact text required in {path} is: {expected_text}"
+            )
+    contract_text = (
+        "\n\nDELIVERY REQUIREMENTS:\n- " + "\n- ".join(requirements)
+        if requirements
+        else ""
+    )
+    return (
+        "Complete the following user goal in the governed workspace. Use the "
+        "available file or shell tools whenever the goal requires a concrete "
+        "workspace change. Inspect tool results, correct failures, and do not "
+        "claim completion unless the requested deliverable actually exists. "
+        "After verification, return a concise final response.\n\nUSER GOAL:\n"
+        + goal
+        + contract_text
+    )
+
+
+def _provider_evidence(
+    *,
+    project_root: Path,
+    database_path: Path,
+    execution_evidence: Mapping[str, Any],
+    runtime_events: list[Any],
+    task_payload_digest: str,
+    goal_digest: str,
+    expected_initial_prompt_digest: str,
+) -> dict[str, Any]:
+    raw_calls = execution_evidence.get("provider_calls")
+    calls = [
+        dict(item)
+        for item in (raw_calls if isinstance(raw_calls, list) else ())
+        if isinstance(item, Mapping)
+        and item.get("ok") is True
+        and str(item.get("request_id") or "")
+        and str(item.get("transport") or "")
+        in {"provider_control_plane", "http_sse"}
+        and str(item.get("provider_id") or "") not in {"", "local", "zyra-sim"}
+    ]
+    if not calls:
+        return {"task_execution_verified": False, "provider_called": False}
+
+    prompt_bindings = _provider_prompt_bindings(
+        runtime_events=runtime_events,
+        expected_initial_prompt_digest=expected_initial_prompt_digest,
+    )
+
+    enriched: list[dict[str, Any]] = []
+    with ProviderControlPlaneClient(
+        project_root=project_root,
+        database_path=database_path,
+    ) as client:
+        for call in calls:
+            dispatch_id = str(call["request_id"])
+            attempts = [
+                dict(item)
+                for item in (
+                    client.process.request(
+                        "dispatch.attempts", {"dispatchId": dispatch_id}
+                    )
+                    or ()
+                )
+                if isinstance(item, Mapping)
+            ]
+            succeeded = [
+                item
+                for item in attempts
+                if str(item.get("outcome") or "") == "succeeded"
+            ]
+            if not succeeded:
+                continue
+            final_attempt = succeeded[-1]
+            prompt_binding = dict(prompt_bindings.get(dispatch_id) or {})
+            provider_request_digest = str(
+                final_attempt.get("requestDigest") or ""
+            )
+            route_id = str(call.get("route_id") or "")
+            route = client.routing.get(route_id) if route_id else {}
+            provider_id = str(call.get("provider_id") or route.get("providerId") or "")
+            model_id = str(call.get("model_id") or route.get("modelId") or "")
+            provider = client.catalog.provider(provider_id)
+            model = client.catalog.model(provider_id, model_id)
+            credential_id = str(route.get("credentialId") or "")
+            credential = client.credentials.get(credential_id) if credential_id else {}
+            usage = dict(call.get("usage") or {})
+            usage["total_tokens"] = max(
+                int(usage.get("total_tokens") or 0),
+                int(usage.get("input_tokens") or 0)
+                + int(usage.get("output_tokens") or 0),
+            )
+            pricing = next(
+                (
+                    dict(item)
+                    for item in model.get("pricing") or ()
+                    if isinstance(item, Mapping)
+                ),
+                {},
+            )
+            cost = _usage_cost(usage, pricing)
+            model_metadata = dict(model.get("metadata") or {})
+            currency = str(pricing.get("currency") or "")
+            normalized_cost = _normalized_usd_cost(usage, model_metadata, currency, cost)
+            started = int(final_attempt.get("startedAt") or 0)
+            completed = int(final_attempt.get("completedAt") or 0)
+            enriched.append(
+                {
+                    "request_id": dispatch_id,
+                    "provider_attempt_id": str(final_attempt.get("attemptId") or ""),
+                    "provider_id": provider_id,
+                    "model_id": model_id,
+                    "route_id": str(route.get("routeId") or route_id),
+                    "http_status": int(final_attempt.get("httpStatus") or 0),
+                    "latency_ms": max(0, completed - started),
+                    "usage": usage,
+                    "cost_amount": cost,
+                    "cost_currency": currency,
+                    "cost_usd": normalized_cost,
+                    "cost_usd_estimate_kind": (
+                        "provider_catalog_native"
+                        if currency.upper() == "USD"
+                        else "conservative_native-currency-as-usd-upper-bound"
+                    ),
+                    "pricing_source_ref": str(
+                        model_metadata.get("normalized_pricing_source")
+                        or model_metadata.get("pricing_reference")
+                        or f"provider-catalog://{provider_id}/{model_id}"
+                    ),
+                    "credential_ref": str(credential.get("secretRef") or ""),
+                    "credential_material_persisted": False,
+                    "endpoint": str(provider.get("baseUrl") or "")
+                    + str(model.get("endpointPath") or ""),
+                    "attempt_count": len(attempts),
+                    "request_bytes": sum(int(item.get("requestBytes") or 0) for item in attempts),
+                    "response_bytes": sum(int(item.get("responseBytes") or 0) for item in attempts),
+                    "provider_request_digest": provider_request_digest,
+                    "runtime_provider_request_digest": str(
+                        prompt_binding.get("provider_request_digest") or ""
+                    ),
+                    "provider_request_digest_verified": bool(
+                        provider_request_digest
+                        and provider_request_digest
+                        == str(
+                            prompt_binding.get("provider_request_digest") or ""
+                        )
+                    ),
+                    "prompt_messages_digest": str(
+                        prompt_binding.get("messages_digest")
+                        or ""
+                    ),
+                    "prompt_goal_bound": (
+                        prompt_binding.get("goal_present") is True
+                    ),
+                }
+            )
+    if len(enriched) != len(calls):
+        return {
+            "task_execution_verified": False,
+            "provider_called": bool(enriched),
+            "calls": enriched,
+        }
+    usage = {
+        name: sum(int(dict(item.get("usage") or {}).get(name) or 0) for item in enriched)
+        for name in (
+            "input_tokens",
+            "output_tokens",
+            "cache_read_input_tokens",
+            "cache_creation_input_tokens",
+            "server_tool_use_tokens",
+            "total_tokens",
+        )
+    }
+    last = enriched[-1]
+    external_request = all(
+        _is_external_provider_endpoint(str(item.get("endpoint") or ""))
+        for item in enriched
+    )
+    prompt_goal_bound = bool(
+        enriched
+        and all(
+            item.get("prompt_goal_bound") is True
+            and item.get("provider_request_digest_verified") is True
+            and str(item.get("prompt_messages_digest") or "")
+            and str(item.get("provider_request_digest") or "")
+            for item in enriched
+        )
+    )
+    return {
+        "schema": "zyra.task-provider-execution-evidence/v1",
+        **last,
+        "usage": usage,
+        "latency_ms": sum(int(item.get("latency_ms") or 0) for item in enriched),
+        "cost_usd": round(sum(float(item.get("cost_usd") or 0.0) for item in enriched), 12),
+        "cost_amount": round(sum(float(item.get("cost_amount") or 0.0) for item in enriched), 12),
+        "calls": enriched,
+        "provider_called": True,
+        "live": external_request,
+        "external_model_request": external_request,
+        "simulated": False,
+        "semantic_only": False,
+        "task_execution_verified": prompt_goal_bound,
+        "prompt_goal_bound": prompt_goal_bound,
+        "goal_digest": goal_digest,
+        "payload_digest": task_payload_digest,
+        "workload_operation": "phase2-operator-execution",
+        "synthetic_usage": False,
+    }
+
+
+def _provider_prompt_bindings(
+    *,
+    runtime_events: list[Any],
+    expected_initial_prompt_digest: str,
+) -> dict[str, dict[str, Any]]:
+    bindings: dict[str, dict[str, Any]] = {}
+    for event in runtime_events:
+        if not isinstance(event, Mapping):
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        query = payload.get("query_session")
+        if not isinstance(query, Mapping):
+            continue
+        phase = str(query.get("phase") or "")
+        if phase == "model_request_prepared":
+            request = query.get("provider_request")
+            if not isinstance(request, Mapping):
+                continue
+            request_id = str(request.get("request_id") or "").strip()
+            messages_digest = str(request.get("messages_digest") or "").strip()
+            initial_prompt_digest = str(
+                request.get("initial_user_message_digest") or ""
+            ).strip()
+            if not request_id or not messages_digest or not initial_prompt_digest:
+                continue
+            bindings.setdefault(request_id, {}).update(
+                {
+                    "messages_digest": messages_digest,
+                    "goal_present": bool(
+                        expected_initial_prompt_digest
+                        and initial_prompt_digest == expected_initial_prompt_digest
+                    ),
+                }
+            )
+        elif phase == "model_stream_report":
+            report = query.get("model_stream")
+            if not isinstance(report, Mapping) or report.get("ok") is not True:
+                continue
+            request_id = str(report.get("request_id") or "").strip()
+            provider_request_digest = str(
+                report.get("provider_request_digest") or ""
+            ).strip()
+            if not request_id or not provider_request_digest:
+                continue
+            bindings.setdefault(request_id, {}).update(
+                {"provider_request_digest": provider_request_digest}
+            )
+    return bindings
+
+
+def _usage_cost(usage: Mapping[str, Any], pricing: Mapping[str, Any]) -> float:
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    cached_tokens = int(usage.get("cache_read_input_tokens") or 0)
+    regular_input = max(0, input_tokens - cached_tokens)
+    return round(
+        (
+            regular_input * float(pricing.get("inputPerMillion") or 0)
+            + cached_tokens * float(pricing.get("cachedInputPerMillion") or 0)
+            + output_tokens * float(pricing.get("outputPerMillion") or 0)
+        )
+        / 1_000_000,
+        12,
+    )
+
+
+def _normalized_usd_cost(
+    usage: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    currency: str,
+    native_cost: float,
+) -> float:
+    if currency.upper() == "USD":
+        return native_cost
+    required = (
+        "normalized_input_usd_per_million",
+        "normalized_output_usd_per_million",
+    )
+    if not all(metadata.get(name) is not None for name in required):
+        return 0.0
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    cached_tokens = int(usage.get("cache_read_input_tokens") or 0)
+    regular_input = max(0, input_tokens - cached_tokens)
+    return round(
+        (
+            regular_input
+            * float(metadata.get("normalized_input_usd_per_million") or 0)
+            + cached_tokens
+            * float(metadata.get("normalized_cached_input_usd_per_million") or 0)
+            + output_tokens
+            * float(metadata.get("normalized_output_usd_per_million") or 0)
+        )
+        / 1_000_000,
+        12,
+    )
+
+
+def _workspace_manifest(root: Path) -> dict[str, dict[str, Any]]:
+    output: dict[str, dict[str, Any]] = {}
+    total_bytes = 0
+    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+        if not path.is_file():
+            continue
+        if path.is_symlink():
+            raise ValueError("workspace manifest rejects symbolic-link files")
+        if len(output) >= 100_000:
+            raise ValueError("workspace manifest exceeds the 100000-file evidence budget")
+        relative = path.relative_to(root).as_posix()
+        size = path.stat().st_size
+        total_bytes += size
+        if total_bytes > 8 * 1024 * 1024 * 1024:
+            raise ValueError("workspace manifest exceeds the 8 GiB evidence budget")
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                digest.update(chunk)
+        output[relative] = {
+            "sha256": digest.hexdigest(),
+            "bytes": size,
+        }
+    return output
+
+
+def _is_external_provider_endpoint(value: str) -> bool:
+    parsed = urlparse(value)
+    if parsed.scheme.casefold() != "https" or not parsed.hostname:
+        return False
+    host = parsed.hostname.casefold().rstrip(".")
+    if host == "localhost" or host.endswith(".localhost"):
+        return False
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    return not (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _workspace_delta(
+    before: Mapping[str, Mapping[str, Any]],
+    after: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    before_paths = set(before)
+    after_paths = set(after)
+    created = sorted(after_paths - before_paths)
+    deleted = sorted(before_paths - after_paths)
+    modified = sorted(
+        path
+        for path in before_paths.intersection(after_paths)
+        if before[path].get("sha256") != after[path].get("sha256")
+    )
+    return {
+        "schema": "zyra.physical-workspace-delta/v1",
+        "created": created,
+        "modified": modified,
+        "deleted": deleted,
+        "changed": [*created, *modified, *deleted],
+        "after": {path: dict(after[path]) for path in sorted(after)},
+        "before_manifest_digest": _digest(dict(before)),
+        "after_manifest_digest": _digest(dict(after)),
+        "physical_location_redacted": True,
+    }
+
+
+def _required_mapping(value: Any, name: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be an object")
+    return dict(value)
+
+
+def _required_path(value: Any, name: str) -> Path:
+    rendered = str(value or "").strip()
+    if not rendered:
+        raise ValueError(f"{name} is required")
+    return Path(rendered).expanduser().resolve()
+
+
+def _safe_id(value: str) -> str:
+    return "".join(character if character.isalnum() or character in "-_" else "_" for character in value)[:160]
+
+
+def _digest(value: Any) -> str:
+    encoded = (
+        value
+        if isinstance(value, str)
+        else json.dumps(
+            to_jsonable(value),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+__all__ = ["execute_code_worker_operator"]

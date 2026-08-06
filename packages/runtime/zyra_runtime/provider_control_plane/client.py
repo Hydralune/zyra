@@ -39,6 +39,16 @@ class ProviderControlPlaneClient:
     def dispatch(self, request: ProviderDispatchRequest) -> dict[str, Any]:
         return dict(self.process.request("dispatch", {"request": request.to_wire()}) or {})
 
+    def install_configured_profiles(self) -> dict[str, Any]:
+        """Install only live profiles whose environment references are present.
+
+        Secret bytes stay in the provider process environment; the RPC result
+        contains only credential identifiers, versions, fingerprints and
+        ``env://`` references.
+        """
+
+        return dict(self.process.request("profiles.install_configured") or {})
+
     def close(self) -> None:
         self.process.close()
 

@@ -71,7 +71,7 @@ export const MUTATING_HTTP_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"])
 export const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
 export const NON_RETRYABLE_HTTP_STATUSES = new Set([400, 401, 403, 404, 405, 409, 410, 412, 415, 422, 426])
 export const AUTH_HTTP_STATUSES = new Set([401, 403])
-export const VERSION_HTTP_STATUSES = new Set([406, 409, 426])
+export const VERSION_HTTP_STATUSES = new Set([406, 426])
 
 export const RETRYABLE_NETWORK_MARKERS = [
   "load failed",

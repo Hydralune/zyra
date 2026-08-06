@@ -198,6 +198,7 @@ class OperatorSelectionRequest:
     policy_input: PolicyInputSnapshot
     query: str
     required_capabilities: tuple[str, ...] = ()
+    first_layer_required_capabilities: tuple[str, ...] = ()
     required_input_contract: tuple[str, ...] = ()
     required_output_contract: tuple[str, ...] = ()
     required_verifier_contracts: tuple[str, ...] = ()
@@ -211,6 +212,7 @@ class OperatorSelectionRequest:
             )
         for name in (
             "required_capabilities",
+            "first_layer_required_capabilities",
             "required_input_contract",
             "required_output_contract",
             "required_verifier_contracts",
@@ -230,6 +232,7 @@ class OperatorSelectionRequest:
                         for capability in item.capabilities
                     ),
                     *self.required_capabilities,
+                    *self.first_layer_required_capabilities,
                 }
             )
         )
@@ -572,7 +575,7 @@ class DeterministicOperatorSelector:
                 item[0].version,
             )
         )
-        scored = self._first_layer_guard(scored)
+        scored = self._first_layer_guard(scored, request)
         breadth, depth = self._breadth_depth(
             request,
             executable_count=len(scored),
@@ -920,9 +923,22 @@ class DeterministicOperatorSelector:
     @staticmethod
     def _first_layer_guard(
         rows: list[tuple[OperatorCandidate, OperatorProfile, OperatorEncoding]],
+        request: OperatorSelectionRequest,
     ) -> list[tuple[OperatorCandidate, OperatorProfile, OperatorEncoding]]:
         if not rows:
             return rows
+        required = set(request.first_layer_required_capabilities)
+        if required:
+            for index, row in enumerate(rows):
+                if required.issubset(row[1].capabilities):
+                    if index:
+                        return [row, *rows[:index], *rows[index + 1 :]]
+                    return rows
+            raise OperatorSelectionError(
+                "maas_first_layer_capability_missing",
+                "the executable catalog has no operator satisfying the "
+                "required first-layer capabilities",
+            )
         for index, row in enumerate(rows):
             profile = row[1]
             verifier_only = (

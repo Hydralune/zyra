@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -26,6 +27,15 @@ from zyra_symbolic import TopologyRouter
 from zyra_scheduler import (
     OperatorLayerProposal,
     PhysicalDispatchReceiptValidator,
+)
+
+
+LIVE_PROVIDER_REQUIRED = pytest.mark.skipif(
+    os.environ.get("ZYRA_RUN_LIVE_PROVIDER_TESTS") != "1",
+    reason=(
+        "set ZYRA_RUN_LIVE_PROVIDER_TESTS=1 only with explicit authorization "
+        "to send the test goal to the configured paid provider"
+    ),
 )
 
 
@@ -238,6 +248,27 @@ def test_partial_communication_outcome_coverage_requires_new_window() -> None:
         completed_before="2026-08-01T01:00:00Z",
         maximum_age_seconds=3600,
     ) is False
+
+
+def test_completion_failures_exclude_adaptive_depth_only_diagnostics() -> None:
+    conditions = {
+        "final_verifier_passed": True,
+        "required_artifacts_complete": True,
+        "confidence_and_cost_benefit": False,
+    }
+    required = {
+        "final_verifier_passed",
+        "required_artifacts_complete",
+    }
+
+    assert production_policy._failed_completion_conditions(
+        conditions,
+        required,
+    ) == ()
+    assert production_policy._failed_completion_conditions(
+        {**conditions, "final_verifier_passed": False},
+        required,
+    ) == ("final_verifier_passed",)
 
 
 def _communication_candidate() -> SimpleNamespace:
@@ -542,6 +573,7 @@ def test_communication_projection_requires_exact_edge_and_prior_window() -> None
     ) == 1
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_direct_response_goal_completes_with_exact_answer_and_bound_receipt(
 ) -> None:
     state, created = api.make_task_created_event("测试，收到请回复ok")
@@ -567,18 +599,38 @@ def test_direct_response_goal_completes_with_exact_answer_and_bound_receipt(
     assert state.metadata["goal_contract_verification"]["passed"] is True
     assert len(state.artifacts) == 1
     artifact = state.artifacts[0]
-    assert artifact.title == "Zyra final response"
-    assert b"".join(
+    assert artifact.title == "Physical CodeWorker delivery manifest"
+    artifact_payload = json.loads(b"".join(
         api.get_worker_pool_api().artifact_store.iter_bytes(artifact)
-    ).decode("utf-8") == "ok"
+    ).decode("utf-8"))
+    assert artifact_payload["final_text"] == "ok"
+    assert artifact_payload["provider_request_ids"]
+    assert artifact_payload["workspace"]["workspace_id"] == (
+        workspace.projection.workspace_id
+    )
+    assert state.metadata["delivery"] == {
+        "schema": "zyra.task-workspace-delivery/v1",
+        "workspace_id": workspace.projection.workspace_id,
+        "created_paths": [],
+        "modified_paths": [],
+        "deleted_paths": [],
+        "changed_paths": [],
+        "physical_location_redacted": True,
+    }
 
     receipt = state.metadata["worker_pool_receipt"]
     signals = receipt["physical_dispatch_receipt"]["payload"]["input_signals"]
     assert signals["operator_adapter_id"] == (
-        "worker.local-code-worker.direct-response"
+        "worker.code-worker.typescript-provider-tool-loop"
     )
-    assert signals["domain_result"]["kind"] == "direct_response"
-    assert signals["domain_result"]["goal_contract_satisfied"] is True
+    assert signals["domain_result"]["kind"] == "code_worker_execution"
+    assert signals["final_text"] == "ok"
+    provider = receipt["physical_dispatch_receipt"]["payload"][
+        "provider_evidence"
+    ]
+    assert provider["task_execution_verified"] is True
+    assert provider["prompt_goal_bound"] is True
+    assert provider["synthetic_usage"] is False
     assert receipt["physical_dispatch_validation"]["real_gate_closed"] is True
     final_verifier = next(
         item
@@ -594,6 +646,74 @@ def test_direct_response_goal_completes_with_exact_answer_and_bound_receipt(
     )
 
 
+@LIVE_PROVIDER_REQUIRED
+def test_file_delivery_goal_writes_exact_workspace_file_and_bound_receipt(
+) -> None:
+    goal = "建一个 smoke.txt 文件，内容是一行 ZYRA_SMOKE_OK"
+    state, created = api.make_task_created_event(goal)
+    workspace_manager = api.get_workspace_manager()
+    session_id = f"task:{state.task_id}"
+    workspace = workspace_manager.create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=session_id,
+        worker_id="task-runtime",
+        idempotency_key=f"file-delivery:{state.task_id}",
+        causation_id=created.event_id,
+    )
+    state.metadata["query_session_id"] = session_id
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
+    ensure_default_graph(state)
+
+    events = run_task_graph(
+        state,
+        execution_context=api.graph_execution_context(),
+    )
+
+    verifier_access = workspace_manager.acquire_for_worker(
+        task_id=state.task_id,
+        session_id=session_id,
+        worker_id=f"live-verifier:{state.task_id}",
+    )
+    smoke = workspace_manager.internal_task_root(verifier_access) / "smoke.txt"
+    observed = smoke.read_text(encoding="utf-8")
+    assert observed in {"ZYRA_SMOKE_OK", "ZYRA_SMOKE_OK\n", "ZYRA_SMOKE_OK\r\n"}
+    assert state.status is PlanNodeStatus.COMPLETED
+    assert state.metadata["delivery"]["workspace_id"] == (
+        workspace.projection.workspace_id
+    )
+    assert state.metadata["delivery"]["created_paths"] == ["smoke.txt"]
+    assert state.metadata["delivery"]["changed_paths"] == ["smoke.txt"]
+
+    receipt = state.metadata["worker_pool_receipt"]
+    physical = receipt["physical_dispatch_receipt"]["payload"]
+    signals = physical["input_signals"]
+    provider = physical["provider_evidence"]
+    assert signals["operator_adapter_id"] == (
+        "worker.code-worker.typescript-provider-tool-loop"
+    )
+    assert signals["workspace_delta"]["created"] == ["smoke.txt"]
+    assert provider["provider_called"] is True
+    assert provider["task_execution_verified"] is True
+    assert provider["prompt_goal_bound"] is True
+    assert provider["synthetic_usage"] is False
+    assert provider["calls"]
+    assert receipt["physical_dispatch_validation"]["real_gate_closed"] is True
+    final_verifier = next(
+        item
+        for item in reversed(state.decisions)
+        if item.decision_type == "final_verifier"
+    )
+    assert final_verifier.selected == "passed"
+    assert all(item["passed"] for item in final_verifier.checks)
+    assert any(
+        item.event_type is EventType.EVALUATION
+        and item.payload.get("passed") is True
+        for item in events
+    )
+
+
+@LIVE_PROVIDER_REQUIRED
 def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -778,7 +898,7 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     )
     assert dispatch_receipt["payload"]["simulated"] is False
     assert dispatch_receipt["payload"]["semantic_only"] is False
-    assert dispatch_receipt["payload"]["physical_identity"]["location"] == "local"
+    assert dispatch_receipt["payload"]["physical_identity"]["location"] == "cloud"
     assert dispatch_signals["workload_operation"] == "phase2-operator-execution"
     assert dispatch_signals["operator_ref"]
     assert dispatch_signals["layer_index"] == 1
@@ -797,7 +917,7 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     assert dispatch_signals["domain_effect_performed"] is True
     assert dispatch_signals["output_contract_fulfilled"] is True
     assert dispatch_signals["operator_adapter_id"] == (
-        "worker.local-code-worker.code-delivery"
+        "worker.code-worker.typescript-provider-tool-loop"
     )
     execution_body = dispatch_signals["operator_execution_body"]
     assert sorted(execution_body["output_contract"]) == sorted(
@@ -975,11 +1095,19 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
         }
     }
     assert state.artifacts
-    assert state.artifacts[0].kind.value == "code"
-    assert state.artifacts[0].metadata["domain_result_kind"] == "code_delivery"
+    assert state.artifacts[0].kind.value == "structured_data"
+    assert state.artifacts[0].metadata["domain_result_kind"] == (
+        "code_worker_execution"
+    )
     assert state.artifacts[0].metadata[
         "operator_output_contract_fulfilled"
     ] is True
+    assert state.metadata["delivery"]["workspace_id"] == (
+        workspace.projection.workspace_id
+    )
+    assert state.metadata["delivery"]["schema"] == (
+        "zyra.task-workspace-delivery/v1"
+    )
     assert all(
         item.metadata.get("physical_call_ref")
         and item.metadata.get("physical_receipt_digest")
@@ -1003,7 +1131,7 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     assert layers[0]["operator_adapter_id"] == dispatch_signals[
         "operator_adapter_id"
     ]
-    assert layers[0]["domain_result_kind"] == "code_delivery"
+    assert layers[0]["domain_result_kind"] == "code_worker_execution"
     assert layers[0]["physical_dispatch_receipt_digest"] == (
         dispatch_receipt["digest"]
     )
@@ -1018,7 +1146,8 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
         if item.payload.get("schema")
         == "zyra.production-adaptive-depth-completion-gate/v1"
     )
-    assert completion_gate["failed_conditions"] == [
+    assert completion_gate["failed_conditions"] == []
+    assert completion_gate["adaptive_depth_failed_conditions"] == [
         "confidence_and_cost_benefit"
     ]
     assert completion_gate["decision"] == "continue"
@@ -1101,6 +1230,7 @@ def test_policy_input_clock_rejects_future_outcome(
         )
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_sealed_semantic_health_goal_consumes_loopx_before_physical_route() -> None:
     state, created = api.make_task_created_event(
         "Produce a concise deployment readiness artifact, preserve the result "
@@ -1412,6 +1542,7 @@ def test_physical_preflight_failure_closes_started_attempt(
     assert not state.artifacts
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_physical_evidence_publish_failure_requires_reconciliation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1572,6 +1703,7 @@ def test_disabled_physical_operator_adapter_fails_closed_with_terminal_receipt(
         ("domain_artifact", "domain_artifact_valid"),
     ),
 )
+@LIVE_PROVIDER_REQUIRED
 def test_tampered_operator_output_fails_closed_after_dispatch(
     monkeypatch: pytest.MonkeyPatch,
     mutation: str,
@@ -1663,6 +1795,7 @@ def test_tampered_operator_output_fails_closed_after_dispatch(
     assert not state.artifacts
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_production_early_exit_disable_is_visible_and_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1733,7 +1866,9 @@ def test_production_early_exit_disable_is_visible_and_deterministic(
 
     assert gate["early_exit_enabled"] is False
     assert gate["decision"] == "continue"
-    assert "early_exit_enabled" in gate["failed_conditions"]
+    assert "early_exit_enabled" in gate[
+        "adaptive_depth_failed_conditions"
+    ]
     assert gate["remaining_operator_count"] == 0
     assert str(state.status) == "completed", {
         "gate": {
@@ -1750,6 +1885,7 @@ def test_production_early_exit_disable_is_visible_and_deterministic(
     }
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_independent_final_verifier_failure_blocks_completion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1799,6 +1935,7 @@ def test_independent_final_verifier_failure_blocks_completion(
     assert str(state.status) == "blocked"
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_early_exit_disabled_executes_every_available_maas_layer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1958,11 +2095,11 @@ def test_early_exit_disabled_executes_every_available_maas_layer(
     ]
     assert len(artifact_ids) == len(set(artifact_ids))
     assert {item["operator_adapter_id"] for item in layers} == {
-        "worker.local-code-worker.code-delivery",
+        "worker.code-worker.typescript-provider-tool-loop",
         "worker.local-memory-curator.continuity",
     }
     assert {item["domain_result_kind"] for item in layers} == {
-        "code_delivery",
+        "code_worker_execution",
         "memory_continuity",
     }
     memory_layer = next(

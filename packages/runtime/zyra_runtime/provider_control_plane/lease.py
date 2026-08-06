@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -34,6 +34,8 @@ class ProviderRouteLeaseRef:
     expires_at: int
     provider_id: str = field(default="", repr=False)
     model_id: str = field(default="", repr=False)
+    credential_id: str = field(default="", repr=False)
+    credential_environment_name: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         required = {
@@ -70,6 +72,10 @@ class ProviderRouteLeaseRef:
             expires_at=int(value.get("expiresAt") or 0),
             provider_id=str(value.get("providerId") or ""),
             model_id=str(value.get("modelId") or ""),
+            credential_id=str(value.get("credentialId") or ""),
+            credential_environment_name=str(
+                value.get("credentialEnvironmentName") or ""
+            ),
         )
 
     def safe_dict(self) -> dict[str, Any]:
@@ -91,6 +97,11 @@ class ProviderRouteLeaseRef:
 
     def runtime_constraints(self, *, database_path: str | Path) -> dict[str, Any]:
         explicit_simulation = self.provider_id == "zyra-sim"
+        if not explicit_simulation and not self.credential_environment_name:
+            raise ValueError(
+                "the pinned provider credential is not backed by a supported "
+                "environment reference"
+            )
         return {
             "provider_control_plane_required": not explicit_simulation,
             "provider_control_plane_explicit_simulation": explicit_simulation,
@@ -104,7 +115,15 @@ class ProviderRouteLeaseRef:
             "provider_route_session_id": self.session_id,
             "provider_route_turn_id": self.turn_id,
             "provider_route_expires_at": self.expires_at,
+            "provider_id": self.provider_id,
+            "provider_model_id": self.model_id,
             "disable_legacy_provider_defaults": True,
+            # The TypeScript model process receives exactly the environment
+            # reference pinned by this immutable route.  Ambient provider keys
+            # remain excluded, and physical tools execute in a separately
+            # allowlisted environment that rejects secret-like names.
+            "provider_credential_environment_name": self.credential_environment_name,
+            "provider_credential_environment_scoped": not explicit_simulation,
             "disable_worker_api_key_environment": True,
         }
 
@@ -160,6 +179,10 @@ class ProviderRouteBindingRuntime:
                 project_root=self.project_root,
                 database_path=self.database_path,
             ) as client:
+                # Reconcile the configured live profiles on every bind.  This
+                # is idempotent and also rotates an env-referenced credential
+                # when the operator changed it between daemon lifecycles.
+                client.install_configured_profiles()
                 if route_id:
                     wire = client.routing.get(route_id)
                     ref = ProviderRouteLeaseRef.from_wire(wire)
@@ -170,7 +193,7 @@ class ProviderRouteBindingRuntime:
                         session_id=session_id,
                         turn_id=turn_id,
                     )
-                    return ref
+                    return self._with_credential_environment(client, ref)
                 existing = self._existing_turn_route(
                     client,
                     run_id=run_id,
@@ -179,7 +202,7 @@ class ProviderRouteBindingRuntime:
                     turn_id=turn_id,
                 )
                 if existing is not None:
-                    return existing
+                    return self._with_credential_environment(client, existing)
                 if not client.catalog.models(available_only=True):
                     if not self.allow_explicit_sim_bootstrap:
                         raise ProviderRouteBindingError(
@@ -221,7 +244,7 @@ class ProviderRouteBindingRuntime:
                     session_id=session_id,
                     turn_id=turn_id,
                 )
-                return ref
+                return self._with_credential_environment(client, ref)
         except ProviderRouteBindingError:
             raise
         except ProviderControlPlanePortError as error:
@@ -235,6 +258,36 @@ class ProviderRouteBindingRuntime:
                 "provider_control_plane_unavailable",
                 f"ProviderControlPlane route preflight failed: {type(error).__name__}: {error}",
             ) from error
+
+    @staticmethod
+    def _with_credential_environment(
+        client: ProviderControlPlaneClient,
+        ref: ProviderRouteLeaseRef,
+    ) -> ProviderRouteLeaseRef:
+        if ref.provider_id == "zyra-sim":
+            return ref
+        if not ref.credential_id:
+            raise ProviderRouteBindingError(
+                "provider_route_credential_missing",
+                "provider route does not identify its pinned credential",
+            )
+        credential = client.credentials.get(ref.credential_id)
+        secret_ref = str(credential.get("secretRef") or "")
+        prefix = "env://"
+        environment_name = secret_ref[len(prefix) :] if secret_ref.startswith(prefix) else ""
+        if (
+            not environment_name
+            or len(environment_name) > 128
+            or not environment_name[0].isalpha()
+            or not environment_name.replace("_", "A").isalnum()
+        ):
+            raise ProviderRouteBindingError(
+                "provider_credential_reference_unsupported",
+                "the pinned credential must use a valid env:// reference for the "
+                "isolated model runtime",
+                detail={"credential_id": ref.credential_id},
+            )
+        return replace(ref, credential_environment_name=environment_name)
 
     @staticmethod
     def _existing_turn_route(

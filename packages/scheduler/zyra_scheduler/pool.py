@@ -18,11 +18,17 @@ def default_worker_manifests() -> list[WorkerManifest]:
     return [
         WorkerManifest(
             worker_id="local-code-worker",
-            display_name="Local Code Worker",
+            display_name="Provider-backed Code Worker (legacy stable id)",
             runtime_worker="CodeWorkerRuntime",
-            location=ResourceLocation.LOCAL,
-            backend=WorkerBackendKind.LOCAL_PROCESS,
+            location=ResourceLocation.CLOUD,
+            backend=WorkerBackendKind.CLOUD_MODEL,
             capabilities=[
+                "agent_task",
+                "provider-reasoning",
+                "direct-response",
+                "tool-use",
+                "artifact-production",
+                "coding",
                 "codebase-analysis",
                 "code-change",
                 "verification",
@@ -35,18 +41,29 @@ def default_worker_manifests() -> list[WorkerManifest]:
                 "shell",
             ],
             tools=["file_read", "file_write", "shell", "trace", "checkpoint", "artifact_write", "web_search"],
-            models=["local-fast", "local-balanced"],
-            sandbox="workspace-permission-gated",
-            gateway="zyra_runtime.ToolExecutor",
+            models=[
+                "zhipu/glm-5.2",
+                "deepseek/deepseek-v4-flash",
+                "kimi-platform/kimi-k2.7-code",
+            ],
+            sandbox="deployment-node-plus-workspace-permission-gateway",
+            gateway="zyra_orchestration.deployment.CodeWorkerAdapter",
             workspace_scope="project-workspace",
-            privacy_level="sensitive_ok",
-            latency_ms=35,
-            cost_per_1k_tokens=0.0,
+            privacy_level="internal_or_project",
+            latency_ms=160,
+            cost_per_1k_tokens=0.035,
             source_modules={
                 "claude-code-best": ["QueryEngine", "tool permission runtime", "commands/bashes/doctor"],
                 "OpenHands": ["workspace gateway", "event stream runtime"],
             },
-            metadata={"dispatch": "in-process Python + vendored TypeScript sidecar contract"},
+            metadata={
+                "dispatch": (
+                    "cloud deployment-node process -> Python adapter -> "
+                    "vendored TypeScript QueryEngine provider/tool loop"
+                ),
+                "legacy_worker_id": True,
+                "provider_reasoning_required": True,
+            },
         ),
         WorkerManifest(
             worker_id="edge-browser-worker",
@@ -84,6 +101,8 @@ def default_worker_manifests() -> list[WorkerManifest]:
             location=ResourceLocation.CLOUD,
             backend=WorkerBackendKind.CLOUD_MODEL,
             capabilities=[
+                "provider-reasoning",
+                "direct-response",
                 "long-horizon-planning",
                 "deep-reasoning",
                 "verification",
@@ -108,7 +127,7 @@ def default_worker_manifests() -> list[WorkerManifest]:
         WorkerManifest(
             worker_id="local-memory-curator",
             display_name="Local Memory Curator",
-            runtime_worker="CodeWorkerRuntime",
+            runtime_worker="MemoryContinuityRuntime",
             location=ResourceLocation.LOCAL,
             backend=WorkerBackendKind.LOCAL_PROCESS,
             capabilities=[
@@ -132,7 +151,12 @@ def default_worker_manifests() -> list[WorkerManifest]:
                 "agent-framework": ["context compaction strategy"],
                 "claude-code-best": ["auto compact", "reactive compact"],
             },
-            metadata={"dispatch": "memory-aware CodeWorkerRuntime envelope"},
+            metadata={
+                "dispatch": (
+                    "deterministic MemoryFabric continuity adapter in the "
+                    "deployment-node runtime"
+                )
+            },
         ),
     ]
 

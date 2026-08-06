@@ -6,10 +6,13 @@ import json
 import os
 import signal
 import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+import psutil
 
 from .errors import DeploymentError, redact
 from .models import DeploymentProfile, NetworkMode, ProfilePolicy, ResourceEnvelope, Sensitivity
@@ -242,6 +245,55 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _supervisor_is_alive(pid: int, expected_create_time: float) -> bool:
+    if pid <= 0 or pid == os.getpid() or expected_create_time <= 0:
+        return False
+    try:
+        process = psutil.Process(pid)
+        return bool(
+            process.is_running()
+            and process.status() != psutil.STATUS_ZOMBIE
+            and abs(process.create_time() - expected_create_time) < 0.01
+        )
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        return False
+
+
+def _start_supervisor_watchdog(server: DeploymentNodeHttpServer) -> threading.Thread:
+    try:
+        supervisor_pid = int(
+            str(os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_PID") or "0")
+        )
+        supervisor_create_time = float(
+            str(
+                os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME")
+                or "0"
+            )
+        )
+    except ValueError as error:
+        raise SystemExit("deployment supervisor identity is invalid") from error
+    if not _supervisor_is_alive(supervisor_pid, supervisor_create_time):
+        raise SystemExit("deployment supervisor is absent or has changed identity")
+
+    def watch() -> None:
+        while True:
+            time.sleep(1.0)
+            if not _supervisor_is_alive(
+                supervisor_pid,
+                supervisor_create_time,
+            ):
+                server.shutdown()
+                return
+
+    thread = threading.Thread(
+        target=watch,
+        name="zyra-deployment-supervisor-watchdog",
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
 def run(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     policy = policy_from_json(arguments.policy_json)
@@ -271,6 +323,7 @@ def run(argv: list[str] | None = None) -> int:
         runtime=runtime,
         authenticator=RequestAuthenticator(secret),
     )
+    _start_supervisor_watchdog(server)
 
     def stop(_signum: int, _frame: Any) -> None:
         threading.Thread(target=server.shutdown, daemon=True).start()

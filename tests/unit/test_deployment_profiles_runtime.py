@@ -116,6 +116,17 @@ def test_deployment_source_boundary_ignores_runtime_tmp_but_scans_source_package
         '{"dependencies":{"fixture":"file:../../../../opencode"}}',
         encoding="utf-8",
     )
+    archived_runtime_fixture = (
+        project_root
+        / "tmp-dirty-20260806-0815"
+        / "pytest"
+        / "boundary-fixture"
+    )
+    archived_runtime_fixture.mkdir(parents=True)
+    (archived_runtime_fixture / "package.json").write_text(
+        '{"dependencies":{"fixture":"file:../../../../opencode"}}',
+        encoding="utf-8",
+    )
     doctor = object.__new__(DeploymentDoctor)
     doctor.project_root = project_root
 

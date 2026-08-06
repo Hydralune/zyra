@@ -13,6 +13,21 @@ import { ProviderControlPlane } from "./control-plane.ts";
 import type { CredentialRegistration } from "./credentials.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
 import type { CatalogDiscoveryDocument } from "./catalog-reconciler.ts";
+import {
+  GLM_52_MODEL_ID,
+  ZHIPU_PROVIDER_ID,
+  installGlm52Profile,
+} from "./profiles/zhipu.ts";
+import {
+  DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_V4_FLASH_MODEL_ID,
+  installDeepSeekV4FlashProfile,
+} from "./profiles/deepseek.ts";
+import {
+  KIMI_K27_CODE_MODEL_ID,
+  KIMI_PLATFORM_PROVIDER_ID,
+  installKimiK27CodeProfile,
+} from "./profiles/kimi-platform.ts";
 
 export const RPC_PROTOCOL = "zyra.provider-control-plane.rpc/v1" as const;
 
@@ -78,6 +93,52 @@ export class ProviderControlPlaneRpcServer {
         return this.controlPlane.catalogReconciler.runs(
           typeof payload.sourceId === "string" ? payload.sourceId : undefined,
         );
+      case "profiles.install_configured": {
+        const installed: Array<Record<string, unknown>> = [];
+        const profiles = [
+          {
+            environmentName: "ZAI_API_KEY",
+            providerId: ZHIPU_PROVIDER_ID,
+            modelId: GLM_52_MODEL_ID,
+            install: () => installGlm52Profile(this.controlPlane),
+          },
+          {
+            environmentName: "DEEPSEEK_API_KEY",
+            providerId: DEEPSEEK_PROVIDER_ID,
+            modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+            install: () => installDeepSeekV4FlashProfile(this.controlPlane),
+          },
+          {
+            environmentName: "KIMI_API_KEY",
+            providerId: KIMI_PLATFORM_PROVIDER_ID,
+            modelId: KIMI_K27_CODE_MODEL_ID,
+            install: () => installKimiK27CodeProfile(this.controlPlane),
+          },
+        ];
+        for (const profile of profiles) {
+          if (!String(process.env[profile.environmentName] ?? "").trim()) continue;
+          const result = profile.install();
+          installed.push({
+            providerId: profile.providerId,
+            modelId: profile.modelId,
+            credentialId: result.credential.credentialId,
+            credentialVersion: result.credential.version,
+            credentialFingerprint: result.credential.fingerprint,
+            credentialSecretRef: result.credential.secretRef,
+            secretMaterialPersisted: false,
+          });
+        }
+        return {
+          installed,
+          configuredCount: installed.length,
+          preferenceOrder: [
+            `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
+            `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+            `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
+          ],
+          secretBytesIncluded: false,
+        };
+      }
       case "catalog.provider.get":
         return this.controlPlane.catalog.provider(String(payload.providerId ?? ""));
       case "catalog.provider.list":

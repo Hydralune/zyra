@@ -209,6 +209,7 @@ class MaasOperatorPolicyRuntime:
         query: str,
         catalog: OperatorCatalog,
         required_capabilities: tuple[str, ...] = (),
+        first_layer_required_capabilities: tuple[str, ...] = (),
         required_input_contract: tuple[str, ...] = (),
         required_output_contract: tuple[str, ...] = (),
         required_verifier_contracts: tuple[str, ...] = (),
@@ -252,6 +253,9 @@ class MaasOperatorPolicyRuntime:
                 policy_input=policy_input,
                 query=query,
                 required_capabilities=required_capabilities,
+                first_layer_required_capabilities=(
+                    first_layer_required_capabilities
+                ),
                 required_input_contract=required_input_contract,
                 required_output_contract=required_output_contract,
                 required_verifier_contracts=required_verifier_contracts,

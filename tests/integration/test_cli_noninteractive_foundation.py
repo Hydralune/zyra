@@ -9,16 +9,26 @@ import socket
 import subprocess
 import sys
 import threading
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 from typing import Any, Iterator
 from uuid import uuid4
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 BUN = ROOT / "node_modules" / ".bin" / (
     "bun.exe" if os.name == "nt" else "bun"
 )
 CLI = ROOT / "apps" / "cli" / "src" / "index.ts"
+LIVE_PROVIDER_REQUIRED = pytest.mark.skipif(
+    os.environ.get("ZYRA_RUN_LIVE_PROVIDER_TESTS") != "1",
+    reason=(
+        "set ZYRA_RUN_LIVE_PROVIDER_TESTS=1 only after authorizing the bounded "
+        "external provider request"
+    ),
+)
 
 
 def _records(completed: subprocess.CompletedProcess[str]) -> list[dict[str, Any]]:
@@ -186,13 +196,14 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> None:
     with _real_api(tmp_path) as base_url:
         completed = _run_cli(
             base_url,
             "run",
             "--timeout=3m",
-            "Return exactly FE-S01-INTEGRATION and produce independently verifiable evidence.",
+            "测试，收到请回复 ok",
         )
         records = _records(completed)
         assert completed.returncode == 0, completed.stderr
@@ -203,6 +214,7 @@ def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> Non
         assert result["verifier"]["present"] is True
         assert result["verifier"]["passed"] is True
         assert result["verifier"]["completion_gate_passed"] is True
+        assert result["result"]["final_answer"] == "ok"
         assert any(
             record.get("payload", {}).get("schema") == "zyra.cli-task-event.v1"
             for record in records[:-1]
@@ -210,6 +222,45 @@ def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> Non
         assert _get(base_url, "/health")["service"] == "zyra-api"
 
 
+@LIVE_PROVIDER_REQUIRED
+def test_cli_run_delivers_requested_file_through_product_entry(
+    tmp_path: Path,
+) -> None:
+    with _real_api(tmp_path) as base_url:
+        completed = _run_cli(
+            base_url,
+            "run",
+            "--timeout=5m",
+            "建一个 smoke.txt 文件，内容是一行 ZYRA_SMOKE_OK",
+            timeout=360,
+        )
+        records = _records(completed)
+        assert completed.returncode == 0, completed.stderr
+        final = records[-1]
+        assert final["exit_code"] == 0
+        delivery = final["result"]["workspace_delivery"]
+        assert "smoke.txt" in delivery["changed_paths"]
+        assert delivery["file_api_resource"] == (
+            f"workspaces/{delivery['workspace_id']}/files"
+        )
+        query = urllib.parse.urlencode(
+            {"path": "smoke.txt", "read": "true", "encoding": "utf-8"}
+        )
+        delivered = _get(
+            base_url,
+            f"/workspaces/{delivery['workspace_id']}/files?{query}",
+        )
+        assert delivered["content"] in {
+            "ZYRA_SMOKE_OK",
+            "ZYRA_SMOKE_OK\n",
+            "ZYRA_SMOKE_OK\r\n",
+        }
+        task = _get(base_url, f"/tasks/{final['task_id']}")["task"]
+        assert task["status"] == "completed"
+        assert task["metadata"]["delivery"]["changed_paths"] == ["smoke.txt"]
+
+
+@LIVE_PROVIDER_REQUIRED
 def test_cli_run_reads_piped_stdin_without_polluting_jsonl(tmp_path: Path) -> None:
     with _real_api(tmp_path) as base_url:
         completed = _run_cli(
@@ -229,6 +280,7 @@ def test_cli_run_reads_piped_stdin_without_polluting_jsonl(tmp_path: Path) -> No
         assert all(line.startswith("{") for line in completed.stdout.splitlines())
 
 
+@LIVE_PROVIDER_REQUIRED
 def test_cli_signal_policy_submits_real_cancel_receipt(tmp_path: Path) -> None:
     with _real_api(tmp_path) as base_url:
         completed = _run_cli(

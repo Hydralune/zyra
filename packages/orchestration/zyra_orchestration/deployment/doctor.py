@@ -451,7 +451,8 @@ class DeploymentDoctor:
         }
         package_manifests: list[Path] = []
         for root, directories, files in os.walk(self.project_root):
-            relative_parts = Path(root).relative_to(self.project_root).parts
+            root_path = Path(root)
+            relative_parts = root_path.relative_to(self.project_root).parts
             if (
                 relative_parts[:2] == ("docs", "evidence")
                 or relative_parts[:3] == ("docs", "reviews", "evidence")
@@ -459,7 +460,13 @@ class DeploymentDoctor:
                 directories[:] = []
                 continue
             directories[:] = [
-                name for name in directories if name not in excluded_directories
+                name
+                for name in directories
+                if name not in excluded_directories
+                and not (
+                    root_path == self.project_root
+                    and name.casefold().startswith("tmp-dirty-")
+                )
             ]
             if "package.json" in files:
                 package_manifests.append(Path(root) / "package.json")

@@ -44,6 +44,7 @@ class CodeWorkerRun:
     session_custody_id: str = ""
     session_custody_fingerprint: str = ""
     session_custody_created: bool = False
+    execution_evidence: dict[str, Any] = field(default_factory=dict)
 
     def safe_session_metadata(self) -> dict[str, Any]:
         return {
@@ -513,6 +514,7 @@ class CodeWorkerRuntime:
                 custody.custody_fingerprint if custody is not None else ""
             ),
             session_custody_created=custody.created if custody is not None else False,
+            execution_evidence=_execution_evidence(loop_result),
         )
 
     def _failure(
@@ -669,6 +671,144 @@ def _trace_markdown(request: WorkerRequest, result: Any, checkpoint_path: Path) 
             *(f"- {item}" for item in result.step_summaries),
         )
     )
+
+
+def _execution_evidence(result: Any) -> dict[str, Any]:
+    """Project truthful provider/tool facts from the canonical TS result.
+
+    The projection deliberately contains no estimated token counts.  Usage is
+    summed only from successful ``model_stream_report`` frames emitted after a
+    provider response.  The physical dispatch layer may enrich the request ids
+    from the provider-control-plane journal, but must not invent missing data.
+    """
+
+    snapshot = _mapping(getattr(result, "session_snapshot", {}))
+    typescript_snapshot = _mapping(snapshot.get("typescript_runtime_snapshot"))
+    model_iteration = _mapping(typescript_snapshot.get("modelIteration"))
+    final_text = str(model_iteration.get("finalText") or "").strip()
+    provider_calls: list[dict[str, Any]] = []
+    tool_results: list[dict[str, Any]] = []
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "server_tool_use_tokens": 0,
+        "total_tokens": 0,
+    }
+    for event in list(getattr(result, "event_records", ()) or ()):
+        event_payload = getattr(event, "payload", {})
+        if not isinstance(event_payload, Mapping):
+            continue
+        query = event_payload.get("query_session")
+        if not isinstance(query, Mapping):
+            continue
+        phase = str(query.get("phase") or "")
+        if phase == "model_stream_report":
+            report = query.get("model_stream")
+            if not isinstance(report, Mapping):
+                continue
+            raw_usage = report.get("usage")
+            raw_observed_usage = (
+                dict(raw_usage) if isinstance(raw_usage, Mapping) else {}
+            )
+            observed_usage = {
+                **raw_observed_usage,
+                "input_tokens": int(
+                    raw_observed_usage.get("input_tokens")
+                    or raw_observed_usage.get("prompt_tokens")
+                    or 0
+                ),
+                "output_tokens": int(
+                    raw_observed_usage.get("output_tokens")
+                    or raw_observed_usage.get("completion_tokens")
+                    or 0
+                ),
+                "cache_read_input_tokens": int(
+                    raw_observed_usage.get("cache_read_input_tokens")
+                    or raw_observed_usage.get("cached_prompt_tokens")
+                    or 0
+                ),
+            }
+            observed_usage["total_tokens"] = max(
+                int(observed_usage.get("total_tokens") or 0),
+                int(observed_usage["input_tokens"])
+                + int(observed_usage["output_tokens"]),
+            )
+            call = {
+                "request_id": str(
+                    report.get("provider_request_id")
+                    or report.get("request_id")
+                    or ""
+                ),
+                "provider_id": str(report.get("provider") or ""),
+                "model_id": str(report.get("model") or ""),
+                "route_id": str(report.get("route_id") or ""),
+                "transport": str(report.get("transport") or ""),
+                "http_status": int(report.get("status") or 0),
+                "ok": report.get("ok") is True,
+                "usage": observed_usage,
+                "stop_reason": str(report.get("stop_reason") or ""),
+                "attempt_count": int(report.get("attempt_count") or 0),
+                "frame_count": int(report.get("frame_count") or 0),
+                "tool_call_count": int(report.get("tool_call_count") or 0),
+            }
+            provider_calls.append(call)
+            if call["ok"] and call["request_id"]:
+                for name in tuple(usage):
+                    if name == "total_tokens":
+                        continue
+                    try:
+                        usage[name] += max(0, int(observed_usage.get(name) or 0))
+                    except (TypeError, ValueError):
+                        continue
+        if phase == "tool_result":
+            raw_result = query.get("tool_result")
+            if isinstance(raw_result, Mapping):
+                tool_results.append(
+                    {
+                        "tool_call_id": str(raw_result.get("tool_call_id") or ""),
+                        "tool_name": str(raw_result.get("tool_name") or ""),
+                        "ok": raw_result.get("ok") is True,
+                        "error": str(raw_result.get("error") or ""),
+                        "summary": str(raw_result.get("summary") or "")[:500],
+                        "output_digest": hashlib.sha256(
+                            json.dumps(
+                                to_jsonable(raw_result.get("output") or {}),
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                        ).hexdigest(),
+                    }
+                )
+    usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
+    actual_calls = [
+        item
+        for item in provider_calls
+        if item["ok"]
+        and item["request_id"]
+        and item["transport"] in {"provider_control_plane", "http_sse"}
+        and item["provider_id"] not in {"", "local", "zyra-sim"}
+    ]
+    return {
+        "schema": "zyra.code-worker-execution-evidence/v1",
+        "canonical_runtime_owner": "typescript",
+        "model_reasoning_loop": True,
+        "provider_called": bool(actual_calls),
+        "provider_calls": provider_calls,
+        "usage": usage,
+        "final_text": final_text,
+        "tool_results": tool_results,
+        "tool_call_count": int(getattr(result, "tool_call_count", 0) or 0),
+        "turn_count": int(getattr(result, "turn_count", 0) or 0),
+        "artifact_ids": [
+            str(getattr(item, "artifact_id", "") or "")
+            for item in list(getattr(result, "artifacts", ()) or ())
+            if str(getattr(item, "artifact_id", "") or "")
+        ],
+        "synthetic_usage": False,
+    }
 
 
 def _optional_int(value: Any) -> int | None:

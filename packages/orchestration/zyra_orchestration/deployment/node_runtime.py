@@ -32,16 +32,46 @@ from .models import (
 )
 from .provider_dispatch import LiveProviderDispatchRuntime
 from .resource_control import process_environment_snapshot
-from ..goal_contracts import (
-    direct_response_contract,
-    goal_contract_matches_projection,
-    validate_direct_response,
-)
 
 
 _WORD = re.compile(r"[\w'-]+", re.UNICODE)
-_SECRET_MARKERS = ("secret", "token", "password", "api_key", "authorization")
-_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v7"
+_TOKEN_ACCOUNTING_FIELDS = frozenset(
+    {
+        "budget",
+        "cached",
+        "completion",
+        "count",
+        "input",
+        "limit",
+        "maximum",
+        "model",
+        "output",
+        "prompt",
+        "reasoning",
+        "total",
+        "usage",
+    }
+)
+_SECRET_REFERENCE_FIELDS = frozenset(
+    {
+        "bytes",
+        "count",
+        "digest",
+        "environment",
+        "fingerprint",
+        "id",
+        "included",
+        "name",
+        "persisted",
+        "presence",
+        "ref",
+        "reference",
+        "scoped",
+        "source",
+        "version",
+    }
+)
+_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v8"
 _ALLOWED_OPERATIONS = {
     "analyze-text",
     "compress-text",
@@ -893,11 +923,7 @@ class DeploymentNodeRuntime:
                 for key, child in value.items():
                     normalized = str(key).casefold()
                     child_path = f"{path}.{key}" if path else str(key)
-                    secret_key = any(
-                        marker in normalized
-                        for marker in _SECRET_MARKERS
-                        if marker != "token"
-                    ) or ("token" in normalized and "tokens" not in normalized)
+                    secret_key = _is_secret_payload_key(normalized)
                     if secret_key:
                         raise DispatchRejected(
                             "node_secret_payload_rejected",
@@ -916,7 +942,6 @@ class DeploymentNodeRuntime:
                     operation="admit",
                     details={"path": path},
                 )
-
     def _execute_operation(self, workload: Workload) -> dict[str, Any]:
         operation = workload.operation
         payload = dict(workload.payload)
@@ -1165,6 +1190,7 @@ class DeploymentNodeRuntime:
             )
 
         adapter = self._phase2_operator_adapter(
+            payload=payload,
             operator_ref=operator_ref,
             operator=operator,
             operator_runtime=operator_runtime,
@@ -1233,48 +1259,21 @@ class DeploymentNodeRuntime:
             "generation_id": self.generation_id,
         }
         execution_digest = digest(execution_body)
-        provider_call: Mapping[str, Any] = {}
-        if self.policy.profile is DeploymentProfile.CLOUD:
-            runtime = self._provider_runtime
-            if runtime is None:
-                runtime = LiveProviderDispatchRuntime(
-                    project_root=Path.cwd(),
-                    state_root=self.data_root / "provider-control-plane",
-                )
-                self._provider_runtime = runtime
-            provider_call = runtime.dispatch_marker(
-                run_id=workload.run_id,
-                task_id=workload.task_id,
-                node_id=self.node_id,
-                marker="ZYRA_OPERATOR_"
-                + hashlib.sha256(execution_digest.encode("utf-8"))
-                .hexdigest()[:20]
-                .upper(),
-                provider_id=str(
-                    payload.get("provider")
-                    or workload.preferred_provider
-                    or "zhipu"
-                ),
-                model_id=str(
-                    payload.get("model")
-                    or workload.preferred_model
-                    or "glm-5.2"
-                ),
-                idempotency_key=(
-                    workload.idempotency_key
-                    or str(payload.get("operator_idempotency_key") or "")
-                ),
-                payload_digest=task_payload_digest,
-            ).to_dict()
-            if not provider_call.get("marker_verified"):
-                raise DispatchRejected(
-                    "node_phase2_provider_execution_unverified",
-                    "the cloud operator adapter did not obtain a verified provider call",
-                    operation=workload.operation,
-                    profile=self.policy.profile.value,
-                )
+        provider_call = dict(adapter.get("provider_call") or {})
+        if bool(adapter.get("requires_provider_reasoning")) and not (
+            provider_call.get("provider_called") is True
+            and provider_call.get("task_execution_verified") is True
+            and provider_call.get("prompt_goal_bound") is True
+            and provider_call.get("synthetic_usage") is False
+        ):
+            raise DispatchRejected(
+                "node_phase2_provider_execution_unverified",
+                "the CodeWorker did not produce task-bound provider execution evidence",
+                operation=workload.operation,
+                profile=self.policy.profile.value,
+            )
 
-        return {
+        result = {
             "schema": "zyra.deployment-operator-result/v2",
             **execution_body,
             "operator_execution_body": execution_body,
@@ -1287,15 +1286,26 @@ class DeploymentNodeRuntime:
             "physical_worker_identity_checks": identity_checks,
             "summary": str(adapter["summary"]),
             "provider_call": dict(provider_call),
-            "provider_called": bool(provider_call),
+            "provider_called": provider_call.get("provider_called") is True,
             "domain_effect_performed": True,
             "semantic_only": False,
             "simulated": False,
         }
+        for name in (
+            "runtime_events",
+            "runtime_artifacts",
+            "workspace",
+            "workspace_delta",
+            "final_text",
+        ):
+            if name in adapter:
+                result[name] = adapter[name]
+        return result
 
     def _phase2_operator_adapter(
         self,
         *,
+        payload: Mapping[str, Any],
         operator_ref: str,
         operator: Mapping[str, Any],
         operator_runtime: str,
@@ -1304,13 +1314,6 @@ class DeploymentNodeRuntime:
         layer_index: int,
         workload: Workload,
     ) -> dict[str, Any]:
-        goal_words = tuple(_WORD.findall(goal))
-        usage = {
-            "prompt_tokens": max(1, len(goal_words)),
-            "completion_tokens": max(1, min(64, len(goal_words) + 8)),
-            "total_tokens": max(2, min(128, len(goal_words) * 2 + 8)),
-            "provider_called": self.policy.profile is DeploymentProfile.CLOUD,
-        }
         is_code_worker = bool(
             operator_ref.startswith("worker:local-code-worker@")
             or (
@@ -1321,112 +1324,93 @@ class DeploymentNodeRuntime:
                 )
             )
         )
-        response_contract = direct_response_contract(goal)
-        if response_contract is not None and is_code_worker:
-            if not goal_contract_matches_projection(goal, goal_contract):
-                raise DispatchRejected(
-                    "node_goal_contract_mismatch",
-                    "the physical operator received a stale or mismatched goal contract",
-                    operation=workload.operation,
-                    profile=self.policy.profile.value,
-                )
-            content = response_contract.expected_response
-            verification = validate_direct_response(goal, content)
-            if verification.get("passed") is not True:
-                raise DispatchRejected(
-                    "node_direct_response_verification_failed",
-                    "the deterministic response did not satisfy the user goal",
-                    operation=workload.operation,
-                    profile=self.policy.profile.value,
-                )
-            usage["completion_tokens"] = max(1, len(tuple(_WORD.findall(content))))
-            usage["total_tokens"] = int(usage["prompt_tokens"]) + int(
-                usage["completion_tokens"]
+        if is_code_worker:
+            # Lazy import keeps deployment package initialization acyclic:
+            # CodeWorker also consumes scheduler deployment contracts.
+            from .code_worker_adapter import execute_code_worker_operator
+
+            execution = execute_code_worker_operator(
+                payload=payload,
+                node_id=self.node_id,
+                node_data_root=self.data_root,
+            )
+            provider_call = dict(execution.get("provider_call") or {})
+            provider_usage = dict(provider_call.get("usage") or {})
+            workspace_delta = dict(execution.get("workspace_delta") or {})
+            final_text = str(execution.get("final_text") or "").strip()
+            execution_evidence = dict(
+                execution.get("execution_evidence") or {}
             )
             domain_result = {
-                "kind": "direct_response",
-                "goal_contract": response_contract.to_dict(),
-                "goal_contract_satisfied": True,
-                "verification": verification,
-                "final_answer_digest": digest(content),
+                "kind": "code_worker_execution",
+                "runtime_worker": "CodeWorkerRuntime",
+                "canonical_runtime_owner": "typescript",
+                "provider_reasoning_performed": True,
+                "provider_request_ids": [
+                    str(item.get("request_id") or "")
+                    for item in provider_call.get("calls") or ()
+                    if isinstance(item, Mapping)
+                    and str(item.get("request_id") or "")
+                ],
+                "tool_call_count": int(
+                    execution_evidence.get("tool_call_count") or 0
+                ),
+                "workspace_delta": workspace_delta,
+                "final_answer_digest": digest(final_text),
             }
+            content = json.dumps(
+                {
+                    "schema": "zyra.physical-code-worker-delivery/v1",
+                    "run_id": workload.run_id,
+                    "task_id": workload.task_id,
+                    "layer_index": layer_index,
+                    "goal_digest": digest(goal),
+                    "provider_request_ids": domain_result[
+                        "provider_request_ids"
+                    ],
+                    "workspace": execution.get("workspace") or {},
+                    "workspace_delta": workspace_delta,
+                    "final_text": final_text,
+                    "runtime_artifact_refs": execution.get(
+                        "runtime_artifacts"
+                    )
+                    or [],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
             artifact = {
-                "title": "Zyra final response",
-                "kind": "text",
-                "extension": ".txt",
-                "media_type": "text/plain; charset=utf-8",
+                "title": "Physical CodeWorker delivery manifest",
+                "kind": "structured_data",
+                "extension": ".json",
+                "media_type": "application/json",
                 "content": content,
                 "content_digest": digest(content),
             }
-            adapter_id = "worker.local-code-worker.direct-response"
-        elif is_code_worker:
-            function_name = "execute_phase2_goal"
-            content = "\n".join(
-                (
-                    '"""Physical MaAS code-worker artifact."""',
-                    "",
-                    f"def {function_name}() -> dict[str, object]:",
-                    "    return {",
-                    f"        \"goal\": {goal!r},",
-                    f"        \"layer_index\": {layer_index},",
-                    "        \"status\": \"implemented\",",
-                    "    }",
-                    "",
-                )
-            )
-            compiled = compile(
-                content,
-                f"<phase2:{workload.task_id}:layer-{layer_index}>",
-                "exec",
-            )
-            namespace: dict[str, Any] = {}
-            exec(compiled, namespace)  # noqa: S102 - audited generated adapter.
-            observed_result = namespace[function_name]()
-            validation_checks = {
-                "callable_executed": isinstance(observed_result, Mapping),
-                "goal_exact": (
-                    isinstance(observed_result, Mapping)
-                    and observed_result.get("goal") == goal
+            adapter_id = "worker.code-worker.typescript-provider-tool-loop"
+            usage = {
+                "prompt_tokens": int(
+                    provider_usage.get("input_tokens") or 0
                 ),
-                "layer_exact": (
-                    isinstance(observed_result, Mapping)
-                    and observed_result.get("layer_index") == layer_index
+                "completion_tokens": int(
+                    provider_usage.get("output_tokens") or 0
                 ),
-                "status_exact": (
-                    isinstance(observed_result, Mapping)
-                    and observed_result.get("status") == "implemented"
+                "total_tokens": int(
+                    provider_usage.get("total_tokens") or 0
                 ),
+                "provider_called": True,
+                "synthetic": False,
             }
-            if not all(validation_checks.values()):
-                raise DispatchRejected(
-                    "node_phase2_code_adapter_validation_failed",
-                    "the physical code adapter failed runtime validation",
-                    operation=workload.operation,
-                    profile=self.policy.profile.value,
-                    details={"failed_checks": [
-                        name
-                        for name, passed in validation_checks.items()
-                        if not passed
-                    ]},
-                )
-            domain_result = {
-                "kind": "code_delivery",
-                "function_name": function_name,
-                "syntax_check": "compiled",
-                "compiled_code_digest": digest(compiled.co_code.hex()),
-                "runtime_result_digest": digest(observed_result),
-                "validation_checks": validation_checks,
-            }
-            artifact = {
-                "title": "Physical MaAS code delivery",
-                "kind": "code",
-                "extension": ".py",
-                "media_type": "text/x-python",
-                "content": content,
-                "content_digest": digest(content),
-            }
-            adapter_id = "worker.local-code-worker.code-delivery"
         elif operator_ref.startswith("worker:local-memory-curator@"):
+            goal_words = tuple(_WORD.findall(goal))
+            usage = {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "provider_called": False,
+                "synthetic": False,
+            }
             facts = sorted(
                 {
                     item.casefold()
@@ -1463,6 +1447,13 @@ class DeploymentNodeRuntime:
             }
             adapter_id = "worker.local-memory-curator.continuity"
         elif operator_ref.startswith("tool:produce-tool@"):
+            usage = {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "provider_called": False,
+                "synthetic": False,
+            }
             domain_result = {
                 "kind": "tool_production",
                 "produced": True,
@@ -1513,9 +1504,9 @@ class DeploymentNodeRuntime:
         output_contract = tuple(
             str(item) for item in operator.get("output_contract") or () if str(item)
         )
-        return {
+        result = {
             "adapter_id": adapter_id,
-            "adapter_version": "phase2-physical-adapter-v1",
+            "adapter_version": "phase2-physical-adapter-v2",
             "summary": worker_result["summary"],
             "domain_result": domain_result,
             "domain_artifact": artifact,
@@ -1525,6 +1516,19 @@ class DeploymentNodeRuntime:
                 if key in supported_outputs
             },
         }
+        if is_code_worker:
+            result.update(
+                {
+                    "provider_call": provider_call,
+                    "requires_provider_reasoning": True,
+                    "runtime_events": execution.get("runtime_events") or [],
+                    "runtime_artifacts": execution.get("runtime_artifacts") or [],
+                    "workspace": execution.get("workspace") or {},
+                    "workspace_delta": workspace_delta,
+                    "final_text": final_text,
+                }
+            )
+        return result
 
     def _operation_capability_available(self, operation: str) -> bool:
         if operation == "provider-capability":
@@ -1738,6 +1742,29 @@ class DeploymentNodeRuntime:
         if self.policy.network_mode is NetworkMode.LIMITED:
             return min(250, self.policy.latency_budget_ms // 2)
         return min(100, self.policy.latency_budget_ms // 4)
+
+
+def _is_secret_payload_key(value: str) -> bool:
+    normalized = str(value).casefold().replace("-", "_")
+    parts = frozenset(part for part in normalized.split("_") if part)
+    if "token" in parts:
+        # Token accounting and model limits are ordinary execution metadata;
+        # route fences, custody handles and bearer tokens remain secret even
+        # when only a digest is carried.
+        return not bool(parts.intersection(_TOKEN_ACCOUNTING_FIELDS))
+    if "tokens" in parts:
+        return False
+    sensitive = (
+        "secret" in parts
+        or "password" in parts
+        or "passwd" in parts
+        or "authorization" in parts
+        or ("api" in parts and "key" in parts)
+        or "credential" in parts
+    )
+    if not sensitive:
+        return False
+    return not bool(parts.intersection(_SECRET_REFERENCE_FIELDS))
 
 
 __all__ = [

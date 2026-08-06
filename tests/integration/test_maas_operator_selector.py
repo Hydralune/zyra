@@ -278,6 +278,45 @@ def test_filters_are_hard_and_fixed_input_is_deterministic() -> None:
     )
 
 
+def test_first_layer_capability_guard_preserves_later_heterogeneous_candidates() -> None:
+    provider = _profile(
+        "worker:provider-code",
+        capabilities=("code-change", "provider-reasoning"),
+        locations=("cloud",),
+        confidence=0.6,
+        estimated_cost_usd=0.5,
+        estimated_latency_ms=2_000,
+    )
+    memory = _profile(
+        "worker:memory-curator",
+        capabilities=("memory", "continuity"),
+        confidence=1.0,
+        estimated_tokens=10,
+        estimated_latency_ms=10,
+    )
+
+    result = _runtime().execute(
+        policy_input=_policy_input(),
+        query="Preserve memory after completing the provider-backed task",
+        catalog=_catalog((memory, provider)),
+        first_layer_required_capabilities=("provider-reasoning",),
+        explicit_validation=True,
+    )
+
+    assert result.proposal is not None
+    assert result.proposal.layers[0].candidates[0].operator_id == (
+        "worker:provider-code"
+    )
+    all_ids = {
+        item.operator_id
+        for item in (
+            *result.proposal.candidates,
+            *result.proposal.alternatives,
+        )
+    }
+    assert all_ids == {"worker:provider-code", "worker:memory-curator"}
+
+
 def test_phase_obligation_and_budget_change_breadth_and_depth() -> None:
     profiles = tuple(
         _profile(

@@ -7,7 +7,7 @@ import type {
   ProviderStreamFrame,
 } from "../../provider-control-plane/src/contracts.ts";
 import { ProviderControlPlaneError } from "../../provider-control-plane/src/errors.ts";
-import { digestJson } from "../../provider-control-plane/src/canonical.ts";
+import { digestJson, digestText } from "../../provider-control-plane/src/canonical.ts";
 import {
   asBoolean,
   asObject,
@@ -83,9 +83,8 @@ export async function resolveProviderControlPlaneTurns(
   try {
     const route = controlPlane.routes.require(routeRef.routeId);
     assertRouteRef(route, routeRef, input);
-    const messages = normalizeProviderMessages(
-      overrideMessages ? [...overrideMessages] : normalizeMessages(input),
-    );
+    const promptMessages = overrideMessages ? [...overrideMessages] : normalizeMessages(input);
+    const messages = normalizeProviderMessages(promptMessages);
     const providerTools = normalizeProviderTools(tools);
     const request: ProviderDispatchRequest = {
       dispatchId,
@@ -128,6 +127,8 @@ export async function resolveProviderControlPlaneTurns(
     await emit("model_request_prepared", {
       provider_request: {
         request_id: dispatchId,
+        provider: route.providerId,
+        model: route.modelId,
         route_id: route.routeId,
         route_checksum: route.checksum,
         catalog_revision: route.catalogRevision,
@@ -136,6 +137,22 @@ export async function resolveProviderControlPlaneTurns(
         transport_id: route.transportId,
         message_count: request.messages.length,
         tool_count: request.tools.length,
+        messages_digest: digestJson(promptMessages),
+        initial_user_message_digest: initialUserMessageDigest(promptMessages),
+        tools_digest: digestJson(request.tools),
+        // The E01 provider lifecycle consumes the full canonical prompt before
+        // QueryEngine emits a commitment-only public runtime event.
+        messages: promptMessages,
+        tools: request.tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.inputSchema,
+          },
+        })) as unknown as JsonObject[],
+        system: [],
+        stream: true,
         provider_state_embedded: false,
         secret_bytes_included: false,
       },
@@ -148,10 +165,15 @@ export async function resolveProviderControlPlaneTurns(
       });
     }
     const routeChanged = result.routeId !== route.routeId;
+    const succeededAttempt = [...result.attempts]
+      .reverse()
+      .find((attempt) => attempt.outcome === "succeeded");
     await emit("model_stream_report", {
       model_stream: {
         request_id: dispatchId,
         provider_request_id: result.dispatchId,
+        provider_attempt_id: succeededAttempt?.attemptId ?? null,
+        provider_request_digest: succeededAttempt?.requestDigest ?? null,
         provider: result.providerId,
         model: result.modelId,
         route_id: result.routeId,
@@ -274,6 +296,16 @@ function assertRouteRef(
   }
 }
 
+function initialUserMessageDigest(messages: readonly JsonObject[]): string {
+  const first = messages.find(
+    (message) => asString(message.role, "user") === "user",
+  );
+  if (first === undefined) return "";
+  return typeof first.content === "string"
+    ? digestText(first.content)
+    : digestJson(first.content ?? null);
+}
+
 function normalizeMessages(input: RuntimeRunInput): JsonObject[] {
   if (Array.isArray(input.messages) && input.messages.length > 0) {
     return input.messages.map((message) => asObject(message));
@@ -286,10 +318,47 @@ function normalizeMessages(input: RuntimeRunInput): JsonObject[] {
 
 function normalizeProviderMessages(values: readonly JsonObject[]): DispatchMessage[] {
   const messages: DispatchMessage[] = [];
+  const toolNames = new Map<string, string>();
   for (const value of values) {
     const role = asString(value.role, "user");
     if (!["system", "developer", "user", "assistant", "tool"].includes(role)) continue;
     const rawContent = value.content;
+    if (role === "assistant" && Array.isArray(rawContent)) {
+      const content = rawContent.map((raw) => {
+        const block = asObject(raw);
+        if (asString(block.type) !== "tool_use") return block;
+        const id = asString(block.id).trim();
+        const name = asString(block.name).trim();
+        if (id && name) toolNames.set(id, name);
+        return {
+          type: "tool_call",
+          id,
+          name,
+          arguments: asObject(block.input),
+        };
+      });
+      messages.push({ role: "assistant", content });
+      continue;
+    }
+    if (role === "user" && Array.isArray(rawContent)) {
+      const blocks = rawContent.map((raw) => asObject(raw));
+      const toolResults = blocks.filter((block) => asString(block.type) === "tool_result");
+      if (toolResults.length > 0) {
+        const userBlocks = blocks.filter((block) => asString(block.type) !== "tool_result");
+        if (userBlocks.length > 0) messages.push({ role: "user", content: userBlocks });
+        for (const block of toolResults) {
+          const toolCallId = asString(block.tool_use_id || block.toolCallId).trim();
+          if (!toolCallId) throw new Error("tool result message requires tool_use_id");
+          messages.push({
+            role: "tool",
+            content: [block],
+            toolCallId,
+            name: toolNames.get(toolCallId) ?? "unknown_tool",
+          });
+        }
+        continue;
+      }
+    }
     const content = typeof rawContent === "string"
       ? rawContent
       : Array.isArray(rawContent)

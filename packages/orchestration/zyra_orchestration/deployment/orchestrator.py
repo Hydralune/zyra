@@ -59,13 +59,40 @@ class DeploymentOrchestrator:
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.environment = dict(os.environ if environment is None else environment)
-        configured_state_root = (
+        shared_state_root = str(
+            self.environment.get("ZYRA_STATE_ROOT") or ""
+        ).strip()
+        explicit_deployment_state_root = (
             state_root
             or self.environment.get("ZYRA_DEPLOYMENT_STATE_ROOT")
-            or self.project_root / "tmp" / "deployment"
+        )
+        configured_state_root = (
+            explicit_deployment_state_root
+            or (
+                Path(shared_state_root) / "deployment"
+                if shared_state_root
+                else self.project_root / "tmp" / "deployment"
+            )
         )
         self.state_root = Path(configured_state_root).resolve()
-        if self.project_root not in self.state_root.parents:
+        shared_root = (
+            Path(shared_state_root).resolve() if shared_state_root else None
+        )
+        shared_root_is_safe = bool(
+            shared_root is not None
+            and shared_root != Path(shared_root.anchor)
+            and shared_root.name
+        )
+        shared_child_exact = bool(
+            explicit_deployment_state_root is None
+            and shared_root_is_safe
+            and self.state_root.parent == shared_root
+            and self.state_root.name == "deployment"
+        )
+        if (
+            self.project_root not in self.state_root.parents
+            and not shared_child_exact
+        ):
             raise ValueError("deployment state root must remain inside the project")
         self.state_root.mkdir(parents=True, exist_ok=True)
         self.product_state_root = self.state_root / "product-state"
@@ -87,6 +114,7 @@ class DeploymentOrchestrator:
         self.clean_state = CleanStateManager(
             project_root=self.project_root,
             deployment_root=self.state_root,
+            allow_external_deployment_root=shared_child_exact,
         )
         self.processes = DeploymentProcessManager(
             project_root=self.project_root,

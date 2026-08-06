@@ -29,7 +29,18 @@ function task(status: string): TaskProjection {
     updatedAt: "2026-08-04T00:00:01.000Z",
     planNodes: [],
     artifacts: [],
-    metadata: { final_answer: "verified" },
+    metadata: {
+      final_answer: "verified",
+      delivery: {
+        schema: "zyra.task-workspace-delivery/v1",
+        workspace_id: "ws_contract_001",
+        created_paths: ["smoke.txt"],
+        modified_paths: [],
+        deleted_paths: [],
+        changed_paths: ["smoke.txt"],
+        physical_location_redacted: true,
+      },
+    },
     binding: { taskId: "task_contract_001", runId: "run_contract_001" },
     terminal: status === "completed" || status === "failed" || status === "cancelled",
     active: status === "pending" || status === "running" || status === "blocked",
@@ -57,6 +68,15 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(classifyTaskOutcome(task("cancelled"), passed).exitCode).toBe(CliExitCode.CANCELLED)
     expect(classifyTaskOutcome(task("completed"), { ...passed, final: { passed: false } }).exitCode).toBe(CliExitCode.VERIFIER_FAILED)
     expect(classifyTaskOutcome(task("completed"), {}).status).toBe("verifier_evidence_missing")
+    expect(classifyTaskOutcome(task("completed"), passed).result?.workspace_delivery).toEqual({
+      schema: "zyra.task-workspace-delivery/v1",
+      workspace_id: "ws_contract_001",
+      created_paths: ["smoke.txt"],
+      modified_paths: [],
+      deleted_paths: [],
+      changed_paths: ["smoke.txt"],
+      file_api_resource: "workspaces/ws_contract_001/files",
+    })
   })
 
   test("does not infer success after event ingress disconnect and missing verifier", async () => {

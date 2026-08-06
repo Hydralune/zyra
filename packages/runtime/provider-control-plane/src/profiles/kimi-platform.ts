@@ -93,6 +93,10 @@ export function kimiK27CodeProfile(): KimiK27CodeProfile {
       availability: "account-model-catalog",
       pricing_model: "pay-as-you-go",
       model_catalog_verified_at: "2026-07-29",
+      normalized_input_usd_per_million: 6.5,
+      normalized_cached_input_usd_per_million: 1.3,
+      normalized_output_usd_per_million: 27,
+      normalized_pricing_source: "zyra://pricing/conservative-cny-as-usd-upper-bound",
     },
   };
   return { integration, provider, model };

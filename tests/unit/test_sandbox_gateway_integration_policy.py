@@ -12,7 +12,9 @@ for package in ROOT.joinpath("packages").iterdir():
 
 from zyra_runtime import LocalArtifactStore  # noqa: E402
 from zyra_runtime.sandbox_gateway import (  # noqa: E402
+    CallbackCredentialProvider,
     CancellationToken,
+    CredentialRelay,
     DockerSandboxBackend,
     GatewayCommandEnvelope,
     GatewaySessionRecord,
@@ -23,6 +25,9 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     ProvenanceKind,
     SimulatedSandboxBackend,
     TrustLevel,
+)
+from zyra_runtime.sandbox_gateway.integration_host import (  # noqa: E402
+    GatewayHostProcessRuntime,
 )
 from zyra_runtime.sandbox_gateway.integration_audit import (  # noqa: E402
     GatewayIntegrationAuditor,
@@ -122,6 +127,36 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
                     "environment": {"API_TOKEN": "secret"},
                 }
             )
+
+    def test_interactive_host_uses_single_use_scoped_credential_relay(self) -> None:
+        relay = CredentialRelay(
+            CallbackCredentialProvider(lambda _request: "test-only-secret")
+        )
+        host = GatewayHostProcessRuntime(
+            self.bundle.policy_runtime,
+            allowed_roots=(self.workspace,),
+        )
+        process = host.start_interactive(
+            executable=sys.executable,
+            argv=(
+                "-c",
+                "import os; print('present' if os.environ.get('TEST_API_KEY') "
+                "== 'test-only-secret' else 'missing', flush=True)",
+            ),
+            cwd=self.workspace,
+            environment={"NO_COLOR": "1"},
+            credential_relay=relay,
+            credential_environment_name="TEST_API_KEY",
+            credential_provider="test-provider",
+            credential_scope=("provider:model:dispatch",),
+            credential_provenance_ref="route:test",
+        )
+        assert process.stdout is not None
+        self.assertEqual(process.stdout.readline().strip(), "present")
+        self.assertEqual(process.wait(timeout=10), 0)
+        self.assertTrue(getattr(process, "_zyra_credential_relay_used"))
+        self.assertEqual(relay.descriptor()["active_envelopes"], 0)
+        host.release_interactive(process)
 
     def test_url_path_and_source_role_boundaries(self) -> None:
         denied = self.bundle.policy_runtime.evaluate_url("https://127.0.0.1/private")

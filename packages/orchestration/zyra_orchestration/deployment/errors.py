@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -15,6 +16,16 @@ _SECRET_KEYS = {
     "signature",
     "token",
 }
+_INLINE_AUTH = re.compile(
+    r"(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"
+)
+_INLINE_PROVIDER_KEY = re.compile(
+    r"(?i)\bsk-[A-Za-z0-9._-]{8,}"
+)
+_INLINE_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)(\b(?:api[_-]?key|access[_-]?token|password|secret)\b"
+    r"\s*[:=]\s*)([^\s,;]+)"
+)
 
 
 def redact(value: Any, *, depth: int = 0) -> Any:
@@ -34,12 +45,14 @@ def redact(value: Any, *, depth: int = 0) -> Any:
     if isinstance(value, bytes):
         return f"<bytes:{len(value)}>"
     text = str(value) if value is not None else None
-    if text and (
-        text.startswith(("sk-", "Bearer ", "Basic "))
-        or "PRIVATE KEY" in text
-        or len(text) > 2048
-    ):
-        return "<redacted>"
+    if text:
+        if "PRIVATE KEY" in text:
+            return "<redacted>"
+        redacted = _INLINE_AUTH.sub("<redacted>", text)
+        redacted = _INLINE_PROVIDER_KEY.sub("<redacted>", redacted)
+        redacted = _INLINE_SECRET_ASSIGNMENT.sub(r"\1<redacted>", redacted)
+        if redacted != text:
+            return redacted
     return value
 
 

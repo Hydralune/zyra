@@ -68,6 +68,7 @@ class CleanStateManager:
         *,
         project_root: Path | str,
         deployment_root: Path | str,
+        allow_external_deployment_root: bool = False,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.deployment_root = Path(deployment_root).resolve()
@@ -77,7 +78,10 @@ class CleanStateManager:
                 "deployment clean-state root cannot be the project root",
                 operation="initialize",
             )
-        if self.project_root not in self.deployment_root.parents:
+        if (
+            self.project_root not in self.deployment_root.parents
+            and not allow_external_deployment_root
+        ):
             raise CleanStateRejected(
                 "clean_state_root_outside_project",
                 "deployment clean-state root must remain inside the project",

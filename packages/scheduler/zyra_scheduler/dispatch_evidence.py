@@ -45,7 +45,7 @@ PHYSICAL_DISPATCH_MECHANISM_ID = "zyra_physical_dispatch"
 PHYSICAL_DISPATCH_MECHANISM_VERSION = "physical_dispatch_v1"
 PHYSICAL_DISPATCH_VALIDATION_SCHEMA = "zyra.physical-dispatch-validation/v1"
 PHYSICAL_REROUTE_VALIDATION_SCHEMA = "zyra.physical-reroute-validation/v1"
-PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v7"
+PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v8"
 
 _LOCATION_TO_PROFILE = {
     "local": DeploymentProfile.DEVICE,
@@ -349,6 +349,8 @@ class PhysicalDispatchReceiptBuilder:
             "contract_outputs": _mapping(output.get("contract_outputs")),
             "domain_result": _mapping(output.get("domain_result")),
             "domain_artifact": _mapping(output.get("domain_artifact")),
+            "workspace_delta": _mapping(output.get("workspace_delta")),
+            "final_text": str(output.get("final_text") or ""),
             "output_contract_fulfilled": (
                 output.get("output_contract_fulfilled") is True
             ),
@@ -653,6 +655,10 @@ class PhysicalDispatchReceiptValidator:
             )
         elif location == "cloud":
             usage = _mapping(provider.get("usage"))
+            operator_execution = (
+                receipt.input_signals.get("workload_operation")
+                == "phase2-operator-execution"
+            )
             checks.update(
                 {
                     "cloud_live_request": (
@@ -696,8 +702,17 @@ class PhysicalDispatchReceiptValidator:
                         )
                         and provider.get("credential_material_persisted") is False
                     ),
-                    "cloud_marker_verified": (
-                        provider.get("marker_verified") is True
+                    "cloud_execution_verified": (
+                        (
+                            provider.get("task_execution_verified") is True
+                            and provider.get("prompt_goal_bound") is True
+                            and provider.get("provider_called") is True
+                            and provider.get("synthetic_usage") is False
+                            and provider.get("workload_operation")
+                            == "phase2-operator-execution"
+                        )
+                        if operator_execution
+                        else provider.get("marker_verified") is True
                     ),
                 }
             )
@@ -1111,20 +1126,41 @@ class PhysicalDispatchCallPort:
             )
         output = _mapping(dispatch.result.get("output"))
         if self.task.operation == "phase2-operator-execution":
-            marker_verified = bool(
+            code_worker_execution = (
+                output.get("operator_adapter_id")
+                == "worker.code-worker.typescript-provider-tool-loop"
+            )
+            execution_verified = bool(
                 output.get("domain_effect_performed") is True
                 and output.get("output_contract_fulfilled") is True
                 and output.get("operator_execution_body")
                 and output.get("operator_execution_digest")
                 and output.get("domain_result")
                 and output.get("domain_artifact")
+                and (
+                    not code_worker_execution
+                    or (
+                        _mapping(output.get("provider_call")).get(
+                            "task_execution_verified"
+                        )
+                        is True
+                        and _mapping(output.get("provider_call")).get(
+                            "prompt_goal_bound"
+                        )
+                        is True
+                        and _mapping(output.get("provider_call")).get(
+                            "synthetic_usage"
+                        )
+                        is False
+                    )
+                )
             )
         else:
-            marker_verified = output.get("marker_verified") is True
-        if not marker_verified:
+            execution_verified = output.get("marker_verified") is True
+        if not execution_verified:
             raise OperatorPlacementError(
                 "physical_dispatch_verifier_failed",
-                "physical dispatch output failed the canonical marker verifier",
+                "physical dispatch output failed the canonical execution verifier",
             )
         verifier_body = {
             "schema": "zyra.physical-dispatch-verifier/v1",
@@ -1135,9 +1171,18 @@ class PhysicalDispatchCallPort:
             "call_ref": dispatch.dispatch_id,
             "artifact_refs": list(dispatch.artifact_refs),
             "task_payload_digest": output.get("task_payload_digest"),
-            "verification_marker_digest": output.get(
-                "verification_marker_digest"
+            "verification_kind": (
+                "task-bound-provider-execution"
+                if self.task.operation == "phase2-operator-execution"
+                else "marker-proof"
             ),
+            "provider_request_ids": [
+                str(item.get("request_id") or "")
+                for item in _mapping(output.get("provider_call")).get("calls")
+                or ()
+                if isinstance(item, Mapping)
+                and str(item.get("request_id") or "")
+            ],
             "operator_execution_digest": output.get(
                 "operator_execution_digest"
             ),
@@ -1148,7 +1193,7 @@ class PhysicalDispatchCallPort:
             "domain_artifact_digest": _mapping(
                 output.get("domain_artifact")
             ).get("content_digest"),
-            "passed": marker_verified,
+            "passed": execution_verified,
             "verified_at": dispatch.completed_at,
         }
         verifier_ref = self.evidence_store.save(

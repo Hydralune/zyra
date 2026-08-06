@@ -166,11 +166,23 @@ class DeploymentProcessManager:
 
     def _base_environment(self) -> dict[str, str]:
         environment = dict(self.environment)
+        try:
+            supervisor_create_time = psutil.Process(os.getpid()).create_time()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            supervisor_create_time = 0.0
         environment.update(
             {
                 "PYTHONUNBUFFERED": "1",
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "ZYRA_DEPLOYMENT_SUPERVISED": "1",
+                # Deployment nodes use this PID + creation-time tuple as a
+                # parent-death fence.  A force-killed API/CLI supervisor can
+                # therefore not leave detached node_server processes holding
+                # ports and stale worker generations indefinitely.
+                "ZYRA_DEPLOYMENT_SUPERVISOR_PID": str(os.getpid()),
+                "ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME": str(
+                    supervisor_create_time
+                ),
             }
         )
         return environment
@@ -687,12 +699,19 @@ class DeploymentProcessManager:
             ) from error
 
     def stop_all(self, *, timeout_seconds: float = 10.0) -> list[ProcessRecord]:
-        records = [
-            record
+        # A process observed as CRASHED can still have a managed Popen/log
+        # handle awaiting reap.  Include every in-memory managed component so
+        # stop_all closes inherited file handles and cannot strand locked logs
+        # on Windows after an abnormal child exit.
+        records_by_id = {
+            record.component_id: record
             for record, _revision in self.store.processes()
-            if record.status
-            not in {LifecycleStatus.STOPPED, LifecycleStatus.CRASHED}
-        ]
+            if record.status is not LifecycleStatus.STOPPED
+        }
+        with self._lock:
+            for component_id, managed in self._managed.items():
+                records_by_id[component_id] = managed.record
+        records = list(records_by_id.values())
         order = sorted(
             records,
             key=lambda item: (

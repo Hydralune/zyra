@@ -8,7 +8,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .models import CommandBudget, GatewayCommandEnvelope, ProcessTermination
+from .credential_relay import CredentialRelay
+from .models import (
+    CommandBudget,
+    CredentialRequest,
+    GatewayCommandEnvelope,
+    ProcessTermination,
+)
 from .process_budget import OutputBudgetCollector, ProcessStreamPump
 from .process_tree import ProcessTreeController
 from .redaction import SecretRedactor
@@ -249,8 +255,19 @@ class GatewayHostProcessRuntime:
         cwd: str | Path,
         environment: Mapping[str, str] | None = None,
         operation_name: str = "zyra-control-interactive",
+        credential_relay: CredentialRelay | None = None,
+        credential_environment_name: str = "",
+        credential_provider: str = "",
+        credential_scope: Sequence[str] = (),
+        credential_provenance_ref: str = "",
     ) -> subprocess.Popen[str]:
-        """Start a fixed Zyra control runtime under gateway process custody."""
+        """Start a fixed Zyra control runtime under gateway process custody.
+
+        Secret material never enters the caller-supplied command environment.
+        A credential, when required, is issued and consumed as a single-use,
+        command- and audience-bound ``CredentialRelay`` envelope immediately
+        before process creation.
+        """
 
         root = Path(cwd).resolve()
         self._assert_root(root)
@@ -263,10 +280,39 @@ class GatewayHostProcessRuntime:
             operation_name,
             time.time_ns(),
         )
+        process_environment = {**_safe_base_environment(), **dict(frozen_environment)}
+        credential_relay_used = credential_relay is not None
+        if credential_relay_used:
+            name = str(credential_environment_name or "").strip()
+            if not name:
+                raise ValueError("credential environment name is required for relay")
+            session_id = stable_identifier(
+                "gateway-host-session", str(root), operation_name
+            )
+            audience = f"gateway-host-process:{operation_name}"
+            request = CredentialRequest.build(
+                session_id=session_id,
+                command_id=command_id,
+                provider=str(credential_provider or "provider-control-plane"),
+                credential_name=name,
+                audience=audience,
+                scope=credential_scope or ("provider:model:dispatch",),
+                ttl_seconds=30.0,
+                provenance_ref=credential_provenance_ref,
+                metadata={"environment_in_command_envelope": False},
+            )
+            envelope = credential_relay.issue(request)
+            process_environment[name] = credential_relay.consume(
+                envelope.envelope_id,
+                session_id=session_id,
+                command_id=command_id,
+                audience=audience,
+                required_scope="provider:model:dispatch",
+            )
         process = subprocess.Popen(
             [str(executable), *(str(item) for item in argv)],
             cwd=root,
-            env={**_safe_base_environment(), **dict(frozen_environment)},
+            env=process_environment,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -278,6 +324,7 @@ class GatewayHostProcessRuntime:
             start_new_session=self.process_tree.start_new_session(),
         )
         setattr(process, "_zyra_gateway_command_id", command_id)
+        setattr(process, "_zyra_credential_relay_used", credential_relay_used)
         with self._lock:
             self._active[command_id] = process
         return process

@@ -33,6 +33,18 @@ interface EventAccumulator {
   verifier: VerifierEvidence
 }
 
+function record(value: unknown): Readonly<Record<string, unknown>> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : {}
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : []
+}
+
 function eventPayload(frame: IngressFrame): Readonly<Record<string, unknown>> {
   const value = frame.event.payload
   return value && typeof value === "object" && !Array.isArray(value)
@@ -158,6 +170,7 @@ export function classifyTaskOutcome(
   task: TaskProjection,
   evidence: VerifierEvidence,
 ): CommandOutcome {
+  const delivery = record(task.metadata.delivery)
   const verifier = {
     schema: "zyra.cli-verifier-summary.v1",
     present: Boolean(evidence.final),
@@ -176,6 +189,21 @@ export function classifyTaskOutcome(
       ? task.metadata.final_answer
       : undefined,
     artifact_ids: task.artifacts.map((artifact) => artifact.artifactId),
+    workspace_delivery: delivery.schema === "zyra.task-workspace-delivery/v1"
+      ? {
+          schema: delivery.schema,
+          workspace_id: typeof delivery.workspace_id === "string"
+            ? delivery.workspace_id
+            : undefined,
+          created_paths: stringList(delivery.created_paths),
+          modified_paths: stringList(delivery.modified_paths),
+          deleted_paths: stringList(delivery.deleted_paths),
+          changed_paths: stringList(delivery.changed_paths),
+          file_api_resource: typeof delivery.workspace_id === "string"
+            ? `workspaces/${delivery.workspace_id}/files`
+            : undefined,
+        }
+      : undefined,
   }
   if (task.status === "cancelled") {
     return {

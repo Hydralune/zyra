@@ -4,6 +4,7 @@ import json
 import hashlib
 import os
 import queue
+import re
 import shutil
 import subprocess
 import threading
@@ -40,6 +41,10 @@ from zyra_runtime.sandbox_gateway.command_policy import StructuredCommandPolicy
 from zyra_runtime.sandbox_gateway.file_policy import GatewayFilePolicy
 from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
 from zyra_runtime.sandbox_gateway.integration_policy import GatewayPolicyConfig, GatewayPolicyRuntime
+from zyra_runtime.sandbox_gateway.credential_relay import (
+    CallbackCredentialProvider,
+    CredentialRelay,
+)
 
 from .code_worker_bridge import code_worker_entrypoint
 from .subagents.typescript_port import TypeScriptAgentDurablePort
@@ -459,6 +464,7 @@ class TypeScriptClaudeQueryEngine:
             cwd=self.project_root,
             environment=self._runtime_environment(),
             operation_name="typescript-claude-query-runtime",
+            **self._provider_credential_relay_arguments(),
         )
         self._active_runtime_process = process
         if process.stdin is None or process.stdout is None or process.stderr is None:
@@ -1411,6 +1417,58 @@ class TypeScriptClaudeQueryEngine:
         environment["ZYRA_TYPESCRIPT_RUNTIME_OWNER"] = "canonical"
         environment["ZYRA_TYPESCRIPT_RUNTIME_PROTOCOL"] = RUNTIME_PROTOCOL_VERSION
         return environment
+
+    def _provider_credential_relay_arguments(self) -> dict[str, Any]:
+        constraints = dict(self.config.runtime_constraints)
+        if constraints.get("provider_control_plane_required") is not True:
+            return {}
+        name = str(
+            constraints.get("provider_credential_environment_name") or ""
+        ).strip()
+        if (
+            constraints.get("provider_credential_environment_scoped") is not True
+            or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{1,127}", name)
+        ):
+            raise TypeScriptRuntimeError(
+                "provider_credential_environment_invalid",
+                "The provider route does not carry a valid scoped credential environment reference.",
+            )
+        expected_fingerprint = str(
+            constraints.get("provider_credential_fingerprint") or ""
+        ).strip()
+
+        def resolve(_: Any) -> str:
+            credential = str(os.environ.get(name) or "")
+            if not credential:
+                raise TypeScriptRuntimeError(
+                    "provider_credential_environment_missing",
+                    "The scoped provider credential environment reference is unavailable.",
+                )
+            actual_fingerprint = (
+                "sha256:" + hashlib.sha256(credential.encode("utf-8")).hexdigest()[:16]
+            )
+            if actual_fingerprint != expected_fingerprint:
+                raise TypeScriptRuntimeError(
+                    "provider_credential_environment_mismatch",
+                    "The scoped provider credential does not match the pinned route fingerprint.",
+                )
+            return credential
+
+        relay = CredentialRelay(
+            CallbackCredentialProvider(resolve),
+            maximum_ttl_seconds=30.0,
+        )
+        return {
+            "credential_relay": relay,
+            "credential_environment_name": name,
+            "credential_provider": str(
+                constraints.get("provider_id") or "provider-control-plane"
+            ),
+            "credential_scope": ("provider:model:dispatch",),
+            "credential_provenance_ref": str(
+                constraints.get("provider_route_id") or ""
+            ),
+        }
 
     def _typescript_config(self, *, session_id: str) -> dict[str, Any]:
         runtime_constraints = dict(self.config.runtime_constraints)

@@ -5,6 +5,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import re
 import sqlite3
 import threading
 import sys
@@ -232,8 +233,10 @@ from zyra_code_index import (
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_orchestration.goal_contracts import (
     direct_response_contract,
+    goal_delivery_contract,
     goal_contract_matches_projection,
     validate_direct_response,
+    validate_goal_delivery,
 )
 from zyra_orchestration.deployment import DeploymentProfile
 from zyra_orchestration.topology_policy.production import (
@@ -400,6 +403,10 @@ from zyra_runtime import (
     default_tool_registry,
     default_worker_descriptors,
     tool_result_event,
+)
+from zyra_runtime.provider_control_plane import (
+    ProviderRouteBindingRuntime,
+    provider_database_path,
 )
 from zyra_workers.terminal import (
     TerminalBinding,
@@ -5456,6 +5463,50 @@ class _CanonicalFinalVerifierOwner:
             state.user_goal,
             final_answer,
         )
+        workspace_root: Path | None = None
+        try:
+            workspace_manager = get_workspace_manager()
+            verifier_access = workspace_manager.acquire_for_worker(
+                task_id=state.task_id,
+                session_id=str(
+                    state.metadata.get("query_session_id")
+                    or f"task:{state.task_id}"
+                ),
+                worker_id=f"final-verifier:{state.task_id}",
+            )
+            workspace_root = workspace_manager.internal_task_root(
+                verifier_access
+            )
+        except WorkspaceError:
+            workspace_root = None
+        delivery_verification = validate_goal_delivery(
+            state.user_goal,
+            projection=(
+                state.metadata.get("delivery_contract")
+                if isinstance(state.metadata.get("delivery_contract"), Mapping)
+                else None
+            ),
+            workspace_root=workspace_root,
+            workspace_delta=(
+                physical_signals.get("workspace_delta")
+                if isinstance(
+                    physical_signals.get("workspace_delta"), Mapping
+                )
+                else operator_domain_result.get("workspace_delta")
+                if isinstance(
+                    operator_domain_result.get("workspace_delta"), Mapping
+                )
+                else None
+            ),
+            final_response=final_answer,
+            provider_evidence=(
+                physical_payload.get("provider_evidence")
+                if isinstance(
+                    physical_payload.get("provider_evidence"), Mapping
+                )
+                else None
+            ),
+        )
         checks = {
             "requirement_scope_bound": bool(
                 scope.get("requirement_revision")
@@ -5611,17 +5662,26 @@ class _CanonicalFinalVerifierOwner:
                 )
             ),
             "goal_contract_satisfied": bool(goal_verification.get("passed")),
+            **{
+                f"delivery_{name}": bool(passed)
+                for name, passed in dict(
+                    delivery_verification.get("checks") or {}
+                ).items()
+            },
             "direct_response_artifact_bound": bool(
                 response_contract is None
                 or (
                     final_answer
-                    and operator_domain_result.get("kind") == "direct_response"
+                    and operator_domain_result.get("kind")
+                    == "code_worker_execution"
                     and physical_signals.get("operator_adapter_id")
-                    == "worker.local-code-worker.direct-response"
-                    and str(operator_domain_artifact.get("content") or "").strip()
+                    == "worker.code-worker.typescript-provider-tool-loop"
+                    and str(physical_signals.get("final_text") or "").strip()
                     == final_answer
-                    and operator_domain_result.get("goal_contract_satisfied")
-                    is True
+                    and str(
+                        operator_domain_result.get("final_answer_digest") or ""
+                    ).removeprefix("sha256:")
+                    == canonical_digest(final_answer)
                 )
             ),
         }
@@ -5781,9 +5841,6 @@ def graph_execution_context() -> GraphExecutionContext:
     executable: list[WorkerManifest] = []
     for worker_id, worker in sorted(physical_workers.items()):
         static = static_manifests.get(worker_id)
-        if static is not None:
-            executable.append(static)
-            continue
         manifest = pool_api.pool.store.latest_manifest(worker_id)
         if manifest is None:
             continue
@@ -5792,9 +5849,13 @@ def graph_execution_context() -> GraphExecutionContext:
                 worker_id=worker_id,
                 display_name=f"Physical worker {worker_id}",
                 runtime_worker=(
-                    "MemoryCuratorRuntime"
-                    if "memory" in worker.worker_kind.casefold()
-                    else "CodeWorkerRuntime"
+                    static.runtime_worker
+                    if static is not None
+                    else (
+                        "MemoryCuratorRuntime"
+                        if "memory" in worker.worker_kind.casefold()
+                        else "CodeWorkerRuntime"
+                    )
                 ),
                 location=ResourceLocation(manifest.location.value),
                 backend=_scheduler_backend_from_physical_manifest(manifest),
@@ -5806,6 +5867,8 @@ def graph_execution_context() -> GraphExecutionContext:
                 privacy_level=(
                     "sensitive_ok"
                     if manifest.location.value == "local"
+                    else "internal_or_project"
+                    if "provider-reasoning" in manifest.capabilities
                     else "public_or_masked"
                 ),
                 max_concurrency=max(
@@ -5882,60 +5945,91 @@ def graph_execution_context() -> GraphExecutionContext:
 def _ensure_phase2_production_workers(
     pool_api: WorkerPoolApiService,
 ) -> None:
-    """Bind schedulable local workers to the actual deployment-node process.
+    """Bind schedulable workers to truthful deployment-node processes.
 
     The WorkerPool lease identity and the deployment receipt must describe the
-    same process boundary.  A stale API-process registration is replaced only
-    when it has no live lease; otherwise production composition fails closed.
+    same process boundary.  The CodeWorker is hosted by the cloud profile
+    because that physical process owns network/provider access; the memory
+    curator remains local.  Orphaned leases are fenced only after their former
+    process identity is absent from every live managed node.
     """
 
     orchestrator = get_deployment_api().orchestrator
-    policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)
-    process, client, health = orchestrator.processes.start_node(policy)
-    semantic = dict(client.semantic_readiness())
-    if (
-        "phase2-operator-execution"
-        not in tuple(str(item) for item in semantic.get("operations") or ())
-        or semantic.get("runtime_implementation_version")
-        != "phase2-operator-execution-v7"
-    ):
-        process, client, health = orchestrator.processes.start_node(
-            policy,
-            restart=True,
-        )
-        semantic = dict(client.semantic_readiness())
-    if (
-        "phase2-operator-execution"
-        not in tuple(str(item) for item in semantic.get("operations") or ())
-        or semantic.get("runtime_implementation_version")
-        != "phase2-operator-execution-v7"
-    ):
+    _sync_configured_provider_environment(orchestrator)
+    preferred_provider = _preferred_configured_provider()
+    if preferred_provider is None:
         raise RuntimeError(
-            "the production deployment node does not expose the current "
-            "Phase 2 operator runtime"
+            "no configured live provider credential is available; expected "
+            "ZAI_API_KEY, DEEPSEEK_API_KEY or KIMI_API_KEY"
         )
-
-    identity = dict(health.get("runtime_identity") or {})
-    failure_boundary_id = str(identity.get("failure_boundary_id") or "")
-    node_id = str(health.get("node_id") or "")
-    generation_id = str(identity.get("generation_id") or "")
-    if not failure_boundary_id or not node_id or not generation_id:
-        raise RuntimeError("deployment node physical identity is incomplete")
+    provider_environment_names = {
+        provider_id: key
+        for key, _, provider_id, _model_id in _PROVIDER_ENV_FILES
+    }
+    required_cloud_credential = provider_environment_names[
+        preferred_provider[0]
+    ]
+    live_nodes: dict[DeploymentProfile, tuple[Any, Mapping[str, Any], Any]] = {}
+    live_identities: set[str] = set()
+    for profile in (DeploymentProfile.DEVICE, DeploymentProfile.CLOUD):
+        policy = orchestrator.catalog.policy(profile)
+        process, client, health = orchestrator.processes.start_node(policy)
+        semantic = dict(client.semantic_readiness())
+        credential_ready = bool(
+            dict(health.get("credential_presence") or {}).get(
+                required_cloud_credential
+            )
+        )
+        if (
+            "phase2-operator-execution"
+            not in tuple(str(item) for item in semantic.get("operations") or ())
+            or semantic.get("runtime_implementation_version")
+            != "phase2-operator-execution-v8"
+            or (profile is DeploymentProfile.CLOUD and not credential_ready)
+        ):
+            process, client, health = orchestrator.processes.start_node(
+                policy,
+                restart=True,
+            )
+            semantic = dict(client.semantic_readiness())
+        if (
+            "phase2-operator-execution"
+            not in tuple(str(item) for item in semantic.get("operations") or ())
+            or semantic.get("runtime_implementation_version")
+            != "phase2-operator-execution-v8"
+        ):
+            raise RuntimeError(
+                "the production deployment node does not expose the current "
+                f"Phase 2 operator runtime: {profile.value}"
+            )
+        if profile is DeploymentProfile.CLOUD and not bool(
+            dict(health.get("credential_presence") or {}).get(
+                required_cloud_credential
+            )
+        ):
+            raise RuntimeError(
+                "the production cloud node does not carry the selected "
+                f"provider credential reference: {required_cloud_credential}"
+            )
+        identity = dict(health.get("runtime_identity") or {})
+        failure_boundary_id = str(identity.get("failure_boundary_id") or "")
+        node_id = str(health.get("node_id") or "")
+        generation_id = str(identity.get("generation_id") or "")
+        if not failure_boundary_id or not node_id or not generation_id:
+            raise RuntimeError(
+                f"deployment node physical identity is incomplete: {profile.value}"
+            )
+        live_nodes[profile] = (process, health, policy)
+        live_identities.add(failure_boundary_id)
 
     static_manifests = {
         item.worker_id: item for item in WorkerPool().manifests()
     }
-    local_worker_ids = {
-        item.worker_id
-        for item in pool_api.pool.store.list_workers()
-        if item.location is PhysicalWorkerLocation.LOCAL
-        and (
-            item.worker_id in {"local-code-worker", "local-memory-curator"}
-            or bool(item.metadata.get("default_api_worker"))
-        )
+    worker_profiles = {
+        "local-code-worker": DeploymentProfile.CLOUD,
+        "local-memory-curator": DeploymentProfile.DEVICE,
     }
-    local_worker_ids.add("local-code-worker")
-    for worker_id in sorted(local_worker_ids):
+    for worker_id, profile in worker_profiles.items():
         logical = static_manifests.get(worker_id)
         capability_manifest = pool_api.pool.store.latest_manifest(worker_id)
         if capability_manifest is None and logical is None:
@@ -5955,7 +6049,19 @@ def _ensure_phase2_production_workers(
             if logical is not None
             else tuple(capability_manifest.tool_ids)  # type: ignore[union-attr]
         )
-        backend_id = f"phase2-device:{worker_id}"
+        process, health, policy = live_nodes[profile]
+        identity = dict(health.get("runtime_identity") or {})
+        failure_boundary_id = str(identity.get("failure_boundary_id") or "")
+        node_id = str(health.get("node_id") or "")
+        generation_id = str(identity.get("generation_id") or "")
+        is_code_worker = worker_id == "local-code-worker"
+        physical_location = (
+            PhysicalWorkerLocation.CLOUD
+            if is_code_worker
+            else PhysicalWorkerLocation.LOCAL
+        )
+        backend_kind = "cloud_model" if is_code_worker else "local_process"
+        backend_id = f"phase2-{profile.value}:{worker_id}"
         existing = pool_api.pool.store.get_worker(worker_id)
         exact_existing = bool(
             existing is not None
@@ -5975,10 +6081,20 @@ def _ensure_phase2_production_workers(
                 if not item.terminal
             )
             if active:
-                raise RuntimeError(
-                    "cannot replace a stale physical worker registration while "
-                    f"live leases exist: {worker_id}"
-                )
+                old_identity = str(existing.process_identity if existing else "")
+                if old_identity in live_identities:
+                    raise RuntimeError(
+                        "cannot replace a live physical worker registration while "
+                        f"leases exist: {worker_id}"
+                    )
+                for lease in active:
+                    pool_api.pool.leases.expire(
+                        lease.lease_id,
+                        reason=(
+                            "orphaned physical worker generation is absent from "
+                            "the reconciled deployment process set"
+                        ),
+                    )
             pool_api.pool.register_physical_worker(
                 worker_id=worker_id,
                 worker_kind=(
@@ -5986,10 +6102,10 @@ def _ensure_phase2_production_workers(
                     if "memory" not in worker_kind.casefold()
                     else "memory-curator-worker"
                 ),
-                location=PhysicalWorkerLocation.LOCAL,
+                location=physical_location,
                 backend=PhysicalBackendCapability(
                     backend_id=backend_id,
-                    backend_kind="local_process",
+                    backend_kind=backend_kind,
                     enabled=True,
                     healthy=True,
                     capabilities=tuple(
@@ -6000,7 +6116,7 @@ def _ensure_phase2_production_workers(
                         "gateway_owner": "DeploymentNodeRuntime",
                         "physical_operator_runtime": True,
                     },
-                    labels={"dispatch_location": "local"},
+                    labels={"dispatch_location": physical_location.value},
                 ),
                 capabilities=tuple(
                     dict.fromkeys(("agent_task", *capabilities))
@@ -6022,7 +6138,11 @@ def _ensure_phase2_production_workers(
                     "deployment_generation_id": generation_id,
                     "deployment_profile": policy.profile.value,
                     "deployment_pid": int(identity.get("pid") or process.pid),
-                    "canonical_runtime_owner": "DeploymentNodeRuntime",
+                    "canonical_runtime_owner": (
+                        "TypeScriptQueryEngine"
+                        if is_code_worker
+                        else "DeploymentNodeRuntime"
+                    ),
                     "source_default_api_worker": bool(
                         existing is not None
                         and existing.metadata.get("default_api_worker")
@@ -6049,7 +6169,79 @@ def _production_physical_dispatch_port(
         state.metadata.get("phase2_policy_permission_receipt") or {}
     )
     orchestrator = get_deployment_api().orchestrator
+    _sync_configured_provider_environment(orchestrator)
     payload = dict(operator_task)
+    provider_id = ""
+    model_id = ""
+    operator_ref = str(payload.get("operator_ref") or "")
+    is_model_code_worker = bool(
+        str(payload.get("operator_runtime") or "") == "CodeWorkerRuntime"
+        and not operator_ref.startswith("worker:local-memory-curator@")
+    )
+    if is_model_code_worker:
+        preferred = _preferred_configured_provider()
+        if preferred is None:
+            raise RuntimeError(
+                "no configured live provider credential is available; expected "
+                "ZAI_API_KEY, DEEPSEEK_API_KEY or KIMI_API_KEY"
+            )
+        provider_id, model_id = preferred
+        session_id = f"physical-provider:{state.run_id}:{state.task_id}"
+        turn_id = str(
+            payload.get("operator_idempotency_key")
+            or f"physical-turn:{state.task_id}"
+        )
+        provider_db = provider_database_path(artifact_root_path())
+        route_ref = ProviderRouteBindingRuntime(
+            project_root=PROJECT_ROOT,
+            database_path=provider_db,
+            allow_explicit_sim_bootstrap=False,
+        ).bind(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=str(
+                (payload.get("physical_worker_binding") or {}).get("node_id")
+                or ""
+            )
+            or None,
+            session_id=session_id,
+            turn_id=turn_id,
+            purpose="phase2-code-worker-task",
+            preferred_provider_id=provider_id,
+            preferred_model_id=model_id,
+            require_tools=True,
+            require_streaming=True,
+            metadata={
+                "runtimeWorker": "CodeWorkerRuntime",
+                "physicalTaskExecution": True,
+            },
+        )
+        workspace = get_workspace_manager().config
+        payload["provider"] = route_ref.provider_id
+        payload["model"] = route_ref.model_id
+        payload["code_worker_context"] = {
+            "project_root": str(PROJECT_ROOT),
+            "artifact_root": str(artifact_root_path()),
+            "workspace_manager": {
+                "state_root": str(workspace.state_root),
+                "data_root": str(workspace.data_root),
+                "session_id": str(
+                    state.metadata.get("query_session_id")
+                    or f"task:{state.task_id}"
+                ),
+                "local_enabled": workspace.local_enabled,
+                "default_backend_id": workspace.default_backend_id,
+                "lease_ttl_seconds": workspace.lease_ttl_seconds,
+                "reservation_ttl_seconds": workspace.reservation_ttl_seconds,
+                "max_receipts": workspace.max_receipts,
+            },
+            "provider_constraints": route_ref.runtime_constraints(
+                database_path=provider_db
+            ),
+            "model_id": route_ref.model_id,
+            "max_turns": 12,
+            "model_output_token_limit": 8192,
+        }
     task = PhysicalDispatchTask(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -6058,8 +6250,8 @@ def _production_physical_dispatch_port(
         allowed_placements=(location,),
         permission_ref=str(permission.get("decision_id") or ""),
         operation="phase2-operator-execution",
-        provider_id="zhipu",
-        model_id="glm-5.2",
+        provider_id=provider_id or "zhipu",
+        model_id=model_id or "glm-5.2",
     )
     return PhysicalDispatchCallPort(
         task=task,
@@ -6070,6 +6262,93 @@ def _production_physical_dispatch_port(
             artifact_root_path() / "physical-dispatch"
         ),
     )
+
+
+_PROVIDER_ENV_FILES = (
+    ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
+    (
+        "DEEPSEEK_API_KEY",
+        ".env.deepseek.local",
+        "deepseek",
+        "deepseek-v4-flash",
+    ),
+    (
+        "KIMI_API_KEY",
+        ".env.kimi.local",
+        "kimi-platform",
+        "kimi-k2.7-code",
+    ),
+)
+_FILE_MANAGED_PROVIDER_ENV: set[str] = set()
+
+
+def _load_configured_provider_environment() -> tuple[str, ...]:
+    """Load only allowlisted provider keys from ignored local env files."""
+
+    configured: list[str] = []
+    for key, filename, _, _ in _PROVIDER_ENV_FILES:
+        ambient = str(os.environ.get(key) or "").strip()
+        path = PROJECT_ROOT / filename
+        file_value = (
+            _read_allowlisted_env_value(path, key)
+            if path.is_file()
+            else ""
+        )
+        if key not in _FILE_MANAGED_PROVIDER_ENV and ambient:
+            configured.append(key)
+            continue
+        if file_value:
+            os.environ[key] = file_value
+            _FILE_MANAGED_PROVIDER_ENV.add(key)
+            configured.append(key)
+            continue
+        if key in _FILE_MANAGED_PROVIDER_ENV:
+            os.environ.pop(key, None)
+            _FILE_MANAGED_PROVIDER_ENV.discard(key)
+    return tuple(configured)
+
+
+def _read_allowlisted_env_value(path: Path, expected_name: str) -> str:
+    """Read one exact key without importing or expanding an arbitrary env file."""
+
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        name, separator, raw_value = line.partition("=")
+        if not separator or name.strip() != expected_name:
+            continue
+        value = raw_value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+        return value.strip()
+    return ""
+
+
+def _preferred_configured_provider() -> tuple[str, str] | None:
+    _load_configured_provider_environment()
+    for key, _, provider_id, model_id in _PROVIDER_ENV_FILES:
+        if str(os.environ.get(key) or "").strip():
+            return provider_id, model_id
+    return None
+
+
+def _sync_configured_provider_environment(orchestrator: Any) -> None:
+    configured = set(_load_configured_provider_environment())
+    for key, _, _, _ in _PROVIDER_ENV_FILES:
+        if key not in configured:
+            orchestrator.catalog.environment.pop(key, None)
+            orchestrator.processes.environment.pop(key, None)
+            continue
+        value = str(os.environ.get(key) or "")
+        orchestrator.catalog.environment[key] = value
+        orchestrator.processes.environment[key] = value
+
+
 def _phase2_communication_outcomes(state: Any) -> tuple[Mapping[str, Any], ...]:
     """Project only canonical event-log communication outcome receipts."""
 
@@ -6938,6 +7217,9 @@ def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
     if response_contract is not None:
         state.metadata["goal_contract"] = response_contract.to_dict()
         state.metadata["interaction_mode"] = "direct_response"
+    state.metadata["delivery_contract"] = goal_delivery_contract(
+        user_goal
+    ).to_dict()
     event = EventRecord(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -6946,6 +7228,43 @@ def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
         payload={"task": to_jsonable(state)},
     )
     return state, event
+
+
+def _task_execution_failed_event(state: Any, error: BaseException) -> EventRecord:
+    code = str(getattr(error, "code", "") or type(error).__name__)
+    message = _diagnostic_error_message(error)
+    state.status = PlanNodeStatus.BLOCKED
+    state.updated_at = now_iso()
+    state.metadata["last_execution_error"] = {
+        "schema": "zyra.task-execution-error/v1",
+        "error": code,
+        "message": message,
+        "retryable": bool(getattr(error, "retryable", False)),
+        "fallback": False,
+    }
+    return EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=state.root_node_id,
+        event_type=EventType.SYSTEM_NOTICE,
+        payload=dict(state.metadata["last_execution_error"]),
+    )
+
+
+def _diagnostic_error_message(error: BaseException) -> str:
+    message = str(error).strip()[:4_000] or "task execution failed"
+    substitutions = (
+        (r"(?i)(Bearer\s+)[^\s,;]+", r"\1<redacted>"),
+        (r"(?i)\bsk-[A-Za-z0-9_-]{8,}\b", "<redacted>"),
+        (
+            r"(?i)\b(api[_-]?key|password|secret|authorization)"
+            r"(\s*[:=]\s*)[^\s,;]+",
+            r"\1\2<redacted>",
+        ),
+    )
+    for pattern, replacement in substitutions:
+        message = re.sub(pattern, replacement, message)
+    return message[:1_000]
 
 
 def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
@@ -7101,6 +7420,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return None
 
     def handle_one_request(self) -> None:
+        self._zyra_response_started = False
         try:
             super().handle_one_request()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
@@ -7111,12 +7431,35 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             # Canonical event custody is used by most mutating routes.  An
             # unavailable spine must fail closed as a stable HTTP response,
             # never as a dropped socket that hides the owner failure.
+            if getattr(self, "_zyra_response_started", False):
+                self.close_connection = True
+                return
             try:
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {
                         "error": error.code,
                         "message": str(error),
+                        "fallback": False,
+                    },
+                )
+            except (BrokenPipeError, ConnectionError, OSError):
+                self.close_connection = True
+        except Exception as error:  # noqa: BLE001 - last-resort HTTP boundary.
+            # A route bug or owner failure must still be diagnosable by a
+            # client.  Never write a second response after headers started.
+            if getattr(self, "_zyra_response_started", False):
+                self.close_connection = True
+                return
+            try:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "schema": "zyra.http-error/v1",
+                        "error": "internal_server_error",
+                        "message": _diagnostic_error_message(error),
+                        "exception_type": type(error).__name__,
+                        "retryable": False,
                         "fallback": False,
                     },
                 )
@@ -7650,6 +7993,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         return True
 
     def do_OPTIONS(self) -> None:
+        self._zyra_response_started = True
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_cors_headers()
         self.end_headers()
@@ -10200,12 +10544,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
             try:
                 if auto_run:
-                    # The strongest production route acquires its execution
-                    # lease only after the canonical permission and resource
-                    # decisions.  A pending task still needs one fenced
-                    # reservation so recovery/control owners have a concrete
-                    # physical attempt before execution starts.
-                    pool_api.ensure_default_local_worker()
+                    # The strongest production route registers the truthful
+                    # deployment-node identities and acquires its execution
+                    # lease only after permission and resource decisions.  Do
+                    # not create a provisional API-process CodeWorker record:
+                    # it would immediately become a stale generation when the
+                    # cloud CodeWorker is reconciled below.
                     pool_api.ensure_task_graph(state)
                 else:
                     pool_api.acquire_for_task(
@@ -10217,29 +10561,119 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         ),
                     )
             except Exception as error:
-                self._typed_receipts().abandon(receipt_reservation)
+                failure_event = _task_execution_failed_event(state, error)
+                events.append(failure_event)
+                try:
+                    pool_api.finalize_task(
+                        state,
+                        success=False,
+                        summary="worker pool initialization failed",
+                    )
+                except Exception:  # noqa: BLE001 - preserve the primary failure.
+                    pass
+                persist_events(store, events)
+                store.save_checkpoint(state)
+                response_body = {
+                    "error": "worker_pool_initialization_failed",
+                    "message": _diagnostic_error_message(error),
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                    "retryable": bool(getattr(error, "retryable", False)),
+                    "fallback": False,
+                }
+                committed = self._commit_typed_receipt(
+                    receipt_reservation,
+                    status=HTTPStatus.SERVICE_UNAVAILABLE,
+                    body=response_body,
+                    binding={
+                        "session_id": session_id,
+                        "run_id": state.run_id,
+                        "task_id": state.task_id,
+                    },
+                )
+                if committed is None:
+                    return
+                response_body, receipt_headers = committed
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
-                    {
-                        "error": "worker_pool_initialization_failed",
-                        "message": str(error),
-                        "task_id": state.task_id,
-                        "fallback": False,
-                    },
+                    response_body,
+                    headers=receipt_headers,
                 )
                 return
             if auto_run:
-                if requested_sealed:
-                    prepare_phase2_loopx_pre_control(
-                        state,
-                        causation_id=created_event.event_id,
+                try:
+                    if requested_sealed:
+                        prepare_phase2_loopx_pre_control(
+                            state,
+                            causation_id=created_event.event_id,
+                        )
+                    events.extend(
+                        run_task_graph(
+                            state,
+                            execution_context=graph_execution_context(),
+                        )
                     )
-                events.extend(run_task_graph(state, execution_context=graph_execution_context()))
-                pool_api.finalize_task(
-                    state,
-                    success=str(state.status) == "completed",
-                    summary=f"default task graph finished with status {state.status}",
-                )
+                    pool_api.finalize_task(
+                        state,
+                        success=str(state.status) == "completed",
+                        summary=(
+                            "default task graph finished with status "
+                            f"{state.status}"
+                        ),
+                    )
+                except Exception as error:  # noqa: BLE001 - HTTP boundary must stay structured.
+                    failure_event = _task_execution_failed_event(state, error)
+                    events.append(failure_event)
+                    try:
+                        pool_api.finalize_task(
+                            state,
+                            success=False,
+                            summary="task execution failed before completion",
+                        )
+                    except Exception:  # noqa: BLE001 - preserve the primary failure.
+                        pass
+                    events.extend(
+                        event
+                        for event in pool_api.pool.events.project_after(
+                            pool_api.pool.store,
+                            pool_sequence,
+                        )
+                        if event.run_id == state.run_id
+                        and event.task_id == state.task_id
+                    )
+                    persist_events(store, events)
+                    store.save_checkpoint(state)
+                    response_body = {
+                        "error": "task_execution_failed",
+                        "message": _diagnostic_error_message(error),
+                        "task_id": state.task_id,
+                        "run_id": state.run_id,
+                        "task": to_jsonable(state),
+                        "events": [to_jsonable(event) for event in events],
+                        "retryable": bool(getattr(error, "retryable", False)),
+                        "fallback": False,
+                    }
+                    committed = self._commit_typed_receipt(
+                        receipt_reservation,
+                        status=HTTPStatus.SERVICE_UNAVAILABLE,
+                        body=response_body,
+                        binding={
+                            "session_id": session_id,
+                            "run_id": state.run_id,
+                            "task_id": state.task_id,
+                        },
+                    )
+                    if committed is None:
+                        return
+                    response_body, receipt_headers = committed
+                    self._send_json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        response_body,
+                        headers=receipt_headers,
+                    )
+                    return
             events.extend(
                 event
                 for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
@@ -10293,19 +10727,76 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 state,
                 reason="superseded by task resume physical dispatch",
             )
-            if _task_is_sealed_control(state, payload):
-                prepare_phase2_loopx_pre_control(
+            try:
+                if _task_is_sealed_control(state, payload):
+                    prepare_phase2_loopx_pre_control(
+                        state,
+                        causation_id=(
+                            f"task-resume:{state.run_id}:{state.task_id}"
+                        ),
+                    )
+                events = run_task_graph(
                     state,
-                    causation_id=(
-                        f"task-resume:{state.run_id}:{state.task_id}"
-                    ),
+                    execution_context=graph_execution_context(),
                 )
-            events = run_task_graph(state, execution_context=graph_execution_context())
-            pool_api.finalize_task(
-                state,
-                success=str(state.status) == "completed",
-                summary=f"task run finished with status {state.status}",
-            )
+                pool_api.finalize_task(
+                    state,
+                    success=str(state.status) == "completed",
+                    summary=f"task run finished with status {state.status}",
+                )
+            except Exception as error:  # noqa: BLE001 - HTTP boundary must stay structured.
+                failure_event = _task_execution_failed_event(state, error)
+                events = [failure_event]
+                try:
+                    pool_api.finalize_task(
+                        state,
+                        success=False,
+                        summary="task resume failed before completion",
+                    )
+                except Exception:  # noqa: BLE001 - preserve the primary failure.
+                    pass
+                events.extend(
+                    event
+                    for event in pool_api.pool.events.project_after(
+                        pool_api.pool.store,
+                        pool_sequence,
+                    )
+                    if event.run_id == state.run_id
+                    and event.task_id == state.task_id
+                )
+                persist_events(store, events)
+                store.save_checkpoint(state)
+                response_body = {
+                    "error": "task_execution_failed",
+                    "message": _diagnostic_error_message(error),
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                    "retryable": bool(getattr(error, "retryable", False)),
+                    "fallback": False,
+                }
+                committed = self._commit_typed_receipt(
+                    receipt_reservation,
+                    status=HTTPStatus.SERVICE_UNAVAILABLE,
+                    body=response_body,
+                    binding={
+                        "session_id": str(
+                            state.metadata.get("query_session_id") or ""
+                        ),
+                        "run_id": state.run_id,
+                        "task_id": state.task_id,
+                    },
+                )
+                if committed is None:
+                    return
+                response_body, receipt_headers = committed
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    response_body,
+                    headers=receipt_headers,
+                )
+                return
             events.extend(
                 event
                 for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
@@ -12735,6 +13226,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 merged_headers.update(fallback_headers)
         merged_headers.update(dict(headers or {}))
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self._zyra_response_started = True
         self.send_response(status)
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -12771,6 +13263,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if "\r" in selected_type or "\n" in selected_type or "/" not in selected_type:
             selected_type = "application/octet-stream"
         body = bytes(payload)
+        self._zyra_response_started = True
         self.send_response(status)
         self._send_cors_headers()
         self.send_header("Content-Type", selected_type)
@@ -12804,6 +13297,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 _, _, fallback_headers = typed_error_context(error, self.headers)
                 merged_headers.update(fallback_headers)
         merged_headers.update(sse_headers())
+        self._zyra_response_started = True
         self.send_response(HTTPStatus.OK)
         self._send_cors_headers()
         for key, value in merged_headers.items():

@@ -90,6 +90,8 @@ def _privacy_classes(value: Any, *, fallback: Sequence[str]) -> tuple[str, ...]:
         return ("public",)
     if rendered in {"public_or_masked", "masked"}:
         return ("masked", "public")
+    if rendered in {"internal_or_project", "project_cloud"}:
+        return ("internal", "project")
     return _tokens(value)
 
 

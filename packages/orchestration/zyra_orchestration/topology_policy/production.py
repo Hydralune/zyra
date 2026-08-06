@@ -555,10 +555,18 @@ class Phase2StrongestProductionBridge:
             worker_health=scheduler_health,
             built_at=now_iso(),
         )
+        delivery_contract = dict(
+            state.metadata.get("delivery_contract") or {}
+        )
         selected = self.operator_policy.execute(
             policy_input=operator_input,
             query=self._task_summary(state, node),
             catalog=operator_catalog,
+            first_layer_required_capabilities=(
+                ("provider-reasoning",)
+                if delivery_contract.get("provider_reasoning_required") is True
+                else ()
+            ),
         )
         if selected.proposal is None or selected.scheduler_input is None:
             return {
@@ -1450,6 +1458,9 @@ class Phase2StrongestProductionBridge:
             "task_id": state.task_id,
             "goal": state.user_goal,
             "goal_contract": dict(state.metadata.get("goal_contract") or {}),
+            "delivery_contract": dict(
+                state.metadata.get("delivery_contract") or {}
+            ),
             "requirement_revision": policy_input.requirement_revision,
             "operator_ref": selected_ref,
             "operator": selected_candidate.to_dict(),
@@ -1585,6 +1596,18 @@ class Phase2StrongestProductionBridge:
         domain_result = dict(
             execution_output.get("domain_result") or {}
         )
+        provider_execution = dict(
+            execution_output.get("provider_call") or {}
+        )
+        execution_workspace = dict(
+            execution_output.get("workspace") or {}
+        )
+        workspace_delta = dict(
+            execution_output.get("workspace_delta") or {}
+        )
+        final_text = str(
+            execution_output.get("final_text") or ""
+        ).strip()
         physical_identity = dict(
             physical_payload.get("physical_identity") or {}
         )
@@ -1612,8 +1635,26 @@ class Phase2StrongestProductionBridge:
         response_contract = direct_response_contract(state.user_goal)
         response_verification = validate_direct_response(
             state.user_goal,
-            domain_content,
+            final_text,
         )
+        code_worker_execution = bool(
+            selected_candidate.operator_type == "worker"
+            and selected_manifest.runtime_worker == "CodeWorkerRuntime"
+            and not selected_ref.startswith("worker:local-memory-curator@")
+        )
+        raw_workspace_ref = state.metadata.get("workspace_ref")
+        expected_workspace_id = ""
+        if isinstance(raw_workspace_ref, Mapping):
+            nested_workspace_ref = raw_workspace_ref.get("workspace")
+            expected_workspace_id = str(
+                raw_workspace_ref.get("workspace_id")
+                or (
+                    nested_workspace_ref.get("workspace_id")
+                    if isinstance(nested_workspace_ref, Mapping)
+                    else ""
+                )
+                or ""
+            )
         execution_checks = {
             "operation_is_operator_task": (
                 input_signals.get("workload_operation")
@@ -1670,6 +1711,38 @@ class Phase2StrongestProductionBridge:
                 execution_output.get("domain_effect_performed") is True
                 and bool(execution_output.get("operator_adapter_id"))
             ),
+            "provider_reasoning_bound": bool(
+                not code_worker_execution
+                or (
+                    provider_execution.get("provider_called") is True
+                    and provider_execution.get("task_execution_verified") is True
+                    and provider_execution.get("prompt_goal_bound") is True
+                    and provider_execution.get("synthetic_usage") is False
+                    and provider_execution.get("workload_operation")
+                    == "phase2-operator-execution"
+                    and provider_execution.get("calls")
+                )
+            ),
+            "code_worker_delivery_present": bool(
+                not code_worker_execution
+                or (
+                    domain_result.get("kind") == "code_worker_execution"
+                    and final_text
+                    and isinstance(workspace_delta.get("changed"), list)
+                    and execution_output.get("operator_adapter_id")
+                    == "worker.code-worker.typescript-provider-tool-loop"
+                )
+            ),
+            "code_worker_workspace_exact": bool(
+                not code_worker_execution
+                or (
+                    expected_workspace_id
+                    and execution_workspace.get("workspace_id")
+                    == expected_workspace_id
+                    and execution_workspace.get("physical_location_redacted")
+                    is True
+                )
+            ),
             "leased_physical_process_exact": bool(
                 binding.get("worker_process_identity")
                 == input_signals.get("leased_worker_process_identity")
@@ -1692,6 +1765,7 @@ class Phase2StrongestProductionBridge:
             ),
             "goal_contract_satisfied": bool(
                 response_contract is None
+                or not code_worker_execution
                 or (
                     goal_contract_matches_projection(
                         state.user_goal,
@@ -1703,10 +1777,9 @@ class Phase2StrongestProductionBridge:
                         else None,
                     )
                     and response_verification.get("passed") is True
-                    and domain_result.get("kind") == "direct_response"
+                    and domain_result.get("kind") == "code_worker_execution"
                     and execution_output.get("operator_adapter_id")
-                    == "worker.local-code-worker.direct-response"
-                    and domain_result.get("goal_contract_satisfied") is True
+                    == "worker.code-worker.typescript-provider-tool-loop"
                 )
             ),
         }
@@ -1811,8 +1884,19 @@ class Phase2StrongestProductionBridge:
                     "reconcile_before_retry": True,
                 },
             ) from error
+        if final_text:
+            state.metadata["final_answer"] = final_text
+        if code_worker_execution:
+            state.metadata["delivery"] = {
+                "schema": "zyra.task-workspace-delivery/v1",
+                "workspace_id": expected_workspace_id,
+                "created_paths": list(workspace_delta.get("created") or ()),
+                "modified_paths": list(workspace_delta.get("modified") or ()),
+                "deleted_paths": list(workspace_delta.get("deleted") or ()),
+                "changed_paths": list(workspace_delta.get("changed") or ()),
+                "physical_location_redacted": True,
+            }
         if response_contract is not None:
-            state.metadata["final_answer"] = domain_content.strip()
             state.metadata["goal_contract_verification"] = dict(
                 response_verification
             )
@@ -1875,10 +1959,37 @@ class Phase2StrongestProductionBridge:
         route_context["physical_dispatch_validation"] = physical_validation
         route_context["operator_call_result"] = call_result
         route_context["operator_execution_checks"] = execution_checks
+        runtime_events: list[EventRecord] = []
+        for item in execution_output.get("runtime_events") or ():
+            if not isinstance(item, Mapping):
+                continue
+            if (
+                str(item.get("run_id") or "") != state.run_id
+                or str(item.get("task_id") or "") != state.task_id
+            ):
+                continue
+            try:
+                runtime_events.append(
+                    EventRecord(
+                        event_id=str(item.get("event_id") or ""),
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        node_id=(
+                            str(item.get("node_id"))
+                            if item.get("node_id") is not None
+                            else None
+                        ),
+                        event_type=EventType(str(item.get("event_type") or "")),
+                        created_at=str(item.get("created_at") or now_iso()),
+                        payload=dict(item.get("payload") or {}),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
         return (
             _PhysicalWorkerRun(
                 worker_result=worker_result,
-                event_records=[event],
+                event_records=[*runtime_events, event],
             ),
             str(binding.get("worker_id") or "physical-operator-worker"),
         )
@@ -2652,10 +2763,11 @@ class Phase2StrongestProductionBridge:
         condition_map = {
             item.condition_id: item.passed for item in decision.conditions
         }
-        hard_conditions_passed = bool(
-            hard_condition_names.issubset(condition_map)
-            and all(condition_map[name] for name in hard_condition_names)
+        hard_failed_conditions = _failed_completion_conditions(
+            condition_map,
+            hard_condition_names,
         )
+        hard_conditions_passed = not hard_failed_conditions
         full_proposal = context.get("full_proposal") or proposal
         proposed_operator_refs = tuple(
             dict.fromkeys(
@@ -2707,7 +2819,14 @@ class Phase2StrongestProductionBridge:
             "decision": decision.decision.value,
             "decision_id": decision.decision_id,
             "decision_digest": decision.digest,
-            "failed_conditions": list(decision.failed_conditions),
+            # Completion failures and adaptive-depth/early-exit diagnostics
+            # are different domains.  Keeping them in separate fields avoids
+            # the contradictory old receipt where completion passed while its
+            # own ``failed_conditions`` list was non-empty.
+            "failed_conditions": list(hard_failed_conditions),
+            "adaptive_depth_failed_conditions": list(
+                decision.failed_conditions
+            ),
             "snapshot_id": snapshot.snapshot_id,
             "snapshot_digest": snapshot.digest,
             "remaining_operator_count": len(
@@ -3621,6 +3740,21 @@ class Phase2StrongestProductionBridge:
             input_version="v1",
             idempotency_key=f"{mechanism_id}:{contract_id}",
         )
+
+
+def _failed_completion_conditions(
+    condition_map: Mapping[str, bool],
+    required_conditions: set[str],
+) -> tuple[str, ...]:
+    """Return only task-completion failures, not early-exit diagnostics."""
+
+    return tuple(
+        sorted(
+            name
+            for name in required_conditions
+            if condition_map.get(name) is not True
+        )
+    )
 
 
 __all__ = [

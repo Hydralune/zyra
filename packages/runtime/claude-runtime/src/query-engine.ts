@@ -171,6 +171,7 @@ export class ClaudeRuntimeCore {
 
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
       eventSequence += 1;
+      const publicPayload = publicRuntimeEventPayload(phase, payload);
       const event: RuntimeEvent = {
         phase,
         sequence: eventSequence,
@@ -180,7 +181,7 @@ export class ClaudeRuntimeCore {
         run_id: input.runId,
         task_id: input.taskId,
         worker_request_id: input.workerRequestId,
-        ...payload,
+        ...publicPayload,
       };
       if (phase === "model_stream_report") {
         e01.observeProviderGateway(phase, {
@@ -1673,6 +1674,23 @@ function sessionChecksumPayload(value: JsonObject): JsonObject {
     if (key in value) selected[key] = value[key] ?? null;
   }
   return selected;
+}
+
+function publicRuntimeEventPayload(phase: string, payload: JsonObject): JsonObject {
+  if (phase !== "model_request_prepared") return payload;
+  const request = asObject(payload.provider_request);
+  if (Object.keys(request).length === 0) return payload;
+  const commitment = { ...request };
+  delete commitment.messages;
+  delete commitment.tools;
+  delete commitment.system;
+  return {
+    ...payload,
+    provider_request: {
+      ...commitment,
+      prompt_content_persisted: false,
+    },
+  };
 }
 
 function selectRestoredModelIterationSnapshot(

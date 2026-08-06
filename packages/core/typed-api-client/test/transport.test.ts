@@ -5,6 +5,7 @@ import {
   BoundedIdentityWindow,
   CONTRACT_NAMES,
   FetchApiTransport,
+  HttpResponseError,
   MalformedJsonError,
   NormalizerDisabledError,
   OPERATION_NAMES,
@@ -140,6 +141,29 @@ describe("typed transport contract", () => {
     const { registry } = registryWith(script.fetch)
     await expect(registry.execute(healthRequest(id))).rejects.toBeInstanceOf(ApiVersionMismatchError)
     expect(script.calls).toHaveLength(1)
+  })
+
+  test("classifies HTTP 409 as a conflict instead of a version mismatch", async () => {
+    const id = requestId(51)
+    const script = scriptedFetch([
+      jsonResponse(
+        {
+          error: "state_conflict",
+          message: "The worker generation is still leased.",
+          fallback: false,
+        },
+        { status: 409, requestId: id, apiVersion: "1.0" },
+      ),
+    ])
+    const { registry } = registryWith(script.fetch)
+    try {
+      await registry.execute(healthRequest(id))
+      throw new Error("expected a conflict response")
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpResponseError)
+      expect(error).not.toBeInstanceOf(ApiVersionMismatchError)
+      expect((error as HttpResponseError).category).toBe("conflict")
+    }
   })
 
   test("rejects a successful response carrying a different API version", async () => {

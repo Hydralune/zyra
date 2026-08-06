@@ -41,6 +41,11 @@ def test_deployment_redaction_preserves_usage_but_removes_credentials() -> None:
     assert value["total_tokens"] == 15
     assert value["access_token"] == "<redacted>"
     assert value["password"] == "<redacted>"
+    long_text = "result:" + ("x" * 4096) + " Bearer abcdefghijklmnop"
+    redacted_text = redact(long_text)
+    assert redacted_text.startswith("result:" + ("x" * 4096))
+    assert "abcdefghijklmnop" not in redacted_text
+    assert redacted_text.endswith("<redacted>")
 
 
 def test_kimi_pricing_has_conservative_nonzero_usd_budget_normalization() -> None:

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -63,6 +66,76 @@ def _semantic_runtime(api: _SequencedReadinessApi) -> SemanticHealthRuntime:
     runtime._runtime_readiness_cache = None
     runtime._runtime_readiness_attempts = ()
     return runtime
+
+
+def test_deployment_node_exits_when_its_supervisor_dies_abruptly(
+    tmp_path: Path,
+) -> None:
+    helper = "\n".join(
+        (
+            "import json, os, sys",
+            "from pathlib import Path",
+            "from zyra_orchestration.deployment import DeploymentOrchestrator, DeploymentProfile",
+            "root = Path(sys.argv[1]).resolve()",
+            "orchestrator = DeploymentOrchestrator(root)",
+            "policy = orchestrator.catalog.policy(DeploymentProfile.DEVICE)",
+            "record, client, health = orchestrator.processes.start_node(policy)",
+            "print(json.dumps({'pid': record.pid, 'create_time': record.process_create_time, 'port': policy.port}), flush=True)",
+            "os._exit(0)",
+        )
+    )
+    environment = dict(os.environ)
+    environment["ZYRA_STATE_ROOT"] = str(
+        (tmp_path / "abrupt-supervisor-state").resolve()
+    )
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            helper,
+            str(PROJECT_ROOT),
+        ],
+        cwd=PROJECT_ROOT,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    stdout, stderr = process.communicate(timeout=45)
+    assert process.returncode == 0, stderr
+    identity = json.loads(stdout.strip().splitlines()[-1])
+    node_pid = int(identity["pid"])
+    node_create_time = float(identity["create_time"])
+    port = int(identity["port"])
+
+    def same_node_alive() -> bool:
+        try:
+            observed = psutil.Process(node_pid)
+            return bool(
+                observed.is_running()
+                and observed.status() != psutil.STATUS_ZOMBIE
+                and abs(observed.create_time() - node_create_time) < 0.01
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            return False
+
+    deadline = time.monotonic() + 15
+    while same_node_alive() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    try:
+        assert same_node_alive() is False
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.settimeout(0.5)
+            assert probe.connect_ex(("127.0.0.1", port)) != 0
+    finally:
+        if same_node_alive():
+            observed = psutil.Process(node_pid)
+            observed.terminate()
+            try:
+                observed.wait(timeout=5)
+            except psutil.TimeoutExpired:
+                observed.kill()
 
 
 def test_runtime_readiness_retries_retryable_transport_reset_and_caches(
@@ -559,24 +632,18 @@ def test_product_supervisor_api_web_and_control_surface_start_from_clean_state()
             short_observation = short_probe.get("observations") or {}
             short_details = short_observation.get("details") or {}
             short_receipt = short_details.get("receipt") or {}
-            assert semantic["ready"] is True, json.dumps(
-                {
-                    "blockers": semantic.get("blockers"),
-                    "warnings": semantic.get("warnings"),
-                    "short_task_failed_assertions": short_details.get(
-                        "failed_assertions"
-                    ),
-                    "short_task_rejections": [
-                        assertion
-                        for assertion in short_receipt.get("assertions") or ()
-                        if assertion.get("accepted") is not True
-                    ],
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-                indent=2,
+            # Product startup remains available without a paid provider, but
+            # the semantic task must now fail closed: Phase 2 execution is no
+            # longer allowed to replace model reasoning with a template.
+            assert semantic["ready"] is False
+            assert semantic["status"] == "blocked"
+            assert "short-task:task_execution_failed" in semantic["blockers"]
+            assert any(
+                str(item).endswith(
+                    "cloud_provider_credential_missing_fail_closed"
+                )
+                for item in semantic["warnings"]
             )
-            assert semantic["status"] in {"ready", "degraded"}
             assert semantic["short_task_included"] is True
             assert semantic["target_commit"]
             assert semantic["clean_state"]["verified"] is True

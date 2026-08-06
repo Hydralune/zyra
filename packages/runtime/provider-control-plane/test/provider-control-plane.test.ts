@@ -248,10 +248,10 @@ test("RPC server fails closed when the provider control-plane owner is disabled"
   const { controlPlane } = makeControlPlane(t);
   const server = new ProviderControlPlaneRpcServer(controlPlane);
   const previous = process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED;
-  t.after(() => {
+  const restore = () => {
     if (previous === undefined) delete process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED;
     else process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED = previous;
-  });
+  };
   process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED = "true";
 
   const response = await server.handle({
@@ -260,9 +260,60 @@ test("RPC server fails closed when the provider control-plane owner is disabled"
     operation: "health",
     payload: {},
   });
+  restore();
 
   assert.equal(response.ok, false);
   assert.equal(response.error?.code, "provider_control_plane_disabled");
+});
+
+test("RPC installs configured live profiles in the fixed preference order without secret bytes", async (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const server = new ProviderControlPlaneRpcServer(controlPlane);
+  const names = [ZAI_API_KEY_ENV, DEEPSEEK_API_KEY_ENV, KIMI_API_KEY_ENV] as const;
+  const previous = new Map(names.map((name) => [name, process.env[name]]));
+  const restore = () => {
+    for (const name of names) {
+      const value = previous.get(name);
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  };
+  process.env[ZAI_API_KEY_ENV] = "configured-glm-secret";
+  process.env[DEEPSEEK_API_KEY_ENV] = "configured-deepseek-secret";
+  process.env[KIMI_API_KEY_ENV] = "configured-kimi-secret";
+
+  const response = await server.handle({
+    protocol: RPC_PROTOCOL,
+    requestId: "install-configured-profiles",
+    operation: "profiles.install_configured",
+    payload: {},
+  });
+  restore();
+
+  assert.equal(response.ok, true, JSON.stringify(response.error));
+  const result = response.result as {
+    installed: Array<Record<string, unknown>>;
+    preferenceOrder: string[];
+    secretBytesIncluded: boolean;
+  };
+  assert.deepEqual(
+    result.installed.map((item) => `${item.providerId}/${item.modelId}`),
+    [
+      `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
+      `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
+    ],
+  );
+  assert.deepEqual(result.preferenceOrder, [
+    `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
+    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+    `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
+  ]);
+  assert.equal(result.secretBytesIncluded, false);
+  const serialized = JSON.stringify(response);
+  assert.equal(serialized.includes("configured-glm-secret"), false);
+  assert.equal(serialized.includes("configured-deepseek-secret"), false);
+  assert.equal(serialized.includes("configured-kimi-secret"), false);
 });
 
 function installProvider(
