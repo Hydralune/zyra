@@ -13,8 +13,27 @@ DeepSeek、Kimi 及场景指定的 RFC/IANA/MDN 公共来源；绑定候选 `90f
 最终 verdict 中。
 
 `9be019e` 的全新 clean worktree 已通过 release policy 使用的完整 Python 门：1,398 passed、
-15 deselected、80 subtests passed。当前只剩本 evidence 更新提交形成的最终 HEAD release
-admission 与 sealed 复验；在其完成前本文仍不把 FE-S06 写成 completed。
+15 deselected、80 subtests passed。
+
+**最终 HEAD 复验已完成，FE-S06 置为 completed。** 最终 evidence head 为
+`715a523cf99bae74bd38e08c9f50eaa3bfb4290f`，双域 sealed 与完整 release admission 均在该
+commit 上重新执行，不复用任何候选 receipt：
+
+- 双域 sealed：manifest `p2-s06-03-final-715a523cf99b`，2 runs / 0 failed /
+  human intervention 0；software-delivery 3,160 个有效 transition，
+  cross-source-research 7,437 个，二者 invalid=0；device/edge/cloud 三层 `simulated=false`，
+  三个 cloud provider 均真实调用，两域均观察到 edge loss、安全回退与 artifact continuity；
+  index digest `1cfb1421`。独立 verifier `valid=true`、`blockers=[]`，
+  validation digest `d53853b3`。运行前后的 source boundary 均 `ready`。
+- release：`doctor --deep` ready；连续两次构建产出字节一致的 46,101,676-byte zip，
+  SHA-256 `4abc029a`；**14 个 mandatory gate 全部通过**，admission `ready=true`，
+  admission digest `19945144`，ci report SHA-256 `6f5a0d0e`；clean-install receipt
+  `ready=true` 且 isolation audit 各项计数为零。
+
+**发布准入必须在干净 worktree 中执行。** 首次在主 worktree 执行 `zyra-release ci` 时
+`python-tests` 以 `exit_code=-1`、`duration_ms=5400033` 结束——这是 `ci.py` 给该 gate 的
+5,400 秒预算被耗尽后强制终止，**不是断言失败**。同一套件在 `715a523` 的干净 worktree 中
+耗时 3,495.9 秒通过。该预算差异已记入 evidence 的 `operational_notes`。
 
 ## 实现与修复
 
@@ -91,11 +110,11 @@ permission wait、5 verifier/completion gate。pipe consumer 离开不会取消�
 | 2 | Web/CLI 控制 revision/permission/receipt 一致 | command/permission parity integrations | PASS |
 | 3 | CLI 退出，daemon/task 继续，terminal 真实 failover | daemon + terminal cross-language integration | PASS |
 | 4 | 重开从 cursor/snapshot 恢复，无重复副作用 | recovery/idempotency integration | PASS |
-| 5 | software-delivery clean state + verifier artifact | 3,232 valid、0 invalid、artifact/verifier digest 绑定 | PASS（最终 HEAD 待复验） |
-| 6 | cross-source-research clean state + verifier artifact | 7,437 valid、0 invalid、三个 provider 真实 200 | PASS（最终 HEAD 待复验） |
-| 7 | sealed human=0、terminal dispatch=0 | human=0；官方 runner 不启动产品 terminal listener；既有 terminal exclusion regression 通过 | PASS（最终 HEAD 待复验） |
+| 5 | software-delivery clean state + verifier artifact | 最终 HEAD 3,160 valid、0 invalid、artifact/verifier digest 绑定 | PASS |
+| 6 | cross-source-research clean state + verifier artifact | 最终 HEAD 7,437 valid、0 invalid、三个 provider 真实调用 | PASS |
+| 7 | sealed human=0、terminal dispatch=0 | human=0；官方 runner 不启动产品 terminal listener；既有 terminal exclusion regression 通过 | PASS |
 | 8 | interactive terminal 真实 dispatch，LOCAL | TypeScript listener -> Python registry/router real HTTP | PASS |
-| 9 | 异常/需求变化/节点失效后自主恢复 | 两域均观察 edge loss、safe fail-closed recovery 和 artifact continuity | PASS（最终 HEAD 待复验） |
+| 9 | 异常/需求变化/节点失效后自主恢复 | 最终 HEAD 两域均观察 edge loss、safe fail-closed recovery 和 artifact continuity | PASS |
 | 10 | Web drill-down 至六类关键证据 | production/evidence HTTP route、Web full test、cross-entry 通过；浏览器实例为空 | PASS_WITH_CODEX_CLI_BROWSER_UNAVAILABLE |
 
 ## Claude CLI 学习完成门
@@ -120,6 +139,9 @@ pipe/tee 已进入 CLI/真实 API 测试。生产依赖闭包没有参考仓库�
 
 ## 剩余收口边界
 
-外部 provider/公共来源授权已取得并完成候选验证；浏览器限制已由用户明确选择按 Codex CLI
-环境记为 `unavailable`。FE-S06 仅在 evidence commit 后的最终 HEAD 再次通过双域 sealed 与
-完整 release admission 后才能置为 completed。不得复用候选 receipt 冒充最终 HEAD 结果。
+外部 provider/公共来源授权已取得；浏览器限制已由用户明确选择按 Codex CLI 环境记为
+`unavailable`。最终 HEAD `715a523` 的双域 sealed 与完整 release admission 均已重新执行并
+通过，未复用任何候选 receipt，FE-S06 据此置为 completed。
+
+仍然不宣称的两项保持原样：浏览器点击/截图 PASS，以及 Linux/macOS 兼容 PASS——两者都没有
+可执行证据，按未通过记录。

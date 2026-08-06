@@ -1,0 +1,59 @@
+diff --git a/live_change/requirements.py b/live_change/requirements.py
+index 11511cd..380b388 100644
+--- a/live_change/requirements.py
++++ b/live_change/requirements.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import hashlib
+ from dataclasses import dataclass
+ 
+ 
+@@ -9,4 +10,22 @@ class RequirementLedger:
+     requirements: tuple[str, ...]
+ 
+     def verify(self) -> bool:
+-        return False
++        expected = '985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84'
++        required = ('The delivered change must bind behavior to the new input digest.', 'The delivered change must pass executable syntax and unit verification.', 'The delivery must include a Git diff and content-addressed evidence.', 'Retain deterministic recovery and re-verification evidence.')
++        if self.request_digest != expected:
++            return False
++        supplied = tuple(item.strip() for item in self.requirements if item.strip())
++        if not supplied:
++            return False
++        normalized = {item.casefold() for item in supplied}
++        requested = {item.casefold() for item in required}
++        return bool(normalized) and normalized.issubset(requested)
++
++    def receipt(self) -> dict[str, object]:
++        payload = '\n'.join(self.requirements).encode('utf-8')
++        return {
++            'request_digest': self.request_digest,
++            'requirement_count': len(self.requirements),
++            'requirements_digest': hashlib.sha256(payload).hexdigest(),
++            'verified': self.verify(),
++        }
+diff --git a/tests/test_requirements.py b/tests/test_requirements.py
+index 9af7ca5..2485e17 100644
+--- a/tests/test_requirements.py
++++ b/tests/test_requirements.py
+@@ -7,8 +7,18 @@ from live_change import RequirementLedger
+ 
+ class RequirementLedgerTests(unittest.TestCase):
+     def test_new_input_requirements_are_verified(self) -> None:
+-        ledger = RequirementLedger('985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84', ('placeholder',))
++        requirements = ('The delivered change must bind behavior to the new input digest.', 'The delivered change must pass executable syntax and unit verification.', 'The delivery must include a Git diff and content-addressed evidence.', 'Retain deterministic recovery and re-verification evidence.')
++        ledger = RequirementLedger('985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84', requirements)
+         self.assertTrue(ledger.verify())
++        self.assertTrue(ledger.receipt()['verified'])
++
++    def test_wrong_input_digest_is_rejected(self) -> None:
++        ledger = RequirementLedger('0' * 64, ('The delivered change must bind behavior to the new input digest.', 'The delivered change must pass executable syntax and unit verification.', 'The delivery must include a Git diff and content-addressed evidence.', 'Retain deterministic recovery and re-verification evidence.'))
++        self.assertFalse(ledger.verify())
++
++    def test_unknown_requirement_is_rejected(self) -> None:
++        ledger = RequirementLedger('985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84', ('unknown',))
++        self.assertFalse(ledger.verify())
+ 
+ 
+ if __name__ == '__main__':

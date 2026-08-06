@@ -2,8 +2,9 @@
   "schema": "zyra.product-entry-slice-evidence/v1",
   "slice_id": "FE-S06",
   "title": "Automation, real-scenario, and release closure",
-  "status": "ready_for_exact_evidence_head_sealed_and_release_admission",
+  "status": "completed",
   "base_commit": "9aefa2f00e111044a275ab6097f552bafcfb2aea",
+  "final_evidence_head": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f",
   "implementation_commits": [
     "e657134759455cee988bcc09197ad4dc4d8f6eec",
     "8ad3902d142da773fbdf9a3cf8fd5bec71e35a6f",
@@ -100,7 +101,8 @@
     "final_ci_report": "generated; historical candidate failed closed on python-tests",
     "full_release_pass_claimed": false,
     "python_failure_root_causes_remediated": true,
-    "final_head_rerun_required": true
+    "final_head_rerun_required": false,
+    "superseded_by": "final_head_release"
   },
   "sealed_candidate": {
     "candidate_commit": "90fd8e05c4a982bbdd5b609c19e95f43b77bd172",
@@ -151,7 +153,86 @@
     },
     "product_terminal_listener_started": false,
     "product_terminal_dispatch_count": 0,
-    "final_head_rerun_required": true
+    "final_head_rerun_required": false
+  },
+  "final_head_sealed": {
+    "target_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f",
+    "manifest_id": "p2-s06-03-final-715a523cf99b",
+    "sealed_manifest_digest": "024123bda05ec587595032139205370c6d2d9af0eea9ecb9902ff398137c87bb",
+    "evidence_root": "docs/evidence/phase2/sealed/P2-S06-03-final-715a523",
+    "index_digest": "1cfb14211d4407e6ff282d939b361d3959d8471af7b51cfe681435291007887a",
+    "run_count": 2,
+    "failed_run_count": 0,
+    "human_intervention_count": 0,
+    "source_boundary_ready_before_and_after": true,
+    "independent_validation": {
+      "schema": "zyra.phase2-sealed-long-run-validation/v1",
+      "valid": true,
+      "blockers": [],
+      "minimum_valid_transitions_per_run": 2000,
+      "validation_digest": "d53853b339cfd9d6640a754c58af3fd9020800cc4cc067828ef2ffdfd38eddd4"
+    },
+    "runs": [
+      {
+        "run_key": "software-sdk",
+        "domain": "software_delivery",
+        "passed": true,
+        "valid_transition_count": 3160,
+        "invalid_transition_count": 0,
+        "artifact_digest": "a5515a82682af8fd760f9befafc764db029205302c901e54c983f87dd1af6ddc",
+        "verifier_digest": "f74ae4d0aacdc275efaab0256e472d362aa9b9f81718cffe43b80d32d066ca5b"
+      },
+      {
+        "run_key": "technical-intelligence",
+        "domain": "cross_source_research",
+        "passed": true,
+        "valid_transition_count": 7437,
+        "invalid_transition_count": 0,
+        "artifact_digest": "84084ff2ab8a1ea606e6b7c8a455c876a668a623f8eaca3179b91b41bf45acf0",
+        "verifier_digest": "41a027af4b3dad9e8ad3918fba967e3ad61b98f0a21de22b41b8c5952becf502"
+      }
+    ],
+    "physical_dispatch": {
+      "tiers": [
+        "device",
+        "edge",
+        "cloud"
+      ],
+      "simulated": false,
+      "edge_loss_recovery_observed": true,
+      "artifact_continuity": true,
+      "cloud_providers": [
+        "zhipu/glm-5.2",
+        "deepseek/deepseek-v4-flash",
+        "kimi-platform/kimi-k2.7-code"
+      ]
+    },
+    "product_terminal_listener_started": false,
+    "product_terminal_dispatch_count": 0
+  },
+  "final_head_release": {
+    "target_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f",
+    "release_id": "FE-S06-715a523",
+    "format": "zip",
+    "size": 46101676,
+    "reproducibility_a_sha256": "4abc029a9b3c347deb7d4b96e482b0997e8b1c450db226fc5945ddfe51ba6db8",
+    "reproducibility_b_sha256": "4abc029a9b3c347deb7d4b96e482b0997e8b1c450db226fc5945ddfe51ba6db8",
+    "byte_identical": true,
+    "doctor_mode": "deep",
+    "doctor_ready": true,
+    "mandatory_gate_count": 14,
+    "passed_gate_count": 14,
+    "failed_gates": [],
+    "ci_report_sha256": "6f5a0d0e9dbcc1000e51f8022786e43c1a4b505115e5ca2e1e22bbfc6249b8d7",
+    "ci_report_digest": "18cef2b11e63c33cc2ae7947a481e7170d8bcdb126d61730f12e5dc1dc1f3a2a",
+    "admission_digest": "199451443aeec05538e145810cf8cc76dd81cf22b17eeba65cc04faa1288ea7e",
+    "admission_ready": true,
+    "clean_install_ready": true,
+    "clean_install_isolation_audit_zero_counts": true,
+    "full_release_pass_claimed": true,
+    "executed_from_clean_worktree": true,
+    "python_tests_seconds": 3495.9,
+    "python_tests_gate_budget_seconds": 5400
   },
   "browser_validation": {
     "api_http_status": 200,
@@ -194,17 +275,17 @@
     },
     {
       "id": 5,
-      "status": "passed_pending_final_head_rerun",
-      "evidence": "3232 valid transitions, zero invalid/unsafe commits, artifact and verifier digest bound"
+      "status": "passed",
+      "evidence": "final head 3160 valid transitions (candidate 3232), zero invalid/unsafe commits, artifact and verifier digest bound"
     },
     {
       "id": 6,
-      "status": "passed_pending_final_head_rerun",
+      "status": "passed",
       "evidence": "7437 valid transitions, zero invalid/unsafe commits, three live provider HTTP 200 receipts"
     },
     {
       "id": 7,
-      "status": "passed_pending_final_head_rerun",
+      "status": "passed",
       "evidence": "human intervention zero; product terminal listener not started; terminal exclusion regression passed"
     },
     {
@@ -214,7 +295,7 @@
     },
     {
       "id": 9,
-      "status": "passed_pending_final_head_rerun",
+      "status": "passed",
       "evidence": "both sealed domains observed edge loss, safe recovery, and artifact continuity"
     },
     {
@@ -269,6 +350,30 @@
       "result": "237 passed"
     },
     {
+      "command": "scripts/run_phase2_sealed_scenarios.py at final head 715a523",
+      "result": "2 runs, 0 failed, human intervention 0; index digest 1cfb1421"
+    },
+    {
+      "command": "zyra_evaluation.policy_benchmark.long_run_validator at final head",
+      "result": "valid true, blockers empty; 3160 and 7437 valid transitions, 0 invalid"
+    },
+    {
+      "command": "zyra-release doctor --deep at final head",
+      "result": "ready"
+    },
+    {
+      "command": "zyra-release build x2 at final head",
+      "result": "byte identical 46,101,676-byte zip, SHA-256 4abc029a"
+    },
+    {
+      "command": "zyra-release ci at final head from a clean worktree",
+      "result": "14/14 mandatory gates passed; admission ready; python-tests 3495.9s"
+    },
+    {
+      "command": "zyra-release ci at final head from the primary worktree",
+      "result": "13/14; python-tests exceeded the 5400s gate budget and was killed (exit -1), not an assertion failure"
+    },
+    {
       "command": "production dispatch/recovery/provider cascade regression",
       "result": "63 passed"
     },
@@ -277,15 +382,21 @@
       "result": "3 passed"
     }
   ],
-  "blockers": [
+  "blockers": [],
+  "closed_blockers": [
     {
       "code": "final_head_release_admission_rerun_required",
-      "blocks_completion": true,
-      "required_action": "rerun official sealed scenarios and full release graph after final evidence head is frozen"
+      "closed_at_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f",
+      "closing_evidence": [
+        "final_head_sealed",
+        "final_head_release"
+      ]
     }
   ],
+  "operational_notes": [
+    "The release CI python-tests gate budget is 5400s (ci.py). The suite needs roughly 3500s in a clean worktree and exceeds the budget when the gate matrix is executed from the primary worktree, where it is killed with exit -1. Run the final admission from a clean worktree at the target commit."
+  ],
   "does_not_claim": [
-    "FE-S06 completed",
     "browser click or screenshot PASS",
     "Linux or macOS compatibility PASS",
     "candidate partial release receipts as full CI admission"

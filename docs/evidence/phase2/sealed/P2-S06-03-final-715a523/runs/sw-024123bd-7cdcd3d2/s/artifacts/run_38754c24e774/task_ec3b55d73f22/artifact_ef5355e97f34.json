@@ -1,0 +1,67 @@
+{
+  "command_count": 7,
+  "commands_passed": true,
+  "delivery": {
+    "command_receipts": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\live-scenario-inputs\\sw-024123bd-7cdcd3d2\\software_delivery\\software-command-receipts.json",
+    "patch": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\live-scenario-inputs\\sw-024123bd-7cdcd3d2\\software_delivery\\software-delivery.patch",
+    "source_index": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\live-scenario-inputs\\sw-024123bd-7cdcd3d2\\software_delivery\\software-source-index.json"
+  },
+  "human_intervention_count": 0,
+  "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+  "patch_digest": "a5515a82682af8fd760f9befafc764db029205302c901e54c983f87dd1af6ddc",
+  "phase2_policy_receipt_digest": "378540559413b71cc3aedfba22fdf284ffc8a9f4a5b165866f67ce5ef0efce64",
+  "plan_digest": "c471cb1413ba2f9e7a035162e9a011ec74dbe24c87060b355f09594b04394714",
+  "plan_id": "software-plan:985b64363bbc20b212ec:60201",
+  "request": "Add an input-digest-bound sealed delivery marker to a clean SDK workspace, preserve a requirement-change failure-path test, execute syntax and unit verification, and publish a checksum-bound patch, command receipts, causal transition index, and final verifier.",
+  "requirement_change": "Retain deterministic recovery and re-verification evidence.",
+  "requirements": [
+    "The delivered change must bind behavior to the new input digest.",
+    "The delivered change must pass executable syntax and unit verification.",
+    "The delivery must include a Git diff and content-addressed evidence."
+  ],
+  "route": {
+    "acquired_at": "2026-08-05T14:24:42.127Z",
+    "attempt_number": 2,
+    "backend_id": "local-sandbox-gateway",
+    "fence_epoch": 1,
+    "fence_token_digest": "72f032f56e038a1d5ebff078757d98ea743425eac0579eeeb9576b177615512d",
+    "lease_id": "lease_04eed09b82a8485da4401617254a2b12",
+    "leased_capabilities": [
+      "agent_task",
+      "artifact_return"
+    ],
+    "location": "device",
+    "maximum_cost_usd": 0.5,
+    "maximum_latency_ms": 300000,
+    "owner": "WorkerPoolFoundationRuntime",
+    "phase2_policy_binding": {
+      "attempt_id": "attempt_6efcfb8e82dd4602afed80f87f70ae59",
+      "consumed_by": "dual-domain-route-and-domain-runtime",
+      "decision_id": null,
+      "lease_id": "lease_e05d203c6c5a4d20b0d3129375b851fc",
+      "operator_ref": "worker:local-code-worker@1",
+      "physical_receipt_digest": "2ed19ad3303168081bc87da4f5c2fc11f901f63d281e3cb415dbb7a7dfeee18e",
+      "policy_profile": "phase2_strongest_v1",
+      "receipt_digest": "378540559413b71cc3aedfba22fdf284ffc8a9f4a5b165866f67ce5ef0efce64",
+      "resource_decision_id": "resdec_bc5777f6d9a8"
+    },
+    "privacy_class": "internal",
+    "provider_id": "zyra-provider-control",
+    "reason": "initial-placement",
+    "receipt_id": "attempt_bf33d22c47cc420ab3a9ca1f945c0937",
+    "requested_capabilities": [
+      "agent_task",
+      "artifact_return",
+      "sealed_execution",
+      "code_change",
+      "terminal_execution"
+    ],
+    "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+    "schema": "zyra.live-scheduler-route/v1",
+    "simulated": false,
+    "tier": "device",
+    "worker_id": "live-scenario-worker-1"
+  },
+  "schema": "zyra.software-delivery-report/v1",
+  "source_record_count": 1547
+}

@@ -1,0 +1,147 @@
+{
+  "captured_at": "2026-08-05T14:26:10.173Z",
+  "runtime": {
+    "cpu_count": 32,
+    "environment_flags": {
+      "CI": false,
+      "ZYRA_DISABLE_RECOVERY_RUNTIME": false,
+      "ZYRA_MEMORY_RETRIEVAL_DISABLED": false,
+      "ZYRA_SCENARIO_DOMAIN_VERIFIER_DISABLED": false,
+      "ZYRA_SCENARIO_LIVE_SOURCE_DISABLED": false,
+      "ZYRA_TARGETED_COMMUNICATION_DISABLED": false,
+      "ZYRA_WORKER_POOL_INTEGRATION_DISABLED": false
+    },
+    "hostname": "AdamLi",
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "process_id": 23444,
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python_executable": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+    "python_implementation": "CPython",
+    "python_version": "3.13.9",
+    "timezone": "中国标准时间"
+  },
+  "scenario": {
+    "fault_schedule": {
+      "injections": [
+        {
+          "after_effective_step": 220,
+          "injection_id": "research-requirement-change",
+          "kind": "requirement_change",
+          "payload": {
+            "requirement": "Expose contradictions and uncertainty separately from deterministic claims."
+          },
+          "stage": "source-index",
+          "target": "research-plan"
+        },
+        {
+          "after_effective_step": 440,
+          "injection_id": "research-network-timeout",
+          "kind": "tool_timeout",
+          "payload": {
+            "deadline_ms": 50,
+            "retry_deadline_ms": 45000
+          },
+          "stage": "source-acquisition",
+          "target": "http-source-worker"
+        },
+        {
+          "after_effective_step": 660,
+          "injection_id": "research-node-loss",
+          "kind": "node_lost",
+          "payload": {
+            "successor_required": true
+          },
+          "stage": "claim-extraction",
+          "target": "researcher-primary"
+        },
+        {
+          "after_effective_step": 880,
+          "injection_id": "research-provider-rate-limit",
+          "kind": "provider_rate_limit",
+          "payload": {
+            "failover_required": true,
+            "retry_after_ms": 250
+          },
+          "stage": "claim-extraction",
+          "target": "provider-primary"
+        },
+        {
+          "after_effective_step": 1020,
+          "injection_id": "research-network-loss",
+          "kind": "network_loss",
+          "payload": {
+            "continue_from_acquired_checksums": true
+          },
+          "stage": "citation-verification",
+          "target": "edge-source-route"
+        }
+      ],
+      "schedule_digest": "13f07f0fd471c218f5222364bd13f733b14d942c90ebb80465f60de23f51449b",
+      "schema": "zyra.live-fault-schedule/v1"
+    },
+    "profile": {
+      "backend_id": "zyra-worker-pool",
+      "maximum_effective_steps": 10000,
+      "maximum_wall_time_ms": 3600000,
+      "metadata": {
+        "authenticated_provider_cli_allowed": false,
+        "browser_close_independent": true,
+        "dispatch_claim": "canonical-worker-pool-routes",
+        "edge_cloud_claim": true,
+        "failure_schedule_digest": "5d81a180be041b931193987055b893f5e464d0dd03b2db2c7d33540f974a78c0",
+        "formal": true,
+        "hardware_profile_digest": "d26f460fd96508530205a236c005432973420357f646ba6e2cfa04e024cec7fd",
+        "maximum_cost_usd": 0.5,
+        "maximum_effective_transitions": 10000,
+        "maximum_latency_ms": 300000,
+        "minimum_effective_transitions": 2000,
+        "minimum_provider_capabilities": 2,
+        "phase2_profile": "phase2_strongest_v1",
+        "privacy_class": "public",
+        "provider_model_claim": true,
+        "provider_profile_digest": "244aa995d0bdbef30a10f5de680f8aabfd4b63cfb43b8fbebefe82450d373cfc",
+        "require_real_providers": true,
+        "require_real_tiers": true,
+        "sealed_autonomous": true,
+        "sealed_manifest_digest": "024123bda05ec587595032139205370c6d2d9af0eea9ecb9902ff398137c87bb",
+        "slice": "P2-S06-02"
+      },
+      "model_id": "multi-capability",
+      "profile_id": "live.heterogeneous-sealed",
+      "provider_id": "zyra-provider-control",
+      "worker_classes": [
+        "Router",
+        "Researcher",
+        "Executor",
+        "Verifier",
+        "Memory",
+        "Recovery"
+      ]
+    },
+    "runtime": {
+      "cpu_count": 32,
+      "environment_flags": {
+        "CI": false,
+        "ZYRA_DISABLE_RECOVERY_RUNTIME": false,
+        "ZYRA_MEMORY_RETRIEVAL_DISABLED": false,
+        "ZYRA_SCENARIO_DOMAIN_VERIFIER_DISABLED": false,
+        "ZYRA_SCENARIO_LIVE_SOURCE_DISABLED": false,
+        "ZYRA_TARGETED_COMMUNICATION_DISABLED": false,
+        "ZYRA_WORKER_POOL_INTEGRATION_DISABLED": false
+      },
+      "hostname": "AdamLi",
+      "machine": "AMD64",
+      "platform": "Windows-11-10.0.22631-SP0",
+      "process_id": 23444,
+      "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+      "python_executable": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "python_implementation": "CPython",
+      "python_version": "3.13.9",
+      "timezone": "中国标准时间"
+    },
+    "scenario_id": "live.cross-source-research"
+  },
+  "schema": "zyra.live-environment/v1",
+  "source_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f"
+}

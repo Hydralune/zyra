@@ -1,0 +1,65 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "artifact_b3eb91a36a57",
+      "kind": "structured_data",
+      "metadata_digest": "70f63dba77983e4523e90e8bcdfaff200272898145f250deb7d1841ee5dd8491",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_b3eb91a36a57.json",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "5391079947908ca8e59e9e2ca80f584891e6f142914c4090896e9e406ae9c877",
+      "size_bytes": 779533,
+      "source_event_id": ""
+    },
+    {
+      "artifact_id": "artifact_e4d98367fd1e",
+      "kind": "code",
+      "metadata_digest": "e95040b02037a9f7cc55cd9d3214bba48ed2979b87b32366c4bd6b51a516b214",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_e4d98367fd1e.patch",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "a5515a82682af8fd760f9befafc764db029205302c901e54c983f87dd1af6ddc",
+      "size_bytes": 1465,
+      "source_event_id": ""
+    },
+    {
+      "artifact_id": "artifact_91ef5733468b",
+      "kind": "code",
+      "metadata_digest": "8defece09d1b381e0697d43c10d7bcae0480df89d3739e5086005cca505b4f51",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_91ef5733468b.py",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "5f13edf5b0a8515357b0d6f0778e9d0f97186c4da743333117f2a48b59fb197f",
+      "size_bytes": 255,
+      "source_event_id": ""
+    },
+    {
+      "artifact_id": "artifact_34006cda7861",
+      "kind": "code",
+      "metadata_digest": "535dc504ae52e123ad5b9f216c39a419e9efa32d3ae6033667195bcefd3aa07e",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_34006cda7861.py",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "52b02f0a47b19ce248d1a3de5393e5ef12d9f53643f52bb6c8d8fdfe09873cd3",
+      "size_bytes": 1396,
+      "source_event_id": ""
+    },
+    {
+      "artifact_id": "artifact_132ffa4fe96e",
+      "kind": "structured_data",
+      "metadata_digest": "dec0a40b709f494a725dabadebff9ae75e15ab839e2fdbb4a16731bf88aac2d4",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_132ffa4fe96e.json",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "38e4e4cc3ed5f896a279743799cf166d19faffa23901e7bb703fec875c66d70f",
+      "size_bytes": 10075,
+      "source_event_id": ""
+    },
+    {
+      "artifact_id": "artifact_ef5355e97f34",
+      "kind": "structured_data",
+      "metadata_digest": "d475f7bafd20f6c9798299c6f068ccdd6bfcbec35e6152a1f66a1c4e5d527961",
+      "path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\sw-024123bd-7cdcd3d2\\s\\artifacts\\run_38754c24e774\\task_ec3b55d73f22\\artifact_ef5355e97f34.json",
+      "producer_node_id": "node_6004c6a62d36",
+      "sha256": "d845370f9c3480018ac9e61d1e1ad8a0021b391542619b95db9db0412d7c456c",
+      "size_bytes": 3657,
+      "source_event_id": ""
+    }
+  ],
+  "schema": "zyra.live-artifact-manifest/v1"
+}

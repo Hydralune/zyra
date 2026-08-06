@@ -1,0 +1,339 @@
+{
+  "canonical_commit": {
+    "causation_id": "policy-input:run_346a06159336:2:a890e57db4bf",
+    "commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+    "committed_at": "2026-08-05T14:25:24.937Z",
+    "committed_revision": 3,
+    "correlation_id": "event_6347f061e81b",
+    "delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867",
+    "graph_id": "graph:task_e4a3b19e37f5",
+    "receipt_digest": "b6a6965ae18783738054ca8c6c849d480067f6adef5815bab2438ddbe758e2e1",
+    "snapshot_signature": "896bfc1f8288d8a1814aae44b6a6be70b0e30ed152641fb0706918462e0fe84d",
+    "status": "committed"
+  },
+  "connected": true,
+  "continuation_allowed": false,
+  "goal_id": "goal_sealed_task_e4a3b19e37f5",
+  "history": [
+    {
+      "append_sequence": 1,
+      "event_id": "zyra-bridge-goal-6209160e63f4c2cad1c9673b",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:21.022Z",
+      "refs": {
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "Zyra committed objective reference synchronized"
+    },
+    {
+      "append_sequence": 3,
+      "event_id": "zyra-bridge-history-12a2d5b4783364cfb0794eb8",
+      "event_type": "evidence_attached",
+      "recorded_at": "2026-08-05T14:25:21.022Z",
+      "refs": {
+        "evidence_refs": [
+          "canonical-commit:graph_commit_33fe7caa8177449a99e82cfd218cd5eb"
+        ],
+        "source_event_id": "event_bbf1a9d68c85",
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "LoopX control action connect accepted by Zyra"
+    },
+    {
+      "append_sequence": 4,
+      "event_id": "zyra-bridge-sync-2dfbb2f0b4d80bff32104afe",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:21.022Z",
+      "refs": {
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "Zyra to LoopX state mapping validated"
+    },
+    {
+      "append_sequence": 5,
+      "event_id": "zyra-bridge-goal-90405be2a90128bbca337f71",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:21.273Z",
+      "refs": {
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "Zyra committed objective reference synchronized"
+    },
+    {
+      "append_sequence": 7,
+      "event_id": "zyra-bridge-history-1ce23c8059ddf7fef8071050",
+      "event_type": "evidence_attached",
+      "recorded_at": "2026-08-05T14:25:21.273Z",
+      "refs": {
+        "evidence_refs": [
+          "canonical-commit:graph_commit_33fe7caa8177449a99e82cfd218cd5eb"
+        ],
+        "source_event_id": "event_bbf1a9d68c85",
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "LoopX control action claim accepted by Zyra"
+    },
+    {
+      "append_sequence": 8,
+      "event_id": "zyra-bridge-sync-4fc92efce21a21e7274c2b62",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:21.273Z",
+      "refs": {
+        "zyra_causation_id": "event_bbf1a9d68c85",
+        "zyra_commit_id": "graph_commit_33fe7caa8177449a99e82cfd218cd5eb",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_defbb5d01d924f10ac050febdc59ca8d"
+      },
+      "summary": "Zyra to LoopX state mapping validated"
+    },
+    {
+      "append_sequence": 9,
+      "event_id": "zyra-bridge-goal-a843b66e482c68ebc6092d8e",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:28.077Z",
+      "refs": {
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "Zyra committed objective reference synchronized"
+    },
+    {
+      "append_sequence": 11,
+      "event_id": "zyra-bridge-history-fe05b9a7d47f3350241ab61c",
+      "event_type": "evidence_attached",
+      "recorded_at": "2026-08-05T14:25:28.077Z",
+      "refs": {
+        "evidence_refs": [
+          "canonical-commit:"
+        ],
+        "source_event_id": "event_6b4fb11077fe",
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "LoopX control action release accepted by Zyra"
+    },
+    {
+      "append_sequence": 12,
+      "event_id": "zyra-bridge-sync-989987f8276f10720c14db8e",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:28.077Z",
+      "refs": {
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "Zyra to LoopX state mapping validated"
+    },
+    {
+      "append_sequence": 13,
+      "event_id": "zyra-bridge-goal-9e0c18b2d17739f6432e1696",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:28.172Z",
+      "refs": {
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "Zyra committed objective reference synchronized"
+    },
+    {
+      "append_sequence": 14,
+      "event_id": "zyra-bridge-quota-spend-d3d4dd48d2cccac55078222b",
+      "event_type": "quota_spent",
+      "recorded_at": "2026-08-05T14:25:28.172Z",
+      "refs": {
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "validated LoopX private quota spend: 1 slot(s)"
+    },
+    {
+      "append_sequence": 15,
+      "event_id": "zyra-bridge-history-200e23c65f4162a053a2cc9f",
+      "event_type": "evidence_attached",
+      "recorded_at": "2026-08-05T14:25:28.172Z",
+      "refs": {
+        "evidence_refs": [
+          "canonical-commit:"
+        ],
+        "source_event_id": "event_6b4fb11077fe",
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "LoopX control action interaction_submit accepted by Zyra"
+    },
+    {
+      "append_sequence": 16,
+      "event_id": "zyra-bridge-interaction-85fefe6086ac2c632d121d4e",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:28.172Z",
+      "refs": {
+        "interaction_feedback_ref": "",
+        "interaction_input_ref": "event:sealed-quota:run_346a06159336",
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "permission-checked interaction synchronized"
+    },
+    {
+      "append_sequence": 17,
+      "event_id": "zyra-bridge-sync-0b137dfc42a787459a0e71f0",
+      "event_type": "run_recorded",
+      "recorded_at": "2026-08-05T14:25:28.172Z",
+      "refs": {
+        "zyra_causation_id": "event_6b4fb11077fe",
+        "zyra_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+        "zyra_correlation_id": "run_346a06159336",
+        "zyra_delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867"
+      },
+      "summary": "Zyra to LoopX state mapping validated"
+    }
+  ],
+  "interaction_contract": {
+    "agent_channel": {
+      "delivery_allowed": false,
+      "must_attempt": false,
+      "primary_action": "do not run delivery work for this goal in this turn",
+      "quiet_noop_allowed": true,
+      "resolution_trace": {
+        "summary": "source=mode:quota_throttled drift=false"
+      }
+    },
+    "cli_channel": {
+      "next_cli_actions": [
+        "no quota spend without validated transition/blocker writeback"
+      ],
+      "spend_after_validation": false,
+      "spend_allowed_now": false,
+      "spend_policy": "no spend without validated transition"
+    },
+    "mode": "quota_throttled",
+    "schema_version": "loopx_interaction_contract_v0",
+    "user_channel": {
+      "action_required": false,
+      "notify": "DONT_NOTIFY"
+    }
+  },
+  "last_append_sequence": 17,
+  "last_event_id": "zyra-bridge-sync-0b137dfc42a787459a0e71f0",
+  "last_validated_receipt": {
+    "budget_allowed": true,
+    "budget_receipt_id": "resdec_8a64260ec6c2",
+    "canonical_commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+    "canonical_receipt_digest": "b6a6965ae18783738054ca8c6c849d480067f6adef5815bab2438ddbe758e2e1",
+    "failed_gates": [],
+    "lease_receipt_id": "lease_af1c090890104806b1229a0da629251b",
+    "lease_valid": true,
+    "permission_allowed": true,
+    "permission_receipt_id": "07eb81796ba56b7c6819a5d544c8558028ee988f2be64fa3e40ac4f11b69d8e5",
+    "spend_allowed": true,
+    "validation_passed": true,
+    "validation_receipt_id": "graph_commit_6800cc195416478787e8680befa73e7a"
+  },
+  "mapping_version": "zyra.loopx-state-mapping/v1",
+  "objective_ref": "zyra://run/run_346a06159336/task/task_e4a3b19e37f5/objective",
+  "quota": {
+    "exhausted": true,
+    "limit_slots": 1,
+    "owner": "loopx_private_control",
+    "remaining_slots": 0,
+    "spent_slots": 1,
+    "window_hours": 24.0,
+    "zyra_execution_budget_owner": "ResourceScheduler"
+  },
+  "requirement_revision": "r1",
+  "runtime": {
+    "module_origin": "G:\\agent-zoo\\zyra\\packages\\integrations\\loopx_runtime\\loopx\\event_sourced_state.py",
+    "source_commit": "a2c072d412d90839132e1cf39c23dd431c394175",
+    "source_digest": "66af2de0082dbadf7c7cb3ffc85b9b91b889c0433103ea3bc05abb313d831961",
+    "source_kind": "embedded_source",
+    "source_tree_commit": "7232dca45ec2ca996edc43b2d3558edc802c844e",
+    "version": "0.2.13"
+  },
+  "schema": "zyra.loopx-private-state/v1",
+  "source_checksum": "sha256:22b2824ba427200fd573633f28b640268f0fbcca3a1bfbadf18a68fda47dbafe",
+  "source_event_count": 17,
+  "sync_status": "quota_exhausted",
+  "todo_projection": {
+    "agent_todos": {
+      "done_count": 0,
+      "first_open_items": [
+        {
+          "action_kind": "advance",
+          "append_sequence": 10,
+          "continuation_policy": "independent_handoff",
+          "done": false,
+          "last_event_id": "zyra-bridge-release-e512cfa5cb020058f44f8f6c",
+          "planner_order": null,
+          "priority": "P1",
+          "role": "agent",
+          "schema_version": "todo_item_v0",
+          "source_section": "Agent Todo",
+          "status": "open",
+          "text": "[P1] complete the verified sealed delivery",
+          "title": "complete the verified sealed delivery",
+          "todo_id": "todo_sealed_primary"
+        }
+      ],
+      "items": [
+        {
+          "action_kind": "advance",
+          "append_sequence": 10,
+          "continuation_policy": "independent_handoff",
+          "done": false,
+          "last_event_id": "zyra-bridge-release-e512cfa5cb020058f44f8f6c",
+          "planner_order": null,
+          "priority": "P1",
+          "role": "agent",
+          "schema_version": "todo_item_v0",
+          "source_section": "Agent Todo",
+          "status": "open",
+          "text": "[P1] complete the verified sealed delivery",
+          "title": "complete the verified sealed delivery",
+          "todo_id": "todo_sealed_primary"
+        }
+      ],
+      "open_count": 1,
+      "role": "agent",
+      "schema_version": "todo_summary_v0",
+      "total_count": 1
+    },
+    "user_todos": {
+      "done_count": 0,
+      "first_open_items": [],
+      "items": [],
+      "open_count": 0,
+      "role": "user",
+      "schema_version": "todo_summary_v0",
+      "total_count": 0
+    }
+  },
+  "workspace_id": "workspace:2c6fe53660468e908b551c9f"
+}

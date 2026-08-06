@@ -1,0 +1,7 @@
+{
+  "fencing_epoch": 5,
+  "fencing_token_digest": "582d65fc3077a459e9caa7c17471027345cb923ff6d2949053dda5b996322ff2",
+  "schema": "zyra.loopx-single-writer-epoch/v1",
+  "updated_at_epoch": 1785939878.8174033,
+  "workspace_id": "workspace:4b4249741987f511dce0970c"
+}

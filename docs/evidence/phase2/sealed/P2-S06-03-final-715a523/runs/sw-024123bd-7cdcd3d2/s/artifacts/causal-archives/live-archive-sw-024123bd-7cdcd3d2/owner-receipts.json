@@ -1,0 +1,3965 @@
+{
+  "fault_receipts": [
+    {
+      "checkpoint_receipt": {
+        "checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+        "commit_revision": 2,
+        "committed": true,
+        "content_digest": "8411bb47c142fb3854a372ceb5d1c9c24bde239aec9f3be2b5b784d38c9a9af9",
+        "owner": "RecoveryPlanStore",
+        "owner_receipt": {
+          "applied_write_ids": [],
+          "bypassed_step_ids": [
+            "effective-step-000001",
+            "effective-step-000002",
+            "effective-step-000003",
+            "effective-step-000004",
+            "effective-step-000005",
+            "effective-step-000006",
+            "effective-step-000007",
+            "effective-step-000008",
+            "effective-step-000009",
+            "effective-step-000010",
+            "effective-step-000011",
+            "effective-step-000012",
+            "effective-step-000013",
+            "effective-step-000014",
+            "effective-step-000015",
+            "effective-step-000016",
+            "effective-step-000017",
+            "effective-step-000018",
+            "effective-step-000019",
+            "effective-step-000020",
+            "effective-step-000021",
+            "effective-step-000022",
+            "effective-step-000023",
+            "effective-step-000024",
+            "effective-step-000025",
+            "effective-step-000026",
+            "effective-step-000027",
+            "effective-step-000028",
+            "effective-step-000029",
+            "effective-step-000030",
+            "effective-step-000031",
+            "effective-step-000032",
+            "effective-step-000033",
+            "effective-step-000034",
+            "effective-step-000035",
+            "effective-step-000036",
+            "effective-step-000037",
+            "effective-step-000038",
+            "effective-step-000039",
+            "effective-step-000040",
+            "effective-step-000041",
+            "effective-step-000042",
+            "effective-step-000043",
+            "effective-step-000044",
+            "effective-step-000045",
+            "effective-step-000046",
+            "effective-step-000047",
+            "effective-step-000048",
+            "effective-step-000049",
+            "effective-step-000050",
+            "effective-step-000051",
+            "effective-step-000052",
+            "effective-step-000053",
+            "effective-step-000054",
+            "effective-step-000055",
+            "effective-step-000056",
+            "effective-step-000057",
+            "effective-step-000058",
+            "effective-step-000059",
+            "effective-step-000060",
+            "effective-step-000061",
+            "effective-step-000062",
+            "effective-step-000063",
+            "effective-step-000064"
+          ],
+          "checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+          "commit_revision": 2,
+          "content_digest": "8411bb47c142fb3854a372ceb5d1c9c24bde239aec9f3be2b5b784d38c9a9af9",
+          "created_at": "2026-08-05T14:24:59.352Z",
+          "fenced_effect_keys": [],
+          "metadata": {
+            "exact_resume_contract": true,
+            "parent_checkpoint_id": "recoverycheckpoint:0c0f5a68a2270c0d6045aaa0078415e47dca54f5",
+            "state_owner": "python.RecoveryPlanStore"
+          },
+          "pending_write_ids": [],
+          "phase": "committed",
+          "receipt_id": "checkpointreceipt_24a4cee4c1ca4792bd6a5f4378fc1556",
+          "resume_token": "",
+          "run_id": "run_38754c24e774",
+          "schema": "zyra.checkpoint-receipt/v1",
+          "signature": "a6feedd85d1748cac5d0ad9e7e466e12f0229f056ee1de0841794418b210c918",
+          "skipped_response_ids": [],
+          "task_id": "task_ec3b55d73f22"
+        },
+        "run_id": "run_38754c24e774",
+        "schema": "zyra.live-checkpoint-owner-receipt/v1",
+        "signature": "a6feedd85d1748cac5d0ad9e7e466e12f0229f056ee1de0841794418b210c918",
+        "state_digest": "a5cf57a110a161c3b50823ab3508ed0695a511316151330f559f04e5d585db3e",
+        "task_id": "task_ec3b55d73f22"
+      },
+      "completed_at": "2026-08-05T14:25:00.083Z",
+      "execution_digest": "112d1e390c2687faf942c3854625f5a281b692f2b015e50e7b8a58e5655725c8",
+      "fault_receipt": {
+        "canonical_injection_kind": "tool_timeout",
+        "checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+        "event_id": "fault-owner-event_f4575deb97934bb1ac3265074da5f1f5",
+        "kind": "requirement_change",
+        "observed": true,
+        "owner": "FaultRuntimeApplication",
+        "owner_receipt": {
+          "created_at": "2026-08-05T14:24:59.765Z",
+          "duplicate": false,
+          "handoff": {
+            "created_at": "2026-08-05T14:24:59.760Z",
+            "fault_kind": "tool_timeout",
+            "handoff_id": "recoveryhandoff_34171d5bbf4342d5bf8eecfc",
+            "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+            "metadata": {
+              "canonical_fault_signal_id": "faultsig_10fa474912d2408688a4413b",
+              "consumer": "M1-S07C.RecoveryPlanner",
+              "memory_record_ids": [
+                "memory_45e58d41520d760c",
+                "memory_0c8affc6e76ff099",
+                "memory_cee7bba1e9c27de4",
+                "memory_b9be7287c9725b8a"
+              ],
+              "planner_executed": false,
+              "producer": "M1-S07B-01.WatchdogRecoveryBridge",
+              "projection_event_id": "faultevent_b79eac2b54914022ae5f26cc",
+              "scheduler_changed": false,
+              "signal_effect_coordinator": true,
+              "source_observation_id": "injected-observation_e8f0e3c16f3e4134a93f2718"
+            },
+            "reason": "Fault signal requires an explicit recovery-planner decision.",
+            "recoverable": true,
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_e8f0e3c16f3e4134a93f2718",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 1,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-requirement-change",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "requested_actions": [
+              "close_or_fence_timed_out_tool_call",
+              "verify_side_effect_idempotency",
+              "retry_or_reroute_tool_execution"
+            ],
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.watchdog-recovery-handoff/v1",
+            "signal_id": "faultsig_10fa474912d2408688a4413b",
+            "task_id": "task_ec3b55d73f22"
+          },
+          "ok": true,
+          "phase": "handed_off",
+          "projection": {
+            "canonical_event_written": true,
+            "created_at": "2026-08-05T14:24:59.754Z",
+            "errors": [],
+            "event_id": "faultevent_b79eac2b54914022ae5f26cc",
+            "memory_record_ids": [
+              "memory_45e58d41520d760c",
+              "memory_0c8affc6e76ff099",
+              "memory_cee7bba1e9c27de4",
+              "memory_b9be7287c9725b8a"
+            ],
+            "ok": true,
+            "receipt_id": "faultprojection_716358c5a8284289a8cb4eba",
+            "scheduler_changed": false,
+            "scheduler_receipt": {},
+            "signal_id": "faultsig_10fa474912d2408688a4413b",
+            "task_projection_changed": true
+          },
+          "receipt_id": "injectreceipt_9bd71e504e274c3a89b0378b",
+          "request": {
+            "continuation": "recovery_handoff",
+            "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-requirement-change",
+            "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+            "kind": "tool_timeout",
+            "parameters": {},
+            "requested_at": "2026-08-05T14:24:59.688Z",
+            "requested_by": "sealed-live-scenario",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-injection/v1",
+            "target": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injection-target_515c976ddab24d508270ece3",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 1,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-requirement-change",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "task_id": "task_ec3b55d73f22"
+          },
+          "same_run": true,
+          "schema": "zyra.fault-injection-receipt/v1",
+          "signal": {
+            "classification_rule": "tool.deadline.expired.v1",
+            "created_at": "2026-08-05T14:24:59.692Z",
+            "details": {
+              "critical_ref_source": "structured_refs_only",
+              "deadline_ms": 1000,
+              "elapsed_ms": 1000,
+              "observation_details": {
+                "continuation": "recovery_handoff",
+                "destructive_external_mutation": false,
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-requirement-change",
+                "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+                "injection_kind": "tool_timeout",
+                "requested_by": "sealed-live-scenario",
+                "required_ref": "tool_call_id",
+                "same_run": true,
+                "simulates_boundary_only": true
+              },
+              "observation_error_type": "InjectedToolTimeout",
+              "observation_status": "timed_out",
+              "status_code": null
+            },
+            "disposition": "recover",
+            "evidence_event_ids": [],
+            "fingerprint": "sha256:6b14b87ae3e606b6a7c767a54b5ddf27b65782e1ef28ca692710539ab8736c6a",
+            "kind": "tool_timeout",
+            "observed_code": "tool_timeout",
+            "origin": "injection",
+            "provenance": {
+              "adapter_version": "M1-S07B-01",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "maturity": "injection_only",
+              "observation_point": "fault.inject.same-run",
+              "observer_id": "same-run-fault-injector",
+              "source_repo": "zyra",
+              "source_revision": "M1-S07B-01"
+            },
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_e8f0e3c16f3e4134a93f2718",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 1,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-requirement-change",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "retryable": true,
+            "schema": "zyra.watchdog-fault-signal/v1",
+            "severity": "error",
+            "signal_id": "faultsig_10fa474912d2408688a4413b",
+            "summary": "A tool call exceeded its deterministic deadline.",
+            "terminal": true
+          },
+          "state_saved_by_caller": true,
+          "task_projection": {
+            "active_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b"
+            ],
+            "blocked_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b"
+            ],
+            "last_event_id": "faultevent_b79eac2b54914022ae5f26cc",
+            "last_fault_kind": "tool_timeout",
+            "last_signal_id": "faultsig_10fa474912d2408688a4413b",
+            "retryable_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b"
+            ],
+            "revision": 1,
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-task-projection/v1",
+            "task_id": "task_ec3b55d73f22",
+            "updated_at": "2026-08-05T14:24:59.753Z"
+          },
+          "transitions": [
+            {
+              "created_at": "2026-08-05T14:24:59.689Z",
+              "details": {
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-requirement-change"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "requested",
+              "reason": "fault injection accepted and fenced",
+              "revision": 1,
+              "signal_id": "",
+              "transition_id": "injectstep_294cfc7e2b8045c5b37b804d"
+            },
+            {
+              "created_at": "2026-08-05T14:24:59.690Z",
+              "details": {
+                "required_ref": "tool_call_id"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "armed",
+              "reason": "validated explicit target refs and fenced same-run injection",
+              "revision": 2,
+              "signal_id": "",
+              "transition_id": "injectstep_45e6c300a5ab47caa280088e"
+            },
+            {
+              "created_at": "2026-08-05T14:24:59.691Z",
+              "details": {
+                "observation_id": "injected-observation_e8f0e3c16f3e4134a93f2718"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "triggered",
+              "reason": "injection boundary constructed without mutating an external resource",
+              "revision": 3,
+              "signal_id": "",
+              "transition_id": "injectstep_f218111be04f4b9c8687fc35"
+            },
+            {
+              "created_at": "2026-08-05T14:24:59.762Z",
+              "details": {},
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "observed",
+              "reason": "injection-only observer classified a structured same-run observation",
+              "revision": 4,
+              "signal_id": "faultsig_10fa474912d2408688a4413b",
+              "transition_id": "injectstep_501826f4600748bfad4ad962"
+            },
+            {
+              "created_at": "2026-08-05T14:24:59.763Z",
+              "details": {
+                "projection_receipt_id": "faultprojection_716358c5a8284289a8cb4eba"
+              },
+              "event_id": "faultevent_b79eac2b54914022ae5f26cc",
+              "handoff_id": "",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "projected",
+              "reason": "canonical event and same-run task projection committed",
+              "revision": 5,
+              "signal_id": "faultsig_10fa474912d2408688a4413b",
+              "transition_id": "injectstep_c6e23fbe626f4759a56f4f12"
+            },
+            {
+              "created_at": "2026-08-05T14:24:59.764Z",
+              "details": {},
+              "event_id": "faultevent_b79eac2b54914022ae5f26cc",
+              "handoff_id": "recoveryhandoff_34171d5bbf4342d5bf8eecfc",
+              "injection_id": "inject_34a6bd50dce14e38b2a1d499",
+              "phase": "handed_off",
+              "reason": "fault boundary handed to the 07C recovery planner contract",
+              "revision": 6,
+              "signal_id": "faultsig_10fa474912d2408688a4413b",
+              "transition_id": "injectstep_7cb507f4c4ba44848e3b9082"
+            }
+          ]
+        },
+        "reason": "canonical tool_timeout boundary observed",
+        "receipt_id": "injectreceipt_9bd71e504e274c3a89b0378b",
+        "schema": "zyra.live-fault-owner-receipt/v1",
+        "target": "software-plan"
+      },
+      "injection": {
+        "after_effective_step": 240,
+        "injection_id": "software-requirement-change",
+        "kind": "requirement_change",
+        "payload": {
+          "requirement": "Retain an input-bound failure-path test and causal receipt."
+        },
+        "stage": "patch",
+        "target": "software-plan"
+      },
+      "migration_receipt": {
+        "reason": "fault kind does not require placement migration",
+        "receipt_id": "migration_not_required_30d1c860e90f4da6a4458eb1fe3d10d2",
+        "required": false,
+        "route_after": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "route_before": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway"
+      },
+      "observed_step": 3120,
+      "recovery_receipt": {
+        "checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+        "checkpoint_restored": true,
+        "event_ids": [
+          "event_3a87b1b9a1db"
+        ],
+        "owner": "CheckpointResumeBridge",
+        "owner_receipt": {
+          "ok": true,
+          "owner_receipts": [
+            {
+              "changed": true,
+              "operation": "session_resume",
+              "owner": "SessionLifecycleRuntime",
+              "payload": {
+                "after": {
+                  "resume_event_id": "event_3a87b1b9a1db"
+                },
+                "before": {
+                  "resume_event_id": ""
+                },
+                "canonical_ref": {
+                  "event_id": "event_3a87b1b9a1db"
+                },
+                "changed": true,
+                "metadata": {},
+                "receipt_ref": "event_3a87b1b9a1db"
+              },
+              "receipt_ref": "ownerreceipt_9f8cf1a1f44745a5bd391a3519d17b96"
+            }
+          ],
+          "receipt": {
+            "applied_write_ids": [],
+            "bypassed_step_ids": [
+              "effective-step-000001",
+              "effective-step-000002",
+              "effective-step-000003",
+              "effective-step-000004",
+              "effective-step-000005",
+              "effective-step-000006",
+              "effective-step-000007",
+              "effective-step-000008",
+              "effective-step-000009",
+              "effective-step-000010",
+              "effective-step-000011",
+              "effective-step-000012",
+              "effective-step-000013",
+              "effective-step-000014",
+              "effective-step-000015",
+              "effective-step-000016",
+              "effective-step-000017",
+              "effective-step-000018",
+              "effective-step-000019",
+              "effective-step-000020",
+              "effective-step-000021",
+              "effective-step-000022",
+              "effective-step-000023",
+              "effective-step-000024",
+              "effective-step-000025",
+              "effective-step-000026",
+              "effective-step-000027",
+              "effective-step-000028",
+              "effective-step-000029",
+              "effective-step-000030",
+              "effective-step-000031",
+              "effective-step-000032",
+              "effective-step-000033",
+              "effective-step-000034",
+              "effective-step-000035",
+              "effective-step-000036",
+              "effective-step-000037",
+              "effective-step-000038",
+              "effective-step-000039",
+              "effective-step-000040",
+              "effective-step-000041",
+              "effective-step-000042",
+              "effective-step-000043",
+              "effective-step-000044",
+              "effective-step-000045",
+              "effective-step-000046",
+              "effective-step-000047",
+              "effective-step-000048",
+              "effective-step-000049",
+              "effective-step-000050",
+              "effective-step-000051",
+              "effective-step-000052",
+              "effective-step-000053",
+              "effective-step-000054",
+              "effective-step-000055",
+              "effective-step-000056",
+              "effective-step-000057",
+              "effective-step-000058",
+              "effective-step-000059",
+              "effective-step-000060",
+              "effective-step-000061",
+              "effective-step-000062",
+              "effective-step-000063",
+              "effective-step-000064"
+            ],
+            "checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+            "commit_revision": 2,
+            "content_digest": "8411bb47c142fb3854a372ceb5d1c9c24bde239aec9f3be2b5b784d38c9a9af9",
+            "created_at": "2026-08-05T14:24:59.991Z",
+            "fenced_effect_keys": [],
+            "metadata": {
+              "committed_side_effect_replay": false,
+              "completed_step_bypass": true,
+              "deliverable_message_ids": [],
+              "owner_receipts": [
+                {
+                  "changed": true,
+                  "operation": "session_resume",
+                  "owner": "SessionLifecycleRuntime",
+                  "payload": {
+                    "after": {
+                      "resume_event_id": "event_3a87b1b9a1db"
+                    },
+                    "before": {
+                      "resume_event_id": ""
+                    },
+                    "canonical_ref": {
+                      "event_id": "event_3a87b1b9a1db"
+                    },
+                    "changed": true,
+                    "metadata": {},
+                    "receipt_ref": "event_3a87b1b9a1db"
+                  },
+                  "receipt_ref": "ownerreceipt_9f8cf1a1f44745a5bd391a3519d17b96"
+                }
+              ],
+              "pending_request_ids": [],
+              "processed_response_replay": false,
+              "skipped_message_ids": []
+            },
+            "pending_write_ids": [],
+            "phase": "resumed",
+            "receipt_id": "checkpointreceipt_7f33282790254827aa87d47312ed310c",
+            "resume_token": "resume:c2f9c6f49fe8fdf555983e9f52442bcf2e9d1de29594de50",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.checkpoint-receipt/v1",
+            "signature": "a6feedd85d1748cac5d0ad9e7e466e12f0229f056ee1de0841794418b210c918",
+            "skipped_response_ids": [],
+            "task_id": "task_ec3b55d73f22"
+          }
+        },
+        "reason": "recovered software-requirement-change",
+        "receipt_id": "resume:c2f9c6f49fe8fdf555983e9f52442bcf2e9d1de29594de50",
+        "requirement_change": {
+          "applied_at": "2026-08-05T14:24:59.768Z",
+          "change_id": "software-requirement-change",
+          "completed_action_ids": [
+            "software-plan:985b64363bbc20b212ec:60201:discover",
+            "software-plan:985b64363bbc20b212ec:60201:index",
+            "software-plan:985b64363bbc20b212ec:60201:plan",
+            "software-plan:985b64363bbc20b212ec:60201:checkpoint-before-patch",
+            "software-plan:985b64363bbc20b212ec:60201:patch",
+            "software-plan:985b64363bbc20b212ec:60201:requirement-change",
+            "software-plan:985b64363bbc20b212ec:60201:restore",
+            "software-plan:985b64363bbc20b212ec:60201:test",
+            "software-plan:985b64363bbc20b212ec:60201:verify",
+            "software-plan:985b64363bbc20b212ec:60201:deliver"
+          ],
+          "human_intervention_count": 0,
+          "invalidated_action_ids": [
+            "software-plan:985b64363bbc20b212ec:60201:requirement-change",
+            "software-plan:985b64363bbc20b212ec:60201:restore",
+            "software-plan:985b64363bbc20b212ec:60201:test",
+            "software-plan:985b64363bbc20b212ec:60201:verify",
+            "software-plan:985b64363bbc20b212ec:60201:deliver"
+          ],
+          "plan_id": "software-plan:985b64363bbc20b212ec:60201",
+          "plan_revision_after": 2,
+          "plan_revision_before": 1,
+          "receipt_digest": "822624262dda08a2017084dbcbf12858cf26dabf6bbbb25e27fbecf80c22eaca",
+          "replan_required": true,
+          "requirement": "Retain an input-bound failure-path test and causal receipt.",
+          "schema": "zyra.live-requirement-change/v1"
+        },
+        "schema": "zyra.live-recovery-owner-receipt/v1",
+        "state": "recovered",
+        "state_digest_after": "ab593a20924d7bbcfe2410082925262aae25c3eab5f3bfe49da4ee21e1ee832a",
+        "state_digest_before": "a5cf57a110a161c3b50823ab3508ed0695a511316151330f559f04e5d585db3e"
+      },
+      "schema": "zyra.live-fault-execution/v1",
+      "started_at": "2026-08-05T14:24:59.195Z",
+      "state": "recovered",
+      "verification_receipt": {
+        "checkpoint_valid": true,
+        "event_id": "post-recovery-verification-event_964dcdf52fe8490ebbc4608207b688dd",
+        "injection_id": "software-requirement-change",
+        "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+        "owner": "DeterministicLiveRecoveryVerifier",
+        "receipt_id": "post-recovery-verification_a1b2529a102942a69fc2651013e3dd84",
+        "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "route_valid": true,
+        "schema": "zyra.live-post-recovery-verification/v1",
+        "state_digest": "ab593a20924d7bbcfe2410082925262aae25c3eab5f3bfe49da4ee21e1ee832a",
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:00.083Z"
+      }
+    },
+    {
+      "checkpoint_receipt": {
+        "checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+        "commit_revision": 3,
+        "committed": true,
+        "content_digest": "9ed6b1abed5095ffcdbfb459c215a903d2d6b0c6412763a17b6907f9c349856e",
+        "owner": "RecoveryPlanStore",
+        "owner_receipt": {
+          "applied_write_ids": [],
+          "bypassed_step_ids": [
+            "effective-step-000001",
+            "effective-step-000002",
+            "effective-step-000003",
+            "effective-step-000004",
+            "effective-step-000005",
+            "effective-step-000006",
+            "effective-step-000007",
+            "effective-step-000008",
+            "effective-step-000009",
+            "effective-step-000010",
+            "effective-step-000011",
+            "effective-step-000012",
+            "effective-step-000013",
+            "effective-step-000014",
+            "effective-step-000015",
+            "effective-step-000016",
+            "effective-step-000017",
+            "effective-step-000018",
+            "effective-step-000019",
+            "effective-step-000020",
+            "effective-step-000021",
+            "effective-step-000022",
+            "effective-step-000023",
+            "effective-step-000024",
+            "effective-step-000025",
+            "effective-step-000026",
+            "effective-step-000027",
+            "effective-step-000028",
+            "effective-step-000029",
+            "effective-step-000030",
+            "effective-step-000031",
+            "effective-step-000032",
+            "effective-step-000033",
+            "effective-step-000034",
+            "effective-step-000035",
+            "effective-step-000036",
+            "effective-step-000037",
+            "effective-step-000038",
+            "effective-step-000039",
+            "effective-step-000040",
+            "effective-step-000041",
+            "effective-step-000042",
+            "effective-step-000043",
+            "effective-step-000044",
+            "effective-step-000045",
+            "effective-step-000046",
+            "effective-step-000047",
+            "effective-step-000048",
+            "effective-step-000049",
+            "effective-step-000050",
+            "effective-step-000051",
+            "effective-step-000052",
+            "effective-step-000053",
+            "effective-step-000054",
+            "effective-step-000055",
+            "effective-step-000056",
+            "effective-step-000057",
+            "effective-step-000058",
+            "effective-step-000059",
+            "effective-step-000060",
+            "effective-step-000061",
+            "effective-step-000062",
+            "effective-step-000063",
+            "effective-step-000064"
+          ],
+          "checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+          "commit_revision": 3,
+          "content_digest": "9ed6b1abed5095ffcdbfb459c215a903d2d6b0c6412763a17b6907f9c349856e",
+          "created_at": "2026-08-05T14:25:00.283Z",
+          "fenced_effect_keys": [],
+          "metadata": {
+            "exact_resume_contract": true,
+            "parent_checkpoint_id": "recoverycheckpoint:39aefcba7a9be925aa917f9282377689e3e44ed5",
+            "state_owner": "python.RecoveryPlanStore"
+          },
+          "pending_write_ids": [],
+          "phase": "committed",
+          "receipt_id": "checkpointreceipt_ea4ac5d250d74e579a2c483ade5ace44",
+          "resume_token": "",
+          "run_id": "run_38754c24e774",
+          "schema": "zyra.checkpoint-receipt/v1",
+          "signature": "deb31c1d51b81ee3f4ed500e21ed6e39fdd9ea8744abda62ff2616a5d09e8f37",
+          "skipped_response_ids": [],
+          "task_id": "task_ec3b55d73f22"
+        },
+        "run_id": "run_38754c24e774",
+        "schema": "zyra.live-checkpoint-owner-receipt/v1",
+        "signature": "deb31c1d51b81ee3f4ed500e21ed6e39fdd9ea8744abda62ff2616a5d09e8f37",
+        "state_digest": "f1950ab444d2355bce7692485fc13424264c317dbf8facf6716706d5fce3cc7f",
+        "task_id": "task_ec3b55d73f22"
+      },
+      "completed_at": "2026-08-05T14:25:01.017Z",
+      "execution_digest": "c9226b54f2b0d8d757c58727721771ffe4098173b581a174d13b0b1e313379cf",
+      "fault_receipt": {
+        "canonical_injection_kind": "tool_timeout",
+        "checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+        "event_id": "fault-owner-event_95979abb3c434088bbbc3e5c1ed0345a",
+        "kind": "tool_timeout",
+        "observed": true,
+        "owner": "FaultRuntimeApplication",
+        "owner_receipt": {
+          "created_at": "2026-08-05T14:25:00.584Z",
+          "duplicate": false,
+          "handoff": {
+            "created_at": "2026-08-05T14:25:00.578Z",
+            "fault_kind": "tool_timeout",
+            "handoff_id": "recoveryhandoff_f26004636985497596c5c8d6",
+            "injection_id": "inject_27449f26d5e34a6eae7a3002",
+            "metadata": {
+              "canonical_fault_signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "consumer": "M1-S07C.RecoveryPlanner",
+              "memory_record_ids": [
+                "memory_6d5bd5c4ae0c94db",
+                "memory_b00bb027154b60b3",
+                "memory_cee7bba1e9c27de4",
+                "memory_b9be7287c9725b8a"
+              ],
+              "planner_executed": false,
+              "producer": "M1-S07B-01.WatchdogRecoveryBridge",
+              "projection_event_id": "faultevent_448e021eb69b41bcadd47276",
+              "scheduler_changed": false,
+              "signal_effect_coordinator": true,
+              "source_observation_id": "injected-observation_4e792026eeea4bcf9a11b345"
+            },
+            "reason": "Fault signal requires an explicit recovery-planner decision.",
+            "recoverable": true,
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_4e792026eeea4bcf9a11b345",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 2,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-tool-timeout",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "requested_actions": [
+              "close_or_fence_timed_out_tool_call",
+              "verify_side_effect_idempotency",
+              "retry_or_reroute_tool_execution"
+            ],
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.watchdog-recovery-handoff/v1",
+            "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+            "task_id": "task_ec3b55d73f22"
+          },
+          "ok": true,
+          "phase": "handed_off",
+          "projection": {
+            "canonical_event_written": true,
+            "created_at": "2026-08-05T14:25:00.572Z",
+            "errors": [],
+            "event_id": "faultevent_448e021eb69b41bcadd47276",
+            "memory_record_ids": [
+              "memory_6d5bd5c4ae0c94db",
+              "memory_b00bb027154b60b3",
+              "memory_cee7bba1e9c27de4",
+              "memory_b9be7287c9725b8a"
+            ],
+            "ok": true,
+            "receipt_id": "faultprojection_2f309190e1a64eba94350961",
+            "scheduler_changed": false,
+            "scheduler_receipt": {},
+            "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+            "task_projection_changed": true
+          },
+          "receipt_id": "injectreceipt_cb64b457d78a43ce9420f92e",
+          "request": {
+            "continuation": "recovery_handoff",
+            "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-tool-timeout",
+            "injection_id": "inject_27449f26d5e34a6eae7a3002",
+            "kind": "tool_timeout",
+            "parameters": {
+              "deadline_ms": 10
+            },
+            "requested_at": "2026-08-05T14:25:00.362Z",
+            "requested_by": "sealed-live-scenario",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-injection/v1",
+            "target": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injection-target_b703abd593794b3e9efd6e31",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 2,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-tool-timeout",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "task_id": "task_ec3b55d73f22"
+          },
+          "same_run": true,
+          "schema": "zyra.fault-injection-receipt/v1",
+          "signal": {
+            "classification_rule": "tool.deadline.expired.v1",
+            "created_at": "2026-08-05T14:25:00.495Z",
+            "details": {
+              "critical_ref_source": "structured_refs_only",
+              "deadline_ms": 10,
+              "elapsed_ms": 10,
+              "observation_details": {
+                "continuation": "recovery_handoff",
+                "deadline_ms": 10,
+                "destructive_external_mutation": false,
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-tool-timeout",
+                "injection_id": "inject_27449f26d5e34a6eae7a3002",
+                "injection_kind": "tool_timeout",
+                "requested_by": "sealed-live-scenario",
+                "required_ref": "tool_call_id",
+                "same_run": true,
+                "simulates_boundary_only": true
+              },
+              "observation_error_type": "InjectedToolTimeout",
+              "observation_status": "timed_out",
+              "status_code": null
+            },
+            "disposition": "recover",
+            "evidence_event_ids": [],
+            "fingerprint": "sha256:9b9df3697e77032bac8c0a6d5bc18435f17944c4128a151aeeec8b7efc0790bf",
+            "kind": "tool_timeout",
+            "observed_code": "tool_timeout",
+            "origin": "injection",
+            "provenance": {
+              "adapter_version": "M1-S07B-01",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "maturity": "injection_only",
+              "observation_point": "fault.inject.same-run",
+              "observer_id": "same-run-fault-injector",
+              "source_repo": "zyra",
+              "source_revision": "M1-S07B-01"
+            },
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_4e792026eeea4bcf9a11b345",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 2,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "live-tool:software-tool-timeout",
+              "tool_name": "live-scenario-boundary",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "retryable": true,
+            "schema": "zyra.watchdog-fault-signal/v1",
+            "severity": "error",
+            "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+            "summary": "A tool call exceeded its deterministic deadline.",
+            "terminal": true
+          },
+          "state_saved_by_caller": true,
+          "task_projection": {
+            "active_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75"
+            ],
+            "blocked_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75"
+            ],
+            "last_event_id": "faultevent_448e021eb69b41bcadd47276",
+            "last_fault_kind": "tool_timeout",
+            "last_signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+            "retryable_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75"
+            ],
+            "revision": 2,
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-task-projection/v1",
+            "task_id": "task_ec3b55d73f22",
+            "updated_at": "2026-08-05T14:25:00.571Z"
+          },
+          "transitions": [
+            {
+              "created_at": "2026-08-05T14:25:00.365Z",
+              "details": {
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-tool-timeout"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "requested",
+              "reason": "fault injection accepted and fenced",
+              "revision": 1,
+              "signal_id": "",
+              "transition_id": "injectstep_eec5bff5f4954095807a8155"
+            },
+            {
+              "created_at": "2026-08-05T14:25:00.492Z",
+              "details": {
+                "required_ref": "tool_call_id"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "armed",
+              "reason": "validated explicit target refs and fenced same-run injection",
+              "revision": 2,
+              "signal_id": "",
+              "transition_id": "injectstep_ac3adab2345a427c8a2b9101"
+            },
+            {
+              "created_at": "2026-08-05T14:25:00.494Z",
+              "details": {
+                "observation_id": "injected-observation_4e792026eeea4bcf9a11b345"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "triggered",
+              "reason": "injection boundary constructed without mutating an external resource",
+              "revision": 3,
+              "signal_id": "",
+              "transition_id": "injectstep_b4a59180c9ed4bd78bbe89c8"
+            },
+            {
+              "created_at": "2026-08-05T14:25:00.581Z",
+              "details": {},
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "observed",
+              "reason": "injection-only observer classified a structured same-run observation",
+              "revision": 4,
+              "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "transition_id": "injectstep_55bca5634e9d4603b9fa6928"
+            },
+            {
+              "created_at": "2026-08-05T14:25:00.582Z",
+              "details": {
+                "projection_receipt_id": "faultprojection_2f309190e1a64eba94350961"
+              },
+              "event_id": "faultevent_448e021eb69b41bcadd47276",
+              "handoff_id": "",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "projected",
+              "reason": "canonical event and same-run task projection committed",
+              "revision": 5,
+              "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "transition_id": "injectstep_032f517c018643e4a0473c3f"
+            },
+            {
+              "created_at": "2026-08-05T14:25:00.583Z",
+              "details": {},
+              "event_id": "faultevent_448e021eb69b41bcadd47276",
+              "handoff_id": "recoveryhandoff_f26004636985497596c5c8d6",
+              "injection_id": "inject_27449f26d5e34a6eae7a3002",
+              "phase": "handed_off",
+              "reason": "fault boundary handed to the 07C recovery planner contract",
+              "revision": 6,
+              "signal_id": "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "transition_id": "injectstep_3708318df8f3453dbcced2ad"
+            }
+          ]
+        },
+        "reason": "canonical tool_timeout boundary observed",
+        "receipt_id": "injectreceipt_cb64b457d78a43ce9420f92e",
+        "schema": "zyra.live-fault-owner-receipt/v1",
+        "target": "terminal-test"
+      },
+      "injection": {
+        "after_effective_step": 480,
+        "injection_id": "software-tool-timeout",
+        "kind": "tool_timeout",
+        "payload": {
+          "deadline_ms": 10,
+          "retry_deadline_ms": 120000
+        },
+        "stage": "test",
+        "target": "terminal-test"
+      },
+      "migration_receipt": {
+        "reason": "fault kind does not require placement migration",
+        "receipt_id": "migration_not_required_48655316c27640acb1ab30dd57c1a517",
+        "required": false,
+        "route_after": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "route_before": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway"
+      },
+      "observed_step": 3120,
+      "recovery_receipt": {
+        "checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+        "checkpoint_restored": true,
+        "event_ids": [
+          "event_d76fd11bf1fb"
+        ],
+        "owner": "CheckpointResumeBridge",
+        "owner_receipt": {
+          "ok": true,
+          "owner_receipts": [
+            {
+              "changed": true,
+              "operation": "session_resume",
+              "owner": "SessionLifecycleRuntime",
+              "payload": {
+                "after": {
+                  "resume_event_id": "event_d76fd11bf1fb"
+                },
+                "before": {
+                  "resume_event_id": ""
+                },
+                "canonical_ref": {
+                  "event_id": "event_d76fd11bf1fb"
+                },
+                "changed": true,
+                "metadata": {},
+                "receipt_ref": "event_d76fd11bf1fb"
+              },
+              "receipt_ref": "ownerreceipt_4ed88c0b8a66449bbe75b6805cc3de4f"
+            }
+          ],
+          "receipt": {
+            "applied_write_ids": [],
+            "bypassed_step_ids": [
+              "effective-step-000001",
+              "effective-step-000002",
+              "effective-step-000003",
+              "effective-step-000004",
+              "effective-step-000005",
+              "effective-step-000006",
+              "effective-step-000007",
+              "effective-step-000008",
+              "effective-step-000009",
+              "effective-step-000010",
+              "effective-step-000011",
+              "effective-step-000012",
+              "effective-step-000013",
+              "effective-step-000014",
+              "effective-step-000015",
+              "effective-step-000016",
+              "effective-step-000017",
+              "effective-step-000018",
+              "effective-step-000019",
+              "effective-step-000020",
+              "effective-step-000021",
+              "effective-step-000022",
+              "effective-step-000023",
+              "effective-step-000024",
+              "effective-step-000025",
+              "effective-step-000026",
+              "effective-step-000027",
+              "effective-step-000028",
+              "effective-step-000029",
+              "effective-step-000030",
+              "effective-step-000031",
+              "effective-step-000032",
+              "effective-step-000033",
+              "effective-step-000034",
+              "effective-step-000035",
+              "effective-step-000036",
+              "effective-step-000037",
+              "effective-step-000038",
+              "effective-step-000039",
+              "effective-step-000040",
+              "effective-step-000041",
+              "effective-step-000042",
+              "effective-step-000043",
+              "effective-step-000044",
+              "effective-step-000045",
+              "effective-step-000046",
+              "effective-step-000047",
+              "effective-step-000048",
+              "effective-step-000049",
+              "effective-step-000050",
+              "effective-step-000051",
+              "effective-step-000052",
+              "effective-step-000053",
+              "effective-step-000054",
+              "effective-step-000055",
+              "effective-step-000056",
+              "effective-step-000057",
+              "effective-step-000058",
+              "effective-step-000059",
+              "effective-step-000060",
+              "effective-step-000061",
+              "effective-step-000062",
+              "effective-step-000063",
+              "effective-step-000064"
+            ],
+            "checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+            "commit_revision": 3,
+            "content_digest": "9ed6b1abed5095ffcdbfb459c215a903d2d6b0c6412763a17b6907f9c349856e",
+            "created_at": "2026-08-05T14:25:00.852Z",
+            "fenced_effect_keys": [],
+            "metadata": {
+              "committed_side_effect_replay": false,
+              "completed_step_bypass": true,
+              "deliverable_message_ids": [],
+              "owner_receipts": [
+                {
+                  "changed": true,
+                  "operation": "session_resume",
+                  "owner": "SessionLifecycleRuntime",
+                  "payload": {
+                    "after": {
+                      "resume_event_id": "event_d76fd11bf1fb"
+                    },
+                    "before": {
+                      "resume_event_id": ""
+                    },
+                    "canonical_ref": {
+                      "event_id": "event_d76fd11bf1fb"
+                    },
+                    "changed": true,
+                    "metadata": {},
+                    "receipt_ref": "event_d76fd11bf1fb"
+                  },
+                  "receipt_ref": "ownerreceipt_4ed88c0b8a66449bbe75b6805cc3de4f"
+                }
+              ],
+              "pending_request_ids": [],
+              "processed_response_replay": false,
+              "skipped_message_ids": []
+            },
+            "pending_write_ids": [],
+            "phase": "resumed",
+            "receipt_id": "checkpointreceipt_4dea5eea3a1d4074a19668ef9692949d",
+            "resume_token": "resume:3e0f3b97d3bddbefe4e9e9ddc7e15a4461268af3798f1b8b",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.checkpoint-receipt/v1",
+            "signature": "deb31c1d51b81ee3f4ed500e21ed6e39fdd9ea8744abda62ff2616a5d09e8f37",
+            "skipped_response_ids": [],
+            "task_id": "task_ec3b55d73f22"
+          }
+        },
+        "reason": "recovered software-tool-timeout",
+        "receipt_id": "resume:3e0f3b97d3bddbefe4e9e9ddc7e15a4461268af3798f1b8b",
+        "requirement_change": {},
+        "schema": "zyra.live-recovery-owner-receipt/v1",
+        "state": "recovered",
+        "state_digest_after": "8c3b1b05328cbc1166b56edb7ae249a5c802c73e7cf5b48353cbd33475d29db0",
+        "state_digest_before": "f1950ab444d2355bce7692485fc13424264c317dbf8facf6716706d5fce3cc7f"
+      },
+      "schema": "zyra.live-fault-execution/v1",
+      "started_at": "2026-08-05T14:25:00.084Z",
+      "state": "recovered",
+      "verification_receipt": {
+        "checkpoint_valid": true,
+        "event_id": "post-recovery-verification-event_b81aa1e35847426d999f2b0ae8d72969",
+        "injection_id": "software-tool-timeout",
+        "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+        "owner": "DeterministicLiveRecoveryVerifier",
+        "receipt_id": "post-recovery-verification_18781df7085d44d7af032244f43802e3",
+        "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "route_valid": true,
+        "schema": "zyra.live-post-recovery-verification/v1",
+        "state_digest": "8c3b1b05328cbc1166b56edb7ae249a5c802c73e7cf5b48353cbd33475d29db0",
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:01.017Z"
+      }
+    },
+    {
+      "checkpoint_receipt": {
+        "checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+        "commit_revision": 4,
+        "committed": true,
+        "content_digest": "99b85ca9824c584124fb87e70cc4bc601be7fe00fc69be093e9789bae703c98e",
+        "owner": "RecoveryPlanStore",
+        "owner_receipt": {
+          "applied_write_ids": [],
+          "bypassed_step_ids": [
+            "effective-step-000001",
+            "effective-step-000002",
+            "effective-step-000003",
+            "effective-step-000004",
+            "effective-step-000005",
+            "effective-step-000006",
+            "effective-step-000007",
+            "effective-step-000008",
+            "effective-step-000009",
+            "effective-step-000010",
+            "effective-step-000011",
+            "effective-step-000012",
+            "effective-step-000013",
+            "effective-step-000014",
+            "effective-step-000015",
+            "effective-step-000016",
+            "effective-step-000017",
+            "effective-step-000018",
+            "effective-step-000019",
+            "effective-step-000020",
+            "effective-step-000021",
+            "effective-step-000022",
+            "effective-step-000023",
+            "effective-step-000024",
+            "effective-step-000025",
+            "effective-step-000026",
+            "effective-step-000027",
+            "effective-step-000028",
+            "effective-step-000029",
+            "effective-step-000030",
+            "effective-step-000031",
+            "effective-step-000032",
+            "effective-step-000033",
+            "effective-step-000034",
+            "effective-step-000035",
+            "effective-step-000036",
+            "effective-step-000037",
+            "effective-step-000038",
+            "effective-step-000039",
+            "effective-step-000040",
+            "effective-step-000041",
+            "effective-step-000042",
+            "effective-step-000043",
+            "effective-step-000044",
+            "effective-step-000045",
+            "effective-step-000046",
+            "effective-step-000047",
+            "effective-step-000048",
+            "effective-step-000049",
+            "effective-step-000050",
+            "effective-step-000051",
+            "effective-step-000052",
+            "effective-step-000053",
+            "effective-step-000054",
+            "effective-step-000055",
+            "effective-step-000056",
+            "effective-step-000057",
+            "effective-step-000058",
+            "effective-step-000059",
+            "effective-step-000060",
+            "effective-step-000061",
+            "effective-step-000062",
+            "effective-step-000063",
+            "effective-step-000064"
+          ],
+          "checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+          "commit_revision": 4,
+          "content_digest": "99b85ca9824c584124fb87e70cc4bc601be7fe00fc69be093e9789bae703c98e",
+          "created_at": "2026-08-05T14:25:01.181Z",
+          "fenced_effect_keys": [],
+          "metadata": {
+            "exact_resume_contract": true,
+            "parent_checkpoint_id": "recoverycheckpoint:7948e2fa69d3f1e5f1697cb0f02b9f1043e6fd0f",
+            "state_owner": "python.RecoveryPlanStore"
+          },
+          "pending_write_ids": [],
+          "phase": "committed",
+          "receipt_id": "checkpointreceipt_f960687ece7e403c84b120707cc50cdd",
+          "resume_token": "",
+          "run_id": "run_38754c24e774",
+          "schema": "zyra.checkpoint-receipt/v1",
+          "signature": "be1c209e3459b7ad1c675986d85d83f0648fe78d460e7c6be8130cc8fe0bc380",
+          "skipped_response_ids": [],
+          "task_id": "task_ec3b55d73f22"
+        },
+        "run_id": "run_38754c24e774",
+        "schema": "zyra.live-checkpoint-owner-receipt/v1",
+        "signature": "be1c209e3459b7ad1c675986d85d83f0648fe78d460e7c6be8130cc8fe0bc380",
+        "state_digest": "87215400834ab89a9bcb9f8f5b1c1e8c169dfdcf01bdafb71f77808e803c1461",
+        "task_id": "task_ec3b55d73f22"
+      },
+      "completed_at": "2026-08-05T14:25:03.221Z",
+      "execution_digest": "6ac6629294dcf36e005475b7a31da23e096c85719710affd05da48aa4b241949",
+      "fault_receipt": {
+        "canonical_injection_kind": "worker_lost",
+        "checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+        "event_id": "fault-owner-event_fb5489fdb7044306bf1ffd84eb3e081a",
+        "kind": "worker_unavailable",
+        "observed": true,
+        "owner": "FaultRuntimeApplication",
+        "owner_receipt": {
+          "created_at": "2026-08-05T14:25:01.585Z",
+          "duplicate": false,
+          "handoff": {
+            "created_at": "2026-08-05T14:25:01.580Z",
+            "fault_kind": "worker_unavailable",
+            "handoff_id": "recoveryhandoff_22abed119ad346ac97f994cb",
+            "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+            "metadata": {
+              "canonical_fault_signal_id": "faultsig_10e02142a3c24502b3f62abc",
+              "consumer": "M1-S07C.RecoveryPlanner",
+              "memory_record_ids": [
+                "memory_8b7012c79ec107d5",
+                "memory_a5ab8a53b93d88a1",
+                "memory_cee7bba1e9c27de4",
+                "memory_b9be7287c9725b8a"
+              ],
+              "planner_executed": false,
+              "producer": "M1-S07B-01.WatchdogRecoveryBridge",
+              "projection_event_id": "faultevent_dc0ad2fef25340cab5d61931",
+              "scheduler_changed": false,
+              "signal_effect_coordinator": true,
+              "source_observation_id": "injected-observation_a811c635ff6743dc821cb659"
+            },
+            "reason": "Fault signal requires an explicit recovery-planner decision.",
+            "recoverable": true,
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_a811c635ff6743dc821cb659",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 3,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-1",
+              "workspace_id": ""
+            },
+            "requested_actions": [
+              "expire_worker_lease",
+              "preserve_attempt_checkpoint",
+              "reroute_to_healthy_worker"
+            ],
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.watchdog-recovery-handoff/v1",
+            "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+            "task_id": "task_ec3b55d73f22"
+          },
+          "ok": true,
+          "phase": "handed_off",
+          "projection": {
+            "canonical_event_written": true,
+            "created_at": "2026-08-05T14:25:01.574Z",
+            "errors": [],
+            "event_id": "faultevent_dc0ad2fef25340cab5d61931",
+            "memory_record_ids": [
+              "memory_8b7012c79ec107d5",
+              "memory_a5ab8a53b93d88a1",
+              "memory_cee7bba1e9c27de4",
+              "memory_b9be7287c9725b8a"
+            ],
+            "ok": true,
+            "receipt_id": "faultprojection_bef6d15927534f739d575755",
+            "scheduler_changed": false,
+            "scheduler_receipt": {},
+            "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+            "task_projection_changed": true
+          },
+          "receipt_id": "injectreceipt_4b313d4131cb4446ab5acc1e",
+          "request": {
+            "continuation": "recovery_handoff",
+            "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-worker-loss",
+            "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+            "kind": "worker_lost",
+            "parameters": {},
+            "requested_at": "2026-08-05T14:25:01.376Z",
+            "requested_by": "sealed-live-scenario",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-injection/v1",
+            "target": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injection-target_764f2d488a704c5586051cb5",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 3,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-1",
+              "workspace_id": ""
+            },
+            "task_id": "task_ec3b55d73f22"
+          },
+          "same_run": true,
+          "schema": "zyra.fault-injection-receipt/v1",
+          "signal": {
+            "classification_rule": "worker.lease-or-heartbeat-lost.v1",
+            "created_at": "2026-08-05T14:25:01.394Z",
+            "details": {
+              "critical_ref_source": "structured_refs_only",
+              "deadline_ms": null,
+              "elapsed_ms": null,
+              "observation_details": {
+                "continuation": "recovery_handoff",
+                "destructive_external_mutation": false,
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-worker-loss",
+                "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+                "injection_kind": "worker_lost",
+                "requested_by": "sealed-live-scenario",
+                "required_ref": "worker_id",
+                "same_run": true,
+                "simulates_boundary_only": true
+              },
+              "observation_error_type": "InjectedWorkerLoss",
+              "observation_status": "lost",
+              "status_code": null
+            },
+            "disposition": "recover",
+            "evidence_event_ids": [],
+            "fingerprint": "sha256:95986267d8d205897f7f964b965579962ee9e454afe65d38be4260029cb47e9b",
+            "kind": "worker_unavailable",
+            "observed_code": "worker_lost",
+            "origin": "injection",
+            "provenance": {
+              "adapter_version": "M1-S07B-01",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "maturity": "injection_only",
+              "observation_point": "fault.inject.same-run",
+              "observer_id": "same-run-fault-injector",
+              "source_repo": "zyra",
+              "source_revision": "M1-S07B-01"
+            },
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_a811c635ff6743dc821cb659",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 3,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-1",
+              "workspace_id": ""
+            },
+            "retryable": true,
+            "schema": "zyra.watchdog-fault-signal/v1",
+            "severity": "critical",
+            "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+            "summary": "A bound worker became unavailable.",
+            "terminal": true
+          },
+          "state_saved_by_caller": true,
+          "task_projection": {
+            "active_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc"
+            ],
+            "blocked_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc"
+            ],
+            "last_event_id": "faultevent_dc0ad2fef25340cab5d61931",
+            "last_fault_kind": "worker_unavailable",
+            "last_signal_id": "faultsig_10e02142a3c24502b3f62abc",
+            "retryable_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc"
+            ],
+            "revision": 3,
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-task-projection/v1",
+            "task_id": "task_ec3b55d73f22",
+            "updated_at": "2026-08-05T14:25:01.572Z"
+          },
+          "transitions": [
+            {
+              "created_at": "2026-08-05T14:25:01.378Z",
+              "details": {
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-worker-loss"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "requested",
+              "reason": "fault injection accepted and fenced",
+              "revision": 1,
+              "signal_id": "",
+              "transition_id": "injectstep_98bca06e2e664fed904203de"
+            },
+            {
+              "created_at": "2026-08-05T14:25:01.391Z",
+              "details": {
+                "required_ref": "worker_id"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "armed",
+              "reason": "validated explicit target refs and fenced same-run injection",
+              "revision": 2,
+              "signal_id": "",
+              "transition_id": "injectstep_87364c8f0e77403ba70e4baf"
+            },
+            {
+              "created_at": "2026-08-05T14:25:01.393Z",
+              "details": {
+                "observation_id": "injected-observation_a811c635ff6743dc821cb659"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "triggered",
+              "reason": "injection boundary constructed without mutating an external resource",
+              "revision": 3,
+              "signal_id": "",
+              "transition_id": "injectstep_61debedc136a488194cd645a"
+            },
+            {
+              "created_at": "2026-08-05T14:25:01.582Z",
+              "details": {},
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "observed",
+              "reason": "injection-only observer classified a structured same-run observation",
+              "revision": 4,
+              "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+              "transition_id": "injectstep_ea0d3659a6454654b102fa5b"
+            },
+            {
+              "created_at": "2026-08-05T14:25:01.583Z",
+              "details": {
+                "projection_receipt_id": "faultprojection_bef6d15927534f739d575755"
+              },
+              "event_id": "faultevent_dc0ad2fef25340cab5d61931",
+              "handoff_id": "",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "projected",
+              "reason": "canonical event and same-run task projection committed",
+              "revision": 5,
+              "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+              "transition_id": "injectstep_5e1263fbb8c34abfbff44304"
+            },
+            {
+              "created_at": "2026-08-05T14:25:01.584Z",
+              "details": {},
+              "event_id": "faultevent_dc0ad2fef25340cab5d61931",
+              "handoff_id": "recoveryhandoff_22abed119ad346ac97f994cb",
+              "injection_id": "inject_dd87120f23f64e2fb26bdf5d",
+              "phase": "handed_off",
+              "reason": "fault boundary handed to the 07C recovery planner contract",
+              "revision": 6,
+              "signal_id": "faultsig_10e02142a3c24502b3f62abc",
+              "transition_id": "injectstep_5dc80bed8f2c4a59b4b96e1b"
+            }
+          ]
+        },
+        "reason": "canonical worker_lost boundary observed",
+        "receipt_id": "injectreceipt_4b313d4131cb4446ab5acc1e",
+        "schema": "zyra.live-fault-owner-receipt/v1",
+        "target": "software-worker-primary"
+      },
+      "injection": {
+        "after_effective_step": 720,
+        "injection_id": "software-worker-loss",
+        "kind": "worker_unavailable",
+        "payload": {
+          "successor_required": true
+        },
+        "stage": "test",
+        "target": "software-worker-primary"
+      },
+      "migration_receipt": {
+        "after": {
+          "acquired_at": "2026-08-05T14:25:03.197Z",
+          "attempt_number": 3,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "c8560547a18b9a01ff38077294d7cd14e853802112cf03f77387d3410331a6a5",
+          "lease_id": "lease_63a438014e8044e7acc865b89a1d61ae",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "recovered software-worker-loss",
+          "receipt_id": "attempt_182b41fd01284ebfad1a3c2a7d4e95e9",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "route_id": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-2"
+        },
+        "before": {
+          "acquired_at": "2026-08-05T14:24:42.127Z",
+          "attempt_number": 2,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "72f032f56e038a1d5ebff078757d98ea743425eac0579eeeb9576b177615512d",
+          "lease_id": "lease_04eed09b82a8485da4401617254a2b12",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "initial-placement",
+          "receipt_id": "attempt_bf33d22c47cc420ab3a9ca1f945c0937",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return",
+            "sealed_execution",
+            "code_change",
+            "terminal_execution"
+          ],
+          "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-1"
+        },
+        "lease_id": "lease_63a438014e8044e7acc865b89a1d61ae",
+        "owner": "WorkerPoolFoundationRuntime",
+        "reason": "recovered software-worker-loss",
+        "receipt_id": "attempt_182b41fd01284ebfad1a3c2a7d4e95e9",
+        "route_after": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+        "route_before": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "schema": "zyra.live-fault-migration-receipt/v1"
+      },
+      "observed_step": 3120,
+      "recovery_receipt": {
+        "checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+        "checkpoint_restored": true,
+        "event_ids": [
+          "event_437a647e9008"
+        ],
+        "owner": "CheckpointResumeBridge",
+        "owner_receipt": {
+          "ok": true,
+          "owner_receipts": [
+            {
+              "changed": true,
+              "operation": "session_resume",
+              "owner": "SessionLifecycleRuntime",
+              "payload": {
+                "after": {
+                  "resume_event_id": "event_437a647e9008"
+                },
+                "before": {
+                  "resume_event_id": ""
+                },
+                "canonical_ref": {
+                  "event_id": "event_437a647e9008"
+                },
+                "changed": true,
+                "metadata": {},
+                "receipt_ref": "event_437a647e9008"
+              },
+              "receipt_ref": "ownerreceipt_162cfb509bcc46b1880befdc229b46ba"
+            }
+          ],
+          "receipt": {
+            "applied_write_ids": [],
+            "bypassed_step_ids": [
+              "effective-step-000001",
+              "effective-step-000002",
+              "effective-step-000003",
+              "effective-step-000004",
+              "effective-step-000005",
+              "effective-step-000006",
+              "effective-step-000007",
+              "effective-step-000008",
+              "effective-step-000009",
+              "effective-step-000010",
+              "effective-step-000011",
+              "effective-step-000012",
+              "effective-step-000013",
+              "effective-step-000014",
+              "effective-step-000015",
+              "effective-step-000016",
+              "effective-step-000017",
+              "effective-step-000018",
+              "effective-step-000019",
+              "effective-step-000020",
+              "effective-step-000021",
+              "effective-step-000022",
+              "effective-step-000023",
+              "effective-step-000024",
+              "effective-step-000025",
+              "effective-step-000026",
+              "effective-step-000027",
+              "effective-step-000028",
+              "effective-step-000029",
+              "effective-step-000030",
+              "effective-step-000031",
+              "effective-step-000032",
+              "effective-step-000033",
+              "effective-step-000034",
+              "effective-step-000035",
+              "effective-step-000036",
+              "effective-step-000037",
+              "effective-step-000038",
+              "effective-step-000039",
+              "effective-step-000040",
+              "effective-step-000041",
+              "effective-step-000042",
+              "effective-step-000043",
+              "effective-step-000044",
+              "effective-step-000045",
+              "effective-step-000046",
+              "effective-step-000047",
+              "effective-step-000048",
+              "effective-step-000049",
+              "effective-step-000050",
+              "effective-step-000051",
+              "effective-step-000052",
+              "effective-step-000053",
+              "effective-step-000054",
+              "effective-step-000055",
+              "effective-step-000056",
+              "effective-step-000057",
+              "effective-step-000058",
+              "effective-step-000059",
+              "effective-step-000060",
+              "effective-step-000061",
+              "effective-step-000062",
+              "effective-step-000063",
+              "effective-step-000064"
+            ],
+            "checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+            "commit_revision": 4,
+            "content_digest": "99b85ca9824c584124fb87e70cc4bc601be7fe00fc69be093e9789bae703c98e",
+            "created_at": "2026-08-05T14:25:01.839Z",
+            "fenced_effect_keys": [],
+            "metadata": {
+              "committed_side_effect_replay": false,
+              "completed_step_bypass": true,
+              "deliverable_message_ids": [],
+              "owner_receipts": [
+                {
+                  "changed": true,
+                  "operation": "session_resume",
+                  "owner": "SessionLifecycleRuntime",
+                  "payload": {
+                    "after": {
+                      "resume_event_id": "event_437a647e9008"
+                    },
+                    "before": {
+                      "resume_event_id": ""
+                    },
+                    "canonical_ref": {
+                      "event_id": "event_437a647e9008"
+                    },
+                    "changed": true,
+                    "metadata": {},
+                    "receipt_ref": "event_437a647e9008"
+                  },
+                  "receipt_ref": "ownerreceipt_162cfb509bcc46b1880befdc229b46ba"
+                }
+              ],
+              "pending_request_ids": [],
+              "processed_response_replay": false,
+              "skipped_message_ids": []
+            },
+            "pending_write_ids": [],
+            "phase": "resumed",
+            "receipt_id": "checkpointreceipt_77ffa394c8f9437896d25354175c7b47",
+            "resume_token": "resume:d85ac190ef12c27beb96208eedba5bc40f3dfcacca194e80",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.checkpoint-receipt/v1",
+            "signature": "be1c209e3459b7ad1c675986d85d83f0648fe78d460e7c6be8130cc8fe0bc380",
+            "skipped_response_ids": [],
+            "task_id": "task_ec3b55d73f22"
+          }
+        },
+        "reason": "recovered software-worker-loss",
+        "receipt_id": "resume:d85ac190ef12c27beb96208eedba5bc40f3dfcacca194e80",
+        "requirement_change": {},
+        "schema": "zyra.live-recovery-owner-receipt/v1",
+        "state": "recovered",
+        "state_digest_after": "b91514f18935b51cc41537e31809d0a6adcfbed3f8bd1b88ebab34675111d134",
+        "state_digest_before": "87215400834ab89a9bcb9f8f5b1c1e8c169dfdcf01bdafb71f77808e803c1461"
+      },
+      "schema": "zyra.live-fault-execution/v1",
+      "started_at": "2026-08-05T14:25:01.019Z",
+      "state": "recovered",
+      "verification_receipt": {
+        "checkpoint_valid": true,
+        "event_id": "post-recovery-verification-event_ab6365c6694949dd85611d4e71f34b4a",
+        "injection_id": "software-worker-loss",
+        "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+        "owner": "DeterministicLiveRecoveryVerifier",
+        "receipt_id": "post-recovery-verification_7d1788830daa479c8522fee03f822665",
+        "route_id": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+        "route_valid": true,
+        "schema": "zyra.live-post-recovery-verification/v1",
+        "state_digest": "eb4602dac7e022f50842348a9ae54fb43b4b0db1594af15e12c94491db3656ba",
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:03.221Z"
+      }
+    },
+    {
+      "checkpoint_receipt": {
+        "checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+        "commit_revision": 5,
+        "committed": true,
+        "content_digest": "e0ab04537afa03d301c2aa432796a2f5a6baf02e6a0c855dd85b539d3c9f63d1",
+        "owner": "RecoveryPlanStore",
+        "owner_receipt": {
+          "applied_write_ids": [],
+          "bypassed_step_ids": [
+            "effective-step-000001",
+            "effective-step-000002",
+            "effective-step-000003",
+            "effective-step-000004",
+            "effective-step-000005",
+            "effective-step-000006",
+            "effective-step-000007",
+            "effective-step-000008",
+            "effective-step-000009",
+            "effective-step-000010",
+            "effective-step-000011",
+            "effective-step-000012",
+            "effective-step-000013",
+            "effective-step-000014",
+            "effective-step-000015",
+            "effective-step-000016",
+            "effective-step-000017",
+            "effective-step-000018",
+            "effective-step-000019",
+            "effective-step-000020",
+            "effective-step-000021",
+            "effective-step-000022",
+            "effective-step-000023",
+            "effective-step-000024",
+            "effective-step-000025",
+            "effective-step-000026",
+            "effective-step-000027",
+            "effective-step-000028",
+            "effective-step-000029",
+            "effective-step-000030",
+            "effective-step-000031",
+            "effective-step-000032",
+            "effective-step-000033",
+            "effective-step-000034",
+            "effective-step-000035",
+            "effective-step-000036",
+            "effective-step-000037",
+            "effective-step-000038",
+            "effective-step-000039",
+            "effective-step-000040",
+            "effective-step-000041",
+            "effective-step-000042",
+            "effective-step-000043",
+            "effective-step-000044",
+            "effective-step-000045",
+            "effective-step-000046",
+            "effective-step-000047",
+            "effective-step-000048",
+            "effective-step-000049",
+            "effective-step-000050",
+            "effective-step-000051",
+            "effective-step-000052",
+            "effective-step-000053",
+            "effective-step-000054",
+            "effective-step-000055",
+            "effective-step-000056",
+            "effective-step-000057",
+            "effective-step-000058",
+            "effective-step-000059",
+            "effective-step-000060",
+            "effective-step-000061",
+            "effective-step-000062",
+            "effective-step-000063",
+            "effective-step-000064"
+          ],
+          "checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+          "commit_revision": 5,
+          "content_digest": "e0ab04537afa03d301c2aa432796a2f5a6baf02e6a0c855dd85b539d3c9f63d1",
+          "created_at": "2026-08-05T14:25:03.382Z",
+          "fenced_effect_keys": [],
+          "metadata": {
+            "exact_resume_contract": true,
+            "parent_checkpoint_id": "recoverycheckpoint:9f2b0695a8748f6d7575cf9fdac57431d17b5664",
+            "state_owner": "python.RecoveryPlanStore"
+          },
+          "pending_write_ids": [],
+          "phase": "committed",
+          "receipt_id": "checkpointreceipt_c5c0293b80ce46c99a58b4cead0bab03",
+          "resume_token": "",
+          "run_id": "run_38754c24e774",
+          "schema": "zyra.checkpoint-receipt/v1",
+          "signature": "39e0e0d780691fe797ec1be2a60fa4688681a912d678aef6fc1a586571ad6ae3",
+          "skipped_response_ids": [],
+          "task_id": "task_ec3b55d73f22"
+        },
+        "run_id": "run_38754c24e774",
+        "schema": "zyra.live-checkpoint-owner-receipt/v1",
+        "signature": "39e0e0d780691fe797ec1be2a60fa4688681a912d678aef6fc1a586571ad6ae3",
+        "state_digest": "26194100baff71c34dd58c9e9052830a3de5b4a6b35931c968489bd3b8c83d38",
+        "task_id": "task_ec3b55d73f22"
+      },
+      "completed_at": "2026-08-05T14:25:05.097Z",
+      "execution_digest": "901a800da203c58c5d9c6391b7ab65142b3c66f642056b83d327d3812a6d5623",
+      "fault_receipt": {
+        "canonical_injection_kind": "model_failure",
+        "checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+        "event_id": "fault-owner-event_1b80396876954b43b6801e29c7fb1eaa",
+        "kind": "provider_failure",
+        "observed": true,
+        "owner": "FaultRuntimeApplication",
+        "owner_receipt": {
+          "created_at": "2026-08-05T14:25:03.658Z",
+          "duplicate": false,
+          "handoff": {
+            "created_at": "2026-08-05T14:25:03.652Z",
+            "fault_kind": "model_failure",
+            "handoff_id": "recoveryhandoff_c3a7d39b08ca4ae69353eafe",
+            "injection_id": "inject_6798a1666b9645869500cbb4",
+            "metadata": {
+              "canonical_fault_signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+              "consumer": "M1-S07C.RecoveryPlanner",
+              "memory_record_ids": [
+                "memory_2077f9864db8afd4",
+                "memory_491dc3bdab72102d",
+                "memory_cee7bba1e9c27de4",
+                "memory_b9be7287c9725b8a"
+              ],
+              "planner_executed": false,
+              "producer": "M1-S07B-01.WatchdogRecoveryBridge",
+              "projection_event_id": "faultevent_9e2ccc1ce9ad42f3a7727c1b",
+              "scheduler_changed": false,
+              "signal_effect_coordinator": true,
+              "source_observation_id": "injected-observation_ab9dece3c94a4969a38719f7"
+            },
+            "reason": "Fault signal requires an explicit recovery-planner decision.",
+            "recoverable": true,
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_ab9dece3c94a4969a38719f7",
+              "provider_id": "provider-primary",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 4,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "requested_actions": [
+              "preserve_partial_provider_response",
+              "select_compatible_provider_route",
+              "resume_from_last_committed_turn"
+            ],
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.watchdog-recovery-handoff/v1",
+            "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+            "task_id": "task_ec3b55d73f22"
+          },
+          "ok": true,
+          "phase": "handed_off",
+          "projection": {
+            "canonical_event_written": true,
+            "created_at": "2026-08-05T14:25:03.646Z",
+            "errors": [],
+            "event_id": "faultevent_9e2ccc1ce9ad42f3a7727c1b",
+            "memory_record_ids": [
+              "memory_2077f9864db8afd4",
+              "memory_491dc3bdab72102d",
+              "memory_cee7bba1e9c27de4",
+              "memory_b9be7287c9725b8a"
+            ],
+            "ok": true,
+            "receipt_id": "faultprojection_4608ac648707499abb8dc56f",
+            "scheduler_changed": false,
+            "scheduler_receipt": {},
+            "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+            "task_projection_changed": true
+          },
+          "receipt_id": "injectreceipt_8c592a96a14a4600b466da30",
+          "request": {
+            "continuation": "recovery_handoff",
+            "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-provider-failure",
+            "injection_id": "inject_6798a1666b9645869500cbb4",
+            "kind": "model_failure",
+            "parameters": {},
+            "requested_at": "2026-08-05T14:25:03.463Z",
+            "requested_by": "sealed-live-scenario",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-injection/v1",
+            "target": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injection-target_e846031dd51d4d95b8c11b9e",
+              "provider_id": "provider-primary",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 4,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "task_id": "task_ec3b55d73f22"
+          },
+          "same_run": true,
+          "schema": "zyra.fault-injection-receipt/v1",
+          "signal": {
+            "classification_rule": "provider.failure.v1",
+            "created_at": "2026-08-05T14:25:03.472Z",
+            "details": {
+              "critical_ref_source": "structured_refs_only",
+              "deadline_ms": null,
+              "elapsed_ms": null,
+              "observation_details": {
+                "continuation": "recovery_handoff",
+                "destructive_external_mutation": false,
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-provider-failure",
+                "injection_id": "inject_6798a1666b9645869500cbb4",
+                "injection_kind": "model_failure",
+                "requested_by": "sealed-live-scenario",
+                "required_ref": "provider_id",
+                "same_run": true,
+                "simulates_boundary_only": true
+              },
+              "observation_error_type": "InjectedProviderFailure",
+              "observation_status": "failed",
+              "status_code": null
+            },
+            "disposition": "recover",
+            "evidence_event_ids": [],
+            "fingerprint": "sha256:117bdbae23610c727405bde1913aa5e0761f631f7b1d31e15d772932c5775039",
+            "kind": "model_failure",
+            "observed_code": "provider_error",
+            "origin": "injection",
+            "provenance": {
+              "adapter_version": "M1-S07B-01",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "maturity": "injection_only",
+              "observation_point": "fault.inject.same-run",
+              "observer_id": "same-run-fault-injector",
+              "source_repo": "zyra",
+              "source_revision": "M1-S07B-01"
+            },
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_ab9dece3c94a4969a38719f7",
+              "provider_id": "provider-primary",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 4,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "",
+              "workspace_id": ""
+            },
+            "retryable": true,
+            "schema": "zyra.watchdog-fault-signal/v1",
+            "severity": "error",
+            "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+            "summary": "The selected model provider failed before a safe terminal response.",
+            "terminal": true
+          },
+          "state_saved_by_caller": true,
+          "task_projection": {
+            "active_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc"
+            ],
+            "blocked_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc"
+            ],
+            "last_event_id": "faultevent_9e2ccc1ce9ad42f3a7727c1b",
+            "last_fault_kind": "model_failure",
+            "last_signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+            "retryable_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc"
+            ],
+            "revision": 4,
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-task-projection/v1",
+            "task_id": "task_ec3b55d73f22",
+            "updated_at": "2026-08-05T14:25:03.645Z"
+          },
+          "transitions": [
+            {
+              "created_at": "2026-08-05T14:25:03.465Z",
+              "details": {
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-provider-failure"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "requested",
+              "reason": "fault injection accepted and fenced",
+              "revision": 1,
+              "signal_id": "",
+              "transition_id": "injectstep_e4f03fe2dd924f4bb9ff754f"
+            },
+            {
+              "created_at": "2026-08-05T14:25:03.469Z",
+              "details": {
+                "required_ref": "provider_id"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "armed",
+              "reason": "validated explicit target refs and fenced same-run injection",
+              "revision": 2,
+              "signal_id": "",
+              "transition_id": "injectstep_2019c7eb2d254a69a61c30fa"
+            },
+            {
+              "created_at": "2026-08-05T14:25:03.471Z",
+              "details": {
+                "observation_id": "injected-observation_ab9dece3c94a4969a38719f7"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "triggered",
+              "reason": "injection boundary constructed without mutating an external resource",
+              "revision": 3,
+              "signal_id": "",
+              "transition_id": "injectstep_b66fa1f256214f7fa333588a"
+            },
+            {
+              "created_at": "2026-08-05T14:25:03.655Z",
+              "details": {},
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "observed",
+              "reason": "injection-only observer classified a structured same-run observation",
+              "revision": 4,
+              "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+              "transition_id": "injectstep_7b02f2cf52e74166a3e5fa8d"
+            },
+            {
+              "created_at": "2026-08-05T14:25:03.655Z",
+              "details": {
+                "projection_receipt_id": "faultprojection_4608ac648707499abb8dc56f"
+              },
+              "event_id": "faultevent_9e2ccc1ce9ad42f3a7727c1b",
+              "handoff_id": "",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "projected",
+              "reason": "canonical event and same-run task projection committed",
+              "revision": 5,
+              "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+              "transition_id": "injectstep_491329013561432fbd7a9520"
+            },
+            {
+              "created_at": "2026-08-05T14:25:03.657Z",
+              "details": {},
+              "event_id": "faultevent_9e2ccc1ce9ad42f3a7727c1b",
+              "handoff_id": "recoveryhandoff_c3a7d39b08ca4ae69353eafe",
+              "injection_id": "inject_6798a1666b9645869500cbb4",
+              "phase": "handed_off",
+              "reason": "fault boundary handed to the 07C recovery planner contract",
+              "revision": 6,
+              "signal_id": "faultsig_5706d8328c2247a5b2119ecc",
+              "transition_id": "injectstep_9dfe9e0eafdd4ad88abea58f"
+            }
+          ]
+        },
+        "reason": "canonical model_failure boundary observed",
+        "receipt_id": "injectreceipt_8c592a96a14a4600b466da30",
+        "schema": "zyra.live-fault-owner-receipt/v1",
+        "target": "provider-primary"
+      },
+      "injection": {
+        "after_effective_step": 900,
+        "injection_id": "software-provider-failure",
+        "kind": "provider_failure",
+        "payload": {
+          "failover_required": true
+        },
+        "stage": "verification",
+        "target": "provider-primary"
+      },
+      "migration_receipt": {
+        "after": {
+          "acquired_at": "2026-08-05T14:25:05.071Z",
+          "attempt_number": 4,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "c8787901f57b10dce5c63c2d81df3b26b5925464fddb66ae51a92b73057eeacb",
+          "lease_id": "lease_ab59ebb123c64dc498cf1a9cf31a031e",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "recovered software-provider-failure",
+          "receipt_id": "attempt_4ca9e2a3fb73452fae35bfafae50999e",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "route_id": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-3"
+        },
+        "before": {
+          "acquired_at": "2026-08-05T14:25:03.197Z",
+          "attempt_number": 3,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "c8560547a18b9a01ff38077294d7cd14e853802112cf03f77387d3410331a6a5",
+          "lease_id": "lease_63a438014e8044e7acc865b89a1d61ae",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "recovered software-worker-loss",
+          "receipt_id": "attempt_182b41fd01284ebfad1a3c2a7d4e95e9",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "route_id": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-2"
+        },
+        "lease_id": "lease_ab59ebb123c64dc498cf1a9cf31a031e",
+        "owner": "WorkerPoolFoundationRuntime",
+        "reason": "recovered software-provider-failure",
+        "receipt_id": "attempt_4ca9e2a3fb73452fae35bfafae50999e",
+        "route_after": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+        "route_before": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+        "schema": "zyra.live-fault-migration-receipt/v1"
+      },
+      "observed_step": 3120,
+      "recovery_receipt": {
+        "checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+        "checkpoint_restored": true,
+        "event_ids": [
+          "event_050bc2d0f806"
+        ],
+        "owner": "CheckpointResumeBridge",
+        "owner_receipt": {
+          "ok": true,
+          "owner_receipts": [
+            {
+              "changed": true,
+              "operation": "session_resume",
+              "owner": "SessionLifecycleRuntime",
+              "payload": {
+                "after": {
+                  "resume_event_id": "event_050bc2d0f806"
+                },
+                "before": {
+                  "resume_event_id": ""
+                },
+                "canonical_ref": {
+                  "event_id": "event_050bc2d0f806"
+                },
+                "changed": true,
+                "metadata": {},
+                "receipt_ref": "event_050bc2d0f806"
+              },
+              "receipt_ref": "ownerreceipt_5d18535db305479ead9642ab6c1ba87e"
+            }
+          ],
+          "receipt": {
+            "applied_write_ids": [],
+            "bypassed_step_ids": [
+              "effective-step-000001",
+              "effective-step-000002",
+              "effective-step-000003",
+              "effective-step-000004",
+              "effective-step-000005",
+              "effective-step-000006",
+              "effective-step-000007",
+              "effective-step-000008",
+              "effective-step-000009",
+              "effective-step-000010",
+              "effective-step-000011",
+              "effective-step-000012",
+              "effective-step-000013",
+              "effective-step-000014",
+              "effective-step-000015",
+              "effective-step-000016",
+              "effective-step-000017",
+              "effective-step-000018",
+              "effective-step-000019",
+              "effective-step-000020",
+              "effective-step-000021",
+              "effective-step-000022",
+              "effective-step-000023",
+              "effective-step-000024",
+              "effective-step-000025",
+              "effective-step-000026",
+              "effective-step-000027",
+              "effective-step-000028",
+              "effective-step-000029",
+              "effective-step-000030",
+              "effective-step-000031",
+              "effective-step-000032",
+              "effective-step-000033",
+              "effective-step-000034",
+              "effective-step-000035",
+              "effective-step-000036",
+              "effective-step-000037",
+              "effective-step-000038",
+              "effective-step-000039",
+              "effective-step-000040",
+              "effective-step-000041",
+              "effective-step-000042",
+              "effective-step-000043",
+              "effective-step-000044",
+              "effective-step-000045",
+              "effective-step-000046",
+              "effective-step-000047",
+              "effective-step-000048",
+              "effective-step-000049",
+              "effective-step-000050",
+              "effective-step-000051",
+              "effective-step-000052",
+              "effective-step-000053",
+              "effective-step-000054",
+              "effective-step-000055",
+              "effective-step-000056",
+              "effective-step-000057",
+              "effective-step-000058",
+              "effective-step-000059",
+              "effective-step-000060",
+              "effective-step-000061",
+              "effective-step-000062",
+              "effective-step-000063",
+              "effective-step-000064"
+            ],
+            "checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+            "commit_revision": 5,
+            "content_digest": "e0ab04537afa03d301c2aa432796a2f5a6baf02e6a0c855dd85b539d3c9f63d1",
+            "created_at": "2026-08-05T14:25:03.906Z",
+            "fenced_effect_keys": [],
+            "metadata": {
+              "committed_side_effect_replay": false,
+              "completed_step_bypass": true,
+              "deliverable_message_ids": [],
+              "owner_receipts": [
+                {
+                  "changed": true,
+                  "operation": "session_resume",
+                  "owner": "SessionLifecycleRuntime",
+                  "payload": {
+                    "after": {
+                      "resume_event_id": "event_050bc2d0f806"
+                    },
+                    "before": {
+                      "resume_event_id": ""
+                    },
+                    "canonical_ref": {
+                      "event_id": "event_050bc2d0f806"
+                    },
+                    "changed": true,
+                    "metadata": {},
+                    "receipt_ref": "event_050bc2d0f806"
+                  },
+                  "receipt_ref": "ownerreceipt_5d18535db305479ead9642ab6c1ba87e"
+                }
+              ],
+              "pending_request_ids": [],
+              "processed_response_replay": false,
+              "skipped_message_ids": []
+            },
+            "pending_write_ids": [],
+            "phase": "resumed",
+            "receipt_id": "checkpointreceipt_0c93e7b46f794e6d85d17cc37cc0de88",
+            "resume_token": "resume:15f42a6e714dbc351479e090225e1ab67b50a4928c0e92bd",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.checkpoint-receipt/v1",
+            "signature": "39e0e0d780691fe797ec1be2a60fa4688681a912d678aef6fc1a586571ad6ae3",
+            "skipped_response_ids": [],
+            "task_id": "task_ec3b55d73f22"
+          }
+        },
+        "reason": "recovered software-provider-failure",
+        "receipt_id": "resume:15f42a6e714dbc351479e090225e1ab67b50a4928c0e92bd",
+        "requirement_change": {},
+        "schema": "zyra.live-recovery-owner-receipt/v1",
+        "state": "recovered",
+        "state_digest_after": "655226db6b8a44c09112d2a4da1443fa62aff177507b3cd7d28f5e9438a2473c",
+        "state_digest_before": "26194100baff71c34dd58c9e9052830a3de5b4a6b35931c968489bd3b8c83d38"
+      },
+      "schema": "zyra.live-fault-execution/v1",
+      "started_at": "2026-08-05T14:25:03.222Z",
+      "state": "recovered",
+      "verification_receipt": {
+        "checkpoint_valid": true,
+        "event_id": "post-recovery-verification-event_2727f6a556274cae999ca634c185b222",
+        "injection_id": "software-provider-failure",
+        "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+        "owner": "DeterministicLiveRecoveryVerifier",
+        "receipt_id": "post-recovery-verification_53a7d8e50b214f57a08d2e0cc37f9ce6",
+        "route_id": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+        "route_valid": true,
+        "schema": "zyra.live-post-recovery-verification/v1",
+        "state_digest": "8ba23bda09b72ac4652064b850b5379b6a1f8f19382dbe9bd09d3044ff0ac2c3",
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:05.097Z"
+      }
+    },
+    {
+      "checkpoint_receipt": {
+        "checkpoint_id": "recoverycheckpoint:3edabc081ed419cc575cc97c0f65bd2e6ef83bc6",
+        "commit_revision": 6,
+        "committed": true,
+        "content_digest": "8ef331a03a190515b8a7665bcf42947e6bc74652661a53837b9e7bb28db13f42",
+        "owner": "RecoveryPlanStore",
+        "owner_receipt": {
+          "applied_write_ids": [],
+          "bypassed_step_ids": [
+            "effective-step-000001",
+            "effective-step-000002",
+            "effective-step-000003",
+            "effective-step-000004",
+            "effective-step-000005",
+            "effective-step-000006",
+            "effective-step-000007",
+            "effective-step-000008",
+            "effective-step-000009",
+            "effective-step-000010",
+            "effective-step-000011",
+            "effective-step-000012",
+            "effective-step-000013",
+            "effective-step-000014",
+            "effective-step-000015",
+            "effective-step-000016",
+            "effective-step-000017",
+            "effective-step-000018",
+            "effective-step-000019",
+            "effective-step-000020",
+            "effective-step-000021",
+            "effective-step-000022",
+            "effective-step-000023",
+            "effective-step-000024",
+            "effective-step-000025",
+            "effective-step-000026",
+            "effective-step-000027",
+            "effective-step-000028",
+            "effective-step-000029",
+            "effective-step-000030",
+            "effective-step-000031",
+            "effective-step-000032",
+            "effective-step-000033",
+            "effective-step-000034",
+            "effective-step-000035",
+            "effective-step-000036",
+            "effective-step-000037",
+            "effective-step-000038",
+            "effective-step-000039",
+            "effective-step-000040",
+            "effective-step-000041",
+            "effective-step-000042",
+            "effective-step-000043",
+            "effective-step-000044",
+            "effective-step-000045",
+            "effective-step-000046",
+            "effective-step-000047",
+            "effective-step-000048",
+            "effective-step-000049",
+            "effective-step-000050",
+            "effective-step-000051",
+            "effective-step-000052",
+            "effective-step-000053",
+            "effective-step-000054",
+            "effective-step-000055",
+            "effective-step-000056",
+            "effective-step-000057",
+            "effective-step-000058",
+            "effective-step-000059",
+            "effective-step-000060",
+            "effective-step-000061",
+            "effective-step-000062",
+            "effective-step-000063",
+            "effective-step-000064"
+          ],
+          "checkpoint_id": "recoverycheckpoint:3edabc081ed419cc575cc97c0f65bd2e6ef83bc6",
+          "commit_revision": 6,
+          "content_digest": "8ef331a03a190515b8a7665bcf42947e6bc74652661a53837b9e7bb28db13f42",
+          "created_at": "2026-08-05T14:25:05.266Z",
+          "fenced_effect_keys": [],
+          "metadata": {
+            "exact_resume_contract": true,
+            "parent_checkpoint_id": "recoverycheckpoint:87477ed24b62cb9c78b0d01cefbdb5ecfb5fb090",
+            "state_owner": "python.RecoveryPlanStore"
+          },
+          "pending_write_ids": [],
+          "phase": "committed",
+          "receipt_id": "checkpointreceipt_dca614cbc72f4c4785fb62176e6f8bc9",
+          "resume_token": "",
+          "run_id": "run_38754c24e774",
+          "schema": "zyra.checkpoint-receipt/v1",
+          "signature": "167c5fceb0f46d5853bc111aba1401b98c6a24758e275f531c2e02986ceaaa86",
+          "skipped_response_ids": [],
+          "task_id": "task_ec3b55d73f22"
+        },
+        "run_id": "run_38754c24e774",
+        "schema": "zyra.live-checkpoint-owner-receipt/v1",
+        "signature": "167c5fceb0f46d5853bc111aba1401b98c6a24758e275f531c2e02986ceaaa86",
+        "state_digest": "6d181826e9fabfd02babbd945211b0e2ec95a79cc5c76744f503b03fb13938da",
+        "task_id": "task_ec3b55d73f22"
+      },
+      "completed_at": "2026-08-05T14:25:06.966Z",
+      "execution_digest": "81607e267893a79af6172db695a9a94f74dac66e19af5d8d9449b4315fb1ebc9",
+      "fault_receipt": {
+        "canonical_injection_kind": "worker_lost",
+        "checkpoint_id": "recoverycheckpoint:3edabc081ed419cc575cc97c0f65bd2e6ef83bc6",
+        "event_id": "fault-owner-event_0d2b7cadb32d431c96121cffe18aa476",
+        "kind": "edge_network_loss",
+        "observed": true,
+        "owner": "FaultRuntimeApplication",
+        "owner_receipt": {
+          "created_at": "2026-08-05T14:25:05.542Z",
+          "duplicate": false,
+          "handoff": {
+            "created_at": "2026-08-05T14:25:05.537Z",
+            "fault_kind": "worker_unavailable",
+            "handoff_id": "recoveryhandoff_0cc030d53ba74d558407b964",
+            "injection_id": "inject_ab0e32204c4245e7a8c61036",
+            "metadata": {
+              "canonical_fault_signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+              "consumer": "M1-S07C.RecoveryPlanner",
+              "memory_record_ids": [
+                "memory_8db62dbc24008545",
+                "memory_34e3a3aa28f08574",
+                "memory_cee7bba1e9c27de4",
+                "memory_b9be7287c9725b8a"
+              ],
+              "planner_executed": false,
+              "producer": "M1-S07B-01.WatchdogRecoveryBridge",
+              "projection_event_id": "faultevent_f9381399819c4faf8df66a0d",
+              "scheduler_changed": false,
+              "signal_effect_coordinator": true,
+              "source_observation_id": "injected-observation_b31fdef9413543189ba45eb8"
+            },
+            "reason": "Fault signal requires an explicit recovery-planner decision.",
+            "recoverable": true,
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_b31fdef9413543189ba45eb8",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 5,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-3",
+              "workspace_id": ""
+            },
+            "requested_actions": [
+              "expire_worker_lease",
+              "preserve_attempt_checkpoint",
+              "reroute_to_healthy_worker"
+            ],
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.watchdog-recovery-handoff/v1",
+            "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+            "task_id": "task_ec3b55d73f22"
+          },
+          "ok": true,
+          "phase": "handed_off",
+          "projection": {
+            "canonical_event_written": true,
+            "created_at": "2026-08-05T14:25:05.530Z",
+            "errors": [],
+            "event_id": "faultevent_f9381399819c4faf8df66a0d",
+            "memory_record_ids": [
+              "memory_8db62dbc24008545",
+              "memory_34e3a3aa28f08574",
+              "memory_cee7bba1e9c27de4",
+              "memory_b9be7287c9725b8a"
+            ],
+            "ok": true,
+            "receipt_id": "faultprojection_816b72abe5e74df686038289",
+            "scheduler_changed": false,
+            "scheduler_receipt": {},
+            "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+            "task_projection_changed": true
+          },
+          "receipt_id": "injectreceipt_8430cd6bc4164c0b8d716b2e",
+          "request": {
+            "continuation": "recovery_handoff",
+            "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-edge-network-loss",
+            "injection_id": "inject_ab0e32204c4245e7a8c61036",
+            "kind": "worker_lost",
+            "parameters": {},
+            "requested_at": "2026-08-05T14:25:05.342Z",
+            "requested_by": "sealed-live-scenario",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-injection/v1",
+            "target": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injection-target_7be9d996f72d482c858c28fa",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 5,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-3",
+              "workspace_id": ""
+            },
+            "task_id": "task_ec3b55d73f22"
+          },
+          "same_run": true,
+          "schema": "zyra.fault-injection-receipt/v1",
+          "signal": {
+            "classification_rule": "worker.lease-or-heartbeat-lost.v1",
+            "created_at": "2026-08-05T14:25:05.351Z",
+            "details": {
+              "critical_ref_source": "structured_refs_only",
+              "deadline_ms": null,
+              "elapsed_ms": null,
+              "observation_details": {
+                "continuation": "recovery_handoff",
+                "destructive_external_mutation": false,
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-edge-network-loss",
+                "injection_id": "inject_ab0e32204c4245e7a8c61036",
+                "injection_kind": "worker_lost",
+                "requested_by": "sealed-live-scenario",
+                "required_ref": "worker_id",
+                "same_run": true,
+                "simulates_boundary_only": true
+              },
+              "observation_error_type": "InjectedWorkerLoss",
+              "observation_status": "lost",
+              "status_code": null
+            },
+            "disposition": "recover",
+            "evidence_event_ids": [],
+            "fingerprint": "sha256:4cfcd735bb383a3d24b5e54459a3efb5414d38b27cb9933659eb4b157bc298d9",
+            "kind": "worker_unavailable",
+            "observed_code": "worker_lost",
+            "origin": "injection",
+            "provenance": {
+              "adapter_version": "M1-S07B-01",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "maturity": "injection_only",
+              "observation_point": "fault.inject.same-run",
+              "observer_id": "same-run-fault-injector",
+              "source_repo": "zyra",
+              "source_revision": "M1-S07B-01"
+            },
+            "refs": {
+              "attempt_id": "",
+              "backend_id": "",
+              "browser_session_id": "",
+              "mcp_server_id": "",
+              "node_id": "node_6004c6a62d36",
+              "observation_id": "injected-observation_b31fdef9413543189ba45eb8",
+              "provider_id": "",
+              "run_id": "run_38754c24e774",
+              "session_id": "scenario:sw-024123bd-7cdcd3d2",
+              "source_state_revision": 5,
+              "subagent_task_id": "",
+              "task_id": "task_ec3b55d73f22",
+              "tool_call_id": "",
+              "tool_name": "",
+              "worker_id": "live-scenario-worker-3",
+              "workspace_id": ""
+            },
+            "retryable": true,
+            "schema": "zyra.watchdog-fault-signal/v1",
+            "severity": "critical",
+            "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+            "summary": "A bound worker became unavailable.",
+            "terminal": true
+          },
+          "state_saved_by_caller": true,
+          "task_projection": {
+            "active_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc",
+              "faultsig_5156997f1b9c4c4282c99ca9"
+            ],
+            "blocked_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc",
+              "faultsig_5156997f1b9c4c4282c99ca9"
+            ],
+            "last_event_id": "faultevent_f9381399819c4faf8df66a0d",
+            "last_fault_kind": "worker_unavailable",
+            "last_signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+            "retryable_signal_ids": [
+              "faultsig_10fa474912d2408688a4413b",
+              "faultsig_bc7669f4ceb74a72a6ecdf75",
+              "faultsig_10e02142a3c24502b3f62abc",
+              "faultsig_5706d8328c2247a5b2119ecc",
+              "faultsig_5156997f1b9c4c4282c99ca9"
+            ],
+            "revision": 5,
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.fault-task-projection/v1",
+            "task_id": "task_ec3b55d73f22",
+            "updated_at": "2026-08-05T14:25:05.529Z"
+          },
+          "transitions": [
+            {
+              "created_at": "2026-08-05T14:25:05.344Z",
+              "details": {
+                "idempotency_key": "live:sw-024123bd-7cdcd3d2:software-edge-network-loss"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "requested",
+              "reason": "fault injection accepted and fenced",
+              "revision": 1,
+              "signal_id": "",
+              "transition_id": "injectstep_5a026252b56f42a4b708ea7e"
+            },
+            {
+              "created_at": "2026-08-05T14:25:05.348Z",
+              "details": {
+                "required_ref": "worker_id"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "armed",
+              "reason": "validated explicit target refs and fenced same-run injection",
+              "revision": 2,
+              "signal_id": "",
+              "transition_id": "injectstep_4ae9fa663b3f43afa39ea090"
+            },
+            {
+              "created_at": "2026-08-05T14:25:05.349Z",
+              "details": {
+                "observation_id": "injected-observation_b31fdef9413543189ba45eb8"
+              },
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "triggered",
+              "reason": "injection boundary constructed without mutating an external resource",
+              "revision": 3,
+              "signal_id": "",
+              "transition_id": "injectstep_eb17a21cf14e49908ebc60eb"
+            },
+            {
+              "created_at": "2026-08-05T14:25:05.539Z",
+              "details": {},
+              "event_id": "",
+              "handoff_id": "",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "observed",
+              "reason": "injection-only observer classified a structured same-run observation",
+              "revision": 4,
+              "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+              "transition_id": "injectstep_62cc6d0166394597965ba8ff"
+            },
+            {
+              "created_at": "2026-08-05T14:25:05.540Z",
+              "details": {
+                "projection_receipt_id": "faultprojection_816b72abe5e74df686038289"
+              },
+              "event_id": "faultevent_f9381399819c4faf8df66a0d",
+              "handoff_id": "",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "projected",
+              "reason": "canonical event and same-run task projection committed",
+              "revision": 5,
+              "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+              "transition_id": "injectstep_b8ae2241643948db81f9e84f"
+            },
+            {
+              "created_at": "2026-08-05T14:25:05.541Z",
+              "details": {},
+              "event_id": "faultevent_f9381399819c4faf8df66a0d",
+              "handoff_id": "recoveryhandoff_0cc030d53ba74d558407b964",
+              "injection_id": "inject_ab0e32204c4245e7a8c61036",
+              "phase": "handed_off",
+              "reason": "fault boundary handed to the 07C recovery planner contract",
+              "revision": 6,
+              "signal_id": "faultsig_5156997f1b9c4c4282c99ca9",
+              "transition_id": "injectstep_ba7ffff03be940eb9a9f837b"
+            }
+          ]
+        },
+        "reason": "canonical worker_lost boundary observed",
+        "receipt_id": "injectreceipt_8430cd6bc4164c0b8d716b2e",
+        "schema": "zyra.live-fault-owner-receipt/v1",
+        "target": "edge-primary"
+      },
+      "injection": {
+        "after_effective_step": 1020,
+        "injection_id": "software-edge-network-loss",
+        "kind": "edge_network_loss",
+        "payload": {
+          "migrate_to": "device"
+        },
+        "stage": "delivery",
+        "target": "edge-primary"
+      },
+      "migration_receipt": {
+        "after": {
+          "acquired_at": "2026-08-05T14:25:06.924Z",
+          "attempt_number": 5,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "d99e17132498e8e7c3a08c5fd60a4d44fec0ae2efd237081709632c7881e4875",
+          "lease_id": "lease_6a76e50f93b148bcafce2ac3e8274d55",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "recovered software-edge-network-loss",
+          "receipt_id": "attempt_0221af1249fe4192a61d9d17e48e55c4",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "route_id": "worker-pool-route:attempt_0221af1249fe4192a61d9d17e48e55c4:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-4"
+        },
+        "before": {
+          "acquired_at": "2026-08-05T14:25:05.071Z",
+          "attempt_number": 4,
+          "backend_id": "local-sandbox-gateway",
+          "fence_epoch": 1,
+          "fence_token_digest": "c8787901f57b10dce5c63c2d81df3b26b5925464fddb66ae51a92b73057eeacb",
+          "lease_id": "lease_ab59ebb123c64dc498cf1a9cf31a031e",
+          "leased_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "location": "device",
+          "maximum_cost_usd": 0.5,
+          "maximum_latency_ms": 300000,
+          "owner": "WorkerPoolFoundationRuntime",
+          "privacy_class": "internal",
+          "provider_id": "zyra-provider-control",
+          "reason": "recovered software-provider-failure",
+          "receipt_id": "attempt_4ca9e2a3fb73452fae35bfafae50999e",
+          "requested_capabilities": [
+            "agent_task",
+            "artifact_return"
+          ],
+          "route_id": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+          "schema": "zyra.live-scheduler-route/v1",
+          "simulated": false,
+          "tier": "device",
+          "worker_id": "live-scenario-worker-3"
+        },
+        "lease_id": "lease_6a76e50f93b148bcafce2ac3e8274d55",
+        "owner": "WorkerPoolFoundationRuntime",
+        "reason": "recovered software-edge-network-loss",
+        "receipt_id": "attempt_0221af1249fe4192a61d9d17e48e55c4",
+        "route_after": "worker-pool-route:attempt_0221af1249fe4192a61d9d17e48e55c4:local-sandbox-gateway",
+        "route_before": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+        "schema": "zyra.live-fault-migration-receipt/v1"
+      },
+      "observed_step": 3120,
+      "recovery_receipt": {
+        "checkpoint_id": "recoverycheckpoint:3edabc081ed419cc575cc97c0f65bd2e6ef83bc6",
+        "checkpoint_restored": true,
+        "event_ids": [
+          "event_8c93d9906ea4"
+        ],
+        "owner": "CheckpointResumeBridge",
+        "owner_receipt": {
+          "ok": true,
+          "owner_receipts": [
+            {
+              "changed": true,
+              "operation": "session_resume",
+              "owner": "SessionLifecycleRuntime",
+              "payload": {
+                "after": {
+                  "resume_event_id": "event_8c93d9906ea4"
+                },
+                "before": {
+                  "resume_event_id": ""
+                },
+                "canonical_ref": {
+                  "event_id": "event_8c93d9906ea4"
+                },
+                "changed": true,
+                "metadata": {},
+                "receipt_ref": "event_8c93d9906ea4"
+              },
+              "receipt_ref": "ownerreceipt_b68ef6b3aa1c46c4a9134509f6eb4fd3"
+            }
+          ],
+          "receipt": {
+            "applied_write_ids": [],
+            "bypassed_step_ids": [
+              "effective-step-000001",
+              "effective-step-000002",
+              "effective-step-000003",
+              "effective-step-000004",
+              "effective-step-000005",
+              "effective-step-000006",
+              "effective-step-000007",
+              "effective-step-000008",
+              "effective-step-000009",
+              "effective-step-000010",
+              "effective-step-000011",
+              "effective-step-000012",
+              "effective-step-000013",
+              "effective-step-000014",
+              "effective-step-000015",
+              "effective-step-000016",
+              "effective-step-000017",
+              "effective-step-000018",
+              "effective-step-000019",
+              "effective-step-000020",
+              "effective-step-000021",
+              "effective-step-000022",
+              "effective-step-000023",
+              "effective-step-000024",
+              "effective-step-000025",
+              "effective-step-000026",
+              "effective-step-000027",
+              "effective-step-000028",
+              "effective-step-000029",
+              "effective-step-000030",
+              "effective-step-000031",
+              "effective-step-000032",
+              "effective-step-000033",
+              "effective-step-000034",
+              "effective-step-000035",
+              "effective-step-000036",
+              "effective-step-000037",
+              "effective-step-000038",
+              "effective-step-000039",
+              "effective-step-000040",
+              "effective-step-000041",
+              "effective-step-000042",
+              "effective-step-000043",
+              "effective-step-000044",
+              "effective-step-000045",
+              "effective-step-000046",
+              "effective-step-000047",
+              "effective-step-000048",
+              "effective-step-000049",
+              "effective-step-000050",
+              "effective-step-000051",
+              "effective-step-000052",
+              "effective-step-000053",
+              "effective-step-000054",
+              "effective-step-000055",
+              "effective-step-000056",
+              "effective-step-000057",
+              "effective-step-000058",
+              "effective-step-000059",
+              "effective-step-000060",
+              "effective-step-000061",
+              "effective-step-000062",
+              "effective-step-000063",
+              "effective-step-000064"
+            ],
+            "checkpoint_id": "recoverycheckpoint:3edabc081ed419cc575cc97c0f65bd2e6ef83bc6",
+            "commit_revision": 6,
+            "content_digest": "8ef331a03a190515b8a7665bcf42947e6bc74652661a53837b9e7bb28db13f42",
+            "created_at": "2026-08-05T14:25:05.773Z",
+            "fenced_effect_keys": [],
+            "metadata": {
+              "committed_side_effect_replay": false,
+              "completed_step_bypass": true,
+              "deliverable_message_ids": [],
+              "owner_receipts": [
+                {
+                  "changed": true,
+                  "operation": "session_resume",
+                  "owner": "SessionLifecycleRuntime",
+                  "payload": {
+                    "after": {
+                      "resume_event_id": "event_8c93d9906ea4"
+                    },
+                    "before": {
+                      "resume_event_id": ""
+                    },
+                    "canonical_ref": {
+                      "event_id": "event_8c93d9906ea4"
+                    },
+                    "changed": true,
+                    "metadata": {},
+                    "receipt_ref": "event_8c93d9906ea4"
+                  },
+                  "receipt_ref": "ownerreceipt_b68ef6b3aa1c46c4a9134509f6eb4fd3"
+                }
+              ],
+              "pending_request_ids": [],
+              "processed_response_replay": false,
+              "skipped_message_ids": []
+            },
+            "pending_write_ids": [],
+            "phase": "resumed",
+            "receipt_id": "checkpointreceipt_1112bebf0d054d94a33244dafbe3dbe9",
+            "resume_token": "resume:224f0929b4d63e488346ca7ac3ffa5e08846a450d4874e93",
+            "run_id": "run_38754c24e774",
+            "schema": "zyra.checkpoint-receipt/v1",
+            "signature": "167c5fceb0f46d5853bc111aba1401b98c6a24758e275f531c2e02986ceaaa86",
+            "skipped_response_ids": [],
+            "task_id": "task_ec3b55d73f22"
+          }
+        },
+        "reason": "recovered software-edge-network-loss",
+        "receipt_id": "resume:224f0929b4d63e488346ca7ac3ffa5e08846a450d4874e93",
+        "requirement_change": {},
+        "schema": "zyra.live-recovery-owner-receipt/v1",
+        "state": "recovered",
+        "state_digest_after": "46a66daf344187b8de0498f791ee26a032a2be7c9114e404e1ae43ed49b44115",
+        "state_digest_before": "6d181826e9fabfd02babbd945211b0e2ec95a79cc5c76744f503b03fb13938da"
+      },
+      "schema": "zyra.live-fault-execution/v1",
+      "started_at": "2026-08-05T14:25:05.098Z",
+      "state": "recovered",
+      "verification_receipt": {
+        "checkpoint_valid": true,
+        "event_id": "post-recovery-verification-event_20f5997998914f7e8b6771c9e945d353",
+        "injection_id": "software-edge-network-loss",
+        "input_digest": "985b64363bbc20b212ecd148f094b632e555236784eb225a33d458a11ce4bf84",
+        "owner": "DeterministicLiveRecoveryVerifier",
+        "receipt_id": "post-recovery-verification_464e5b42fe4c48dfbcd1698fe6085223",
+        "route_id": "worker-pool-route:attempt_0221af1249fe4192a61d9d17e48e55c4:local-sandbox-gateway",
+        "route_valid": true,
+        "schema": "zyra.live-post-recovery-verification/v1",
+        "state_digest": "93640cf781f39adf13f52776297e5651f293428e6d251c71f5d38d63962dbf18",
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:06.966Z"
+      }
+    }
+  ],
+  "owner_receipts": [
+    {
+      "causation_id": "live-event-003159-ca323ce1ad45fe9d",
+      "created_at": "2026-08-05T14:25:08.001Z",
+      "event_type": "backend_route",
+      "placement_run_digest": "ef75b1828b4a6f1c15faa37c22e53ce67e6e15937fb4ddddfaeb0c70e95b29a9",
+      "provider_id": "zyra-provider-control",
+      "receipt_id": "live-route-sw-024123bd-7cdcd3d2",
+      "route": {
+        "acquired_at": "2026-08-05T14:24:42.127Z",
+        "attempt_number": 2,
+        "backend_id": "local-sandbox-gateway",
+        "fence_epoch": 1,
+        "fence_token_digest": "72f032f56e038a1d5ebff078757d98ea743425eac0579eeeb9576b177615512d",
+        "lease_id": "lease_04eed09b82a8485da4401617254a2b12",
+        "leased_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "location": "device",
+        "maximum_cost_usd": 0.5,
+        "maximum_latency_ms": 300000,
+        "owner": "WorkerPoolFoundationRuntime",
+        "privacy_class": "internal",
+        "provider_id": "zyra-provider-control",
+        "reason": "initial-placement",
+        "receipt_id": "attempt_bf33d22c47cc420ab3a9ca1f945c0937",
+        "requested_capabilities": [
+          "agent_task",
+          "artifact_return",
+          "sealed_execution",
+          "code_change",
+          "terminal_execution"
+        ],
+        "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "schema": "zyra.live-scheduler-route/v1",
+        "simulated": false,
+        "tier": "device",
+        "worker_id": "live-scenario-worker-1"
+      },
+      "semantic_effect": "route",
+      "stage": "scheduler",
+      "worker_id": "live-scenario-worker-1"
+    },
+    {
+      "causation_id": "live-event-003159-ca323ce1ad45fe9d",
+      "created_at": "2026-08-05T14:25:08.001Z",
+      "event_type": "memory_curator_committed",
+      "memory": {
+        "content_digest": "7a756952e0d8ca543b0671e9f734e4add93ba23335c9dc81b9ecee09874c2eb8",
+        "event_id": "live-memory-event_c9b60747e4ab463b8f77ca3c3ff01e8e",
+        "memory_id": "memory:7a756952e0d8ca543b0671e9",
+        "owner_receipt": {
+          "data": {},
+          "integration": null,
+          "operation": "schedule_task_end",
+          "result": null,
+          "scheduled": {
+            "created": true,
+            "event_id": "event_0fa83b9e6eff7e6ff2ba3d27",
+            "job": {
+              "attempt": 0,
+              "candidate_count": 0,
+              "committed_count": 0,
+              "created_at": 1785939907.8428442,
+              "dirty": true,
+              "error_code": "",
+              "error_message": "",
+              "finished_at": null,
+              "input_watermark": 80,
+              "job_id": "curator_job_437ca1beebb2c55915260d7c",
+              "last_success_watermark": 0,
+              "lease_epoch": 0,
+              "lease_expires_at": null,
+              "lease_owner": "",
+              "ownership_token": "",
+              "request": {
+                "allow_model_assist": true,
+                "created_at": "2026-08-05T14:25:07.842Z",
+                "evidence_end": null,
+                "evidence_start": 0,
+                "idempotency_key": "curator-task-end:task_ec3b55d73f22:80:2026-08-05T14:25:07.426Z",
+                "input_watermark": 80,
+                "lease_seconds": 30.0,
+                "max_candidates": 64,
+                "metadata": {
+                  "automatic": true,
+                  "event_count_at_schedule": 80,
+                  "task_status": "completed",
+                  "task_updated_at": "2026-08-05T14:25:07.426Z"
+                },
+                "protocol": "zyra.memory-curator.v1",
+                "request_id": "curator_request_a251475d803615f52bc003e7",
+                "requested_by": "task-lifecycle",
+                "run_id": "run_38754c24e774",
+                "task_id": "task_ec3b55d73f22",
+                "trigger": "task_end"
+              },
+              "retry_at": null,
+              "retry_remaining": 3,
+              "started_at": null,
+              "state": "queued",
+              "terminal": false,
+              "updated_at": 1785939907.8428442
+            },
+            "request": {
+              "allow_model_assist": true,
+              "created_at": "2026-08-05T14:25:07.842Z",
+              "evidence_end": null,
+              "evidence_start": 0,
+              "idempotency_key": "curator-task-end:task_ec3b55d73f22:80:2026-08-05T14:25:07.426Z",
+              "input_watermark": 80,
+              "lease_seconds": 30.0,
+              "max_candidates": 64,
+              "metadata": {
+                "automatic": true,
+                "event_count_at_schedule": 80,
+                "task_status": "completed",
+                "task_updated_at": "2026-08-05T14:25:07.426Z"
+              },
+              "protocol": "zyra.memory-curator.v1",
+              "request_id": "curator_request_a251475d803615f52bc003e7",
+              "requested_by": "task-lifecycle",
+              "run_id": "run_38754c24e774",
+              "task_id": "task_ec3b55d73f22",
+              "trigger": "task_end"
+            }
+          },
+          "status": "scheduled"
+        },
+        "receipt_id": "live-memory_2157672869e942bfb0e5d59c5891d1fe",
+        "schema": "zyra.live-memory-curation-receipt/v1",
+        "state": "scheduled",
+        "worker_id": "MemoryCuratorRuntime"
+      },
+      "receipt_id": "live-memory_2157672869e942bfb0e5d59c5891d1fe",
+      "semantic_effect": "memory",
+      "stage": "memory",
+      "worker_id": "MemoryCuratorRuntime"
+    },
+    {
+      "causation_id": "live-event-003159-ca323ce1ad45fe9d",
+      "created_at": "2026-08-05T14:25:08.001Z",
+      "event_type": "recovery_applied",
+      "fault_campaign": {
+        "execution_count": 5,
+        "failures": [],
+        "human_intervention_count": 0,
+        "kind_counts": {
+          "edge_network_loss": 1,
+          "provider_failure": 1,
+          "requirement_change": 1,
+          "tool_timeout": 1,
+          "worker_unavailable": 1
+        },
+        "receipt_digest": "9b41658f534f60b2994a3a3530ffb6e9fec03103226cfe0165897f030e9166a1",
+        "resolved_count": 5,
+        "schedule_digest": "c690c8fc8baceb3ef377762953d41843f128698c45b77deedbe55f1fa7c1e69b",
+        "schema": "zyra.live-fault-campaign-verification/v1",
+        "valid": true
+      },
+      "receipt_id": "live-fault-campaign-sw-024123bd-7cdcd3d2",
+      "semantic_effect": "recovery",
+      "stage": "recovery"
+    },
+    {
+      "causation_id": "live-event-003159-ca323ce1ad45fe9d",
+      "created_at": "2026-08-05T14:25:08.001Z",
+      "event_type": "verification",
+      "receipt_id": "live-domain-verification-sw-024123bd-7cdcd3d2",
+      "semantic_effect": "verification",
+      "stage": "verification",
+      "verification": {
+        "artifact_digests": {
+          "artifact_132ffa4fe96e": "38e4e4cc3ed5f896a279743799cf166d19faffa23901e7bb703fec875c66d70f",
+          "artifact_34006cda7861": "52b02f0a47b19ce248d1a3de5393e5ef12d9f53643f52bb6c8d8fdfe09873cd3",
+          "artifact_91ef5733468b": "5f13edf5b0a8515357b0d6f0778e9d0f97186c4da743333117f2a48b59fb197f",
+          "artifact_b3eb91a36a57": "5391079947908ca8e59e9e2ca80f584891e6f142914c4090896e9e406ae9c877",
+          "artifact_e4d98367fd1e": "a5515a82682af8fd760f9befafc764db029205302c901e54c983f87dd1af6ddc",
+          "artifact_ef5355e97f34": "d845370f9c3480018ac9e61d1e1ad8a0021b391542619b95db9db0412d7c456c"
+        },
+        "checks": {
+          "after_digest_matches": true,
+          "all_actions_settled": true,
+          "artifact_integrity": true,
+          "before_digest_matches": true,
+          "commands_passed": true,
+          "commands_present": true,
+          "dependency_order": true,
+          "events.effect_coverage": true,
+          "events.identity_unique": true,
+          "events.semantic_unique": true,
+          "events.single_causal_root": true,
+          "events.single_delivery_leaf": true,
+          "events.transition_minimum": true,
+          "faults.all_faults_resolved": true,
+          "faults.checkpoint_restore_present": true,
+          "faults.edge_or_network_loss": true,
+          "faults.exception_or_timeout": true,
+          "faults.provider_failure": true,
+          "faults.requirement_change": true,
+          "faults.reverification_present": true,
+          "faults.worker_or_node_loss": true,
+          "git_executed": true,
+          "input_bound_patch": true,
+          "patch_artifacts_confined": true,
+          "patch_changes_bytes": true,
+          "patch_digest_matches": true,
+          "patch_files_exist": true,
+          "patch_nonempty": true,
+          "placement.edge_independent": true,
+          "placement.fault_route_migration": true,
+          "placement.privacy_policy": true,
+          "placement.provider_capability_minimum": true,
+          "placement.route_identity_present": true,
+          "placement.tier_coverage": true,
+          "placement.worker_identity_present": true,
+          "requirement_1": true,
+          "requirement_2": true,
+          "requirement_3": true,
+          "requirement_artifacts_resolve": true,
+          "requirement_change_applied": true,
+          "software_stage_coverage": true,
+          "target_syntax_valid": true,
+          "tests_executed": true,
+          "unified_diff": true,
+          "workspace_target_confined": true,
+          "workspace_target_matches": true
+        },
+        "domain": "software_delivery",
+        "findings": [],
+        "receipt_digest": "d836c3ecb5cdb90c486eefc63c1d0585ce1fb5c7f8a9164edc99e611c9d54944",
+        "schema": "zyra.live-domain-verification/v1",
+        "uncertainty": [],
+        "valid": true,
+        "verified_at": "2026-08-05T14:25:07.424Z",
+        "verifier_id": "software-verifier:software-plan:985b64363bbc20b212ec:60201"
+      },
+      "worker_id": "software-verifier:software-plan:985b64363bbc20b212ec:60201"
+    },
+    {
+      "artifact_ids": [
+        "artifact_b3eb91a36a57",
+        "artifact_e4d98367fd1e",
+        "artifact_91ef5733468b",
+        "artifact_34006cda7861",
+        "artifact_132ffa4fe96e",
+        "artifact_ef5355e97f34"
+      ],
+      "causation_id": "live-event-003159-ca323ce1ad45fe9d",
+      "configuration_digest": "b1abfda7935c4b10fadcfc8871dff240973321f5393881c9ee7dc359055e3106",
+      "created_at": "2026-08-05T14:25:08.001Z",
+      "event_type": "delivery_committed",
+      "human_intervention_count": 0,
+      "receipt_id": "live-domain-delivery-sw-024123bd-7cdcd3d2",
+      "scenario_id": "live.software-delivery",
+      "semantic_effect": "delivery",
+      "stage": "delivery"
+    }
+  ],
+  "placement_receipt": {
+    "completed_at": "2026-08-05T14:25:06.985Z",
+    "degradation": {
+      "artifact_continuity": true,
+      "event_id": "sealed-edge-loss-sw-024123bd-7cdcd3d2",
+      "failed_endpoint_id": "zyra-edge-7c76992d1ad54602",
+      "failed_runtime_id": "process:68064:generation_a0300f1b48164e3e",
+      "fallback_tier": "device",
+      "observed": true,
+      "observed_at": "2026-08-05T14:24:56.233Z",
+      "reason": "isolated edge process was stopped after its committed receipt; the fenced local receipt is the safe fallback",
+      "relabeled_as_cloud": false,
+      "route_after": "resdec_2a9875150a3e",
+      "route_before": "resdec_d5679f6a3608",
+      "safe": true,
+      "schema": "zyra.live-disconnected-degradation/v1",
+      "side_effect_idempotent": true,
+      "transport_closed_after_task": true
+    },
+    "initial_route": {
+      "acquired_at": "2026-08-05T14:24:42.127Z",
+      "attempt_number": 2,
+      "backend_id": "local-sandbox-gateway",
+      "fence_epoch": 1,
+      "fence_token_digest": "72f032f56e038a1d5ebff078757d98ea743425eac0579eeeb9576b177615512d",
+      "lease_id": "lease_04eed09b82a8485da4401617254a2b12",
+      "leased_capabilities": [
+        "agent_task",
+        "artifact_return"
+      ],
+      "location": "device",
+      "maximum_cost_usd": 0.5,
+      "maximum_latency_ms": 300000,
+      "owner": "WorkerPoolFoundationRuntime",
+      "privacy_class": "internal",
+      "provider_id": "zyra-provider-control",
+      "reason": "initial-placement",
+      "receipt_id": "attempt_bf33d22c47cc420ab3a9ca1f945c0937",
+      "requested_capabilities": [
+        "agent_task",
+        "artifact_return",
+        "sealed_execution",
+        "code_change",
+        "terminal_execution"
+      ],
+      "route_id": "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+      "schema": "zyra.live-scheduler-route/v1",
+      "simulated": false,
+      "tier": "device",
+      "worker_id": "live-scenario-worker-1"
+    },
+    "migrated_routes": [
+      {
+        "acquired_at": "2026-08-05T14:25:03.197Z",
+        "attempt_number": 3,
+        "backend_id": "local-sandbox-gateway",
+        "fence_epoch": 1,
+        "fence_token_digest": "c8560547a18b9a01ff38077294d7cd14e853802112cf03f77387d3410331a6a5",
+        "lease_id": "lease_63a438014e8044e7acc865b89a1d61ae",
+        "leased_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "location": "device",
+        "maximum_cost_usd": 0.5,
+        "maximum_latency_ms": 300000,
+        "owner": "WorkerPoolFoundationRuntime",
+        "privacy_class": "internal",
+        "provider_id": "zyra-provider-control",
+        "reason": "recovered software-worker-loss",
+        "receipt_id": "attempt_182b41fd01284ebfad1a3c2a7d4e95e9",
+        "requested_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "route_id": "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+        "schema": "zyra.live-scheduler-route/v1",
+        "simulated": false,
+        "tier": "device",
+        "worker_id": "live-scenario-worker-2"
+      },
+      {
+        "acquired_at": "2026-08-05T14:25:05.071Z",
+        "attempt_number": 4,
+        "backend_id": "local-sandbox-gateway",
+        "fence_epoch": 1,
+        "fence_token_digest": "c8787901f57b10dce5c63c2d81df3b26b5925464fddb66ae51a92b73057eeacb",
+        "lease_id": "lease_ab59ebb123c64dc498cf1a9cf31a031e",
+        "leased_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "location": "device",
+        "maximum_cost_usd": 0.5,
+        "maximum_latency_ms": 300000,
+        "owner": "WorkerPoolFoundationRuntime",
+        "privacy_class": "internal",
+        "provider_id": "zyra-provider-control",
+        "reason": "recovered software-provider-failure",
+        "receipt_id": "attempt_4ca9e2a3fb73452fae35bfafae50999e",
+        "requested_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "route_id": "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+        "schema": "zyra.live-scheduler-route/v1",
+        "simulated": false,
+        "tier": "device",
+        "worker_id": "live-scenario-worker-3"
+      },
+      {
+        "acquired_at": "2026-08-05T14:25:06.924Z",
+        "attempt_number": 5,
+        "backend_id": "local-sandbox-gateway",
+        "fence_epoch": 1,
+        "fence_token_digest": "d99e17132498e8e7c3a08c5fd60a4d44fec0ae2efd237081709632c7881e4875",
+        "lease_id": "lease_6a76e50f93b148bcafce2ac3e8274d55",
+        "leased_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "location": "device",
+        "maximum_cost_usd": 0.5,
+        "maximum_latency_ms": 300000,
+        "owner": "WorkerPoolFoundationRuntime",
+        "privacy_class": "internal",
+        "provider_id": "zyra-provider-control",
+        "reason": "recovered software-edge-network-loss",
+        "receipt_id": "attempt_0221af1249fe4192a61d9d17e48e55c4",
+        "requested_capabilities": [
+          "agent_task",
+          "artifact_return"
+        ],
+        "route_id": "worker-pool-route:attempt_0221af1249fe4192a61d9d17e48e55c4:local-sandbox-gateway",
+        "schema": "zyra.live-scheduler-route/v1",
+        "simulated": false,
+        "tier": "device",
+        "worker_id": "live-scenario-worker-4"
+      }
+    ],
+    "policy": {
+      "allowed_tiers": [
+        "device",
+        "edge",
+        "cloud"
+      ],
+      "credential_custody_required": true,
+      "denied_tiers": [],
+      "disconnected_degradation_required": true,
+      "maximum_cost_usd": 0.5,
+      "maximum_latency_ms": 300000,
+      "minimum_provider_capabilities": 2,
+      "policy_id": "placement-policy:985b64363bbc20b212ec",
+      "rationale": [
+        "privacy:internal",
+        "maximum_cost_usd:0.5",
+        "maximum_latency_ms:300000",
+        "real-device-edge-cloud-attestation-required",
+        "two-provider-model-capabilities-required"
+      ],
+      "require_real_providers": true,
+      "require_real_tiers": true,
+      "schema": "zyra.live-placement-policy/v1"
+    },
+    "providers": [
+      {
+        "attempt_id": "attempt_c67707988cb341b8856a6b854ed6d969",
+        "authenticated": true,
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "cost_usd": 0.0,
+        "credential_custodian": "WorkerPoolFoundationRuntime attestation/fenced lease",
+        "endpoint": "http://127.0.0.1:49000",
+        "latency_ms": 12234,
+        "metadata": {
+          "capability_kind": "local-model-capability",
+          "physical_dispatch_receipt_digest": "06ba8f94e5d0de265618cfe260b1bc73a50184cc5427151a1972467a1c1eb34e",
+          "simulated": false
+        },
+        "model_id": "local-deterministic",
+        "observation_id": "provider-local-attempt_c67707988cb341b8856a6b854ed6d969",
+        "provider_id": "zyra-local",
+        "request_digest": "06ba8f94e5d0de265618cfe260b1bc73a50184cc5427151a1972467a1c1eb34e",
+        "request_id": "dispatch_ce95f945c97d46ad",
+        "response_digest": "e87a073189404103951f7b34f0c1bf707c021a597299fb4d0ed491c6d10d1a8d",
+        "response_status": 200,
+        "route_id": "resdec_2a9875150a3e",
+        "started_at": "2026-08-05T14:24:43.822Z",
+        "tool_call_ids": [
+          "attempt_c67707988cb341b8856a6b854ed6d969"
+        ],
+        "tool_result_ids": [
+          "attempt_c67707988cb341b8856a6b854ed6d969"
+        ]
+      },
+      {
+        "attempt_id": "provider_attempt_203654019ee0410eb82fea0f5665187f",
+        "authenticated": true,
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "cost_usd": 0.0011002,
+        "credential_custodian": "env://ZAI_API_KEY",
+        "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "latency_ms": 2693,
+        "metadata": {
+          "credential_material_persisted": false,
+          "physical_dispatch_receipt_digest": "a6aca4e9cacdc811017273effca30c6e1acb6bdfbd2a41ca7bdf776600c1f767",
+          "provider_usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 237,
+            "prompt_tokens": 41,
+            "total_tokens": 278
+          },
+          "semantic_only": false,
+          "simulated": false
+        },
+        "model_id": "glm-5.2",
+        "observation_id": "provider-cloud-attempt_90d208e5f1f4439c826d29fa39d4b6b4",
+        "provider_id": "zhipu",
+        "request_digest": "sha256:86fe003b93b3860f831badc6bccc239e3203e26c332acd763ec0a22497c8eb89",
+        "request_id": "physical-2a188aada42034126d3710f1",
+        "response_digest": "9bc6b7c4dfc1144c06864260817de3a9123ef308f1366dc2d0bec77e06573d72",
+        "response_status": 200,
+        "route_id": "resdec_f51ff3d2e67a",
+        "started_at": "2026-08-05T14:24:46.477Z",
+        "tool_call_ids": [
+          "attempt_90d208e5f1f4439c826d29fa39d4b6b4"
+        ],
+        "tool_result_ids": [
+          "attempt_90d208e5f1f4439c826d29fa39d4b6b4"
+        ]
+      },
+      {
+        "attempt_id": "provider_attempt_180fa7b5eea14df895803d868e05ea49",
+        "authenticated": true,
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "cost_usd": 9.94e-06,
+        "credential_custodian": "env://DEEPSEEK_API_KEY",
+        "endpoint": "https://api.deepseek.com/chat/completions",
+        "latency_ms": 1100,
+        "metadata": {
+          "credential_material_persisted": false,
+          "physical_dispatch_receipt_digest": "5b3eb07218138d912121eddbaff24b3eb957eacd670186595730da0ca1c6812f",
+          "provider_usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 19,
+            "prompt_tokens": 33,
+            "total_tokens": 52
+          },
+          "semantic_only": false,
+          "simulated": false
+        },
+        "model_id": "deepseek-v4-flash",
+        "observation_id": "provider-cloud-attempt_524b8373f4c2469cad768f557831a475",
+        "provider_id": "deepseek",
+        "request_digest": "sha256:486e76cffbd1488eabd3e3780d5195264b83fb97446a11e90c9e724f058524a6",
+        "request_id": "physical-029a4dcbb7a27ad63ede3dac",
+        "response_digest": "8cf85958de0b2765af30f2736544b0f1ae03f2e23f3e37f59f2f550c146d41f8",
+        "response_status": 200,
+        "route_id": "resdec_04a736d8fdd4",
+        "started_at": "2026-08-05T14:24:50.398Z",
+        "tool_call_ids": [
+          "attempt_524b8373f4c2469cad768f557831a475"
+        ],
+        "tool_result_ids": [
+          "attempt_524b8373f4c2469cad768f557831a475"
+        ]
+      },
+      {
+        "attempt_id": "provider_attempt_e6cbfa73edb44ff9ab3d6412c7206647",
+        "authenticated": true,
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "cost_usd": 0.0018755,
+        "credential_custodian": "env://KIMI_API_KEY",
+        "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+        "latency_ms": 2941,
+        "metadata": {
+          "credential_material_persisted": false,
+          "physical_dispatch_receipt_digest": "8b94cf9421eef511c51b605a55bda8456a3bf14296ff9f78458cb265b0c03f78",
+          "provider_usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 62,
+            "prompt_tokens": 31,
+            "total_tokens": 93
+          },
+          "semantic_only": false,
+          "simulated": false
+        },
+        "model_id": "kimi-k2.7-code",
+        "observation_id": "provider-cloud-attempt_c5401b02dcf449ea803158eed0fd6233",
+        "provider_id": "kimi-platform",
+        "request_digest": "sha256:80e3ceca7a0f569efbb9aaa5e4dfbe6ae6fefc4fa731b5cc04d55e8a8890292d",
+        "request_id": "physical-0a1db19fc57d8f8968a63bdd",
+        "response_digest": "dea9c4726d6fce59b3d42ab4e6196bb2fea41f270b6fd56de336e4a604505178",
+        "response_status": 200,
+        "route_id": "resdec_aaeb9a1ecb18",
+        "started_at": "2026-08-05T14:24:52.533Z",
+        "tool_call_ids": [
+          "attempt_c5401b02dcf449ea803158eed0fd6233"
+        ],
+        "tool_result_ids": [
+          "attempt_c5401b02dcf449ea803158eed0fd6233"
+        ]
+      }
+    ],
+    "run_digest": "ef75b1828b4a6f1c15faa37c22e53ce67e6e15937fb4ddddfaeb0c70e95b29a9",
+    "schema": "zyra.live-placement-run/v1",
+    "started_at": "2026-08-05T14:24:40.623Z",
+    "tiers": [
+      {
+        "artifact_ids": [
+          "deployment_artifact_e3e3e394792c42a3"
+        ],
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "endpoint": "http://127.0.0.1:49000",
+        "endpoint_id": "zyra-device-4c2b5dd2fda5420c",
+        "handshake_ok": true,
+        "heartbeat_ok": true,
+        "isolation_id": "process:40464:generation_ba8c60b8f72d4717",
+        "lease_id": "lease_e4931681646146438cdebd61d562f78a",
+        "loopback": true,
+        "metadata": {
+          "failure_boundary_id": "process:40464:generation_ba8c60b8f72d4717",
+          "independent_process": true,
+          "physical_dispatch_receipt_digest": "06ba8f94e5d0de265618cfe260b1bc73a50184cc5427151a1972467a1c1eb34e",
+          "physical_dispatch_validation": {
+            "blockers": [],
+            "checks": {
+              "artifact_present": true,
+              "call_receipt_present": true,
+              "known_location": true,
+              "lease_precedes_execution": true,
+              "local_host_identity": true,
+              "local_process_identity": true,
+              "local_provider_request_zero": true,
+              "local_terminal_identity": true,
+              "not_semantic_only": true,
+              "not_simulated": true,
+              "permission_present": true,
+              "physical_attempt_present": true,
+              "placement_allowed": true,
+              "privacy_projection_matches": true,
+              "real_process_identity": true,
+              "runtime_health_ready": true,
+              "task_payload_bound": true,
+              "verifier_present": true,
+              "worker_manifest_present": true,
+              "workload_operation_present": true
+            },
+            "location": "local",
+            "real_gate_closed": true,
+            "receipt_digest": "06ba8f94e5d0de265618cfe260b1bc73a50184cc5427151a1972467a1c1eb34e",
+            "schema": "zyra.physical-dispatch-validation/v1",
+            "warnings": []
+          },
+          "provider_evidence": {},
+          "remote_boundary": "local-terminal"
+        },
+        "observation_id": "tier-attempt_c67707988cb341b8856a6b854ed6d969",
+        "process_id": "40464",
+        "request_digest": "06ba8f94e5d0de265618cfe260b1bc73a50184cc5427151a1972467a1c1eb34e",
+        "request_id": "dispatch_ce95f945c97d46ad",
+        "response_digest": "e87a073189404103951f7b34f0c1bf707c021a597299fb4d0ed491c6d10d1a8d",
+        "route_id": "resdec_2a9875150a3e",
+        "runtime_id": "generation_ba8c60b8f72d4717",
+        "simulated": false,
+        "started_at": "2026-08-05T14:24:43.822Z",
+        "task_success": true,
+        "tier": "device"
+      },
+      {
+        "artifact_ids": [
+          "deployment_artifact_d13ec41e5bd7466a"
+        ],
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "endpoint": "http://127.0.0.1:49001",
+        "endpoint_id": "zyra-edge-7c76992d1ad54602",
+        "handshake_ok": true,
+        "heartbeat_ok": true,
+        "isolation_id": "process:68064:generation_a0300f1b48164e3e",
+        "lease_id": "lease_c718dbefac1e477fa89e0545d666f2e9",
+        "loopback": true,
+        "metadata": {
+          "failure_boundary_id": "process:68064:generation_a0300f1b48164e3e",
+          "independent_process": true,
+          "physical_dispatch_receipt_digest": "58f095c5593b9bf9258f3f8684fab336caa47c72300f5336c491856c6cd70c0e",
+          "physical_dispatch_validation": {
+            "blockers": [],
+            "checks": {
+              "artifact_present": true,
+              "call_receipt_present": true,
+              "edge_failure_boundary": true,
+              "edge_independent_process": true,
+              "edge_network_endpoint": true,
+              "edge_network_namespace": true,
+              "edge_provider_request_zero": true,
+              "known_location": true,
+              "lease_precedes_execution": true,
+              "not_semantic_only": true,
+              "not_simulated": true,
+              "permission_present": true,
+              "physical_attempt_present": true,
+              "placement_allowed": true,
+              "privacy_projection_matches": true,
+              "real_process_identity": true,
+              "runtime_health_ready": true,
+              "task_payload_bound": true,
+              "verifier_present": true,
+              "worker_manifest_present": true,
+              "workload_operation_present": true
+            },
+            "location": "edge",
+            "real_gate_closed": true,
+            "receipt_digest": "58f095c5593b9bf9258f3f8684fab336caa47c72300f5336c491856c6cd70c0e",
+            "schema": "zyra.physical-dispatch-validation/v1",
+            "warnings": []
+          },
+          "provider_evidence": {},
+          "remote_boundary": "isolated-process"
+        },
+        "observation_id": "tier-attempt_d95040b00f5c4d279d86361353a67e1d",
+        "process_id": "68064",
+        "request_digest": "58f095c5593b9bf9258f3f8684fab336caa47c72300f5336c491856c6cd70c0e",
+        "request_id": "dispatch_139970a830454ec2",
+        "response_digest": "991ad121e12b58027257097b0922b04e4a8f4f9507b69fb0fcdd7fafd0582cf5",
+        "route_id": "resdec_d5679f6a3608",
+        "runtime_id": "generation_a0300f1b48164e3e",
+        "simulated": false,
+        "started_at": "2026-08-05T14:24:44.990Z",
+        "task_success": true,
+        "tier": "edge"
+      },
+      {
+        "artifact_ids": [
+          "deployment_artifact_24ada9b105234450"
+        ],
+        "completed_at": "2026-08-05T14:24:56.056Z",
+        "endpoint": "http://127.0.0.1:49002",
+        "endpoint_id": "zyra-cloud-64d1f8114c4e4a26",
+        "handshake_ok": true,
+        "heartbeat_ok": true,
+        "isolation_id": "process:59196:generation_56f0c4ad993e4c26",
+        "lease_id": "lease_aebbbe62d2c2499693e7fe4b15040b03",
+        "loopback": true,
+        "metadata": {
+          "failure_boundary_id": "process:59196:generation_56f0c4ad993e4c26",
+          "independent_process": true,
+          "physical_dispatch_receipt_digest": "a6aca4e9cacdc811017273effca30c6e1acb6bdfbd2a41ca7bdf776600c1f767",
+          "physical_dispatch_validation": {
+            "blockers": [],
+            "checks": {
+              "artifact_present": true,
+              "call_receipt_present": true,
+              "cloud_cost_present": true,
+              "cloud_credential_redacted": true,
+              "cloud_http_success": true,
+              "cloud_latency_present": true,
+              "cloud_live_request": true,
+              "cloud_marker_verified": true,
+              "cloud_payload_digest": true,
+              "cloud_provider_model_request": true,
+              "cloud_usage_present": true,
+              "known_location": true,
+              "lease_precedes_execution": true,
+              "not_semantic_only": true,
+              "not_simulated": true,
+              "permission_present": true,
+              "physical_attempt_present": true,
+              "placement_allowed": true,
+              "privacy_projection_matches": true,
+              "real_process_identity": true,
+              "runtime_health_ready": true,
+              "task_payload_bound": true,
+              "verifier_present": true,
+              "worker_manifest_present": true,
+              "workload_operation_present": true
+            },
+            "location": "cloud",
+            "real_gate_closed": true,
+            "receipt_digest": "a6aca4e9cacdc811017273effca30c6e1acb6bdfbd2a41ca7bdf776600c1f767",
+            "schema": "zyra.physical-dispatch-validation/v1",
+            "warnings": []
+          },
+          "provider_evidence": {
+            "completed_at_ms": 1785939889813,
+            "cost_amount": 0.006964,
+            "cost_currency": "CNY",
+            "cost_source": "provider_usage_x_versioned_catalog_pricing",
+            "cost_usd": 0.0011002,
+            "credential_fingerprint": "sha256:c9ded1b50875a0a8",
+            "credential_material_persisted": false,
+            "credential_ref": "env://ZAI_API_KEY",
+            "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+            "endpoint_host": "open.bigmodel.cn",
+            "endpoint_path": "/chat/completions",
+            "external_model_request": true,
+            "http_status": 200,
+            "latency_ms": 2693,
+            "live": true,
+            "marker_verified": true,
+            "model_id": "glm-5.2",
+            "normalized_pricing_source_ref": "https://docs.z.ai/guides/overview/pricing",
+            "output_digest": "sha256:a5a3e19065472e7efbd0925e661c8d5cf7876675beff60e24022c8049d1c505a",
+            "payload_digest": "sha256:86fe003b93b3860f831badc6bccc239e3203e26c332acd763ec0a22497c8eb89",
+            "pricing_source_ref": "https://bigmodel.cn/pricing",
+            "protocol": "openai_chat",
+            "provider_attempt_id": "provider_attempt_203654019ee0410eb82fea0f5665187f",
+            "provider_id": "zhipu",
+            "request_digest": "sha256:882f0bb56c858cde369ce0986f1255cec3d93d605c85aa7a852aeda47cfb238a",
+            "request_id": "physical-2a188aada42034126d3710f1",
+            "response_digest": "sha256:aca13fd8db37ba5b74873c816b5913fa001244510254083782cb40784124a718",
+            "route_id": "provider_route_e3db22ada2ad408fadb13fff764b6e44",
+            "schema": "zyra.live-provider-dispatch-evidence/v1",
+            "semantic_only": false,
+            "simulated": false,
+            "started_at_ms": 1785939887120,
+            "usage": {
+              "cached_prompt_tokens": 0,
+              "completion_tokens": 237,
+              "prompt_tokens": 41,
+              "total_tokens": 278
+            }
+          },
+          "remote_boundary": "live-provider"
+        },
+        "observation_id": "tier-attempt_90d208e5f1f4439c826d29fa39d4b6b4",
+        "process_id": "59196",
+        "request_digest": "a6aca4e9cacdc811017273effca30c6e1acb6bdfbd2a41ca7bdf776600c1f767",
+        "request_id": "dispatch_9388ecb5146b40fd",
+        "response_digest": "9bc6b7c4dfc1144c06864260817de3a9123ef308f1366dc2d0bec77e06573d72",
+        "route_id": "resdec_f51ff3d2e67a",
+        "runtime_id": "generation_56f0c4ad993e4c26",
+        "simulated": false,
+        "started_at": "2026-08-05T14:24:46.477Z",
+        "task_success": true,
+        "tier": "cloud"
+      }
+    ],
+    "verification": {
+      "degradation_digest": "bb64b9abfeff61c4578180c08cf97f972bc9a2ed64ad970dcfb36771e7c05102",
+      "failures": [],
+      "lease_ids": [
+        "lease_04eed09b82a8485da4401617254a2b12",
+        "lease_63a438014e8044e7acc865b89a1d61ae",
+        "lease_ab59ebb123c64dc498cf1a9cf31a031e",
+        "lease_6a76e50f93b148bcafce2ac3e8274d55"
+      ],
+      "maximum_provider_latency_ms": 12234,
+      "policy_digest": "4d817b2e19871564638a7a3449f96abe062143cd7e0a1474ceaf6e4a725b977a",
+      "provider_capabilities": [
+        "deepseek/deepseek-v4-flash",
+        "kimi-platform/kimi-k2.7-code",
+        "zhipu/glm-5.2",
+        "zyra-local/local-deterministic"
+      ],
+      "provider_capability_count": 4,
+      "receipt_digest": "2df9d6c167502fa30586ec5d37f8620935abc65d1e75630b8bcdb738cb0e63fc",
+      "route_count": 4,
+      "route_ids": [
+        "worker-pool-route:attempt_bf33d22c47cc420ab3a9ca1f945c0937:local-sandbox-gateway",
+        "worker-pool-route:attempt_182b41fd01284ebfad1a3c2a7d4e95e9:local-sandbox-gateway",
+        "worker-pool-route:attempt_4ca9e2a3fb73452fae35bfafae50999e:local-sandbox-gateway",
+        "worker-pool-route:attempt_0221af1249fe4192a61d9d17e48e55c4:local-sandbox-gateway"
+      ],
+      "schema": "zyra.live-placement-verification/v1",
+      "tier_count": 3,
+      "tier_kinds": [
+        "cloud",
+        "device",
+        "edge"
+      ],
+      "total_cost_usd": 0.00298564,
+      "valid": true
+    }
+  },
+  "schema": "zyra.live-owner-receipts/v1"
+}

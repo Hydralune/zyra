@@ -1,0 +1,20 @@
+{
+  "artifact_digest": "84084ff2ab8a1ea606e6b7c8a455c876a668a623f8eaca3179b91b41bf45acf0",
+  "canonical_owner_snapshot_digest": "477f2bdd47159a36e70a855de6734b4174beb060f5bb44fac2a8e1be5d632a5b",
+  "domain": "cross_source_research",
+  "domain_verification_receipt_digest": "0988bada80229b11b0c150527873d745d8455ca681f838c82c1e182afe2126f7",
+  "hard_gate_bundle_digest": "7cb33925c993b83bb11f29acd4e9971038706cf2d4017d4c98e4962f3ded11db",
+  "human_intervention_count": 0,
+  "inline_policy_receipt_digest": "d5297b19af0724816e965413a38acfdb188a7ec70c297ca1064c8e96aa03db8f",
+  "mechanism_bundle_digest": "8ad9bcd90f227ee180f58be557f4c644d2feec15e4d0dcdc1067331eca2b0b60",
+  "passed": true,
+  "physical_dispatch_bundle_digest": "3dd8bff3c39b9cfd64d7d345f2964ace849a56261145872c603b7e0d55dfed39",
+  "raw_events_digest": "ce9b63a618053beea913cce894e6c354a7f16308600ecc1733209cf535ecd8bd",
+  "run_id": "run_346a06159336",
+  "schema": "zyra.phase2-sealed-final-verifier/v1",
+  "task_id": "task_e4a3b19e37f5",
+  "transition_index_digest": "ef0c4741dcfa64b9297181a9b2f5ce7e8b29a533389d4ac2ee9223767b06edf6",
+  "verified_at": "2026-08-05T14:26:13.303Z",
+  "verifier_digest": "5356cd379b36424ff405badd31bbad33a250dffa53e01b1b6f2590c714d538bc",
+  "verifier_id": "research-verifier:research-plan:d31fa734247edb25c8a5:60202"
+}

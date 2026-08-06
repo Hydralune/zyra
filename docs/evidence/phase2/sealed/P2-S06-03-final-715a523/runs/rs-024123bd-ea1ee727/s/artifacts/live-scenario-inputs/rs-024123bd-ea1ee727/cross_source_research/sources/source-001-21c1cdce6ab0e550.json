@@ -1,0 +1,43 @@
+{
+  "acquired_at": "2026-08-05T14:25:46.061Z",
+  "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+  "authority": "www.rfc-editor.org",
+  "byte_count": 139493,
+  "charset": "utf-8",
+  "content_encoding": "gzip",
+  "elapsed_ms": 2232,
+  "live": true,
+  "media_type": "text/plain",
+  "metadata": {
+    "cache_used": false,
+    "egress_proxy_cidrs": [
+      "198.18.0.0/15"
+    ],
+    "fixture": false,
+    "resolved_addresses": [
+      "198.18.0.181",
+      "2606:4700::6812:1451",
+      "2606:4700::6812:1551"
+    ]
+  },
+  "redirect_chain": [],
+  "replay": false,
+  "request_id": "research-request-ed2b7514454841d1b49af8ed3bfce042",
+  "requested_url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+  "response_headers": {
+    "cache-control": "public, max-age=86400",
+    "content-encoding": "gzip",
+    "content-type": "text/plain;charset=utf-8",
+    "date": "Wed, 05 Aug 2026 14:25:47 GMT",
+    "etag": "\"7c9fc097e78bd883e559172c885e074c\"",
+    "server": "cloudflare"
+  },
+  "schema": "zyra.live-research-source/v1",
+  "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+  "source_id": "source-001-21c1cdce6ab0e550",
+  "status": 200,
+  "text_byte_count": 502941,
+  "url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+  "wire_digest": "c9da8b47e249c51939ea56707a19ae431ae1e331a1870ec3bfb3c6eca721b467",
+  "wire_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.wire"
+}

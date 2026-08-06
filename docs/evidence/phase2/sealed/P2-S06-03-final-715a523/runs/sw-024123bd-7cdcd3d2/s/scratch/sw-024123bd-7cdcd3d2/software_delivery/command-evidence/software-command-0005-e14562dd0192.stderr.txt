@@ -1,0 +1,8 @@
+test_new_input_requirements_are_verified (test_requirements.RequirementLedgerTests.test_new_input_requirements_are_verified) ... ok
+test_unknown_requirement_is_rejected (test_requirements.RequirementLedgerTests.test_unknown_requirement_is_rejected) ... ok
+test_wrong_input_digest_is_rejected (test_requirements.RequirementLedgerTests.test_wrong_input_digest_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.000s
+
+OK

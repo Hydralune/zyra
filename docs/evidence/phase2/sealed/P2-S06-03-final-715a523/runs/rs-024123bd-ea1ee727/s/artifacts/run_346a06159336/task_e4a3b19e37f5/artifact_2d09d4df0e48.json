@@ -1,0 +1,2113 @@
+{
+  "artifact_ids": [
+    "artifact_a88667d7223e",
+    "artifact_86065d4fffc2",
+    "artifact_6a31532bb75d",
+    "artifact_7a1239e2a5f1",
+    "artifact_816da3cf4b55",
+    "artifact_314981685d9b",
+    "artifact_f901688d3bda",
+    "artifact_ea009272e415",
+    "artifact_cf917a5abe3f",
+    "artifact_2262d65e4041",
+    "artifact_fb11e5ac7f17",
+    "artifact_9ed81d00f4d8"
+  ],
+  "citations": [
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 15227,
+      "byte_start": 15114,
+      "citation_id": "citation-0001-66089cc2933d",
+      "claim_id": "claim-0001-baee2568c9dc",
+      "media_type": "text/plain",
+      "quote_digest": "66089cc2933dea8213c199dd1de6658f0cfaf3cf2833b4dd5f83fe672fe2c474",
+      "quote_text": "HTTP has been the primary information transfer protocol for the World\n   Wide Web since its introduction in 1990.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 7148,
+      "byte_start": 6924,
+      "citation_id": "citation-0002-8fd974ecae87",
+      "claim_id": "claim-0002-cc3f8bb82d01",
+      "media_type": "text/html",
+      "quote_digest": "8fd974ecae87e18379fc74e2fe743afe119bc02f1e14409b369efd402dd29f51",
+      "quote_text": "This has the same semantics as the 302 Found response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the redirected request.",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:48.298Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-002-4a9550d4b4ae49cf.txt",
+      "byte_end": 3267,
+      "byte_start": 2954,
+      "citation_id": "citation-0003-babf4e64525b",
+      "claim_id": "claim-0003-9125429248ae",
+      "media_type": "text/csv",
+      "quote_digest": "babf4e64525b1f33715eef62c8b324fb2e6baa56a35c4a5963d3b8ee7ee69027",
+      "quote_text": "Supported,\"[RFC9110, Section 15.6.6]\"\r\n506,Variant Also Negotiates,[RFC2295]\r\n507,Insufficient Storage,[RFC4918]\r\n508,Loop Detected,[RFC5842]\r\n509,Unassigned,\r\n510,Not Extended (OBSOLETED),[RFC2774][Status change of HTTP experiments to Historic]\r\n511,Network Authentication Required,[RFC6585]\r\n512-599,Unassigned,",
+      "source_digest": "4a9550d4b4ae49cf41cf9050cf9b56b0d6082ad1edfc0e2b09b07f251a36d7a4",
+      "source_id": "source-002-4a9550d4b4ae49cf",
+      "status": 200,
+      "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes-1.csv"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 7524,
+      "byte_start": 7287,
+      "citation_id": "citation-0004-3c26cb076f6d",
+      "claim_id": "claim-0004-5246cdfaee38",
+      "media_type": "text/html",
+      "quote_digest": "3c26cb076f6df71d8c2d62c018c03e6546f1c68a42e60b6247792978064addf7",
+      "quote_text": "This has the same semantics as the 301 Moved Permanently HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 28242,
+      "byte_start": 28032,
+      "citation_id": "citation-0005-7ae85d871bb9",
+      "claim_id": "claim-0005-184dab00f83c",
+      "media_type": "text/plain",
+      "quote_digest": "7ae85d871bb97f35d3c612bfa21f4e740f9dd2da4a0cb643307ed92f51dd6cf9",
+      "quote_text": "While HTTP's core semantics don't change between protocol versions,\n   their expression \"on the wire\" can change, and so the HTTP version\n   number changes when incompatible changes are made to the wire format.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 17637,
+      "byte_start": 17414,
+      "citation_id": "citation-0006-958286c9ef4f",
+      "claim_id": "claim-0006-649587c63d68",
+      "media_type": "text/plain",
+      "quote_digest": "958286c9ef4f953890768abfc406c70e3d95da7793e1e5246bde52d735050b05",
+      "quote_text": "HTTP provides a uniform interface for interacting with a resource\n   (Section 3.1) -- regardless of its type, nature, or implementation --\n   by sending messages that manipulate or transfer representations\n   (Section 3.2).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 462956,
+      "byte_start": 462725,
+      "citation_id": "citation-0007-498394458cba",
+      "claim_id": "claim-0007-07bc402ac3cd",
+      "media_type": "text/plain",
+      "quote_digest": "498394458cbaa2db31a8fd82ea1a3f53ebe6984c157092b3aa20ae6453d30037",
+      "quote_text": "[WEBDAV]   Dusseault, L., Ed., \"HTTP Extensions for Web Distributed\n              Authoring and Versioning (WebDAV)\", RFC 4918,\n              DOI 10.17487/RFC4918, June 2007,\n              <https://www.rfc-editor.org/info/rfc4918>.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 16856,
+      "byte_start": 16773,
+      "citation_id": "citation-0008-c5f26504e592",
+      "claim_id": "claim-0008-f9a8eab606f1",
+      "media_type": "text/plain",
+      "quote_digest": "c5f26504e59268ca2501a3928c8594fdf5280c619dc0b69cd6761523c51f263a",
+      "quote_text": "All three major versions of HTTP rely on the semantics defined by\n   this document.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 18528,
+      "byte_start": 18216,
+      "citation_id": "citation-0009-549a2859e971",
+      "claim_id": "claim-0009-ef7b580c85bb",
+      "media_type": "text/plain",
+      "quote_digest": "549a2859e971083e89f43cf203527f31ed37320d851f2d58512f44af6cd896cb",
+      "quote_text": "HTTP semantics include the intentions defined by each request method\n   (Section 9), extensions to those semantics that might be described in\n   request header fields, status codes that describe the response\n   (Section 15), and other control data and resource metadata that might\n   be given in response fields.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 33667,
+      "byte_start": 33418,
+      "citation_id": "citation-0010-e0447fffda01",
+      "claim_id": "claim-0010-293bce9ddfed",
+      "media_type": "text/plain",
+      "quote_digest": "e0447fffda019fd92f6b5a2c068ee5e000fabc0321ab80fe2bddca2bee2bcdab",
+      "quote_text": "HTTP is defined as a stateless protocol, meaning that each request\n   message's semantics can be understood in isolation, and that the\n   relationship between connections and messages on them has no impact\n   on the interpretation of those messages.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 127676,
+      "byte_start": 127316,
+      "citation_id": "citation-0011-50d2e65687eb",
+      "claim_id": "claim-0011-b06351ee9091",
+      "media_type": "text/plain",
+      "quote_digest": "50d2e65687ebd2ad9ddb95845a1c1c03db96a68a5783003b4c68f825707001f9",
+      "quote_text": "An HTTP-to-HTTP proxy is called a \"transforming proxy\" if it is\n   designed or configured to modify messages in a semantically\n   meaningful way (i.e., modifications, beyond those required by normal\n   HTTP processing, that change the message in a way that would be\n   significant to the original sender or potentially significant to\n   downstream recipients).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 158506,
+      "byte_start": 158293,
+      "citation_id": "citation-0012-b7faad815c3f",
+      "claim_id": "claim-0012-55bc252fbca7",
+      "media_type": "text/plain",
+      "quote_digest": "b7faad815c3f29ad2b747188aa7a36bc5e365d4b4073dbfc6ff1c451584adb6d",
+      "quote_text": "Additional metadata that reflects resource state\n   has been defined by various extensions of HTTP, such as Web\n   Distributed Authoring and Versioning [WEBDAV], that are beyond the\n   scope of this specification.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 178632,
+      "byte_start": 178378,
+      "citation_id": "citation-0013-0d1757d7b7b7",
+      "claim_id": "claim-0013-497a6d1c383f",
+      "media_type": "text/plain",
+      "quote_digest": "0d1757d7b7b7fe38e822c0d14bb9f89835b209a9b923c44d51bfc0a4f7066aad",
+      "quote_text": "Request methods are considered \"safe\" if their defined semantics are\n   essentially read-only; i.e., the client does not request, and does\n   not expect, any state change on the origin server as a result of\n   applying a safe method to a target resource.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 404277,
+      "byte_start": 403998,
+      "citation_id": "citation-0014-514affd82eeb",
+      "claim_id": "claim-0014-54bcf69976eb",
+      "media_type": "text/plain",
+      "quote_digest": "514affd82eeb2a3c5820cbf8228fbe16a58117768f82d666d45830cb22cc6482",
+      "quote_text": "Because HTTP uses mostly textual, character-delimited fields, parsers\n   are often vulnerable to attacks based on sending very long (or very\n   slow) streams of data, particularly where an implementation is\n   expecting a protocol element with no predefined length (Section 2.3).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 477015,
+      "byte_start": 476800,
+      "citation_id": "citation-0015-24c6429d799a",
+      "claim_id": "claim-0015-96a8a3e6fadb",
+      "media_type": "text/plain",
+      "quote_digest": "24c6429d799a4a18eab4f75be342764208bba8cb21ad381f15e9ea90dad6b418",
+      "quote_text": "An edge-case requirement on If-Match and If-Unmodified-Since has been\n   removed that required a validator not to be sent in a 2xx response if\n   validation fails because the change request has already been applied.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 13689,
+      "byte_start": 13402,
+      "citation_id": "citation-0016-eee6257db009",
+      "claim_id": "claim-0016-d6e0b59ea5d2",
+      "media_type": "text/plain",
+      "quote_digest": "eee6257db009a36344e07a37d2a5d3e27561164a59cdf89285814b33bbfcc624",
+      "quote_text": "The Hypertext Transfer Protocol (HTTP) is a family of stateless,\n   application-level, request/response protocols that share a generic\n   interface, extensible semantics, and self-descriptive messages to\n   enable flexible interaction with network-based hypertext information\n   systems.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 15607,
+      "byte_start": 15409,
+      "citation_id": "citation-0017-06d8e2016adf",
+      "claim_id": "claim-0017-7d7e5558bd41",
+      "media_type": "text/plain",
+      "quote_digest": "06d8e2016adf1060b477cbe010a81b863dd6f7f57642ea485ef270aecbf5b67d",
+      "quote_text": "As the Web grew, HTTP was extended to enclose\n   requests and responses within messages, transfer arbitrary data\n   formats using MIME-like media types, and route requests through\n   intermediaries.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 17387,
+      "byte_start": 17116,
+      "citation_id": "citation-0018-e85ff38fa836",
+      "claim_id": "claim-0018-ba5fe26b6c75",
+      "media_type": "text/plain",
+      "quote_digest": "e85ff38fa8366c8eec60eb244416c113d6a5969439b3c526c459c4ff750c32ba",
+      "quote_text": "This revision of HTTP separates the definition of semantics (this\n   document) and caching ([CACHING]) from the current HTTP/1.1 messaging\n   syntax ([HTTP/1.1]) to allow each major protocol version to progress\n   independently while referring to the same core semantics.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 23000,
+      "byte_start": 22785,
+      "citation_id": "citation-0019-5e32393b6b88",
+      "claim_id": "claim-0019-d2b406687db2",
+      "media_type": "text/plain",
+      "quote_digest": "5e32393b6b88e9495f960a3c2cd5357a79bae722ac4817129fde21d83319426e",
+      "quote_text": "The verb \"generate\" is used instead of \"send\" where a requirement\n   applies only to implementations that create the protocol element,\n   rather than an implementation that forwards a received element\n   downstream.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 23683,
+      "byte_start": 23506,
+      "citation_id": "citation-0020-23f8cfa5cf54",
+      "claim_id": "claim-0020-fdafc289adaf",
+      "media_type": "text/plain",
+      "quote_digest": "23f8cfa5cf54ff83c37245084c9a5b7ccb266f6d3cf6fd82ce49ccabf823fb66",
+      "quote_text": "Conformance to HTTP includes both conformance to the particular\n   messaging syntax of the protocol version in use and conformance to\n   the semantics of protocol elements sent.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 29744,
+      "byte_start": 29588,
+      "citation_id": "citation-0021-efcfc99b0f95",
+      "claim_id": "claim-0021-03601309855d",
+      "media_type": "text/plain",
+      "quote_digest": "efcfc99b0f9545edc7279cbc87b5e7719af6b94e1283e4a2c883e01e452270c6",
+      "quote_text": "HTTP was created for the World Wide Web (WWW) architecture and has\n   evolved over time to support the scalability needs of a worldwide\n   hypertext system.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 30371,
+      "byte_start": 30142,
+      "citation_id": "citation-0022-17f00b5dbfda",
+      "claim_id": "claim-0022-5f2e2de26588",
+      "media_type": "text/plain",
+      "quote_digest": "17f00b5dbfdaa8c42aa394c48fb1909153504739e180dffc5eb9909d1af4d962",
+      "quote_text": "One design goal of HTTP is to separate resource identification from\n   request semantics, which is made possible by vesting the request\n   semantics in the request method (Section 9) and a few request-\n   modifying header fields.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 34349,
+      "byte_start": 34194,
+      "citation_id": "citation-0023-0969a1e1fdf2",
+      "claim_id": "claim-0023-b74f21778b46",
+      "media_type": "text/plain",
+      "quote_digest": "0969a1e1fdf2bbdb345c42fd9339f09cfe24406d09c20728f93eed49f9371dcf",
+      "quote_text": "Some non-standard HTTP\n   extensions (e.g., [RFC4559]) have been known to violate this\n   requirement, resulting in security and interoperability problems.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 68193,
+      "byte_start": 68001,
+      "citation_id": "citation-0024-962ba953de9e",
+      "claim_id": "claim-0024-79bf7e0bb8f6",
+      "media_type": "text/plain",
+      "quote_digest": "962ba953de9e58e87149a0e3f1e4628c6a7197b79d6bfd5a3346ba0cb5daffdc",
+      "quote_text": "The interpretation of a field does not change between minor versions\n   of the same major HTTP version, though the default behavior of a\n   recipient in the absence of such a field can change.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 73961,
+      "byte_start": 73777,
+      "citation_id": "citation-0025-c05c0cba12fb",
+      "claim_id": "claim-0025-3d9865f33757",
+      "media_type": "text/plain",
+      "quote_digest": "c05c0cba12fb079ab9a07c6c70d33aea49e116eb225853020d1afb71814ad522",
+      "quote_text": "When\n   a specific version of HTTP allows such whitespace to appear in a\n   message, a field parsing implementation MUST exclude such whitespace\n   prior to evaluating the field value.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 92847,
+      "byte_start": 92805,
+      "citation_id": "citation-0026-e41ca2634287",
+      "claim_id": "claim-0026-e2e327ba181d",
+      "media_type": "text/plain",
+      "quote_digest": "e41ca263428742d98e4cda69340e2d3fef55ebc0120c260853c552e885e13a34",
+      "quote_text": "Every HTTP message has a protocol version.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 109224,
+      "byte_start": 109036,
+      "citation_id": "citation-0027-e859c636ca8f",
+      "claim_id": "claim-0027-ae5d559f09df",
+      "media_type": "text/plain",
+      "quote_digest": "e859c636ca8fefc54495e5249f9103c40d0ba2fe3cb02cc9f756d2dff5e676e2",
+      "quote_text": "Although HTTP is used in a wide variety of applications, most clients\n   rely on the same resource identification mechanism and configuration\n   techniques as general-purpose Web browsers.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 132903,
+      "byte_start": 132759,
+      "citation_id": "citation-0028-89fc3058e695",
+      "claim_id": "claim-0028-88c9abd31c2a",
+      "media_type": "text/plain",
+      "quote_digest": "89fc3058e695acb6579ce0c7a746f055a121fb91bebf73977f1b028966a934e0",
+      "quote_text": "This allows a connection to be upgraded\n   to protocols with the same semantics as HTTP without the latency cost\n   of an additional round trip.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 135017,
+      "byte_start": 134847,
+      "citation_id": "citation-0029-e00474cfdff4",
+      "claim_id": "claim-0029-b11abc0dd571",
+      "media_type": "text/plain",
+      "quote_digest": "e00474cfdff4c4e86c0720be96ae41f461efe2625bd19e43ff04e19ab98ae30b",
+      "quote_text": "The representation data associated with an HTTP message is either\n   provided as the content of the message or referred to by the message\n   semantics and the target URI.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 161248,
+      "byte_start": 161120,
+      "citation_id": "citation-0030-20737241ca34",
+      "claim_id": "claim-0030-98dd848c6a98",
+      "media_type": "text/plain",
+      "quote_digest": "20737241ca3407df3db512474cfa23030f95bfbb3ef0394dcc1a0627cf735bd7",
+      "quote_text": "In contrast, a \"weak validator\" is representation metadata that might\n   not change for every change to the representation data.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 162269,
+      "byte_start": 161888,
+      "citation_id": "citation-0031-60563ad6b5c9",
+      "claim_id": "claim-0031-2528530ec0a3",
+      "media_type": "text/plain",
+      "quote_digest": "60563ad6b5c9f7fc4c06cf05d09e9034e1922fb314c72062e3c040168bddc744",
+      "quote_text": "For example, the representation of a weather report that changes in\n   content every second, based on dynamic measurements, might be grouped\n   into sets of equivalent representations (from the origin server's\n   perspective) with the same weak validator in order to allow cached\n   representations to be valid for a reasonable period of time (perhaps\n   adjusted dynamically based",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 163563,
+      "byte_start": 163344,
+      "citation_id": "citation-0032-92361944fd76",
+      "claim_id": "claim-0032-7f6a54ee4ba8",
+      "media_type": "text/plain",
+      "quote_digest": "92361944fd766d88807805b323ecad708b053491f1a77d5b5f510a555e62fe35",
+      "quote_text": "Weak validators are only usable when the client does not\n   require exact equality with previously obtained representation data,\n   such as when validating a cache entry or limiting a web traversal to\n   recent changes.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 174017,
+      "byte_start": 173816,
+      "citation_id": "citation-0033-fc72757839aa",
+      "claim_id": "claim-0033-9d89d3a373de",
+      "media_type": "text/plain",
+      "quote_digest": "fc72757839aa9663ba005fe849750e92485b432906ae7f523668281cc23478e3",
+      "quote_text": "The request method token is the primary source of request semantics;\n   it indicates the purpose for which the client has made this request\n   and what is expected by the client as a successful result.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 195313,
+      "byte_start": 195106,
+      "citation_id": "citation-0034-ee80dc93b735",
+      "claim_id": "claim-0034-f2d2565971de",
+      "media_type": "text/plain",
+      "quote_digest": "ee80dc93b73580267f27ea29be5e4af4057a5f6f65384b1daf929fcdb280e6c2",
+      "quote_text": "HTTP does not define exactly how a PUT method affects the state of an\n   origin server beyond what can be expressed by the intent of the user\n   agent request and the semantics of the origin server response.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 203788,
+      "byte_start": 203601,
+      "citation_id": "citation-0035-83a37534572d",
+      "claim_id": "claim-0035-dc7e0839149c",
+      "media_type": "text/plain",
+      "quote_digest": "83a37534572dcd36ff78ac3faa92d0b15caf8344744f64c83fe217e4a6f80897",
+      "quote_text": "Because CONNECT changes the request/response nature of an HTTP\n   connection, specific HTTP versions might have different ways of\n   mapping its semantics into the protocol's wire format.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 342935,
+      "byte_start": 342834,
+      "citation_id": "citation-0036-929c5fbc2710",
+      "claim_id": "claim-0036-81bccebe1d3d",
+      "media_type": "text/plain",
+      "quote_digest": "929c5fbc271055ac8857df3927dc127296e42199b803c8d8c7d0a3b91b553107",
+      "quote_text": "Change the request method according to the redirecting status\n       code's semantics, if applicable.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 372327,
+      "byte_start": 372166,
+      "citation_id": "citation-0037-5f8d7eea2abc",
+      "claim_id": "claim-0037-a9858c9932db",
+      "media_type": "text/plain",
+      "quote_digest": "5f8d7eea2abc74b73dec44c430151e9c873b70beac0a81dd3e695ac1171eea7a",
+      "quote_text": "Because the semantics of HTTP are not\n   versioned, these extension points are persistent; the version of the\n   protocol in use does not affect their semantics.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 374570,
+      "byte_start": 374306,
+      "citation_id": "citation-0038-fa8d634f18fc",
+      "claim_id": "claim-0038-b04e6df85b76",
+      "media_type": "text/plain",
+      "quote_digest": "fa8d634f18fc4d656d6b3c951c16add612cbac1d8afe13142ba61d9b9153218b",
+      "quote_text": "Since message parsing (Section 6) needs to be independent of method\n   semantics (aside from responses to HEAD), definitions of new methods\n   cannot change the parsing algorithm or prohibit the presence of\n   content on either the request or the response message.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 386910,
+      "byte_start": 386708,
+      "citation_id": "citation-0039-49b7da99931f",
+      "claim_id": "claim-0039-1cbfe96133b6",
+      "media_type": "text/plain",
+      "quote_digest": "49b7da99931f38f789856206a2f148dbaa9b6a9428ea7966f5997dcdb9bea1e8",
+      "quote_text": "A major task in the definition of a new HTTP field is the\n   specification of the field value syntax: what senders should\n   generate, and how recipients should infer semantics from what is\n   received.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 396223,
+      "byte_start": 396027,
+      "citation_id": "citation-0040-904eb8a1b7b5",
+      "claim_id": "claim-0040-9e2fe3fc9eac",
+      "media_type": "text/plain",
+      "quote_digest": "904eb8a1b7b59f99a00a720fe239c9c10fce3b4b7d533cb287ed3467d513f310",
+      "quote_text": "This section is meant to inform developers, information providers,\n   and users of known security concerns relevant to HTTP semantics and\n   its use for transferring information over the Internet.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 396753,
+      "byte_start": 396474,
+      "citation_id": "citation-0041-c54eeeaa1fa2",
+      "claim_id": "claim-0041-d4dd456cc236",
+      "media_type": "text/plain",
+      "quote_digest": "c54eeeaa1fa236d68e53a7659645a5eb4f435ea71aef8d022aa4c3fe5e4ba169",
+      "quote_text": "Most security\n   concerns related to HTTP semantics are about securing server-side\n   applications (code behind the HTTP interface), securing user agent\n   processing of content received via HTTP, or secure use of the\n   Internet in general, rather than security of the protocol.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 439792,
+      "byte_start": 439623,
+      "citation_id": "citation-0042-231ab5fb263a",
+      "claim_id": "claim-0042-5b1d624e3736",
+      "media_type": "text/plain",
+      "quote_digest": "231ab5fb263a5b02fa29157a83fa87a4673bebbc3226dee9147698faa4c764b8",
+      "quote_text": "The field name \"*\" is reserved because using that name as an HTTP\n   header field might conflict with its special semantics in the Vary\n   header field (Section 12.5.5).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 473723,
+      "byte_start": 473415,
+      "citation_id": "citation-0043-e6c9cfb45961",
+      "claim_id": "claim-0043-30ebc39436e7",
+      "media_type": "text/plain",
+      "quote_digest": "e6c9cfb4596172283dd888215a1679eaee38636e409d3db40f424a69fb2d53e5",
+      "quote_text": "An abstract data type for HTTP messages has been introduced to define\n   the components of a message and their semantics as an abstraction\n   across multiple HTTP versions, rather than in terms of the specific\n   syntax form of HTTP/1.1 in [HTTP/1.1], and reflect the contents after\n   the message is parsed.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 474926,
+      "byte_start": 474824,
+      "citation_id": "citation-0044-21d89ccac51a",
+      "claim_id": "claim-0044-2376d0dbdbc1",
+      "media_type": "text/plain",
+      "quote_digest": "21d89ccac51ad04d736c40f8bd6f0c974a7acf1bd910a3c210966f88f75857b5",
+      "quote_text": "The normative requirement to use the \"message/http\" media type in\n   TRACE responses has been removed.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 1147,
+      "byte_start": 763,
+      "citation_id": "citation-0045-c6622c8c94b9",
+      "claim_id": "claim-0045-04d551b77d5f",
+      "media_type": "text/html",
+      "quote_digest": "c6622c8c94b92e5e8e4c0d2daf2d80ca2567c9d352d9418341963a2c0dd33af4",
+      "quote_text": "APIs\nWeb APIs: Programming interfaces\nWeb API reference\nFile system API\nFetch API\nGeolocation API\nHTML DOM API\nPush API\nService worker API\nSee all…\nWeb API guides\nUsing the Web animation API\nUsing the Fetch API\nWorking with the History API\nUsing the Web speech API\nUsing web workers\nAll\nAll web technology\nTechnologies\nAccessibility\nHTTP\nURI\nWeb extensions\nWebAssembly\nWebDriver\nSee",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 1911,
+      "byte_start": 1530,
+      "citation_id": "citation-0046-fc8b608f81a4",
+      "claim_id": "claim-0046-7182acbe045d",
+      "media_type": "text/html",
+      "quote_digest": "fc8b608f81a49eb217f55ac7d616c00426bb593232895c4afeb9d7047898e02e",
+      "quote_text": "module\nTools\nDiscover our tools\nPlayground\nHTTP Observatory\nBorder-image generator\nBorder-radius generator\nBox-shadow generator\nColor format converter\nColor mixer\nShape generator\nAbout\nGet to know MDN better\nAbout MDN\nAdvertise with us\nCommunity\nMDN on GitHub\nBlog\nWeb\nHTTP\nReference\nHTTP response status codes\nHTTP response status codes\nHTTP response status codes indicate whether",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 15873,
+      "byte_start": 15491,
+      "citation_id": "citation-0047-930efeb12f96",
+      "claim_id": "claim-0047-0a0939fd3b98",
+      "media_type": "text/html",
+      "quote_digest": "930efeb12f96cc061830c0e80dc814775039a39e3e7f9b005d02b175a5f98fb9",
+      "quote_text": "View this page on GitHub • Report a problem with this content\nHTTP\nGuides\nOverview of HTTP\nEvolution of HTTP\nA typical HTTP session\nHTTP messages\nMedia types\nCommon types\nCompression in HTTP\nHTTP caching\nHTTP authentication\nUsing HTTP cookies\nRedirections in HTTP\nConditional requests\nRange requests\nClient hints\nUser-Agent reduction\nCompression Dictionary Transport\nNetwork Error",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 16239,
+      "byte_start": 15874,
+      "citation_id": "citation-0048-bf1f51e745d0",
+      "claim_id": "claim-0048-7c286ccb9d04",
+      "media_type": "text/html",
+      "quote_digest": "bf1f51e745d0ad1d06f7f813f34f14ddb6d27f249e69fec582a544665756534f",
+      "quote_text": "Logging\nContent negotiation\nDefault Accept values\nBrowser detection using the UA string\nConnection management in HTTP/1.x\nProtocol upgrade mechanism\nProxy servers and tunneling\nProxy Auto-Configuration (PAC) file\nSecurity and privacy\nHTTP Observatory\nPractical implementation guides\nPermissions Policy\nCross-Origin Resource Policy (CORP)\nIFrame credentialless\nFetch",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 21473,
+      "byte_start": 21102,
+      "citation_id": "citation-0049-782171e949c4",
+      "claim_id": "claim-0049-8d75660c6b7c",
+      "media_type": "text/html",
+      "quote_digest": "782171e949c414960f71747afded21e99986c5f889aa92479812d23b0c704c5e",
+      "quote_text": "Upgrade Required\n428 Precondition Required\n429 Too Many Requests\n431 Request Header Fields Too Large\n451 Unavailable For Legal Reasons\n500 Internal Server Error\n501 Not Implemented\n502 Bad Gateway\n503 Service Unavailable\n504 Gateway Timeout\n505 HTTP Version Not Supported\n506 Variant Also Negotiates\n507 Insufficient Storage\n508 Loop Detected\n510 Not Extended\n511 Network",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 340417,
+      "byte_start": 340113,
+      "citation_id": "citation-0050-b11ab664c827",
+      "claim_id": "claim-0050-ef9a39fff358",
+      "media_type": "text/plain",
+      "quote_digest": "b11ab664c827b9bd154210621df1385ab690c0531e5c0d9088513f6f84a80516",
+      "quote_text": "|  *Note:* In HTTP/1.0, the status codes 301 (Moved Permanently)\n      |  and 302 (Found) were originally defined as method-preserving\n      |  ([HTTP/1.0], Section 9.3) to match their implementation at\n      |  CERN; 303 (See Other) was defined for a redirection that\n      |  changed its method to GET.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 484574,
+      "byte_start": 484209,
+      "citation_id": "citation-0051-65d1f60b9fd7",
+      "claim_id": "claim-0051-81a0bf02f830",
+      "media_type": "text/plain",
+      "quote_digest": "65d1f60b9fd76a28799bcf14891756043d05eac4b53045e2cba9074713e1c2b1",
+      "quote_text": "500 Internal Server Error (status code)  *_Section 15.6.1_*\n         501 Not Implemented (status code)  *_Section 15.6.2_*\n         502 Bad Gateway (status code)  *_Section 15.6.3_*\n         503 Service Unavailable (status code)  *_Section 15.6.4_*\n         504 Gateway Timeout (status code)  *_Section 15.6.5_*\n         505 HTTP Version Not Supported (status code)",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:48.298Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-002-4a9550d4b4ae49cf.txt",
+      "byte_end": 2953,
+      "byte_start": 2578,
+      "citation_id": "citation-0052-63318c68cbce",
+      "claim_id": "claim-0052-6f6879102760",
+      "media_type": "text/csv",
+      "quote_digest": "63318c68cbce16f492397d7ee5ca7769b372e0d575912fab30f4799312ea1e9e",
+      "quote_text": "Large,[RFC6585]\r\n432-450,Unassigned,\r\n451,Unavailable For Legal Reasons,[RFC7725]\r\n452-499,Unassigned,\r\n500,Internal Server Error,\"[RFC9110, Section 15.6.1]\"\r\n501,Not Implemented,\"[RFC9110, Section 15.6.2]\"\r\n502,Bad Gateway,\"[RFC9110, Section 15.6.3]\"\r\n503,Service Unavailable,\"[RFC9110, Section 15.6.4]\"\r\n504,Gateway Timeout,\"[RFC9110, Section 15.6.5]\"\r\n505,HTTP Version Not",
+      "source_digest": "4a9550d4b4ae49cf41cf9050cf9b56b0d6082ad1edfc0e2b09b07f251a36d7a4",
+      "source_id": "source-002-4a9550d4b4ae49cf",
+      "status": 200,
+      "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes-1.csv"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 20348,
+      "byte_start": 19972,
+      "citation_id": "citation-0053-63ca195daeeb",
+      "claim_id": "claim-0053-d8537b0da1dc",
+      "media_type": "text/html",
+      "quote_digest": "63ca195daeeb82e6e7bdf6b695833b8122e53235c4d373749eafc664fa192441",
+      "quote_text": "tent-Type-Options\nX-DNS-Prefetch-Control\nX-Forwarded-For\nX-Forwarded-Host\nX-Forwarded-Proto\nX-Frame-Options\nX-Permitted-Cross-Domain-Policies\nX-Powered-By\nX-Robots-Tag\nX-XSS-Protection\nHTTP request methods\nCONNECT\nDELETE\nGET\nHEAD\nOPTIONS\nPATCH\nPOST\nPUT\nTRACE\nHTTP response status codes\n100 Continue\n101 Switching Protocols\n102 Processing\n103 Early Hints\n200 OK\n201 Created\n202",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 190801,
+      "byte_start": 190446,
+      "citation_id": "citation-0054-4800150dbb14",
+      "claim_id": "claim-0054-e72fdec3882f",
+      "media_type": "text/plain",
+      "quote_digest": "4800150dbb14d07cc6e17052a054bff9b75c3aae0e99b6c09115e47fdc4347af",
+      "quote_text": "An origin server indicates response semantics by choosing an\n   appropriate status code depending on the result of processing the\n   POST request; almost all of the status codes defined by this\n   specification could be received in a response to POST (the exceptions\n   being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not\n   Satisfiable)).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 294921,
+      "byte_start": 294564,
+      "citation_id": "citation-0055-1c30b7434d85",
+      "claim_id": "claim-0055-7882b8a4080c",
+      "media_type": "text/plain",
+      "quote_digest": "1c30b7434d85a9862807083c6955842bf4d37db7245060ce5340a30091f005ed",
+      "quote_text": "Although conditional request header fields are defined as being\n   usable with the HEAD method (to keep HEAD's semantics consistent with\n   those of GET), there is no point in sending a conditional HEAD\n   because a successful response is around the same size as a 304 (Not\n   Modified) response and more useful than a 412 (Precondition Failed)\n   response.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 7888,
+      "byte_start": 7767,
+      "citation_id": "citation-0056-c6e67991ad71",
+      "claim_id": "claim-0056-89c2dfcbeef2",
+      "media_type": "text/html",
+      "quote_digest": "c6e67991ad71375e7170d7aa53e8f61a669897d296276b764d12c84bb2a86224",
+      "quote_text": "401 Unauthorized\nAlthough the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\".",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 10585,
+      "byte_start": 10548,
+      "citation_id": "citation-0057-3f16eb83c2d9",
+      "claim_id": "claim-0057-90c420262ae9",
+      "media_type": "text/plain",
+      "quote_digest": "3f16eb83c2d949b619057e099003a37184b6c079e5e695762726c8f0d39ecc75",
+      "quote_text": "505 HTTP Version Not Supported\n   16.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 46034,
+      "byte_start": 45911,
+      "citation_id": "citation-0058-5fc975c90165",
+      "claim_id": "claim-0058-62d477e68e1a",
+      "media_type": "text/plain",
+      "quote_digest": "5fc975c9016556a41606369cac811b3a6212b62a5c57730e3f448dedfc1b27ce",
+      "quote_text": "Uniform Resource Identifiers (URIs) [URI] are used throughout HTTP as\n   the means for identifying resources (Section 3.1).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 54475,
+      "byte_start": 54308,
+      "citation_id": "citation-0059-0856d157a031",
+      "claim_id": "claim-0059-6e3729a6cf61",
+      "media_type": "text/plain",
+      "quote_digest": "0856d157a03120b1d39689e8163923e3dc654b890e409a1601b2755352dc7089",
+      "quote_text": "As a result, distinct resources\n   SHOULD NOT be identified by HTTP URIs that are equivalent after\n   normalization (using any method defined in Section 6.2 of [URI]).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 87429,
+      "byte_start": 87233,
+      "citation_id": "citation-0060-31016b9d0520",
+      "claim_id": "claim-0060-3ab0ba9f8acf",
+      "media_type": "text/plain",
+      "quote_digest": "31016b9d052042f1bfb300c04be1f9452411fa0df17f619fba0ad1cef3e28365",
+      "quote_text": "The\n   semantics of day-name, day, month, year, and time-of-day are the same\n   as those defined for the Internet Message Format constructs with the\n   corresponding name ([RFC5322], Section 3.3).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 134666,
+      "byte_start": 134452,
+      "citation_id": "citation-0061-54f1209163bf",
+      "claim_id": "claim-0061-6662f2dfabdd",
+      "media_type": "text/plain",
+      "quote_digest": "54f1209163bf0b81e0b667c83f7124d200a1050737cbe1ded2542d4e475a903c",
+      "quote_text": "This specification only defines the protocol name \"HTTP\" for use by\n   the family of Hypertext Transfer Protocols, as defined by the HTTP\n   version rules of Section 2.5 and future updates to this\n   specification.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 186319,
+      "byte_start": 185948,
+      "citation_id": "citation-0062-82727f8a783e",
+      "claim_id": "claim-0062-633087a34ce0",
+      "media_type": "text/plain",
+      "quote_digest": "82727f8a783e96ffbe51781d4aa795e8bab467817b27a41d441a3aae023a923a",
+      "quote_text": "Although request message framing is independent of the method used,\n   content received in a GET request has no generally defined semantics,\n   cannot alter the meaning or target of the request, and might lead\n   some implementations to reject the request and close the connection\n   because of its potential as a request smuggling attack (Section 11.2\n   of [HTTP/1.1]).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 189079,
+      "byte_start": 188707,
+      "citation_id": "citation-0063-c1c2e8519c6e",
+      "claim_id": "claim-0063-3f2ad084032e",
+      "media_type": "text/plain",
+      "quote_digest": "c1c2e8519c6e2ed22e9eec663ef9ee2c04a49568ec03a9391c9928c74d928826",
+      "quote_text": "Although request message framing is independent of the method used,\n   content received in a HEAD request has no generally defined\n   semantics, cannot alter the meaning or target of the request, and\n   might lead some implementations to reject the request and close the\n   connection because of its potential as a request smuggling attack\n   (Section 11.2 of [HTTP/1.1]).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 201838,
+      "byte_start": 201464,
+      "citation_id": "citation-0064-7e9c922b1c5f",
+      "claim_id": "claim-0064-1622f4cd4e0f",
+      "media_type": "text/plain",
+      "quote_digest": "7e9c922b1c5f9afc13efc50834bd0da2dbd88bf6ce26ea69c93688c7570b6d05",
+      "quote_text": "Although request message framing is independent of the method used,\n   content received in a DELETE request has no generally defined\n   semantics, cannot alter the meaning or target of the request, and\n   might lead some implementations to reject the request and close the\n   connection because of its potential as a request smuggling attack\n   (Section 11.2 of [HTTP/1.1]).",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-003-7cf2f85728cf04db.txt",
+      "byte_end": 7148,
+      "byte_start": 6924,
+      "citation_id": "citation-0065-8fd974ecae87",
+      "claim_id": "claim-0065-29416b0e0dd2",
+      "media_type": "text/html",
+      "quote_digest": "8fd974ecae87e18379fc74e2fe743afe119bc02f1e14409b369efd402dd29f51",
+      "quote_text": "This has the same semantics as the 302 Found response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the redirected request.",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "acquired_path": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\artifacts\\live-scenario-inputs\\rs-024123bd-ea1ee727\\cross_source_research\\sources\\source-001-21c1cdce6ab0e550.txt",
+      "byte_end": 28242,
+      "byte_start": 28032,
+      "citation_id": "citation-0066-7ae85d871bb9",
+      "claim_id": "claim-0065-29416b0e0dd2",
+      "media_type": "text/plain",
+      "quote_digest": "7ae85d871bb97f35d3c612bfa21f4e740f9dd2da4a0cb643307ed92f51dd6cf9",
+      "quote_text": "While HTTP's core semantics don't change between protocol versions,\n   their expression \"on the wire\" can change, and so the HTTP version\n   number changes when incompatible changes are made to the wire format.",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt"
+    }
+  ],
+  "claims": [
+    {
+      "agreement": "corroborated",
+      "citation_ids": [
+        "citation-0065-8fd974ecae87",
+        "citation-0066-7ae85d871bb9"
+      ],
+      "claim_id": "claim-0065-29416b0e0dd2",
+      "confidence": 0.8,
+      "deterministic": true,
+      "normalized_statement": "independent acquired sources both discuss the input-bound concepts: change http semantics.",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db",
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Independent acquired sources both discuss the input-bound concepts: change, http, semantics.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0001-66089cc2933d"
+      ],
+      "claim_id": "claim-0001-baee2568c9dc",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "http has been the primary information transfer protocol for the world wide web since its introduction in 1990.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP has been the primary information transfer protocol for the World Wide Web since its introduction in 1990.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0002-8fd974ecae87"
+      ],
+      "claim_id": "claim-0002-cc3f8bb82d01",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "this has the same semantics as the 302 found response code with the exception that the user agent must not change the http method used: if a post was used in the first request a post must be used in the redirected request.",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "This has the same semantics as the 302 Found response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the redirected request.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0003-babf4e64525b"
+      ],
+      "claim_id": "claim-0003-9125429248ae",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "supportedrfc9110 section 15.6.6 506variant also negotiatesrfc2295 507insufficient storagerfc4918 508loop detectedrfc5842 509unassigned 510not extended obsoletedrfc2774status change of http experiments to historic 511network authentication requiredrfc6585 512-599unassigned",
+      "source_ids": [
+        "source-002-4a9550d4b4ae49cf"
+      ],
+      "statement": "Supported,\"[RFC9110, Section 15.6.6]\" 506,Variant Also Negotiates,[RFC2295] 507,Insufficient Storage,[RFC4918] 508,Loop Detected,[RFC5842] 509,Unassigned, 510,Not Extended (OBSOLETED),[RFC2774][Status change of HTTP experiments to Historic] 511,Network Authentication Required,[RFC6585] 512-599,Unassigned,",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0004-3c26cb076f6d"
+      ],
+      "claim_id": "claim-0004-5246cdfaee38",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "this has the same semantics as the 301 moved permanently http response code with the exception that the user agent must not change the http method used: if a post was used in the first request a post must be used in the second request.",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "This has the same semantics as the 301 Moved Permanently HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0005-7ae85d871bb9"
+      ],
+      "claim_id": "claim-0005-184dab00f83c",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "while https core semantics dont change between protocol versions their expression on the wire can change and so the http version number changes when incompatible changes are made to the wire format.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "While HTTP's core semantics don't change between protocol versions, their expression \"on the wire\" can change, and so the HTTP version number changes when incompatible changes are made to the wire format.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0006-958286c9ef4f"
+      ],
+      "claim_id": "claim-0006-649587c63d68",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "http provides a uniform interface for interacting with a resource section 3.1 -- regardless of its type nature or implementation -- by sending messages that manipulate or transfer representations section 3.2.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP provides a uniform interface for interacting with a resource (Section 3.1) -- regardless of its type, nature, or implementation -- by sending messages that manipulate or transfer representations (Section 3.2).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0007-498394458cba"
+      ],
+      "claim_id": "claim-0007-07bc402ac3cd",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "webdav dusseault l. ed. http extensions for web distributed authoring and versioning webdav rfc 4918 doi 10.17487/rfc4918 june 2007 https://www.rfc-editor.org/info/rfc4918.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "[WEBDAV] Dusseault, L., Ed., \"HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)\", RFC 4918, DOI 10.17487/RFC4918, June 2007, <https://www.rfc-editor.org/info/rfc4918>.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0008-c5f26504e592"
+      ],
+      "claim_id": "claim-0008-f9a8eab606f1",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "all three major versions of http rely on the semantics defined by this document.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "All three major versions of HTTP rely on the semantics defined by this document.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0009-549a2859e971"
+      ],
+      "claim_id": "claim-0009-ef7b580c85bb",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "http semantics include the intentions defined by each request method section 9 extensions to those semantics that might be described in request header fields status codes that describe the response section 15 and other control data and resource metadata that might be given in response fields.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP semantics include the intentions defined by each request method (Section 9), extensions to those semantics that might be described in request header fields, status codes that describe the response (Section 15), and other control data and resource metadata that might be given in response fields.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0010-e0447fffda01"
+      ],
+      "claim_id": "claim-0010-293bce9ddfed",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "http is defined as a stateless protocol meaning that each request messages semantics can be understood in isolation and that the relationship between connections and messages on them has no impact on the interpretation of those messages.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP is defined as a stateless protocol, meaning that each request message's semantics can be understood in isolation, and that the relationship between connections and messages on them has no impact on the interpretation of those messages.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0011-50d2e65687eb"
+      ],
+      "claim_id": "claim-0011-b06351ee9091",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "an http-to-http proxy is called a transforming proxy if it is designed or configured to modify messages in a semantically meaningful way i.e. modifications beyond those required by normal http processing that change the message in a way that would be significant to the original sender or potentially significant to downstream recipients.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "An HTTP-to-HTTP proxy is called a \"transforming proxy\" if it is designed or configured to modify messages in a semantically meaningful way (i.e., modifications, beyond those required by normal HTTP processing, that change the message in a way that would be significant to the original sender or potentially significant to downstream recipients).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0012-b7faad815c3f"
+      ],
+      "claim_id": "claim-0012-55bc252fbca7",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "additional metadata that reflects resource state has been defined by various extensions of http such as web distributed authoring and versioning webdav that are beyond the scope of this specification.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Additional metadata that reflects resource state has been defined by various extensions of HTTP, such as Web Distributed Authoring and Versioning [WEBDAV], that are beyond the scope of this specification.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0013-0d1757d7b7b7"
+      ],
+      "claim_id": "claim-0013-497a6d1c383f",
+      "confidence": 0.6,
+      "deterministic": true,
+      "normalized_statement": "request methods are considered safe if their defined semantics are essentially read-only i.e. the client does not request and does not expect any state change on the origin server as a result of applying a safe method to a target resource.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Request methods are considered \"safe\" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0014-514affd82eeb"
+      ],
+      "claim_id": "claim-0014-54bcf69976eb",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "because http uses mostly textual character-delimited fields parsers are often vulnerable to attacks based on sending very long or very slow streams of data particularly where an implementation is expecting a protocol element with no predefined length section 2.3.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Because HTTP uses mostly textual, character-delimited fields, parsers are often vulnerable to attacks based on sending very long (or very slow) streams of data, particularly where an implementation is expecting a protocol element with no predefined length (Section 2.3).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0015-24c6429d799a"
+      ],
+      "claim_id": "claim-0015-96a8a3e6fadb",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "an edge-case requirement on if-match and if-unmodified-since has been removed that required a validator not to be sent in a 2xx response if validation fails because the change request has already been applied.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "An edge-case requirement on If-Match and If-Unmodified-Since has been removed that required a validator not to be sent in a 2xx response if validation fails because the change request has already been applied.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0016-eee6257db009"
+      ],
+      "claim_id": "claim-0016-d6e0b59ea5d2",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the hypertext transfer protocol http is a family of stateless application-level request/response protocols that share a generic interface extensible semantics and self-descriptive messages to enable flexible interaction with network-based hypertext information systems.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The Hypertext Transfer Protocol (HTTP) is a family of stateless, application-level, request/response protocols that share a generic interface, extensible semantics, and self-descriptive messages to enable flexible interaction with network-based hypertext information systems.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0017-06d8e2016adf"
+      ],
+      "claim_id": "claim-0017-7d7e5558bd41",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "as the web grew http was extended to enclose requests and responses within messages transfer arbitrary data formats using mime-like media types and route requests through intermediaries.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "As the Web grew, HTTP was extended to enclose requests and responses within messages, transfer arbitrary data formats using MIME-like media types, and route requests through intermediaries.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0018-e85ff38fa836"
+      ],
+      "claim_id": "claim-0018-ba5fe26b6c75",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "this revision of http separates the definition of semantics this document and caching caching from the current http/1.1 messaging syntax http/1.1 to allow each major protocol version to progress independently while referring to the same core semantics.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "This revision of HTTP separates the definition of semantics (this document) and caching ([CACHING]) from the current HTTP/1.1 messaging syntax ([HTTP/1.1]) to allow each major protocol version to progress independently while referring to the same core semantics.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0019-5e32393b6b88"
+      ],
+      "claim_id": "claim-0019-d2b406687db2",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the verb generate is used instead of send where a requirement applies only to implementations that create the protocol element rather than an implementation that forwards a received element downstream.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The verb \"generate\" is used instead of \"send\" where a requirement applies only to implementations that create the protocol element, rather than an implementation that forwards a received element downstream.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0020-23f8cfa5cf54"
+      ],
+      "claim_id": "claim-0020-fdafc289adaf",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "conformance to http includes both conformance to the particular messaging syntax of the protocol version in use and conformance to the semantics of protocol elements sent.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Conformance to HTTP includes both conformance to the particular messaging syntax of the protocol version in use and conformance to the semantics of protocol elements sent.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0021-efcfc99b0f95"
+      ],
+      "claim_id": "claim-0021-03601309855d",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "http was created for the world wide web www architecture and has evolved over time to support the scalability needs of a worldwide hypertext system.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP was created for the World Wide Web (WWW) architecture and has evolved over time to support the scalability needs of a worldwide hypertext system.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0022-17f00b5dbfda"
+      ],
+      "claim_id": "claim-0022-5f2e2de26588",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "one design goal of http is to separate resource identification from request semantics which is made possible by vesting the request semantics in the request method section 9 and a few request- modifying header fields.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "One design goal of HTTP is to separate resource identification from request semantics, which is made possible by vesting the request semantics in the request method (Section 9) and a few request- modifying header fields.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0023-0969a1e1fdf2"
+      ],
+      "claim_id": "claim-0023-b74f21778b46",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "some non-standard http extensions e.g. rfc4559 have been known to violate this requirement resulting in security and interoperability problems.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Some non-standard HTTP extensions (e.g., [RFC4559]) have been known to violate this requirement, resulting in security and interoperability problems.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0024-962ba953de9e"
+      ],
+      "claim_id": "claim-0024-79bf7e0bb8f6",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the interpretation of a field does not change between minor versions of the same major http version though the default behavior of a recipient in the absence of such a field can change.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The interpretation of a field does not change between minor versions of the same major HTTP version, though the default behavior of a recipient in the absence of such a field can change.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0025-c05c0cba12fb"
+      ],
+      "claim_id": "claim-0025-3d9865f33757",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "when a specific version of http allows such whitespace to appear in a message a field parsing implementation must exclude such whitespace prior to evaluating the field value.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0026-e41ca2634287"
+      ],
+      "claim_id": "claim-0026-e2e327ba181d",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "every http message has a protocol version.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Every HTTP message has a protocol version.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0027-e859c636ca8f"
+      ],
+      "claim_id": "claim-0027-ae5d559f09df",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "although http is used in a wide variety of applications most clients rely on the same resource identification mechanism and configuration techniques as general-purpose web browsers.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Although HTTP is used in a wide variety of applications, most clients rely on the same resource identification mechanism and configuration techniques as general-purpose Web browsers.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0028-89fc3058e695"
+      ],
+      "claim_id": "claim-0028-88c9abd31c2a",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "this allows a connection to be upgraded to protocols with the same semantics as http without the latency cost of an additional round trip.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "This allows a connection to be upgraded to protocols with the same semantics as HTTP without the latency cost of an additional round trip.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0029-e00474cfdff4"
+      ],
+      "claim_id": "claim-0029-b11abc0dd571",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the representation data associated with an http message is either provided as the content of the message or referred to by the message semantics and the target uri.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The representation data associated with an HTTP message is either provided as the content of the message or referred to by the message semantics and the target URI.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0030-20737241ca34"
+      ],
+      "claim_id": "claim-0030-98dd848c6a98",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "in contrast a weak validator is representation metadata that might not change for every change to the representation data.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "In contrast, a \"weak validator\" is representation metadata that might not change for every change to the representation data.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0031-60563ad6b5c9"
+      ],
+      "claim_id": "claim-0031-2528530ec0a3",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "for example the representation of a weather report that changes in content every second based on dynamic measurements might be grouped into sets of equivalent representations from the origin servers perspective with the same weak validator in order to allow cached representations to be valid for a reasonable period of time perhaps adjusted dynamically based",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "For example, the representation of a weather report that changes in content every second, based on dynamic measurements, might be grouped into sets of equivalent representations (from the origin server's perspective) with the same weak validator in order to allow cached representations to be valid for a reasonable period of time (perhaps adjusted dynamically based",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0032-92361944fd76"
+      ],
+      "claim_id": "claim-0032-7f6a54ee4ba8",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "weak validators are only usable when the client does not require exact equality with previously obtained representation data such as when validating a cache entry or limiting a web traversal to recent changes.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Weak validators are only usable when the client does not require exact equality with previously obtained representation data, such as when validating a cache entry or limiting a web traversal to recent changes.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0033-fc72757839aa"
+      ],
+      "claim_id": "claim-0033-9d89d3a373de",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the request method token is the primary source of request semantics it indicates the purpose for which the client has made this request and what is expected by the client as a successful result.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The request method token is the primary source of request semantics; it indicates the purpose for which the client has made this request and what is expected by the client as a successful result.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0034-ee80dc93b735"
+      ],
+      "claim_id": "claim-0034-f2d2565971de",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "http does not define exactly how a put method affects the state of an origin server beyond what can be expressed by the intent of the user agent request and the semantics of the origin server response.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "HTTP does not define exactly how a PUT method affects the state of an origin server beyond what can be expressed by the intent of the user agent request and the semantics of the origin server response.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0035-83a37534572d"
+      ],
+      "claim_id": "claim-0035-dc7e0839149c",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "because connect changes the request/response nature of an http connection specific http versions might have different ways of mapping its semantics into the protocols wire format.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Because CONNECT changes the request/response nature of an HTTP connection, specific HTTP versions might have different ways of mapping its semantics into the protocol's wire format.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0036-929c5fbc2710"
+      ],
+      "claim_id": "claim-0036-81bccebe1d3d",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "change the request method according to the redirecting status codes semantics if applicable.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Change the request method according to the redirecting status code's semantics, if applicable.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0037-5f8d7eea2abc"
+      ],
+      "claim_id": "claim-0037-a9858c9932db",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "because the semantics of http are not versioned these extension points are persistent the version of the protocol in use does not affect their semantics.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Because the semantics of HTTP are not versioned, these extension points are persistent; the version of the protocol in use does not affect their semantics.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0038-fa8d634f18fc"
+      ],
+      "claim_id": "claim-0038-b04e6df85b76",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "since message parsing section 6 needs to be independent of method semantics aside from responses to head definitions of new methods cannot change the parsing algorithm or prohibit the presence of content on either the request or the response message.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Since message parsing (Section 6) needs to be independent of method semantics (aside from responses to HEAD), definitions of new methods cannot change the parsing algorithm or prohibit the presence of content on either the request or the response message.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0039-49b7da99931f"
+      ],
+      "claim_id": "claim-0039-1cbfe96133b6",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "a major task in the definition of a new http field is the specification of the field value syntax: what senders should generate and how recipients should infer semantics from what is received.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "A major task in the definition of a new HTTP field is the specification of the field value syntax: what senders should generate, and how recipients should infer semantics from what is received.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0040-904eb8a1b7b5"
+      ],
+      "claim_id": "claim-0040-9e2fe3fc9eac",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "this section is meant to inform developers information providers and users of known security concerns relevant to http semantics and its use for transferring information over the internet.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "This section is meant to inform developers, information providers, and users of known security concerns relevant to HTTP semantics and its use for transferring information over the Internet.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0041-c54eeeaa1fa2"
+      ],
+      "claim_id": "claim-0041-d4dd456cc236",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "most security concerns related to http semantics are about securing server-side applications code behind the http interface securing user agent processing of content received via http or secure use of the internet in general rather than security of the protocol.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Most security concerns related to HTTP semantics are about securing server-side applications (code behind the HTTP interface), securing user agent processing of content received via HTTP, or secure use of the Internet in general, rather than security of the protocol.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0042-231ab5fb263a"
+      ],
+      "claim_id": "claim-0042-5b1d624e3736",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the field name is reserved because using that name as an http header field might conflict with its special semantics in the vary header field section 12.5.5.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The field name \"*\" is reserved because using that name as an HTTP header field might conflict with its special semantics in the Vary header field (Section 12.5.5).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0043-e6c9cfb45961"
+      ],
+      "claim_id": "claim-0043-30ebc39436e7",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "an abstract data type for http messages has been introduced to define the components of a message and their semantics as an abstraction across multiple http versions rather than in terms of the specific syntax form of http/1.1 in http/1.1 and reflect the contents after the message is parsed.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "An abstract data type for HTTP messages has been introduced to define the components of a message and their semantics as an abstraction across multiple HTTP versions, rather than in terms of the specific syntax form of HTTP/1.1 in [HTTP/1.1], and reflect the contents after the message is parsed.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0044-21d89ccac51a"
+      ],
+      "claim_id": "claim-0044-2376d0dbdbc1",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the normative requirement to use the message/http media type in trace responses has been removed.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0045-c6622c8c94b9"
+      ],
+      "claim_id": "claim-0045-04d551b77d5f",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "apis web apis: programming interfaces web api reference file system api fetch api geolocation api html dom api push api service worker api see all web api guides using the web animation api using the fetch api working with the history api using the web speech api using web workers all all web technology technologies accessibility http uri web extensions webassembly webdriver see",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "APIs Web APIs: Programming interfaces Web API reference File system API Fetch API Geolocation API HTML DOM API Push API Service worker API See all… Web API guides Using the Web animation API Using the Fetch API Working with the History API Using the Web speech API Using web workers All All web technology Technologies Accessibility HTTP URI Web extensions WebAssembly WebDriver See",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0046-fc8b608f81a4"
+      ],
+      "claim_id": "claim-0046-7182acbe045d",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "module tools discover our tools playground http observatory border-image generator border-radius generator box-shadow generator color format converter color mixer shape generator about get to know mdn better about mdn advertise with us community mdn on github blog web http reference http response status codes http response status codes http response status codes indicate whether",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "module Tools Discover our tools Playground HTTP Observatory Border-image generator Border-radius generator Box-shadow generator Color format converter Color mixer Shape generator About Get to know MDN better About MDN Advertise with us Community MDN on GitHub Blog Web HTTP Reference HTTP response status codes HTTP response status codes HTTP response status codes indicate whether",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0047-930efeb12f96"
+      ],
+      "claim_id": "claim-0047-0a0939fd3b98",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "view this page on github report a problem with this content http guides overview of http evolution of http a typical http session http messages media types common types compression in http http caching http authentication using http cookies redirections in http conditional requests range requests client hints user-agent reduction compression dictionary transport network error",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "View this page on GitHub • Report a problem with this content HTTP Guides Overview of HTTP Evolution of HTTP A typical HTTP session HTTP messages Media types Common types Compression in HTTP HTTP caching HTTP authentication Using HTTP cookies Redirections in HTTP Conditional requests Range requests Client hints User-Agent reduction Compression Dictionary Transport Network Error",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0048-bf1f51e745d0"
+      ],
+      "claim_id": "claim-0048-7c286ccb9d04",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "logging content negotiation default accept values browser detection using the ua string connection management in http/1.x protocol upgrade mechanism proxy servers and tunneling proxy auto-configuration pac file security and privacy http observatory practical implementation guides permissions policy cross-origin resource policy corp iframe credentialless fetch",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "Logging Content negotiation Default Accept values Browser detection using the UA string Connection management in HTTP/1.x Protocol upgrade mechanism Proxy servers and tunneling Proxy Auto-Configuration (PAC) file Security and privacy HTTP Observatory Practical implementation guides Permissions Policy Cross-Origin Resource Policy (CORP) IFrame credentialless Fetch",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0049-782171e949c4"
+      ],
+      "claim_id": "claim-0049-8d75660c6b7c",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "upgrade required 428 precondition required 429 too many requests 431 request header fields too large 451 unavailable for legal reasons 500 internal server error 501 not implemented 502 bad gateway 503 service unavailable 504 gateway timeout 505 http version not supported 506 variant also negotiates 507 insufficient storage 508 loop detected 510 not extended 511 network",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "Upgrade Required 428 Precondition Required 429 Too Many Requests 431 Request Header Fields Too Large 451 Unavailable For Legal Reasons 500 Internal Server Error 501 Not Implemented 502 Bad Gateway 503 Service Unavailable 504 Gateway Timeout 505 HTTP Version Not Supported 506 Variant Also Negotiates 507 Insufficient Storage 508 Loop Detected 510 Not Extended 511 Network",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0050-b11ab664c827"
+      ],
+      "claim_id": "claim-0050-ef9a39fff358",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "note: in http/1.0 the status codes 301 moved permanently and 302 found were originally defined as method-preserving http/1.0 section 9.3 to match their implementation at cern 303 see other was defined for a redirection that changed its method to get.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "| *Note:* In HTTP/1.0, the status codes 301 (Moved Permanently) | and 302 (Found) were originally defined as method-preserving | ([HTTP/1.0], Section 9.3) to match their implementation at | CERN; 303 (See Other) was defined for a redirection that | changed its method to GET.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0051-65d1f60b9fd7"
+      ],
+      "claim_id": "claim-0051-81a0bf02f830",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "500 internal server error status code _section 15.6.1_ 501 not implemented status code _section 15.6.2_ 502 bad gateway status code _section 15.6.3_ 503 service unavailable status code _section 15.6.4_ 504 gateway timeout status code _section 15.6.5_ 505 http version not supported status code",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "500 Internal Server Error (status code) *_Section 15.6.1_* 501 Not Implemented (status code) *_Section 15.6.2_* 502 Bad Gateway (status code) *_Section 15.6.3_* 503 Service Unavailable (status code) *_Section 15.6.4_* 504 Gateway Timeout (status code) *_Section 15.6.5_* 505 HTTP Version Not Supported (status code)",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0052-63318c68cbce"
+      ],
+      "claim_id": "claim-0052-6f6879102760",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "largerfc6585 432-450unassigned 451unavailable for legal reasonsrfc7725 452-499unassigned 500internal server errorrfc9110 section 15.6.1 501not implementedrfc9110 section 15.6.2 502bad gatewayrfc9110 section 15.6.3 503service unavailablerfc9110 section 15.6.4 504gateway timeoutrfc9110 section 15.6.5 505http version not",
+      "source_ids": [
+        "source-002-4a9550d4b4ae49cf"
+      ],
+      "statement": "Large,[RFC6585] 432-450,Unassigned, 451,Unavailable For Legal Reasons,[RFC7725] 452-499,Unassigned, 500,Internal Server Error,\"[RFC9110, Section 15.6.1]\" 501,Not Implemented,\"[RFC9110, Section 15.6.2]\" 502,Bad Gateway,\"[RFC9110, Section 15.6.3]\" 503,Service Unavailable,\"[RFC9110, Section 15.6.4]\" 504,Gateway Timeout,\"[RFC9110, Section 15.6.5]\" 505,HTTP Version Not",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0053-63ca195daeeb"
+      ],
+      "claim_id": "claim-0053-d8537b0da1dc",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "tent-type-options x-dns-prefetch-control x-forwarded-for x-forwarded-host x-forwarded-proto x-frame-options x-permitted-cross-domain-policies x-powered-by x-robots-tag x-xss-protection http request methods connect delete get head options patch post put trace http response status codes 100 continue 101 switching protocols 102 processing 103 early hints 200 ok 201 created 202",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "tent-Type-Options X-DNS-Prefetch-Control X-Forwarded-For X-Forwarded-Host X-Forwarded-Proto X-Frame-Options X-Permitted-Cross-Domain-Policies X-Powered-By X-Robots-Tag X-XSS-Protection HTTP request methods CONNECT DELETE GET HEAD OPTIONS PATCH POST PUT TRACE HTTP response status codes 100 Continue 101 Switching Protocols 102 Processing 103 Early Hints 200 OK 201 Created 202",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0054-4800150dbb14"
+      ],
+      "claim_id": "claim-0054-e72fdec3882f",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "an origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the post request almost all of the status codes defined by this specification could be received in a response to post the exceptions being 206 partial content 304 not modified and 416 range not satisfiable.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0055-1c30b7434d85"
+      ],
+      "claim_id": "claim-0055-7882b8a4080c",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "although conditional request header fields are defined as being usable with the head method to keep heads semantics consistent with those of get there is no point in sending a conditional head because a successful response is around the same size as a 304 not modified response and more useful than a 412 precondition failed response.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Although conditional request header fields are defined as being usable with the HEAD method (to keep HEAD's semantics consistent with those of GET), there is no point in sending a conditional HEAD because a successful response is around the same size as a 304 (Not Modified) response and more useful than a 412 (Precondition Failed) response.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0056-c6e67991ad71"
+      ],
+      "claim_id": "claim-0056-89c2dfcbeef2",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "401 unauthorized although the http standard specifies unauthorized semantically this response means unauthenticated.",
+      "source_ids": [
+        "source-003-7cf2f85728cf04db"
+      ],
+      "statement": "401 Unauthorized Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\".",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0057-3f16eb83c2d9"
+      ],
+      "claim_id": "claim-0057-90c420262ae9",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "505 http version not supported 16.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "505 HTTP Version Not Supported 16.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0058-5fc975c90165"
+      ],
+      "claim_id": "claim-0058-62d477e68e1a",
+      "confidence": 0.5,
+      "deterministic": true,
+      "normalized_statement": "uniform resource identifiers uris uri are used throughout http as the means for identifying resources section 3.1.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Uniform Resource Identifiers (URIs) [URI] are used throughout HTTP as the means for identifying resources (Section 3.1).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0059-0856d157a031"
+      ],
+      "claim_id": "claim-0059-6e3729a6cf61",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "as a result distinct resources should not be identified by http uris that are equivalent after normalization using any method defined in section 6.2 of uri.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "As a result, distinct resources SHOULD NOT be identified by HTTP URIs that are equivalent after normalization (using any method defined in Section 6.2 of [URI]).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0060-31016b9d0520"
+      ],
+      "claim_id": "claim-0060-3ab0ba9f8acf",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "the semantics of day-name day month year and time-of-day are the same as those defined for the internet message format constructs with the corresponding name rfc5322 section 3.3.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0061-54f1209163bf"
+      ],
+      "claim_id": "claim-0061-6662f2dfabdd",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "this specification only defines the protocol name http for use by the family of hypertext transfer protocols as defined by the http version rules of section 2.5 and future updates to this specification.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "This specification only defines the protocol name \"HTTP\" for use by the family of Hypertext Transfer Protocols, as defined by the HTTP version rules of Section 2.5 and future updates to this specification.",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0062-82727f8a783e"
+      ],
+      "claim_id": "claim-0062-633087a34ce0",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "although request message framing is independent of the method used content received in a get request has no generally defined semantics cannot alter the meaning or target of the request and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack section 11.2 of http/1.1.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack (Section 11.2 of [HTTP/1.1]).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0063-c1c2e8519c6e"
+      ],
+      "claim_id": "claim-0063-3f2ad084032e",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "although request message framing is independent of the method used content received in a head request has no generally defined semantics cannot alter the meaning or target of the request and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack section 11.2 of http/1.1.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Although request message framing is independent of the method used, content received in a HEAD request has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack (Section 11.2 of [HTTP/1.1]).",
+      "uncertainty": ""
+    },
+    {
+      "agreement": "single_source",
+      "citation_ids": [
+        "citation-0064-7e9c922b1c5f"
+      ],
+      "claim_id": "claim-0064-1622f4cd4e0f",
+      "confidence": 0.55,
+      "deterministic": true,
+      "normalized_statement": "although request message framing is independent of the method used content received in a delete request has no generally defined semantics cannot alter the meaning or target of the request and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack section 11.2 of http/1.1.",
+      "source_ids": [
+        "source-001-21c1cdce6ab0e550"
+      ],
+      "statement": "Although request message framing is independent of the method used, content received in a DELETE request has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack (Section 11.2 of [HTTP/1.1]).",
+      "uncertainty": ""
+    }
+  ],
+  "findings": {
+    "citation_count": 66,
+    "claim_count": 65,
+    "corroborated_count": 1,
+    "top_claim_ids": [
+      "claim-0065-29416b0e0dd2",
+      "claim-0001-baee2568c9dc",
+      "claim-0002-cc3f8bb82d01",
+      "claim-0003-9125429248ae",
+      "claim-0004-5246cdfaee38",
+      "claim-0005-184dab00f83c",
+      "claim-0006-649587c63d68",
+      "claim-0007-07bc402ac3cd",
+      "claim-0008-f9a8eab606f1",
+      "claim-0009-ef7b580c85bb",
+      "claim-0010-293bce9ddfed",
+      "claim-0011-b06351ee9091"
+    ]
+  },
+  "human_intervention_count": 0,
+  "input_digest": "d31fa734247edb25c8a53aeaff13c38008e36d07133d0967acfd4cc6fb12a61a",
+  "limitations": [
+    "Lexical agreement does not by itself prove semantic equivalence.",
+    "Source freshness is bound to acquisition timestamps, not guaranteed indefinitely.",
+    "Model review, when present, is advisory and not part of deterministic acceptance."
+  ],
+  "method": {
+    "authority_count": 3,
+    "cache": false,
+    "checksum": "sha256",
+    "citation_binding": "source digest plus exact byte offsets",
+    "claim_method": "deterministic lexical relevance and corroboration",
+    "fixture": false,
+    "live_acquisition": true,
+    "model_review_isolated": true,
+    "source_count": 3
+  },
+  "plan_digest": "d77e819a29793c7c70bc138d740f8a5fb6d4c411329f70a63829b85441c9c1d0",
+  "plan_id": "research-plan:d31fa734247edb25c8a5:60202",
+  "question": "Using live primary web sources, produce a checksum-bound technical intelligence report that explains HTTP semantics and status-code governance, distinguishes normative claims from implementation guidance, surfaces contradictions and uncertainty after the frozen requirement change, and binds every material claim to exact acquired bytes.",
+  "requirements": [
+    "Every material claim must resolve to exact acquired source bytes.",
+    "At least one claim must be corroborated across independent authorities.",
+    "Normative protocol facts, registry facts, and implementation guidance must remain separately attributed.",
+    "Source checksums, request identities, acquisition times, uncertainty, and contradictions must be retained."
+  ],
+  "route": {
+    "acquired_at": "2026-08-05T14:25:31.253Z",
+    "attempt_number": 2,
+    "backend_id": "local-sandbox-gateway",
+    "fence_epoch": 1,
+    "fence_token_digest": "00b109dc0967236593321a666c339e917e339b114ebf6a14366b6dbf00879a06",
+    "lease_id": "lease_73c380f3d84f4b57bff57272e12403f6",
+    "leased_capabilities": [
+      "agent_task",
+      "artifact_return"
+    ],
+    "location": "device",
+    "maximum_cost_usd": 0.5,
+    "maximum_latency_ms": 300000,
+    "owner": "WorkerPoolFoundationRuntime",
+    "phase2_policy_binding": {
+      "attempt_id": "attempt_7150b6ba0ccc40479c5f4897a6171970",
+      "consumed_by": "dual-domain-route-and-domain-runtime",
+      "decision_id": null,
+      "lease_id": "lease_af1c090890104806b1229a0da629251b",
+      "operator_ref": "worker:local-code-worker@1",
+      "physical_receipt_digest": "44857782bcb83f436cf458986f5846448dad1a97e4d59abe1cfb7e78c2970fc1",
+      "policy_profile": "phase2_strongest_v1",
+      "receipt_digest": "d5297b19af0724816e965413a38acfdb188a7ec70c297ca1064c8e96aa03db8f",
+      "resource_decision_id": "resdec_8a64260ec6c2"
+    },
+    "privacy_class": "public",
+    "provider_id": "zyra-provider-control",
+    "reason": "initial-placement",
+    "receipt_id": "attempt_81d1cf06f7c2401d87cc417468fb296d",
+    "requested_capabilities": [
+      "agent_task",
+      "artifact_return",
+      "sealed_execution",
+      "network_read",
+      "citation_verification"
+    ],
+    "route_id": "worker-pool-route:attempt_81d1cf06f7c2401d87cc417468fb296d:local-sandbox-gateway",
+    "schema": "zyra.live-scheduler-route/v1",
+    "simulated": false,
+    "tier": "device",
+    "worker_id": "live-scenario-worker-1"
+  },
+  "schema": "zyra.cross-source-research-report/v1",
+  "source_manifest": [
+    {
+      "acquired_at": "2026-08-05T14:25:46.061Z",
+      "authority": "www.rfc-editor.org",
+      "elapsed_ms": 2232,
+      "request_id": "research-request-ed2b7514454841d1b49af8ed3bfce042",
+      "source_digest": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a",
+      "source_id": "source-001-21c1cdce6ab0e550",
+      "status": 200,
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+      "wire_digest": "c9da8b47e249c51939ea56707a19ae431ae1e331a1870ec3bfb3c6eca721b467"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:48.298Z",
+      "authority": "www.iana.org",
+      "elapsed_ms": 1833,
+      "request_id": "research-request-b9d37a63193a437b980b102aaab5faa5",
+      "source_digest": "4a9550d4b4ae49cf41cf9050cf9b56b0d6082ad1edfc0e2b09b07f251a36d7a4",
+      "source_id": "source-002-4a9550d4b4ae49cf",
+      "status": 200,
+      "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes-1.csv",
+      "wire_digest": "4a9550d4b4ae49cf41cf9050cf9b56b0d6082ad1edfc0e2b09b07f251a36d7a4"
+    },
+    {
+      "acquired_at": "2026-08-05T14:25:50.133Z",
+      "authority": "developer.mozilla.org",
+      "elapsed_ms": 912,
+      "request_id": "research-request-5c79e0ed1ee74ff7850a2c3d929b4cbf",
+      "source_digest": "7cf2f85728cf04db5789af86f2badaf2b93d7317c0be6bf96ffbbaed70325c71",
+      "source_id": "source-003-7cf2f85728cf04db",
+      "status": 200,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+      "wire_digest": "59af7b12ed1bc49dddbb76a26bc4d7c3861cc7edab648e6f2d20f07bb654ce5d"
+    }
+  ],
+  "uncertainty": []
+}

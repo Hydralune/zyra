@@ -1,0 +1,146 @@
+{
+  "captured_at": "2026-08-05T14:25:13.402Z",
+  "runtime": {
+    "cpu_count": 32,
+    "environment_flags": {
+      "CI": false,
+      "ZYRA_DISABLE_RECOVERY_RUNTIME": false,
+      "ZYRA_MEMORY_RETRIEVAL_DISABLED": false,
+      "ZYRA_SCENARIO_DOMAIN_VERIFIER_DISABLED": false,
+      "ZYRA_SCENARIO_LIVE_SOURCE_DISABLED": false,
+      "ZYRA_TARGETED_COMMUNICATION_DISABLED": false,
+      "ZYRA_WORKER_POOL_INTEGRATION_DISABLED": false
+    },
+    "hostname": "AdamLi",
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "process_id": 23444,
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python_executable": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+    "python_implementation": "CPython",
+    "python_version": "3.13.9",
+    "timezone": "中国标准时间"
+  },
+  "scenario": {
+    "fault_schedule": {
+      "injections": [
+        {
+          "after_effective_step": 240,
+          "injection_id": "software-requirement-change",
+          "kind": "requirement_change",
+          "payload": {
+            "requirement": "Retain an input-bound failure-path test and causal receipt."
+          },
+          "stage": "patch",
+          "target": "software-plan"
+        },
+        {
+          "after_effective_step": 480,
+          "injection_id": "software-tool-timeout",
+          "kind": "tool_timeout",
+          "payload": {
+            "deadline_ms": 10,
+            "retry_deadline_ms": 120000
+          },
+          "stage": "test",
+          "target": "terminal-test"
+        },
+        {
+          "after_effective_step": 720,
+          "injection_id": "software-worker-loss",
+          "kind": "worker_unavailable",
+          "payload": {
+            "successor_required": true
+          },
+          "stage": "test",
+          "target": "software-worker-primary"
+        },
+        {
+          "after_effective_step": 900,
+          "injection_id": "software-provider-failure",
+          "kind": "provider_failure",
+          "payload": {
+            "failover_required": true
+          },
+          "stage": "verification",
+          "target": "provider-primary"
+        },
+        {
+          "after_effective_step": 1020,
+          "injection_id": "software-edge-network-loss",
+          "kind": "edge_network_loss",
+          "payload": {
+            "migrate_to": "device"
+          },
+          "stage": "delivery",
+          "target": "edge-primary"
+        }
+      ],
+      "schedule_digest": "c690c8fc8baceb3ef377762953d41843f128698c45b77deedbe55f1fa7c1e69b",
+      "schema": "zyra.live-fault-schedule/v1"
+    },
+    "profile": {
+      "backend_id": "zyra-worker-pool",
+      "maximum_effective_steps": 10000,
+      "maximum_wall_time_ms": 3600000,
+      "metadata": {
+        "authenticated_provider_cli_allowed": false,
+        "browser_close_independent": true,
+        "dispatch_claim": "canonical-worker-pool-routes",
+        "edge_cloud_claim": true,
+        "failure_schedule_digest": "23f985b8a57833838ed15a9c3e4780f180cd18985c00ae051ca34632924542d5",
+        "formal": true,
+        "hardware_profile_digest": "d26f460fd96508530205a236c005432973420357f646ba6e2cfa04e024cec7fd",
+        "maximum_cost_usd": 0.5,
+        "maximum_effective_transitions": 10000,
+        "maximum_latency_ms": 300000,
+        "minimum_effective_transitions": 2000,
+        "minimum_provider_capabilities": 2,
+        "phase2_profile": "phase2_strongest_v1",
+        "privacy_class": "internal",
+        "provider_model_claim": true,
+        "provider_profile_digest": "244aa995d0bdbef30a10f5de680f8aabfd4b63cfb43b8fbebefe82450d373cfc",
+        "require_real_providers": true,
+        "require_real_tiers": true,
+        "sealed_autonomous": true,
+        "sealed_manifest_digest": "024123bda05ec587595032139205370c6d2d9af0eea9ecb9902ff398137c87bb",
+        "slice": "P2-S06-02"
+      },
+      "model_id": "multi-capability",
+      "profile_id": "live.heterogeneous-sealed",
+      "provider_id": "zyra-provider-control",
+      "worker_classes": [
+        "Router",
+        "Researcher",
+        "Executor",
+        "Verifier",
+        "Memory",
+        "Recovery"
+      ]
+    },
+    "runtime": {
+      "cpu_count": 32,
+      "environment_flags": {
+        "CI": false,
+        "ZYRA_DISABLE_RECOVERY_RUNTIME": false,
+        "ZYRA_MEMORY_RETRIEVAL_DISABLED": false,
+        "ZYRA_SCENARIO_DOMAIN_VERIFIER_DISABLED": false,
+        "ZYRA_SCENARIO_LIVE_SOURCE_DISABLED": false,
+        "ZYRA_TARGETED_COMMUNICATION_DISABLED": false,
+        "ZYRA_WORKER_POOL_INTEGRATION_DISABLED": false
+      },
+      "hostname": "AdamLi",
+      "machine": "AMD64",
+      "platform": "Windows-11-10.0.22631-SP0",
+      "process_id": 23444,
+      "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+      "python_executable": "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "python_implementation": "CPython",
+      "python_version": "3.13.9",
+      "timezone": "中国标准时间"
+    },
+    "scenario_id": "live.software-delivery"
+  },
+  "schema": "zyra.live-environment/v1",
+  "source_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f"
+}

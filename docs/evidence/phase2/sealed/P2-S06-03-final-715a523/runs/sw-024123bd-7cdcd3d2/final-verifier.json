@@ -1,0 +1,20 @@
+{
+  "artifact_digest": "a5515a82682af8fd760f9befafc764db029205302c901e54c983f87dd1af6ddc",
+  "canonical_owner_snapshot_digest": "f02a1167dbb68da4935479fe8b5d9e246ec5bb29519068ebc2724de0bb64864c",
+  "domain": "software_delivery",
+  "domain_verification_receipt_digest": "d836c3ecb5cdb90c486eefc63c1d0585ce1fb5c7f8a9164edc99e611c9d54944",
+  "hard_gate_bundle_digest": "34d07f965d243c8f6f428c216056747cf6820f8b1dfd2e54954e5421e9aef4ed",
+  "human_intervention_count": 0,
+  "inline_policy_receipt_digest": "378540559413b71cc3aedfba22fdf284ffc8a9f4a5b165866f67ce5ef0efce64",
+  "mechanism_bundle_digest": "f3fb95ba582e7f493eb74691d47d7ecbf79cf2ee1c7e799914cf107d449edc58",
+  "passed": true,
+  "physical_dispatch_bundle_digest": "83694ba83343b5c0580a774565821b66ffa512c5c6e3c34741c1aff2821728fa",
+  "raw_events_digest": "e6924225a02922fa9515f28ba65d6ec0fa4d3f66c9801240d7ce9bd38c6d62c0",
+  "run_id": "run_38754c24e774",
+  "schema": "zyra.phase2-sealed-final-verifier/v1",
+  "task_id": "task_ec3b55d73f22",
+  "transition_index_digest": "80fc5c5a170032b924d2967e575f57bde808a878bd5f58b1a451f91af40ceec2",
+  "verified_at": "2026-08-05T14:25:14.815Z",
+  "verifier_digest": "741a0a605635a8ee6e87003f323589f14c7a0de73f451978a662e9b8cde37485",
+  "verifier_id": "software-verifier:software-plan:985b64363bbc20b212ec:60201"
+}

@@ -1,0 +1,61 @@
+{
+  "common_runtime_root": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\workspace\\.zyra\\loopx\\runtime",
+  "goals": [
+    {
+      "adapter": {
+        "kind": "zyra_loopx_state_bridge",
+        "mapping_version": "zyra.loopx-state-mapping/v1",
+        "status": "quota_exhausted"
+      },
+      "continuation_allowed": false,
+      "domain": "zyra-long-horizon",
+      "id": "goal_sealed_task_e4a3b19e37f5",
+      "interaction_contract": {
+        "agent_channel": {
+          "delivery_allowed": false,
+          "must_attempt": false,
+          "primary_action": "do not run delivery work for this goal in this turn",
+          "quiet_noop_allowed": true,
+          "resolution_trace": {
+            "summary": "source=mode:quota_throttled drift=false"
+          }
+        },
+        "cli_channel": {
+          "next_cli_actions": [
+            "no quota spend without validated transition/blocker writeback"
+          ],
+          "spend_after_validation": false,
+          "spend_allowed_now": false,
+          "spend_policy": "no spend without validated transition"
+        },
+        "mode": "quota_throttled",
+        "schema_version": "loopx_interaction_contract_v0",
+        "user_channel": {
+          "action_required": false,
+          "notify": "DONT_NOTIFY"
+        }
+      },
+      "objective_ref": "zyra://run/run_346a06159336/task/task_e4a3b19e37f5/objective",
+      "quota": {
+        "compute": 1,
+        "spent_slots": 1,
+        "window_hours": 24.0
+      },
+      "repo": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\workspace",
+      "requirement_revision": "r1",
+      "role": "controller",
+      "state_event_log": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\workspace\\.zyra\\loopx\\state\\private\\goals\\goal_sealed_task_e4a3b19e37f5\\events.jsonl",
+      "state_file": "G:\\agent-zoo\\zyra\\docs\\evidence\\phase2\\sealed\\P2-S06-03-final-715a523\\runs\\rs-024123bd-ea1ee727\\s\\workspace\\.zyra\\loopx\\state\\private\\goals\\goal_sealed_task_e4a3b19e37f5\\ACTIVE_GOAL_STATE.md",
+      "status": "quota_exhausted",
+      "zyra_owner_boundary": {
+        "execution_budget": "ResourceScheduler",
+        "permission": "ToolPermissionRuntime",
+        "task": "Zyra orchestration/runtime",
+        "worker_lease": "WorkerLeaseManager"
+      }
+    }
+  ],
+  "registry_role": "project-local-private",
+  "schema_version": "0.1",
+  "workspace_id": "workspace:2c6fe53660468e908b551c9f"
+}

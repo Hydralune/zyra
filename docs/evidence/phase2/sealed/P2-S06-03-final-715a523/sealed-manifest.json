@@ -1,0 +1,287 @@
+{
+  "base_commit": "3d766628caee0fcff9bffb5789b27a756d037593",
+  "candidate_commit": "715a523cf99bae74bd38e08c9f50eaa3bfb4290f",
+  "credential_env_file": ".env.glm.local",
+  "credential_env_files": [
+    ".env.glm.local",
+    ".env.deepseek.local",
+    ".env.kimi.local"
+  ],
+  "evidence_root": "docs/evidence/phase2/sealed/P2-S06-03-final-715a523",
+  "frozen_files": {
+    "apps/api/zyra_api/live_scenario_owners.py": "8b3120e6ea2a8573e0e8fa24abcd44792c596f2f9d709d0c5e8b2f34a767dbf1",
+    "apps/api/zyra_api/main.py": "7719f07331e3965325770ecc729941139edeb0feac5bee8dcce7a78e71902549",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/long_run_validator.py": "69e93de8f9ae4f46d3e2a8d864bcf2ba9ce7e30010f8c367c2e01281045b79d6",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_long_run.py": "3658b9e3c7b753bb748653013b7f2c5debec783c6bae25d591b0454d11ef9518",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_mechanisms.py": "462ee6a67c2100d0c58d655a0dacf2315b49c579943e9ab2c60a35e1d9a8860d",
+    "packages/evaluation/zyra_evaluation/policy_benchmark/sealed_physical.py": "1520d197a88c6388f6f80848daf08dc906dc50ab62c464465de91c90a8e90660",
+    "packages/evaluation/zyra_evaluation/scenario_runner/dual_domain.py": "81ef33a36de2f286194d94b8b3af8c21a6b7a5e2353a38a81b069ebf16813855",
+    "packages/evaluation/zyra_evaluation/scenario_runner/fault_campaign.py": "0a66413fc148360dd9075def084b050253e3d2e5f16a62bc7679431ed72530ff",
+    "packages/evaluation/zyra_evaluation/scenario_runner/live_models.py": "e7767917855f0c3707bdb9d4b1d43fd602cab4fc8a23e07cdaa25d62ea4b8786",
+    "packages/evaluation/zyra_evaluation/scenario_runner/research_delivery.py": "5526c35e0c345f589f1c8859c3d6a1c6e07492d0245a1e458d5fa3e0288f91ca",
+    "packages/evaluation/zyra_evaluation/scenario_runner/software_delivery.py": "1892ed6598656f2e12ea010951ef4b07dc40d9a82b4e31bd5507d81e5cf7673b",
+    "packages/orchestration/zyra_orchestration/topology_policy/production.py": "108e7bb8c39fc2fa2ee38dc68600be01d99a87f09592b2411b1b34c772789e14",
+    "packages/productization/zyra_productization/release/worktree.py": "4fdb1b36f175e169acb385c5e065dace56ed1816a3b94cbcc4e4a877903b9e72",
+    "packages/scheduler/zyra_scheduler/dispatch_evidence.py": "ee43892f2a269298b6b15f5a6b85b6c5d920060251ce892a3a6fd7c1a7b98bf9",
+    "scripts/run_phase2_sealed_scenarios.py": "7c5a7a6486db60112441822587eeb31e76d7ff2c91c0fffbf4b5c7f044fe29ba"
+  },
+  "hardware_profile": {
+    "cloud": "isolated cloud gateway process plus authenticated external provider request",
+    "edge": "independent authenticated edge deployment process and failure boundary",
+    "local": "current terminal host with isolated device deployment process",
+    "loopback_control_endpoint_requires_physical_boundary_receipt": true,
+    "simulated_lanes_allowed": false
+  },
+  "human_intervention_count": 0,
+  "manifest_id": "p2-s06-03-final-715a523cf99b",
+  "minimum_valid_transitions_per_run": 2000,
+  "network_profile": {
+    "https_hostname_required_for_proxy_mapping": true,
+    "literal_proxy_address_forbidden": true,
+    "live_public_proxy_cidrs": [
+      "198.18.0.0/15"
+    ],
+    "source_host_allowlist": [
+      "www.rfc-editor.org",
+      "www.iana.org",
+      "developer.mozilla.org"
+    ]
+  },
+  "phase2_profile": "phase2_strongest_v1",
+  "policy": {
+    "allowlist": [
+      "task.create",
+      "workspace.create",
+      "source.discover",
+      "source.acquire",
+      "code_index.query",
+      "scenario.plan",
+      "scheduler.route",
+      "scheduler.tier_dispatch",
+      "provider.dispatch",
+      "memory.retrieve",
+      "permission.evaluate",
+      "recovery.checkpoint",
+      "workspace.patch",
+      "terminal.execute",
+      "fault.inject",
+      "recovery.replan",
+      "recovery.restore",
+      "domain.verify",
+      "artifact.write",
+      "evidence.verify"
+    ],
+    "ask_disposition": "deny_and_replan",
+    "denylist": [
+      "operator.approve",
+      "operator.steer",
+      "operator.mutate",
+      "shell.destructive",
+      "credential.export",
+      "network.unknown",
+      "workspace.outside-boundary"
+    ],
+    "manual_mutation_disposition": "record_reject_fail",
+    "policy_id": "sealed-autonomous-foundation",
+    "unknown_disposition": "deny_and_replan",
+    "zero_human_loop": true
+  },
+  "provider_profile": {
+    "cloud_endpoint": "https://open.bigmodel.cn/api/paas/v4",
+    "cloud_model": "glm-5.2",
+    "cloud_models": [
+      {
+        "credential_ref": "env://ZAI_API_KEY",
+        "model_id": "glm-5.2",
+        "provider_id": "zhipu"
+      },
+      {
+        "credential_ref": "env://DEEPSEEK_API_KEY",
+        "model_id": "deepseek-v4-flash",
+        "provider_id": "deepseek"
+      },
+      {
+        "credential_ref": "env://KIMI_API_KEY",
+        "model_id": "kimi-k2.7-code",
+        "provider_id": "kimi-platform"
+      }
+    ],
+    "cloud_provider": "zhipu",
+    "credential_material_persisted": false,
+    "credential_ref": "env://ZAI_API_KEY",
+    "live_external_request_required": true,
+    "local_model": "local-deterministic",
+    "local_provider": "zyra-local",
+    "multiple_model_capabilities_required": 3
+  },
+  "runs": [
+    {
+      "budget": {
+        "maximum_communication_bytes": 67108864,
+        "maximum_cost_usd": 0.5,
+        "maximum_effective_transitions": 10000,
+        "maximum_latency_ms": 300000,
+        "maximum_wall_time_ms": 3600000
+      },
+      "domain": "software_delivery",
+      "failure_schedule": [
+        {
+          "after_effective_step": 240,
+          "injection_id": "software-requirement-change",
+          "kind": "requirement_change",
+          "payload": {
+            "requirement": "Retain an input-bound failure-path test and causal receipt."
+          },
+          "stage": "patch",
+          "target": "software-plan"
+        },
+        {
+          "after_effective_step": 480,
+          "injection_id": "software-tool-timeout",
+          "kind": "tool_timeout",
+          "payload": {
+            "deadline_ms": 10,
+            "retry_deadline_ms": 120000
+          },
+          "stage": "test",
+          "target": "terminal-test"
+        },
+        {
+          "after_effective_step": 720,
+          "injection_id": "software-worker-loss",
+          "kind": "worker_unavailable",
+          "payload": {
+            "successor_required": true
+          },
+          "stage": "test",
+          "target": "software-worker-primary"
+        },
+        {
+          "after_effective_step": 900,
+          "injection_id": "software-provider-failure",
+          "kind": "provider_failure",
+          "payload": {
+            "failover_required": true
+          },
+          "stage": "verification",
+          "target": "provider-primary"
+        },
+        {
+          "after_effective_step": 1020,
+          "injection_id": "software-edge-network-loss",
+          "kind": "edge_network_loss",
+          "payload": {
+            "migrate_to": "device"
+          },
+          "stage": "delivery",
+          "target": "edge-primary"
+        }
+      ],
+      "input": "Add an input-digest-bound sealed delivery marker to a clean SDK workspace, preserve a requirement-change failure-path test, execute syntax and unit verification, and publish a checksum-bound patch, command receipts, causal transition index, and final verifier.",
+      "privacy_class": "internal",
+      "run_key": "software-sdk",
+      "scenario_id": "live.software-delivery",
+      "seed": 60201
+    },
+    {
+      "budget": {
+        "maximum_communication_bytes": 67108864,
+        "maximum_cost_usd": 0.5,
+        "maximum_effective_transitions": 10000,
+        "maximum_latency_ms": 300000,
+        "maximum_wall_time_ms": 3600000
+      },
+      "domain": "cross_source_research",
+      "failure_schedule": [
+        {
+          "after_effective_step": 220,
+          "injection_id": "research-requirement-change",
+          "kind": "requirement_change",
+          "payload": {
+            "requirement": "Expose contradictions and uncertainty separately from deterministic claims."
+          },
+          "stage": "source-index",
+          "target": "research-plan"
+        },
+        {
+          "after_effective_step": 440,
+          "injection_id": "research-network-timeout",
+          "kind": "tool_timeout",
+          "payload": {
+            "deadline_ms": 50,
+            "retry_deadline_ms": 45000
+          },
+          "stage": "source-acquisition",
+          "target": "http-source-worker"
+        },
+        {
+          "after_effective_step": 660,
+          "injection_id": "research-node-loss",
+          "kind": "node_lost",
+          "payload": {
+            "successor_required": true
+          },
+          "stage": "claim-extraction",
+          "target": "researcher-primary"
+        },
+        {
+          "after_effective_step": 880,
+          "injection_id": "research-provider-rate-limit",
+          "kind": "provider_rate_limit",
+          "payload": {
+            "failover_required": true,
+            "retry_after_ms": 250
+          },
+          "stage": "claim-extraction",
+          "target": "provider-primary"
+        },
+        {
+          "after_effective_step": 1020,
+          "injection_id": "research-network-loss",
+          "kind": "network_loss",
+          "payload": {
+            "continue_from_acquired_checksums": true
+          },
+          "stage": "citation-verification",
+          "target": "edge-source-route"
+        }
+      ],
+      "input": {
+        "question": "Using live primary web sources, produce a checksum-bound technical intelligence report that explains HTTP semantics and status-code governance, distinguishes normative claims from implementation guidance, surfaces contradictions and uncertainty after the frozen requirement change, and binds every material claim to exact acquired bytes.",
+        "requirements": [
+          "Every material claim must resolve to exact acquired source bytes.",
+          "At least one claim must be corroborated across independent authorities.",
+          "Normative protocol facts, registry facts, and implementation guidance must remain separately attributed.",
+          "Source checksums, request identities, acquisition times, uncertainty, and contradictions must be retained."
+        ],
+        "source_urls": [
+          "https://www.rfc-editor.org/rfc/rfc9110.txt",
+          "https://www.iana.org/assignments/http-status-codes/http-status-codes-1.csv",
+          "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status"
+        ]
+      },
+      "privacy_class": "public",
+      "run_key": "technical-intelligence",
+      "scenario_id": "live.cross-source-research",
+      "seed": 60202
+    }
+  ],
+  "schema": "zyra.phase2-sealed-long-run-manifest/v1",
+  "slice": "P2-S06-02",
+  "verifier": {
+    "exclude_event_types": [
+      "heartbeat",
+      "log",
+      "replay",
+      "ui_repaint",
+      "noop"
+    ],
+    "final_artifact_digest_binding_required": true,
+    "independent_validator": "zyra_evaluation.policy_benchmark.long_run_validator",
+    "invalid_proposal_reject_or_project_rate": 1.0,
+    "runner_claim_trusted": false,
+    "state_before_after_hash_chain_required": true,
+    "transition_count_source": "raw canonical events only",
+    "unsafe_commit_maximum": 0
+  }
+}

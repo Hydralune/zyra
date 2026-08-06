@@ -1,0 +1,4030 @@
+{
+  "degradation": {
+    "artifact_continuity": true,
+    "event_id": "sealed-edge-loss-rs-024123bd-ea1ee727",
+    "failed_endpoint_id": "zyra-edge-46e6a0c664e545b5",
+    "failed_runtime_id": "process:22236:generation_3408dba4eea3474a",
+    "fallback_tier": "device",
+    "observed": true,
+    "observed_at": "2026-08-05T14:25:45.268Z",
+    "reason": "isolated edge process was stopped after its committed receipt; the fenced local receipt is the safe fallback",
+    "relabeled_as_cloud": false,
+    "route_after": "resdec_72ce046a465b",
+    "route_before": "resdec_7baf6eceb497",
+    "safe": true,
+    "schema": "zyra.live-disconnected-degradation/v1",
+    "side_effect_idempotent": true,
+    "transport_closed_after_task": true
+  },
+  "lease_receipts": [
+    {
+      "acquisition": {
+        "attempt": {
+          "attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+          "attempt_number": 1,
+          "backend_dispatch_id": "",
+          "created_at": "2026-08-05T14:25:32.590Z",
+          "finished_at": "",
+          "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+          "metadata": {
+            "logical_task_owner": "typescript.AgentTaskRuntime",
+            "physical_attempt_owner": "WorkerLeaseManager",
+            "physical_location": "local",
+            "scheduler_decision_id": "resdec_72ce046a465b"
+          },
+          "parent_attempt_id": "",
+          "recovery_reason": "",
+          "run_id": "rs-024123bd-ea1ee727",
+          "started_at": "",
+          "state": "leased",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 2,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+        },
+        "candidates": [
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 1102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+          }
+        ],
+        "lease": {
+          "acquired_at": "2026-08-05T14:25:32.590Z",
+          "attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+          "backend_id": "sealed-local",
+          "cancel_requested_at": "",
+          "deadline_at": "2026-08-05T14:28:32.590Z",
+          "drain_requested_at": "",
+          "fence_epoch": 1,
+          "fence_token": "",
+          "fence_token_present": true,
+          "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:local",
+          "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+          "metadata": {
+            "lease_owner": "WorkerLeaseManager",
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "physical_location": "local",
+            "requirement": {
+              "backend_kinds": [],
+              "forbidden": [],
+              "labels": {},
+              "locations": [
+                "local"
+              ],
+              "min_protocol_version": 1,
+              "required": [
+                "deterministic-transform"
+              ],
+              "resources": {
+                "browser_slots": 0,
+                "cpu_cores": 0.1,
+                "custom": {},
+                "disk_mb": 0,
+                "gpu_units": 0.0,
+                "memory_mb": 32,
+                "network_mbps": 0.0,
+                "process_slots": 1
+              },
+              "tool_ids": [
+                "physical-dispatch-proof"
+              ]
+            },
+            "scheduler_decision_id": "resdec_72ce046a465b",
+            "worker_generation": 1
+          },
+          "owner_session_id": "sealed:rs-024123bd-ea1ee727",
+          "released_at": "",
+          "renewed_at": "",
+          "resources": {
+            "browser_slots": 0,
+            "cpu_cores": 0.1,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 32,
+            "network_mbps": 0.0,
+            "process_slots": 1
+          },
+          "run_id": "rs-024123bd-ea1ee727",
+          "state": "active",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 1,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+        },
+        "manifest": {
+          "allowed_agent_definitions": [],
+          "allowed_tool_patterns": [],
+          "backend_ids": [
+            "sealed-local"
+          ],
+          "backend_kinds": [
+            "local_process"
+          ],
+          "capabilities": [
+            "artifact-production",
+            "deterministic-transform",
+            "verification"
+          ],
+          "constraints": {
+            "backend_constraints": {
+              "sealed-local": {}
+            },
+            "backend_owner": "BackendRegistry",
+            "background_allowed": true,
+            "capability_owner": "WorkerCapabilityComposer",
+            "fork_context_allowed": true,
+            "logical_agent_owner": "typescript.AgentTaskRuntime",
+            "max_parallel_children": 1
+          },
+          "created_at": "2026-08-05T14:25:32.512Z",
+          "denied_agent_definitions": [],
+          "digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+          "labels": {
+            "physical_identity": "process:27768:generation_0f3a7bac9e8c4d5e",
+            "transport": "in-process-port"
+          },
+          "location": "local",
+          "manifest_revision": 1,
+          "protocol_version": 1,
+          "resource_capacity": {
+            "browser_slots": 0,
+            "cpu_cores": 2.0,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 1024,
+            "network_mbps": 0.0,
+            "process_slots": 2
+          },
+          "tool_ids": [
+            "physical-dispatch-proof"
+          ],
+          "worker_id": "sealed-rs-024123bd-ea1ee727-local",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        },
+        "reused": false,
+        "worker": {
+          "attestation_id": "attestation_3834b2f75f6a41e1a54c4d7cb59aa9a5",
+          "backend_id": "sealed-local",
+          "drain_requested_at": "",
+          "endpoint": "http://127.0.0.1:49000",
+          "failure_code": "",
+          "failure_reason": "",
+          "generation": 1,
+          "last_heartbeat_at": "2026-08-05T14:25:32.559Z",
+          "location": "local",
+          "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+          "metadata": {
+            "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+            "generation_id": "generation_0f3a7bac9e8c4d5e",
+            "location": "local",
+            "manifest_owner": "WorkerCapabilityComposer",
+            "node_id": "zyra-device-e93008a523864ab9",
+            "physical_state_owner": "WorkerLifecycleRuntime",
+            "physical_worker": true,
+            "pid": 27768,
+            "sealed_run": true
+          },
+          "owner_session_id": "",
+          "process_identity": "process:27768:generation_0f3a7bac9e8c4d5e",
+          "registered_at": "2026-08-05T14:25:32.515Z",
+          "started_at": "2026-08-05T14:25:32.538Z",
+          "state": "busy",
+          "stopped_at": "",
+          "version": 5,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-local",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        }
+      },
+      "attempt": {
+        "attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "attempt_number": 1,
+        "backend_dispatch_id": "sealed-local-1",
+        "created_at": "2026-08-05T14:25:32.590Z",
+        "finished_at": "",
+        "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+        "metadata": {
+          "logical_task_owner": "typescript.AgentTaskRuntime",
+          "physical_attempt_owner": "WorkerLeaseManager",
+          "physical_location": "local",
+          "scheduler_decision_id": "resdec_72ce046a465b"
+        },
+        "parent_attempt_id": "",
+        "recovery_reason": "",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:32.740Z",
+        "state": "running",
+        "task_id": "task_e4a3b19e37f5",
+        "version": 3,
+        "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+      },
+      "completion": {
+        "artifact_refs": [
+          "deployment_artifact_07c732ad3db74cb9"
+        ],
+        "attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "backend_receipt_ref": "deployment-dispatch://dispatch_e9849a4ed5344751",
+        "error_code": "",
+        "error_message": "",
+        "event_refs": [
+          "verifier:attempt_d9863ee6861b40d89151ef3bb53535ec"
+        ],
+        "fence_epoch": 1,
+        "finished_at": "2026-08-05T14:25:33.021Z",
+        "gateway_receipt_ref": "",
+        "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+        "metadata": {
+          "location": "local",
+          "physical_dispatch_receipt_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70"
+        },
+        "outcome": "succeeded",
+        "output_digest": "b3add11e195026cc9a44261c2e00f077b39bbe224ce028e64bf42d60a8a86d20",
+        "receipt_id": "execution_receipt_67eedfd2683345bd980c392a33026814",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:32.740Z",
+        "summary": "real local physical dispatch verified for attempt attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "task_id": "task_e4a3b19e37f5",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+      },
+      "fence_token_persisted": false
+    },
+    {
+      "acquisition": {
+        "attempt": {
+          "attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+          "attempt_number": 2,
+          "backend_dispatch_id": "",
+          "created_at": "2026-08-05T14:25:33.848Z",
+          "finished_at": "",
+          "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+          "metadata": {
+            "logical_task_owner": "typescript.AgentTaskRuntime",
+            "physical_attempt_owner": "WorkerLeaseManager",
+            "physical_location": "edge",
+            "scheduler_decision_id": "resdec_7baf6eceb497"
+          },
+          "parent_attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+          "recovery_reason": "",
+          "run_id": "rs-024123bd-ea1ee727",
+          "started_at": "",
+          "state": "leased",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 2,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+        },
+        "candidates": [
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 1102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "reasons": [
+              "worker location does not match"
+            ],
+            "score": -9898.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+          }
+        ],
+        "lease": {
+          "acquired_at": "2026-08-05T14:25:33.848Z",
+          "attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+          "backend_id": "sealed-edge",
+          "cancel_requested_at": "",
+          "deadline_at": "2026-08-05T14:28:33.848Z",
+          "drain_requested_at": "",
+          "fence_epoch": 1,
+          "fence_token": "",
+          "fence_token_present": true,
+          "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:edge",
+          "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+          "metadata": {
+            "lease_owner": "WorkerLeaseManager",
+            "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+            "physical_location": "edge",
+            "requirement": {
+              "backend_kinds": [],
+              "forbidden": [],
+              "labels": {},
+              "locations": [
+                "edge"
+              ],
+              "min_protocol_version": 1,
+              "required": [
+                "deterministic-transform"
+              ],
+              "resources": {
+                "browser_slots": 0,
+                "cpu_cores": 0.1,
+                "custom": {},
+                "disk_mb": 0,
+                "gpu_units": 0.0,
+                "memory_mb": 32,
+                "network_mbps": 0.0,
+                "process_slots": 1
+              },
+              "tool_ids": [
+                "physical-dispatch-proof"
+              ]
+            },
+            "scheduler_decision_id": "resdec_7baf6eceb497",
+            "worker_generation": 1
+          },
+          "owner_session_id": "sealed:rs-024123bd-ea1ee727",
+          "released_at": "",
+          "renewed_at": "",
+          "resources": {
+            "browser_slots": 0,
+            "cpu_cores": 0.1,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 32,
+            "network_mbps": 0.0,
+            "process_slots": 1
+          },
+          "run_id": "rs-024123bd-ea1ee727",
+          "state": "active",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 1,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+        },
+        "manifest": {
+          "allowed_agent_definitions": [],
+          "allowed_tool_patterns": [],
+          "backend_ids": [
+            "sealed-edge"
+          ],
+          "backend_kinds": [
+            "isolated_process"
+          ],
+          "capabilities": [
+            "artifact-production",
+            "deterministic-transform",
+            "verification"
+          ],
+          "constraints": {
+            "backend_constraints": {
+              "sealed-edge": {}
+            },
+            "backend_owner": "BackendRegistry",
+            "background_allowed": true,
+            "capability_owner": "WorkerCapabilityComposer",
+            "fork_context_allowed": true,
+            "logical_agent_owner": "typescript.AgentTaskRuntime",
+            "max_parallel_children": 1
+          },
+          "created_at": "2026-08-05T14:25:33.767Z",
+          "denied_agent_definitions": [],
+          "digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+          "labels": {
+            "physical_identity": "process:22236:generation_3408dba4eea3474a",
+            "transport": "authenticated-node-http"
+          },
+          "location": "edge",
+          "manifest_revision": 1,
+          "protocol_version": 1,
+          "resource_capacity": {
+            "browser_slots": 0,
+            "cpu_cores": 2.0,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 1024,
+            "network_mbps": 0.0,
+            "process_slots": 2
+          },
+          "tool_ids": [
+            "physical-dispatch-proof"
+          ],
+          "worker_id": "sealed-rs-024123bd-ea1ee727-edge",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        },
+        "reused": false,
+        "worker": {
+          "attestation_id": "attestation_a5a3b1c5622f4d08beecbb3d3236a26f",
+          "backend_id": "sealed-edge",
+          "drain_requested_at": "",
+          "endpoint": "http://127.0.0.1:49001",
+          "failure_code": "",
+          "failure_reason": "",
+          "generation": 1,
+          "last_heartbeat_at": "2026-08-05T14:25:33.807Z",
+          "location": "edge",
+          "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+          "metadata": {
+            "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+            "generation_id": "generation_3408dba4eea3474a",
+            "location": "edge",
+            "manifest_owner": "WorkerCapabilityComposer",
+            "node_id": "zyra-edge-46e6a0c664e545b5",
+            "physical_state_owner": "WorkerLifecycleRuntime",
+            "physical_worker": true,
+            "pid": 22236,
+            "sealed_run": true
+          },
+          "owner_session_id": "",
+          "process_identity": "process:22236:generation_3408dba4eea3474a",
+          "registered_at": "2026-08-05T14:25:33.770Z",
+          "started_at": "2026-08-05T14:25:33.789Z",
+          "state": "busy",
+          "stopped_at": "",
+          "version": 5,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-edge",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        }
+      },
+      "attempt": {
+        "attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+        "attempt_number": 2,
+        "backend_dispatch_id": "sealed-edge-2",
+        "created_at": "2026-08-05T14:25:33.848Z",
+        "finished_at": "",
+        "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+        "metadata": {
+          "logical_task_owner": "typescript.AgentTaskRuntime",
+          "physical_attempt_owner": "WorkerLeaseManager",
+          "physical_location": "edge",
+          "scheduler_decision_id": "resdec_7baf6eceb497"
+        },
+        "parent_attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "recovery_reason": "",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:34.084Z",
+        "state": "running",
+        "task_id": "task_e4a3b19e37f5",
+        "version": 3,
+        "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+      },
+      "completion": {
+        "artifact_refs": [
+          "deployment_artifact_d540459816b04ddd"
+        ],
+        "attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+        "backend_receipt_ref": "deployment-dispatch://dispatch_037bbf4362da4733",
+        "error_code": "",
+        "error_message": "",
+        "event_refs": [
+          "verifier:attempt_c1011434fcf74ab988631ee68e75964d"
+        ],
+        "fence_epoch": 1,
+        "finished_at": "2026-08-05T14:25:34.414Z",
+        "gateway_receipt_ref": "",
+        "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+        "metadata": {
+          "location": "edge",
+          "physical_dispatch_receipt_digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289"
+        },
+        "outcome": "succeeded",
+        "output_digest": "bd3b3e800ab51f19d34adfe1090704d2170c5baff962a2f93964609662c3dc69",
+        "receipt_id": "execution_receipt_0d5910d85b2f418c90c064577a91fff0",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:34.084Z",
+        "summary": "real edge physical dispatch verified for attempt attempt_c1011434fcf74ab988631ee68e75964d",
+        "task_id": "task_e4a3b19e37f5",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+      },
+      "fence_token_persisted": false
+    },
+    {
+      "acquisition": {
+        "attempt": {
+          "attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+          "attempt_number": 3,
+          "backend_dispatch_id": "",
+          "created_at": "2026-08-05T14:25:35.115Z",
+          "finished_at": "",
+          "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+          "metadata": {
+            "logical_task_owner": "typescript.AgentTaskRuntime",
+            "physical_attempt_owner": "WorkerLeaseManager",
+            "physical_location": "cloud",
+            "scheduler_decision_id": "resdec_5f78aea0bc9f"
+          },
+          "parent_attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+          "recovery_reason": "",
+          "run_id": "rs-024123bd-ea1ee727",
+          "started_at": "",
+          "state": "leased",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 2,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+        },
+        "candidates": [
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 1102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+          }
+        ],
+        "lease": {
+          "acquired_at": "2026-08-05T14:25:35.115Z",
+          "attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+          "backend_id": "sealed-cloud",
+          "cancel_requested_at": "",
+          "deadline_at": "2026-08-05T14:28:35.115Z",
+          "drain_requested_at": "",
+          "fence_epoch": 1,
+          "fence_token": "",
+          "fence_token_present": true,
+          "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-zhipu",
+          "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+          "metadata": {
+            "lease_owner": "WorkerLeaseManager",
+            "manifest_digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+            "physical_location": "cloud",
+            "requirement": {
+              "backend_kinds": [],
+              "forbidden": [],
+              "labels": {},
+              "locations": [
+                "cloud"
+              ],
+              "min_protocol_version": 1,
+              "required": [
+                "provider-dispatch"
+              ],
+              "resources": {
+                "browser_slots": 0,
+                "cpu_cores": 0.1,
+                "custom": {},
+                "disk_mb": 0,
+                "gpu_units": 0.0,
+                "memory_mb": 32,
+                "network_mbps": 0.0,
+                "process_slots": 1
+              },
+              "tool_ids": [
+                "physical-dispatch-proof"
+              ]
+            },
+            "scheduler_decision_id": "resdec_5f78aea0bc9f",
+            "worker_generation": 1
+          },
+          "owner_session_id": "sealed:rs-024123bd-ea1ee727",
+          "released_at": "",
+          "renewed_at": "",
+          "resources": {
+            "browser_slots": 0,
+            "cpu_cores": 0.1,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 32,
+            "network_mbps": 0.0,
+            "process_slots": 1
+          },
+          "run_id": "rs-024123bd-ea1ee727",
+          "state": "active",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 1,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+        },
+        "manifest": {
+          "allowed_agent_definitions": [],
+          "allowed_tool_patterns": [],
+          "backend_ids": [
+            "sealed-cloud"
+          ],
+          "backend_kinds": [
+            "cloud_model"
+          ],
+          "capabilities": [
+            "artifact-production",
+            "deterministic-transform",
+            "provider-dispatch",
+            "verification"
+          ],
+          "constraints": {
+            "backend_constraints": {
+              "sealed-cloud": {}
+            },
+            "backend_owner": "BackendRegistry",
+            "background_allowed": true,
+            "capability_owner": "WorkerCapabilityComposer",
+            "fork_context_allowed": true,
+            "logical_agent_owner": "typescript.AgentTaskRuntime",
+            "max_parallel_children": 1
+          },
+          "created_at": "2026-08-05T14:25:35.025Z",
+          "denied_agent_definitions": [],
+          "digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+          "labels": {
+            "physical_identity": "process:62192:generation_3d09e3c5754e459a",
+            "transport": "authenticated-node-http"
+          },
+          "location": "cloud",
+          "manifest_revision": 1,
+          "protocol_version": 1,
+          "resource_capacity": {
+            "browser_slots": 0,
+            "cpu_cores": 2.0,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 1024,
+            "network_mbps": 0.0,
+            "process_slots": 2
+          },
+          "tool_ids": [
+            "physical-dispatch-proof"
+          ],
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        },
+        "reused": false,
+        "worker": {
+          "attestation_id": "attestation_645557201cef44b5a3689c2380595ff7",
+          "backend_id": "sealed-cloud",
+          "drain_requested_at": "",
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_code": "",
+          "failure_reason": "",
+          "generation": 1,
+          "last_heartbeat_at": "2026-08-05T14:25:35.069Z",
+          "location": "cloud",
+          "manifest_digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+          "metadata": {
+            "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+            "generation_id": "generation_3d09e3c5754e459a",
+            "location": "cloud",
+            "manifest_owner": "WorkerCapabilityComposer",
+            "node_id": "zyra-cloud-0ece9039dbe74ea9",
+            "physical_state_owner": "WorkerLifecycleRuntime",
+            "physical_worker": true,
+            "pid": 62192,
+            "sealed_run": true
+          },
+          "owner_session_id": "",
+          "process_identity": "process:62192:generation_3d09e3c5754e459a",
+          "registered_at": "2026-08-05T14:25:35.028Z",
+          "started_at": "2026-08-05T14:25:35.047Z",
+          "state": "busy",
+          "stopped_at": "",
+          "version": 5,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        }
+      },
+      "attempt": {
+        "attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "attempt_number": 3,
+        "backend_dispatch_id": "sealed-cloud-zhipu-3",
+        "created_at": "2026-08-05T14:25:35.115Z",
+        "finished_at": "",
+        "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+        "metadata": {
+          "logical_task_owner": "typescript.AgentTaskRuntime",
+          "physical_attempt_owner": "WorkerLeaseManager",
+          "physical_location": "cloud",
+          "scheduler_decision_id": "resdec_5f78aea0bc9f"
+        },
+        "parent_attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+        "recovery_reason": "",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:35.146Z",
+        "state": "running",
+        "task_id": "task_e4a3b19e37f5",
+        "version": 3,
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+      },
+      "completion": {
+        "artifact_refs": [
+          "deployment_artifact_e10574e4eab94d22"
+        ],
+        "attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "backend_receipt_ref": "deployment-dispatch://dispatch_58a89a016d0e4b59",
+        "error_code": "",
+        "error_message": "",
+        "event_refs": [
+          "verifier:attempt_96c8d4181ed748c8af4555ab78153c3b"
+        ],
+        "fence_epoch": 1,
+        "finished_at": "2026-08-05T14:25:40.108Z",
+        "gateway_receipt_ref": "",
+        "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+        "metadata": {
+          "location": "cloud",
+          "physical_dispatch_receipt_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3"
+        },
+        "outcome": "succeeded",
+        "output_digest": "4e57307bfe78bb2a9279420ba7e097ebeff47f66e591dfbf82249a72750e4fce",
+        "receipt_id": "execution_receipt_105a29be17c744ad8378796f633a3b7d",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:35.146Z",
+        "summary": "real cloud physical dispatch verified for attempt attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "task_id": "task_e4a3b19e37f5",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+      },
+      "fence_token_persisted": false
+    },
+    {
+      "acquisition": {
+        "attempt": {
+          "attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+          "attempt_number": 4,
+          "backend_dispatch_id": "",
+          "created_at": "2026-08-05T14:25:40.321Z",
+          "finished_at": "",
+          "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+          "metadata": {
+            "logical_task_owner": "typescript.AgentTaskRuntime",
+            "physical_attempt_owner": "WorkerLeaseManager",
+            "physical_location": "cloud",
+            "scheduler_decision_id": "resdec_bef7df19ec41"
+          },
+          "parent_attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+          "recovery_reason": "",
+          "run_id": "rs-024123bd-ea1ee727",
+          "started_at": "",
+          "state": "leased",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 2,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+        },
+        "candidates": [
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 1102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+          },
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+          }
+        ],
+        "lease": {
+          "acquired_at": "2026-08-05T14:25:40.321Z",
+          "attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+          "backend_id": "sealed-cloud",
+          "cancel_requested_at": "",
+          "deadline_at": "2026-08-05T14:28:40.321Z",
+          "drain_requested_at": "",
+          "fence_epoch": 1,
+          "fence_token": "",
+          "fence_token_present": true,
+          "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-deepseek",
+          "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+          "metadata": {
+            "lease_owner": "WorkerLeaseManager",
+            "manifest_digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+            "physical_location": "cloud",
+            "requirement": {
+              "backend_kinds": [],
+              "forbidden": [],
+              "labels": {},
+              "locations": [
+                "cloud"
+              ],
+              "min_protocol_version": 1,
+              "required": [
+                "provider-dispatch"
+              ],
+              "resources": {
+                "browser_slots": 0,
+                "cpu_cores": 0.1,
+                "custom": {},
+                "disk_mb": 0,
+                "gpu_units": 0.0,
+                "memory_mb": 32,
+                "network_mbps": 0.0,
+                "process_slots": 1
+              },
+              "tool_ids": [
+                "physical-dispatch-proof"
+              ]
+            },
+            "scheduler_decision_id": "resdec_bef7df19ec41",
+            "worker_generation": 1
+          },
+          "owner_session_id": "sealed:rs-024123bd-ea1ee727",
+          "released_at": "",
+          "renewed_at": "",
+          "resources": {
+            "browser_slots": 0,
+            "cpu_cores": 0.1,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 32,
+            "network_mbps": 0.0,
+            "process_slots": 1
+          },
+          "run_id": "rs-024123bd-ea1ee727",
+          "state": "active",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 1,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+        },
+        "manifest": {
+          "allowed_agent_definitions": [],
+          "allowed_tool_patterns": [],
+          "backend_ids": [
+            "sealed-cloud"
+          ],
+          "backend_kinds": [
+            "cloud_model"
+          ],
+          "capabilities": [
+            "artifact-production",
+            "deterministic-transform",
+            "provider-dispatch",
+            "verification"
+          ],
+          "constraints": {
+            "backend_constraints": {
+              "sealed-cloud": {}
+            },
+            "backend_owner": "BackendRegistry",
+            "background_allowed": true,
+            "capability_owner": "WorkerCapabilityComposer",
+            "fork_context_allowed": true,
+            "logical_agent_owner": "typescript.AgentTaskRuntime",
+            "max_parallel_children": 1
+          },
+          "created_at": "2026-08-05T14:25:40.183Z",
+          "denied_agent_definitions": [],
+          "digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+          "labels": {
+            "physical_identity": "process:62192:generation_3d09e3c5754e459a",
+            "transport": "authenticated-node-http"
+          },
+          "location": "cloud",
+          "manifest_revision": 1,
+          "protocol_version": 1,
+          "resource_capacity": {
+            "browser_slots": 0,
+            "cpu_cores": 2.0,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 1024,
+            "network_mbps": 0.0,
+            "process_slots": 2
+          },
+          "tool_ids": [
+            "physical-dispatch-proof"
+          ],
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        },
+        "reused": false,
+        "worker": {
+          "attestation_id": "attestation_fa4b5745a7cb469aaf09ee87d4796d63",
+          "backend_id": "sealed-cloud",
+          "drain_requested_at": "",
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_code": "",
+          "failure_reason": "",
+          "generation": 1,
+          "last_heartbeat_at": "2026-08-05T14:25:40.265Z",
+          "location": "cloud",
+          "manifest_digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+          "metadata": {
+            "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+            "generation_id": "generation_3d09e3c5754e459a",
+            "location": "cloud",
+            "manifest_owner": "WorkerCapabilityComposer",
+            "node_id": "zyra-cloud-0ece9039dbe74ea9",
+            "physical_state_owner": "WorkerLifecycleRuntime",
+            "physical_worker": true,
+            "pid": 62192,
+            "sealed_run": true
+          },
+          "owner_session_id": "",
+          "process_identity": "process:62192:generation_3d09e3c5754e459a",
+          "registered_at": "2026-08-05T14:25:40.187Z",
+          "started_at": "2026-08-05T14:25:40.244Z",
+          "state": "busy",
+          "stopped_at": "",
+          "version": 5,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        }
+      },
+      "attempt": {
+        "attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "attempt_number": 4,
+        "backend_dispatch_id": "sealed-cloud-deepseek-4",
+        "created_at": "2026-08-05T14:25:40.321Z",
+        "finished_at": "",
+        "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+        "metadata": {
+          "logical_task_owner": "typescript.AgentTaskRuntime",
+          "physical_attempt_owner": "WorkerLeaseManager",
+          "physical_location": "cloud",
+          "scheduler_decision_id": "resdec_bef7df19ec41"
+        },
+        "parent_attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "recovery_reason": "",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:40.388Z",
+        "state": "running",
+        "task_id": "task_e4a3b19e37f5",
+        "version": 3,
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+      },
+      "completion": {
+        "artifact_refs": [
+          "deployment_artifact_4f55fbe5c7db48b5"
+        ],
+        "attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "backend_receipt_ref": "deployment-dispatch://dispatch_660878f0dd5d4e8b",
+        "error_code": "",
+        "error_message": "",
+        "event_refs": [
+          "verifier:attempt_f2b756ecacf64501a5c67d2c523b17bc"
+        ],
+        "fence_epoch": 1,
+        "finished_at": "2026-08-05T14:25:41.780Z",
+        "gateway_receipt_ref": "",
+        "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+        "metadata": {
+          "location": "cloud",
+          "physical_dispatch_receipt_digest": "636adea706a1652241664004db377842719ac0f1589c88d1db079d582738d348"
+        },
+        "outcome": "succeeded",
+        "output_digest": "acbb855c5cb99718565dcc889d4786f59b57a0748e56ac324d4c8b77a245d355",
+        "receipt_id": "execution_receipt_39be131170ee4fcbb485c8b8e703c4ce",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:40.388Z",
+        "summary": "real cloud physical dispatch verified for attempt attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "task_id": "task_e4a3b19e37f5",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+      },
+      "fence_token_persisted": false
+    },
+    {
+      "acquisition": {
+        "attempt": {
+          "attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+          "attempt_number": 5,
+          "backend_dispatch_id": "",
+          "created_at": "2026-08-05T14:25:41.997Z",
+          "finished_at": "",
+          "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+          "metadata": {
+            "logical_task_owner": "typescript.AgentTaskRuntime",
+            "physical_attempt_owner": "WorkerLeaseManager",
+            "physical_location": "cloud",
+            "scheduler_decision_id": "resdec_53307bede40a"
+          },
+          "parent_attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+          "recovery_reason": "",
+          "run_id": "rs-024123bd-ea1ee727",
+          "started_at": "",
+          "state": "leased",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 2,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+        },
+        "candidates": [
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 1102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+          },
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+          },
+          {
+            "accepted": true,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+            "reasons": [
+              "eligible"
+            ],
+            "score": 102.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-edge"
+          },
+          {
+            "accepted": false,
+            "active_lease_count": 0,
+            "available": {
+              "browser_slots": 0,
+              "cpu_cores": 2.0,
+              "custom": {},
+              "disk_mb": 0,
+              "gpu_units": 0.0,
+              "memory_mb": 1024,
+              "network_mbps": 0.0,
+              "process_slots": 2
+            },
+            "manifest_digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+            "reasons": [
+              "missing capabilities: provider-dispatch",
+              "worker location does not match"
+            ],
+            "score": -9900.0,
+            "worker_id": "sealed-rs-024123bd-ea1ee727-local"
+          }
+        ],
+        "lease": {
+          "acquired_at": "2026-08-05T14:25:41.997Z",
+          "attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+          "backend_id": "sealed-cloud",
+          "cancel_requested_at": "",
+          "deadline_at": "2026-08-05T14:28:41.997Z",
+          "drain_requested_at": "",
+          "fence_epoch": 1,
+          "fence_token": "",
+          "fence_token_present": true,
+          "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-kimi-platform",
+          "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+          "metadata": {
+            "lease_owner": "WorkerLeaseManager",
+            "manifest_digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+            "physical_location": "cloud",
+            "requirement": {
+              "backend_kinds": [],
+              "forbidden": [],
+              "labels": {},
+              "locations": [
+                "cloud"
+              ],
+              "min_protocol_version": 1,
+              "required": [
+                "provider-dispatch"
+              ],
+              "resources": {
+                "browser_slots": 0,
+                "cpu_cores": 0.1,
+                "custom": {},
+                "disk_mb": 0,
+                "gpu_units": 0.0,
+                "memory_mb": 32,
+                "network_mbps": 0.0,
+                "process_slots": 1
+              },
+              "tool_ids": [
+                "physical-dispatch-proof"
+              ]
+            },
+            "scheduler_decision_id": "resdec_53307bede40a",
+            "worker_generation": 1
+          },
+          "owner_session_id": "sealed:rs-024123bd-ea1ee727",
+          "released_at": "",
+          "renewed_at": "",
+          "resources": {
+            "browser_slots": 0,
+            "cpu_cores": 0.1,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 32,
+            "network_mbps": 0.0,
+            "process_slots": 1
+          },
+          "run_id": "rs-024123bd-ea1ee727",
+          "state": "active",
+          "task_id": "task_e4a3b19e37f5",
+          "version": 1,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+        },
+        "manifest": {
+          "allowed_agent_definitions": [],
+          "allowed_tool_patterns": [],
+          "backend_ids": [
+            "sealed-cloud"
+          ],
+          "backend_kinds": [
+            "cloud_model"
+          ],
+          "capabilities": [
+            "artifact-production",
+            "deterministic-transform",
+            "provider-dispatch",
+            "verification"
+          ],
+          "constraints": {
+            "backend_constraints": {
+              "sealed-cloud": {}
+            },
+            "backend_owner": "BackendRegistry",
+            "background_allowed": true,
+            "capability_owner": "WorkerCapabilityComposer",
+            "fork_context_allowed": true,
+            "logical_agent_owner": "typescript.AgentTaskRuntime",
+            "max_parallel_children": 1
+          },
+          "created_at": "2026-08-05T14:25:41.853Z",
+          "denied_agent_definitions": [],
+          "digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+          "labels": {
+            "physical_identity": "process:62192:generation_3d09e3c5754e459a",
+            "transport": "authenticated-node-http"
+          },
+          "location": "cloud",
+          "manifest_revision": 1,
+          "protocol_version": 1,
+          "resource_capacity": {
+            "browser_slots": 0,
+            "cpu_cores": 2.0,
+            "custom": {},
+            "disk_mb": 0,
+            "gpu_units": 0.0,
+            "memory_mb": 1024,
+            "network_mbps": 0.0,
+            "process_slots": 2
+          },
+          "tool_ids": [
+            "physical-dispatch-proof"
+          ],
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        },
+        "reused": false,
+        "worker": {
+          "attestation_id": "attestation_9d875974c9094f2ab97f07a83c01bd31",
+          "backend_id": "sealed-cloud",
+          "drain_requested_at": "",
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_code": "",
+          "failure_reason": "",
+          "generation": 1,
+          "last_heartbeat_at": "2026-08-05T14:25:41.939Z",
+          "location": "cloud",
+          "manifest_digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+          "metadata": {
+            "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+            "generation_id": "generation_3d09e3c5754e459a",
+            "location": "cloud",
+            "manifest_owner": "WorkerCapabilityComposer",
+            "node_id": "zyra-cloud-0ece9039dbe74ea9",
+            "physical_state_owner": "WorkerLifecycleRuntime",
+            "physical_worker": true,
+            "pid": 62192,
+            "sealed_run": true
+          },
+          "owner_session_id": "",
+          "process_identity": "process:62192:generation_3d09e3c5754e459a",
+          "registered_at": "2026-08-05T14:25:41.855Z",
+          "started_at": "2026-08-05T14:25:41.920Z",
+          "state": "busy",
+          "stopped_at": "",
+          "version": 5,
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+          "worker_kind": "sealed-physical-dispatch-worker"
+        }
+      },
+      "attempt": {
+        "attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+        "attempt_number": 5,
+        "backend_dispatch_id": "sealed-cloud-kimi-platform-5",
+        "created_at": "2026-08-05T14:25:41.997Z",
+        "finished_at": "",
+        "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+        "metadata": {
+          "logical_task_owner": "typescript.AgentTaskRuntime",
+          "physical_attempt_owner": "WorkerLeaseManager",
+          "physical_location": "cloud",
+          "scheduler_decision_id": "resdec_53307bede40a"
+        },
+        "parent_attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "recovery_reason": "",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:42.054Z",
+        "state": "running",
+        "task_id": "task_e4a3b19e37f5",
+        "version": 3,
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+      },
+      "completion": {
+        "artifact_refs": [
+          "deployment_artifact_b41a5c6317844eb0"
+        ],
+        "attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+        "backend_receipt_ref": "deployment-dispatch://dispatch_d835488c0e494ff4",
+        "error_code": "",
+        "error_message": "",
+        "event_refs": [
+          "verifier:attempt_60d3ef6ca599406f9a865936f4e5c905"
+        ],
+        "fence_epoch": 1,
+        "finished_at": "2026-08-05T14:25:45.078Z",
+        "gateway_receipt_ref": "",
+        "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+        "metadata": {
+          "location": "cloud",
+          "physical_dispatch_receipt_digest": "91efd478380d54081c96baf6b3d8721f52ad628165739d0ec21cd3cae34bb1ce"
+        },
+        "outcome": "succeeded",
+        "output_digest": "504ac633f91b28fea76ac5f409d8f02b727e3aa748a175b605d06128ff12bdf5",
+        "receipt_id": "execution_receipt_e1900e6549db4c6e944f9c29f1a5abd1",
+        "run_id": "rs-024123bd-ea1ee727",
+        "started_at": "2026-08-05T14:25:42.054Z",
+        "summary": "real cloud physical dispatch verified for attempt attempt_60d3ef6ca599406f9a865936f4e5c905",
+        "task_id": "task_e4a3b19e37f5",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+      },
+      "fence_token_persisted": false
+    }
+  ],
+  "providers": [
+    {
+      "attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+      "authenticated": true,
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "cost_usd": 0.0,
+      "credential_custodian": "WorkerPoolFoundationRuntime attestation/fenced lease",
+      "endpoint": "http://127.0.0.1:49000",
+      "latency_ms": 0,
+      "metadata": {
+        "capability_kind": "local-model-capability",
+        "physical_dispatch_receipt_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+        "simulated": false
+      },
+      "model_id": "local-deterministic",
+      "observation_id": "provider-local-attempt_d9863ee6861b40d89151ef3bb53535ec",
+      "provider_id": "zyra-local",
+      "request_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+      "request_id": "dispatch_e9849a4ed5344751",
+      "response_digest": "95bfbaf65c0e71e931c46dc24c3cfe3bf1752b7ac5bed899c32f78b7823a3fa2",
+      "response_status": 200,
+      "route_id": "resdec_72ce046a465b",
+      "started_at": "2026-08-05T14:25:32.872Z",
+      "tool_call_ids": [
+        "attempt_d9863ee6861b40d89151ef3bb53535ec"
+      ],
+      "tool_result_ids": [
+        "attempt_d9863ee6861b40d89151ef3bb53535ec"
+      ]
+    },
+    {
+      "attempt_id": "provider_attempt_17be38659eb349f0a6681004daa1fbc6",
+      "authenticated": true,
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "cost_usd": 0.0008686,
+      "credential_custodian": "env://ZAI_API_KEY",
+      "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "latency_ms": 4355,
+      "metadata": {
+        "credential_material_persisted": false,
+        "physical_dispatch_receipt_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+        "provider_usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 185,
+          "prompt_tokens": 39,
+          "total_tokens": 224
+        },
+        "semantic_only": false,
+        "simulated": false
+      },
+      "model_id": "glm-5.2",
+      "observation_id": "provider-cloud-attempt_96c8d4181ed748c8af4555ab78153c3b",
+      "provider_id": "zhipu",
+      "request_digest": "sha256:93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+      "request_id": "physical-76c9c456e6b8a11f9836aab5",
+      "response_digest": "2b6222ed3b157f91573abe0be85b583cc484d39c696afc4f0f5e4984c44b65a3",
+      "response_status": 200,
+      "route_id": "resdec_5f78aea0bc9f",
+      "started_at": "2026-08-05T14:25:35.253Z",
+      "tool_call_ids": [
+        "attempt_96c8d4181ed748c8af4555ab78153c3b"
+      ],
+      "tool_result_ids": [
+        "attempt_96c8d4181ed748c8af4555ab78153c3b"
+      ]
+    },
+    {
+      "attempt_id": "provider_attempt_233e219e696940e8b22ed606a3af3e46",
+      "authenticated": true,
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "cost_usd": 9.1e-06,
+      "credential_custodian": "env://DEEPSEEK_API_KEY",
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "latency_ms": 787,
+      "metadata": {
+        "credential_material_persisted": false,
+        "physical_dispatch_receipt_digest": "636adea706a1652241664004db377842719ac0f1589c88d1db079d582738d348",
+        "provider_usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 17,
+          "prompt_tokens": 31,
+          "total_tokens": 48
+        },
+        "semantic_only": false,
+        "simulated": false
+      },
+      "model_id": "deepseek-v4-flash",
+      "observation_id": "provider-cloud-attempt_f2b756ecacf64501a5c67d2c523b17bc",
+      "provider_id": "deepseek",
+      "request_digest": "sha256:a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+      "request_id": "physical-1229581c7ca198b120aad236",
+      "response_digest": "0421ae0923f62978a92bb20195de2bedcc093d31939c6de046c97e2724051082",
+      "response_status": 200,
+      "route_id": "resdec_bef7df19ec41",
+      "started_at": "2026-08-05T14:25:40.494Z",
+      "tool_call_ids": [
+        "attempt_f2b756ecacf64501a5c67d2c523b17bc"
+      ],
+      "tool_result_ids": [
+        "attempt_f2b756ecacf64501a5c67d2c523b17bc"
+      ]
+    },
+    {
+      "attempt_id": "provider_attempt_8d56cb7dd29542538aca77cd2cb4d32b",
+      "authenticated": true,
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "cost_usd": 0.0021455,
+      "credential_custodian": "env://KIMI_API_KEY",
+      "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+      "latency_ms": 2493,
+      "metadata": {
+        "credential_material_persisted": false,
+        "physical_dispatch_receipt_digest": "91efd478380d54081c96baf6b3d8721f52ad628165739d0ec21cd3cae34bb1ce",
+        "provider_usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 72,
+          "prompt_tokens": 31,
+          "total_tokens": 103
+        },
+        "semantic_only": false,
+        "simulated": false
+      },
+      "model_id": "kimi-k2.7-code",
+      "observation_id": "provider-cloud-attempt_60d3ef6ca599406f9a865936f4e5c905",
+      "provider_id": "kimi-platform",
+      "request_digest": "sha256:468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+      "request_id": "physical-748db63508e20c76335393a0",
+      "response_digest": "9f7a9e4b1b2bd9c701b980a461aeff927dd85df53687aadb1859c519e7d8f08e",
+      "response_status": 200,
+      "route_id": "resdec_53307bede40a",
+      "started_at": "2026-08-05T14:25:42.153Z",
+      "tool_call_ids": [
+        "attempt_60d3ef6ca599406f9a865936f4e5c905"
+      ],
+      "tool_result_ids": [
+        "attempt_60d3ef6ca599406f9a865936f4e5c905"
+      ]
+    }
+  ],
+  "receipt_envelopes": [
+    {
+      "causation_id": "resdec_72ce046a465b",
+      "configuration_digest": "88c04ec4ea43b04df4e87047805d19cd9f03766b6fbf770c8e811f993df91280",
+      "contract_id": "physical-dispatch:dispatch_e9849a4ed5344751",
+      "contract_kind": "physical_dispatch_receipt",
+      "correlation_id": "dispatch_e9849a4ed5344751",
+      "created_at": "2026-08-05T14:25:32.978Z",
+      "digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+      "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:local",
+      "input_version": "operator-placement-lease/v1",
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "payload": {
+        "allowed_placements": [
+          "local"
+        ],
+        "alternatives": [
+          "cloud",
+          "edge",
+          "local"
+        ],
+        "artifact_ref": {
+          "digest": "246999875e2ef0e02f1b8e5a5c441692faf9ebdd319712129ddec1e1d05d8865",
+          "media_type": "application/json",
+          "ref_id": "deployment_artifact_07c732ad3db74cb9",
+          "uri": "deployment://zyra-device-e93008a523864ab9/task_e4a3b19e37f5/deployment_artifact_07c732ad3db74cb9"
+        },
+        "call_receipt": {
+          "digest": "95bfbaf65c0e71e931c46dc24c3cfe3bf1752b7ac5bed899c32f78b7823a3fa2",
+          "media_type": "application/json",
+          "ref_id": "dispatch_e9849a4ed5344751",
+          "uri": "deployment-dispatch://dispatch_e9849a4ed5344751"
+        },
+        "input_signals": {
+          "attempt_started_at": "2026-08-05T14:25:32.740Z",
+          "call_finished_at": "2026-08-05T14:25:32.978Z",
+          "call_started_at": "2026-08-05T14:25:32.872Z",
+          "candidate_set_digest": "781c038b3b574231b1748535a490ef7d0718eed372608beeee0801868f1e19c8",
+          "condition": "normal",
+          "condition_signals": {},
+          "contract_outputs": {},
+          "domain_artifact": {},
+          "domain_effect_performed": false,
+          "domain_result": {},
+          "latency_sla_ms": 300000,
+          "layer_index": 0,
+          "lease_acquired_at": "2026-08-05T14:25:32.590Z",
+          "leased_worker_endpoint": "",
+          "leased_worker_generation_id": "",
+          "leased_worker_node_id": "",
+          "leased_worker_process_identity": "",
+          "maximum_cost_usd": 0.5,
+          "operator_adapter_id": "",
+          "operator_execution_body": {},
+          "operator_execution_digest": "",
+          "operator_ref": "",
+          "output_contract_fulfilled": false,
+          "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+          "privacy_class": "public",
+          "resource_scheduler_decision_id": "resdec_72ce046a465b",
+          "selected_location": "local",
+          "task_payload_digest": "98ad749110fc1c711183f26d159e252e4b210d6be751c0d38f0362baec1b3928",
+          "worker_id": "sealed-rs-024123bd-ea1ee727-local",
+          "workload_operation": "physical-dispatch-proof"
+        },
+        "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "physical_attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "physical_identity": {
+          "endpoint": "http://127.0.0.1:49000",
+          "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+          "generation_id": "generation_0f3a7bac9e8c4d5e",
+          "hostname": "AdamLi",
+          "independent_process": true,
+          "location": "local",
+          "node_id": "zyra-device-e93008a523864ab9",
+          "orchestrator_pid": 23444,
+          "pid": 27768,
+          "process_create_time": 1785939931.41072,
+          "profile": "device",
+          "runtime_kind": "isolated_process",
+          "terminal_id": "sha256:b2466ff612171fb5c16f61406619d6d02141a4ff9527ac2fad4a06384f42389a",
+          "terminal_source": "supervisor_process_chain"
+        },
+        "placement_decision_id": "resdec_72ce046a465b",
+        "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+        "privacy_class": "public",
+        "privacy_evidence": {
+          "allowed_placements": [
+            "local"
+          ],
+          "cloud_dispatch_allowed": false,
+          "credential_material_persisted": false,
+          "payload_digest": "98ad749110fc1c711183f26d159e252e4b210d6be751c0d38f0362baec1b3928",
+          "payload_redacted": true,
+          "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+          "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+          "privacy_class": "public",
+          "selected_placement": "local"
+        },
+        "provider_evidence": {},
+        "recovery_evidence": [],
+        "runtime_evidence": {
+          "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+          "health_digest": "sha256:276c338a38fc603bfc96428d48a9c7f20debe04e8c60003405e26800be7bbbf4",
+          "health_status": "ready",
+          "independent_from_orchestrator": true,
+          "isolation_kind": "process",
+          "network_down": false,
+          "network_endpoint": "http://127.0.0.1:49000",
+          "network_mode": "offline",
+          "network_namespace": "host-loopback:49000",
+          "node_configuration_digest": "sha256:08ad8656fff5952681da27037a46333140baef4baee273fe317f1e4ff9980a7f",
+          "process_create_time": 1785939931.41072,
+          "semantic_only": false,
+          "simulated": false
+        },
+        "semantic_only": false,
+        "simulated": false,
+        "verifier_ref": {
+          "digest": "2c36748ae99f62731478cc6e94274ba4cc1e3d4b8d45cc4e5bfa7096f6a57478",
+          "media_type": "application/json",
+          "ref_id": "verifier:attempt_d9863ee6861b40d89151ef3bb53535ec",
+          "uri": "physical-evidence://verifier/attempt_d9863ee6861b40d89151ef3bb53535ec/2c36748ae99f62731478cc6e94274ba4cc1e3d4b8d45cc4e5bfa7096f6a57478"
+        },
+        "worker_manifest_ref": {
+          "digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+          "media_type": "application/json",
+          "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-local",
+          "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-local/156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1"
+        }
+      },
+      "schema_version": "zyra.physical-dispatch-receipt/v2",
+      "source_event_id": "deployment.dispatch:dispatch_e9849a4ed5344751"
+    },
+    {
+      "causation_id": "resdec_7baf6eceb497",
+      "configuration_digest": "5dec936f6e1a7a00f43cb7f4489063c287afd7e578ee9af74ae2a3ef02726966",
+      "contract_id": "physical-dispatch:dispatch_037bbf4362da4733",
+      "contract_kind": "physical_dispatch_receipt",
+      "correlation_id": "dispatch_037bbf4362da4733",
+      "created_at": "2026-08-05T14:25:34.378Z",
+      "digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+      "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:edge",
+      "input_version": "operator-placement-lease/v1",
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "payload": {
+        "allowed_placements": [
+          "edge"
+        ],
+        "alternatives": [
+          "cloud",
+          "edge",
+          "local"
+        ],
+        "artifact_ref": {
+          "digest": "08e28912ba07f4763f929c1ab019c72c7d1421669df02d8bf479e72e2cf77597",
+          "media_type": "application/json",
+          "ref_id": "deployment_artifact_d540459816b04ddd",
+          "uri": "deployment://zyra-edge-46e6a0c664e545b5/task_e4a3b19e37f5/deployment_artifact_d540459816b04ddd"
+        },
+        "call_receipt": {
+          "digest": "071c998d6ec1a7840680631e1870f82bf12c72339df0e8caa4d7741c884f9043",
+          "media_type": "application/json",
+          "ref_id": "dispatch_037bbf4362da4733",
+          "uri": "deployment-dispatch://dispatch_037bbf4362da4733"
+        },
+        "input_signals": {
+          "attempt_started_at": "2026-08-05T14:25:34.084Z",
+          "call_finished_at": "2026-08-05T14:25:34.378Z",
+          "call_started_at": "2026-08-05T14:25:34.186Z",
+          "candidate_set_digest": "a9fc05ced04a1a16263c2cd7895c46ad0c5d0291bf278413906f2f6009bff743",
+          "condition": "normal",
+          "condition_signals": {},
+          "contract_outputs": {},
+          "domain_artifact": {},
+          "domain_effect_performed": false,
+          "domain_result": {},
+          "latency_sla_ms": 300000,
+          "layer_index": 0,
+          "lease_acquired_at": "2026-08-05T14:25:33.848Z",
+          "leased_worker_endpoint": "",
+          "leased_worker_generation_id": "",
+          "leased_worker_node_id": "",
+          "leased_worker_process_identity": "",
+          "maximum_cost_usd": 0.5,
+          "operator_adapter_id": "",
+          "operator_execution_body": {},
+          "operator_execution_digest": "",
+          "operator_ref": "",
+          "output_contract_fulfilled": false,
+          "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+          "privacy_class": "public",
+          "resource_scheduler_decision_id": "resdec_7baf6eceb497",
+          "selected_location": "edge",
+          "task_payload_digest": "99ff9c3bfce69993d9208cd6013074dcd6bc726b45b2a875884f009f25ac0c12",
+          "worker_id": "sealed-rs-024123bd-ea1ee727-edge",
+          "workload_operation": "physical-dispatch-proof"
+        },
+        "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "physical_attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+        "physical_identity": {
+          "endpoint": "http://127.0.0.1:49001",
+          "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+          "generation_id": "generation_3408dba4eea3474a",
+          "hostname": "AdamLi",
+          "independent_process": true,
+          "location": "edge",
+          "node_id": "zyra-edge-46e6a0c664e545b5",
+          "orchestrator_pid": 23444,
+          "pid": 22236,
+          "process_create_time": 1785939933.0882046,
+          "profile": "edge",
+          "runtime_kind": "isolated_process",
+          "terminal_id": "sha256:1ac4185ba17cc7fe2fd3d3fca2750e4c59416a589ff4a622e202f7f77bb6a494",
+          "terminal_source": "supervisor_process_chain"
+        },
+        "placement_decision_id": "resdec_7baf6eceb497",
+        "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+        "privacy_class": "public",
+        "privacy_evidence": {
+          "allowed_placements": [
+            "edge"
+          ],
+          "cloud_dispatch_allowed": false,
+          "credential_material_persisted": false,
+          "payload_digest": "99ff9c3bfce69993d9208cd6013074dcd6bc726b45b2a875884f009f25ac0c12",
+          "payload_redacted": true,
+          "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+          "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+          "privacy_class": "public",
+          "selected_placement": "edge"
+        },
+        "provider_evidence": {},
+        "recovery_evidence": [],
+        "runtime_evidence": {
+          "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+          "health_digest": "sha256:8ed76b95008bbf58ec2be32e014487c7a8a0107dfbc5db0538e415bf97a35c77",
+          "health_status": "ready",
+          "independent_from_orchestrator": true,
+          "isolation_kind": "process",
+          "network_down": false,
+          "network_endpoint": "http://127.0.0.1:49001",
+          "network_mode": "private",
+          "network_namespace": "host-loopback:49001",
+          "node_configuration_digest": "sha256:d5809fab4e543af5f35b14e4ed5508c32033e0e594a490ae0310b6ddc5b5db94",
+          "process_create_time": 1785939933.0882046,
+          "semantic_only": false,
+          "simulated": false
+        },
+        "semantic_only": false,
+        "simulated": false,
+        "verifier_ref": {
+          "digest": "9e150b9e4ecc7cde85b28dbb7352560d42e26ef08dd961bae6b9a51c2a306787",
+          "media_type": "application/json",
+          "ref_id": "verifier:attempt_c1011434fcf74ab988631ee68e75964d",
+          "uri": "physical-evidence://verifier/attempt_c1011434fcf74ab988631ee68e75964d/9e150b9e4ecc7cde85b28dbb7352560d42e26ef08dd961bae6b9a51c2a306787"
+        },
+        "worker_manifest_ref": {
+          "digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+          "media_type": "application/json",
+          "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-edge",
+          "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-edge/854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1"
+        }
+      },
+      "schema_version": "zyra.physical-dispatch-receipt/v2",
+      "source_event_id": "deployment.dispatch:dispatch_037bbf4362da4733"
+    },
+    {
+      "causation_id": "resdec_5f78aea0bc9f",
+      "configuration_digest": "705913395368a3508ade07e0dad18f7ef345abc9e4f1ddcceb24c38d8ffe4074",
+      "contract_id": "physical-dispatch:dispatch_58a89a016d0e4b59",
+      "contract_kind": "physical_dispatch_receipt",
+      "correlation_id": "dispatch_58a89a016d0e4b59",
+      "created_at": "2026-08-05T14:25:40.064Z",
+      "digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+      "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-zhipu",
+      "input_version": "operator-placement-lease/v1",
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "payload": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "alternatives": [
+          "cloud",
+          "edge",
+          "local"
+        ],
+        "artifact_ref": {
+          "digest": "5282f501b9b450fe099e9669d1a38e28f5c6269e6c3244a04fc8e5214dded211",
+          "media_type": "application/json",
+          "ref_id": "deployment_artifact_e10574e4eab94d22",
+          "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_e10574e4eab94d22"
+        },
+        "call_receipt": {
+          "digest": "2b6222ed3b157f91573abe0be85b583cc484d39c696afc4f0f5e4984c44b65a3",
+          "media_type": "application/json",
+          "ref_id": "dispatch_58a89a016d0e4b59",
+          "uri": "deployment-dispatch://dispatch_58a89a016d0e4b59"
+        },
+        "input_signals": {
+          "attempt_started_at": "2026-08-05T14:25:35.146Z",
+          "call_finished_at": "2026-08-05T14:25:40.064Z",
+          "call_started_at": "2026-08-05T14:25:35.253Z",
+          "candidate_set_digest": "56d0ffc453e5d96a0bb5abd8d5f9db06239580de7f601685fac18cc29e756619",
+          "condition": "normal",
+          "condition_signals": {},
+          "contract_outputs": {},
+          "domain_artifact": {},
+          "domain_effect_performed": false,
+          "domain_result": {},
+          "latency_sla_ms": 300000,
+          "layer_index": 0,
+          "lease_acquired_at": "2026-08-05T14:25:35.115Z",
+          "leased_worker_endpoint": "",
+          "leased_worker_generation_id": "",
+          "leased_worker_node_id": "",
+          "leased_worker_process_identity": "",
+          "maximum_cost_usd": 0.16666666666666666,
+          "operator_adapter_id": "",
+          "operator_execution_body": {},
+          "operator_execution_digest": "",
+          "operator_ref": "",
+          "output_contract_fulfilled": false,
+          "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+          "privacy_class": "public",
+          "resource_scheduler_decision_id": "resdec_5f78aea0bc9f",
+          "selected_location": "cloud",
+          "task_payload_digest": "93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+          "workload_operation": "physical-dispatch-proof"
+        },
+        "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "physical_attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "physical_identity": {
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "generation_id": "generation_3d09e3c5754e459a",
+          "hostname": "AdamLi",
+          "independent_process": true,
+          "location": "cloud",
+          "node_id": "zyra-cloud-0ece9039dbe74ea9",
+          "orchestrator_pid": 23444,
+          "pid": 62192,
+          "process_create_time": 1785939934.4819071,
+          "profile": "cloud",
+          "runtime_kind": "isolated_process",
+          "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+          "terminal_source": "supervisor_process_chain"
+        },
+        "placement_decision_id": "resdec_5f78aea0bc9f",
+        "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+        "privacy_class": "public",
+        "privacy_evidence": {
+          "allowed_placements": [
+            "cloud"
+          ],
+          "cloud_dispatch_allowed": true,
+          "credential_material_persisted": false,
+          "payload_digest": "93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+          "payload_redacted": true,
+          "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+          "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+          "privacy_class": "public",
+          "selected_placement": "cloud"
+        },
+        "provider_evidence": {
+          "completed_at_ms": 1785939940020,
+          "cost_amount": 0.005492,
+          "cost_currency": "CNY",
+          "cost_source": "provider_usage_x_versioned_catalog_pricing",
+          "cost_usd": 0.0008686,
+          "credential_fingerprint": "sha256:c9ded1b50875a0a8",
+          "credential_material_persisted": false,
+          "credential_ref": "env://ZAI_API_KEY",
+          "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+          "endpoint_host": "open.bigmodel.cn",
+          "endpoint_path": "/chat/completions",
+          "external_model_request": true,
+          "http_status": 200,
+          "latency_ms": 4355,
+          "live": true,
+          "marker_verified": true,
+          "model_id": "glm-5.2",
+          "normalized_pricing_source_ref": "https://docs.z.ai/guides/overview/pricing",
+          "output_digest": "sha256:00d56a2ac7e36d3074d21183fd7d74fb8738c73b5d3060a286ad036c522a61dd",
+          "payload_digest": "sha256:93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+          "pricing_source_ref": "https://bigmodel.cn/pricing",
+          "protocol": "openai_chat",
+          "provider_attempt_id": "provider_attempt_17be38659eb349f0a6681004daa1fbc6",
+          "provider_id": "zhipu",
+          "request_digest": "sha256:e34106cfdf36c9c4922465c64eb2dcf2fcbe3e52574f8622ce29d8e023b53d1f",
+          "request_id": "physical-76c9c456e6b8a11f9836aab5",
+          "response_digest": "sha256:5793422b6ff79d2623b038e78d5e37eea6798ce6d087ae29e5ae8639d7469bf1",
+          "route_id": "provider_route_3ae0ab71c89d4efb8fb255efc43abde3",
+          "schema": "zyra.live-provider-dispatch-evidence/v1",
+          "semantic_only": false,
+          "simulated": false,
+          "started_at_ms": 1785939935665,
+          "usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 185,
+            "prompt_tokens": 39,
+            "total_tokens": 224
+          }
+        },
+        "recovery_evidence": [],
+        "runtime_evidence": {
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "health_digest": "sha256:9a3ad2601b87c71d0a188e19caecc5fc5ab6ef7cb80631ea136409274acd5052",
+          "health_status": "ready",
+          "independent_from_orchestrator": true,
+          "isolation_kind": "process",
+          "network_down": false,
+          "network_endpoint": "http://127.0.0.1:49002",
+          "network_mode": "public",
+          "network_namespace": "host-loopback:49002",
+          "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+          "process_create_time": 1785939934.4819071,
+          "semantic_only": false,
+          "simulated": false
+        },
+        "semantic_only": false,
+        "simulated": false,
+        "verifier_ref": {
+          "digest": "dbd4f417695173ef34fac34d468d0a778ba6d1df8d09190e01180dc578676492",
+          "media_type": "application/json",
+          "ref_id": "verifier:attempt_96c8d4181ed748c8af4555ab78153c3b",
+          "uri": "physical-evidence://verifier/attempt_96c8d4181ed748c8af4555ab78153c3b/dbd4f417695173ef34fac34d468d0a778ba6d1df8d09190e01180dc578676492"
+        },
+        "worker_manifest_ref": {
+          "digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+          "media_type": "application/json",
+          "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+          "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-zhipu/596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa"
+        }
+      },
+      "schema_version": "zyra.physical-dispatch-receipt/v2",
+      "source_event_id": "deployment.dispatch:dispatch_58a89a016d0e4b59"
+    },
+    {
+      "causation_id": "resdec_bef7df19ec41",
+      "configuration_digest": "31fb4973b79527c5b5d85097ce7699accb146258ad042cf809c5a38877a84a24",
+      "contract_id": "physical-dispatch:dispatch_660878f0dd5d4e8b",
+      "contract_kind": "physical_dispatch_receipt",
+      "correlation_id": "dispatch_660878f0dd5d4e8b",
+      "created_at": "2026-08-05T14:25:41.750Z",
+      "digest": "636adea706a1652241664004db377842719ac0f1589c88d1db079d582738d348",
+      "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-deepseek",
+      "input_version": "operator-placement-lease/v1",
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "payload": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "alternatives": [
+          "cloud",
+          "edge",
+          "local"
+        ],
+        "artifact_ref": {
+          "digest": "ab9c0b302d1a29351ff86cffebf443e5c6255ba97bd26eeac47f02fc98bda057",
+          "media_type": "application/json",
+          "ref_id": "deployment_artifact_4f55fbe5c7db48b5",
+          "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_4f55fbe5c7db48b5"
+        },
+        "call_receipt": {
+          "digest": "0421ae0923f62978a92bb20195de2bedcc093d31939c6de046c97e2724051082",
+          "media_type": "application/json",
+          "ref_id": "dispatch_660878f0dd5d4e8b",
+          "uri": "deployment-dispatch://dispatch_660878f0dd5d4e8b"
+        },
+        "input_signals": {
+          "attempt_started_at": "2026-08-05T14:25:40.388Z",
+          "call_finished_at": "2026-08-05T14:25:41.750Z",
+          "call_started_at": "2026-08-05T14:25:40.494Z",
+          "candidate_set_digest": "d959831995942a0b04b2c6ce55cc985701d0e43095826e6087d99c5cf3062c28",
+          "condition": "normal",
+          "condition_signals": {},
+          "contract_outputs": {},
+          "domain_artifact": {},
+          "domain_effect_performed": false,
+          "domain_result": {},
+          "latency_sla_ms": 300000,
+          "layer_index": 0,
+          "lease_acquired_at": "2026-08-05T14:25:40.321Z",
+          "leased_worker_endpoint": "",
+          "leased_worker_generation_id": "",
+          "leased_worker_node_id": "",
+          "leased_worker_process_identity": "",
+          "maximum_cost_usd": 0.16666666666666666,
+          "operator_adapter_id": "",
+          "operator_execution_body": {},
+          "operator_execution_digest": "",
+          "operator_ref": "",
+          "output_contract_fulfilled": false,
+          "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+          "privacy_class": "public",
+          "resource_scheduler_decision_id": "resdec_bef7df19ec41",
+          "selected_location": "cloud",
+          "task_payload_digest": "a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+          "workload_operation": "physical-dispatch-proof"
+        },
+        "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "physical_attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "physical_identity": {
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "generation_id": "generation_3d09e3c5754e459a",
+          "hostname": "AdamLi",
+          "independent_process": true,
+          "location": "cloud",
+          "node_id": "zyra-cloud-0ece9039dbe74ea9",
+          "orchestrator_pid": 23444,
+          "pid": 62192,
+          "process_create_time": 1785939934.4819071,
+          "profile": "cloud",
+          "runtime_kind": "isolated_process",
+          "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+          "terminal_source": "supervisor_process_chain"
+        },
+        "placement_decision_id": "resdec_bef7df19ec41",
+        "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+        "privacy_class": "public",
+        "privacy_evidence": {
+          "allowed_placements": [
+            "cloud"
+          ],
+          "cloud_dispatch_allowed": true,
+          "credential_material_persisted": false,
+          "payload_digest": "a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+          "payload_redacted": true,
+          "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+          "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+          "privacy_class": "public",
+          "selected_placement": "cloud"
+        },
+        "provider_evidence": {
+          "completed_at_ms": 1785939941719,
+          "cost_amount": 9.1e-06,
+          "cost_currency": "USD",
+          "cost_source": "provider_usage_x_versioned_catalog_pricing",
+          "cost_usd": 9.1e-06,
+          "credential_fingerprint": "sha256:a2e44bf87a98d85d",
+          "credential_material_persisted": false,
+          "credential_ref": "env://DEEPSEEK_API_KEY",
+          "endpoint": "https://api.deepseek.com/chat/completions",
+          "endpoint_host": "api.deepseek.com",
+          "endpoint_path": "/chat/completions",
+          "external_model_request": true,
+          "http_status": 200,
+          "latency_ms": 787,
+          "live": true,
+          "marker_verified": true,
+          "model_id": "deepseek-v4-flash",
+          "normalized_pricing_source_ref": "https://api-docs.deepseek.com/quick_start/pricing/?article_id=article_1779470751466_8",
+          "output_digest": "sha256:ca6c9272eb67a6d2064c05dbed21b405994435da446dee9fc3818750397ac354",
+          "payload_digest": "sha256:a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+          "pricing_source_ref": "https://api-docs.deepseek.com/quick_start/pricing/?article_id=article_1779470751466_8",
+          "protocol": "openai_chat",
+          "provider_attempt_id": "provider_attempt_233e219e696940e8b22ed606a3af3e46",
+          "provider_id": "deepseek",
+          "request_digest": "sha256:71157013e25afd71070f8d770819998681fea9720671cc54d554189993f20bb4",
+          "request_id": "physical-1229581c7ca198b120aad236",
+          "response_digest": "sha256:a76d2f538a6284679ac973bdb1eeba3a300468ee7c1087b3dec2efd2b2a82f7d",
+          "route_id": "provider_route_998fd16179774bfc90603c6d02fe5a0b",
+          "schema": "zyra.live-provider-dispatch-evidence/v1",
+          "semantic_only": false,
+          "simulated": false,
+          "started_at_ms": 1785939940932,
+          "usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 17,
+            "prompt_tokens": 31,
+            "total_tokens": 48
+          }
+        },
+        "recovery_evidence": [],
+        "runtime_evidence": {
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "health_digest": "sha256:ac90f5cb8c1a59a094f8bb99a54c147aa157df7b62d2bd2acecbcbec0717b223",
+          "health_status": "ready",
+          "independent_from_orchestrator": true,
+          "isolation_kind": "process",
+          "network_down": false,
+          "network_endpoint": "http://127.0.0.1:49002",
+          "network_mode": "public",
+          "network_namespace": "host-loopback:49002",
+          "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+          "process_create_time": 1785939934.4819071,
+          "semantic_only": false,
+          "simulated": false
+        },
+        "semantic_only": false,
+        "simulated": false,
+        "verifier_ref": {
+          "digest": "8c7075d40ea08287757bed0c597e22ec0d64dcca6fe06e3b2f6b080a97d197d5",
+          "media_type": "application/json",
+          "ref_id": "verifier:attempt_f2b756ecacf64501a5c67d2c523b17bc",
+          "uri": "physical-evidence://verifier/attempt_f2b756ecacf64501a5c67d2c523b17bc/8c7075d40ea08287757bed0c597e22ec0d64dcca6fe06e3b2f6b080a97d197d5"
+        },
+        "worker_manifest_ref": {
+          "digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+          "media_type": "application/json",
+          "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+          "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-deepseek/488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3"
+        }
+      },
+      "schema_version": "zyra.physical-dispatch-receipt/v2",
+      "source_event_id": "deployment.dispatch:dispatch_660878f0dd5d4e8b"
+    },
+    {
+      "causation_id": "resdec_53307bede40a",
+      "configuration_digest": "93a8b4bc0b1c3ae1b095a1ff39e878cb5408234abb3e0e13d21c265ec50efc08",
+      "contract_id": "physical-dispatch:dispatch_d835488c0e494ff4",
+      "contract_kind": "physical_dispatch_receipt",
+      "correlation_id": "dispatch_d835488c0e494ff4",
+      "created_at": "2026-08-05T14:25:45.047Z",
+      "digest": "91efd478380d54081c96baf6b3d8721f52ad628165739d0ec21cd3cae34bb1ce",
+      "idempotency_key": "sealed:rs-024123bd-ea1ee727:task_e4a3b19e37f5:cloud-kimi-platform",
+      "input_version": "operator-placement-lease/v1",
+      "mechanism_id": "zyra_physical_dispatch",
+      "mechanism_version": "physical_dispatch_v1",
+      "payload": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "alternatives": [
+          "cloud",
+          "edge",
+          "local"
+        ],
+        "artifact_ref": {
+          "digest": "ba01dd857ded9b7843506e316255d96590f959f7ed2a81e37cfdb7fa7d9463fe",
+          "media_type": "application/json",
+          "ref_id": "deployment_artifact_b41a5c6317844eb0",
+          "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_b41a5c6317844eb0"
+        },
+        "call_receipt": {
+          "digest": "9f7a9e4b1b2bd9c701b980a461aeff927dd85df53687aadb1859c519e7d8f08e",
+          "media_type": "application/json",
+          "ref_id": "dispatch_d835488c0e494ff4",
+          "uri": "deployment-dispatch://dispatch_d835488c0e494ff4"
+        },
+        "input_signals": {
+          "attempt_started_at": "2026-08-05T14:25:42.054Z",
+          "call_finished_at": "2026-08-05T14:25:45.047Z",
+          "call_started_at": "2026-08-05T14:25:42.153Z",
+          "candidate_set_digest": "16ad5148d2ff8bf80465fea86951634c946505dc7542e970e01ae0adc2115f94",
+          "condition": "normal",
+          "condition_signals": {},
+          "contract_outputs": {},
+          "domain_artifact": {},
+          "domain_effect_performed": false,
+          "domain_result": {},
+          "latency_sla_ms": 300000,
+          "layer_index": 0,
+          "lease_acquired_at": "2026-08-05T14:25:41.997Z",
+          "leased_worker_endpoint": "",
+          "leased_worker_generation_id": "",
+          "leased_worker_node_id": "",
+          "leased_worker_process_identity": "",
+          "maximum_cost_usd": 0.16666666666666666,
+          "operator_adapter_id": "",
+          "operator_execution_body": {},
+          "operator_execution_digest": "",
+          "operator_ref": "",
+          "output_contract_fulfilled": false,
+          "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+          "privacy_class": "public",
+          "resource_scheduler_decision_id": "resdec_53307bede40a",
+          "selected_location": "cloud",
+          "task_payload_digest": "468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+          "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+          "workload_operation": "physical-dispatch-proof"
+        },
+        "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "physical_attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+        "physical_identity": {
+          "endpoint": "http://127.0.0.1:49002",
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "generation_id": "generation_3d09e3c5754e459a",
+          "hostname": "AdamLi",
+          "independent_process": true,
+          "location": "cloud",
+          "node_id": "zyra-cloud-0ece9039dbe74ea9",
+          "orchestrator_pid": 23444,
+          "pid": 62192,
+          "process_create_time": 1785939934.4819071,
+          "profile": "cloud",
+          "runtime_kind": "isolated_process",
+          "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+          "terminal_source": "supervisor_process_chain"
+        },
+        "placement_decision_id": "resdec_53307bede40a",
+        "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+        "privacy_class": "public",
+        "privacy_evidence": {
+          "allowed_placements": [
+            "cloud"
+          ],
+          "cloud_dispatch_allowed": true,
+          "credential_material_persisted": false,
+          "payload_digest": "468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+          "payload_redacted": true,
+          "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+          "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+          "privacy_class": "public",
+          "selected_placement": "cloud"
+        },
+        "provider_evidence": {
+          "completed_at_ms": 1785939945008,
+          "cost_amount": 0.0021455,
+          "cost_currency": "CNY",
+          "cost_source": "provider_usage_x_versioned_catalog_pricing",
+          "cost_usd": 0.0021455,
+          "credential_fingerprint": "sha256:3bf26c2df9f42b6f",
+          "credential_material_persisted": false,
+          "credential_ref": "env://KIMI_API_KEY",
+          "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+          "endpoint_host": "api.moonshot.cn",
+          "endpoint_path": "/chat/completions",
+          "external_model_request": true,
+          "http_status": 200,
+          "latency_ms": 2493,
+          "live": true,
+          "marker_verified": true,
+          "model_id": "kimi-k2.7-code",
+          "normalized_pricing_source_ref": "zyra://pricing/conservative-cny-as-usd-upper-bound",
+          "output_digest": "sha256:b1c9d4699fea51e988bc53af2bef050f7ccf5d28925d5e4891f027f812551d24",
+          "payload_digest": "sha256:468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+          "pricing_source_ref": "https://platform.kimi.com/",
+          "protocol": "openai_chat",
+          "provider_attempt_id": "provider_attempt_8d56cb7dd29542538aca77cd2cb4d32b",
+          "provider_id": "kimi-platform",
+          "request_digest": "sha256:407e0aa1c925100ff8d9c1bda04fc255dc1d7c43bae5e6bcdab784399000c124",
+          "request_id": "physical-748db63508e20c76335393a0",
+          "response_digest": "sha256:c868e6eeea3d4aee91ba2d77668c4e84f23b10ce1778b765771e1bdb3d3e081b",
+          "route_id": "provider_route_efddda40b2c54030a395eb576325c33b",
+          "schema": "zyra.live-provider-dispatch-evidence/v1",
+          "semantic_only": false,
+          "simulated": false,
+          "started_at_ms": 1785939942515,
+          "usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 72,
+            "prompt_tokens": 31,
+            "total_tokens": 103
+          }
+        },
+        "recovery_evidence": [],
+        "runtime_evidence": {
+          "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+          "health_digest": "sha256:01a3142a0f069ca9fa89c7e2b51db1317a26b0ea45625285b2eda9650cdc1c6d",
+          "health_status": "ready",
+          "independent_from_orchestrator": true,
+          "isolation_kind": "process",
+          "network_down": false,
+          "network_endpoint": "http://127.0.0.1:49002",
+          "network_mode": "public",
+          "network_namespace": "host-loopback:49002",
+          "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+          "process_create_time": 1785939934.4819071,
+          "semantic_only": false,
+          "simulated": false
+        },
+        "semantic_only": false,
+        "simulated": false,
+        "verifier_ref": {
+          "digest": "149ff60085edbb088695088766a54ff5b2d030a636c67acfb572676fb2cf6962",
+          "media_type": "application/json",
+          "ref_id": "verifier:attempt_60d3ef6ca599406f9a865936f4e5c905",
+          "uri": "physical-evidence://verifier/attempt_60d3ef6ca599406f9a865936f4e5c905/149ff60085edbb088695088766a54ff5b2d030a636c67acfb572676fb2cf6962"
+        },
+        "worker_manifest_ref": {
+          "digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+          "media_type": "application/json",
+          "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+          "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-kimi-platform/2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a"
+        }
+      },
+      "schema_version": "zyra.physical-dispatch-receipt/v2",
+      "source_event_id": "deployment.dispatch:dispatch_d835488c0e494ff4"
+    }
+  ],
+  "receipts": [
+    {
+      "allowed_placements": [
+        "local"
+      ],
+      "alternatives": [
+        "cloud",
+        "edge",
+        "local"
+      ],
+      "artifact_ref": {
+        "digest": "246999875e2ef0e02f1b8e5a5c441692faf9ebdd319712129ddec1e1d05d8865",
+        "media_type": "application/json",
+        "ref_id": "deployment_artifact_07c732ad3db74cb9",
+        "uri": "deployment://zyra-device-e93008a523864ab9/task_e4a3b19e37f5/deployment_artifact_07c732ad3db74cb9"
+      },
+      "call_receipt": {
+        "digest": "95bfbaf65c0e71e931c46dc24c3cfe3bf1752b7ac5bed899c32f78b7823a3fa2",
+        "media_type": "application/json",
+        "ref_id": "dispatch_e9849a4ed5344751",
+        "uri": "deployment-dispatch://dispatch_e9849a4ed5344751"
+      },
+      "contract_id": "physical-dispatch:dispatch_e9849a4ed5344751",
+      "created_at": "2026-08-05T14:25:32.978Z",
+      "digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+      "input_signals": {
+        "attempt_started_at": "2026-08-05T14:25:32.740Z",
+        "call_finished_at": "2026-08-05T14:25:32.978Z",
+        "call_started_at": "2026-08-05T14:25:32.872Z",
+        "candidate_set_digest": "781c038b3b574231b1748535a490ef7d0718eed372608beeee0801868f1e19c8",
+        "condition": "normal",
+        "condition_signals": {},
+        "contract_outputs": {},
+        "domain_artifact": {},
+        "domain_effect_performed": false,
+        "domain_result": {},
+        "latency_sla_ms": 300000,
+        "layer_index": 0,
+        "lease_acquired_at": "2026-08-05T14:25:32.590Z",
+        "leased_worker_endpoint": "",
+        "leased_worker_generation_id": "",
+        "leased_worker_node_id": "",
+        "leased_worker_process_identity": "",
+        "maximum_cost_usd": 0.5,
+        "operator_adapter_id": "",
+        "operator_execution_body": {},
+        "operator_execution_digest": "",
+        "operator_ref": "",
+        "output_contract_fulfilled": false,
+        "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+        "privacy_class": "public",
+        "resource_scheduler_decision_id": "resdec_72ce046a465b",
+        "selected_location": "local",
+        "task_payload_digest": "98ad749110fc1c711183f26d159e252e4b210d6be751c0d38f0362baec1b3928",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-local",
+        "workload_operation": "physical-dispatch-proof"
+      },
+      "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+      "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+      "physical_attempt_id": "attempt_d9863ee6861b40d89151ef3bb53535ec",
+      "physical_identity": {
+        "endpoint": "http://127.0.0.1:49000",
+        "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+        "generation_id": "generation_0f3a7bac9e8c4d5e",
+        "hostname": "AdamLi",
+        "independent_process": true,
+        "location": "local",
+        "node_id": "zyra-device-e93008a523864ab9",
+        "orchestrator_pid": 23444,
+        "pid": 27768,
+        "process_create_time": 1785939931.41072,
+        "profile": "device",
+        "runtime_kind": "isolated_process",
+        "terminal_id": "sha256:b2466ff612171fb5c16f61406619d6d02141a4ff9527ac2fad4a06384f42389a",
+        "terminal_source": "supervisor_process_chain"
+      },
+      "placement_decision_id": "resdec_72ce046a465b",
+      "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+      "privacy_class": "public",
+      "privacy_evidence": {
+        "allowed_placements": [
+          "local"
+        ],
+        "cloud_dispatch_allowed": false,
+        "credential_material_persisted": false,
+        "payload_digest": "98ad749110fc1c711183f26d159e252e4b210d6be751c0d38f0362baec1b3928",
+        "payload_redacted": true,
+        "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "privacy_class": "public",
+        "selected_placement": "local"
+      },
+      "provider_evidence": {},
+      "recovery_evidence": [],
+      "runtime_evidence": {
+        "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+        "health_digest": "sha256:276c338a38fc603bfc96428d48a9c7f20debe04e8c60003405e26800be7bbbf4",
+        "health_status": "ready",
+        "independent_from_orchestrator": true,
+        "isolation_kind": "process",
+        "network_down": false,
+        "network_endpoint": "http://127.0.0.1:49000",
+        "network_mode": "offline",
+        "network_namespace": "host-loopback:49000",
+        "node_configuration_digest": "sha256:08ad8656fff5952681da27037a46333140baef4baee273fe317f1e4ff9980a7f",
+        "process_create_time": 1785939931.41072,
+        "semantic_only": false,
+        "simulated": false
+      },
+      "semantic_only": false,
+      "simulated": false,
+      "verifier_ref": {
+        "digest": "2c36748ae99f62731478cc6e94274ba4cc1e3d4b8d45cc4e5bfa7096f6a57478",
+        "media_type": "application/json",
+        "ref_id": "verifier:attempt_d9863ee6861b40d89151ef3bb53535ec",
+        "uri": "physical-evidence://verifier/attempt_d9863ee6861b40d89151ef3bb53535ec/2c36748ae99f62731478cc6e94274ba4cc1e3d4b8d45cc4e5bfa7096f6a57478"
+      },
+      "worker_manifest_ref": {
+        "digest": "156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1",
+        "media_type": "application/json",
+        "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-local",
+        "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-local/156e9973c913bbcd6bfd7c332cc8c46b2e9497c21e3ebca0ccc24c2971b499b1"
+      }
+    },
+    {
+      "allowed_placements": [
+        "edge"
+      ],
+      "alternatives": [
+        "cloud",
+        "edge",
+        "local"
+      ],
+      "artifact_ref": {
+        "digest": "08e28912ba07f4763f929c1ab019c72c7d1421669df02d8bf479e72e2cf77597",
+        "media_type": "application/json",
+        "ref_id": "deployment_artifact_d540459816b04ddd",
+        "uri": "deployment://zyra-edge-46e6a0c664e545b5/task_e4a3b19e37f5/deployment_artifact_d540459816b04ddd"
+      },
+      "call_receipt": {
+        "digest": "071c998d6ec1a7840680631e1870f82bf12c72339df0e8caa4d7741c884f9043",
+        "media_type": "application/json",
+        "ref_id": "dispatch_037bbf4362da4733",
+        "uri": "deployment-dispatch://dispatch_037bbf4362da4733"
+      },
+      "contract_id": "physical-dispatch:dispatch_037bbf4362da4733",
+      "created_at": "2026-08-05T14:25:34.378Z",
+      "digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+      "input_signals": {
+        "attempt_started_at": "2026-08-05T14:25:34.084Z",
+        "call_finished_at": "2026-08-05T14:25:34.378Z",
+        "call_started_at": "2026-08-05T14:25:34.186Z",
+        "candidate_set_digest": "a9fc05ced04a1a16263c2cd7895c46ad0c5d0291bf278413906f2f6009bff743",
+        "condition": "normal",
+        "condition_signals": {},
+        "contract_outputs": {},
+        "domain_artifact": {},
+        "domain_effect_performed": false,
+        "domain_result": {},
+        "latency_sla_ms": 300000,
+        "layer_index": 0,
+        "lease_acquired_at": "2026-08-05T14:25:33.848Z",
+        "leased_worker_endpoint": "",
+        "leased_worker_generation_id": "",
+        "leased_worker_node_id": "",
+        "leased_worker_process_identity": "",
+        "maximum_cost_usd": 0.5,
+        "operator_adapter_id": "",
+        "operator_execution_body": {},
+        "operator_execution_digest": "",
+        "operator_ref": "",
+        "output_contract_fulfilled": false,
+        "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+        "privacy_class": "public",
+        "resource_scheduler_decision_id": "resdec_7baf6eceb497",
+        "selected_location": "edge",
+        "task_payload_digest": "99ff9c3bfce69993d9208cd6013074dcd6bc726b45b2a875884f009f25ac0c12",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-edge",
+        "workload_operation": "physical-dispatch-proof"
+      },
+      "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+      "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+      "physical_attempt_id": "attempt_c1011434fcf74ab988631ee68e75964d",
+      "physical_identity": {
+        "endpoint": "http://127.0.0.1:49001",
+        "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+        "generation_id": "generation_3408dba4eea3474a",
+        "hostname": "AdamLi",
+        "independent_process": true,
+        "location": "edge",
+        "node_id": "zyra-edge-46e6a0c664e545b5",
+        "orchestrator_pid": 23444,
+        "pid": 22236,
+        "process_create_time": 1785939933.0882046,
+        "profile": "edge",
+        "runtime_kind": "isolated_process",
+        "terminal_id": "sha256:1ac4185ba17cc7fe2fd3d3fca2750e4c59416a589ff4a622e202f7f77bb6a494",
+        "terminal_source": "supervisor_process_chain"
+      },
+      "placement_decision_id": "resdec_7baf6eceb497",
+      "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+      "privacy_class": "public",
+      "privacy_evidence": {
+        "allowed_placements": [
+          "edge"
+        ],
+        "cloud_dispatch_allowed": false,
+        "credential_material_persisted": false,
+        "payload_digest": "99ff9c3bfce69993d9208cd6013074dcd6bc726b45b2a875884f009f25ac0c12",
+        "payload_redacted": true,
+        "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "privacy_class": "public",
+        "selected_placement": "edge"
+      },
+      "provider_evidence": {},
+      "recovery_evidence": [],
+      "runtime_evidence": {
+        "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+        "health_digest": "sha256:8ed76b95008bbf58ec2be32e014487c7a8a0107dfbc5db0538e415bf97a35c77",
+        "health_status": "ready",
+        "independent_from_orchestrator": true,
+        "isolation_kind": "process",
+        "network_down": false,
+        "network_endpoint": "http://127.0.0.1:49001",
+        "network_mode": "private",
+        "network_namespace": "host-loopback:49001",
+        "node_configuration_digest": "sha256:d5809fab4e543af5f35b14e4ed5508c32033e0e594a490ae0310b6ddc5b5db94",
+        "process_create_time": 1785939933.0882046,
+        "semantic_only": false,
+        "simulated": false
+      },
+      "semantic_only": false,
+      "simulated": false,
+      "verifier_ref": {
+        "digest": "9e150b9e4ecc7cde85b28dbb7352560d42e26ef08dd961bae6b9a51c2a306787",
+        "media_type": "application/json",
+        "ref_id": "verifier:attempt_c1011434fcf74ab988631ee68e75964d",
+        "uri": "physical-evidence://verifier/attempt_c1011434fcf74ab988631ee68e75964d/9e150b9e4ecc7cde85b28dbb7352560d42e26ef08dd961bae6b9a51c2a306787"
+      },
+      "worker_manifest_ref": {
+        "digest": "854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1",
+        "media_type": "application/json",
+        "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-edge",
+        "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-edge/854aeb904ef2865ba104e15004d258574cce28e11d9a0e99e2488207599f4ba1"
+      }
+    },
+    {
+      "allowed_placements": [
+        "cloud"
+      ],
+      "alternatives": [
+        "cloud",
+        "edge",
+        "local"
+      ],
+      "artifact_ref": {
+        "digest": "5282f501b9b450fe099e9669d1a38e28f5c6269e6c3244a04fc8e5214dded211",
+        "media_type": "application/json",
+        "ref_id": "deployment_artifact_e10574e4eab94d22",
+        "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_e10574e4eab94d22"
+      },
+      "call_receipt": {
+        "digest": "2b6222ed3b157f91573abe0be85b583cc484d39c696afc4f0f5e4984c44b65a3",
+        "media_type": "application/json",
+        "ref_id": "dispatch_58a89a016d0e4b59",
+        "uri": "deployment-dispatch://dispatch_58a89a016d0e4b59"
+      },
+      "contract_id": "physical-dispatch:dispatch_58a89a016d0e4b59",
+      "created_at": "2026-08-05T14:25:40.064Z",
+      "digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+      "input_signals": {
+        "attempt_started_at": "2026-08-05T14:25:35.146Z",
+        "call_finished_at": "2026-08-05T14:25:40.064Z",
+        "call_started_at": "2026-08-05T14:25:35.253Z",
+        "candidate_set_digest": "56d0ffc453e5d96a0bb5abd8d5f9db06239580de7f601685fac18cc29e756619",
+        "condition": "normal",
+        "condition_signals": {},
+        "contract_outputs": {},
+        "domain_artifact": {},
+        "domain_effect_performed": false,
+        "domain_result": {},
+        "latency_sla_ms": 300000,
+        "layer_index": 0,
+        "lease_acquired_at": "2026-08-05T14:25:35.115Z",
+        "leased_worker_endpoint": "",
+        "leased_worker_generation_id": "",
+        "leased_worker_node_id": "",
+        "leased_worker_process_identity": "",
+        "maximum_cost_usd": 0.16666666666666666,
+        "operator_adapter_id": "",
+        "operator_execution_body": {},
+        "operator_execution_digest": "",
+        "operator_ref": "",
+        "output_contract_fulfilled": false,
+        "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+        "privacy_class": "public",
+        "resource_scheduler_decision_id": "resdec_5f78aea0bc9f",
+        "selected_location": "cloud",
+        "task_payload_digest": "93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+        "workload_operation": "physical-dispatch-proof"
+      },
+      "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+      "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+      "physical_attempt_id": "attempt_96c8d4181ed748c8af4555ab78153c3b",
+      "physical_identity": {
+        "endpoint": "http://127.0.0.1:49002",
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "generation_id": "generation_3d09e3c5754e459a",
+        "hostname": "AdamLi",
+        "independent_process": true,
+        "location": "cloud",
+        "node_id": "zyra-cloud-0ece9039dbe74ea9",
+        "orchestrator_pid": 23444,
+        "pid": 62192,
+        "process_create_time": 1785939934.4819071,
+        "profile": "cloud",
+        "runtime_kind": "isolated_process",
+        "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+        "terminal_source": "supervisor_process_chain"
+      },
+      "placement_decision_id": "resdec_5f78aea0bc9f",
+      "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+      "privacy_class": "public",
+      "privacy_evidence": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "cloud_dispatch_allowed": true,
+        "credential_material_persisted": false,
+        "payload_digest": "93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+        "payload_redacted": true,
+        "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "privacy_class": "public",
+        "selected_placement": "cloud"
+      },
+      "provider_evidence": {
+        "completed_at_ms": 1785939940020,
+        "cost_amount": 0.005492,
+        "cost_currency": "CNY",
+        "cost_source": "provider_usage_x_versioned_catalog_pricing",
+        "cost_usd": 0.0008686,
+        "credential_fingerprint": "sha256:c9ded1b50875a0a8",
+        "credential_material_persisted": false,
+        "credential_ref": "env://ZAI_API_KEY",
+        "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "endpoint_host": "open.bigmodel.cn",
+        "endpoint_path": "/chat/completions",
+        "external_model_request": true,
+        "http_status": 200,
+        "latency_ms": 4355,
+        "live": true,
+        "marker_verified": true,
+        "model_id": "glm-5.2",
+        "normalized_pricing_source_ref": "https://docs.z.ai/guides/overview/pricing",
+        "output_digest": "sha256:00d56a2ac7e36d3074d21183fd7d74fb8738c73b5d3060a286ad036c522a61dd",
+        "payload_digest": "sha256:93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+        "pricing_source_ref": "https://bigmodel.cn/pricing",
+        "protocol": "openai_chat",
+        "provider_attempt_id": "provider_attempt_17be38659eb349f0a6681004daa1fbc6",
+        "provider_id": "zhipu",
+        "request_digest": "sha256:e34106cfdf36c9c4922465c64eb2dcf2fcbe3e52574f8622ce29d8e023b53d1f",
+        "request_id": "physical-76c9c456e6b8a11f9836aab5",
+        "response_digest": "sha256:5793422b6ff79d2623b038e78d5e37eea6798ce6d087ae29e5ae8639d7469bf1",
+        "route_id": "provider_route_3ae0ab71c89d4efb8fb255efc43abde3",
+        "schema": "zyra.live-provider-dispatch-evidence/v1",
+        "semantic_only": false,
+        "simulated": false,
+        "started_at_ms": 1785939935665,
+        "usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 185,
+          "prompt_tokens": 39,
+          "total_tokens": 224
+        }
+      },
+      "recovery_evidence": [],
+      "runtime_evidence": {
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "health_digest": "sha256:9a3ad2601b87c71d0a188e19caecc5fc5ab6ef7cb80631ea136409274acd5052",
+        "health_status": "ready",
+        "independent_from_orchestrator": true,
+        "isolation_kind": "process",
+        "network_down": false,
+        "network_endpoint": "http://127.0.0.1:49002",
+        "network_mode": "public",
+        "network_namespace": "host-loopback:49002",
+        "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+        "process_create_time": 1785939934.4819071,
+        "semantic_only": false,
+        "simulated": false
+      },
+      "semantic_only": false,
+      "simulated": false,
+      "verifier_ref": {
+        "digest": "dbd4f417695173ef34fac34d468d0a778ba6d1df8d09190e01180dc578676492",
+        "media_type": "application/json",
+        "ref_id": "verifier:attempt_96c8d4181ed748c8af4555ab78153c3b",
+        "uri": "physical-evidence://verifier/attempt_96c8d4181ed748c8af4555ab78153c3b/dbd4f417695173ef34fac34d468d0a778ba6d1df8d09190e01180dc578676492"
+      },
+      "worker_manifest_ref": {
+        "digest": "596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa",
+        "media_type": "application/json",
+        "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+        "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-zhipu/596480521880cb9b5118848da822eb124edfee1f18432a644bceffd0613beaaa"
+      }
+    },
+    {
+      "allowed_placements": [
+        "cloud"
+      ],
+      "alternatives": [
+        "cloud",
+        "edge",
+        "local"
+      ],
+      "artifact_ref": {
+        "digest": "ab9c0b302d1a29351ff86cffebf443e5c6255ba97bd26eeac47f02fc98bda057",
+        "media_type": "application/json",
+        "ref_id": "deployment_artifact_4f55fbe5c7db48b5",
+        "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_4f55fbe5c7db48b5"
+      },
+      "call_receipt": {
+        "digest": "0421ae0923f62978a92bb20195de2bedcc093d31939c6de046c97e2724051082",
+        "media_type": "application/json",
+        "ref_id": "dispatch_660878f0dd5d4e8b",
+        "uri": "deployment-dispatch://dispatch_660878f0dd5d4e8b"
+      },
+      "contract_id": "physical-dispatch:dispatch_660878f0dd5d4e8b",
+      "created_at": "2026-08-05T14:25:41.750Z",
+      "digest": "636adea706a1652241664004db377842719ac0f1589c88d1db079d582738d348",
+      "input_signals": {
+        "attempt_started_at": "2026-08-05T14:25:40.388Z",
+        "call_finished_at": "2026-08-05T14:25:41.750Z",
+        "call_started_at": "2026-08-05T14:25:40.494Z",
+        "candidate_set_digest": "d959831995942a0b04b2c6ce55cc985701d0e43095826e6087d99c5cf3062c28",
+        "condition": "normal",
+        "condition_signals": {},
+        "contract_outputs": {},
+        "domain_artifact": {},
+        "domain_effect_performed": false,
+        "domain_result": {},
+        "latency_sla_ms": 300000,
+        "layer_index": 0,
+        "lease_acquired_at": "2026-08-05T14:25:40.321Z",
+        "leased_worker_endpoint": "",
+        "leased_worker_generation_id": "",
+        "leased_worker_node_id": "",
+        "leased_worker_process_identity": "",
+        "maximum_cost_usd": 0.16666666666666666,
+        "operator_adapter_id": "",
+        "operator_execution_body": {},
+        "operator_execution_digest": "",
+        "operator_ref": "",
+        "output_contract_fulfilled": false,
+        "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+        "privacy_class": "public",
+        "resource_scheduler_decision_id": "resdec_bef7df19ec41",
+        "selected_location": "cloud",
+        "task_payload_digest": "a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+        "workload_operation": "physical-dispatch-proof"
+      },
+      "lease_id": "lease_a2be1fc14bce405b997038f28ad2ea2c",
+      "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+      "physical_attempt_id": "attempt_f2b756ecacf64501a5c67d2c523b17bc",
+      "physical_identity": {
+        "endpoint": "http://127.0.0.1:49002",
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "generation_id": "generation_3d09e3c5754e459a",
+        "hostname": "AdamLi",
+        "independent_process": true,
+        "location": "cloud",
+        "node_id": "zyra-cloud-0ece9039dbe74ea9",
+        "orchestrator_pid": 23444,
+        "pid": 62192,
+        "process_create_time": 1785939934.4819071,
+        "profile": "cloud",
+        "runtime_kind": "isolated_process",
+        "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+        "terminal_source": "supervisor_process_chain"
+      },
+      "placement_decision_id": "resdec_bef7df19ec41",
+      "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+      "privacy_class": "public",
+      "privacy_evidence": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "cloud_dispatch_allowed": true,
+        "credential_material_persisted": false,
+        "payload_digest": "a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+        "payload_redacted": true,
+        "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "privacy_class": "public",
+        "selected_placement": "cloud"
+      },
+      "provider_evidence": {
+        "completed_at_ms": 1785939941719,
+        "cost_amount": 9.1e-06,
+        "cost_currency": "USD",
+        "cost_source": "provider_usage_x_versioned_catalog_pricing",
+        "cost_usd": 9.1e-06,
+        "credential_fingerprint": "sha256:a2e44bf87a98d85d",
+        "credential_material_persisted": false,
+        "credential_ref": "env://DEEPSEEK_API_KEY",
+        "endpoint": "https://api.deepseek.com/chat/completions",
+        "endpoint_host": "api.deepseek.com",
+        "endpoint_path": "/chat/completions",
+        "external_model_request": true,
+        "http_status": 200,
+        "latency_ms": 787,
+        "live": true,
+        "marker_verified": true,
+        "model_id": "deepseek-v4-flash",
+        "normalized_pricing_source_ref": "https://api-docs.deepseek.com/quick_start/pricing/?article_id=article_1779470751466_8",
+        "output_digest": "sha256:ca6c9272eb67a6d2064c05dbed21b405994435da446dee9fc3818750397ac354",
+        "payload_digest": "sha256:a66714e58ee6f969026b99d01e4281325494b5dcf52ea0cd9850136a297dd3c1",
+        "pricing_source_ref": "https://api-docs.deepseek.com/quick_start/pricing/?article_id=article_1779470751466_8",
+        "protocol": "openai_chat",
+        "provider_attempt_id": "provider_attempt_233e219e696940e8b22ed606a3af3e46",
+        "provider_id": "deepseek",
+        "request_digest": "sha256:71157013e25afd71070f8d770819998681fea9720671cc54d554189993f20bb4",
+        "request_id": "physical-1229581c7ca198b120aad236",
+        "response_digest": "sha256:a76d2f538a6284679ac973bdb1eeba3a300468ee7c1087b3dec2efd2b2a82f7d",
+        "route_id": "provider_route_998fd16179774bfc90603c6d02fe5a0b",
+        "schema": "zyra.live-provider-dispatch-evidence/v1",
+        "semantic_only": false,
+        "simulated": false,
+        "started_at_ms": 1785939940932,
+        "usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 17,
+          "prompt_tokens": 31,
+          "total_tokens": 48
+        }
+      },
+      "recovery_evidence": [],
+      "runtime_evidence": {
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "health_digest": "sha256:ac90f5cb8c1a59a094f8bb99a54c147aa157df7b62d2bd2acecbcbec0717b223",
+        "health_status": "ready",
+        "independent_from_orchestrator": true,
+        "isolation_kind": "process",
+        "network_down": false,
+        "network_endpoint": "http://127.0.0.1:49002",
+        "network_mode": "public",
+        "network_namespace": "host-loopback:49002",
+        "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+        "process_create_time": 1785939934.4819071,
+        "semantic_only": false,
+        "simulated": false
+      },
+      "semantic_only": false,
+      "simulated": false,
+      "verifier_ref": {
+        "digest": "8c7075d40ea08287757bed0c597e22ec0d64dcca6fe06e3b2f6b080a97d197d5",
+        "media_type": "application/json",
+        "ref_id": "verifier:attempt_f2b756ecacf64501a5c67d2c523b17bc",
+        "uri": "physical-evidence://verifier/attempt_f2b756ecacf64501a5c67d2c523b17bc/8c7075d40ea08287757bed0c597e22ec0d64dcca6fe06e3b2f6b080a97d197d5"
+      },
+      "worker_manifest_ref": {
+        "digest": "488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3",
+        "media_type": "application/json",
+        "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+        "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-deepseek/488dc43cb6b69b9b6d1c132750c90ad888d5352abd2397851d6edd72ad17ccb3"
+      }
+    },
+    {
+      "allowed_placements": [
+        "cloud"
+      ],
+      "alternatives": [
+        "cloud",
+        "edge",
+        "local"
+      ],
+      "artifact_ref": {
+        "digest": "ba01dd857ded9b7843506e316255d96590f959f7ed2a81e37cfdb7fa7d9463fe",
+        "media_type": "application/json",
+        "ref_id": "deployment_artifact_b41a5c6317844eb0",
+        "uri": "deployment://zyra-cloud-0ece9039dbe74ea9/task_e4a3b19e37f5/deployment_artifact_b41a5c6317844eb0"
+      },
+      "call_receipt": {
+        "digest": "9f7a9e4b1b2bd9c701b980a461aeff927dd85df53687aadb1859c519e7d8f08e",
+        "media_type": "application/json",
+        "ref_id": "dispatch_d835488c0e494ff4",
+        "uri": "deployment-dispatch://dispatch_d835488c0e494ff4"
+      },
+      "contract_id": "physical-dispatch:dispatch_d835488c0e494ff4",
+      "created_at": "2026-08-05T14:25:45.047Z",
+      "digest": "91efd478380d54081c96baf6b3d8721f52ad628165739d0ec21cd3cae34bb1ce",
+      "input_signals": {
+        "attempt_started_at": "2026-08-05T14:25:42.054Z",
+        "call_finished_at": "2026-08-05T14:25:45.047Z",
+        "call_started_at": "2026-08-05T14:25:42.153Z",
+        "candidate_set_digest": "16ad5148d2ff8bf80465fea86951634c946505dc7542e970e01ae0adc2115f94",
+        "condition": "normal",
+        "condition_signals": {},
+        "contract_outputs": {},
+        "domain_artifact": {},
+        "domain_effect_performed": false,
+        "domain_result": {},
+        "latency_sla_ms": 300000,
+        "layer_index": 0,
+        "lease_acquired_at": "2026-08-05T14:25:41.997Z",
+        "leased_worker_endpoint": "",
+        "leased_worker_generation_id": "",
+        "leased_worker_node_id": "",
+        "leased_worker_process_identity": "",
+        "maximum_cost_usd": 0.16666666666666666,
+        "operator_adapter_id": "",
+        "operator_execution_body": {},
+        "operator_execution_digest": "",
+        "operator_ref": "",
+        "output_contract_fulfilled": false,
+        "policy_input_digest": "569735ae505484a26bcab0d2cdc7a258e0d306df5526e5fb11495917379b3cdb",
+        "privacy_class": "public",
+        "resource_scheduler_decision_id": "resdec_53307bede40a",
+        "selected_location": "cloud",
+        "task_payload_digest": "468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+        "worker_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+        "workload_operation": "physical-dispatch-proof"
+      },
+      "lease_id": "lease_98d0a7847c3c43bd9e42d5321c0dac8a",
+      "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+      "physical_attempt_id": "attempt_60d3ef6ca599406f9a865936f4e5c905",
+      "physical_identity": {
+        "endpoint": "http://127.0.0.1:49002",
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "generation_id": "generation_3d09e3c5754e459a",
+        "hostname": "AdamLi",
+        "independent_process": true,
+        "location": "cloud",
+        "node_id": "zyra-cloud-0ece9039dbe74ea9",
+        "orchestrator_pid": 23444,
+        "pid": 62192,
+        "process_create_time": 1785939934.4819071,
+        "profile": "cloud",
+        "runtime_kind": "isolated_process",
+        "terminal_id": "sha256:251a9311d29af5ffbb57a81caa04a0ebbcca100baf0fb2fef0adcb7093c10407",
+        "terminal_source": "supervisor_process_chain"
+      },
+      "placement_decision_id": "resdec_53307bede40a",
+      "placement_reason": "ResourceScheduler selected the leased physical worker before dispatch under condition normal",
+      "privacy_class": "public",
+      "privacy_evidence": {
+        "allowed_placements": [
+          "cloud"
+        ],
+        "cloud_dispatch_allowed": true,
+        "credential_material_persisted": false,
+        "payload_digest": "468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+        "payload_redacted": true,
+        "permission_digest": "84d0263e051891178e527d92ffe41e6354e4a65bca2ee03e60f0de198635e002",
+        "permission_ref": "permission://sealed/rs-024123bd-ea1ee727/allowed",
+        "privacy_class": "public",
+        "selected_placement": "cloud"
+      },
+      "provider_evidence": {
+        "completed_at_ms": 1785939945008,
+        "cost_amount": 0.0021455,
+        "cost_currency": "CNY",
+        "cost_source": "provider_usage_x_versioned_catalog_pricing",
+        "cost_usd": 0.0021455,
+        "credential_fingerprint": "sha256:3bf26c2df9f42b6f",
+        "credential_material_persisted": false,
+        "credential_ref": "env://KIMI_API_KEY",
+        "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+        "endpoint_host": "api.moonshot.cn",
+        "endpoint_path": "/chat/completions",
+        "external_model_request": true,
+        "http_status": 200,
+        "latency_ms": 2493,
+        "live": true,
+        "marker_verified": true,
+        "model_id": "kimi-k2.7-code",
+        "normalized_pricing_source_ref": "zyra://pricing/conservative-cny-as-usd-upper-bound",
+        "output_digest": "sha256:b1c9d4699fea51e988bc53af2bef050f7ccf5d28925d5e4891f027f812551d24",
+        "payload_digest": "sha256:468d7d1b166965368f04d5dd45183462097d7a42eb4a1801f095697daaf744d7",
+        "pricing_source_ref": "https://platform.kimi.com/",
+        "protocol": "openai_chat",
+        "provider_attempt_id": "provider_attempt_8d56cb7dd29542538aca77cd2cb4d32b",
+        "provider_id": "kimi-platform",
+        "request_digest": "sha256:407e0aa1c925100ff8d9c1bda04fc255dc1d7c43bae5e6bcdab784399000c124",
+        "request_id": "physical-748db63508e20c76335393a0",
+        "response_digest": "sha256:c868e6eeea3d4aee91ba2d77668c4e84f23b10ce1778b765771e1bdb3d3e081b",
+        "route_id": "provider_route_efddda40b2c54030a395eb576325c33b",
+        "schema": "zyra.live-provider-dispatch-evidence/v1",
+        "semantic_only": false,
+        "simulated": false,
+        "started_at_ms": 1785939942515,
+        "usage": {
+          "cached_prompt_tokens": 0,
+          "completion_tokens": 72,
+          "prompt_tokens": 31,
+          "total_tokens": 103
+        }
+      },
+      "recovery_evidence": [],
+      "runtime_evidence": {
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "health_digest": "sha256:01a3142a0f069ca9fa89c7e2b51db1317a26b0ea45625285b2eda9650cdc1c6d",
+        "health_status": "ready",
+        "independent_from_orchestrator": true,
+        "isolation_kind": "process",
+        "network_down": false,
+        "network_endpoint": "http://127.0.0.1:49002",
+        "network_mode": "public",
+        "network_namespace": "host-loopback:49002",
+        "node_configuration_digest": "sha256:8724466a1102103b5a0752dc60a9abe30fdd4476f61e47582d6e944435970084",
+        "process_create_time": 1785939934.4819071,
+        "semantic_only": false,
+        "simulated": false
+      },
+      "semantic_only": false,
+      "simulated": false,
+      "verifier_ref": {
+        "digest": "149ff60085edbb088695088766a54ff5b2d030a636c67acfb572676fb2cf6962",
+        "media_type": "application/json",
+        "ref_id": "verifier:attempt_60d3ef6ca599406f9a865936f4e5c905",
+        "uri": "physical-evidence://verifier/attempt_60d3ef6ca599406f9a865936f4e5c905/149ff60085edbb088695088766a54ff5b2d030a636c67acfb572676fb2cf6962"
+      },
+      "worker_manifest_ref": {
+        "digest": "2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a",
+        "media_type": "application/json",
+        "ref_id": "worker-manifest:sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+        "uri": "worker-manifest://sealed-rs-024123bd-ea1ee727-cloud-kimi-platform/2339a55a8415edc6a00c87ad7ff7cd2f7ae4c0aa550fb47dca478f6ced29109a"
+      }
+    }
+  ],
+  "scheduler_decisions": [
+    {
+      "alternatives": [],
+      "created_at": "2026-08-05T14:25:32.572Z",
+      "decision_id": "resdec_72ce046a465b",
+      "metadata": {
+        "lease_owner": "WorkerPoolFoundationRuntime",
+        "manifest_source_modules": {},
+        "operator_candidate_contract_consumed": false,
+        "operator_candidate_contract_effect": "phase1_scheduler_input",
+        "operator_placement": null,
+        "operator_selection_input": null,
+        "placement_owner": "ResourceScheduler",
+        "selected_capabilities": [
+          "artifact-production",
+          "verification",
+          "deterministic-transform"
+        ],
+        "selected_display_name": "sealed-rs-024123bd-ea1ee727-local",
+        "selected_gateway": "",
+        "selected_privacy": "sensitive_ok",
+        "selected_sandbox": "workspace",
+        "selected_tools": [
+          "physical-dispatch-proof"
+        ]
+      },
+      "model_split": {
+        "backend": "local_process",
+        "location": "local",
+        "primary": "local-deterministic",
+        "privacy_mode": "project",
+        "strategy": "single_worker"
+      },
+      "node_id": null,
+      "reasons": [
+        "registered M5 worker manifest",
+        "matches preferred worker hint"
+      ],
+      "run_id": "rs-024123bd-ea1ee727",
+      "score": 61.987,
+      "selected_backend": "local_process",
+      "selected_location": "local",
+      "selected_manifest_id": "sealed-rs-024123bd-ea1ee727-local",
+      "selected_worker": "sealed-rs-024123bd-ea1ee727-local",
+      "signals": {
+        "avoided_workers": [],
+        "compact_count": 0,
+        "contains_url": false,
+        "failure_count": 0,
+        "failure_workers": {},
+        "memory_record_count": 0,
+        "metadata": {
+          "runtime_hints": {
+            "preferred_worker": "sealed-rs-024123bd-ea1ee727-local"
+          },
+          "text_terms": [
+            "sealed",
+            "physical",
+            "dispatch",
+            "proof",
+            "for",
+            "local",
+            "preferred_worker",
+            "rs",
+            "024123bd",
+            "ea1ee727"
+          ]
+        },
+        "model_pressure": "balanced",
+        "preferred_worker": "sealed-rs-024123bd-ea1ee727-local",
+        "privacy_mode": "project",
+        "required_tools": [],
+        "requirement_change_count": 0,
+        "source_event_id": "",
+        "stage": "",
+        "task_profile": "code",
+        "trajectory_count": 0
+      },
+      "source_modules": {
+        "OpenHands": [
+          "runtime backend and event-stream controller"
+        ],
+        "agent-framework": [
+          "middleware-style routing signals"
+        ],
+        "agentscope": [
+          "manager/service/pipeline capability registry"
+        ],
+        "browser-use": [
+          "browser session/controller runtime profile"
+        ],
+        "claude-code-best": [
+          "permission runtime, model/cost commands, QueryEngine tool loop"
+        ],
+        "openclaw": [
+          "active memory and failure-aware control concepts"
+        ]
+      },
+      "task_id": "task_e4a3b19e37f5"
+    },
+    {
+      "alternatives": [],
+      "created_at": "2026-08-05T14:25:33.819Z",
+      "decision_id": "resdec_7baf6eceb497",
+      "metadata": {
+        "lease_owner": "WorkerPoolFoundationRuntime",
+        "manifest_source_modules": {},
+        "operator_candidate_contract_consumed": false,
+        "operator_candidate_contract_effect": "phase1_scheduler_input",
+        "operator_placement": null,
+        "operator_selection_input": null,
+        "placement_owner": "ResourceScheduler",
+        "selected_capabilities": [
+          "artifact-production",
+          "verification",
+          "deterministic-transform"
+        ],
+        "selected_display_name": "sealed-rs-024123bd-ea1ee727-edge",
+        "selected_gateway": "",
+        "selected_privacy": "sensitive_ok",
+        "selected_sandbox": "workspace",
+        "selected_tools": [
+          "physical-dispatch-proof"
+        ]
+      },
+      "model_split": {
+        "backend": "isolated_process",
+        "location": "edge",
+        "primary": "edge-deterministic",
+        "privacy_mode": "project",
+        "strategy": "single_worker"
+      },
+      "node_id": null,
+      "reasons": [
+        "registered M5 worker manifest",
+        "matches preferred worker hint"
+      ],
+      "run_id": "rs-024123bd-ea1ee727",
+      "score": 61.688,
+      "selected_backend": "isolated_process",
+      "selected_location": "edge",
+      "selected_manifest_id": "sealed-rs-024123bd-ea1ee727-edge",
+      "selected_worker": "sealed-rs-024123bd-ea1ee727-edge",
+      "signals": {
+        "avoided_workers": [],
+        "compact_count": 0,
+        "contains_url": false,
+        "failure_count": 0,
+        "failure_workers": {},
+        "memory_record_count": 0,
+        "metadata": {
+          "runtime_hints": {
+            "preferred_worker": "sealed-rs-024123bd-ea1ee727-edge"
+          },
+          "text_terms": [
+            "sealed",
+            "physical",
+            "dispatch",
+            "proof",
+            "for",
+            "edge",
+            "preferred_worker",
+            "rs",
+            "024123bd",
+            "ea1ee727"
+          ]
+        },
+        "model_pressure": "balanced",
+        "preferred_worker": "sealed-rs-024123bd-ea1ee727-edge",
+        "privacy_mode": "project",
+        "required_tools": [],
+        "requirement_change_count": 0,
+        "source_event_id": "",
+        "stage": "",
+        "task_profile": "code",
+        "trajectory_count": 0
+      },
+      "source_modules": {
+        "OpenHands": [
+          "runtime backend and event-stream controller"
+        ],
+        "agent-framework": [
+          "middleware-style routing signals"
+        ],
+        "agentscope": [
+          "manager/service/pipeline capability registry"
+        ],
+        "browser-use": [
+          "browser session/controller runtime profile"
+        ],
+        "claude-code-best": [
+          "permission runtime, model/cost commands, QueryEngine tool loop"
+        ],
+        "openclaw": [
+          "active memory and failure-aware control concepts"
+        ]
+      },
+      "task_id": "task_e4a3b19e37f5"
+    },
+    {
+      "alternatives": [],
+      "created_at": "2026-08-05T14:25:35.082Z",
+      "decision_id": "resdec_5f78aea0bc9f",
+      "metadata": {
+        "lease_owner": "WorkerPoolFoundationRuntime",
+        "manifest_source_modules": {},
+        "operator_candidate_contract_consumed": false,
+        "operator_candidate_contract_effect": "phase1_scheduler_input",
+        "operator_placement": null,
+        "operator_selection_input": null,
+        "placement_owner": "ResourceScheduler",
+        "selected_capabilities": [
+          "artifact-production",
+          "verification",
+          "deterministic-transform",
+          "provider-dispatch"
+        ],
+        "selected_display_name": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+        "selected_gateway": "",
+        "selected_privacy": "public_only",
+        "selected_sandbox": "workspace",
+        "selected_tools": [
+          "physical-dispatch-proof"
+        ]
+      },
+      "model_split": {
+        "backend": "cloud_model",
+        "location": "cloud",
+        "primary": "glm-5.2",
+        "privacy_mode": "project",
+        "strategy": "single_worker"
+      },
+      "node_id": null,
+      "reasons": [
+        "registered M5 worker manifest",
+        "matches preferred worker hint"
+      ],
+      "run_id": "rs-024123bd-ea1ee727",
+      "score": 60.53,
+      "selected_backend": "cloud_model",
+      "selected_location": "cloud",
+      "selected_manifest_id": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+      "selected_worker": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+      "signals": {
+        "avoided_workers": [],
+        "compact_count": 0,
+        "contains_url": false,
+        "failure_count": 0,
+        "failure_workers": {},
+        "memory_record_count": 0,
+        "metadata": {
+          "runtime_hints": {
+            "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-zhipu"
+          },
+          "text_terms": [
+            "sealed",
+            "physical",
+            "dispatch",
+            "proof",
+            "for",
+            "cloud",
+            "preferred_worker",
+            "rs",
+            "024123bd",
+            "ea1ee727",
+            "zhipu"
+          ]
+        },
+        "model_pressure": "balanced",
+        "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-zhipu",
+        "privacy_mode": "project",
+        "required_tools": [],
+        "requirement_change_count": 0,
+        "source_event_id": "",
+        "stage": "",
+        "task_profile": "code",
+        "trajectory_count": 0
+      },
+      "source_modules": {
+        "OpenHands": [
+          "runtime backend and event-stream controller"
+        ],
+        "agent-framework": [
+          "middleware-style routing signals"
+        ],
+        "agentscope": [
+          "manager/service/pipeline capability registry"
+        ],
+        "browser-use": [
+          "browser session/controller runtime profile"
+        ],
+        "claude-code-best": [
+          "permission runtime, model/cost commands, QueryEngine tool loop"
+        ],
+        "openclaw": [
+          "active memory and failure-aware control concepts"
+        ]
+      },
+      "task_id": "task_e4a3b19e37f5"
+    },
+    {
+      "alternatives": [],
+      "created_at": "2026-08-05T14:25:40.277Z",
+      "decision_id": "resdec_bef7df19ec41",
+      "metadata": {
+        "lease_owner": "WorkerPoolFoundationRuntime",
+        "manifest_source_modules": {},
+        "operator_candidate_contract_consumed": false,
+        "operator_candidate_contract_effect": "phase1_scheduler_input",
+        "operator_placement": null,
+        "operator_selection_input": null,
+        "placement_owner": "ResourceScheduler",
+        "selected_capabilities": [
+          "artifact-production",
+          "verification",
+          "deterministic-transform",
+          "provider-dispatch"
+        ],
+        "selected_display_name": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+        "selected_gateway": "",
+        "selected_privacy": "public_only",
+        "selected_sandbox": "workspace",
+        "selected_tools": [
+          "physical-dispatch-proof"
+        ]
+      },
+      "model_split": {
+        "backend": "cloud_model",
+        "location": "cloud",
+        "primary": "deepseek-v4-flash",
+        "privacy_mode": "project",
+        "strategy": "single_worker"
+      },
+      "node_id": null,
+      "reasons": [
+        "registered M5 worker manifest",
+        "matches preferred worker hint"
+      ],
+      "run_id": "rs-024123bd-ea1ee727",
+      "score": 60.53,
+      "selected_backend": "cloud_model",
+      "selected_location": "cloud",
+      "selected_manifest_id": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+      "selected_worker": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+      "signals": {
+        "avoided_workers": [],
+        "compact_count": 0,
+        "contains_url": false,
+        "failure_count": 0,
+        "failure_workers": {},
+        "memory_record_count": 0,
+        "metadata": {
+          "runtime_hints": {
+            "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-deepseek"
+          },
+          "text_terms": [
+            "sealed",
+            "physical",
+            "dispatch",
+            "proof",
+            "for",
+            "cloud",
+            "preferred_worker",
+            "rs",
+            "024123bd",
+            "ea1ee727",
+            "deepseek"
+          ]
+        },
+        "model_pressure": "balanced",
+        "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-deepseek",
+        "privacy_mode": "project",
+        "required_tools": [],
+        "requirement_change_count": 0,
+        "source_event_id": "",
+        "stage": "",
+        "task_profile": "code",
+        "trajectory_count": 0
+      },
+      "source_modules": {
+        "OpenHands": [
+          "runtime backend and event-stream controller"
+        ],
+        "agent-framework": [
+          "middleware-style routing signals"
+        ],
+        "agentscope": [
+          "manager/service/pipeline capability registry"
+        ],
+        "browser-use": [
+          "browser session/controller runtime profile"
+        ],
+        "claude-code-best": [
+          "permission runtime, model/cost commands, QueryEngine tool loop"
+        ],
+        "openclaw": [
+          "active memory and failure-aware control concepts"
+        ]
+      },
+      "task_id": "task_e4a3b19e37f5"
+    },
+    {
+      "alternatives": [],
+      "created_at": "2026-08-05T14:25:41.951Z",
+      "decision_id": "resdec_53307bede40a",
+      "metadata": {
+        "lease_owner": "WorkerPoolFoundationRuntime",
+        "manifest_source_modules": {},
+        "operator_candidate_contract_consumed": false,
+        "operator_candidate_contract_effect": "phase1_scheduler_input",
+        "operator_placement": null,
+        "operator_selection_input": null,
+        "placement_owner": "ResourceScheduler",
+        "selected_capabilities": [
+          "artifact-production",
+          "verification",
+          "deterministic-transform",
+          "provider-dispatch"
+        ],
+        "selected_display_name": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+        "selected_gateway": "",
+        "selected_privacy": "public_only",
+        "selected_sandbox": "workspace",
+        "selected_tools": [
+          "physical-dispatch-proof"
+        ]
+      },
+      "model_split": {
+        "backend": "cloud_model",
+        "location": "cloud",
+        "primary": "kimi-k2.7-code",
+        "privacy_mode": "project",
+        "strategy": "single_worker"
+      },
+      "node_id": null,
+      "reasons": [
+        "registered M5 worker manifest",
+        "matches preferred worker hint"
+      ],
+      "run_id": "rs-024123bd-ea1ee727",
+      "score": 60.53,
+      "selected_backend": "cloud_model",
+      "selected_location": "cloud",
+      "selected_manifest_id": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+      "selected_worker": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+      "signals": {
+        "avoided_workers": [],
+        "compact_count": 0,
+        "contains_url": false,
+        "failure_count": 0,
+        "failure_workers": {},
+        "memory_record_count": 0,
+        "metadata": {
+          "runtime_hints": {
+            "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform"
+          },
+          "text_terms": [
+            "sealed",
+            "physical",
+            "dispatch",
+            "proof",
+            "for",
+            "cloud",
+            "preferred_worker",
+            "rs",
+            "024123bd",
+            "ea1ee727",
+            "kimi",
+            "platform"
+          ]
+        },
+        "model_pressure": "balanced",
+        "preferred_worker": "sealed-rs-024123bd-ea1ee727-cloud-kimi-platform",
+        "privacy_mode": "project",
+        "required_tools": [],
+        "requirement_change_count": 0,
+        "source_event_id": "",
+        "stage": "",
+        "task_profile": "code",
+        "trajectory_count": 0
+      },
+      "source_modules": {
+        "OpenHands": [
+          "runtime backend and event-stream controller"
+        ],
+        "agent-framework": [
+          "middleware-style routing signals"
+        ],
+        "agentscope": [
+          "manager/service/pipeline capability registry"
+        ],
+        "browser-use": [
+          "browser session/controller runtime profile"
+        ],
+        "claude-code-best": [
+          "permission runtime, model/cost commands, QueryEngine tool loop"
+        ],
+        "openclaw": [
+          "active memory and failure-aware control concepts"
+        ]
+      },
+      "task_id": "task_e4a3b19e37f5"
+    }
+  ],
+  "schema": "zyra.phase2-sealed-physical-evidence/v1",
+  "tiers": [
+    {
+      "artifact_ids": [
+        "deployment_artifact_07c732ad3db74cb9"
+      ],
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "endpoint": "http://127.0.0.1:49000",
+      "endpoint_id": "zyra-device-e93008a523864ab9",
+      "handshake_ok": true,
+      "heartbeat_ok": true,
+      "isolation_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+      "lease_id": "lease_c10121697b2d480f9f97402f87c46921",
+      "loopback": true,
+      "metadata": {
+        "failure_boundary_id": "process:27768:generation_0f3a7bac9e8c4d5e",
+        "independent_process": true,
+        "physical_dispatch_receipt_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+        "physical_dispatch_validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "local_host_identity": true,
+            "local_process_identity": true,
+            "local_provider_request_zero": true,
+            "local_terminal_identity": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "task_payload_bound": true,
+            "verifier_present": true,
+            "worker_manifest_present": true,
+            "workload_operation_present": true
+          },
+          "location": "local",
+          "real_gate_closed": true,
+          "receipt_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        },
+        "provider_evidence": {},
+        "remote_boundary": "local-terminal"
+      },
+      "observation_id": "tier-attempt_d9863ee6861b40d89151ef3bb53535ec",
+      "process_id": "27768",
+      "request_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+      "request_id": "dispatch_e9849a4ed5344751",
+      "response_digest": "95bfbaf65c0e71e931c46dc24c3cfe3bf1752b7ac5bed899c32f78b7823a3fa2",
+      "route_id": "resdec_72ce046a465b",
+      "runtime_id": "generation_0f3a7bac9e8c4d5e",
+      "simulated": false,
+      "started_at": "2026-08-05T14:25:32.872Z",
+      "task_success": true,
+      "tier": "device"
+    },
+    {
+      "artifact_ids": [
+        "deployment_artifact_d540459816b04ddd"
+      ],
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "endpoint": "http://127.0.0.1:49001",
+      "endpoint_id": "zyra-edge-46e6a0c664e545b5",
+      "handshake_ok": true,
+      "heartbeat_ok": true,
+      "isolation_id": "process:22236:generation_3408dba4eea3474a",
+      "lease_id": "lease_76f6cd5786674a129eee652ee41a5409",
+      "loopback": true,
+      "metadata": {
+        "failure_boundary_id": "process:22236:generation_3408dba4eea3474a",
+        "independent_process": true,
+        "physical_dispatch_receipt_digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+        "physical_dispatch_validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "edge_failure_boundary": true,
+            "edge_independent_process": true,
+            "edge_network_endpoint": true,
+            "edge_network_namespace": true,
+            "edge_provider_request_zero": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "task_payload_bound": true,
+            "verifier_present": true,
+            "worker_manifest_present": true,
+            "workload_operation_present": true
+          },
+          "location": "edge",
+          "real_gate_closed": true,
+          "receipt_digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        },
+        "provider_evidence": {},
+        "remote_boundary": "isolated-process"
+      },
+      "observation_id": "tier-attempt_c1011434fcf74ab988631ee68e75964d",
+      "process_id": "22236",
+      "request_digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+      "request_id": "dispatch_037bbf4362da4733",
+      "response_digest": "071c998d6ec1a7840680631e1870f82bf12c72339df0e8caa4d7741c884f9043",
+      "route_id": "resdec_7baf6eceb497",
+      "runtime_id": "generation_3408dba4eea3474a",
+      "simulated": false,
+      "started_at": "2026-08-05T14:25:34.186Z",
+      "task_success": true,
+      "tier": "edge"
+    },
+    {
+      "artifact_ids": [
+        "deployment_artifact_e10574e4eab94d22"
+      ],
+      "completed_at": "2026-08-05T14:25:45.102Z",
+      "endpoint": "http://127.0.0.1:49002",
+      "endpoint_id": "zyra-cloud-0ece9039dbe74ea9",
+      "handshake_ok": true,
+      "heartbeat_ok": true,
+      "isolation_id": "process:62192:generation_3d09e3c5754e459a",
+      "lease_id": "lease_1a44df22792e4d889d8c943285185efa",
+      "loopback": true,
+      "metadata": {
+        "failure_boundary_id": "process:62192:generation_3d09e3c5754e459a",
+        "independent_process": true,
+        "physical_dispatch_receipt_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+        "physical_dispatch_validation": {
+          "blockers": [],
+          "checks": {
+            "artifact_present": true,
+            "call_receipt_present": true,
+            "cloud_cost_present": true,
+            "cloud_credential_redacted": true,
+            "cloud_http_success": true,
+            "cloud_latency_present": true,
+            "cloud_live_request": true,
+            "cloud_marker_verified": true,
+            "cloud_payload_digest": true,
+            "cloud_provider_model_request": true,
+            "cloud_usage_present": true,
+            "known_location": true,
+            "lease_precedes_execution": true,
+            "not_semantic_only": true,
+            "not_simulated": true,
+            "permission_present": true,
+            "physical_attempt_present": true,
+            "placement_allowed": true,
+            "privacy_projection_matches": true,
+            "real_process_identity": true,
+            "runtime_health_ready": true,
+            "task_payload_bound": true,
+            "verifier_present": true,
+            "worker_manifest_present": true,
+            "workload_operation_present": true
+          },
+          "location": "cloud",
+          "real_gate_closed": true,
+          "receipt_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+          "schema": "zyra.physical-dispatch-validation/v1",
+          "warnings": []
+        },
+        "provider_evidence": {
+          "completed_at_ms": 1785939940020,
+          "cost_amount": 0.005492,
+          "cost_currency": "CNY",
+          "cost_source": "provider_usage_x_versioned_catalog_pricing",
+          "cost_usd": 0.0008686,
+          "credential_fingerprint": "sha256:c9ded1b50875a0a8",
+          "credential_material_persisted": false,
+          "credential_ref": "env://ZAI_API_KEY",
+          "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+          "endpoint_host": "open.bigmodel.cn",
+          "endpoint_path": "/chat/completions",
+          "external_model_request": true,
+          "http_status": 200,
+          "latency_ms": 4355,
+          "live": true,
+          "marker_verified": true,
+          "model_id": "glm-5.2",
+          "normalized_pricing_source_ref": "https://docs.z.ai/guides/overview/pricing",
+          "output_digest": "sha256:00d56a2ac7e36d3074d21183fd7d74fb8738c73b5d3060a286ad036c522a61dd",
+          "payload_digest": "sha256:93e90031a3500a802218d729698742a7fdc3ab8217f57b1f91b4b4b1d6b9a397",
+          "pricing_source_ref": "https://bigmodel.cn/pricing",
+          "protocol": "openai_chat",
+          "provider_attempt_id": "provider_attempt_17be38659eb349f0a6681004daa1fbc6",
+          "provider_id": "zhipu",
+          "request_digest": "sha256:e34106cfdf36c9c4922465c64eb2dcf2fcbe3e52574f8622ce29d8e023b53d1f",
+          "request_id": "physical-76c9c456e6b8a11f9836aab5",
+          "response_digest": "sha256:5793422b6ff79d2623b038e78d5e37eea6798ce6d087ae29e5ae8639d7469bf1",
+          "route_id": "provider_route_3ae0ab71c89d4efb8fb255efc43abde3",
+          "schema": "zyra.live-provider-dispatch-evidence/v1",
+          "semantic_only": false,
+          "simulated": false,
+          "started_at_ms": 1785939935665,
+          "usage": {
+            "cached_prompt_tokens": 0,
+            "completion_tokens": 185,
+            "prompt_tokens": 39,
+            "total_tokens": 224
+          }
+        },
+        "remote_boundary": "live-provider"
+      },
+      "observation_id": "tier-attempt_96c8d4181ed748c8af4555ab78153c3b",
+      "process_id": "62192",
+      "request_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+      "request_id": "dispatch_58a89a016d0e4b59",
+      "response_digest": "2b6222ed3b157f91573abe0be85b583cc484d39c696afc4f0f5e4984c44b65a3",
+      "route_id": "resdec_5f78aea0bc9f",
+      "runtime_id": "generation_3d09e3c5754e459a",
+      "simulated": false,
+      "started_at": "2026-08-05T14:25:35.253Z",
+      "task_success": true,
+      "tier": "cloud"
+    }
+  ],
+  "validations": [
+    {
+      "blockers": [],
+      "checks": {
+        "artifact_present": true,
+        "call_receipt_present": true,
+        "known_location": true,
+        "lease_precedes_execution": true,
+        "local_host_identity": true,
+        "local_process_identity": true,
+        "local_provider_request_zero": true,
+        "local_terminal_identity": true,
+        "not_semantic_only": true,
+        "not_simulated": true,
+        "permission_present": true,
+        "physical_attempt_present": true,
+        "placement_allowed": true,
+        "privacy_projection_matches": true,
+        "real_process_identity": true,
+        "runtime_health_ready": true,
+        "task_payload_bound": true,
+        "verifier_present": true,
+        "worker_manifest_present": true,
+        "workload_operation_present": true
+      },
+      "location": "local",
+      "real_gate_closed": true,
+      "receipt_digest": "ca7c86da657d052342682f53f0e7620365ad85b9dabbea1520e4a78ae92aab70",
+      "schema": "zyra.physical-dispatch-validation/v1",
+      "warnings": []
+    },
+    {
+      "blockers": [],
+      "checks": {
+        "artifact_present": true,
+        "call_receipt_present": true,
+        "edge_failure_boundary": true,
+        "edge_independent_process": true,
+        "edge_network_endpoint": true,
+        "edge_network_namespace": true,
+        "edge_provider_request_zero": true,
+        "known_location": true,
+        "lease_precedes_execution": true,
+        "not_semantic_only": true,
+        "not_simulated": true,
+        "permission_present": true,
+        "physical_attempt_present": true,
+        "placement_allowed": true,
+        "privacy_projection_matches": true,
+        "real_process_identity": true,
+        "runtime_health_ready": true,
+        "task_payload_bound": true,
+        "verifier_present": true,
+        "worker_manifest_present": true,
+        "workload_operation_present": true
+      },
+      "location": "edge",
+      "real_gate_closed": true,
+      "receipt_digest": "43f7f2a1f73477bc23b84ea8139a05bf7c79963a547584d8fb8a3c001de86289",
+      "schema": "zyra.physical-dispatch-validation/v1",
+      "warnings": []
+    },
+    {
+      "blockers": [],
+      "checks": {
+        "artifact_present": true,
+        "call_receipt_present": true,
+        "cloud_cost_present": true,
+        "cloud_credential_redacted": true,
+        "cloud_http_success": true,
+        "cloud_latency_present": true,
+        "cloud_live_request": true,
+        "cloud_marker_verified": true,
+        "cloud_payload_digest": true,
+        "cloud_provider_model_request": true,
+        "cloud_usage_present": true,
+        "known_location": true,
+        "lease_precedes_execution": true,
+        "not_semantic_only": true,
+        "not_simulated": true,
+        "permission_present": true,
+        "physical_attempt_present": true,
+        "placement_allowed": true,
+        "privacy_projection_matches": true,
+        "real_process_identity": true,
+        "runtime_health_ready": true,
+        "task_payload_bound": true,
+        "verifier_present": true,
+        "worker_manifest_present": true,
+        "workload_operation_present": true
+      },
+      "location": "cloud",
+      "real_gate_closed": true,
+      "receipt_digest": "d6d622e7ec6422463b38abae22bbedda0bbeb94a2beeb276af61ae4613e011f3",
+      "schema": "zyra.physical-dispatch-validation/v1",
+      "warnings": []
+    },
+    {
+      "blockers": [],
+      "checks": {
+        "artifact_present": true,
+        "call_receipt_present": true,
+        "cloud_cost_present": true,
+        "cloud_credential_redacted": true,
+        "cloud_http_success": true,
+        "cloud_latency_present": true,
+        "cloud_live_request": true,
+        "cloud_marker_verified": true,
+        "cloud_payload_digest": true,
+        "cloud_provider_model_request": true,
+        "cloud_usage_present": true,
+        "known_location": true,
+        "lease_precedes_execution": true,
+        "not_semantic_only": true,
+        "not_simulated": true,
+        "permission_present": true,
+        "physical_attempt_present": true,
+        "placement_allowed": true,
+        "privacy_projection_matches": true,
+        "real_process_identity": true,
+        "runtime_health_ready": true,
+        "task_payload_bound": true,
+        "verifier_present": true,
+        "worker_manifest_present": true,
+        "workload_operation_present": true
+      },
+      "location": "cloud",
+      "real_gate_closed": true,
+      "receipt_digest": "636adea706a1652241664004db377842719ac0f1589c88d1db079d582738d348",
+      "schema": "zyra.physical-dispatch-validation/v1",
+      "warnings": []
+    },
+    {
+      "blockers": [],
+      "checks": {
+        "artifact_present": true,
+        "call_receipt_present": true,
+        "cloud_cost_present": true,
+        "cloud_credential_redacted": true,
+        "cloud_http_success": true,
+        "cloud_latency_present": true,
+        "cloud_live_request": true,
+        "cloud_marker_verified": true,
+        "cloud_payload_digest": true,
+        "cloud_provider_model_request": true,
+        "cloud_usage_present": true,
+        "known_location": true,
+        "lease_precedes_execution": true,
+        "not_semantic_only": true,
+        "not_simulated": true,
+        "permission_present": true,
+        "physical_attempt_present": true,
+        "placement_allowed": true,
+        "privacy_projection_matches": true,
+        "real_process_identity": true,
+        "runtime_health_ready": true,
+        "task_payload_bound": true,
+        "verifier_present": true,
+        "worker_manifest_present": true,
+        "workload_operation_present": true
+      },
+      "location": "cloud",
+      "real_gate_closed": true,
+      "receipt_digest": "91efd478380d54081c96baf6b3d8721f52ad628165739d0ec21cd3cae34bb1ce",
+      "schema": "zyra.physical-dispatch-validation/v1",
+      "warnings": []
+    }
+  ]
+}

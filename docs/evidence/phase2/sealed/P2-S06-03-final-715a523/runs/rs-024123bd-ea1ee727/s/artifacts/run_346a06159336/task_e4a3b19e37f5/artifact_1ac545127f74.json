@@ -1,0 +1,76 @@
+{
+  "apply_receipt": {
+    "claim_conflict": {
+      "existing_claimant": "sealed-controller-a",
+      "goal_id": "goal_sealed_task_e4a3b19e37f5",
+      "requested_claimant": "sealed-controller-b",
+      "todo_id": "todo_sealed_primary",
+      "worker_lease_changed": false
+    },
+    "degraded_reason": "LoopX private claim conflicts with an existing claimant.",
+    "last_validated_receipt": {
+      "budget_allowed": true,
+      "budget_receipt_id": "resdec_8a64260ec6c2",
+      "failed_gates": [],
+      "lease_receipt_id": "lease_af1c090890104806b1229a0da629251b",
+      "lease_valid": true,
+      "permission_allowed": true,
+      "permission_receipt_id": "07eb81796ba56b7c6819a5d544c8558028ee988f2be64fa3e40ac4f11b69d8e5",
+      "spend_allowed": true,
+      "validation_passed": true,
+      "validation_receipt_id": "graph_commit_6800cc195416478787e8680befa73e7a"
+    },
+    "quota_exhausted": false,
+    "schema": "zyra.loopx-claim-conflict/v1",
+    "status": "claim_conflict"
+  },
+  "canonical_commit": {
+    "causation_id": "policy-input:run_346a06159336:2:a890e57db4bf",
+    "commit_id": "graph_commit_6800cc195416478787e8680befa73e7a",
+    "committed_at": "2026-08-05T14:25:24.937Z",
+    "committed_revision": 3,
+    "correlation_id": "event_6347f061e81b",
+    "delta_id": "delta_policy_47ad1ac8e1b483ff4a02b867",
+    "graph_id": "graph:task_e4a3b19e37f5",
+    "receipt_digest": "b6a6965ae18783738054ca8c6c849d480067f6adef5815bab2438ddbe758e2e1",
+    "snapshot_signature": "896bfc1f8288d8a1814aae44b6a6be70b0e30ed152641fb0706918462e0fe84d",
+    "status": "committed"
+  },
+  "claim_conflict": {
+    "existing_claimant": "sealed-controller-a",
+    "goal_id": "goal_sealed_task_e4a3b19e37f5",
+    "requested_claimant": "sealed-controller-b",
+    "todo_id": "todo_sealed_primary",
+    "worker_lease_changed": false
+  },
+  "degraded_reason": "LoopX private claim conflicts with an existing claimant.",
+  "error_code": "loopx_claim_conflict",
+  "goal_id": "goal_sealed_task_e4a3b19e37f5",
+  "idempotency_key": "sealed:run_346a06159336:task_e4a3b19e37f5:loopx:claim:3",
+  "last_validated_receipt": {
+    "budget_allowed": true,
+    "budget_receipt_id": "resdec_8a64260ec6c2",
+    "failed_gates": [],
+    "lease_receipt_id": "lease_af1c090890104806b1229a0da629251b",
+    "lease_valid": true,
+    "permission_allowed": true,
+    "permission_receipt_id": "07eb81796ba56b7c6819a5d544c8558028ee988f2be64fa3e40ac4f11b69d8e5",
+    "spend_allowed": true,
+    "validation_passed": true,
+    "validation_receipt_id": "graph_commit_6800cc195416478787e8680befa73e7a"
+  },
+  "mapping_version": "zyra.loopx-state-mapping/v1",
+  "outbox_attempt": 1,
+  "outbox_sequence": 3,
+  "owners": {
+    "artifact": "LocalArtifactStore",
+    "bridge": "ZyraLoopXBridge",
+    "event": "typescript.RuntimeEventSpine",
+    "loopx_private_state": "LoopX"
+  },
+  "quota_exhausted": false,
+  "schema": "zyra.loopx-sync-status/v1",
+  "source_causation_id": "event_6b4fb11077fe",
+  "status": "claim_conflict",
+  "workspace_id": "workspace:2c6fe53660468e908b551c9f"
+}

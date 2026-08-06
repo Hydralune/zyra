@@ -40,4 +40,6 @@ tmp/
 /docs/evidence/phase2/sealed/**/physical-runtime/worker-pool.sqlite3
 /docs/evidence/phase2/sealed/**/s/.zyra-workspace-manager/
 /docs/evidence/phase2/sealed/**/s/*.sqlite3
+/docs/evidence/phase2/sealed/**/s/**/*.sqlite3
 /docs/evidence/phase2/sealed/**/s/runtime-event-artifacts/
+/docs/evidence/phase2/sealed/**/software_delivery/software-project/
