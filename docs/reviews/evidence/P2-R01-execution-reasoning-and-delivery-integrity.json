@@ -1,0 +1,152 @@
+{
+  "schema": "zyra.phase2-remediation-evidence/v1",
+  "remediation_id": "P2-R01",
+  "verdict": "PASS_AFTER_FIX",
+  "date": "2026-08-07",
+  "base_commit": "a5d6f4deb833fe439e00277a1119358ac42e3ef8",
+  "final_implementation_commit": "bad492e4f928dc2edc43f81d8439f7e4fc74950f",
+  "implementation_commits": [
+    "f7d10c8f62a31e34e7283a2585e285af572ffc3d",
+    "41531f6dbcce293738ca5c33f29b49c1d2d16216",
+    "11abab8b756184b9f0913b867c2083213d1bf5ab",
+    "bad492e4f928dc2edc43f81d8439f7e4fc74950f"
+  ],
+  "issue_disposition": {
+    "execution_llm_reasoning_loop": "fixed",
+    "synthetic_token_and_provider_claims": "fixed",
+    "manifest_runtime_identity_mismatch": "fixed",
+    "worker_process_and_lease_cleanup": "fixed",
+    "unstructured_connection_reset": "fixed",
+    "http_409_version_misclassification": "fixed",
+    "verifier_delivery_disconnect": "fixed",
+    "stale_cli_build_contract": "fixed",
+    "credential_free_cleanroom_semantic_contract": "fixed"
+  },
+  "live_acceptance": {
+    "authorized_case_count": 2,
+    "execution_commit": "41531f6dbcce293738ca5c33f29b49c1d2d16216",
+    "provider": "zhipu",
+    "result": "2 passed in 225.20s",
+    "cases": [
+      {
+        "id": "exact-answer-ok",
+        "product_entry": "zyra run",
+        "verifier_passed": true,
+        "completion_gate_passed": true,
+        "final_answer": "ok"
+      },
+      {
+        "id": "workspace-smoke-file",
+        "product_entry": "zyra run",
+        "verifier_passed": true,
+        "completion_gate_passed": true,
+        "changed_paths": [
+          "smoke.txt"
+        ],
+        "file_api_readback_verified": true,
+        "expected_line": "ZYRA_SMOKE_OK"
+      }
+    ],
+    "post_live_commits_change_provider_path": false,
+    "additional_live_call_disclosure": {
+      "count": 1,
+      "case": "FE-S02 interactive provider regression",
+      "cause": "interactive live case originally shared a broader provider gate",
+      "remediation": "separate ZYRA_RUN_LIVE_INTERACTIVE_PROVIDER_TESTS authorization gate",
+      "credential_values_exposed": false
+    }
+  },
+  "validation": {
+    "python_related_matrix": "96 passed, 17 skipped in 787.21s",
+    "typescript_runtime": "1270 passed, 0 failed across 55 files",
+    "provider_typed_client_cli": "83 passed, 0 failed",
+    "provider_node": "34 passed, 0 failed",
+    "typescript_project_typechecks": 4,
+    "release_unit_final": "53 passed in 5.62s",
+    "deployment_process_final": "9 passed in 215.71s",
+    "structural_health_integration": "1 passed in 138.43s",
+    "release_contract_targeted": "2 passed",
+    "compileall": "passed",
+    "diff_check": "passed"
+  },
+  "release": {
+    "product_entry_verifier_ready": true,
+    "product_entry_source_commit": "bad492e4f928dc2edc43f81d8439f7e4fc74950f",
+    "product_entry_command_count": 8,
+    "product_entry_artifact_sha256": "f4ada12d49a654fe9dc0f3fbf30263ea07020ff8bfe99a7875095ea953a2a84d",
+    "product_entry_artifact_size": 645773,
+    "reproducible_node_build": true,
+    "archive": "P2-R01-bad492e.zip",
+    "archive_sha256": "a834879bbcd123fb8ae98bdd6668807c437d47e5d373f425c923a918e7668e0b",
+    "archive_size": 46270524,
+    "archive_source_commit": "bad492e4f928dc2edc43f81d8439f7e4fc74950f",
+    "clean_install_ready": true,
+    "clean_install_platform": "windows",
+    "clean_install_architecture": "amd64",
+    "clean_install_duration_ms": 553914.663,
+    "workspace_isolated": true,
+    "parent_source_repositories_present": false,
+    "product_lifecycle_exercised": true,
+    "lifecycle_ready": true,
+    "semantic_health_scope": "structural_no_provider_call",
+    "semantic_commands": [
+      "lifecycle health --no-short-task",
+      "lifecycle health --no-short-task"
+    ],
+    "isolation_audit_ready": true,
+    "declared_ports": [
+      16677,
+      16678,
+      16679,
+      16680,
+      16681
+    ],
+    "released_ports": [
+      16677,
+      16678,
+      16679,
+      16680,
+      16681
+    ],
+    "undeclared_process_count": 0,
+    "undeclared_port_count": 0,
+    "external_build_context_count": 0,
+    "editable_or_link_install_count": 0,
+    "implicit_cache_or_user_state_dependency_count": 0,
+    "platforms": {
+      "windows": "passed",
+      "linux": "unavailable",
+      "darwin": "unavailable"
+    }
+  },
+  "incremental_self_review": {
+    "production": {
+      "files": 37,
+      "additions": 3342,
+      "deletions": 341
+    },
+    "test": {
+      "files": 19,
+      "additions": 1919,
+      "deletions": 74
+    },
+    "adapter_bridge_subset_in_production": {
+      "files": 2,
+      "additions": 939,
+      "deletions": 0
+    },
+    "runtime_assets": 0,
+    "generated": 0,
+    "data": 0,
+    "docs_in_implementation_commits": 0,
+    "production_mocks_or_fixtures": 0
+  },
+  "preserved_untracked_baseline": [
+    "tmp-dirty-20260806-0815/",
+    "zyra.egg-info/"
+  ],
+  "credentials": {
+    "values_read_or_recorded": false,
+    "values_exposed": false
+  }
+}
