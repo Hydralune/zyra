@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from zyra_orchestration.deployment.code_worker_adapter import (
+    _provider_failure_summary,
     execute_code_worker_operator,
 )
 from zyra_orchestration.goal_contracts import (
@@ -29,6 +30,38 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:
+    summary = _provider_failure_summary(
+        {
+            "provider_failure": json.dumps(
+                {
+                    "layer": "transport",
+                    "kind": "response_protocol_error",
+                    "message": "unsupported stream frame",
+                    "retryable": False,
+                    "recoveryIntent": "surface_to_operator",
+                    "httpStatus": 400,
+                    "providerId": "zhipu",
+                    "modelId": "glm-5.2",
+                    "bytesSent": 123,
+                    "bytesReceived": 456,
+                    "outputObserved": False,
+                    "detail": {
+                        "response_body": "must-not-project",
+                        "request_prompt": "must-not-project",
+                    },
+                }
+            )
+        }
+    )
+
+    assert summary["kind"] == "response_protocol_error"
+    assert summary["http_status"] == 400
+    assert summary["output_observed"] is False
+    assert summary["detail_keys"] == ["request_prompt", "response_body"]
+    assert "must-not-project" not in json.dumps(summary)
 
 
 def test_physical_code_worker_runs_model_tool_observation_model_loop(
@@ -352,6 +385,19 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     assert result["provider_call"]["synthetic_usage"] is False
     assert result["provider_call"]["usage"]["input_tokens"] == 250
     assert result["provider_call"]["usage"]["output_tokens"] == 27
+    public_phases = {
+        str(event.get("payload", {}).get("query_session", {}).get("phase") or "")
+        for event in result["runtime_events"]
+    }
+    assert "model_stream_frame" not in public_phases
+    assert "message_delta" not in public_phases
+    public_event_json = json.dumps(result["runtime_events"], ensure_ascii=False)
+    assert '"user_content"' not in public_event_json
+    assert '"messages"' not in public_event_json
+    assert '"tool_result"' not in public_event_json
+    assert '"worker_result"' not in public_event_json
+    assert "tool_result_commitment" in public_event_json
+    assert "worker_result_commitment" in public_event_json
     assert all(
         item["provider_request_digest"]
         and item["provider_request_digest_verified"] is True

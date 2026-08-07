@@ -436,11 +436,30 @@ def test_short_sealed_scenario_reaches_real_canonical_owners_and_evidence(
         assert task["task"]["metadata"]["scenario_run_id"] == run_id
         assert task["task"]["metadata"]["sealed_autonomous"] is True
         assert task["task"]["metadata"]["human_intervention_count"] == 0
+        assert task["task"]["metadata"]["worker_pool"]["worker_id"] == (
+            "foundation-scenario-worker"
+        )
         event_types = {item["event_type"] for item in task_events["events"]}
         assert "task_created" in event_types
         assert "resource_decision" in event_types or "topology_route" in event_types
         assert "failure_injected" in event_types
         assert "artifact_written" in event_types
+        execution_receipt = next(
+            item["payload"]
+            for item in task_events["events"]
+            if item.get("payload", {}).get("schema")
+            == "zyra.foundation-owner-execution-receipt/v1"
+        )
+        assert execution_receipt["runtime_worker"] == "ScenarioOwnerChainRuntime"
+        assert execution_receipt["provider_called"] is False
+        assert execution_receipt["provider_reasoning_required"] is False
+        assert all(execution_receipt["checks"].values())
+        assert not (
+            tmp_path
+            / "artifacts"
+            / ".provider-control-plane"
+            / "provider.sqlite3"
+        ).exists()
 
         evidence_status, evidence = request(
             base,

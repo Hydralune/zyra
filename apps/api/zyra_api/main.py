@@ -242,7 +242,11 @@ from zyra_orchestration.deployment import DeploymentProfile
 from zyra_orchestration.topology_policy.production import (
     Phase2StrongestProductionBridge,
 )
-from zyra_orchestration.topology_policy import StableArtifactRef, canonical_digest
+from zyra_orchestration.topology_policy import (
+    PhysicalDispatchReceipt,
+    StableArtifactRef,
+    canonical_digest,
+)
 from zyra_symbolic import ConstraintKeeper, apply_failure_injection, apply_requirement_change
 from zyra_scheduler import (
     PhysicalDispatchCallPort,
@@ -5397,6 +5401,47 @@ class _CanonicalFinalVerifierOwner:
         physical_signals = dict(
             physical_payload.get("input_signals") or {}
         )
+        historical_physical_receipts: list[dict[str, Any]] = []
+        invalid_physical_receipt_history = False
+        seen_physical_digests: set[str] = set()
+        for raw_historical in state.metadata.get(
+            "physical_dispatch_receipts"
+        ) or ():
+            if not isinstance(raw_historical, Mapping):
+                invalid_physical_receipt_history = True
+                continue
+            try:
+                historical = PhysicalDispatchReceipt.from_dict(
+                    raw_historical
+                ).to_dict()
+            except (TypeError, ValueError):
+                invalid_physical_receipt_history = True
+                continue
+            historical_digest = str(historical.get("digest") or "")
+            if historical_digest in seen_physical_digests:
+                continue
+            seen_physical_digests.add(historical_digest)
+            historical_physical_receipts.append(historical)
+        delivery_physical_receipt = next(
+            (
+                item
+                for item in reversed(historical_physical_receipts)
+                if dict(item.get("payload") or {})
+                .get("input_signals", {})
+                .get("operator_adapter_id")
+                == "worker.code-worker.typescript-provider-tool-loop"
+            ),
+            {},
+        )
+        delivery_physical_payload = dict(
+            delivery_physical_receipt.get("payload") or {}
+        )
+        delivery_physical_signals = dict(
+            delivery_physical_payload.get("input_signals") or {}
+        )
+        delivery_operator_domain_result = dict(
+            delivery_physical_signals.get("domain_result") or {}
+        )
         operator_execution_body = dict(
             physical_signals.get("operator_execution_body") or {}
         )
@@ -5488,21 +5533,22 @@ class _CanonicalFinalVerifierOwner:
             ),
             workspace_root=workspace_root,
             workspace_delta=(
-                physical_signals.get("workspace_delta")
+                delivery_physical_signals.get("workspace_delta")
                 if isinstance(
-                    physical_signals.get("workspace_delta"), Mapping
+                    delivery_physical_signals.get("workspace_delta"), Mapping
                 )
-                else operator_domain_result.get("workspace_delta")
+                else delivery_operator_domain_result.get("workspace_delta")
                 if isinstance(
-                    operator_domain_result.get("workspace_delta"), Mapping
+                    delivery_operator_domain_result.get("workspace_delta"),
+                    Mapping,
                 )
                 else None
             ),
             final_response=final_answer,
             provider_evidence=(
-                physical_payload.get("provider_evidence")
+                delivery_physical_payload.get("provider_evidence")
                 if isinstance(
-                    physical_payload.get("provider_evidence"), Mapping
+                    delivery_physical_payload.get("provider_evidence"), Mapping
                 )
                 else None
             ),
@@ -5527,6 +5573,21 @@ class _CanonicalFinalVerifierOwner:
                 and receipt.get("outcome") == "succeeded"
                 and receipt.get("run_id") == state.run_id
                 and receipt.get("task_id") == state.task_id
+            ),
+            "physical_receipt_history_valid": bool(
+                historical_physical_receipts
+                and not invalid_physical_receipt_history
+            ),
+            "delivery_evidence_receipt_bound": bool(
+                delivery_physical_receipt
+                and delivery_physical_signals.get("workload_operation")
+                == "phase2-operator-execution"
+                and delivery_physical_signals.get("operator_adapter_id")
+                == "worker.code-worker.typescript-provider-tool-loop"
+                and delivery_physical_payload.get("provider_evidence", {}).get(
+                    "task_execution_verified"
+                )
+                is True
             ),
             "physical_operator_call_bound": bool(
                 physical_receipt.get("schema_version")
@@ -5672,14 +5733,19 @@ class _CanonicalFinalVerifierOwner:
                 response_contract is None
                 or (
                     final_answer
-                    and operator_domain_result.get("kind")
+                    and delivery_operator_domain_result.get("kind")
                     == "code_worker_execution"
-                    and physical_signals.get("operator_adapter_id")
+                    and delivery_physical_signals.get("operator_adapter_id")
                     == "worker.code-worker.typescript-provider-tool-loop"
-                    and str(physical_signals.get("final_text") or "").strip()
+                    and str(
+                        delivery_physical_signals.get("final_text") or ""
+                    ).strip()
                     == final_answer
                     and str(
-                        operator_domain_result.get("final_answer_digest") or ""
+                        delivery_operator_domain_result.get(
+                            "final_answer_digest"
+                        )
+                        or ""
                     ).removeprefix("sha256:")
                     == canonical_digest(final_answer)
                 )
@@ -5833,7 +5899,10 @@ def graph_execution_context() -> GraphExecutionContext:
     physical_workers = {
         item.worker_id: item
         for item in pool_api.pool.store.list_workers()
-        if item.accepting_leases
+        if (
+            item.accepting_leases
+            and item.metadata.get("phase2_production_worker") is True
+        )
     }
     static_manifests = {
         item.worker_id: item for item in WorkerPool().manifests()
@@ -6026,7 +6095,11 @@ def _ensure_phase2_production_workers(
         item.worker_id: item for item in WorkerPool().manifests()
     }
     worker_profiles = {
-        "local-code-worker": DeploymentProfile.CLOUD,
+        # Keep the provider-backed production worker distinct from the
+        # API-owned ``local-code-worker`` used by subagents and local control
+        # surfaces.  Reusing that historical id made production startup fence
+        # valid background leases before replacing their worker generation.
+        "provider-code-worker": DeploymentProfile.CLOUD,
         "local-memory-curator": DeploymentProfile.DEVICE,
     }
     for worker_id, profile in worker_profiles.items():
@@ -6054,7 +6127,7 @@ def _ensure_phase2_production_workers(
         failure_boundary_id = str(identity.get("failure_boundary_id") or "")
         node_id = str(health.get("node_id") or "")
         generation_id = str(identity.get("generation_id") or "")
-        is_code_worker = worker_id == "local-code-worker"
+        is_code_worker = worker_id == "provider-code-worker"
         physical_location = (
             PhysicalWorkerLocation.CLOUD
             if is_code_worker
@@ -6171,6 +6244,12 @@ def _production_physical_dispatch_port(
     orchestrator = get_deployment_api().orchestrator
     _sync_configured_provider_environment(orchestrator)
     payload = dict(operator_task)
+    # The deployment factory enriches the canonical operator task with the
+    # provider route and governed workspace context.  Preserve an explicit
+    # commitment to the pre-enrichment task so the production policy can bind
+    # the returned digest to both the actual dispatched payload and its
+    # orchestrator-owned origin.
+    payload["orchestrator_task_digest"] = canonical_digest(operator_task)
     provider_id = ""
     model_id = ""
     operator_ref = str(payload.get("operator_ref") or "")
@@ -6285,6 +6364,18 @@ _FILE_MANAGED_PROVIDER_ENV: set[str] = set()
 def _load_configured_provider_environment() -> tuple[str, ...]:
     """Load only allowlisted provider keys from ignored local env files."""
 
+    if _truthy(
+        os.environ.get("ZYRA_DISABLE_LOCAL_PROVIDER_ENV_FILES"),
+        default=False,
+    ):
+        for key in tuple(_FILE_MANAGED_PROVIDER_ENV):
+            os.environ.pop(key, None)
+            _FILE_MANAGED_PROVIDER_ENV.discard(key)
+        return tuple(
+            key
+            for key, _, _, _ in _PROVIDER_ENV_FILES
+            if str(os.environ.get(key) or "").strip()
+        )
     configured: list[str] = []
     for key, filename, _, _ in _PROVIDER_ENV_FILES:
         ambient = str(os.environ.get(key) or "").strip()
@@ -7249,6 +7340,55 @@ def _task_execution_failed_event(state: Any, error: BaseException) -> EventRecor
         event_type=EventType.SYSTEM_NOTICE,
         payload=dict(state.metadata["last_execution_error"]),
     )
+
+
+def _task_execution_error_response(
+    state: Any,
+    error: BaseException,
+    events: Sequence[EventRecord],
+    *,
+    error_code: str = "task_execution_failed",
+) -> dict[str, Any]:
+    """Return a bounded diagnostic envelope; canonical state remains queryable.
+
+    A failed production task can contain thousands of topology, provider and
+    worker-pool fields.  Embedding the complete task and event list in a 503
+    made the typed client correctly reject the body as oversized, hiding the
+    useful server error behind ``response_too_large``.  Persist the full state
+    first, then return stable references and the compact failure receipt.
+    """
+
+    event_refs = [
+        {
+            "event_id": str(event.event_id),
+            "event_type": str(event.event_type),
+        }
+        for event in list(events)[-32:]
+    ]
+    execution_error = state.metadata.get("last_execution_error")
+    if not isinstance(execution_error, Mapping):
+        execution_error = {
+            "schema": "zyra.task-execution-error/v1",
+            "error": str(getattr(error, "code", "") or type(error).__name__),
+            "message": _diagnostic_error_message(error),
+            "retryable": bool(getattr(error, "retryable", False)),
+            "fallback": False,
+        }
+    return {
+        "schema": "zyra.task-execution-http-error/v1",
+        "error": error_code,
+        "message": _diagnostic_error_message(error),
+        "task_id": str(state.task_id),
+        "run_id": str(state.run_id),
+        "task_status": str(state.status),
+        "execution_error": dict(execution_error),
+        "event_count": len(events),
+        "event_refs": event_refs,
+        "task_ref": f"/tasks/{state.task_id}",
+        "event_stream_ref": f"/tasks/{state.task_id}/events",
+        "retryable": bool(getattr(error, "retryable", False)),
+        "fallback": False,
+    }
 
 
 def _diagnostic_error_message(error: BaseException) -> str:
@@ -10573,16 +10713,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     pass
                 persist_events(store, events)
                 store.save_checkpoint(state)
-                response_body = {
-                    "error": "worker_pool_initialization_failed",
-                    "message": _diagnostic_error_message(error),
-                    "task_id": state.task_id,
-                    "run_id": state.run_id,
-                    "task": to_jsonable(state),
-                    "events": [to_jsonable(event) for event in events],
-                    "retryable": bool(getattr(error, "retryable", False)),
-                    "fallback": False,
-                }
+                response_body = _task_execution_error_response(
+                    state,
+                    error,
+                    events,
+                    error_code="worker_pool_initialization_failed",
+                )
                 committed = self._commit_typed_receipt(
                     receipt_reservation,
                     status=HTTPStatus.SERVICE_UNAVAILABLE,
@@ -10645,16 +10781,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     )
                     persist_events(store, events)
                     store.save_checkpoint(state)
-                    response_body = {
-                        "error": "task_execution_failed",
-                        "message": _diagnostic_error_message(error),
-                        "task_id": state.task_id,
-                        "run_id": state.run_id,
-                        "task": to_jsonable(state),
-                        "events": [to_jsonable(event) for event in events],
-                        "retryable": bool(getattr(error, "retryable", False)),
-                        "fallback": False,
-                    }
+                    response_body = _task_execution_error_response(
+                        state,
+                        error,
+                        events,
+                    )
                     committed = self._commit_typed_receipt(
                         receipt_reservation,
                         status=HTTPStatus.SERVICE_UNAVAILABLE,
@@ -10766,16 +10897,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 persist_events(store, events)
                 store.save_checkpoint(state)
-                response_body = {
-                    "error": "task_execution_failed",
-                    "message": _diagnostic_error_message(error),
-                    "task_id": state.task_id,
-                    "run_id": state.run_id,
-                    "task": to_jsonable(state),
-                    "events": [to_jsonable(event) for event in events],
-                    "retryable": bool(getattr(error, "retryable", False)),
-                    "fallback": False,
-                }
+                response_body = _task_execution_error_response(
+                    state,
+                    error,
+                    events,
+                )
                 committed = self._commit_typed_receipt(
                     receipt_reservation,
                     status=HTTPStatus.SERVICE_UNAVAILABLE,

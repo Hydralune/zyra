@@ -7,6 +7,7 @@ import os
 import signal
 import threading
 import time
+from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -82,7 +83,11 @@ class DeploymentNodeHandler(BaseHTTPRequestHandler):
         except BaseException as error:
             status = HTTPStatus.INTERNAL_SERVER_ERROR
             response = public_error(error)
-        self._send_json(int(status), redact(response), nonce=nonce)
+        self._send_json(
+            int(status),
+            _outbound_payload(response),
+            nonce=nonce,
+        )
 
     def _dispatch(
         self,
@@ -199,6 +204,26 @@ class DeploymentNodeHandler(BaseHTTPRequestHandler):
             ),
             flush=True,
         )
+
+
+def _outbound_payload(payload: Any) -> Any:
+    """Preserve canonical node receipts; redact non-receipt diagnostics.
+
+    A deployment receipt already contains a digest over ``result`` and is sent
+    only on the authenticated loopback node channel.  Applying a generic deep
+    redactor after receipt construction mutates the result without updating
+    that digest, so the caller must reject an otherwise valid execution.  The
+    runtime is responsible for constructing the receipt's public evidence;
+    generic error and health payloads retain the final defensive redaction.
+    """
+
+    if (
+        isinstance(payload, Mapping)
+        and str(payload.get("schema") or "")
+        == "zyra.deployment-node-receipt/v1"
+    ):
+        return payload
+    return redact(payload)
 
 
 def policy_from_json(raw: str) -> ProfilePolicy:

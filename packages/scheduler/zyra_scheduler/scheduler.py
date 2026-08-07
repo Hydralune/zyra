@@ -430,9 +430,9 @@ class ResourceScheduler:
         if signals.task_profile == "browser" and manifest.runtime_worker == "BrowserWorker":
             score += 35.0
             reasons.append("browser/web profile requires DOM-capable edge worker")
-        if signals.task_profile == "code" and manifest.worker_id == "local-code-worker":
+        if signals.task_profile == "code" and manifest.worker_id == "provider-code-worker":
             score += 30.0
-            reasons.append("code/tool profile favors local permission-governed worker")
+            reasons.append("code/tool profile favors the provider-backed governed worker")
         if signals.task_profile == "memory" and manifest.worker_id == "local-memory-curator":
             score += 34.0
             reasons.append("memory/compact/trajectory profile favors memory curator")
@@ -818,7 +818,29 @@ def _task_text(
     if node is not None:
         parts.extend([node.title, node.description, node.summary, str(node.metadata)])
     if cause_event is not None:
-        parts.append(str(cause_event.get("payload") or ""))
+        # Resource/topology events contain infrastructure fields such as
+        # provider endpoints and credential *metadata*.  Treating the whole
+        # envelope as user intent incorrectly turns every provider-backed task
+        # into a browser/sensitive task and can route a CodeWorker candidate to
+        # an unrelated local worker.  Only explicit human-facing text fields
+        # may influence semantic classification; failure and health routing
+        # already consume their canonical structured fields elsewhere.
+        payload = cause_event.get("payload")
+        if isinstance(payload, str):
+            parts.append(payload[:16_000])
+        elif isinstance(payload, Mapping):
+            for key in (
+                "user_text",
+                "query",
+                "goal",
+                "raw",
+                "text",
+                "message",
+                "summary",
+            ):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    parts.append(value[:16_000])
     return "\n".join(parts).lower()
 
 
@@ -906,7 +928,7 @@ def _count_worker_mentions(counts: dict[str, int], text: str) -> None:
         _increment(counts, "edge-browser-worker")
     if "code" in text or "shell" in text or "tool" in text:
         _increment(counts, "CodeWorkerRuntime")
-        _increment(counts, "local-code-worker")
+        _increment(counts, "provider-code-worker")
     if "cloud" in text or "model" in text:
         _increment(counts, "cloud-planner-verifier")
     if "memory" in text or "compact" in text or "trajectory" in text:

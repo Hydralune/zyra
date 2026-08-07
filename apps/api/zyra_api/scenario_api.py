@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,13 @@ from zyra_evaluation.scenario_runner import (
 _LOCK = threading.RLock()
 _API: ScenarioRunnerApi | None = None
 _KEY: tuple[str, str, str] | None = None
+_FOUNDATION_WORKER_ID = "foundation-scenario-worker"
+
+
+@dataclass(frozen=True, slots=True)
+class _FoundationOwnerWorkerRun:
+    worker_result: Any
+    event_records: list[Any]
 
 
 def get_scenario_runner_api() -> ScenarioRunnerApi:
@@ -109,6 +118,222 @@ def _run_leased_task_graph(
             )
 
 
+def _foundation_graph_execution_context(
+    *,
+    api_main: Any,
+    configuration: Any,
+    goal: str,
+) -> Any:
+    """Bind the sealed foundation scenario to its declared local runtime.
+
+    The short owner-chain scenario is a deterministic control-plane exercise,
+    not an open-ended user delivery.  Its registered profile explicitly says
+    ``local-only-foundation`` and ``deterministic-owner-chain``.  Routing it
+    through the production CodeWorker composition root would silently change
+    that contract into a cloud-model workload and make a provider credential
+    a prerequisite for a local scenario.
+
+    This context still runs the canonical task graph, ResourceScheduler,
+    GraphStateCustody-backed worker lease, and a real execution callback.  The
+    callback validates and records the scenario contract; it does not claim to
+    reason about or implement an arbitrary user goal.
+    """
+
+    from zyra_core import EventRecord, EventType, to_jsonable
+    from zyra_orchestration import GraphExecutionContext
+    from zyra_runtime import WorkerResult
+    from zyra_scheduler import (
+        ResourceLocation,
+        ResourceScheduler,
+        WorkerBackendKind,
+        WorkerManifest,
+        WorkerPool,
+    )
+
+    profile = configuration.profile
+    declared = {
+        "profile_id": str(profile.profile_id),
+        "provider_id": str(profile.provider_id),
+        "model_id": str(profile.model_id),
+        "backend_id": str(profile.backend_id),
+        "dispatch_claim": str(profile.metadata.get("dispatch_claim") or ""),
+    }
+    expected = {
+        "profile_id": "foundation.local-sealed",
+        "provider_id": "zyra-local",
+        "model_id": "deterministic-owner-chain",
+        "backend_id": "local-runtime",
+        "dispatch_claim": "local-only-foundation",
+    }
+    if declared != expected or profile.metadata.get("edge_cloud_claim") is not False:
+        raise RuntimeError(
+            "foundation scenario execution profile is not the registered "
+            "local deterministic contract"
+        )
+
+    manifest = WorkerManifest(
+        worker_id=_FOUNDATION_WORKER_ID,
+        display_name="Foundation scenario owner-chain runtime",
+        runtime_worker="ScenarioOwnerChainRuntime",
+        location=ResourceLocation.LOCAL,
+        backend=WorkerBackendKind.LOCAL_PROCESS,
+        capabilities=[
+            "agent_task",
+            "local_execution",
+            "scenario-contract-validation",
+            "canonical-owner-chain",
+        ],
+        tools=[],
+        models=["deterministic-owner-chain"],
+        sandbox="api-process-scenario-boundary",
+        gateway="zyra_api.scenario_api",
+        workspace_scope="scenario-workspace",
+        privacy_level="sensitive_ok",
+        max_concurrency=1,
+        latency_ms=1,
+        cost_per_1k_tokens=0.0,
+        source_modules={
+            "zyra": [
+                "ScenarioRunnerService",
+                "GraphStateCustody",
+                "WorkerPoolFoundationRuntime",
+            ]
+        },
+        metadata={
+            "dispatch": "in-process deterministic scenario owner contract",
+            "provider_reasoning_required": False,
+            "scenario_only": True,
+        },
+    )
+    scheduler = ResourceScheduler(WorkerPool((manifest,)))
+    goal_digest = hashlib.sha256(goal.encode("utf-8")).hexdigest()
+
+    def topology_policy(state: Any, node: Any, cause_event: Any) -> dict[str, Any]:
+        graph_ref = state.metadata.get("dynamic_graph_ref")
+        if not isinstance(graph_ref, dict) or not str(graph_ref.get("graph_id") or ""):
+            raise RuntimeError(
+                "foundation scenario topology is missing its canonical graph commit"
+            )
+        return {
+            "schema": "zyra.foundation-local-topology-policy/v1",
+            "committed": True,
+            "used_baseline": False,
+            "scenario_only": True,
+            "canonical_graph_ref": dict(graph_ref),
+            "cause_event_id": str(getattr(cause_event, "event_id", "") or ""),
+            "node_id": str(getattr(node, "node_id", "") or ""),
+            "execution_receipt": {
+                "actual_profile_id": profile.profile_id,
+                "provider_reasoning_required": False,
+            },
+        }
+
+    def execute(state: Any, node: Any) -> tuple[_FoundationOwnerWorkerRun, str]:
+        worker_pool = state.metadata.get("worker_pool")
+        workspace_ref = state.metadata.get("workspace_ref")
+        checks = {
+            "scenario_id_bound": (
+                str(state.metadata.get("scenario_run_id") or "") != ""
+            ),
+            "configuration_digest_bound": (
+                state.metadata.get("scenario_configuration_digest")
+                == configuration.configuration_digest
+            ),
+            "definition_digest_bound": (
+                state.metadata.get("scenario_definition_digest")
+                == configuration.definition_digest
+            ),
+            "input_digest_bound": (
+                state.metadata.get("scenario_input_digest")
+                == configuration.input_digest
+            ),
+            "goal_digest_bound": (
+                hashlib.sha256(state.user_goal.encode("utf-8")).hexdigest()
+                == goal_digest
+            ),
+            "sealed_zero_human_contract": (
+                state.metadata.get("sealed_autonomous") is True
+                and state.metadata.get("human_intervention_count") == 0
+            ),
+            "workspace_bound": (
+                isinstance(workspace_ref, dict)
+                and bool(str(workspace_ref.get("workspace_id") or ""))
+            ),
+            "local_worker_lease_bound": (
+                isinstance(worker_pool, dict)
+                and worker_pool.get("worker_id") == _FOUNDATION_WORKER_ID
+                and bool(str(worker_pool.get("lease_id") or ""))
+            ),
+        }
+        if not all(checks.values()):
+            failed = sorted(key for key, value in checks.items() if not value)
+            raise RuntimeError(
+                "foundation scenario execution contract failed: " + ",".join(failed)
+            )
+        receipt = {
+            "schema": "zyra.foundation-owner-execution-receipt/v1",
+            "scenario_run_id": str(state.metadata["scenario_run_id"]),
+            "run_id": state.run_id,
+            "task_id": state.task_id,
+            "node_id": node.node_id,
+            "worker_id": _FOUNDATION_WORKER_ID,
+            "runtime_worker": "ScenarioOwnerChainRuntime",
+            "profile_id": profile.profile_id,
+            "provider_id": profile.provider_id,
+            "model_id": profile.model_id,
+            "backend_id": profile.backend_id,
+            "provider_called": False,
+            "provider_reasoning_required": False,
+            "goal_digest": goal_digest,
+            "configuration_digest": configuration.configuration_digest,
+            "checks": checks,
+            "semantic_effect": "state_mutation",
+            "stage": "execute",
+        }
+        request_id = f"foundation-owner:{state.task_id}:{node.node_id}"
+        result = WorkerResult(
+            request_id=request_id,
+            ok=True,
+            summary=(
+                "Validated the sealed local scenario contract and executed its "
+                "canonical owner-chain boundary."
+            ),
+            events=[receipt],
+            metadata={
+                "runtime_worker": "ScenarioOwnerChainRuntime",
+                "scenario_only": "true",
+                "provider_called": "false",
+                "goal_digest": goal_digest,
+            },
+        )
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=node.node_id,
+            event_type=EventType.AGENT_MESSAGE,
+            payload={
+                **receipt,
+                "worker_result": to_jsonable(result),
+            },
+        )
+        return (
+            _FoundationOwnerWorkerRun(
+                worker_result=result,
+                event_records=[event],
+            ),
+            "ScenarioOwnerChainRuntime",
+        )
+
+    return GraphExecutionContext.from_paths(
+        project_root=api_main.PROJECT_ROOT,
+        workspace_root=api_main.tool_workspace_path(),
+        artifact_root=api_main.artifact_root_path(),
+        topology_policy_trigger=topology_policy,
+        resource_scheduler=scheduler,
+        physical_execution_runner=execute,
+    )
+
+
 def _execute_owner_chain(
     *,
     scenario_run_id: str,
@@ -180,12 +405,15 @@ def _execute_owner_chain(
         *api_main.drain_workspace_events(state.task_id),
     ]
     pool_api = api_main.get_worker_pool_api()
-    # Resolve the production composition root before taking the task lease.
-    # The resolver replaces the logical bootstrap registration with the
-    # deployment-node-backed physical worker.  Acquiring first would leave a
-    # live lease on that stale generation and correctly make replacement fail
-    # closed.
-    execution_context = api_main.graph_execution_context()
+    # The short foundation profile is deliberately local and deterministic.
+    # Give it a dedicated API-owned worker identity so a prior production task
+    # cannot leave the legacy ``local-code-worker`` id bound to a cloud node.
+    pool_api.ensure_default_local_worker(worker_id=_FOUNDATION_WORKER_ID)
+    execution_context = _foundation_graph_execution_context(
+        api_main=api_main,
+        configuration=configuration,
+        goal=goal,
+    )
     if configuration.mode.value == "sealed":
         api_main.prepare_phase2_loopx_pre_control(
             state,
@@ -204,6 +432,10 @@ def _execute_owner_chain(
                 "provider_id": configuration.profile.provider_id,
                 "worker_classes": list(configuration.profile.worker_classes),
                 "scenario_run_id": scenario_run_id,
+                "required_capabilities": ["agent_task", "local_execution"],
+                "locations": ["local"],
+                "preferred_worker_ids": [_FOUNDATION_WORKER_ID],
+                "idempotency_key": f"foundation-scenario-lease:{scenario_run_id}",
             },
             execution_context=execution_context,
             cancel_requested=cancel_requested,

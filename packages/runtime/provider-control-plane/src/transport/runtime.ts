@@ -100,7 +100,11 @@ export class ProviderTransportRuntime {
         const decision = this.fallback.decide(lastError, lease, attemptNumber, allAttempts);
         if (!decision.retry) throw lastError;
         if (decision.changeRoute) {
-          lease = this.routes.failover(lease.routeId, lastError.kind);
+          if (request.routeFallbackPolicy === "pin_initial_route") {
+            if (decision.rotateCredential) throw lastError;
+          } else {
+            lease = this.routes.failover(lease.routeId, lastError.kind);
+          }
         }
         await sleep(decision.delayMilliseconds, signal);
       }
@@ -366,6 +370,9 @@ function validateDispatchRequest(request: ProviderDispatchRequest): void {
     turnId: request.turnId,
     idempotencyKey: request.idempotencyKey,
   })) assertNonEmpty(value, name);
+  if (!["allow_route_change", "pin_initial_route"].includes(request.routeFallbackPolicy)) {
+    throw new TypeError("routeFallbackPolicy must be allow_route_change or pin_initial_route");
+  }
   assertPositiveInteger(request.maximumOutputTokens, "maximumOutputTokens");
   assertPositiveInteger(request.timeoutMilliseconds, "timeoutMilliseconds");
   assertPositiveInteger(request.chunkTimeoutMilliseconds, "chunkTimeoutMilliseconds");

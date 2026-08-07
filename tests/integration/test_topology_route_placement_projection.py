@@ -191,7 +191,7 @@ def test_real_scheduler_and_dynamic_topology_change_the_browser_projection(
     )
     browser_decision = scheduler.decide(browser_state, node=browser_node)
 
-    assert code_decision.selected_manifest_id == "local-code-worker"
+    assert code_decision.selected_manifest_id == "provider-code-worker"
     assert browser_decision.selected_manifest_id == "edge-browser-worker"
     assert code_decision.selected_worker != browser_decision.selected_worker
     assert code_decision.selected_location != browser_decision.selected_location

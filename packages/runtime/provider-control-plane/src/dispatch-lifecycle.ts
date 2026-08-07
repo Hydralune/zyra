@@ -421,6 +421,7 @@ function digestRequest(request: ProviderDispatchRequest): string {
     nodeId: request.nodeId,
     sessionId: request.sessionId,
     turnId: request.turnId,
+    routeFallbackPolicy: request.routeFallbackPolicy,
     messages: request.messages,
     tools: request.tools,
     maximumOutputTokens: request.maximumOutputTokens,

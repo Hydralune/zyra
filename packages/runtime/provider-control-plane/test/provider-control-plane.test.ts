@@ -428,6 +428,7 @@ function dispatchRequest(routeId: string, turnId = "turn-1"): ProviderDispatchRe
     nodeId: "node-1",
     sessionId: "session-1",
     turnId,
+    routeFallbackPolicy: "allow_route_change",
     messages: [{ role: "user", content: "Say hello" }],
     tools: [],
     maximumOutputTokens: 256,
@@ -638,6 +639,54 @@ test("provider unavailable creates a new route lease without backend concepts", 
   const nextRoute = controlPlane.routes.require(result.routeId);
   assert.equal(nextRoute.previousRouteId, route.routeId);
   assert.equal("backendId" in nextRoute, false);
+});
+
+test("a pinned dispatch retries only its credential-bearing route", async (t) => {
+  const primary = await captureServer((_request, response) => {
+    response.writeHead(503, { "content-type": "application/json", "retry-after": "0" });
+    response.end('{"error":{"message":"temporarily unavailable"}}');
+  });
+  const fallback = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"must-not-run"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(async () => { await primary.close(); await fallback.close(); });
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "pinned-primary",
+    modelId: "pinned-model",
+    baseUrl: primary.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 20,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "unrelayed-fallback",
+    modelId: "unrelayed-model",
+    baseUrl: fallback.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 10,
+  });
+  const route = controlPlane.acquireRoute(routeRequest("pinned-primary", "pinned-model"));
+  const request = {
+    ...dispatchRequest(route.routeId),
+    routeFallbackPolicy: "pin_initial_route" as const,
+  };
+
+  await assert.rejects(
+    () => controlPlane.dispatch(request),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderControlPlaneError);
+      assert.equal(error.kind, "provider_unavailable");
+      assert.equal(error.routeId, route.routeId);
+      assert.equal(error.providerId, "pinned-primary");
+      return true;
+    },
+  );
+  assert.ok(primary.requests.length >= 1);
+  assert.equal(fallback.requests.length, 0);
+  const attempts = controlPlane.store.listAttempts(request.dispatchId);
+  assert.ok(attempts.length >= 1);
+  assert.equal(attempts.every((attempt) => attempt.routeId === route.routeId), true);
 });
 
 test("partial output followed by malformed stream is reconcile-only and never replayed", async (t) => {

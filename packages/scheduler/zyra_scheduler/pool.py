@@ -17,8 +17,8 @@ from .models import (
 def default_worker_manifests() -> list[WorkerManifest]:
     return [
         WorkerManifest(
-            worker_id="local-code-worker",
-            display_name="Provider-backed Code Worker (legacy stable id)",
+            worker_id="provider-code-worker",
+            display_name="Provider-backed Code Worker",
             runtime_worker="CodeWorkerRuntime",
             location=ResourceLocation.CLOUD,
             backend=WorkerBackendKind.CLOUD_MODEL,
@@ -260,7 +260,7 @@ def _count_worker_mentions(counts: dict[str, int], raw: str) -> None:
         _increment(counts, "edge-browser-worker")
     if "code" in raw or "shell" in raw or "tool" in raw:
         _increment(counts, "CodeWorkerRuntime")
-        _increment(counts, "local-code-worker")
+        _increment(counts, "provider-code-worker")
     if "cloud" in raw or "model" in raw:
         _increment(counts, "cloud-planner-verifier")
     if "memory" in raw or "compact" in raw or "trajectory" in raw:

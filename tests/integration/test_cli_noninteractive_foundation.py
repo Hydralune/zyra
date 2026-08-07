@@ -29,6 +29,13 @@ LIVE_PROVIDER_REQUIRED = pytest.mark.skipif(
         "external provider request"
     ),
 )
+INTERACTIVE_PROVIDER_REQUIRED = pytest.mark.skipif(
+    os.environ.get("ZYRA_RUN_LIVE_INTERACTIVE_PROVIDER_TESTS") != "1",
+    reason=(
+        "set ZYRA_RUN_LIVE_INTERACTIVE_PROVIDER_TESTS=1 only after authorizing "
+        "the separate interactive external-provider scenario"
+    ),
+)
 
 
 def _records(completed: subprocess.CompletedProcess[str]) -> list[dict[str, Any]]:
@@ -37,6 +44,126 @@ def _records(completed: subprocess.CompletedProcess[str]) -> list[dict[str, Any]
     assert records[-1]["type"] == "result"
     assert "\x1b" not in completed.stdout
     return records
+
+
+def _task_failure_diagnostic(
+    base_url: str,
+    records: list[dict[str, Any]],
+) -> str:
+    """Return bounded structural failure evidence without provider content."""
+
+    task_id = str(records[-1].get("task_id") or "")
+    if not task_id:
+        return json.dumps({"task_id": "", "result": records[-1]}, sort_keys=True)
+    task = _get(base_url, f"/tasks/{task_id}")["task"]
+    events = _get(base_url, f"/tasks/{task_id}/events")["events"]
+    node_failures = [
+        {
+            "node_id": node.get("node_id"),
+            "stage": node.get("metadata", {}).get("stage"),
+            "status": node.get("status"),
+            "result_summary": node.get("metadata", {}).get("result_summary"),
+            "worker_error": node.get("metadata", {}).get("worker_error"),
+        }
+        for node in task.get("plan_nodes", {}).values()
+        if node.get("status") in {"failed", "blocked"}
+        or node.get("metadata", {}).get("worker_error")
+    ]
+    notices = []
+
+    def bounded_scalar(value: object, limit: int) -> str:
+        if not isinstance(value, (str, int, float, bool)):
+            return ""
+        return str(value)[:limit]
+
+    for event in events:
+        payload = event.get("payload") or {}
+        if not isinstance(payload, dict):
+            continue
+        if not any(
+            key in payload
+            for key in ("error", "error_code", "message", "failed_conditions")
+        ) and payload.get("status") not in {"failed", "blocked"}:
+            continue
+        error_metadata = (
+            payload.get("error_metadata")
+            if isinstance(payload.get("error_metadata"), dict)
+            else {}
+        )
+        physical_failure = (
+            error_metadata.get("physical_execution_failure_receipt")
+            if isinstance(
+                error_metadata.get("physical_execution_failure_receipt"),
+                dict,
+            )
+            else {}
+        )
+        dispatch_error = (
+            error_metadata.get("physical_dispatch_error")
+            if isinstance(error_metadata.get("physical_dispatch_error"), dict)
+            else {}
+        )
+        notices.append(
+            {
+                "event_type": event.get("event_type"),
+                "schema": payload.get("schema"),
+                "status": payload.get("status"),
+                "summary": bounded_scalar(payload.get("summary"), 500),
+                "error": bounded_scalar(payload.get("error"), 500),
+                "error_code": bounded_scalar(payload.get("error_code"), 200),
+                "message": bounded_scalar(payload.get("message"), 500),
+                "failed_conditions": payload.get("failed_conditions"),
+                "physical_failure_code": physical_failure.get("failure_code"),
+                "physical_failure_side_effect_started": physical_failure.get(
+                    "side_effect_started"
+                ),
+                "dispatch_error_code": dispatch_error.get("code"),
+                "dispatch_node_error": (
+                    {
+                        key: dispatch_error.get("node_error", {}).get(key)
+                        for key in ("error", "message", "status", "code")
+                        if key in dispatch_error.get("node_error", {})
+                    }
+                    | {
+                        "details": {
+                            "worker_error": str(
+                                dispatch_error.get("node_error", {})
+                                .get("details", {})
+                                .get("worker_error")
+                                or ""
+                            )[:200],
+                            "provider_called": (
+                                dispatch_error.get("node_error", {})
+                                .get("details", {})
+                                .get("provider_called")
+                            ),
+                            "tool_call_count": (
+                                dispatch_error.get("node_error", {})
+                                .get("details", {})
+                                .get("tool_call_count")
+                            ),
+                            "provider_failure": (
+                                dispatch_error.get("node_error", {})
+                                .get("details", {})
+                                .get("provider_failure")
+                            ),
+                        }
+                    }
+                    if isinstance(dispatch_error.get("node_error"), dict)
+                    else {}
+                ),
+            }
+        )
+    return json.dumps(
+        {
+            "task_id": task_id,
+            "task_status": task.get("status"),
+            "node_failures": node_failures,
+            "notices": notices[-12:],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 def _run_cli(
@@ -99,7 +226,11 @@ def _unused_loopback_origin() -> str:
 
 
 @contextmanager
-def _real_api(tmp_path: Path) -> Iterator[str]:
+def _real_api(
+    tmp_path: Path,
+    *,
+    live_provider: bool = False,
+) -> Iterator[str]:
     environment = {
         "ZYRA_SQLITE_PATH": str(tmp_path / "api.sqlite3"),
         "ZYRA_EVENT_LOG": str(tmp_path / "events.jsonl"),
@@ -114,6 +245,15 @@ def _real_api(tmp_path: Path) -> Iterator[str]:
         "ZYRA_SUBAGENT_STATE": str(tmp_path / "subagents"),
         "ZYRA_CLI_STATE_DIR": str(tmp_path / "cli-state"),
     }
+    if not live_provider:
+        environment.update(
+            {
+                "ZYRA_DISABLE_LOCAL_PROVIDER_ENV_FILES": "1",
+                "ZAI_API_KEY": "",
+                "DEEPSEEK_API_KEY": "",
+                "KIMI_API_KEY": "",
+            }
+        )
     previous = {key: os.environ.get(key) for key in environment}
     os.environ.update(environment)
     package_paths = [
@@ -198,7 +338,7 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 @LIVE_PROVIDER_REQUIRED
 def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> None:
-    with _real_api(tmp_path) as base_url:
+    with _real_api(tmp_path, live_provider=True) as base_url:
         completed = _run_cli(
             base_url,
             "run",
@@ -206,7 +346,7 @@ def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> Non
             "测试，收到请回复 ok",
         )
         records = _records(completed)
-        assert completed.returncode == 0, completed.stderr
+        assert completed.returncode == 0, _task_failure_diagnostic(base_url, records)
         result = records[-1]
         assert result["exit_code"] == 0
         assert result["task_id"].startswith("task_")
@@ -226,7 +366,7 @@ def test_cli_run_uses_real_task_event_and_verifier_owners(tmp_path: Path) -> Non
 def test_cli_run_delivers_requested_file_through_product_entry(
     tmp_path: Path,
 ) -> None:
-    with _real_api(tmp_path) as base_url:
+    with _real_api(tmp_path, live_provider=True) as base_url:
         completed = _run_cli(
             base_url,
             "run",
@@ -235,7 +375,7 @@ def test_cli_run_delivers_requested_file_through_product_entry(
             timeout=360,
         )
         records = _records(completed)
-        assert completed.returncode == 0, completed.stderr
+        assert completed.returncode == 0, _task_failure_diagnostic(base_url, records)
         final = records[-1]
         assert final["exit_code"] == 0
         delivery = final["result"]["workspace_delivery"]
@@ -262,7 +402,7 @@ def test_cli_run_delivers_requested_file_through_product_entry(
 
 @LIVE_PROVIDER_REQUIRED
 def test_cli_run_reads_piped_stdin_without_polluting_jsonl(tmp_path: Path) -> None:
-    with _real_api(tmp_path) as base_url:
+    with _real_api(tmp_path, live_provider=True) as base_url:
         completed = _run_cli(
             base_url,
             "run",
@@ -282,7 +422,7 @@ def test_cli_run_reads_piped_stdin_without_polluting_jsonl(tmp_path: Path) -> No
 
 @LIVE_PROVIDER_REQUIRED
 def test_cli_signal_policy_submits_real_cancel_receipt(tmp_path: Path) -> None:
-    with _real_api(tmp_path) as base_url:
+    with _real_api(tmp_path, live_provider=True) as base_url:
         completed = _run_cli(
             base_url,
             "run",
@@ -370,6 +510,30 @@ def test_cli_scenario_calls_existing_http_lifecycle_directly(tmp_path: Path) -> 
         started_records = _records(started)
         assert started.returncode == 0, started.stderr
         assert started_records[-1]["status"] == "succeeded", started.stdout
+
+        scenario = _get(base_url, f"/scenarios/runs/{run_id}")["run"]
+        task_id = scenario["task_id"]
+        task = _get(base_url, f"/tasks/{task_id}")["task"]
+        assert task["metadata"]["worker_pool"]["worker_id"] == (
+            "foundation-scenario-worker"
+        )
+        task_events = _get(base_url, f"/tasks/{task_id}/events")["events"]
+        execution_receipt = next(
+            item["payload"]
+            for item in task_events
+            if item.get("payload", {}).get("schema")
+            == "zyra.foundation-owner-execution-receipt/v1"
+        )
+        assert execution_receipt["runtime_worker"] == "ScenarioOwnerChainRuntime"
+        assert execution_receipt["provider_called"] is False
+        assert execution_receipt["provider_reasoning_required"] is False
+        assert all(execution_receipt["checks"].values())
+        assert not (
+            tmp_path
+            / "artifacts"
+            / ".provider-control-plane"
+            / "provider.sqlite3"
+        ).exists()
 
         verified = _run_cli(base_url, "scenario", "verify", run_id)
         verified_records = _records(verified)
@@ -518,10 +682,11 @@ def test_cli_daemon_stop_protects_active_tasks_and_force_is_audited(
             )
 
 
+@INTERACTIVE_PROVIDER_REQUIRED
 def test_cli_interactive_stream_resume_list_and_web_share_server_identity(
     tmp_path: Path,
 ) -> None:
-    with _real_api(tmp_path) as base_url:
+    with _real_api(tmp_path, live_provider=True) as base_url:
         completed = _run_cli(
             base_url,
             "--timeout=3m",

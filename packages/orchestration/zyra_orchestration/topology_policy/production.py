@@ -92,6 +92,43 @@ class Phase2ProductionPolicyError(RuntimeError):
         self.metadata = dict(metadata or {})
 
 
+def _physical_dispatch_payload_binding(
+    port: Any,
+    operator_task: Mapping[str, Any],
+) -> tuple[str, bool]:
+    """Return the real dispatched-payload digest and its origin binding.
+
+    A production dispatch factory may add trusted provider/workspace routing
+    context after the canonical operator task is built.  The physical node
+    digests that enriched payload, so output verification must compare against
+    the payload that actually crossed the node boundary, while retaining a
+    commitment to the original orchestrator task.
+    """
+
+    original_digest = canonical_digest(operator_task)
+    task = getattr(port, "task", None)
+    candidate = getattr(task, "payload", None)
+    dispatched_payload = (
+        candidate if isinstance(candidate, Mapping) else operator_task
+    )
+    dispatched_digest = canonical_digest(dispatched_payload)
+    origin_commitment = str(
+        dispatched_payload.get("orchestrator_task_digest") or ""
+    ).removeprefix("sha256:")
+    origin_bound = (
+        origin_commitment == original_digest
+        if origin_commitment
+        else dispatched_digest == original_digest
+    )
+    return dispatched_digest, origin_bound
+
+
+def _is_json_array(value: Any) -> bool:
+    """Accept mutable JSON arrays and their immutable FrozenDict projection."""
+
+    return isinstance(value, (list, tuple))
+
+
 @dataclass(frozen=True, slots=True)
 class _PhysicalWorkerRun:
     """Task-graph projection of one canonical physical operator call."""
@@ -1497,6 +1534,10 @@ class Phase2StrongestProductionBridge:
                 binding,
                 operator_task,
             )
+            (
+                expected_payload_digest,
+                orchestrator_payload_bound,
+            ) = _physical_dispatch_payload_binding(port, operator_task)
             port.prepare(execution_context)
         except Exception as error:
             failure = self._close_physical_execution_failure(
@@ -1617,7 +1658,6 @@ class Phase2StrongestProductionBridge:
         observed_payload_digest = str(
             execution_output.get("task_payload_digest") or ""
         ).removeprefix("sha256:")
-        expected_payload_digest = canonical_digest(operator_task)
         observed_execution_digest = str(
             execution_output.get("operator_execution_digest") or ""
         ).removeprefix("sha256:")
@@ -1675,6 +1715,7 @@ class Phase2StrongestProductionBridge:
                 == observed_payload_digest
                 == expected_payload_digest
             ),
+            "orchestrator_payload_bound": orchestrator_payload_bound,
             "execution_digest_valid": bool(
                 execution_body
                 and observed_execution_digest
@@ -1728,7 +1769,7 @@ class Phase2StrongestProductionBridge:
                 or (
                     domain_result.get("kind") == "code_worker_execution"
                     and final_text
-                    and isinstance(workspace_delta.get("changed"), list)
+                    and _is_json_array(workspace_delta.get("changed"))
                     and execution_output.get("operator_adapter_id")
                     == "worker.code-worker.typescript-provider-tool-loop"
                 )
@@ -2789,7 +2830,12 @@ class Phase2StrongestProductionBridge:
             proposal_id=full_proposal.proposal_id,
             proposal_digest=full_proposal.digest,
             decision_ref=decision.decision_id,
-            proposed_depth=len(full_proposal.layers),
+            # The production scheduler owns one lease-bound physical dispatch
+            # per operator.  MaAS breadth candidates in a logical layer are
+            # therefore serialized into a deterministic dispatch prefix.  Use
+            # that physical plan depth for the cost receipt instead of mixing
+            # it with the logical MaAS layer count.
+            proposed_depth=len(proposed_operator_refs),
             executed_depth=len(layer_records),
             proposed_operator_count=len(proposed_operator_refs),
             executed_operator_count=len(executed_set),
@@ -2849,6 +2895,8 @@ class Phase2StrongestProductionBridge:
             "adaptive_depth_event_id": decision_event.event_id,
             "early_exit_receipt": decision.to_dict(),
             "adaptive_depth_receipt": adaptive_depth_receipt.to_dict(),
+            "maas_proposed_depth": len(full_proposal.layers),
+            "physical_dispatch_proposed_depth": len(proposed_operator_refs),
             "early_exit_enabled": early_exit_enabled,
             "canonical_owner_bypass": False,
         }

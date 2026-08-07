@@ -1315,7 +1315,8 @@ class DeploymentNodeRuntime:
         workload: Workload,
     ) -> dict[str, Any]:
         is_code_worker = bool(
-            operator_ref.startswith("worker:local-code-worker@")
+            operator_ref.startswith("worker:provider-code-worker@")
+            or operator_ref.startswith("worker:local-code-worker@")
             or (
                 str(operator.get("operator_type") or "") == "worker"
                 and operator_runtime == "CodeWorkerRuntime"

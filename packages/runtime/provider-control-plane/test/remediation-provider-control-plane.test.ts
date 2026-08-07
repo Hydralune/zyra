@@ -186,6 +186,7 @@ function dispatchRequest(routeId: string, turnId = "turn-remediation"): Provider
     nodeId: "node-remediation",
     sessionId: "session-remediation",
     turnId,
+    routeFallbackPolicy: "allow_route_change",
     messages: [{ role: "user", content: "hello" }],
     tools: [],
     maximumOutputTokens: 256,

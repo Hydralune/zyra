@@ -108,7 +108,7 @@ def test_physical_code_worker_uses_typescript_provider_tool_loop(
     )
     result = runtime._phase2_operator_adapter(
         payload={"run_id": "run_direct_response"},
-        operator_ref="worker:local-code-worker@1",
+        operator_ref="worker:provider-code-worker@1",
         operator={
             "operator_type": "worker",
             "output_contract": ["artifact_refs", "usage", "worker_result"],

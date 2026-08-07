@@ -94,6 +94,10 @@ export async function resolveProviderControlPlaneTurns(
       nodeId: input.nodeId ?? null,
       sessionId: route.sessionId,
       turnId: route.turnId,
+      // The host relays exactly the credential pinned by this route. Cross-route
+      // fallback would select a credential that is deliberately absent from the
+      // worker process, so transient failures may retry only this route.
+      routeFallbackPolicy: "pin_initial_route",
       messages,
       tools: providerTools,
       maximumOutputTokens: boundedPositiveInteger(

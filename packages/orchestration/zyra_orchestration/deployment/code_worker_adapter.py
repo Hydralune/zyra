@@ -18,6 +18,8 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
 )
 
+from .errors import DispatchRejected
+
 
 def execute_code_worker_operator(
     *,
@@ -200,9 +202,32 @@ def execute_code_worker_operator(
     workspace_delta = _workspace_delta(before, after)
     evidence = dict(run.execution_evidence)
     if not run.worker_result.ok:
-        raise RuntimeError(
-            "canonical TypeScript CodeWorker failed: "
-            f"{run.worker_result.error or 'unknown'}: {run.worker_result.summary}"
+        provider_failure = _provider_failure_summary(
+            run.worker_result.metadata
+        )
+        provider_failed_before_output = bool(
+            provider_failure
+            and provider_failure.get("output_observed") is False
+        )
+        raise DispatchRejected(
+            (
+                "node_provider_failure"
+                if provider_failed_before_output
+                else "node_code_worker_failed"
+            ),
+            "canonical TypeScript CodeWorker failed",
+            operation="phase2-operator-execution",
+            profile="cloud",
+            retryable=provider_failed_before_output,
+            details={
+                "worker_error": str(
+                    run.worker_result.error or "unknown"
+                )[:200],
+                "worker_summary": str(run.worker_result.summary)[:500],
+                "provider_failure": provider_failure,
+                "provider_called": evidence.get("provider_called") is True,
+                "tool_call_count": int(evidence.get("tool_call_count") or 0),
+            },
         )
     if evidence.get("provider_called") is not True:
         raise RuntimeError(
@@ -226,6 +251,7 @@ def execute_code_worker_operator(
     )
     if provider_call.get("task_execution_verified") is not True:
         raise RuntimeError("provider evidence is not bound to the physical task execution")
+    public_runtime_events = _public_runtime_events(runtime_events)
     return {
         "schema": "zyra.physical-code-worker-execution/v1",
         "runtime_worker": "CodeWorkerRuntime",
@@ -233,7 +259,7 @@ def execute_code_worker_operator(
         "canonical_runtime_owner": "typescript",
         "python_runtime_role": "physical-process-durability-side-effect-host",
         "worker_result": to_jsonable(run.worker_result),
-        "runtime_events": runtime_events,
+        "runtime_events": public_runtime_events,
         "runtime_artifacts": [to_jsonable(item) for item in run.worker_result.artifacts],
         "execution_evidence": evidence,
         "provider_call": provider_call,
@@ -246,6 +272,172 @@ def execute_code_worker_operator(
         "workspace_delta": workspace_delta,
         "final_text": str(evidence.get("final_text") or ""),
     }
+
+
+_DROPPED_PUBLIC_EVENT_PHASES = frozenset(
+    {
+        "message_delta",
+        "model_stream_frame",
+    }
+)
+
+
+def _public_runtime_events(
+    runtime_events: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Project private model-loop events into low-entropy public evidence.
+
+    Provider prompt binding is verified from the private in-process events
+    before this projection.  Public task/event storage retains lifecycle,
+    request commitments, aggregate stream reports, tool custody and result
+    commitments, but never token deltas, model thinking, prompts, continuation
+    messages or raw tool output.
+    """
+
+    projected: list[dict[str, Any]] = []
+    for raw_event in runtime_events:
+        event = dict(to_jsonable(raw_event))
+        payload = dict(event.get("payload") or {})
+        public_payload = _public_session_projection(payload)
+        if public_payload is None:
+            continue
+        payload = public_payload
+        drop_event = False
+        for session_key in ("query_session", "typescript_runtime"):
+            session = payload.get(session_key)
+            if not isinstance(session, Mapping):
+                continue
+            public_session = _public_session_projection(session)
+            if public_session is None:
+                drop_event = True
+                break
+            payload[session_key] = public_session
+        if drop_event:
+            continue
+        worker_result = payload.pop("worker_result", None)
+        if worker_result is not None:
+            worker_mapping = (
+                dict(worker_result)
+                if isinstance(worker_result, Mapping)
+                else {}
+            )
+            payload["worker_result_commitment"] = {
+                "schema": "zyra.public-worker-result-commitment/v1",
+                "request_id": str(worker_mapping.get("request_id") or ""),
+                "ok": worker_mapping.get("ok") is True,
+                "artifact_count": len(
+                    worker_mapping.get("artifacts")
+                    if isinstance(worker_mapping.get("artifacts"), list)
+                    else ()
+                ),
+                "result_digest": _digest(worker_result),
+                "content_persisted": False,
+            }
+        event["payload"] = payload
+        projected.append(event)
+    return projected
+
+
+def _provider_failure_summary(
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project only bounded, non-secret provider failure diagnostics."""
+
+    raw = metadata.get("provider_failure")
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"kind": "unparseable_provider_failure"}
+    if not isinstance(value, Mapping):
+        return {"kind": "invalid_provider_failure_shape"}
+    detail = value.get("detail")
+    detail_keys = (
+        sorted(str(key) for key in detail)[:32]
+        if isinstance(detail, Mapping)
+        else []
+    )
+    return {
+        "layer": str(value.get("layer") or "")[:80],
+        "kind": str(value.get("kind") or "")[:120],
+        "message": str(value.get("message") or "")[:500],
+        "retryable": value.get("retryable") is True,
+        "recovery_intent": str(value.get("recoveryIntent") or "")[:120],
+        "http_status": int(value.get("httpStatus") or 0),
+        "provider_id": str(value.get("providerId") or "")[:120],
+        "model_id": str(value.get("modelId") or "")[:160],
+        "bytes_sent": max(0, int(value.get("bytesSent") or 0)),
+        "bytes_received": max(0, int(value.get("bytesReceived") or 0)),
+        "output_observed": value.get("outputObserved") is True,
+        "retry_after_ms": max(
+            0,
+            int(value.get("retryAfterMilliseconds") or 0),
+        ),
+        "detail_keys": detail_keys,
+    }
+
+
+def _public_session_projection(
+    session: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    public_session = dict(session)
+    phase = str(public_session.get("phase") or "")
+    if phase in _DROPPED_PUBLIC_EVENT_PHASES:
+        return None
+    _commit_private_field(
+        public_session,
+        "user_content",
+        digest_name="user_content_digest",
+    )
+    _commit_private_field(
+        public_session,
+        "nudge_message",
+        digest_name="nudge_message_digest",
+    )
+    _commit_private_field(
+        public_session,
+        "messages",
+        digest_name="messages_digest",
+        count_name="message_count",
+    )
+    tool_result = public_session.pop("tool_result", None)
+    if tool_result is not None:
+        tool_mapping = (
+            dict(tool_result) if isinstance(tool_result, Mapping) else {}
+        )
+        public_session["tool_result_commitment"] = {
+            "schema": "zyra.public-tool-result-commitment/v1",
+            "tool_call_id": str(
+                tool_mapping.get("tool_call_id")
+                or public_session.get("tool_call_id")
+                or ""
+            ),
+            "ok": tool_mapping.get("ok") is True,
+            "artifact_count": len(
+                tool_mapping.get("artifacts")
+                if isinstance(tool_mapping.get("artifacts"), list)
+                else ()
+            ),
+            "result_digest": _digest(tool_result),
+            "content_persisted": False,
+        }
+    return public_session
+
+
+def _commit_private_field(
+    payload: dict[str, Any],
+    field: str,
+    *,
+    digest_name: str,
+    count_name: str | None = None,
+) -> None:
+    if field not in payload:
+        return
+    value = payload.pop(field)
+    payload[digest_name] = _digest(value)
+    if count_name is not None:
+        payload[count_name] = len(value) if isinstance(value, list) else 0
 
 
 def _execution_prompt(

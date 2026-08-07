@@ -9,6 +9,7 @@ import pytest
 from apps.api.zyra_api import deployment_api, main as api
 from zyra_orchestration.deployment import DeploymentOrchestrator
 from zyra_orchestration.deployment import node_server
+from zyra_orchestration.deployment.models import digest
 
 
 def test_reset_deployment_api_stops_owned_processes(monkeypatch) -> None:
@@ -28,6 +29,34 @@ def test_reset_deployment_api_stops_owned_processes(monkeypatch) -> None:
     assert stopped == [True]
     assert deployment_api._API is None
     assert deployment_api._KEY == ""
+
+
+def test_node_server_preserves_receipt_digest_and_redacts_diagnostics() -> None:
+    result = {
+        "output": {
+            "nested": {
+                "signature": "receipt-evidence-signature",
+                "usage": {"prompt_tokens": 12, "completion_tokens": 3},
+            }
+        }
+    }
+    receipt = {
+        "schema": "zyra.deployment-node-receipt/v1",
+        "result": result,
+        "result_digest": digest(result),
+    }
+
+    outbound = node_server._outbound_payload(receipt)
+
+    assert outbound == receipt
+    assert digest(outbound["result"]) == outbound["result_digest"]
+    diagnostic = node_server._outbound_payload(
+        {
+            "schema": "zyra.deployment-error/v1",
+            "details": {"authorization": "Bearer synthetic-test-value"},
+        }
+    )
+    assert diagnostic["details"]["authorization"] == "<redacted>"
 
 
 def test_deployment_state_is_scoped_to_the_active_api_state_root(
@@ -118,3 +147,35 @@ def test_provider_env_loader_reads_only_the_exact_allowlisted_key(
         "deepseek",
         "deepseek-v4-flash",
     )
+
+
+def test_provider_env_loader_disable_flag_removes_file_managed_values_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(api, "_FILE_MANAGED_PROVIDER_ENV", set())
+    for key, filename, _provider, _model in api._PROVIDER_ENV_FILES:
+        monkeypatch.delenv(key, raising=False)
+        (tmp_path / filename).write_text(
+            f"{key}={key}-file-value\n",
+            encoding="utf-8",
+        )
+
+    assert api._load_configured_provider_environment() == tuple(
+        item[0] for item in api._PROVIDER_ENV_FILES
+    )
+    monkeypatch.setenv("ZYRA_DISABLE_LOCAL_PROVIDER_ENV_FILES", "1")
+
+    assert api._load_configured_provider_environment() == ()
+    assert all(
+        os.environ.get(key) is None
+        for key, _filename, _provider, _model in api._PROVIDER_ENV_FILES
+    )
+    assert api._preferred_configured_provider() is None
+
+    # The guard disables implicit files, not a credential that the caller
+    # deliberately supplies in its process environment.
+    monkeypatch.setenv("ZAI_API_KEY", "explicit-process-value")
+    assert api._load_configured_provider_environment() == ("ZAI_API_KEY",)
+    assert api._preferred_configured_provider() == ("zhipu", "glm-5.2")

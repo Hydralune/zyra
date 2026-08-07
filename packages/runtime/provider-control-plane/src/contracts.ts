@@ -206,6 +206,7 @@ export interface ProviderDispatchRequest {
   readonly nodeId: string | null;
   readonly sessionId: string;
   readonly turnId: string;
+  readonly routeFallbackPolicy: "allow_route_change" | "pin_initial_route";
   readonly messages: readonly DispatchMessage[];
   readonly tools: readonly DispatchTool[];
   readonly maximumOutputTokens: number;

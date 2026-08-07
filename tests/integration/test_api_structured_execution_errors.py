@@ -56,12 +56,18 @@ def test_task_owner_exception_returns_structured_503_and_server_stays_alive(
         )
         assert status == 503
         assert failure["error"] == "task_execution_failed"
+        assert failure["schema"] == "zyra.task-execution-http-error/v1"
         assert failure["retryable"] is False
         assert failure["fallback"] is False
-        assert failure["task"]["status"] == "blocked"
-        assert failure["events"][-1]["payload"]["schema"] == (
+        assert failure["task_status"] == "blocked"
+        assert failure["execution_error"]["schema"] == (
             "zyra.task-execution-error/v1"
         )
+        assert failure["event_refs"]
+        assert failure["task_ref"] == f"/tasks/{failure['task_id']}"
+        assert "task" not in failure
+        assert "events" not in failure
+        assert len(json.dumps(failure).encode("utf-8")) < 64 * 1024
 
         readiness_status, readiness = _request(base_url, "/runtime/readiness")
         assert readiness_status == 200
