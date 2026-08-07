@@ -1113,13 +1113,24 @@ class ReleaseRuntime:
             command = semantic.get("command")
             if (
                 not isinstance(command, list)
-                or command[-2:] != ["lifecycle", "health"]
+                or command[-3:]
+                != ["lifecycle", "health", "--no-short-task"]
             ):
                 failures.append("semantic_health_command")
+            try:
+                semantic_report = json.loads(str(semantic.get("stdout") or ""))
+            except json.JSONDecodeError:
+                semantic_report = {}
+            if (
+                not isinstance(semantic_report, Mapping)
+                or semantic_report.get("short_task_included") is not False
+            ):
+                failures.append("semantic_short_task_not_disabled")
             value = {
                 "schema": "zyra.release-semantic-health-verification/v1",
                 "ready": not failures,
                 "source_commit": expected_commit,
+                "verification_scope": "structural_no_provider_call",
                 "clean_install_admission": clean_admission,
                 "clean_install_digest": stable_digest(clean_receipt),
                 "semantic_health": {
@@ -1129,6 +1140,11 @@ class ReleaseRuntime:
                     "stdout_digest": semantic.get("stdout_digest"),
                     "stderr_digest": semantic.get("stderr_digest"),
                     "timed_out": semantic.get("timed_out"),
+                    "short_task_included": (
+                        semantic_report.get("short_task_included")
+                        if isinstance(semantic_report, Mapping)
+                        else None
+                    ),
                 },
                 "failures": failures,
             }

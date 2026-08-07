@@ -1527,7 +1527,12 @@ class CleanInstallRunner:
             ),
             (
                 "semantic-health",
-                [*launcher, "lifecycle", "health"],
+                [
+                    *launcher,
+                    "lifecycle",
+                    "health",
+                    "--no-short-task",
+                ],
             ),
             (
                 "product-restart",
@@ -1535,7 +1540,12 @@ class CleanInstallRunner:
             ),
             (
                 "post-restart-health",
-                [*launcher, "lifecycle", "health"],
+                [
+                    *launcher,
+                    "lifecycle",
+                    "health",
+                    "--no-short-task",
+                ],
             ),
             ("product-stop", [*launcher, "lifecycle", "stop"]),
             ("post-stop-status", [*deployment_launcher, "status"]),

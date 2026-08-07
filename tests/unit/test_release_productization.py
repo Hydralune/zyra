@@ -1077,7 +1077,15 @@ def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
         "ready": True,
         "returncode": 0,
         "duration_ms": 123.0,
-        "command": ["python", "-m", "release", "lifecycle", "health"],
+        "command": [
+            "python",
+            "-m",
+            "release",
+            "lifecycle",
+            "health",
+            "--no-short-task",
+        ],
+        "stdout": json.dumps({"ready": True, "short_task_included": False}),
         "stdout_digest": "b" * 64,
         "stderr_digest": "c" * 64,
         "timed_out": False,
@@ -1136,6 +1144,8 @@ def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
     result = gate(None)
     assert result["ready"] is True
     assert result["semantic_health"]["returncode"] == 0
+    assert result["verification_scope"] == "structural_no_provider_call"
+    assert result["semantic_health"]["short_task_included"] is False
 
     semantic_command["ready"] = False
     (evidence_root / "clean-install.json").write_text(
@@ -1145,6 +1155,94 @@ def test_semantic_gate_verifies_the_clean_install_lifecycle_receipt(
     failed = gate(None)
     assert failed["ready"] is False
     assert failed["failures"] == ["semantic_health_not_ready"]
+
+    semantic_command["ready"] = True
+    semantic_command["command"] = [
+        "python",
+        "-m",
+        "release",
+        "lifecycle",
+        "health",
+    ]
+    semantic_command["stdout"] = json.dumps(
+        {"ready": True, "short_task_included": True}
+    )
+    (evidence_root / "clean-install.json").write_text(
+        json.dumps(receipt),
+        encoding="utf-8",
+    )
+    unsafe = gate(None)
+    assert unsafe["ready"] is False
+    assert unsafe["failures"] == [
+        "semantic_health_command",
+        "semantic_short_task_not_disabled",
+    ]
+
+
+def test_cleanroom_lifecycle_never_runs_a_provider_task_without_credentials(
+    tmp_path: Path,
+) -> None:
+    class Result:
+        def __init__(self, command: list[str], stdout: str) -> None:
+            self.stdout = stdout
+            self._value = {
+                "command": command,
+                "cwd": str(tmp_path),
+                "returncode": 0,
+                "started_at": "2026-08-07T00:00:00+00:00",
+                "finished_at": "2026-08-07T00:00:01+00:00",
+                "duration_ms": 1.0,
+                "stdout": stdout,
+                "stderr": "",
+                "stdout_digest": stable_digest(stdout),
+                "stderr_digest": stable_digest(""),
+                "timed_out": False,
+                "ready": True,
+            }
+
+        def to_dict(self) -> dict[str, object]:
+            return dict(self._value)
+
+    class RecordingRunner:
+        def __init__(self) -> None:
+            self.commands: list[list[str]] = []
+
+        def run(self, command, **_kwargs):
+            recorded = [str(item) for item in command]
+            self.commands.append(recorded)
+            if recorded[-1] == "status":
+                stdout = json.dumps(
+                    {
+                        "ready": False,
+                        "status": "stopped",
+                        "processes": {"active_count": 0},
+                    }
+                )
+            elif "health" in recorded:
+                stdout = json.dumps(
+                    {"ready": True, "short_task_included": False}
+                )
+            else:
+                stdout = json.dumps({"ready": True})
+            return Result(recorded, stdout)
+
+    runner = RecordingRunner()
+    result = CleanInstallRunner._exercise_product_lifecycle(
+        runner,
+        payload=tmp_path,
+        python=Path("python"),
+        timeout=10,
+    )
+
+    assert result["ready"] is True
+    health_commands = [
+        item for item in runner.commands if "health" in item
+    ]
+    assert len(health_commands) == 2
+    assert all(
+        item[-3:] == ["lifecycle", "health", "--no-short-task"]
+        for item in health_commands
+    )
 
 
 def test_release_environment_allowlist_is_case_insensitive_on_windows() -> None:

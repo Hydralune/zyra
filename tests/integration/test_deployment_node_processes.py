@@ -617,6 +617,25 @@ def test_product_supervisor_api_web_and_control_surface_start_from_clean_state()
             )
             assert doctor["ready"] is True, doctor
 
+            structural = orchestrator.semantic_health(
+                include_short_task=False,
+                fresh_state=False,
+            )
+            assert structural["ready"] is True, structural
+            assert structural["status"] == "degraded"
+            assert structural["short_task_included"] is False
+            assert structural["short_task_id"] == ""
+            assert not any(
+                probe.get("probe_id") == "short-task"
+                for probe in structural.get("probes") or ()
+            )
+            assert any(
+                str(item).endswith(
+                    "cloud_provider_credential_missing_fail_closed"
+                )
+                for item in structural["warnings"]
+            )
+
             semantic = orchestrator.semantic_health(
                 include_short_task=True,
                 fresh_state=True,
