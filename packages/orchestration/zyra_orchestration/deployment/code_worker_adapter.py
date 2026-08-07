@@ -116,6 +116,14 @@ def execute_code_worker_operator(
             f"{str(payload.get('operator_ref') or '')}"
         ),
         "max_turns": max(2, min(24, int(context.get("max_turns") or 12))),
+        # Bounded by the TypeScript runtime's own 600s ceiling.  This deadline
+        # governs the whole multi-turn reasoning loop, so it must be large
+        # enough for a live provider yet still expire before the dispatch
+        # transport deadline.
+        "typescript_runtime_timeout_seconds": max(
+            60.0,
+            min(600.0, float(context.get("reasoning_timeout_seconds") or 120.0)),
+        ),
         "tool_result_budget_chars": 120_000,
         "query_context_budget_chars": 128_000,
         "model_output_token_limit": max(
@@ -224,6 +232,15 @@ def execute_code_worker_operator(
                     run.worker_result.error or "unknown"
                 )[:200],
                 "worker_summary": str(run.worker_result.summary)[:500],
+                # The runtime-level message carries the child's stderr, which is
+                # the only place a stall or crash inside the TypeScript runtime
+                # explains itself.  Without it the node reports a bare code.
+                "worker_error_message": str(
+                    (run.worker_result.metadata or {}).get(
+                        "typescript_runtime_error_message"
+                    )
+                    or ""
+                )[:2000],
                 "provider_failure": provider_failure,
                 "provider_called": evidence.get("provider_called") is True,
                 "tool_call_count": int(evidence.get("tool_call_count") or 0),

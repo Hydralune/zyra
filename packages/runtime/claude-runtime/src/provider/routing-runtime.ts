@@ -167,7 +167,12 @@ export class ProviderRoutingRuntime {
   constructor(options: ProviderRoutingOptions = {}) {
     this.clock = options.clock ?? new SystemClock();
     this.weights = { ...DEFAULT_WEIGHTS, ...options.weights };
-    this.leaseMilliseconds = options.leaseMilliseconds ?? 120_000;
+    // A route lease is held for one provider request and released by
+    // recordSuccess/recordFailure.  A streaming completion near the output
+    // token ceiling can run for several minutes, so a 120s lease expired
+    // mid-stream and surfaced as unknown_provider_route_lease.  This matches
+    // the sibling provider-control-plane routing default.
+    this.leaseMilliseconds = options.leaseMilliseconds ?? 15 * 60_000;
     this.circuitFailureThreshold = options.circuitFailureThreshold ?? 4;
     this.circuitBaseOpenMilliseconds =
       options.circuitBaseOpenMilliseconds ?? 5_000;

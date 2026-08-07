@@ -74,6 +74,12 @@ class PhysicalDispatchTask:
     provider_id: str = "zhipu"
     model_id: str = "glm-5.2"
     latency_sla_ms: int = 120_000
+    # Placement policy caps ``latency_sla_ms`` at 120s because it selects the
+    # device/edge/cloud tier.  A provider reasoning loop legitimately runs far
+    # longer than any placement SLA, so the transport deadline is a separate
+    # budget.  ``0`` keeps the historical behaviour of deriving the deadline
+    # from the placement SLA.
+    execution_budget_ms: int = 0
     maximum_cost_usd: float = 0.01
     verifier_id: str = "physical-dispatch-marker-verifier/v1"
     condition: str = "normal"
@@ -103,6 +109,8 @@ class PhysicalDispatchTask:
             raise ValueError("physical dispatch privacy class is invalid")
         if privacy in {"restricted", "local-only"} and placements != ("local",):
             raise ValueError("restricted/local-only dispatch must be local-only")
+        if self.execution_budget_ms < 0:
+            raise ValueError("physical dispatch execution budget is invalid")
         object.__setattr__(self, "privacy_class", privacy)
         object.__setattr__(self, "operation", self.operation.strip().casefold())
         object.__setattr__(self, "allowed_placements", placements)
@@ -121,6 +129,17 @@ class PhysicalDispatchTask:
     @property
     def payload_digest(self) -> str:
         return canonical_digest(dict(self.payload))
+
+    @property
+    def dispatch_timeout_seconds(self) -> float:
+        """Transport deadline for one physical dispatch attempt.
+
+        Falls back to the placement SLA so existing marker-probe callers keep
+        their historical deadline.
+        """
+
+        budget_ms = self.execution_budget_ms or self.latency_sla_ms
+        return max(5.0, budget_ms / 1000)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1077,7 +1096,7 @@ class PhysicalDispatchCallPort:
                     if self.failure_receipts
                     else ""
                 ),
-                timeout_seconds=max(5.0, self.task.latency_sla_ms / 1000),
+                timeout_seconds=self.task.dispatch_timeout_seconds,
                 attempt_id=context.attempt_id,
             )
         except DeploymentError as error:

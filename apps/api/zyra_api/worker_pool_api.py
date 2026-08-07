@@ -744,8 +744,17 @@ class WorkerPoolApiService:
             node.physical_attempt_ref != attempt_id
             or node.worker_lease_ref != lease_id
         ):
+            # Name both sides of the divergence.  A bare fence message cannot
+            # say whether the graph node or the TaskState projection is stale,
+            # which is the only question worth answering here.
             raise RuntimeError(
-                "dynamic graph physical binding terminalization was fenced"
+                "dynamic graph physical binding terminalization was fenced: "
+                f"node={execute_node_id} "
+                f"graph_attempt={node.physical_attempt_ref or '[unbound]'} "
+                f"graph_lease={node.worker_lease_ref or '[unbound]'} "
+                f"projection_attempt={attempt_id} "
+                f"projection_lease={lease_id} "
+                f"graph_revision={snapshot.revision}"
             )
         if node.terminal:
             if node.state is not terminal_state:

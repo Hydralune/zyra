@@ -6252,6 +6252,7 @@ def _production_physical_dispatch_port(
     payload["orchestrator_task_digest"] = canonical_digest(operator_task)
     provider_id = ""
     model_id = ""
+    execution_budget_ms = 0
     operator_ref = str(payload.get("operator_ref") or "")
     is_model_code_worker = bool(
         str(payload.get("operator_runtime") or "") == "CodeWorkerRuntime"
@@ -6318,9 +6319,14 @@ def _production_physical_dispatch_port(
                 database_path=provider_db
             ),
             "model_id": route_ref.model_id,
-            "max_turns": 12,
+            "max_turns": _REASONING_MAX_TURNS,
             "model_output_token_limit": 8192,
+            # The runtime deadline must expire before the transport deadline so
+            # a slow reasoning loop still returns a structured receipt instead
+            # of aborting the dispatch connection with an unknown outcome.
+            "reasoning_timeout_seconds": _REASONING_RUNTIME_TIMEOUT_SECONDS,
         }
+        execution_budget_ms = _REASONING_TRANSPORT_BUDGET_MS
     task = PhysicalDispatchTask(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -6331,6 +6337,7 @@ def _production_physical_dispatch_port(
         operation="phase2-operator-execution",
         provider_id=provider_id or "zhipu",
         model_id=model_id or "glm-5.2",
+        execution_budget_ms=execution_budget_ms,
     )
     return PhysicalDispatchCallPort(
         task=task,
@@ -6342,6 +6349,17 @@ def _production_physical_dispatch_port(
         ),
     )
 
+
+# A live provider reasoning loop runs model -> tool -> observation -> model for
+# up to ``_REASONING_MAX_TURNS`` rounds, which routinely exceeds any placement
+# latency SLA.  Placement policy caps ``latency_sla_ms`` at 120s because that
+# value selects the device/edge/cloud tier, so the execution deadline is budgeted
+# separately.  The runtime deadline must stay strictly below the transport
+# deadline: a slow loop then fails as a structured receipt rather than aborting
+# the dispatch connection and leaving the outcome unknown.
+_REASONING_MAX_TURNS = 12
+_REASONING_RUNTIME_TIMEOUT_SECONDS = 600.0
+_REASONING_TRANSPORT_BUDGET_MS = 780_000
 
 _PROVIDER_ENV_FILES = (
     ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),

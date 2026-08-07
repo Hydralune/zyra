@@ -66,9 +66,57 @@ class TypeScriptRuntimeError(RuntimeError):
         self.code = code
 
 
-class _ProcessLineReader:
+class _StderrCollector:
+    """Continuously drain the runtime's stderr.
+
+    ``process.stderr.read()`` only returns once the child exits, so a hung or
+    timed-out runtime used to surface a bare deadline error with no cause.
+    Draining on a thread keeps the diagnostics available on every failure path.
+    """
+
+    _MAXIMUM_CHARACTERS = 16_000
+
     def __init__(self, stream: Any) -> None:
+        self._chunks: list[str] = []
+        self._characters = 0
+        self._truncated = False
+        self._lock = threading.Lock()
+        self._thread = threading.Thread(
+            target=self._read,
+            args=(stream,),
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _read(self, stream: Any) -> None:
+        try:
+            for line in iter(stream.readline, ""):
+                with self._lock:
+                    if self._characters >= self._MAXIMUM_CHARACTERS:
+                        self._truncated = True
+                        continue
+                    self._chunks.append(line)
+                    self._characters += len(line)
+        except (OSError, ValueError):
+            return
+
+    def text(self) -> str:
+        with self._lock:
+            rendered = "".join(self._chunks).strip()
+            if self._truncated and rendered:
+                rendered = f"{rendered}\n[stderr truncated]"
+            return rendered
+
+
+class _ProcessLineReader:
+    def __init__(
+        self,
+        stream: Any,
+        *,
+        stderr: _StderrCollector | None = None,
+    ) -> None:
         self._lines: queue.Queue[str | None] = queue.Queue()
+        self._stderr = stderr
         self._thread = threading.Thread(target=self._read, args=(stream,), daemon=True)
         self._thread.start()
 
@@ -76,9 +124,14 @@ class _ProcessLineReader:
         try:
             return self._lines.get(timeout=max(0.01, timeout))
         except queue.Empty as error:
+            diagnostics = self._stderr.text() if self._stderr is not None else ""
+            message = (
+                "TypeScript runtime did not produce a protocol frame before "
+                "the deadline."
+            )
             raise TypeScriptRuntimeError(
                 "typescript_runtime_timeout",
-                "TypeScript runtime did not produce a protocol frame before the deadline.",
+                f"{message} stderr: {diagnostics}" if diagnostics else message,
             ) from error
 
     def _read(self, stream: Any) -> None:
@@ -128,6 +181,7 @@ class TypeScriptClaudeQueryEngine:
             allowed_roots=(self.project_root,),
         )
         self._active_runtime_process: subprocess.Popen[str] | None = None
+        self._active_stderr_collector: _StderrCollector | None = None
         self._runtime_event_bridge = context.runtime_services.get("runtime_event_bridge")
         self._runtime_event_ingress: CodeWorkerRuntimeEventIngress | None = None
         self._fault_observation_sink = context.runtime_services.get(
@@ -473,7 +527,9 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_process_failed",
                 "TypeScript runtime process pipes were not created.",
             )
-        reader = _ProcessLineReader(process.stdout)
+        stderr_collector = _StderrCollector(process.stderr)
+        self._active_stderr_collector = stderr_collector
+        reader = _ProcessLineReader(process.stdout, stderr=stderr_collector)
         deadline = time.monotonic() + timeout_seconds
         outbound_sequence = 1
         inbound_sequence = 1
@@ -1005,7 +1061,7 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_timeout",
                 "TypeScript runtime did not exit after run.result.",
             ) from error
-        stderr = process.stderr.read().strip()
+        stderr = self._stderr_text(process)
         if exit_code != 0:
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
@@ -2313,7 +2369,7 @@ class TypeScriptClaudeQueryEngine:
     ) -> dict[str, Any]:
         line = reader.get(deadline - time.monotonic())
         if line is None:
-            stderr = process.stderr.read().strip() if process.stderr is not None else ""
+            stderr = self._stderr_text(process)
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
                 stderr or "TypeScript runtime closed stdout before completing the run.",
@@ -2391,7 +2447,7 @@ class TypeScriptClaudeQueryEngine:
         correlation_id: str = "",
     ) -> None:
         if process.stdin is None or process.poll() is not None:
-            stderr = process.stderr.read().strip() if process.stderr is not None else ""
+            stderr = self._stderr_text(process)
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
                 stderr or "TypeScript runtime process is not writable.",
@@ -2429,11 +2485,28 @@ class TypeScriptClaudeQueryEngine:
                 }
             )
         except (BrokenPipeError, OSError) as error:
-            stderr = process.stderr.read().strip() if process.stderr is not None else ""
+            stderr = self._stderr_text(process)
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
                 stderr or "TypeScript runtime process disconnected while receiving a frame.",
             ) from error
+
+    def _stderr_text(self, process: subprocess.Popen[str]) -> str:
+        """Return runtime stderr without competing with the drain thread.
+
+        Once ``_StderrCollector`` owns the pipe a direct ``read()`` returns
+        nothing, so every diagnostic path has to go through the collector.
+        """
+
+        collector = self._active_stderr_collector
+        if collector is not None:
+            return collector.text()
+        if process.stderr is None:
+            return ""
+        try:
+            return process.stderr.read().strip()
+        except (OSError, ValueError):
+            return ""
 
     def _terminate(self, process: subprocess.Popen[str]) -> None:
         self._host_process_runtime.release_interactive(
