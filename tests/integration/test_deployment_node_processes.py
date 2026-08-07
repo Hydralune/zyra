@@ -655,3 +655,72 @@ def test_product_supervisor_api_web_and_control_surface_start_from_clean_state()
                 stopped = orchestrator.stop()
                 assert stopped["ready"] is True
                 assert stopped["remaining_active"] == []
+
+
+def test_one_shot_cli_lifecycle_keeps_nodes_alive_across_restart() -> None:
+    (PROJECT_ROOT / ".tmp").mkdir(exist_ok=True)
+    base_port = _free_port_block(5)
+    with tempfile.TemporaryDirectory(
+        prefix="p2-r01-cli-lifecycle-",
+        dir=PROJECT_ROOT / ".tmp",
+        ignore_cleanup_errors=True,
+    ) as selected:
+        state_root = Path(selected)
+        environment = {
+            **os.environ,
+            "ZYRA_DEPLOYMENT_PROFILE_BASE_PORT": str(base_port),
+            "ZYRA_API_PORT": str(base_port + 3),
+            "ZYRA_WEB_PORT": str(base_port + 4),
+        }
+        command = [
+            sys.executable,
+            "-m",
+            "zyra_orchestration.deployment.cli",
+            "--project-root",
+            str(PROJECT_ROOT),
+            "--state-root",
+            str(state_root),
+        ]
+
+        def invoke(action: str, *extra: str) -> dict[str, Any]:
+            completed = subprocess.run(
+                [*command, action, *extra],
+                cwd=PROJECT_ROOT,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=180,
+            )
+            assert completed.returncode == 0, completed.stderr or completed.stdout
+            value = json.loads(completed.stdout)
+            assert isinstance(value, dict)
+            return value
+
+        started = False
+        try:
+            assert invoke("start", "--no-build-web")["ready"] is True
+            started = True
+            time.sleep(1.5)
+            first_status = invoke("status")
+            assert first_status["ready"] is True
+            assert all(
+                profile["reachable"] is True
+                for profile in first_status["profiles"].values()
+            )
+
+            assert invoke("restart")["ready"] is True
+            time.sleep(1.5)
+            restarted_status = invoke("status")
+            assert restarted_status["ready"] is True
+            assert all(
+                profile["reachable"] is True
+                for profile in restarted_status["profiles"].values()
+            )
+        finally:
+            if started:
+                stopped = invoke("stop")
+                assert stopped["ready"] is True
+                assert stopped["remaining_active"] == []

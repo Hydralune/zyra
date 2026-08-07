@@ -284,17 +284,22 @@ def _supervisor_is_alive(pid: int, expected_create_time: float) -> bool:
         return False
 
 
-def _start_supervisor_watchdog(server: DeploymentNodeHttpServer) -> threading.Thread:
+def _start_supervisor_watchdog(
+    server: DeploymentNodeHttpServer,
+) -> threading.Thread | None:
+    raw_supervisor_pid = str(
+        os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_PID") or ""
+    ).strip()
+    raw_supervisor_create_time = str(
+        os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME") or ""
+    ).strip()
+    if not raw_supervisor_pid and not raw_supervisor_create_time:
+        return None
+    if not raw_supervisor_pid or not raw_supervisor_create_time:
+        raise SystemExit("deployment supervisor identity is incomplete")
     try:
-        supervisor_pid = int(
-            str(os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_PID") or "0")
-        )
-        supervisor_create_time = float(
-            str(
-                os.environ.get("ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME")
-                or "0"
-            )
-        )
+        supervisor_pid = int(raw_supervisor_pid)
+        supervisor_create_time = float(raw_supervisor_create_time)
     except ValueError as error:
         raise SystemExit("deployment supervisor identity is invalid") from error
     if not _supervisor_is_alive(supervisor_pid, supervisor_create_time):

@@ -77,6 +77,11 @@ def run(argv: list[str] | None = None) -> int:
             orchestrator = DeploymentOrchestrator(
                 root,
                 state_root=state_root,
+                # This command is a one-shot lifecycle controller: its
+                # successful exit must not terminate the product nodes it has
+                # just started. Persistent API-owned orchestrators retain the
+                # parent-death fence through the constructor default.
+                fence_nodes_to_supervisor=False,
             )
             if arguments.command == "start":
                 result = orchestrator.start(

@@ -137,6 +137,7 @@ class DeploymentProcessManager:
         port_inspector: PortInspector | None = None,
         resource_controller: ResourceController | None = None,
         environment: Mapping[str, str] | None = None,
+        fence_nodes_to_supervisor: bool = True,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.state_root = Path(state_root).resolve()
@@ -151,6 +152,7 @@ class DeploymentProcessManager:
             self.environment.update(
                 {str(key): str(value) for key, value in environment.items()}
             )
+        self.fence_nodes_to_supervisor = bool(fence_nodes_to_supervisor)
         self.ports = port_inspector or PortInspector()
         self.resources = resource_controller or ResourceController()
         self.secrets = SupervisorSecretStore(self.state_root / "supervisor.key")
@@ -166,6 +168,17 @@ class DeploymentProcessManager:
 
     def _base_environment(self) -> dict[str, str]:
         environment = dict(self.environment)
+        environment.pop("ZYRA_DEPLOYMENT_SUPERVISOR_PID", None)
+        environment.pop("ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME", None)
+        if not self.fence_nodes_to_supervisor:
+            environment.update(
+                {
+                    "PYTHONUNBUFFERED": "1",
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                    "ZYRA_DEPLOYMENT_SUPERVISED": "1",
+                }
+            )
+            return environment
         try:
             supervisor_create_time = psutil.Process(os.getpid()).create_time()
         except (psutil.NoSuchProcess, psutil.AccessDenied):

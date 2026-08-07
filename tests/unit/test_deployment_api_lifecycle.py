@@ -82,6 +82,25 @@ def test_deployment_state_is_scoped_to_the_active_api_state_root(
     ) > 0
 
 
+def test_one_shot_lifecycle_manager_does_not_fence_nodes_to_cli_process(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    orchestrator = DeploymentOrchestrator(
+        project,
+        state_root=project / "deployment-state",
+        environment={},
+        fence_nodes_to_supervisor=False,
+    )
+
+    environment = orchestrator.processes._base_environment()
+
+    assert "ZYRA_DEPLOYMENT_SUPERVISOR_PID" not in environment
+    assert "ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME" not in environment
+    assert environment["ZYRA_DEPLOYMENT_SUPERVISED"] == "1"
+
+
 def test_external_shared_state_root_is_narrowly_scoped_but_explicit_root_is_rejected(
     tmp_path: Path,
 ) -> None:
@@ -117,6 +136,22 @@ def test_deployment_node_parent_fence_rejects_pid_reuse(monkeypatch) -> None:
     assert node_server._supervisor_is_alive(123, 100.0) is True
     assert node_server._supervisor_is_alive(123, 101.0) is False
     assert node_server._supervisor_is_alive(999, 100.0) is False
+
+
+def test_deployment_node_watchdog_is_optional_only_when_identity_is_absent(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("ZYRA_DEPLOYMENT_SUPERVISOR_PID", raising=False)
+    monkeypatch.delenv(
+        "ZYRA_DEPLOYMENT_SUPERVISOR_CREATE_TIME",
+        raising=False,
+    )
+
+    assert node_server._start_supervisor_watchdog(object()) is None
+
+    monkeypatch.setenv("ZYRA_DEPLOYMENT_SUPERVISOR_PID", "123")
+    with pytest.raises(SystemExit, match="identity is incomplete"):
+        node_server._start_supervisor_watchdog(object())
 
 
 def test_provider_env_loader_reads_only_the_exact_allowlisted_key(

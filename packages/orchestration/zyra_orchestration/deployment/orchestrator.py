@@ -56,6 +56,7 @@ class DeploymentOrchestrator:
         profile_base_port: int = 8310,
         api_port: int = 8000,
         web_port: int = 5173,
+        fence_nodes_to_supervisor: bool = True,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.environment = dict(os.environ if environment is None else environment)
@@ -121,6 +122,7 @@ class DeploymentOrchestrator:
             state_root=self.state_root,
             store=self.store,
             environment=self.environment,
+            fence_nodes_to_supervisor=fence_nodes_to_supervisor,
         )
         self.placement = PlacementPolicyRuntime(
             self.catalog,
