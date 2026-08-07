@@ -575,6 +575,114 @@ def test_requirement_revision_terminates_obsolete_arg_state_and_rejects_old_prop
     )
 
 
+def _committed_graph(built) -> GraphStateSnapshot:
+    """Project a built hypothesis into the graph a commit would leave behind."""
+
+    nodes = tuple(
+        GraphNode(
+            node_id=step.node_id,
+            role=step.role_id,
+            capabilities=step.capabilities,
+            labels={"arg_owner": "arg_designer"},
+            metadata={"arg_owner": "arg_designer"},
+        )
+        for step in built.hypothesis.role_steps
+    )
+    node_ids = {item.node_id for item in nodes}
+    edges = tuple(
+        GraphEdge(
+            edge_id=f"edge-{edge.source_node_id}-{edge.target_node_id}",
+            source_node_id=edge.source_node_id,
+            target_node_id=edge.target_node_id,
+            relation=edge.relation,
+            required_capabilities=edge.required_capabilities,
+        )
+        for step in built.hypothesis.role_steps
+        for edge in step.incident_edges
+        if edge.persisted
+        and edge.source_node_id in node_ids
+        and edge.target_node_id in node_ids
+    )
+    return GraphStateSnapshot(
+        graph_id="graph-arg",
+        run_id="run-arg",
+        revision=0,
+        nodes=nodes,
+        edges=edges,
+        metadata={
+            "graph_state_owner": "GraphStateCustody",
+            "topology_owner": "DynamicTopologyRuntime",
+        },
+        created_at=NOW,
+    )
+
+
+def test_replan_over_committed_arg_nodes_stays_acyclic() -> None:
+    """A recovery replan re-expands committed nodes without a reverse edge.
+
+    Task-graph recovery reopens the route stage while the first window's ARG
+    nodes are still canonical.  Those nodes are re-expanded by id, so a node
+    whose edges already point into it must not be offered back as a
+    predecessor -- that reverse edge makes the projected graph cyclic and the
+    whole commit is rejected, which silently drops the operator candidate set.
+    """
+
+    obligations = ("execute and produce artifact", "verify artifact")
+    first, _, _, _ = _build(phase="execution", obligations=obligations)
+    committed = _committed_graph(first)
+    assert len(committed.nodes) >= 2
+    assert committed.edges
+
+    replan, _, _, _ = _build(
+        phase="execution",
+        obligations=obligations,
+        graph=committed,
+    )
+
+    replanned_ids = {step.node_id for step in replan.hypothesis.role_steps}
+    assert replanned_ids & {item.node_id for item in committed.nodes}, (
+        "the replan must re-expand the committed ARG nodes, not mint new ones"
+    )
+
+    projected: dict[str, set[str]] = {
+        item.node_id: {
+            edge.target_node_id
+            for edge in committed.edges
+            if edge.source_node_id == item.node_id
+        }
+        for item in committed.nodes
+    }
+    for step in replan.hypothesis.role_steps:
+        for edge in step.incident_edges:
+            if not edge.persisted:
+                continue
+            projected.setdefault(edge.source_node_id, set()).add(
+                edge.target_node_id
+            )
+            projected.setdefault(edge.target_node_id, set())
+
+    visiting: set[str] = set()
+    done: set[str] = set()
+
+    def _cycle_from(node_id: str) -> list[str] | None:
+        if node_id in done:
+            return None
+        if node_id in visiting:
+            return [node_id]
+        visiting.add(node_id)
+        for target in sorted(projected.get(node_id, ())):
+            found = _cycle_from(target)
+            if found is not None:
+                return [node_id, *found]
+        visiting.discard(node_id)
+        done.add(node_id)
+        return None
+
+    for node_id in sorted(projected):
+        cycle = _cycle_from(node_id)
+        assert cycle is None, f"replan projected a dependency cycle: {cycle}"
+
+
 def test_permission_or_catalog_drift_fails_closed_before_expansion() -> None:
     config = ARGJointBuilderConfig.load(
         ROOT / "config" / "phase2" / "arg-joint-topology.json"

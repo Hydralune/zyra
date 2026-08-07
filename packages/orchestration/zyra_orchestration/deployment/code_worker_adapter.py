@@ -21,6 +21,27 @@ from zyra_workspace import (
 from .errors import DispatchRejected
 
 
+def _physical_permission_session_id(
+    payload: Mapping[str, Any],
+    task_id: str,
+    layer_index: int,
+) -> str:
+    """Name the permission session one physical operator attempt owns.
+
+    Absent a recovery pass this is the historical id, so an ordinary dispatch
+    keeps its exact session identity.
+    """
+
+    base = (
+        f"physical:{task_id}:layer:{layer_index}:"
+        f"{str(payload.get('operator_ref') or '')}"
+    )
+    recovery_pass = int(payload.get("physical_recovery_pass") or 0)
+    if not recovery_pass:
+        return base
+    return f"{base}:recovery:{recovery_pass}"
+
+
 def execute_code_worker_operator(
     *,
     payload: Mapping[str, Any],
@@ -111,10 +132,12 @@ def execute_code_worker_operator(
         "permission_mode": "acceptEdits",
         "permission_interactive": False,
         "permission_headless": True,
-        "session_id": (
-            f"physical:{task_id}:layer:{layer_index}:"
-            f"{str(payload.get('operator_ref') or '')}"
-        ),
+        # Permission-session custody is keyed by this id and its record outlives
+        # a node restart, while the token proving ownership is only ever handed
+        # back inside the dispatch response.  A node lost mid-dispatch therefore
+        # spends its session id for good, so a recovery attempt owns a distinct
+        # one rather than failing closed on a token nobody holds.
+        "session_id": _physical_permission_session_id(payload, task_id, layer_index),
         "max_turns": max(2, min(24, int(context.get("max_turns") or 12))),
         # Bounded by the TypeScript runtime's own 600s ceiling.  This deadline
         # governs the whole multi-turn reasoning loop, so it must be large

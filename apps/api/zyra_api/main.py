@@ -1867,6 +1867,43 @@ def _reopen_task_for_recovery_continuation(
     return changed
 
 
+def _observe_delivery_contract_paths(
+    state: Any,
+    paths: Sequence[str],
+) -> dict[str, str]:
+    """Digest the delivery-contract paths inside the task workspace.
+
+    Used to resolve an unknown physical dispatch outcome: if the paths a side
+    effect would touch are byte-identical before and after a lost node, the
+    operator never wrote and one re-dispatch is safe.  Absent files are a
+    stable observation, not an error.
+    """
+
+    workspace_ref = dict(getattr(state, "metadata", {}).get("workspace_ref") or {})
+    workspace_id = str(workspace_ref.get("workspace_id") or "")
+    if not workspace_id:
+        return {}
+    service = WorkspaceApiService(get_workspace_manager())
+    observed: dict[str, str] = {}
+    for path in paths:
+        selected = str(path).strip()
+        if not selected:
+            continue
+        try:
+            response = service.read_file(
+                workspace_id,
+                {"path": selected, "mount": "task", "encoding": "base64"},
+            )
+        except WorkspaceError:
+            observed[selected] = "absent"
+            continue
+        body = dict(response.body or {})
+        observed[selected] = hashlib.sha256(
+            str(body.get("content") or "").encode("utf-8")
+        ).hexdigest()
+    return observed
+
+
 def _fence_pending_task_reservation(
     pool_api: WorkerPoolApiService,
     state: Any,
@@ -5984,6 +6021,7 @@ def graph_execution_context() -> GraphExecutionContext:
         ),
         permission_decision_provider=_phase2_permission_decision,
         artifact_store=artifact_store,
+        delivery_state_probe=_observe_delivery_contract_paths,
         permission_queue_provider=_TypeScriptPermissionQueueProjection,
         recovery_store=get_recovery_runtime_api().application.store,
         final_verifier_owner=final_verifier,
@@ -6005,6 +6043,9 @@ def graph_execution_context() -> GraphExecutionContext:
             topology_policy.validate_execution_placement
         ),
         physical_execution_runner=topology_policy.execute_physical_operator,
+        physical_runtime_refresher=(
+            lambda: _ensure_phase2_production_workers(pool_api, restart=True)
+        ),
         execution_outcome_recorder=topology_policy.record_execution_outcome,
         final_verifier=final_verifier.verify_final_state,
         completion_gate=topology_policy.evaluate_completion,
@@ -6013,7 +6054,9 @@ def graph_execution_context() -> GraphExecutionContext:
 
 def _ensure_phase2_production_workers(
     pool_api: WorkerPoolApiService,
-) -> None:
+    *,
+    restart: bool = False,
+) -> dict[str, Any]:
     """Bind schedulable workers to truthful deployment-node processes.
 
     The WorkerPool lease identity and the deployment receipt must describe the
@@ -6040,9 +6083,18 @@ def _ensure_phase2_production_workers(
     ]
     live_nodes: dict[DeploymentProfile, tuple[Any, Mapping[str, Any], Any]] = {}
     live_identities: set[str] = set()
+    reconciled_profiles: list[dict[str, Any]] = []
     for profile in (DeploymentProfile.DEVICE, DeploymentProfile.CLOUD):
         policy = orchestrator.catalog.policy(profile)
-        process, client, health = orchestrator.processes.start_node(policy)
+        prior_record = orchestrator.processes.status(f"profile:{profile.value}")
+        # start_node trusts its own READY record and does not probe liveness,
+        # so a node killed since the last poll still looks healthy here.  The
+        # recovery path must force a replacement, otherwise the following
+        # dispatch preflight is the first thing to notice the crash.
+        process, client, health = orchestrator.processes.start_node(
+            policy,
+            restart=restart,
+        )
         semantic = dict(client.semantic_readiness())
         credential_ready = bool(
             dict(health.get("credential_presence") or {}).get(
@@ -6088,6 +6140,24 @@ def _ensure_phase2_production_workers(
             raise RuntimeError(
                 f"deployment node physical identity is incomplete: {profile.value}"
             )
+        reconciled_profiles.append(
+            {
+                "profile": profile.value,
+                "restart_requested": restart,
+                "prior_status": (
+                    prior_record.status.value if prior_record else "absent"
+                ),
+                "prior_pid": prior_record.pid if prior_record else 0,
+                "prior_generation_id": (
+                    prior_record.generation_id if prior_record else ""
+                ),
+                "pid": process.pid,
+                "status": process.status.value,
+                "generation_id": process.generation_id,
+                "restart_count": process.restart_count,
+                "failure_boundary_id": failure_boundary_id,
+            }
+        )
         live_nodes[profile] = (process, health, policy)
         live_identities.add(failure_boundary_id)
 
@@ -6228,6 +6298,15 @@ def _ensure_phase2_production_workers(
             sequence=1 if latest is None else latest.sequence + 1,
             process_uptime_ms=1,
         )
+    return {
+        "schema": "zyra.production-worker-reconciliation/v1",
+        "restart_requested": restart,
+        # The dispatch preflight gates on records owned by this exact manager,
+        # so recovery evidence must prove both sides observed one instance.
+        "process_manager_identity": f"{id(orchestrator.processes):x}",
+        "profiles": reconciled_profiles,
+        "reconciled_at": now_iso(),
+    }
 
 
 def _production_physical_dispatch_port(

@@ -62,6 +62,36 @@ _PRIVACY_TO_SENSITIVITY = {
 }
 
 
+def _observed_process_snapshot(
+    manager: DeploymentProcessManager,
+    profile: DeploymentProfile,
+) -> dict[str, Any]:
+    """Describe one profile's freshly observed process record.
+
+    ``status`` probes liveness, so this is the same observation the dispatch
+    preflight gates on.  Recorded for every profile because a rejected
+    dispatch must name which runtime it found dead and which it did not.
+    """
+
+    try:
+        record = manager.status(f"profile:{profile.value}")
+    except DeploymentError as error:
+        return {"profile": profile.value, "observation_error": str(error)}
+    if record is None:
+        return {"profile": profile.value, "present": False}
+    return {
+        "profile": profile.value,
+        "present": True,
+        "status": record.status.value,
+        "pid": record.pid,
+        "generation_id": record.generation_id,
+        "restart_count": record.restart_count,
+        "started_at": record.started_at,
+        "observed_at": record.observed_at,
+        "exit_code": record.exit_code,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class PhysicalDispatchTask:
     run_id: str
@@ -893,6 +923,14 @@ class PhysicalDispatchCallPort:
                 LifecycleStatus.CRASHED,
                 LifecycleStatus.UNKNOWN,
             }:
+                observed = tuple(
+                    _observed_process_snapshot(self.process_manager, item)
+                    for item in (
+                        DeploymentProfile.DEVICE,
+                        DeploymentProfile.EDGE,
+                        DeploymentProfile.CLOUD,
+                    )
+                )
                 raise OperatorPlacementError(
                     "physical_dispatch_process_unavailable",
                     "the selected physical runtime is unavailable before dispatch",
@@ -901,6 +939,12 @@ class PhysicalDispatchCallPort:
                         "process_status": process.status.value,
                         "side_effect_started": False,
                         "physical_attempt_id": context.attempt_id,
+                        "selected_location": location,
+                        "selected_profile": profile.value,
+                        "process_manager_identity": (
+                            f"{id(self.process_manager):x}"
+                        ),
+                        "observed_profiles": list(observed),
                     },
                 )
             process, client, health = self.process_manager.start_node(

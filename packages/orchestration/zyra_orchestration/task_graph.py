@@ -60,6 +60,13 @@ class GraphExecutionContext:
     execution_outcome_recorder: (
         Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
     ) = None
+    # Restarts crashed deployment nodes and rebinds their worker manifests.
+    # Recovery needs this before replanning: placement is bound to a process
+    # identity, so a lost node must be replaced before a new lease can be
+    # issued against a live one.
+    physical_runtime_refresher: (
+        Callable[[], Mapping[str, Any] | None] | None
+    ) = None
     final_verifier: (
         Callable[[TaskState, Sequence[EventRecord]], Mapping[str, Any]] | None
     ) = None
@@ -99,6 +106,9 @@ class GraphExecutionContext:
         execution_outcome_recorder: (
             Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
         ) = None,
+        physical_runtime_refresher: (
+            Callable[[], Mapping[str, Any] | None] | None
+        ) = None,
         final_verifier: (
             Callable[[TaskState, Sequence[EventRecord]], Mapping[str, Any]] | None
         ) = None,
@@ -120,6 +130,7 @@ class GraphExecutionContext:
             resource_scheduler=resource_scheduler,
             execution_placement_validator=execution_placement_validator,
             physical_execution_runner=physical_execution_runner,
+            physical_runtime_refresher=physical_runtime_refresher,
             execution_outcome_recorder=execution_outcome_recorder,
             final_verifier=final_verifier,
             completion_gate=completion_gate,
@@ -226,6 +237,96 @@ def ensure_default_graph(state: TaskState) -> list[EventRecord]:
     return events
 
 
+# One replan pass per run.  A node whose dispatch was reconciled as never
+# started deserves fresh placement, but a second identical failure is a
+# persistent fault that belongs to the recovery planner, not to this loop.
+_EXECUTION_RECOVERY_PASSES = 1
+
+
+def _consume_execution_retry_request(state: TaskState) -> dict[str, Any] | None:
+    """Take a pending replan request if the recovery budget still allows one."""
+
+    request = state.metadata.pop("physical_execution_retry_requested", None)
+    if not isinstance(request, Mapping):
+        return None
+    spent = int(state.metadata.get("physical_execution_recovery_passes") or 0)
+    if spent >= _EXECUTION_RECOVERY_PASSES:
+        return None
+    state.metadata["physical_execution_recovery_passes"] = spent + 1
+    return dict(request)
+
+
+def _reset_stage_for_recovery(
+    state: TaskState,
+    request: Mapping[str, Any],
+) -> list[EventRecord]:
+    """Reopen the failed execute node and the route node that placed it.
+
+    Placement is bound to a deployment process identity, so a lost node cannot
+    be re-dispatched on the same lease.  Rerunning the route stage is what
+    produces a lease bound to a live process.
+    """
+
+    node_id = str(request.get("node_id") or "")
+    node = state.plan_nodes.get(node_id)
+    if node is None:
+        return []
+    reopened: list[str] = []
+    for candidate in state.plan_nodes.values():
+        stage = str(candidate.metadata.get("stage") or "")
+        if candidate.node_id == node_id or stage == "route":
+            candidate.status = PlanNodeStatus.PENDING
+            candidate.updated_at = now_iso()
+            candidate.metadata.pop("result_summary", None)
+            candidate.metadata.pop("worker_error", None)
+            reopened.append(candidate.node_id)
+    state.metadata.pop("operator_placement_binding", None)
+    # Mark the pass that follows as a recovery trigger.  The topology composer
+    # holds a minimum-dwell guard against churn, and the first window committed
+    # seconds ago -- without this the recovery commit is rejected, the operator
+    # candidate set is dropped, and placement is free to send a physical
+    # operator to a worker that cannot host it.  Only the route stage reads
+    # this, so it scopes to the one route this replan reopens.
+    state.metadata["physical_execution_recovery_active"] = {
+        "node_id": node_id,
+        "recovery_pass": int(
+            state.metadata.get("physical_execution_recovery_passes") or 0
+        ),
+        "requested_at": now_iso(),
+    }
+    state.status = PlanNodeStatus.RUNNING
+    state.updated_at = now_iso()
+    return [
+        EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=node_id,
+            event_type=EventType.RESOURCE_DECISION,
+            payload={
+                "schema": "zyra.execution-recovery-replan/v1",
+                "summary": (
+                    "Dispatch outcome reconciled as never started; replanning "
+                    "the execute node onto fresh placement."
+                ),
+                "reopened_node_ids": reopened,
+                "error_code": str(request.get("error_code") or ""),
+                "error_message": str(request.get("error_message") or ""),
+                "reconciliations": request.get("reconciliations") or [],
+                "dispatch_error": request.get("dispatch_error") or {},
+                "runtime_refresh_error": str(
+                    request.get("runtime_refresh_error") or ""
+                ),
+                "runtime_refresh_receipt": to_jsonable(
+                    request.get("runtime_refresh_receipt") or {}
+                ),
+                "recovery_pass": int(
+                    state.metadata.get("physical_execution_recovery_passes") or 0
+                ),
+            },
+        )
+    ]
+
+
 def run_task_graph(
     state: TaskState,
     execution_context: GraphExecutionContext | None = None,
@@ -281,6 +382,39 @@ def run_task_graph(
             events.extend(_run_verify_node(state, node, keeper))
         else:
             events.extend(_run_node(state, node, stage_results.get(stage, "")))
+
+    replan = _consume_execution_retry_request(state)
+    if replan is not None:
+        refresher = (
+            execution_context.physical_runtime_refresher
+            if execution_context is not None
+            else None
+        )
+        refreshed_error = ""
+        refresh_receipt: Mapping[str, Any] = {}
+        if refresher is not None:
+            try:
+                refresh_receipt = refresher() or {}
+            except Exception as error:  # noqa: BLE001 - replan must stay reportable.
+                refreshed_error = f"{type(error).__name__}: {error}"
+        events.extend(
+            _reset_stage_for_recovery(
+                state,
+                {
+                    **replan,
+                    "runtime_refresh_error": refreshed_error,
+                    "runtime_refresh_receipt": refresh_receipt,
+                },
+            )
+        )
+        try:
+            events.extend(run_task_graph(state, execution_context))
+        finally:
+            # The marker only licenses the replan's own route stage.  Leaving it
+            # in run metadata would make every later route claim the recovery
+            # dwell exemption, including a resume of this task.
+            state.metadata.pop("physical_execution_recovery_active", None)
+        return events
 
     if _all_stage_nodes_completed(state):
         state.status = PlanNodeStatus.COMPLETED
@@ -768,6 +902,25 @@ def _run_execute_node(
                 execution_context,
             )
     except Exception as error:  # noqa: BLE001 - worker failures must stay in the trace.
+        # A dispatch whose outcome was reconciled as "never started" is not a
+        # task failure yet.  Record the request so the stage pass can replan
+        # this node onto fresh placement instead of ending the run.  This reads
+        # the dedicated replan signal rather than the broader
+        # ``automatic_execution_retry_allowed``, which several older failure
+        # paths set to describe side-effect safety alone.
+        retry_metadata = dict(getattr(error, "metadata", {}) or {})
+        if retry_metadata.get("physical_execution_replan_requested") is True:
+            state.metadata["physical_execution_retry_requested"] = {
+                "node_id": node.node_id,
+                "error_code": str(getattr(error, "code", "") or ""),
+                "error_message": str(error)[:500],
+                "reconciliations": to_jsonable(
+                    retry_metadata.get("physical_dispatch_reconciliations") or []
+                ),
+                "dispatch_error": to_jsonable(
+                    retry_metadata.get("physical_dispatch_error") or {}
+                ),
+            }
         node.status = PlanNodeStatus.FAILED
         node.updated_at = now_iso()
         state.status = PlanNodeStatus.FAILED

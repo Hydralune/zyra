@@ -77,6 +77,13 @@ from ..goal_contracts import (
 )
 
 
+# One re-dispatch is enough to survive losing a deployment node.  A second
+# failure after a reconciled-clean first attempt indicates a persistent fault
+# rather than a lost process, and must reach the recovery planner instead of
+# spending more of the execution budget.
+_PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS = 1
+
+
 class Phase2ProductionPolicyError(RuntimeError):
     """The active strongest profile cannot be composed from canonical owners."""
 
@@ -212,8 +219,15 @@ class Phase2StrongestProductionBridge:
             | None
         ) = None,
         early_exit_enabled: Callable[[], bool] | None = None,
+        # Reads the delivery-contract paths so an unknown dispatch outcome can
+        # be resolved against observable state.  The workspace owner supplies
+        # this; the bridge holds no workspace handle of its own.
+        delivery_state_probe: (
+            Callable[[TaskState, Sequence[str]], Mapping[str, str]] | None
+        ) = None,
     ) -> None:
         self.repository_root = Path(repository_root).resolve()
+        self.delivery_state_probe = delivery_state_probe
         self.worker_pool_api = worker_pool_api
         self.memory_fabric = memory_fabric
         self.resource_scheduler = resource_scheduler
@@ -415,6 +429,11 @@ class Phase2StrongestProductionBridge:
             for item in (
                 state.metadata.get("recovery_continuation_fences") or {}
             ).values()
+        ) or bool(
+            # A replan after a lost deployment node is a recovery trigger too.
+            # Its previous window committed moments ago, so it needs the same
+            # minimum-dwell exemption as a recovery continuation.
+            state.metadata.get("physical_execution_recovery_active")
         )
         topology = self.topology_policy.execute(
             DefaultTopologyPolicyRequest(
@@ -1294,6 +1313,109 @@ class Phase2StrongestProductionBridge:
             "permission_receipt_digest": permission_digest,
         }
 
+    def _delivery_contract_observation(
+        self,
+        state: TaskState,
+    ) -> dict[str, str]:
+        """Digest the delivery-contract paths that a side effect would touch.
+
+        Returns an empty mapping when the goal declares no required paths or
+        no probe is wired; callers must then treat the outcome as unresolved
+        rather than assume nothing happened.
+        """
+
+        probe = self.delivery_state_probe
+        if probe is None:
+            return {}
+        contract = dict(state.metadata.get("delivery_contract") or {})
+        paths = tuple(
+            str(item)
+            for item in contract.get("required_paths") or ()
+            if str(item).strip()
+        )
+        if not paths:
+            return {}
+        try:
+            observed = probe(state, paths)
+        except Exception:  # noqa: BLE001 - reconciliation must not mask the failure.
+            return {}
+        return {str(key): str(value) for key, value in dict(observed).items()}
+
+    def _reconcile_physical_outcome(
+        self,
+        state: TaskState,
+        *,
+        before: Mapping[str, str],
+        side_effect_started: bool,
+    ) -> dict[str, Any]:
+        """Resolve an unknown dispatch outcome against observable delivery state."""
+
+        after = self._delivery_contract_observation(state)
+        observable = bool(before) and bool(after)
+        unchanged = observable and dict(before) == dict(after)
+        if not side_effect_started:
+            confirmed: bool | None = False
+            basis = "transport_rejected_before_side_effect"
+        elif not observable:
+            confirmed = None
+            basis = "delivery_contract_not_observable"
+        elif unchanged:
+            confirmed = False
+            basis = "delivery_contract_state_unchanged"
+        else:
+            confirmed = True
+            basis = "delivery_contract_state_changed"
+        return {
+            "schema": "zyra.physical-outcome-reconciliation/v1",
+            "reported_side_effect_started": side_effect_started,
+            "side_effect_confirmed": confirmed,
+            "basis": basis,
+            "observed_paths": sorted(set(before) | set(after)),
+            "before_digest": canonical_digest(dict(before)),
+            "after_digest": canonical_digest(dict(after)),
+            "observed_at": now_iso(),
+        }
+
+    def _emit_physical_recovery_event(
+        self,
+        state: TaskState,
+        *,
+        node: PlanNode,
+        attempt_index: int,
+        reconciliation: Mapping[str, Any],
+        error: BaseException,
+    ) -> None:
+        """Record that a reconciled-clean dispatch failure is being re-dispatched."""
+
+        history = list(state.metadata.get("physical_dispatch_recovery") or ())
+        entry = {
+            "schema": "zyra.physical-dispatch-recovery/v1",
+            "attempt_index": attempt_index,
+            "reconciliation": dict(reconciliation),
+            "error_code": str(getattr(error, "code", "") or type(error).__name__),
+            "error_message": str(error)[:500],
+            "recorded_at": now_iso(),
+        }
+        history.append(entry)
+        state.metadata["physical_dispatch_recovery"] = history
+        if self.admit_event is None:
+            return
+        self.admit_event(
+            EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node.node_id,
+                event_type=EventType.RESOURCE_DECISION,
+                payload={
+                    "summary": (
+                        "Physical dispatch lost its node without a confirmed "
+                        "side effect; re-dispatching on the held lease."
+                    ),
+                    **entry,
+                },
+            )
+        )
+
     def execute_physical_operator(
         self,
         state: TaskState,
@@ -1441,9 +1563,19 @@ class Phase2StrongestProductionBridge:
             if isinstance(recovery_execution, Mapping)
             else ""
         )
+        # A replan after a lost deployment node re-proposes the identical
+        # topology and keeps the same requirement revision, so every term below
+        # would repeat while the dispatched payload carries a new attempt,
+        # lease and fence.  Deployment nodes persist their dispatch
+        # reservations across a restart and reject a reused key whose payload
+        # digest changed, so the physical recovery pass belongs in this
+        # identity alongside the recovery-continuation plan id.
+        physical_recovery_pass = int(
+            state.metadata.get("physical_execution_recovery_passes") or 0
+        )
         operator_idempotency_key = (
             f"production-physical:{state.task_id}:"
-            f"{canonical_digest((policy_input.requirement_revision, recovery_plan_id))[:16]}:"
+            f"{canonical_digest((policy_input.requirement_revision, recovery_plan_id, physical_recovery_pass))[:16]}:"
             f"{selected_ref}:{layer_index}"
         )
         started_attempt = self.worker_pool_api.pool.leases.start_attempt(
@@ -1506,6 +1638,12 @@ class Phase2StrongestProductionBridge:
             "candidate_set_digest": candidate_set.digest,
             "policy_input_digest": policy_input.digest,
             "operator_idempotency_key": operator_idempotency_key,
+            # The node names its permission session from the task, layer and
+            # operator, all of which repeat on a replan.  The custody token for
+            # a session is only returned inside the dispatch response, so a node
+            # lost mid-dispatch leaves a record nobody can ever re-attach to.
+            # Carrying the recovery pass lets the retry own a fresh session.
+            "physical_recovery_pass": physical_recovery_pass,
             "operator_adapter_enabled": str(
                 os.environ.get("ZYRA_DISABLE_PHASE2_OPERATOR_ADAPTER") or ""
             ).strip().casefold()
@@ -1528,61 +1666,115 @@ class Phase2StrongestProductionBridge:
                 ),
             },
         }
-        try:
-            port = self.physical_dispatch_factory(
-                state,
-                binding,
-                operator_task,
-            )
-            (
-                expected_payload_digest,
-                orchestrator_payload_bound,
-            ) = _physical_dispatch_payload_binding(port, operator_task)
-            port.prepare(execution_context)
-        except Exception as error:
-            failure = self._close_physical_execution_failure(
-                state=state,
-                binding=binding,
-                route_context=route_context,
-                error=error,
-                side_effect_started=False,
-            )
-            raise Phase2ProductionPolicyError(
-                "physical operator preflight failed and its lease was closed",
-                code="phase2_physical_operator_preflight_failed",
-                metadata={
-                    "physical_execution_failure_receipt": failure,
-                    "automatic_execution_retry_allowed": True,
-                },
-            ) from error
-        try:
-            call_result = port.execute(execution_context)
-        except Exception as error:
-            error_metadata = dict(getattr(error, "metadata", {}) or {})
-            side_effect_started = bool(
-                error_metadata.get("side_effect_started")
-            )
-            failure = self._close_physical_execution_failure(
-                state=state,
-                binding=binding,
-                route_context=route_context,
-                error=error,
-                side_effect_started=side_effect_started,
-            )
-            raise Phase2ProductionPolicyError(
-                "physical operator dispatch failed with a canonical terminal receipt",
-                code=(
-                    "phase2_physical_operator_outcome_unknown"
-                    if side_effect_started
-                    else "phase2_physical_operator_dispatch_rejected"
-                ),
-                metadata={
-                    "physical_execution_failure_receipt": failure,
-                    "physical_dispatch_error": error_metadata,
-                    "automatic_execution_retry_allowed": not side_effect_started,
-                    "reconcile_before_retry": side_effect_started,
-                },
-            ) from error
+        # Losing the deployment node mid-dispatch reports an unknown outcome,
+        # because the transport cannot tell a crash before the operator ran
+        # from a crash after it wrote.  Observing the delivery-contract paths
+        # around the attempt resolves that: an unchanged contract state proves
+        # nothing landed, which makes one bounded re-dispatch safe instead of
+        # failing a run that never started its side effect.
+        delivery_state_before = self._delivery_contract_observation(state)
+        reconciliations: list[Mapping[str, Any]] = []
+        attempt_index = 0
+        while True:
+            try:
+                port = self.physical_dispatch_factory(
+                    state,
+                    binding,
+                    operator_task,
+                )
+                (
+                    expected_payload_digest,
+                    orchestrator_payload_bound,
+                ) = _physical_dispatch_payload_binding(port, operator_task)
+                port.prepare(execution_context)
+            except Exception as error:
+                failure = self._close_physical_execution_failure(
+                    state=state,
+                    binding=binding,
+                    route_context=route_context,
+                    error=error,
+                    side_effect_started=False,
+                )
+                raise Phase2ProductionPolicyError(
+                    "physical operator preflight failed and its lease was closed",
+                    code="phase2_physical_operator_preflight_failed",
+                    metadata={
+                        "physical_execution_failure_receipt": failure,
+                        "automatic_execution_retry_allowed": True,
+                        # Only a preflight rejection that declares itself
+                        # retryable describes a lost runtime that fresh
+                        # placement can replace.  A port that always rejects is
+                        # a persistent fault, and replanning it would burn the
+                        # attempt sequence and bury the original error code.
+                        "physical_execution_replan_requested": bool(
+                            getattr(error, "retryable", False)
+                        ),
+                        "physical_dispatch_reconciliations": list(reconciliations),
+                        # Preflight rejection names which runtime it found
+                        # unavailable.  Without this the replan decision has no
+                        # evidence of why fresh placement was needed.
+                        "physical_dispatch_error": dict(
+                            getattr(error, "metadata", {}) or {}
+                        ),
+                    },
+                ) from error
+            try:
+                call_result = port.execute(execution_context)
+                break
+            except Exception as error:
+                error_metadata = dict(getattr(error, "metadata", {}) or {})
+                side_effect_started = bool(
+                    error_metadata.get("side_effect_started")
+                )
+                reconciliation = self._reconcile_physical_outcome(
+                    state,
+                    before=delivery_state_before,
+                    side_effect_started=side_effect_started,
+                )
+                reconciliations.append(reconciliation)
+                if reconciliation["side_effect_confirmed"] is False:
+                    side_effect_started = False
+                attempt_index += 1
+                if (
+                    not side_effect_started
+                    and attempt_index <= _PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS
+                ):
+                    self._emit_physical_recovery_event(
+                        state,
+                        node=node,
+                        attempt_index=attempt_index,
+                        reconciliation=reconciliation,
+                        error=error,
+                    )
+                    continue
+                failure = self._close_physical_execution_failure(
+                    state=state,
+                    binding=binding,
+                    route_context=route_context,
+                    error=error,
+                    side_effect_started=side_effect_started,
+                )
+                raise Phase2ProductionPolicyError(
+                    "physical operator dispatch failed with a canonical terminal receipt",
+                    code=(
+                        "phase2_physical_operator_outcome_unknown"
+                        if side_effect_started
+                        else "phase2_physical_operator_dispatch_rejected"
+                    ),
+                    metadata={
+                        "physical_execution_failure_receipt": failure,
+                        "physical_dispatch_error": error_metadata,
+                        "automatic_execution_retry_allowed": not side_effect_started,
+                        "reconcile_before_retry": side_effect_started,
+                        "physical_dispatch_reconciliations": list(reconciliations),
+                        # The in-loop budget is spent, but a dispatch observed
+                        # to have written nothing still deserves one stage-level
+                        # replan onto placement bound to a live process.
+                        "physical_execution_replan_requested": (
+                            reconciliation["side_effect_confirmed"] is False
+                        ),
+                    },
+                ) from error
         if not port.receipts or not port.validation_reports:
             failure = self._close_physical_execution_failure(
                 state=state,

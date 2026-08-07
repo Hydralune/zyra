@@ -383,7 +383,13 @@ class ARGJointBuilder:
                 for role in candidates:
                     if role.role_id in state.used_roles:
                         continue
-                    step = self._expand_step(encoded, state, role, step_index)
+                    step = self._expand_step(
+                        encoded,
+                        state,
+                        role,
+                        step_index,
+                        candidates=candidates,
+                    )
                     covered = tuple(
                         sorted(
                             set(state.covered_obligations).union(
@@ -456,13 +462,18 @@ class ARGJointBuilder:
             - switch * float(weights["switch_cost"])
         )
 
-    def _expand_step(
+    def _role_node_id(
         self,
         encoded: ARGEncodedInput,
-        state: _BeamState,
         role: ARGEncodedRole,
-        step_index: int,
-    ) -> ARGJointStep:
+    ) -> str:
+        """Resolve the node id this role expands into.
+
+        A role that already owns a node in the canonical graph re-expands that
+        exact node, so a replan revises the committed topology instead of
+        minting a parallel one.
+        """
+
         existing = sorted(
             (
                 item
@@ -474,19 +485,33 @@ class ARGJointBuilder:
             ),
             key=lambda item: item.node_id,
         )
-        node_id = (
-            existing[0].node_id
-            if existing
-            else "arg_node_"
-            + canonical_digest(
-                (
-                    encoded.policy_input.task_id,
-                    role.role_id,
-                    role.binding.manifest_digest,
-                )
-            )[:20]
+        if existing:
+            return existing[0].node_id
+        return "arg_node_" + canonical_digest(
+            (
+                encoded.policy_input.task_id,
+                role.role_id,
+                role.binding.manifest_digest,
+            )
+        )[:20]
+
+    def _expand_step(
+        self,
+        encoded: ARGEncodedInput,
+        state: _BeamState,
+        role: ARGEncodedRole,
+        step_index: int,
+        *,
+        candidates: Sequence[ARGEncodedRole],
+    ) -> ARGJointStep:
+        node_id = self._role_node_id(encoded, role)
+        edges = self._incident_edges(
+            encoded,
+            state,
+            role,
+            node_id,
+            candidates=candidates,
         )
-        edges = self._incident_edges(encoded, state, role, node_id)
         score = self._score(
             encoded,
             state,
@@ -540,12 +565,26 @@ class ARGJointBuilder:
         state: _BeamState,
         role: ARGEncodedRole,
         node_id: str,
+        *,
+        candidates: Sequence[ARGEncodedRole],
     ) -> tuple[ARGIncidentEdge, ...]:
+        # Nodes this proposal has not expanded yet cannot be predecessors.  On a
+        # replan the canonical graph already holds the nodes these roles
+        # re-expand, and a later step draws its edges from the earlier steps --
+        # so accepting one as a predecessor here would add the reverse edge too
+        # and reject the whole commit as a dependency cycle.  Emitted steps stay
+        # eligible below, which keeps every edge pointing along the beam order.
+        emitted_roles = {role.role_id, *state.used_roles}
+        deferred = {
+            self._role_node_id(encoded, item)
+            for item in candidates
+            if item.role_id not in emitted_roles
+        }
         predecessor_values: list[tuple[float, str, tuple[str, ...], str]] = []
         for predecessor_id, capabilities, branch_local in self._predecessor_nodes(
             encoded
         ):
-            if predecessor_id == node_id:
+            if predecessor_id == node_id or predecessor_id in deferred:
                 continue
             predecessor_values.append(
                 (
