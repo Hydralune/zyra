@@ -479,6 +479,7 @@ class ARGJointBuilder:
                 item
                 for item in encoded.current_graph.nodes
                 if item.role == role.role_id
+                and not item.terminal
                 and set(role.profile.capabilities).issubset(
                     set(encoded.policy_input.registered_capabilities)
                 )
@@ -680,8 +681,7 @@ class ARGJointBuilder:
         nodes: dict[str, tuple[tuple[str, ...], bool]] = {
             node.node_id: (tuple(node.capabilities), False)
             for node in encoded.current_graph.nodes
-            if node.state.value
-            not in {"cancelled", "superseded", "failed"}
+            if not node.terminal
         }
         if encoded.branch_delta is not None:
             for mutation in encoded.branch_delta.mutations:

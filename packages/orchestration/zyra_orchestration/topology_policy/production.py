@@ -2108,43 +2108,44 @@ class Phase2StrongestProductionBridge:
             ),
         }
         if not all(execution_checks.values()):
+            failed_execution_checks = [
+                name for name, passed in execution_checks.items() if not passed
+            ]
+            binding_diagnostics = {
+                "failed_execution_checks": failed_execution_checks,
+                "payload_digests": {
+                    "signal": input_signals.get("task_payload_digest"),
+                    "output": execution_output.get("task_payload_digest"),
+                    "expected": expected_payload_digest,
+                },
+                "response_verification": dict(response_verification),
+            }
+            binding_error = Phase2ProductionPolicyError(
+                "physical operator output is not exactly bound to its request: "
+                + ",".join(failed_execution_checks)
+                + " "
+                + json.dumps(
+                    binding_diagnostics["payload_digests"],
+                    sort_keys=True,
+                ),
+                code="phase2_physical_operator_output_binding_failed",
+                metadata=binding_diagnostics,
+            )
             failure = self._close_physical_execution_failure(
                 state=state,
                 binding=binding,
                 route_context=route_context,
-                error=RuntimeError("physical operator output binding failed"),
+                error=binding_error,
                 side_effect_started=True,
             )
-            raise Phase2ProductionPolicyError(
-                "physical operator output is not exactly bound to its request: "
-                + ",".join(
-                    name for name, passed in execution_checks.items() if not passed
-                )
-                + " "
-                + json.dumps(
-                    {
-                        "signal_payload_digest": input_signals.get(
-                            "task_payload_digest"
-                        ),
-                        "output_payload_digest": execution_output.get(
-                            "task_payload_digest"
-                        ),
-                        "expected_payload_digest": expected_payload_digest,
-                    },
-                    sort_keys=True,
-                ),
-                code="phase2_physical_operator_output_binding_failed",
-                metadata={
+            binding_error.metadata.update(
+                {
                     "physical_execution_failure_receipt": failure,
                     "automatic_execution_retry_allowed": False,
                     "reconcile_before_retry": True,
-                    "failed_execution_checks": [
-                        name
-                        for name, passed in execution_checks.items()
-                        if not passed
-                    ],
-                },
+                }
             )
+            raise binding_error
         try:
             artifact = self.artifact_store.write_text(
                 run_id=state.run_id,

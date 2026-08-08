@@ -302,6 +302,11 @@ class DisableProbeRunner:
             try:
                 captured = self._call(probe.capture, probe.timeout_seconds, "capture")
                 baseline = self._call(probe.exercise, probe.timeout_seconds, "baseline exercise")
+                # Preserve the exact failed baseline for diagnostics.  The
+                # prior assignment happened only after the disabled exercise,
+                # so a baseline_blocked receipt discarded the response that
+                # explained why the real capability was unavailable.
+                execution.baseline = baseline
                 if not self.comparator._ok(baseline):
                     raise DisableProbeBlocked(
                         f"baseline behavior failed before disabling {probe.probe_id}: "
@@ -314,7 +319,6 @@ class DisableProbeRunner:
                 expected = self.comparator.expected_failure(disabled, probe.expected_error_codes)
                 masked = self.comparator.fallback_masked(baseline, disabled, difference)
                 allowed_difference = probe.allow_success_with_difference and bool(difference.get("semantic_change")) and not masked
-                execution.baseline = baseline
                 execution.disabled = disabled
                 execution.disable_receipt = receipt
                 execution.difference = difference

@@ -832,6 +832,31 @@ def ensure_api_edge_worker(
         return connector.worker_id, adapter
 
 
+def refresh_api_edge_worker_heartbeat(
+    pool_api: WorkerPoolApiService,
+    worker_id: str,
+) -> bool:
+    """Observe one heartbeat from the API-owned edge child before settlement."""
+
+    host = os.environ.get("ZYRA_EDGE_API_HOST", "127.0.0.1").strip()
+    key = (id(pool_api), host or "127.0.0.1")
+    with _WORKER_POOL_LOCK:
+        if (
+            _API_EDGE_KEY != key
+            or _API_EDGE_CONNECTOR is None
+            or not _API_EDGE_CONNECTOR.running
+            or _API_EDGE_CONNECTOR.worker_id != worker_id
+            or _API_EDGE_REGISTRATION is None
+            or _API_EDGE_REGISTRATION.manifest is None
+            or _API_EDGE_REGISTRATION.manifest.worker_id != worker_id
+        ):
+            return False
+        _API_EDGE_REGISTRATION.observe_heartbeat(
+            _API_EDGE_REGISTRATION.manifest.resource_capacity
+        )
+        return True
+
+
 def reset_worker_pool_api() -> None:
     """Forget API-owned worker/graph composition roots between workspace lifecycles."""
 
@@ -2335,6 +2360,24 @@ def _recovery_continuation_owners(
                         for event in diagnostic_events[-12:]
                     ]
                     failure_projection = _recovery_execution_projection(state)
+                    failure_summary = {
+                        "execute_status": str(
+                            failure_projection.get("execute_status") or ""
+                        ),
+                        "assigned_worker_id": str(
+                            failure_projection.get("assigned_worker_id") or ""
+                        ),
+                        "worker_error": str(
+                            failure_projection.get("worker_error") or ""
+                        )[:500],
+                        "result_summary": str(
+                            failure_projection.get("result_summary") or ""
+                        )[:500],
+                        "physical_execution_failure": dict(
+                            failure_projection.get("physical_execution_failure")
+                            or {}
+                        ),
+                    }
                     failed_fences[idempotency_key] = {
                         "phase": "failed",
                         "request_digest": request_digest,
@@ -2356,6 +2399,8 @@ def _recovery_continuation_owners(
                         "error_code": "continuation_dispatch_failed",
                         "message": (
                             f"{str(error)[:1400]}; "
+                            "failure_projection="
+                            f"{json.dumps(failure_summary, sort_keys=True)[:1200]}; "
                             f"event_tail={json.dumps(event_tail, sort_keys=True)[:500]}"
                         ),
                         "metadata": {
@@ -4372,6 +4417,32 @@ def reset_subagent_runtime() -> None:
         _TYPESCRIPT_AGENT_PORT_KEY = None
 
 
+def _refresh_api_owned_agent_worker(
+    pool_api: WorkerPoolApiService,
+    worker_id: str,
+) -> None:
+    """Renew an API-owned worker immediately before the canonical E03 gate."""
+
+    worker = pool_api.pool.store.get_worker(worker_id)
+    if worker is None:
+        return
+    if (
+        worker.location is PhysicalWorkerLocation.LOCAL
+        and worker.metadata.get("default_api_worker") is True
+    ):
+        pool_api.refresh_owned_local_worker_heartbeat(worker.worker_id)
+    elif (
+        worker.location is PhysicalWorkerLocation.EDGE
+        and worker.metadata.get("edge_connector")
+        == "EdgeWorkerProcessConnector"
+        and not refresh_api_edge_worker_heartbeat(pool_api, worker.worker_id)
+    ):
+        raise RuntimeError(
+            "edge worker heartbeat refresh lost its API-owned connector: "
+            f"{worker.worker_id}"
+        )
+
+
 def _authorize_typescript_agent_physical_execution(
     state: Any,
     *,
@@ -4383,11 +4454,16 @@ def _authorize_typescript_agent_physical_execution(
 
     if tool_name not in {"Agent", "agent_resume"}:
         return None
-    gate = get_worker_pool_api().integration.execution_gate
+    pool_api = get_worker_pool_api()
+    gate = pool_api.integration.execution_gate
     if tool_name == "Agent":
         projection = arguments.get("physical_dispatch")
         if isinstance(projection, Mapping):
             task_id = str(arguments.get("task_id") or projection.get("task_id") or "")
+            _refresh_api_owned_agent_worker(
+                pool_api,
+                str(projection.get("worker_id") or ""),
+            )
             return gate.authorize_projection(
                 projection,
                 expected_task_id=task_id,
@@ -4413,6 +4489,11 @@ def _authorize_typescript_agent_physical_execution(
                     task_id=state.task_id,
                 )
             projections.append(item["physical_dispatch"])
+        for projection in projections:
+            _refresh_api_owned_agent_worker(
+                pool_api,
+                str(projection.get("worker_id") or ""),
+            )
         return gate.authorize_many(
             projections,
             expected_run_id=state.run_id,
@@ -4420,6 +4501,9 @@ def _authorize_typescript_agent_physical_execution(
             operation="execute_typescript_agent_fanout",
         )
     task_id = str(arguments.get("task_id") or "")
+    binding = pool_api.integration.repository.latest_binding(task_id)
+    if binding is not None:
+        _refresh_api_owned_agent_worker(pool_api, binding.worker_id)
     return gate.authorize_task(
         task_id,
         expected_run_id=state.run_id,
@@ -4880,7 +4964,11 @@ def _acquire_subagent_physical_dispatch(
             workspace_ref=workspace_ref,
             gateway_ref=gateway_ref,
             backend_route_id=backend_route_id,
-            required_capabilities=("agent_task",),
+            required_capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+            ),
             locations=(location,),
             resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
             execution_mode=PhysicalDispatchMode.BACKGROUND,
@@ -5021,6 +5109,26 @@ def _settle_subagent_physical_dispatch(
             None,
         )
         return existing.to_dict() if existing is not None else None
+    worker = pool.store.require_worker(lease.worker_id)
+    if (
+        worker.location is PhysicalWorkerLocation.LOCAL
+        and worker.metadata.get("default_api_worker") is True
+    ):
+        # The default local worker is this API process.  E03/model work may
+        # exceed the 40-second lost threshold even though the process remains
+        # alive, so renew its attested heartbeat immediately before the
+        # execution gate settles the attempt.
+        pool_api.refresh_owned_local_worker_heartbeat(worker.worker_id)
+    elif (
+        worker.location is PhysicalWorkerLocation.EDGE
+        and worker.metadata.get("edge_connector")
+        == "EdgeWorkerProcessConnector"
+        and not refresh_api_edge_worker_heartbeat(pool_api, worker.worker_id)
+    ):
+        raise RuntimeError(
+            "edge worker heartbeat refresh lost its API-owned connector: "
+            f"{worker.worker_id}"
+        )
     outcome = {
         "completed": PhysicalExecutionOutcome.SUCCEEDED,
         "cancelled": PhysicalExecutionOutcome.CANCELLED,

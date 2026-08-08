@@ -974,6 +974,7 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
             expected_error_codes=("recovery_runtime_disabled", "checkpoint_recovery_disabled"),
             dependencies=("disable-watchdog", "disable-graph-state-store"),
             reset_components=("recovery",),
+            timeout_seconds=120.0,
         ),
         OwnerDisableContract(
             probe_id="disable-layered-route",
@@ -983,6 +984,7 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
             allow_success_with_difference=True,
             dependencies=("disable-physical-worker", "disable-provider-control-plane"),
             reset_components=("scheduler",),
+            timeout_seconds=120.0,
         ),
         OwnerDisableContract(
             probe_id="disable-graph-state-store",

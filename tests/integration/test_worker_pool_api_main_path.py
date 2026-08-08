@@ -8,12 +8,187 @@ from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterator
+from unittest.mock import patch
 from urllib.error import HTTPError
 
 import pytest
 
 from apps.api.zyra_api import main as api_main
 from zyra_scheduler.worker_pool import ExecutionOutcome
+
+
+def test_api_owned_local_worker_heartbeat_refresh_is_monotonic(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path):
+        pool_api = api_main.get_worker_pool_api()
+        registration = pool_api.ensure_default_local_worker()
+        worker_id = registration.worker.worker_id
+        before = pool_api.pool.store.latest_heartbeat(worker_id)
+        assert before is not None
+
+        pool_api.refresh_owned_local_worker_heartbeat(worker_id)
+
+        after = pool_api.pool.store.latest_heartbeat(worker_id)
+        assert after is not None
+        assert after.sequence == before.sequence + 1
+        assert after.process_identity == f"local-pid-{os.getpid()}"
+
+
+def test_api_owned_successor_heartbeat_refreshes_on_task_reentry_and_settlement(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Route through one API-owned successor.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        successor_id = "api-owned-successor"
+        pool_api.ensure_default_local_worker(worker_id=successor_id)
+
+        original = dict(state.metadata["worker_pool"])
+        pool_api.pool.leases.cancel(
+            original["lease_id"],
+            reason="controlled successor regression setup",
+        )
+        pool_api.reconcile_task_graph_binding(
+            state,
+            reason="controlled successor regression setup",
+            actor_id="test-worker-pool",
+            causation_id="test-api-owned-successor",
+        )
+        acquisition = pool_api.acquire_for_task(
+            state,
+            payload={
+                "preferred_worker_ids": [successor_id],
+                "excluded_worker_ids": ["local-code-worker"],
+                "idempotency_key": "test-api-owned-successor-acquire",
+            },
+        )
+        assert acquisition.worker.worker_id == successor_id
+        before_reentry = pool_api.pool.store.latest_heartbeat(successor_id)
+        assert before_reentry is not None
+
+        assert pool_api.ensure_task_lease(state) is None
+
+        after_reentry = pool_api.pool.store.latest_heartbeat(successor_id)
+        assert after_reentry is not None
+        assert after_reentry.sequence == before_reentry.sequence + 1
+
+        receipt = pool_api.finalize_task(
+            state,
+            success=True,
+            summary="API-owned successor settled",
+        )
+
+        after_settlement = pool_api.pool.store.latest_heartbeat(successor_id)
+        assert receipt is not None
+        assert after_settlement is not None
+        assert after_settlement.sequence == after_reentry.sequence + 1
+
+
+def test_api_owned_successor_refreshes_immediately_before_e03_gate(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Authorize one successor dispatch.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        successor_id = "api-owned-e03-successor"
+        pool_api.ensure_default_local_worker(worker_id=successor_id)
+        before = pool_api.pool.store.latest_heartbeat(successor_id)
+        assert before is not None
+        projection = {
+            "task_id": f"{state.task_id}-child",
+            "worker_id": successor_id,
+        }
+
+        with patch.object(
+            pool_api.integration.execution_gate,
+            "authorize_projection",
+            return_value={"authorized": True},
+        ) as authorize:
+            result = api_main._authorize_typescript_agent_physical_execution(
+                state,
+                tool_name="Agent",
+                arguments={
+                    "task_id": projection["task_id"],
+                    "physical_dispatch": projection,
+                },
+                parent_session_id=f"task:{state.task_id}",
+            )
+
+        after = pool_api.pool.store.latest_heartbeat(successor_id)
+        assert result == {"authorized": True}
+        assert after is not None
+        assert after.sequence == before.sequence + 1
+        authorize.assert_called_once()
+
+
+def test_api_owned_edge_worker_heartbeat_refresh_is_monotonic(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path):
+        pool_api = api_main.get_worker_pool_api()
+        worker_id, _adapter = api_main.ensure_api_edge_worker(pool_api)
+        before = pool_api.pool.store.latest_heartbeat(worker_id)
+        assert before is not None
+
+        assert api_main.refresh_api_edge_worker_heartbeat(pool_api, worker_id)
+
+        after = pool_api.pool.store.latest_heartbeat(worker_id)
+        assert after is not None
+        assert after.sequence > before.sequence
+        assert after.process_identity == before.process_identity
+
+
+def test_parent_worker_pool_cancel_releases_active_subagent_descendants(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Cancel the complete physical task tree.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        child_task_id = f"{state.task_id}-child"
+        child, _public = api_main._acquire_subagent_physical_dispatch(
+            state,
+            task_id=child_task_id,
+            owner_session_id=f"task:{state.task_id}",
+            idempotency_key=f"test-descendant:{state.task_id}",
+        )
+        assert child["worker_id"] == "local-code-worker"
+
+        cancelled = _post(
+            base_url,
+            f"/tasks/{state.task_id}/worker-pool-cancel",
+            {
+                "reason": "controlled parent tree cancellation",
+                "idempotency_key": f"test-parent-cancel:{state.task_id}",
+            },
+        )
+
+        pool = api_main.get_worker_pool_api().pool
+        lease = pool.store.require_lease(child["lease_id"])
+        binding = api_main.get_worker_pool_api().integration.repository.get_binding(
+            child["integration_binding_id"]
+        )
+        assert cancelled["descendant_cleanup_ok"] is True
+        assert len(cancelled["descendant_controls"]) == 1
+        assert lease.state.value == "cancelled"
+        assert binding is not None and binding.terminal
 
 
 def test_task_api_uses_physical_lease_dynamic_graph_projection_and_real_cancel(tmp_path: Path) -> None:

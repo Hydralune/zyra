@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
@@ -271,18 +272,57 @@ class WorkerPoolApiService:
             if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "worker-pool-cancel":
                 if task_state is None or task_state.task_id != parts[1]:
                     return self._error(HTTPStatus.NOT_FOUND, "task_not_found", "task is not available")
+                idempotency_key = str(
+                    payload.get("idempotency_key")
+                    or f"api-cancel:{task_state.task_id}"
+                )
+                descendant_controls = []
+                for binding in self.integration.repository.list_bindings(
+                    run_id=task_state.run_id
+                ):
+                    if (
+                        binding.terminal
+                        or str(binding.metadata.get("parent_task_id") or "")
+                        != task_state.task_id
+                    ):
+                        continue
+                    descendant_controls.append(
+                        self.integration.control.submit_and_apply(
+                            ControlKind.CANCEL,
+                            claim_owner="worker-pool-api",
+                            actor_id="worker-pool-api",
+                            reason=str(
+                                payload.get("reason")
+                                or "parent worker pool cancellation requested"
+                            ),
+                            idempotency_key=(
+                                f"{idempotency_key}:descendant:"
+                                f"{binding.binding_id}"
+                            ),
+                            task_id=binding.task_id,
+                            run_id=binding.run_id,
+                            binding_id=binding.binding_id,
+                        )
+                    )
                 command = self.integration.control.submit_and_apply(
                     ControlKind.CANCEL,
                     claim_owner="worker-pool-api",
                     actor_id="worker-pool-api",
                     reason=str(payload.get("reason") or "worker pool cancellation requested"),
-                    idempotency_key=str(payload.get("idempotency_key") or f"api-cancel:{task_state.task_id}"),
+                    idempotency_key=idempotency_key,
                     task_id=task_state.task_id,
                     run_id=task_state.run_id,
                 )
                 return self._ok({
                     "control": command.to_dict(),
                     "cancellation": dict(command.effect.get("cancellation") or {}),
+                    "descendant_controls": [
+                        item.to_dict() for item in descendant_controls
+                    ],
+                    "descendant_cleanup_ok": all(
+                        item.phase.value in {"applied", "superseded"}
+                        for item in descendant_controls
+                    ),
                 })
             if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "worker-pool-control":
                 if task_state is None or task_state.task_id != parts[1]:
@@ -386,6 +426,39 @@ class WorkerPoolApiService:
         latest = self.pool.store.latest_heartbeat(worker_id)
         sequence = 1 if latest is None else latest.sequence + 1
         self.pool.heartbeat_local_worker(worker_id, sequence=sequence)
+
+    def refresh_owned_local_worker_heartbeat(self, worker_id: str) -> None:
+        """Prove the API-owned in-process worker is alive before settlement.
+
+        Subagent execution can legitimately exceed the heartbeat lost window.
+        This refresh is deliberately narrower than registration: it may only
+        touch the default local worker generation attested to this exact API
+        process, and cannot revive a replaced or external worker identity.
+        """
+
+        worker = self.pool.store.require_worker(worker_id)
+        expected_identity = f"local-pid-{os.getpid()}"
+        if (
+            worker.location.value != "local"
+            or worker.metadata.get("default_api_worker") is not True
+            or worker.process_identity != expected_identity
+            or worker.endpoint != f"local://pid/{os.getpid()}/{worker_id}"
+        ):
+            raise RuntimeError(
+                "local worker heartbeat refresh rejected a non-owned process "
+                f"identity: {worker_id}"
+            )
+        self._heartbeat_local(worker_id)
+
+    def _refresh_owned_local_lease_worker(self, lease: Any) -> None:
+        """Renew an active lease only when this API process owns its worker."""
+
+        worker = self.pool.store.require_worker(lease.worker_id)
+        if (
+            worker.location.value == "local"
+            and worker.metadata.get("default_api_worker") is True
+        ):
+            self.refresh_owned_local_worker_heartbeat(worker.worker_id)
 
     def ensure_task_graph(self, state: TaskState) -> str:
         graph_id_value = str(state.metadata.get("dynamic_graph_id") or f"graph:{state.task_id}")
@@ -1415,6 +1488,7 @@ class WorkerPoolApiService:
             self.pool.leases.expire(lease.lease_id, reason="task resumed after lease deadline")
             lease = self.pool.store.require_lease(lease.lease_id)
         if lease is not None and not lease.terminal:
+            self._refresh_owned_local_lease_worker(lease)
             self.ensure_default_local_worker()
             return None
         self.reconcile_task_graph_binding(
@@ -1494,6 +1568,7 @@ class WorkerPoolApiService:
                 state.metadata["worker_pool_receipt"] = persisted
                 return persisted
             return None
+        self._refresh_owned_local_lease_worker(lease)
         self.pool.leases.start_attempt(
             lease.lease_id,
             worker_id=lease.worker_id,

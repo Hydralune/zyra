@@ -4,6 +4,12 @@ from dataclasses import replace
 
 import pytest
 
+from zyra_orchestration.graph_custody import (
+    DynamicTopologyRuntime,
+    GraphEdge,
+    GraphNode,
+    NodeExecutionState,
+)
 from zyra_orchestration.topology_policy import (
     PolicyDecisionDisposition,
     TopologyOperationKind,
@@ -304,6 +310,77 @@ def test_composite_fanout_overrun_is_rejected_by_projector(tmp_path):
     assert fanout.passed is False
     assert fanout.reason_code == "fanout_exceeded"
     assert graph_custody.current(current.graph_id).revision == 0
+
+
+def test_terminal_execution_history_does_not_exhaust_active_fanout(tmp_path):
+    graph_custody = custody(tmp_path, suffix="terminal-fanout-history")
+    topology = DynamicTopologyRuntime(graph_custody)
+    graph_id = "graph-terminal-fanout-history"
+    root = GraphNode(
+        node_id="historical-root",
+        role="planner",
+        capabilities=("planning",),
+        state=NodeExecutionState.SUCCEEDED,
+    )
+    assert topology.add_node(
+        graph_id,
+        root,
+        actor_id="test",
+        causation_id="terminal-history-root",
+    ).receipt.committed
+    for index in range(6):
+        terminal = GraphNode(
+            node_id=f"historical-terminal-{index}",
+            role="worker",
+            capabilities=("execution",),
+            state=NodeExecutionState.SUCCEEDED,
+        )
+        assert topology.add_node(
+            graph_id,
+            terminal,
+            actor_id="test",
+            causation_id=f"terminal-history-node-{index}",
+        ).receipt.committed
+        assert topology.add_edge(
+            graph_id,
+            GraphEdge(
+                edge_id=f"historical-edge-{index}",
+                source_node_id=root.node_id,
+                target_node_id=terminal.node_id,
+                relation="completed_runtime_branch",
+            ),
+            actor_id="test",
+            causation_id=f"terminal-history-edge-{index}",
+        ).receipt.committed
+
+    current = graph_custody.current(graph_id)
+    environment, catalog = environment_and_catalog()
+    input_snapshot = policy_input(
+        graph=current,
+        environment=environment,
+        catalog=catalog,
+        max_fan_out=4,
+    )
+    policy_value = policy(graph_custody=graph_custody)
+
+    result = policy_value.execute(
+        request(
+            policy_value=policy_value,
+            input_snapshot=input_snapshot,
+            current_graph=current,
+            catalog=catalog,
+        )
+    )
+
+    assert result.used_baseline is False
+    assert result.topology_result is not None
+    fanout = next(
+        item
+        for item in result.topology_result.projection.receipt.constraint_results
+        if item.constraint_id == "fanout"
+    )
+    assert fanout.passed is True
+    assert fanout.details["non_policy_edge_count"] >= 6
 
 
 def test_identical_stale_composite_replays_without_duplicate_commit(tmp_path):

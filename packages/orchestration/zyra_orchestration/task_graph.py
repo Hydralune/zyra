@@ -237,10 +237,12 @@ def ensure_default_graph(state: TaskState) -> list[EventRecord]:
     return events
 
 
-# One replan pass per run.  A node whose dispatch was reconciled as never
-# started deserves fresh placement, but a second identical failure is a
-# persistent fault that belongs to the recovery planner, not to this loop.
-_EXECUTION_RECOVERY_PASSES = 1
+# Two replan passes per run admit the complete three-route production provider
+# chain (initial GLM route, then DeepSeek, then Kimi).  Every pass is still
+# gated on reconciliation proving that no side effect started.  A third
+# identical failure is therefore a persistent fault for the recovery planner,
+# not an unbounded replay inside this loop.
+_EXECUTION_RECOVERY_PASSES = 2
 
 
 def _consume_execution_retry_request(state: TaskState) -> dict[str, Any] | None:

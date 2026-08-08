@@ -28,7 +28,11 @@ from zyra_evaluation.m1_hardening.cross_scenario import (
     EventProjection,
     TopologyAdversarialGate,
 )
-from zyra_evaluation.m1_hardening.disable import DisableProbeRunner, ProbeStatus
+from zyra_evaluation.m1_hardening.disable import (
+    DisableProbeRunner,
+    FunctionDisableProbe,
+    ProbeStatus,
+)
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
     AdmissionStatus,
@@ -325,6 +329,29 @@ def test_environment_disconnect_probe_disables_real_process_flag_and_restores() 
     }
     assert execution.restore_receipt["ok"] is True
     assert flag not in os.environ
+
+
+def test_disable_probe_preserves_failed_baseline_diagnostics() -> None:
+    baseline = {
+        "ok": False,
+        "status": 422,
+        "error": "recovery_action_failed",
+        "error_detail": "checkpoint lineage rejected the continuation",
+    }
+    probe = FunctionDisableProbe(
+        probe_id="failed-baseline-diagnostic",
+        capability="checkpoint-recovery",
+        capture_fn=lambda: {"captured": True},
+        exercise_fn=lambda: baseline,
+        disable_fn=lambda: {"disabled": True},
+        restore_fn=lambda _captured: {"restored": True},
+    )
+
+    execution = DisableProbeRunner().run(probe)
+
+    assert execution.status is ProbeStatus.BLOCKED
+    assert execution.error_code == "baseline_blocked"
+    assert execution.baseline == baseline
 
 
 def test_cleanroom_scanner_rejects_sibling_runtime_paths_without_self_matching(tmp_path: Path) -> None:

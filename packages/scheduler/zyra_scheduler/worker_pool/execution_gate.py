@@ -245,7 +245,8 @@ class WorkerExecutionGateRuntime:
         health = self.pool.heartbeats.assess(current.worker_id)
         if health.status in {WorkerHealthStatus.LOST, WorkerHealthStatus.UNRECOVERABLE}:
             self._reject(
-                f"worker health {health.status.value} blocks execution",
+                f"worker {current.worker_id} health {health.status.value} "
+                "blocks execution",
                 operation=operation,
                 binding=current,
                 retryable=health.recoverable,

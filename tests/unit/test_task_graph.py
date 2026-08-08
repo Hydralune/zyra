@@ -27,6 +27,7 @@ from zyra_core import (
 from zyra_orchestration import GraphExecutionContext, ensure_default_graph, run_task_graph
 from zyra_orchestration.task_graph import (
     _code_constraints,
+    _consume_execution_retry_request,
     _run_route_node,
     _worker_request_metadata,
 )
@@ -84,6 +85,28 @@ def _formal_route_context():
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_physical_recovery_budget_admits_three_provider_routes(self) -> None:
+        state = create_task_state("Exercise the bounded provider fallback chain.")
+
+        for expected_pass in (1, 2):
+            state.metadata["physical_execution_retry_requested"] = {
+                "node_id": f"execute-{expected_pass}",
+                "error_code": "node_provider_failure",
+            }
+            request = _consume_execution_retry_request(state)
+            self.assertIsNotNone(request)
+            self.assertEqual(
+                state.metadata["physical_execution_recovery_passes"],
+                expected_pass,
+            )
+
+        state.metadata["physical_execution_retry_requested"] = {
+            "node_id": "execute-3",
+            "error_code": "node_provider_failure",
+        }
+        self.assertIsNone(_consume_execution_retry_request(state))
+        self.assertEqual(state.metadata["physical_execution_recovery_passes"], 2)
+
     def test_formal_route_revalidates_one_covered_baseline_before_placement(self) -> None:
         state = create_task_state("Revalidate one transient formal baseline.")
         state.metadata["sealed_autonomous"] = True

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from zyra_orchestration.deployment.code_worker_adapter import (
+    _governed_final_response,
     _physical_permission_session_id,
     _provider_failure_summary,
     execute_code_worker_operator,
@@ -96,6 +97,24 @@ def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:
     assert "must-not-project" not in json.dumps(summary)
 
 
+def test_governed_final_response_rejects_unbound_projection() -> None:
+    response, receipt = _governed_final_response(
+        goal="测试，收到请回复ok",
+        provider_text="provider response",
+        goal_contract={
+            "schema": "zyra.direct-response-contract/v1",
+            "kind": "direct_response",
+            "expected_response": "forged",
+            "match_mode": "exact_trimmed",
+        },
+    )
+
+    assert response == "provider response"
+    assert receipt["applicable"] is False
+    assert receipt["contract_bound"] is False
+    assert receipt["projected"] is False
+
+
 def test_physical_code_worker_runs_model_tool_observation_model_loop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -119,7 +138,10 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
                 event = {
                     "choices": [
                         {
-                            "delta": {"content": "ok"},
+                            # Exercise governed delivery when a real provider
+                            # adds punctuation despite an exact response
+                            # contract in its bound prompt.
+                            "delta": {"content": "ok."},
                             "finish_reason": "stop",
                         }
                     ],
@@ -458,6 +480,21 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     )
     assert "loop-secret" not in json.dumps(requests)
     assert direct_result["final_text"] == "ok"
+    assert direct_result["execution_evidence"]["final_response_projection"] == {
+        "schema": "zyra.governed-final-response/v1",
+        "applicable": True,
+        "contract_bound": True,
+        "match_mode": "exact_trimmed",
+        "expected_response_digest": (
+            "sha256:" + hashlib.sha256(b"ok").hexdigest()
+        ),
+        "provider_response_digest": (
+            "sha256:" + hashlib.sha256(b"ok.").hexdigest()
+        ),
+        "provider_exact": False,
+        "projected": True,
+        "projection_authority": "compiled-explicit-direct-response-contract",
+    }
     assert direct_result["provider_call"]["provider_called"] is True
     assert direct_result["provider_call"]["prompt_goal_bound"] is True
     assert direct_result["workspace_delta"]["changed"] == []

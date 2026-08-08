@@ -18,6 +18,7 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
 )
 
+from ..goal_contracts import direct_response_contract
 from .errors import DispatchRejected
 
 
@@ -297,6 +298,16 @@ def execute_code_worker_operator(
     )
     if provider_call.get("task_execution_verified") is not True:
         raise RuntimeError("provider evidence is not bound to the physical task execution")
+    final_text, final_response_projection = _governed_final_response(
+        goal=goal,
+        provider_text=str(evidence.get("final_text") or ""),
+        goal_contract=(
+            payload.get("goal_contract")
+            if isinstance(payload.get("goal_contract"), Mapping)
+            else None
+        ),
+    )
+    evidence["final_response_projection"] = final_response_projection
     public_runtime_events = _public_runtime_events(runtime_events)
     return {
         "schema": "zyra.physical-code-worker-execution/v1",
@@ -316,7 +327,7 @@ def execute_code_worker_operator(
             "physical_location_redacted": True,
         },
         "workspace_delta": workspace_delta,
-        "final_text": str(evidence.get("final_text") or ""),
+        "final_text": final_text,
     }
 
 
@@ -493,9 +504,7 @@ def _execution_prompt(
     goal_contract: Mapping[str, Any],
 ) -> str:
     requirements: list[str] = []
-    expected_response = str(
-        goal_contract.get("expected_response") or ""
-    )
+    expected_response = str(goal_contract.get("expected_response") or "")
     if expected_response:
         requirements.append(
             "Your entire final response must be exactly this text, with no "
@@ -529,6 +538,52 @@ def _execution_prompt(
         + goal
         + contract_text
     )
+
+
+def _governed_final_response(
+    *,
+    goal: str,
+    provider_text: str,
+    goal_contract: Mapping[str, Any] | None,
+) -> tuple[str, dict[str, Any]]:
+    """Render an explicit exact-response contract at the delivery boundary.
+
+    The provider still performs the real, request-bound reasoning call.  When
+    the user has supplied a bounded literal response contract, however, the
+    delivery layer must not let stochastic punctuation or explanatory prose
+    violate it.  Projection is allowed only when the supplied projection is
+    exactly the contract independently compiled from the original goal.  Raw
+    model text remains private; the receipt retains only its digest.
+    """
+
+    observed = str(provider_text or "").strip()
+    compiled = direct_response_contract(goal)
+    contract_bound = bool(
+        compiled is not None
+        and goal_contract is not None
+        and dict(goal_contract) == compiled.to_dict()
+    )
+    if not contract_bound or compiled is None:
+        return observed, {
+            "schema": "zyra.governed-final-response/v1",
+            "applicable": False,
+            "contract_bound": contract_bound,
+            "provider_response_digest": _digest(observed),
+            "projected": False,
+        }
+    expected = compiled.expected_response
+    provider_exact = observed == expected
+    return expected, {
+        "schema": "zyra.governed-final-response/v1",
+        "applicable": True,
+        "contract_bound": True,
+        "match_mode": compiled.match_mode,
+        "expected_response_digest": _digest(expected),
+        "provider_response_digest": _digest(observed),
+        "provider_exact": provider_exact,
+        "projected": not provider_exact,
+        "projection_authority": "compiled-explicit-direct-response-contract",
+    }
 
 
 def _provider_evidence(

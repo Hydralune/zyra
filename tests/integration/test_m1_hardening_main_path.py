@@ -302,6 +302,7 @@ def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhau
                     "status": item.get("status"),
                     "error_code": item.get("error_code"),
                     "error_message": item.get("error_message") or item.get("message"),
+                    "baseline": item.get("baseline"),
                     "baseline_semantic": (item.get("baseline") or {}).get("semantic"),
                     "disabled": item.get("disabled"),
                     "restored_semantic": (item.get("restored") or {}).get("semantic"),
@@ -310,6 +311,7 @@ def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhau
                     "post_restore": (item.get("metadata") or {}).get("post_restore"),
                 }
                 for item in evidence[0].disconnect_evidence
+                if item.get("status") != "passed"
             ],
         }
         receipts = {item["capability"]: item for item in evidence[0].disconnect_evidence}

@@ -240,7 +240,38 @@ class TopologyConstraintProjector:
                 commit=None,
             )
 
-        fanout = Counter(edge.source_node_id for edge in preview.edges)
+        # The custody graph also contains the compiled task DAG and physical
+        # runtime bindings.  ``max_fan_out`` belongs to the ARG/CARD topology
+        # policy, so only policy-managed communication edges may consume it.
+        # Terminal policy branches remain for audit but are no longer active.
+        proposal_edge_ids = {
+            operation.entity_id
+            for operation in proposal.operations
+            if operation.kind
+            in {
+                TopologyOperationKind.ADD_EDGE,
+                TopologyOperationKind.REPLACE_EDGE,
+            }
+        }
+        managed_edge_ids = proposal_edge_ids | {
+            edge.edge_id
+            for edge in preview.edges
+            if (
+                edge.labels.get("arg_owner") == "arg_designer"
+                or edge.labels.get("arg_base_owner") == "arg_designer"
+                or edge.labels.get("card_residual") == "card"
+                or edge.metadata.get("arg_owner") == "arg_designer"
+                or bool(edge.metadata.get("card_action"))
+            )
+        }
+        active_edges = tuple(
+            edge
+            for edge in preview.edges
+            if edge.edge_id in managed_edge_ids
+            and not preview.node_map[edge.source_node_id].terminal
+            and not preview.node_map[edge.target_node_id].terminal
+        )
+        fanout = Counter(edge.source_node_id for edge in active_edges)
         fanout_exceeded = max(fanout.values(), default=0) > policy_input.budget.max_fan_out
         checks.append(
             ConstraintResult(
@@ -256,6 +287,18 @@ class TopologyConstraintProjector:
                     {
                         "max_projected_fanout": max(fanout.values(), default=0),
                         "max_allowed_fanout": policy_input.budget.max_fan_out,
+                        "active_edge_count": len(active_edges),
+                        "managed_edge_count": len(managed_edge_ids),
+                        "non_policy_edge_count": (
+                            len(preview.edges)
+                            - sum(
+                                edge.edge_id in managed_edge_ids
+                                for edge in preview.edges
+                            )
+                        ),
+                        "inactive_policy_edge_count": (
+                            len(managed_edge_ids) - len(active_edges)
+                        ),
                     }
                 ),
             )

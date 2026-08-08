@@ -1756,8 +1756,16 @@ def test_tampered_operator_output_fails_closed_after_dispatch(
     failed_check: str,
 ) -> None:
     state, _ = api.make_task_created_event(
-        "Implement a code artifact and verify the result."
+        "测试，收到请回复ok"
     )
+    workspace = api.get_workspace_manager().create_for_task(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=f"task:{state.task_id}",
+        worker_id="task-runtime",
+        idempotency_key=f"tampered-output:{state.task_id}",
+    )
+    state.metadata["workspace_ref"] = workspace.projection.to_dict()
     ensure_default_graph(state)
     context = api.graph_execution_context()
     bridge = context.topology_policy_trigger
@@ -1829,6 +1837,9 @@ def test_tampered_operator_output_fails_closed_after_dispatch(
         "physical_execution_failure_receipt"
     ]
     assert failure_receipt["outcome"] == "failed"
+    assert failed_check in failure_receipt["metadata"]["cause_metadata"][
+        "failed_execution_checks"
+    ]
     lease = api.get_worker_pool_api().pool.store.require_lease(
         state.metadata["worker_pool"]["lease_id"]
     )
