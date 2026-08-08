@@ -44,6 +44,36 @@ def test_internalization_gate_keeps_external_workspace_detection_separate_from_p
     assert report.metrics["external_workspace_roots"] == [str(tmp_path)]
 
 
+def test_internalization_gate_aggregates_dynamic_process_warning_budget(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "zyra"
+    package_root = project_root / "packages"
+    package_root.mkdir(parents=True)
+    (package_root / "dynamic_processes.py").write_text(
+        "import subprocess\n"
+        + "\n".join(
+            f"subprocess.run(command_{index})" for index in range(100)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = M1InternalizationGate(project_root).evaluate(
+        scan_roots=("packages",),
+    )
+    warnings = [
+        finding
+        for finding in report.findings
+        if finding.code == "internalization.dynamic_process_unresolved"
+    ]
+
+    assert len(warnings) == 1
+    assert warnings[0].metadata["occurrence_count"] == 100
+    assert len(warnings[0].metadata["sample_locations"]) == 16
+    assert warnings[0].metadata["samples_truncated"] is True
+
+
 def test_role_aware_coverage_and_custody_catalog_resolve_real_entries() -> None:
     catalog = M1CapabilityCatalog(ROOT, source_workspace=ROOT)
     coverage = SourceToTargetCoverageReport(ROOT, source_workspace=ROOT).evaluate(

@@ -93,7 +93,12 @@ def test_public_api_foundation_scenario_mutates_state_and_fails_closed() -> None
                     options={"scenario_id": run.scenario_id},
                 ),
                 AuditOptions(
-                    baseline_commit="44da53ad8ea909147709857e358b7d16e39f6313",
+                    # Audit the implementation slice represented by the
+                    # current commit.  A frozen historical SHA accumulated all
+                    # later source-pool and internalization changes into every
+                    # test run, so unrelated repository growth eventually
+                    # failed this foundation scenario.
+                    baseline_commit="HEAD^",
                     minimum_effective_lines=0,
                     line_audit_head="HEAD",
                     # A git archive intentionally has no .git directory.  The

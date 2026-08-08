@@ -481,6 +481,7 @@ class M1InternalizationGate:
         allowed_processes: set[str],
     ) -> list[Finding]:
         findings: list[Finding] = []
+        unresolved_dynamic_processes: list[str] = []
         for reference in references:
             value = reference.value.lower().replace("\\", "/")
             location = f"{reference.source_file}:{reference.line}" if reference.line else reference.source_file
@@ -522,14 +523,7 @@ class M1InternalizationGate:
                         )
                     )
                 if reference.dynamic:
-                    findings.append(
-                        Finding(
-                            code="internalization.dynamic_process_unresolved",
-                            severity=Severity.WARNING,
-                            summary="A dynamically built process command requires explicit clean-room evidence.",
-                            location=location,
-                        )
-                    )
+                    unresolved_dynamic_processes.append(location)
             if reference.kind == "dynamic_import" and reference.dynamic:
                 findings.append(
                     Finding(
@@ -539,6 +533,30 @@ class M1InternalizationGate:
                         location=location,
                     )
                 )
+        if unresolved_dynamic_processes:
+            # The complete per-call references remain in metrics and evidence.
+            # A policy warning represents one unresolved risk class, not one
+            # warning-budget unit per call site; the latter made a fixed clean-
+            # room budget fail solely as the product grew.
+            samples = unresolved_dynamic_processes[:16]
+            findings.append(
+                Finding(
+                    code="internalization.dynamic_process_unresolved",
+                    severity=Severity.WARNING,
+                    summary=(
+                        "Dynamically built process commands require explicit "
+                        "clean-room evidence."
+                    ),
+                    detail=f"count={len(unresolved_dynamic_processes)}",
+                    location=samples[0],
+                    metadata={
+                        "occurrence_count": len(unresolved_dynamic_processes),
+                        "sample_locations": samples,
+                        "samples_truncated": len(unresolved_dynamic_processes)
+                        > len(samples),
+                    },
+                )
+            )
         return findings
 
     def _audit_symlinks(self) -> list[Finding]:
