@@ -1104,13 +1104,24 @@ def _repair_projection(items: Sequence[CodeWorkerToolTraceItem]) -> CodeWorkerRe
     return CodeWorkerRepairProjection(detected=False)
 
 
-def _latest_payload(observations: Sequence[QueryPhaseObservation], phase: str, key: str) -> dict[str, Any]:
+def _latest_payload(observations: Sequence[QueryPhaseObservation], phase: str, *keys: str) -> dict[str, Any]:
+    """Read a phase's payload block, tolerating both block names.
+
+    The retired Python runtimes named the block with a short name
+    (``restore_integration``); the canonical TypeScript runtime names it after
+    the phase (``codeworker_restore_integration``).  A reader bound to one of
+    them silently projected an empty block for every run, which is how the task
+    API came to report ``integration_ok: false`` on runs whose restore report
+    said ``ok: true``.
+    """
+
     for observation in reversed(observations):
         if observation.phase != phase:
             continue
-        value = observation.payload.get(key)
-        if isinstance(value, Mapping):
-            return dict(value)
+        for key in (*keys, phase):
+            value = observation.payload.get(key)
+            if isinstance(value, Mapping):
+                return dict(value)
     return {}
 
 

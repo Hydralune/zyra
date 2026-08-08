@@ -769,7 +769,13 @@ def _route_contracts() -> dict[TaskApiRouteKind, TaskApiRouteContract]:
             required_phases=(
                 _phase("trace_model_stream", "model_stream_report"),
                 _phase("trace_compact_restore", "compact_restore_report"),
-                _phase("trace_restore_applied", "codeworker_restore_context_applied"),
+                # ``codeworker_restore_context_applied`` belonged to the retired
+                # Python restore-integration runtime and has no producer, so this
+                # route answered 409 for every task while its session and
+                # compact-state siblings answered 200 off the same events.  The
+                # canonical runtime reports the restore through
+                # ``codeworker_restore_integration``.
+                _phase("trace_restore_applied", "codeworker_restore_integration"),
             ),
         ),
         TaskApiRouteKind.COMPACT_STATE: TaskApiRouteContract(

@@ -167,6 +167,11 @@ export class ClaudeRuntimeCore {
     // run rather than only that the code exists.
     let restoreUntrustedAttachments = 0;
     let restoreRedactedAttachments = 0;
+    // The task API projection reports a restore as "applied" from these two
+    // counts.  Without them every run reported no restore, including runs where
+    // one genuinely landed.
+    let restoreApplicationCount = 0;
+    let restoreModelMessageCount = 0;
     const mutationTargets = new Set<string>();
     let modelMetadata: Record<string, string> = {
       model_stream_ok: "false",
@@ -1201,6 +1206,8 @@ export class ClaudeRuntimeCore {
           const restoreSecurity = asObject(appliedRestore.providerMessage.metadata);
           restoreUntrustedAttachments += Number(restoreSecurity.untrusted_attachment_count ?? 0);
           restoreRedactedAttachments += Number(restoreSecurity.redacted_attachment_count ?? 0);
+          restoreApplicationCount += 1;
+          restoreModelMessageCount += pendingRestoreProviderMessage ? 1 : 0;
           if (integratedPreparation) {
             const integratedApplication = e01.skillMemory.integration.apply({
               preparationId: integratedPreparation.preparationId,
@@ -1428,6 +1435,9 @@ export class ClaudeRuntimeCore {
         ok: compactRestoreOk,
         restore_contract_id: restoreContractId,
         owner: "typescript",
+        application_count: restoreApplicationCount,
+        model_message_count: restoreModelMessageCount,
+        latest_contract_id: restoreContractId,
         untrusted_attachments_fenced: restoreUntrustedAttachments,
         secret_redacted_attachments: restoreRedactedAttachments,
       },
@@ -1520,6 +1530,8 @@ export class ClaudeRuntimeCore {
         compact_restore_contract_id: restoreContractId,
         restore_untrusted_attachments: String(restoreUntrustedAttachments),
         restore_redacted_attachments: String(restoreRedactedAttachments),
+        restore_applications: String(restoreApplicationCount),
+        restore_model_messages: String(restoreModelMessageCount),
         tool_runtime_gate_failures: disabledComponents.length > 0
           ? disabledComponents.join(",")
           : "",
