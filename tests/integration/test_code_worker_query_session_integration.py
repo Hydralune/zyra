@@ -27,13 +27,35 @@ from zyra_runtime import WorkerRequest  # noqa: E402
 from zyra_workers import CodeWorkerRuntime  # noqa: E402
 
 
+# Nothing in an integration run can answer an approval prompt, and a workspace
+# edit under the `default` mode parks for one.  Every case here is about the
+# query session, not about permission, so declare the absent approver once.
+_HEADLESS = {
+    "permission_mode": "acceptEdits",
+    "permission_interactive": False,
+    "permission_headless": True,
+}
+
+
 class CodeWorkerQuerySessionIntegrationTests(unittest.TestCase):
-    def test_default_path_emits_query_entry_handoff_custody_and_stream(self) -> None:
+    """The query-session entry the productized CodeWorker actually owns.
+
+    Productization replaced the Python "query entry packet / handoff custody"
+    layer with the canonical TypeScript query engine.  Its phases
+    (``query_entry_packet_ready``, ``query_started``, ``query_cancelled`` ...)
+    and its metadata (``query_session_integration_ok``,
+    ``query_entry_block_reason`` ...) are gone, and the request-level session
+    controls it read are inert.  Operator control now travels as a canonical
+    control command, which is what these cases exercise.
+    """
+
+    def test_default_path_reaches_the_typescript_query_engine_in_order(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             run = _run_worker(
                 tmpdir,
                 {
                     "raw_input": "Create and read through query entry.",
+                    **_HEADLESS,
                     "query_turns": [
                         [
                             {"tool_name": "file_write", "arguments": {"path": "entry/result.txt", "content": "ok"}},
@@ -43,183 +65,131 @@ class CodeWorkerQuerySessionIntegrationTests(unittest.TestCase):
                 },
             )
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
             metadata = run.worker_result.metadata
-            self.assertEqual(metadata["query_session_integration_ok"], "true")
-            self.assertEqual(metadata["query_entry_ok"], "true")
-            self.assertEqual(metadata["query_entry_handoff_ok"], "true")
-            self.assertEqual(metadata["query_handoff_ok"], "true")
-            self.assertEqual(metadata["query_custody_ok"], "true")
-            self.assertEqual(metadata["query_custody_engine_attached"], "true")
-            self.assertEqual(metadata["query_event_flow_ok"], "true")
-            self.assertGreater(int(metadata["query_entry_message_count"]), 0)
+            self.assertEqual(metadata["loop"], "zyra_typescript_query_engine_runtime")
+            self.assertEqual(metadata["canonical_runtime_owner"], "typescript")
+            self.assertEqual(metadata["python_query_engine_fallback"], "false")
+            self.assertEqual(metadata["query_session_consistent"], "true")
+            self.assertTrue(metadata["query_session_resume_token"])
 
             phases = _query_phases(run)
-            self.assertIn("query_entry_packet_ready", phases)
-            self.assertIn("query_started", phases)
-            self.assertIn("query_downstream_handoff_ready", phases)
-            self.assertIn("query_handoff_contract", phases)
-            self.assertIn("query_resume_custody", phases)
-            self.assertIn("query_event_flow_audit", phases)
-            self.assertIn("stream_request_start", phases)
-            self.assertLess(phases.index("query_started"), phases.index("stream_request_start"))
+            for phase in (
+                "session_started",
+                "stream_request_start",
+                "tool_call_started",
+                "tool_call_completed",
+                "session_completed",
+            ):
+                self.assertIn(phase, phases)
+            # The session has to open before the model stream, and the stream
+            # before any tool effect.
+            self.assertLess(
+                phases.index("session_started"),
+                phases.index("stream_request_start"),
+            )
+            self.assertLess(
+                phases.index("stream_request_start"),
+                phases.index("tool_call_started"),
+            )
 
-            store_records = _store_records(metadata["code_worker_session_store_path"])
-            record_types = [record["record_type"] for record in store_records]
-            self.assertIn("query_control_state", record_types)
-            self.assertIn("query_entry_packet", record_types)
-            self.assertIn("query_engine_attached", record_types)
+    def test_cancel_control_command_blocks_the_engine_before_any_side_effect(self) -> None:
+        """Operator cancel is a canonical control command, not a constraint.
 
-    def test_cancel_blocks_query_engine_before_stream(self) -> None:
+        The value of this case is that cancel lands *before* the model stream
+        and before the tool effect -- a cancel observed only after the write
+        would not be a cancel.
+        """
+
         with tempfile.TemporaryDirectory() as tmpdir:
             run = _run_worker(
                 tmpdir,
                 {
-                    "cancel_session": True,
-                    "cancel_reason": "operator cancelled before model stream",
+                    "control_commands": [{"name": "cancel"}],
                     "raw_input": "This should not enter QueryEngine.",
+                    **_HEADLESS,
                     "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "blocked.txt", "content": "x"}}]],
                 },
             )
 
             self.assertFalse(run.worker_result.ok)
-            self.assertEqual(run.worker_result.metadata["query_session_integration_ok"], "false")
-            self.assertEqual(run.worker_result.metadata["query_entry_block_reason"], "control_cancelled")
-            self.assertEqual(run.worker_result.metadata["query_custody_engine_attached"], "false")
-            phases = _query_phases(run)
-            self.assertIn("query_cancelled", phases)
-            self.assertIn("query_entry_packet_ready", phases)
-            self.assertNotIn("stream_request_start", phases)
-
-    def test_disabling_query_entry_packet_disconnects_worker_before_stream(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run = _run_worker(
-                tmpdir,
-                {
-                    "disable_query_entry_packet": True,
-                    "raw_input": "This should stop at query entry packet.",
-                    "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "blocked.txt", "content": "x"}}]],
-                },
-            )
-
-            self.assertFalse(run.worker_result.ok)
-            self.assertEqual(run.worker_result.metadata["query_session_integration_ok"], "false")
-            self.assertEqual(run.worker_result.metadata["query_entry_block_reason"], "disabled")
-            phases = _query_phases(run)
-            self.assertIn("query_entry_packet_ready", phases)
-            self.assertNotIn("query_started", phases)
-            self.assertNotIn("stream_request_start", phases)
-
-    def test_interrupt_blocks_query_engine_before_stream(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run = _run_worker(
-                tmpdir,
-                {
-                    "interrupt_session": True,
-                    "interrupt_reason": "operator interrupted before model stream",
-                    "raw_input": "This should interrupt before QueryEngine.",
-                    "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "blocked.txt", "content": "x"}}]],
-                },
-            )
-
-            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "user_cancelled")
             metadata = run.worker_result.metadata
-            self.assertEqual(metadata["query_entry_block_reason"], "control_interrupted")
-            self.assertEqual(metadata["query_disconnect_terminal_control_observed"], "true")
+            self.assertEqual(metadata["control_command_count"], "1")
+            self.assertEqual(metadata["control_command_failed"], "0")
+            self.assertEqual(metadata["canonical_control_owner"], "typescript")
+            self.assertEqual(metadata["control_state_revision"], "1")
             phases = _query_phases(run)
-            self.assertIn("query_interrupted", phases)
             self.assertNotIn("stream_request_start", phases)
+            self.assertNotIn("tool_call_started", phases)
+            self.assertFalse((Path(tmpdir) / "workspace" / "blocked.txt").exists())
 
-    def test_stale_context_fingerprint_blocks_stale_packet_before_stream(self) -> None:
+    def test_retired_request_level_session_controls_are_inert(self) -> None:
+        """These constraints no longer gate anything, so say so out loud.
+
+        ``cancel_session``, ``interrupt_session``, ``disable_query_entry_packet``,
+        ``expected_context_fingerprint`` and ``resume_session_id`` belonged to
+        the retired Python query-entry layer.  A caller who still passes one
+        gets an ordinary run.  Pinning that keeps a stale flag from reading as
+        a live safeguard -- use ``control_commands`` for operator control.
+        """
+
+        retired = (
+            {"cancel_session": True, "cancel_reason": "operator cancelled"},
+            {"interrupt_session": True, "interrupt_reason": "operator interrupted"},
+            {"disable_query_entry_packet": True},
+            {"expected_context_fingerprint": "definitely-stale-context"},
+            {"resume_session_id": "query:does-not-exist:task"},
+        )
+        for constraints in retired:
+            with self.subTest(constraints=sorted(constraints)):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    run = _run_worker(
+                        tmpdir,
+                        {
+                            **constraints,
+                            "raw_input": "Retired controls do not gate the runtime.",
+                            **_HEADLESS,
+                            "query_turns": [[{
+                                "tool_name": "file_write",
+                                "arguments": {"path": "not-blocked.txt", "content": "x"},
+                            }]],
+                        },
+                    )
+
+                    self.assertTrue(run.worker_result.ok, run.worker_result.error)
+                    self.assertIn("stream_request_start", _query_phases(run))
+                    self.assertTrue(
+                        (Path(tmpdir) / "workspace" / "not-blocked.txt").exists()
+                    )
+                    self.assertNotIn(
+                        "query_entry_block_reason",
+                        run.worker_result.metadata,
+                    )
+
+    def test_runtime_state_checkpoint_is_written_and_reloadable(self) -> None:
+        """The durable replacement for the retired query-checkpoint record."""
+
         with tempfile.TemporaryDirectory() as tmpdir:
             run = _run_worker(
                 tmpdir,
                 {
-                    "expected_context_fingerprint": "definitely-stale-context",
-                    "raw_input": "This should stale-block before QueryEngine.",
-                    "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "blocked.txt", "content": "x"}}]],
-                },
-            )
-
-            self.assertFalse(run.worker_result.ok)
-            metadata = run.worker_result.metadata
-            self.assertEqual(metadata["query_entry_block_reason"], "stale_context")
-            self.assertEqual(metadata["query_session_stale_context"], "true")
-            phases = _query_phases(run)
-            self.assertIn("query_stale_context_blocked", phases)
-            self.assertNotIn("stream_request_start", phases)
-
-    def test_checkpoint_request_writes_artifact_and_store_record(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run = _run_worker(
-                tmpdir,
-                {
-                    "checkpoint_session": True,
                     "raw_input": "Checkpoint before query.",
+                    **_HEADLESS,
                     "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "checkpoint.txt", "content": "ok"}}]],
                 },
             )
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
             metadata = run.worker_result.metadata
-            self.assertEqual(metadata["query_session_checkpoint_status"], "written")
-            self.assertTrue(metadata["query_session_checkpoint_artifact_id"])
-            self.assertEqual(metadata["query_custody_checkpoint_requested"], "true")
-            store_records = _store_records(metadata["code_worker_session_store_path"])
-            self.assertTrue(any(record["record_type"] == "query_checkpoint" for record in store_records))
-
-    def test_resume_restores_parent_context_and_uses_replay_state(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("query session integration branch resume")
-            first_runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
-            first = first_runtime.run(
-                WorkerRequest(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    worker_name="CodeWorkerRuntime",
-                    constraints={
-                    "raw_input": "Create state for resume.",
-                    "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "resume.txt", "content": "ok"}}]],
-                    },
-                )
-            )
-            self.assertTrue(first.worker_result.ok)
-            session_id = first.worker_result.metadata["code_worker_session_seed_session_id"]
-
-            second_runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
-            second = second_runtime.run(
-                WorkerRequest(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    worker_name="CodeWorkerRuntime",
-                    constraints={
-                        "session_id": "branch-resume-current-session",
-                        "resume_session_id": session_id,
-                        "raw_input": "Continue from previous session state.",
-                        "query_turns": [[{"tool_name": "file_read", "arguments": {"path": "resume.txt"}}]],
-                    },
-                )
-            )
-
-            self.assertTrue(second.worker_result.ok)
-            metadata = second.worker_result.metadata
-            self.assertEqual(metadata["query_session_resume_requested"], "true")
-            self.assertTrue(metadata["query_session_restored_parent_uuid"])
-            self.assertTrue(metadata["query_session_restored_context_fingerprint"])
-            self.assertEqual(metadata["query_custody_resume_requested"], "true")
-            phases = _query_phases(second)
-            self.assertIn("query_resume_restored", phases)
-            self.assertIn("stream_request_start", phases)
+            self.assertEqual(metadata["runtime_state_ok"], "true")
+            self.assertEqual(metadata["query_session_checkpoint_ready"], "true")
+            self.assertGreater(int(metadata["runtime_state_mutations"]), 0)
+            checkpoint = Path(metadata["runtime_state_checkpoint_path"])
+            self.assertTrue(checkpoint.is_file())
+            self.assertTrue(json.loads(checkpoint.read_text(encoding="utf-8")))
+            self.assertTrue(metadata["query_session_snapshot_artifact_id"])
+            self.assertTrue(metadata["query_session_transcript_artifact_id"])
 
 
 class CodeWorkerQuerySessionIntegrationApiTests(unittest.TestCase):
