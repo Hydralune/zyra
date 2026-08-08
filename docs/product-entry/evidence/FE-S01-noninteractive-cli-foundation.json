@@ -1,7 +1,7 @@
 {
   "schema": "zyra.product-entry-slice-evidence.v1",
   "slice_id": "FE-S01",
-  "slice": "Zyra产品入口纠偏执行切片/slice-01-noninteractive-cli-foundation.md",
+  "slice": "docs/Zyra产品入口纠偏执行切片/slice-01-noninteractive-cli-foundation.md",
   "status": "verified",
   "verified_at": "2026-08-04",
   "base_commit": "026e5149db85781ffe6b8bb9c0cee419b4275560",

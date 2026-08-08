@@ -1,7 +1,7 @@
 {
   "schema": "zyra.product-entry-slice-evidence.v1",
   "slice_id": "FE-S02",
-  "slice": "Zyra产品入口纠偏执行切片/slice-02-interactive-session-streaming.md",
+  "slice": "docs/Zyra产品入口纠偏执行切片/slice-02-interactive-session-streaming.md",
   "status": "verified",
   "verified_at": "2026-08-04",
   "base_commit": "87fe4901bff7451073dce5177ed24fc32f38bf48",

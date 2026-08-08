@@ -1,7 +1,7 @@
 {
   "schema": "zyra.product-entry-slice-evidence.v1",
   "slice_id": "FE-G00B",
-  "slice": "Zyra产品入口纠偏执行切片/gate-00b-terminal-lifecycle-dispatch-remediation.md",
+  "slice": "docs/Zyra产品入口纠偏执行切片/gate-00b-terminal-lifecycle-dispatch-remediation.md",
   "status": "verified",
   "verified_at": "2026-08-05",
   "base_commit": "237bc123f45b0e2326edd1512539c6fce7146201",

@@ -1,7 +1,7 @@
 {
   "schema": "zyra.product-entry-slice-evidence.v1",
   "slice_id": "FE-S03",
-  "slice": "Zyra产品入口纠偏执行切片/slice-03-control-permission-recovery.md",
+  "slice": "docs/Zyra产品入口纠偏执行切片/slice-03-control-permission-recovery.md",
   "status": "verified",
   "verified_at": "2026-08-04",
   "base_commit": "62d11091527dd092f3d18acf6fd4d2871fa43130",
