@@ -70857,7 +70857,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -70997,7 +70997,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -71071,7 +71071,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -71153,7 +71153,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -71213,7 +71213,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -71294,7 +71294,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -71368,7 +71368,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -71448,7 +71448,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -71508,7 +71508,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -71574,7 +71574,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -71734,7 +71734,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -71808,7 +71808,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -71874,7 +71874,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -72000,7 +72000,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -72147,7 +72147,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -72235,7 +72235,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
@@ -72323,7 +72323,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -72411,7 +72411,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
@@ -72504,7 +72504,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -72606,7 +72606,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -72686,7 +72686,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -72760,7 +72760,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
@@ -72840,7 +72840,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -72914,7 +72914,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
@@ -72980,7 +72980,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -73106,7 +73106,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -73280,7 +73280,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -73354,7 +73354,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -73434,7 +73434,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -73508,7 +73508,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -73587,7 +73587,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -73647,7 +73647,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -73726,7 +73726,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -73786,7 +73786,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -73867,7 +73867,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -73927,7 +73927,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -74013,7 +74013,7 @@
         ],
         "environment_refs": [],
         "function": "McpToolProjection",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/tool-projection",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -74087,7 +74087,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "command": "bun test ./packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
@@ -74153,7 +74153,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -74279,7 +74279,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -74420,7 +74420,7 @@
         ],
         "environment_refs": [],
         "function": "McpCapabilityCatalog",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/catalog/capability-catalog",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -74480,7 +74480,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -74546,7 +74546,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -74692,7 +74692,7 @@
         ],
         "environment_refs": [],
         "function": "McpCapabilityCatalog",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/catalog/capability-catalog",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -74766,7 +74766,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -74832,7 +74832,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -74977,7 +74977,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75037,7 +75037,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -75117,7 +75117,7 @@
         ],
         "environment_refs": [],
         "function": "McpOutputBudgetRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.output",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75177,7 +75177,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -75259,7 +75259,7 @@
         ],
         "environment_refs": [],
         "function": "McpToolProjection",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/tool-projection",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75333,7 +75333,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "command": "bun test ./packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
@@ -75413,7 +75413,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75473,7 +75473,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -75553,7 +75553,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75613,7 +75613,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -75679,7 +75679,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -75818,7 +75818,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -75878,7 +75878,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -75944,7 +75944,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -76088,7 +76088,7 @@
         ],
         "environment_refs": [],
         "function": "McpInstructionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/instruction-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76148,7 +76148,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -76232,7 +76232,7 @@
         ],
         "environment_refs": [],
         "function": "McpInstructionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/instruction-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76292,7 +76292,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -76376,7 +76376,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76450,7 +76450,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -76536,7 +76536,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76610,7 +76610,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -76694,7 +76694,7 @@
         ],
         "environment_refs": [],
         "function": "McpToolProjection",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/tool-projection",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76754,7 +76754,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "command": "bun test ./packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
@@ -76834,7 +76834,7 @@
         ],
         "environment_refs": [],
         "function": "McpElicitationRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/runtime/elicitation-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -76908,7 +76908,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -76974,7 +76974,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -77123,7 +77123,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -77225,7 +77225,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -77291,7 +77291,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -77440,7 +77440,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -77556,7 +77556,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-live-transport.behavior.test.ts",
@@ -77642,7 +77642,7 @@
         ],
         "environment_refs": [],
         "function": "McpCapabilityCatalog",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/catalog/capability-catalog",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -77730,7 +77730,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -77809,7 +77809,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -77883,7 +77883,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -77962,7 +77962,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -78036,7 +78036,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -78116,7 +78116,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -78176,7 +78176,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -78242,7 +78242,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -78384,7 +78384,7 @@
         ],
         "environment_refs": [],
         "function": "McpToolProjection",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/tool-projection",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -78444,7 +78444,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "command": "bun test ./packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
@@ -78510,7 +78510,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -78650,7 +78650,7 @@
         ],
         "environment_refs": [],
         "function": "McpConfigStore",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/config/config-store",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -78724,7 +78724,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -78790,7 +78790,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -78934,7 +78934,7 @@
         ],
         "environment_refs": [],
         "function": "McpToolProjection",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/projection/tool-projection",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -78994,7 +78994,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "command": "bun test ./packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
@@ -79060,7 +79060,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -79213,7 +79213,7 @@
         ],
         "environment_refs": [],
         "function": "McpConnectionRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/connection/connection-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -79315,7 +79315,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
@@ -79394,7 +79394,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -79468,7 +79468,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -79552,7 +79552,7 @@
         ],
         "environment_refs": [],
         "function": "McpOAuthRuntime",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "@zyra/claude-mcp/auth/oauth-runtime",
         "protocol": "zyra-mcp-runtime-v1"
       },
@@ -79640,7 +79640,7 @@
       ],
       "test_entries": [
         {
-          "command": "bun test packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
+          "command": "bun test ./packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
           "expected_signal": "real MCP connection/capability/auth/tool/restore behavior changes the main path",
           "kind": "behavior",
           "path": "packages/integrations/claude-mcp/test/e02/mcp-custody.behavior.test.ts",
@@ -79706,7 +79706,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },
@@ -79832,7 +79832,7 @@
         ],
         "environment_refs": [],
         "function": "source_decision",
-        "health_check": "bun test packages/integrations/claude-mcp/test && python -m unittest tests.unit.test_mcp_source_audit",
+        "health_check": "bun test ./packages/integrations/claude-mcp/test/e02 && python -m unittest tests.unit.test_mcp_source_audit",
         "module": "zyra_integrations.mcp.source_audit",
         "protocol": "zyra-mcp-source-decision-v1"
       },

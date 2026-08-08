@@ -119,7 +119,7 @@ def runtime_entry_for_decision(decision: McpSourceDecision) -> RuntimeEntry:
             else "zyra-mcp-source-decision-v1"
         ),
         health_check=(
-            "bun test packages/integrations/claude-mcp/test && "
+            "bun test ./packages/integrations/claude-mcp/test/e02 && "
             "python -m unittest tests.unit.test_mcp_source_audit"
         ),
         config_refs=[
@@ -137,7 +137,10 @@ def test_entry_for_decision(decision: McpSourceDecision) -> TestEntry:
     if path.endswith(".ts"):
         # The MCP behavior suite is TypeScript since the e02 cutover; a Python
         # unittest module path derived from it would not name a runnable test.
-        command = f"bun test {path}"
+        # ``bunfig.toml`` pins the test root to the claude-runtime suite, so a
+        # bare path is read as a name filter inside that root and matches
+        # nothing.  The ``./`` prefix is what makes bun treat it as a path.
+        command = f"bun test ./{path}"
         kind = "behavior"
     else:
         module = path.removesuffix(".py").replace("/", ".")

@@ -159,6 +159,29 @@ class McpSourceAuditTests(unittest.TestCase):
             {(decision.repository, decision.source_path) for decision in MCP_SOURCE_DECISIONS},
         )
 
+    def test_projected_test_commands_name_a_path_bun_will_actually_run(self) -> None:
+        """A command that resolves to nothing is not evidence either.
+
+        ``bunfig.toml`` pins ``[test] root`` to the claude-runtime suite, so
+        ``bun test <path>`` is read as a name filter inside that root and
+        silently matches zero files.  Only the ``./`` form is a path.
+        """
+
+        for entry in expected_entries():
+            for test_entry in entry.test_entries:
+                with self.subTest(source=entry.source_path, path=test_entry.path):
+                    self.assertTrue((PROJECT_ROOT / test_entry.path).is_file())
+                    if not test_entry.path.endswith(".ts"):
+                        continue
+                    self.assertTrue(
+                        test_entry.command.startswith("bun test ./"),
+                        test_entry.command,
+                    )
+                    self.assertEqual(
+                        test_entry.command.removeprefix("bun test ./"),
+                        test_entry.path,
+                    )
+
     def test_runtime_ledger_rows_claim_tested_productized_behavior_only_for_selected_sources(self) -> None:
         entries = expected_entries()
         by_key = {(entry.source_repo, entry.source_path): entry for entry in entries}
