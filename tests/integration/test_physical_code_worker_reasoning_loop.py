@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from zyra_orchestration.deployment.code_worker_adapter import (
+    _physical_permission_session_id,
     _provider_failure_summary,
     execute_code_worker_operator,
 )
@@ -30,6 +31,37 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_physical_permission_session_isolated_by_recovery_continuation() -> None:
+    ordinary = {
+        "operator_ref": "provider-code-worker",
+        "physical_recovery_pass": 0,
+    }
+    first_continuation = {
+        **ordinary,
+        "recovery_plan_id": "recovery-plan-1",
+    }
+    second_continuation = {
+        **ordinary,
+        "recovery_plan_id": "recovery-plan-2",
+    }
+
+    ordinary_session = _physical_permission_session_id(ordinary, "task-1", 1)
+    first_session = _physical_permission_session_id(
+        first_continuation, "task-1", 1
+    )
+    second_session = _physical_permission_session_id(
+        second_continuation, "task-1", 1
+    )
+
+    assert ordinary_session == "physical:task-1:layer:1:provider-code-worker"
+    assert first_session != ordinary_session
+    assert second_session != first_session
+    assert "recovery-plan-1" not in first_session
+    assert _physical_permission_session_id(
+        {**first_continuation, "physical_recovery_pass": 1}, "task-1", 1
+    ) == f"{first_session}:recovery:1"
 
 
 def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:

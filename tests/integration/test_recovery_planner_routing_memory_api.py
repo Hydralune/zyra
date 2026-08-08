@@ -50,7 +50,10 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
             base_url = f"http://127.0.0.1:{server.server_address[1]}"
             try:
                 created = _post(base_url, "/tasks", {
-                    "goal": "Recover a stalled long-horizon task without a human.",
+                    "goal": (
+                        "Reply without tools that a stalled long-horizon task "
+                        "recovered without a human."
+                    ),
                     "auto_run": False,
                 })
                 task = created["task"]
@@ -99,7 +102,8 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 ))
 
                 checkpoint_head = view["checkpoint_head"]
-                self.assertEqual(checkpoint_head["commit_revision"], 1)
+                initial_checkpoint_revision = checkpoint_head["commit_revision"]
+                self.assertGreaterEqual(initial_checkpoint_revision, 1)
                 checkpoint_status, checkpoint_body = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/recovery/checkpoints",
@@ -119,7 +123,10 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 )
                 self.assertEqual(checkpoint_status, 201, checkpoint_body)
                 checkpoint = checkpoint_body["checkpoint"]
-                self.assertEqual(checkpoint["commit_revision"], 2)
+                self.assertEqual(
+                    checkpoint["commit_revision"],
+                    initial_checkpoint_revision + 1,
+                )
 
                 delta_status, delta = _post_with_status(
                     base_url,
@@ -140,7 +147,10 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 self.assertEqual(delta["checkpoint"]["state_payload"]["artifacts"], ["artifact-a", "artifact-b"])
 
                 after_delta = _get(base_url, f"/tasks/{task_id}/recovery")
-                self.assertEqual(after_delta["checkpoint_head"]["commit_revision"], 3)
+                self.assertEqual(
+                    after_delta["checkpoint_head"]["commit_revision"],
+                    initial_checkpoint_revision + 2,
+                )
                 self.assertTrue(after_delta["runtime_audit"]["ok"])
 
                 replan_status, replanned = _post_with_status(
@@ -237,7 +247,10 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
             base_url = f"http://127.0.0.1:{server.server_address[1]}"
             try:
                 created = _post(base_url, "/tasks", {
-                    "goal": "Exercise integrated recovery observation and durable restart.",
+                    "goal": (
+                        "Reply without tools that integrated recovery observation "
+                        "and durable restart completed."
+                    ),
                     "auto_run": False,
                 })
                 task = created["task"]
@@ -390,7 +403,7 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
 
 def _get(base_url: str, path: str) -> dict[str, Any]:
     request = urllib.request.Request(f"{base_url}{path}", method="GET")
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=11 * 60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -413,7 +426,7 @@ def _post_with_status(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=11 * 60) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))

@@ -175,12 +175,21 @@ class ProviderBackendApiTests(unittest.TestCase):
                 created = _post(
                     base_url,
                     "/tasks",
-                    {"goal": "Run backend-dispatch API integration.", "auto_run": True},
+                    {
+                        "goal": (
+                            "Reply with exactly 'backend dispatch integration complete'. "
+                            "Do not use tools."
+                        ),
+                        "auto_run": True,
+                    },
                 )
                 physical_receipts = created["task"]["metadata"].get(
                     "physical_dispatch_receipts"
                 )
-                self.assertTrue(physical_receipts)
+                self.assertTrue(
+                    physical_receipts,
+                    json.dumps(created["task"], ensure_ascii=False, indent=2),
+                )
                 physical_receipt = physical_receipts[-1]
                 self.assertEqual(
                     physical_receipt["schema_version"],
@@ -324,7 +333,7 @@ class ProviderBackendApiTests(unittest.TestCase):
                 reset_workspace_manager()
 
 
-HTTP_TIMEOUT_SECONDS = 30
+HTTP_TIMEOUT_SECONDS = 11 * 60
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:

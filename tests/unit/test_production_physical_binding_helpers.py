@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
+from zyra_memory import MemoryLayer, MemoryRecord
 from zyra_orchestration.topology_policy.contracts import FrozenDict, canonical_digest
 from zyra_orchestration.topology_policy.production import (
+    _canonical_memory_record_digest,
     _is_json_array,
     _physical_dispatch_payload_binding,
 )
@@ -55,3 +58,34 @@ def test_immutable_json_array_is_valid_delivery_evidence() -> None:
     assert isinstance(workspace_delta["changed"], tuple)
     assert _is_json_array(workspace_delta["changed"]) is True
     assert _is_json_array("smoke.txt") is False
+
+
+def test_memory_record_digest_ignores_only_refresh_timestamps() -> None:
+    first = MemoryRecord(
+        run_id="run-1",
+        task_id="task-1",
+        layer=MemoryLayer.SEMANTIC,
+        source_type="checkpoint",
+        source_id="goal",
+        memory_id="memory-goal",
+        summary="stable goal",
+        content={"goal": "finish"},
+        created_at="2026-08-08T01:00:00Z",
+        updated_at="2026-08-08T01:00:00Z",
+    )
+    refreshed = replace(
+        first,
+        created_at="2026-08-08T02:00:00Z",
+        updated_at="2026-08-08T02:00:00Z",
+    )
+    changed = replace(
+        refreshed,
+        summary="changed goal",
+    )
+
+    assert _canonical_memory_record_digest(first) == _canonical_memory_record_digest(
+        refreshed
+    )
+    assert _canonical_memory_record_digest(first) != _canonical_memory_record_digest(
+        changed
+    )

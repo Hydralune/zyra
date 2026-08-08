@@ -28,14 +28,20 @@ def _physical_permission_session_id(
 ) -> str:
     """Name the permission session one physical operator attempt owns.
 
-    Absent a recovery pass this is the historical id, so an ordinary dispatch
-    keeps its exact session identity.
+    Absent a recovery continuation and recovery pass this is the historical
+    id, so an ordinary dispatch keeps its exact session identity.
     """
 
     base = (
         f"physical:{task_id}:layer:{layer_index}:"
         f"{str(payload.get('operator_ref') or '')}"
     )
+    recovery_plan_id = str(payload.get("recovery_plan_id") or "")
+    if recovery_plan_id:
+        recovery_plan_digest = hashlib.sha256(
+            recovery_plan_id.encode("utf-8")
+        ).hexdigest()[:16]
+        base = f"{base}:continuation:{recovery_plan_digest}"
     recovery_pass = int(payload.get("physical_recovery_pass") or 0)
     if not recovery_pass:
         return base

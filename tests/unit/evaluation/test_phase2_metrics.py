@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from zyra_evaluation.policy_benchmark import (
+    ADAPTIVE_DEPTH_RECEIPTS,
     COMMUNICATION_RECEIPTS,
     FIRST_STAGE_METRIC_COMPATIBILITY,
     PHASE2_METRIC_SPECS,
@@ -198,6 +199,51 @@ def test_duplicate_import_is_idempotent_but_conflicting_identity_fails() -> None
     )
     with pytest.raises(Phase2MetricError, match="inconsistent canonical digests"):
         engine.evaluate_run(value)
+
+
+def test_adaptive_depth_snapshots_are_identified_by_terminal_decision() -> None:
+    def receipt(decision_ref: str, executed_depth: int) -> dict[str, object]:
+        body: dict[str, object] = {
+            "schema_version": "zyra.adaptive-depth-cost-receipt/v1",
+            "proposal_id": "proposal-shared",
+            "proposal_digest": "1" * 64,
+            "decision_ref": decision_ref,
+            "proposed_depth": 2,
+            "executed_depth": executed_depth,
+            "proposed_operator_count": 2,
+            "executed_operator_count": executed_depth,
+            "avoided_operator_refs": [],
+            "actual_tokens": executed_depth * 10,
+            "estimated_avoided_tokens": (2 - executed_depth) * 10,
+            "actual_cost_usd": executed_depth * 0.01,
+            "estimated_avoided_cost_usd": (2 - executed_depth) * 0.01,
+            "actual_latency_ms": executed_depth * 100,
+            "task_completed": executed_depth == 2,
+            "verifier_passed": executed_depth == 2,
+            "artifact_complete": executed_depth == 2,
+        }
+        return {**body, "digest": canonical_digest(body)}
+
+    value = RunMetricInput(
+        run_id="run-depth",
+        task_id="task-depth",
+        scenario_id="scenario-depth",
+        mechanism_profile="phase2_strongest_v1",
+        receipt_resolver=InMemoryCanonicalReceiptResolver(
+            {
+                ADAPTIVE_DEPTH_RECEIPTS: (
+                    receipt("decision-after-layer-1", 1),
+                    receipt("decision-after-layer-2", 2),
+                )
+            }
+        ),
+        task_succeeded=True,
+        effective_transition_count=0,
+    )
+
+    result = Phase2MetricEngine().evaluate_run(value)
+
+    assert result.metrics["operator.executed_depth"].value == 1.5
 
 
 def test_inconsistent_supplied_digest_fails_closed() -> None:

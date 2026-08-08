@@ -14,7 +14,7 @@ for package_path in [
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from zyra_core import EventRecord, EventType, create_task_state
+from zyra_core import EventRecord, EventType, PlanNode, create_task_state
 from zyra_orchestration.topology_policy.contracts import canonical_digest
 from zyra_scheduler import (
     RecoveryPlanner,
@@ -145,9 +145,19 @@ class SchedulerTests(unittest.TestCase):
             "candidates": [candidate],
         }
         operator_input["candidate_set_digest"] = canonical_digest(operator_input)
+        node = PlanNode(
+            title="Execute",
+            description="Return the requested direct response.",
+            metadata={
+                "provider_credential_version": "7",
+                "provider_credential_fingerprint": "fingerprint-ref",
+                "endpoint": "http://127.0.0.1:8311",
+            },
+        )
 
         decision = scheduler.decide(
             state,
+            node=node,
             cause_event={
                 "payload": {
                     "resource_decision": {
@@ -166,6 +176,69 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(
             decision.metadata["operator_placement"]["route_mode"],
             "operator_constrained",
+        )
+
+        later_candidate = {
+            **candidate,
+            "operator_id": "worker:memory-worker",
+            "operator_ref": "worker:memory-worker@1",
+            "profile_digest": "e" * 64,
+            "layer_index": 2,
+            "allowed_locations": ["local"],
+            "capabilities": ["agent_task", "memory-refresh"],
+            "source_ref": "memory-worker",
+            "estimated_latency_ms": 5,
+            "proposal_score": 9_000.0,
+        }
+        layered_input = {
+            **operator_input,
+            "proposal_id": "proposal-layered-provider-first",
+            "expected_depth": 2,
+            "candidates": [candidate, later_candidate],
+        }
+        layered_input.pop("candidate_set_digest", None)
+        layered_input["candidate_set_digest"] = canonical_digest(layered_input)
+
+        layered_decision = scheduler.decide(
+            state,
+            operator_input=layered_input,
+        )
+
+        self.assertEqual(layered_decision.selected_manifest_id, "code-worker")
+        self.assertEqual(
+            layered_decision.metadata["operator_placement"][
+                "selected_operator_refs"
+            ][0],
+            "worker:code-worker@1",
+        )
+
+        same_layer_candidate = {
+            **later_candidate,
+            "layer_index": 1,
+            "layer_rank": 2,
+        }
+        same_layer_input = {
+            **operator_input,
+            "proposal_id": "proposal-same-layer-provider-first",
+            "expected_breadth": 2,
+            "candidates": [candidate, same_layer_candidate],
+        }
+        same_layer_input.pop("candidate_set_digest", None)
+        same_layer_input["candidate_set_digest"] = canonical_digest(
+            same_layer_input
+        )
+
+        same_layer_decision = scheduler.decide(
+            state,
+            operator_input=same_layer_input,
+        )
+
+        self.assertEqual(same_layer_decision.selected_manifest_id, "code-worker")
+        self.assertEqual(
+            same_layer_decision.metadata["operator_placement"][
+                "selected_operator_refs"
+            ][0],
+            "worker:code-worker@1",
         )
 
 

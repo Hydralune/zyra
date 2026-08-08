@@ -22,12 +22,12 @@ async function run() {
 
   const createKey = "embedded-create-transport-contract"
   const firstCreate = await api.lifecycle.create({
-    goal: "Verify the typed M2 transport against the real Zyra task store.",
+    goal: "Reply with exactly 'typed transport verified'. Do not use tools.",
     autoRun: false,
     idempotencyKey: createKey,
   })
   const replayCreate = await api.lifecycle.create({
-    goal: "Verify the typed M2 transport against the real Zyra task store.",
+    goal: "Reply with exactly 'typed transport verified'. Do not use tools.",
     autoRun: false,
     idempotencyKey: createKey,
   })

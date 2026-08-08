@@ -118,6 +118,24 @@ class ResourceScheduler:
                         ],
                     )
                 )
+        operator_placement_diagnostics = [
+            {
+                "manifest_id": item.manifest.worker_id,
+                "score": round(item.score, 6),
+                "reasons": list(item.reasons),
+                "selected_operator_refs": list(
+                    (operator_plans.get(item.manifest.worker_id) or {}).get(
+                        "selected_operator_refs", ()
+                    )
+                ),
+                "rejected_candidates": list(
+                    (operator_plans.get(item.manifest.worker_id) or {}).get(
+                        "rejected_candidates", ()
+                    )
+                ),
+            }
+            for item in scored
+        ]
         viable = [item for item in scored if item.score > -100]
         degraded_operator_route = False
         if (
@@ -222,6 +240,11 @@ class ResourceScheduler:
                     else "phase1_scheduler_input"
                 ),
                 "operator_placement": selected_operator_plan,
+                "operator_placement_diagnostics": (
+                    operator_placement_diagnostics
+                    if operator_constrained
+                    else []
+                ),
                 "placement_owner": "ResourceScheduler",
                 "lease_owner": "WorkerPoolFoundationRuntime",
             },
@@ -499,7 +522,25 @@ class ResourceScheduler:
             for item in contract.get("allowed_permissions") or ()
         }
         candidates = contract.get("candidates")
-        for raw in candidates if isinstance(candidates, list) else []:
+        candidate_rows = (
+            [item for item in candidates if isinstance(item, Mapping)]
+            if isinstance(candidates, list)
+            else []
+        )
+        frontier_candidate = min(
+            candidate_rows,
+            key=lambda item: (
+                int(item.get("layer_index") or 0),
+                int(item.get("layer_rank") or 0),
+                -float(item.get("proposal_score") or 0),
+                str(item.get("operator_ref") or ""),
+            ),
+            default=None,
+        )
+        frontier_ref = str(
+            (frontier_candidate or {}).get("operator_ref") or ""
+        )
+        for raw in candidate_rows:
             if not isinstance(raw, Mapping):
                 continue
             candidate = dict(raw)
@@ -519,6 +560,22 @@ class ResourceScheduler:
                 )
             else:
                 accepted.append(candidate)
+        if accepted and frontier_ref and not any(
+            str(item.get("operator_ref") or "") == frontier_ref
+            for item in accepted
+        ):
+            rejected.extend(
+                {
+                    "operator_ref": str(item.get("operator_ref") or ""),
+                    "manifest_id": manifest.worker_id,
+                    "reasons": [
+                        "placement cannot execute the earliest remaining "
+                        "operator in the serialized MaAS prefix"
+                    ],
+                }
+                for item in accepted
+            )
+            accepted = []
         accepted.sort(
             key=lambda item: (
                 int(item.get("layer_index") or 0),
@@ -816,7 +873,14 @@ def _task_text(
     if isinstance(hints, Mapping):
         parts.append(str(hints))
     if node is not None:
-        parts.extend([node.title, node.description, node.summary, str(node.metadata)])
+        # Node metadata is a runtime projection: after the first route it can
+        # contain provider credential *references*, endpoints, placement
+        # receipts, and backend identities.  Those are not user intent.  In
+        # particular, classifying the literal key ``provider_credential_*`` as
+        # sensitive makes every subsequent provider-backed pass reject its own
+        # cloud worker.  Required tools and failure/placement history are
+        # consumed through their typed fields elsewhere.
+        parts.extend([node.title, node.description, node.summary])
     if cause_event is not None:
         # Resource/topology events contain infrastructure fields such as
         # provider endpoints and credential *metadata*.  Treating the whole

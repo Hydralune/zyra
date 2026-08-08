@@ -26,6 +26,7 @@ export const INLINE_PAYLOAD_LIMIT_BYTES = 4 * 1024;
 export const ENVELOPE_LIMIT_BYTES = 8 * 1024;
 export const SUMMARY_LIMIT_BYTES = 1024;
 export const ARTIFACT_REF_LIMIT = 64;
+const TASK_CREATED_SOURCE_INLINE_TARGET_BYTES = 2 * 1024;
 
 export interface PayloadPolicyOptions {
   inlineLimitBytes?: number;
@@ -270,7 +271,10 @@ export class LowEntropyPayloadPolicy {
     // recursive selector can manufacture dozens of leaf artifacts.  The
     // canonical draft.inline fields are merged back below, so routing and
     // projection retain their required low-entropy facts.
-    const selectedInline = sourceBytes > this.inlineLimitBytes && isPlainObject(source)
+    const sourceInlineTarget = draft.eventType === "runtime.task.created"
+      ? Math.min(this.inlineLimitBytes, TASK_CREATED_SOURCE_INLINE_TARGET_BYTES)
+      : this.inlineLimitBytes;
+    const selectedInline = sourceBytes > sourceInlineTarget && isPlainObject(source)
       ? this.pointerPlaceholder(
           this.writeArtifact(context, "source-payload", source, "application/json", ".json", "root_budget_spill"),
           "large_root_payload",

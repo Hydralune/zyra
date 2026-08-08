@@ -18,6 +18,11 @@ import {
 } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { ZyraApiClient } from "./client.ts"
 
+// Governed physical task execution may traverse several provider layers.
+// Keep the ordinary client timeout for control/read operations, but give
+// lifecycle calls enough time to honor the production execution budget.
+const LONG_RUNNING_TASK_TIMEOUT_MS = 11 * 60_000
+
 export interface ListTaskOptions {
   cursor?: string
   limit?: number
@@ -1575,7 +1580,7 @@ export class TaskApi {
       binding,
       idempotencyKey,
       signal: input.signal,
-      timeoutMs: input.timeoutMs,
+      timeoutMs: input.timeoutMs ?? (body.auto_run ? LONG_RUNNING_TASK_TIMEOUT_MS : undefined),
       coordinationKey: `task.create:${idempotencyKey}`,
       deduplicate: true,
     })
@@ -1634,7 +1639,7 @@ export class TaskApi {
       binding,
       idempotencyKey,
       signal: input.signal,
-      timeoutMs: input.timeoutMs,
+      timeoutMs: input.timeoutMs ?? LONG_RUNNING_TASK_TIMEOUT_MS,
       coordinationKey: `task.resume:${taskId}:${idempotencyKey}`,
       deduplicate: true,
     })

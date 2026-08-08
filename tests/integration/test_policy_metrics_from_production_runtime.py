@@ -28,7 +28,9 @@ from zyra_memory import MemoryLayer, MemoryRecord
 
 def _production_run():
     state, created = api.make_task_created_event(
-        "Implement a code artifact through the strongest production path."
+        "Create policy-metrics-artifact.txt containing exactly one line: "
+        "PHASE2_POLICY_METRICS_OK. Use only file_write and file_read; do not "
+        "run shell commands or browse."
     )
     obligations = tuple(
         sorted(
@@ -91,7 +93,16 @@ def _production_run():
         execution_context=api.graph_execution_context(),
     )
     api.persist_events(api.get_store(), list(events))
-    assert state.status is PlanNodeStatus.COMPLETED
+    assert state.status is PlanNodeStatus.COMPLETED, json.dumps(
+        [
+            dict(event.payload)
+            for event in events
+            if event.event_type is EventType.SYSTEM_NOTICE
+            and event.payload.get("error_metadata")
+        ],
+        default=str,
+        sort_keys=True,
+    )
     readiness = json.loads(
         (
             api.PROJECT_ROOT

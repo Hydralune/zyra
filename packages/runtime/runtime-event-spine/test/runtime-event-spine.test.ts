@@ -198,6 +198,26 @@ test("low entropy policy removes inline transcript and enforces byte budgets", (
   });
 });
 
+test("task creation keeps enough envelope headroom by spilling a composite source payload", () => {
+  withSpine((spine) => {
+    const receipt = spine.appendLegacy({
+      event_id: "evt-task-created-headroom",
+      run_id: "run-headroom",
+      task_id: "task-headroom",
+      node_id: "root",
+      event_type: "task_created",
+      created_at: "2026-08-09T00:00:00.000Z",
+      payload: Object.fromEntries(
+        Array.from({ length: 10 }, (_, index) => [`field_${index}`, "x".repeat(220)]),
+      ),
+    }, { route: false });
+
+    assert.ok(receipt.event.artifactRefs.length >= 1);
+    assert.ok(byteLength(receipt.event) <= 4 * 1024);
+    assert.equal(receipt.event.inline.legacy_event_type, "task_created");
+  }, { builtIns: false });
+});
+
 test("targeted delivery never exposes body to a non-target subscriber", () => {
   withSpine((spine) => {
     spine.registerSubscription(subscription("sub-a", "worker-a"));

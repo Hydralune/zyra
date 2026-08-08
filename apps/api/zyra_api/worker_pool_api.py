@@ -412,6 +412,28 @@ class WorkerPoolApiService:
         )
         node_ids = set(state.plan_nodes)
         default_worker = self.pool.store.get_worker("local-code-worker")
+        if default_worker is None or not default_worker.accepting_leases:
+            # Strongest auto-run tasks do not create the provisional local
+            # CodeWorker generation.  At this point the production composition
+            # root has already reconciled its physical workers, so bind the
+            # precompiled logical graph to a truthful registered identity.
+            # Keep the historical local worker preference for non-auto tasks.
+            candidates = tuple(
+                sorted(
+                    (
+                        item
+                        for item in self.pool.store.list_workers()
+                        if item.accepting_leases
+                        and self.pool.store.latest_manifest(item.worker_id)
+                        is not None
+                    ),
+                    key=lambda item: (
+                        item.worker_id != "provider-code-worker",
+                        item.worker_id,
+                    ),
+                )
+            )
+            default_worker = candidates[0] if candidates else None
         default_manifest = (
             self.pool.store.latest_manifest(default_worker.worker_id)
             if default_worker is not None
@@ -562,12 +584,14 @@ class WorkerPoolApiService:
                 ),
                 state.root_node_id,
             )
-            bound = self.topology.bind_physical_attempt(
+            bound = self._bind_task_graph_acquisition(
                 graph_id_value,
                 execute_node_id,
                 physical_attempt_ref=acquisition.attempt.attempt_id,
                 worker_lease_ref=acquisition.lease.lease_id,
                 backend_route_ref=acquisition.lease.backend_id,
+                worker_id=acquisition.worker.worker_id,
+                worker_manifest_digest=acquisition.manifest.digest,
                 actor_id="worker-pool-api",
                 causation_id=acquisition.lease.lease_id,
             )
@@ -633,6 +657,76 @@ class WorkerPoolApiService:
                     ) from error
             raise
         return acquisition
+
+    def _bind_task_graph_acquisition(
+        self,
+        graph_id_value: str,
+        execute_node_id: str,
+        *,
+        physical_attempt_ref: str,
+        worker_lease_ref: str,
+        backend_route_ref: str,
+        worker_id: str,
+        worker_manifest_digest: str,
+        actor_id: str,
+        causation_id: str,
+    ):
+        """Atomically move logical graph custody onto the acquired worker.
+
+        ARG consumes the worker identity stored on every precompiled logical
+        node, while physical execution consumes the lease bound to the execute
+        node.  Updating only the latter left recovery successors paired with
+        stale predecessor identities and production correctly failed closed.
+        """
+
+        snapshot = self.graph_custody.current(graph_id_value)
+        execute_node = snapshot.node_map.get(execute_node_id)
+        if execute_node is None:
+            raise KeyError(execute_node_id)
+        builder = GraphDeltaBuilder(
+            snapshot,
+            branch_id="worker-acquisition-binding",
+            actor_id=actor_id,
+            causation_id=causation_id,
+            idempotency_key=(
+                f"worker-acquisition:{physical_attempt_ref}:"
+                f"{worker_lease_ref}"
+            ),
+        )
+        binding_id = (
+            f"worker:{worker_id}:{worker_manifest_digest[:16]}"
+        )
+        for node in snapshot.nodes:
+            if node.metadata.get("plan_node_projection") is not True:
+                continue
+            metadata = {
+                **dict(node.metadata),
+                "worker_id": worker_id,
+                "arg_binding_id": binding_id,
+                "worker_manifest_digest": worker_manifest_digest,
+            }
+            changes: dict[str, Any] = {"metadata": metadata}
+            if node.node_id == execute_node_id:
+                changes.update(
+                    {
+                        "physical_attempt_ref": physical_attempt_ref,
+                        "worker_lease_ref": worker_lease_ref,
+                        "backend_route_ref": backend_route_ref,
+                        "state": NodeExecutionState.LEASED,
+                    }
+                )
+                metadata.update(
+                    {
+                        "physical_attempt_owner": "WorkerLeaseManager",
+                        "lease_reference_only": True,
+                    }
+                )
+            builder.read_node(node.node_id)
+            builder.replace_node(
+                node.revise(**changes),
+                expected_revision=node.revision,
+            )
+        return self.graph_custody.commit(builder.build())
 
     def cancel_task_graph_binding(
         self,
@@ -971,12 +1065,19 @@ class WorkerPoolApiService:
                     "signature": snapshot.signature,
                 }
             else:
-                rebound = self.topology.bind_physical_attempt(
+                manifest = self.pool.store.latest_manifest(worker.worker_id)
+                if manifest is None:
+                    raise RuntimeError(
+                        "recovered worker acquisition manifest is unavailable"
+                    )
+                rebound = self._bind_task_graph_acquisition(
                     graph_id_value,
                     execute_node_id,
                     physical_attempt_ref=attempt.attempt_id,
                     worker_lease_ref=lease.lease_id,
                     backend_route_ref=lease.backend_id,
+                    worker_id=worker.worker_id,
+                    worker_manifest_digest=manifest.digest,
                     actor_id="worker-pool-api",
                     causation_id=lease.lease_id,
                 )

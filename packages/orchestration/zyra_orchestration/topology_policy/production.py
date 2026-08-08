@@ -91,6 +91,22 @@ _CANDIDATE_ABSENT_NOT_COMMITTED = "topology_strongest_not_committed"
 _CANDIDATE_ABSENT_NO_PROPOSAL = "operator_policy_selected_no_proposal"
 
 
+def _canonical_memory_record_digest(record: Any) -> str:
+    """Digest the durable logical record, excluding refresh-local timestamps.
+
+    MemoryFabric deliberately reuses stable ids for goal, artifact, and event
+    facts.  A concurrent refresh may therefore replace only ``created_at`` and
+    ``updated_at`` between the owner commit and its read-back.  Those object
+    construction timestamps are not part of the logical fact and must not turn
+    an otherwise identical canonical record into a false custody violation.
+    """
+
+    payload = dict(to_jsonable(record))
+    payload.pop("created_at", None)
+    payload.pop("updated_at", None)
+    return canonical_digest(payload)
+
+
 class Phase2ProductionPolicyError(RuntimeError):
     """The active strongest profile cannot be composed from canonical owners."""
 
@@ -600,24 +616,30 @@ class Phase2StrongestProductionBridge:
                 for item in recovery_worker_route.get("avoided_worker_ids") or ()
                 if str(item)
             }
+            executable_manifests = tuple(
+                item
+                for item in executable_manifests
+                if item.worker_id not in avoided_worker_ids
+            )
             if preferred_worker_id:
-                executable_manifests = tuple(
-                    item
-                    for item in executable_manifests
-                    if item.worker_id == preferred_worker_id
-                    and item.worker_id not in avoided_worker_ids
+                preferred_manifest_present = bool(
+                    preferred_worker_id in physical_worker_ids
+                    and preferred_worker_id not in avoided_worker_ids
+                    and self.worker_pool_api.pool.store.latest_manifest(
+                        preferred_worker_id
+                    )
+                    is not None
                 )
-                if not executable_manifests:
+                if not preferred_manifest_present:
                     raise Phase2ProductionPolicyError(
                         "canonical recovery worker route has no registered "
                         f"physical manifest: {preferred_worker_id}"
                     )
-            elif avoided_worker_ids:
-                executable_manifests = tuple(
-                    item
-                    for item in executable_manifests
-                    if item.worker_id not in avoided_worker_ids
-                )
+                # A recovery alias proves successor availability and fences
+                # prior boundaries, but only explicit Phase 2 production
+                # workers may enter the executable MaAS catalog.  The resource
+                # scheduler will supersede this recovery lease with the exact
+                # operator placement chosen for the current layer.
         if not executable_manifests:
             raise Phase2ProductionPolicyError(
                 "no ResourceScheduler manifest is backed by a registered physical worker"
@@ -957,7 +979,39 @@ class Phase2StrongestProductionBridge:
             placement = decision.metadata.get("operator_placement") or {}
             if not consumed or placement.get("route_mode") == "degraded_baseline":
                 raise Phase2ProductionPolicyError(
-                    "ResourceScheduler did not consume an executable MaAS candidate set"
+                    "ResourceScheduler did not consume an executable MaAS "
+                    "candidate set: "
+                    + json.dumps(
+                        {
+                            "consumed": consumed,
+                            "selected_manifest_id": decision.selected_manifest_id,
+                            "route_mode": placement.get("route_mode"),
+                            "candidate_refs": [
+                                {
+                                    "operator_ref": item.get("operator_ref"),
+                                    "layer_index": item.get("layer_index"),
+                                }
+                                for item in (candidate_set or {}).get(
+                                    "candidates", ()
+                                )
+                                if isinstance(item, Mapping)
+                            ],
+                            "selected_operator_refs": list(
+                                placement.get("selected_operator_refs") or ()
+                            ),
+                            "rejected_candidates": list(
+                                placement.get("rejected_candidates") or ()
+                            ),
+                            "placement_diagnostics": list(
+                                decision.metadata.get(
+                                    "operator_placement_diagnostics"
+                                )
+                                or ()
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )[:4096]
                 )
         previous = dict(state.metadata.get("worker_pool") or {})
         previous_lease_id = str(previous.get("lease_id") or "")
@@ -1676,7 +1730,10 @@ class Phase2StrongestProductionBridge:
             # operator, all of which repeat on a replan.  The custody token for
             # a session is only returned inside the dispatch response, so a node
             # lost mid-dispatch leaves a record nobody can ever re-attach to.
-            # Carrying the recovery pass lets the retry own a fresh session.
+            # A distinct recovery plan may repeat with pass zero, while a
+            # within-plan retry increments the pass.  Carry both identities so
+            # every continuation owns a fresh permission session.
+            "recovery_plan_id": recovery_plan_id,
             "physical_recovery_pass": physical_recovery_pass,
             "operator_adapter_enabled": str(
                 os.environ.get("ZYRA_DISABLE_PHASE2_OPERATOR_ADAPTER") or ""
@@ -2441,12 +2498,12 @@ class Phase2StrongestProductionBridge:
                     self.memory_fabric.canonical_task_records(state.task_id)
                 )
                 snapshot_by_id = {
-                    str(item.memory_id): canonical_digest(to_jsonable(item))
+                    str(item.memory_id): _canonical_memory_record_digest(item)
                     for item in memory_snapshot.records
                     if str(item.memory_id)
                 }
                 after_by_id = {
-                    str(item.memory_id): canonical_digest(to_jsonable(item))
+                    str(item.memory_id): _canonical_memory_record_digest(item)
                     for item in after_records
                     if str(item.memory_id)
                 }
@@ -2483,7 +2540,7 @@ class Phase2StrongestProductionBridge:
                         sorted(
                             (
                                 str(item.memory_id),
-                                canonical_digest(to_jsonable(item)),
+                                _canonical_memory_record_digest(item),
                             )
                             for item in before_records
                             if str(item.memory_id)

@@ -1101,7 +1101,26 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                     "recovery successor must cross a physical failure boundary"
                 )
             runtime_hints = dict(state.metadata.get("runtime_hints") or {})
-            runtime_hints["preferred_worker"] = worker.worker_id
+            worker_manifest = worker_api.pool.store.latest_manifest(
+                worker.worker_id
+            )
+            delivery_contract = dict(
+                state.metadata.get("delivery_contract") or {}
+            )
+            provider_capable = bool(
+                worker_manifest is not None
+                and "provider-reasoning" in worker_manifest.capabilities
+            )
+            if (
+                delivery_contract.get("provider_reasoning_required") is not True
+                or provider_capable
+            ):
+                runtime_hints["preferred_worker"] = worker.worker_id
+            else:
+                # The successor lease still crosses and fences the failed
+                # physical boundary, but it cannot override the provider-first
+                # MaAS candidate contract for the continuation.
+                runtime_hints.pop("preferred_worker", None)
             runtime_hints["avoid_workers"] = sorted(excluded)
             state.metadata["runtime_hints"] = runtime_hints
             route_value = {
@@ -1203,6 +1222,17 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
                 and candidate.worker_id not in excluded
             }
         )
+        preferred_successor_ids = tuple(
+            sorted(
+                candidate.worker_id
+                for candidate in worker_api.pool.store.list_workers()
+                if prior_worker is not None
+                and candidate.accepting_leases
+                and candidate.worker_id not in excluded
+                and candidate.endpoint == prior_worker.endpoint
+                and not same_failure_boundary(prior_worker, candidate)
+            )
+        )
         if not successor_locations:
             raise RuntimeError(
                 "recovery successor has no distinct physical failure boundary"
@@ -1212,10 +1242,17 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
             payload={
                 "excluded_worker_ids": sorted(excluded),
                 "required_capabilities": list(
-                    (request.get("constraints") or {}).get("worker", {}).get("required_capabilities")
+                    (request.get("constraints") or {}).get("worker", {}).get(
+                        "required_capabilities"
+                    )
                     or ("agent_task",)
                 ),
                 "locations": successor_locations,
+                # A managed deployment keeps its endpoint stable across a
+                # process-generation restart.  Prefer the newly attested
+                # generation at that endpoint before falling back to another
+                # healthy failure boundary.
+                "preferred_worker_ids": list(preferred_successor_ids),
                 "idempotency_key": idempotency_key,
                 "ttl_seconds": 3600.0,
             },
@@ -1989,6 +2026,31 @@ def _recovery_execution_projection(state: Any) -> dict[str, Any]:
     return {
         "status": str(state.status),
         "artifact_count": len(state.artifacts),
+        "executed_operator_refs": list(
+            state.metadata.get("phase2_executed_operator_refs") or ()
+        ),
+        "operator_execution_layers": [
+            {
+                key: item.get(key)
+                for key in (
+                    "layer_index",
+                    "operator_ref",
+                    "resource_decision_id",
+                    "worker_id",
+                    "domain_result_kind",
+                    "output_contract_fulfilled",
+                )
+            }
+            for item in state.metadata.get(
+                "phase2_operator_execution_layers"
+            )
+            or ()
+            if isinstance(item, Mapping)
+        ],
+        "runtime_hints": dict(state.metadata.get("runtime_hints") or {}),
+        "recovery_worker_route": dict(
+            state.metadata.get("recovery_worker_route") or {}
+        ),
         "execute_node_id": str(getattr(execute, "node_id", "")),
         "execute_status": str(getattr(execute, "status", "")),
         "assigned_worker_id": str(getattr(execute, "assigned_worker_id", "") or ""),
@@ -2105,18 +2167,15 @@ def _recovery_continuation_owners(
                     action,
                     plan_id=str(request.get("plan_id") or ""),
                 )
-                request_metadata = (
-                    dict(request.get("metadata") or {})
-                    if isinstance(request.get("metadata"), Mapping)
-                    else {}
-                )
-                recovery_session_id = str(
-                    request_metadata.get("session_id")
-                    or (state.metadata.get("runtime_hints") or {}).get("session_id")
-                    or (
-                        f"query:{run_id}:{task_id}:recovery:"
-                        f"{str(request.get('plan_id') or request_digest[:24])}"
-                    )
+                # A continuation may reopen a completed task whose prior
+                # QueryEngine session still exists.  Reusing either the signal
+                # session or ``runtime_hints.session_id`` without its private
+                # custody token is an ownership violation.  Give every plan a
+                # deterministic fresh session instead; idempotent replay of
+                # the same plan retains the same fenced identity.
+                recovery_session_id = (
+                    f"query:{run_id}:{task_id}:recovery:"
+                    f"{str(request.get('plan_id') or request_digest[:24])}"
                 )
                 runtime_hints = dict(state.metadata.get("runtime_hints") or {})
                 runtime_hints["session_id"] = recovery_session_id
@@ -2142,6 +2201,7 @@ def _recovery_continuation_owners(
                 pool_journal = pool_api.pool.store.journal(limit=10000)
                 pool_sequence = pool_journal[-1].sequence if pool_journal else 0
                 events: list[EventRecord] = []
+                execution_events: tuple[EventRecord, ...] = ()
                 try:
                     _fence_pending_task_reservation(
                         pool_api,
@@ -2152,6 +2212,7 @@ def _recovery_continuation_owners(
                         ),
                     )
                     events = run_task_graph(state, execution_context=graph_execution_context())
+                    execution_events = tuple(events)
                     pool_api.finalize_task(
                         state,
                         success=state.status == PlanNodeStatus.COMPLETED,
@@ -2256,6 +2317,11 @@ def _recovery_continuation_owners(
                 except Exception as error:
                     failed_state = store.load_task(task_id) or state
                     failed_fences = dict(failed_state.metadata.get("recovery_continuation_fences") or {})
+                    # Pool journal projections are appended after graph events
+                    # and can otherwise displace the physical failure from a
+                    # bounded diagnostic tail.  Prefer the canonical graph
+                    # execution slice whenever it was returned.
+                    diagnostic_events = execution_events or tuple(events)
                     event_tail = [
                         {
                             "event_id": event.event_id,
@@ -2266,7 +2332,7 @@ def _recovery_continuation_owners(
                             "error": str(event.payload.get("error") or ""),
                             "message": str(event.payload.get("message") or "")[:300],
                         }
-                        for event in events[-12:]
+                        for event in diagnostic_events[-12:]
                     ]
                     failure_projection = _recovery_execution_projection(state)
                     failed_fences[idempotency_key] = {
@@ -10978,15 +11044,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             pool_journal = pool_api.pool.store.journal(limit=10000)
             pool_sequence = pool_journal[-1].sequence if pool_journal else 0
             try:
-                if auto_run:
-                    # The strongest production route registers the truthful
-                    # deployment-node identities and acquires its execution
-                    # lease only after permission and resource decisions.  Do
-                    # not create a provisional API-process CodeWorker record:
-                    # it would immediately become a stale generation when the
-                    # cloud CodeWorker is reconciled below.
-                    pool_api.ensure_task_graph(state)
-                else:
+                if not auto_run:
                     pool_api.acquire_for_task(
                         state,
                         payload=(
@@ -10995,6 +11053,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             else {}
                         ),
                     )
+                # Auto-run graph custody is intentionally deferred to
+                # Phase2StrongestProductionBridge.  graph_execution_context()
+                # first reconciles the truthful deployment-node identities;
+                # materializing the graph here would leave its precompiled
+                # nodes without a worker binding and CARD would correctly
+                # reject those unowned ARG predecessors.
             except Exception as error:
                 failure_event = _task_execution_failed_event(state, error)
                 events.append(failure_event)

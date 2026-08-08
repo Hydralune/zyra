@@ -1237,7 +1237,12 @@ def _subagent_recovery_scenario() -> ScenarioDefinition:
         kind=ScenarioKind.SUBAGENT_RECOVERY,
         summary="Subagent/background work acquires a physical lease and failure causes recovery reroute.",
         requests=(
-            _create_request("Run a background subagent, lose its worker and recover through a different route."),
+            # The scenario measures physical fanout, worker loss and recovery
+            # rerouting.  Its recovery continuation now executes the real
+            # production graph, so keep the parent goal deterministic and
+            # tool-free; otherwise provider-selected shell/browser work turns
+            # this recovery contract into an unrelated permission test.
+            _create_request("测试，收到请回复ok"),
             *_baseline_requests(),
             RequestSpec(
                 step_id="fanout-subagent",

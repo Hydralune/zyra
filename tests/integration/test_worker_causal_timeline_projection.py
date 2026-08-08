@@ -153,7 +153,12 @@ def test_real_m1_worker_fault_and_recovery_drive_causal_timeline(
         ensure_ascii=False,
         indent=2,
     )
-    assert projected["failureRows"][0]["workerId"] == "CodeWorkerRuntime"
+    failed_node = next(
+        event.payload["node"]
+        for event in selected
+        if event.event_type == EventType.NODE_FAILED
+    )
+    assert projected["failureRows"][0]["workerId"] == failed_node["assigned_worker_id"]
     assert projected["recoveryRows"]
     assert projected["recoveryRows"][0]["recoveryId"]
     assert projected["recoveryRows"][0]["failureId"]

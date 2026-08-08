@@ -338,17 +338,29 @@ def _receipt_digest(document: Mapping[str, Any]) -> str:
 def _identity(kind: str, document: Mapping[str, Any]) -> str:
     payload = _payload(document)
     header = _header(document)
-    candidates = (
-        header.get("idempotency_key"),
-        payload.get("observation_id"),
-        payload.get("proposal_id"),
-        payload.get("decision_id"),
-        payload.get("placement_decision_id"),
-        payload.get("physical_attempt_id"),
-        payload.get("snapshot_id"),
-        payload.get("contract_id"),
-        document.get("report_digest"),
-    )
+    # One adaptive-depth proposal is evaluated after each executed layer.  The
+    # cost snapshot therefore evolves while the proposal id remains constant;
+    # the terminal early-exit decision is the canonical identity of each
+    # snapshot.  Treating proposal_id as the receipt identity incorrectly
+    # reports those legitimate successive observations as an idempotency
+    # conflict.
+    if kind == ADAPTIVE_DEPTH_RECEIPTS:
+        candidates = (
+            payload.get("decision_ref"),
+            payload.get("proposal_id"),
+        )
+    else:
+        candidates = (
+            header.get("idempotency_key"),
+            payload.get("observation_id"),
+            payload.get("proposal_id"),
+            payload.get("decision_id"),
+            payload.get("placement_decision_id"),
+            payload.get("physical_attempt_id"),
+            payload.get("snapshot_id"),
+            payload.get("contract_id"),
+            document.get("report_digest"),
+        )
     selected = next((str(item) for item in candidates if str(item or "").strip()), "")
     return f"{kind}:{selected or _receipt_digest(document)}"
 

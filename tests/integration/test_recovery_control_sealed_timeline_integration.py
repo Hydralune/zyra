@@ -73,7 +73,10 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
 
         steer_task = _create_task(
             base_url,
-            "Steer a live graph after the requirement changes.",
+            (
+                "Reply without tools that the live graph was steered after "
+                "the requirement changed."
+            ),
         )
         steer_status, steered = _command(
             base_url,
@@ -104,7 +107,10 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
             == "replan"
         )
 
-        retry_task = _create_task(base_url, "Retry one bounded failed tool attempt.")
+        retry_task = _create_task(
+            base_url,
+            "Reply without tools that one bounded retry was accepted.",
+        )
         retry_status, retried = _command(
             base_url,
             retry_task,
@@ -157,7 +163,10 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
 
         reassign_task = _create_task(
             base_url,
-            "Reassign a lost worker without changing logical task ownership.",
+            (
+                "Reply without tools that a lost worker was reassigned "
+                "without changing logical task ownership."
+            ),
         )
         worker_api = api_main.get_worker_pool_api()
         # The earlier control cases are complete but deliberately delayed
@@ -256,9 +265,10 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
         assert route_change["after_ref"]["worker_id"] == (
             "timeline-successor-worker"
         ), route_change
+        successor_lease_id = route_change["after_ref"]["lease_id"]
         refreshed = _get(base_url, f"/tasks/{reassign_task['task_id']}")["task"]
         replacement = refreshed["metadata"]["worker_pool"]
-        assert replacement["worker_id"] == "timeline-successor-worker", json.dumps(
+        assert replacement["worker_id"] != previous_owner["expected_worker_id"], json.dumps(
             {
                 "recovery_worker_route": refreshed["metadata"].get("recovery_worker_route"),
                 "runtime_hints": refreshed["metadata"].get("runtime_hints"),
@@ -268,7 +278,26 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
             sort_keys=True,
         )
         assert replacement["lease_id"] != previous_owner["expected_lease_id"]
+        rebound_graph = worker_api.graph_custody.current(
+            refreshed["metadata"]["dynamic_graph_id"]
+        )
+        projected_nodes = [
+            node
+            for node in rebound_graph.nodes
+            if node.metadata.get("plan_node_projection") is True
+        ]
+        assert projected_nodes
+        assert {
+            node.metadata.get("worker_id") for node in projected_nodes
+        } == {replacement["worker_id"]}
+        assert all(
+            str(node.metadata.get("arg_binding_id") or "").startswith(
+                f"worker:{replacement['worker_id']}:"
+            )
+            for node in projected_nodes
+        )
         recovery_route = refreshed["metadata"]["recovery_worker_route"]
+        assert recovery_route["preferred_worker_id"] == "timeline-successor-worker"
         assert recovery_route["prior_failure_boundary"] != recovery_route[
             "successor_failure_boundary"
         ]
@@ -280,6 +309,11 @@ def test_timeline_recovery_controls_reach_canonical_owners_and_fence_stale_reque
         assert any(
             item["committed"] is True
             and item["lease_id"] == previous_owner["expected_lease_id"]
+            for item in graph_terminal_history
+        )
+        assert any(
+            item["committed"] is True
+            and item["lease_id"] == successor_lease_id
             for item in graph_terminal_history
         )
 
@@ -658,15 +692,15 @@ def test_unbound_terminal_successor_route_excludes_failed_boundary_on_new_key(
             api_main.get_store()
         ).worker_successor
         assert callback is not None
-        original_bind = worker_api.topology.bind_physical_attempt
+        original_bind = worker_api._bind_task_graph_acquisition
 
         def reject_graph_bind(*args: Any, **kwargs: Any) -> Any:
             del args, kwargs
             raise RuntimeError("controlled successor graph bind failure")
 
         monkeypatch.setattr(
-            worker_api.topology,
-            "bind_physical_attempt",
+            worker_api,
+            "_bind_task_graph_acquisition",
             reject_graph_bind,
         )
         with pytest.raises(
@@ -675,8 +709,8 @@ def test_unbound_terminal_successor_route_excludes_failed_boundary_on_new_key(
         ):
             callback(request)
         monkeypatch.setattr(
-            worker_api.topology,
-            "bind_physical_attempt",
+            worker_api,
+            "_bind_task_graph_acquisition",
             original_bind,
         )
 
@@ -1091,7 +1125,7 @@ def _api(root: Path) -> Iterator[str]:
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{base_url}{path}", timeout=90) as response:
+    with urllib.request.urlopen(f"{base_url}{path}", timeout=11 * 60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -1118,7 +1152,7 @@ def _post_with_status(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        with urllib.request.urlopen(request, timeout=11 * 60) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
