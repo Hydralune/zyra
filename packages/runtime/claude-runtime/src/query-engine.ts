@@ -162,6 +162,11 @@ export class ClaudeRuntimeCore {
     let providerRoundIndex = 0;
     let activeIterationRoundId: string | null = null;
     let pendingRestoreProviderMessage: JsonObject | null = null;
+    // Restored workspace bytes are fenced as untrusted and stripped of secrets
+    // by the projector.  Count both so a trace can show the defense ran on this
+    // run rather than only that the code exists.
+    let restoreUntrustedAttachments = 0;
+    let restoreRedactedAttachments = 0;
     const mutationTargets = new Set<string>();
     let modelMetadata: Record<string, string> = {
       model_stream_ok: "false",
@@ -1193,6 +1198,9 @@ export class ClaudeRuntimeCore {
             appliedRestore.providerMessage,
             integratedPreparation?.providerMessage ?? null,
           );
+          const restoreSecurity = asObject(appliedRestore.providerMessage.metadata);
+          restoreUntrustedAttachments += Number(restoreSecurity.untrusted_attachment_count ?? 0);
+          restoreRedactedAttachments += Number(restoreSecurity.redacted_attachment_count ?? 0);
           if (integratedPreparation) {
             const integratedApplication = e01.skillMemory.integration.apply({
               preparationId: integratedPreparation.preparationId,
@@ -1420,6 +1428,8 @@ export class ClaudeRuntimeCore {
         ok: compactRestoreOk,
         restore_contract_id: restoreContractId,
         owner: "typescript",
+        untrusted_attachments_fenced: restoreUntrustedAttachments,
+        secret_redacted_attachments: restoreRedactedAttachments,
       },
     });
     await emit("compact_state_projection", {
@@ -1508,6 +1518,8 @@ export class ClaudeRuntimeCore {
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
         compact_state_projection_ok: String(codeworkerApiFoundationOk),
         compact_restore_contract_id: restoreContractId,
+        restore_untrusted_attachments: String(restoreUntrustedAttachments),
+        restore_redacted_attachments: String(restoreRedactedAttachments),
         tool_runtime_gate_failures: disabledComponents.length > 0
           ? disabledComponents.join(",")
           : "",

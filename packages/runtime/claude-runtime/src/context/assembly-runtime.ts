@@ -146,7 +146,13 @@ export class ContextAssemblyRuntime {
     const sectionId = input.sectionId?.trim() || randomUUID();
     if (this.sections.has(sectionId)) throw new Error(`context section already exists: ${sectionId}`);
     const sanitized = sanitizeContent(input.content, this.policy.redactPatterns);
-    const text = input.text || contentText(sanitized.value);
+    // ``text`` is the field every model-facing consumer reads, and callers
+    // supply their own formatted version of it.  Sanitizing only ``content``
+    // left the section reporting ``state: "redacted"`` while the secret
+    // survived verbatim in ``text``, which is worse than not redacting at all.
+    const sanitizedText = sanitizeContent(input.text || contentText(sanitized.value), this.policy.redactPatterns);
+    const text = asString(sanitizedText.value, "");
+    const redactionCount = sanitized.redactionCount + sanitizedText.redactionCount;
     const estimate = this.tokens.estimate(text).estimatedTokens;
     if (estimate > this.policy.maximumSectionTokens && input.required) {
       throw new Error(`required context section exceeds per-section limit: ${sectionId}`);
@@ -166,10 +172,10 @@ export class ContextAssemblyRuntime {
       turnIndex: input.turnIndex === null ? null : Math.max(0, Math.floor(input.turnIndex)),
       sequence: this.sequence,
       provenance: normalizeProvenance(input.provenance),
-      metadata: { ...asObject(input.metadata), redaction_count: sanitized.redactionCount },
+      metadata: { ...asObject(input.metadata), redaction_count: redactionCount },
       tokenEstimate: estimate,
       contentDigest: digest(sanitized.value),
-      state: sanitized.redactionCount > 0 ? "redacted" : "candidate",
+      state: redactionCount > 0 ? "redacted" : "candidate",
     };
     this.sections.set(sectionId, section);
     this.revision += 1;

@@ -29,6 +29,13 @@ export interface ContextAssemblySectionResult {
   contentDigest: string;
   tokenEstimate: number;
   state: string;
+  /**
+   * The section text after the assembly runtime's redaction policy ran.  The
+   * projector formats the provider message from this rather than from the raw
+   * candidate content, so one policy governs both what is stored and what the
+   * model is shown.
+   */
+  text?: string;
 }
 
 export interface ContextAssemblyResult {
