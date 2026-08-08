@@ -34,12 +34,7 @@ class ApiControlCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             workspace = root / "workspace"
-            bundle = workspace / ".zyra" / "skill-imports" / "api-release" / "api-helper"
-            bundle.mkdir(parents=True)
-            (bundle / "SKILL.md").write_text(
-                "---\nschema: zyra.skill/v1\nname: api-helper\ndescription: API update helper.\nversion: 1.0.0\nuser-invocable: true\nmodel-invocable: true\ninvocation: {\"mode\":\"inline\",\"max-skill-depth\":0}\nallowed-tools: []\n---\nAPI helper body.\n",
-                encoding="utf-8",
-            )
+            workspace.mkdir()
             os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
@@ -54,25 +49,39 @@ class ApiControlCommandTests(unittest.TestCase):
             base_url = f"http://127.0.0.1:{server.server_address[1]}"
             try:
                 task = _post(base_url, "/tasks", {"goal": "Install a trusted skill bundle.", "auto_run": False})["task"]
+                _get(base_url, "/skills")
+                bundle = workspace / ".zyra" / "skills" / "api-helper"
+                bundle.mkdir(parents=True)
+                (bundle / "SKILL.md").write_text(
+                    "---\nid: api-helper\nname: api-helper\ndescription: API update helper.\ntools: {\"allowed\":[],\"denied\":[],\"namespaces\":[],\"mcp_servers\":[],\"read_only\":true,\"inherit_parent\":true,\"maximum_calls\":0,\"maximum_parallel\":1,\"require_approval\":[]}\nexecution: {\"mode\":\"inline\",\"timeout_ms\":30000,\"maximum_turns\":1,\"sandbox\":\"workspace_read\",\"allow_network\":false,\"persist_transcript\":true,\"persist_artifacts\":false}\nenabled: true\n---\nAPI helper body.\n",
+                    encoding="utf-8",
+                )
+                session_id = "api-skill-update-session"
+                session = _post(
+                    base_url,
+                    "/permissions/sessions/open",
+                    {
+                        "session_id": session_id,
+                        "run_id": task["run_id"],
+                        "task_id": task["task_id"],
+                    },
+                )["session"]
+                token = session["bearer_token"]
+                headers = {"Authorization": f"Bearer {token}"}
                 payload = {
-                    "action": "install",
-                    "channel": "project",
-                    "bundle_name": "api-release",
-                    "update_id": "api-update-1",
+                    "tool_call_id": "api-update-1",
                 }
                 first_status, first = _post_with_status(
                     base_url,
                     f"/tasks/{task['task_id']}/skill-updates",
                     payload,
+                    headers=headers,
                 )
                 self.assertEqual(first_status, 409)
-                self.assertEqual(first["error"], "skill_plugin_update_pending")
-                self.assertEqual(first["update_id"], "api-update-1")
-                session = first["permission_session"]
-                self.assertTrue(session["created"])
-                session_id = session["session_id"]
-                token = session["bearer_token"]
-                headers = {"Authorization": f"Bearer {token}"}
+                self.assertEqual(first["error"], "permission_approval_required")
+                self.assertEqual(first["tool_call_id"], "api-update-1")
+                self.assertEqual(first["canonical_entrypoint"], "E02CapabilityCoordinator.execute")
+                self.assertFalse(first["python_skill_fallback"])
                 pending = _get(
                     base_url,
                     (
@@ -83,7 +92,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     headers=headers,
                 )["requests"]["items"]
                 self.assertEqual(len(pending), 1)
-                _post(
+                resolved = _post(
                     base_url,
                     f"/permissions/requests/{pending[0]['request_id']}/resolve",
                     {
@@ -95,16 +104,20 @@ class ApiControlCommandTests(unittest.TestCase):
                     },
                     headers=headers,
                 )
+                permit_id = resolved["receipt"]["permit_id"]
                 second_status, second = _post_with_status(
                     base_url,
                     f"/tasks/{task['task_id']}/skill-updates",
-                    payload,
+                    {**payload, "permit_id": permit_id},
                     headers=headers,
                 )
                 self.assertEqual(second_status, 200)
-                self.assertEqual(second["skill_update"]["state"]["status"], "committed")
-                self.assertTrue((workspace / ".zyra" / "skills" / "api-helper" / "SKILL.md").is_file())
-                self.assertTrue(any(event["payload"].get("phase") == "skill_update_committed" for event in second["events"]))
+                self.assertTrue(second["ok"])
+                self.assertEqual(second["execution"]["receipt"]["owner"], "typescript-skill")
+                self.assertEqual(second["execution"]["receipt"]["permitId"], permit_id)
+                registry = _get(base_url, "/skills")["registry"]
+                latest = registry["revisions"][-1]
+                self.assertIn("api-helper", {item["name"] for item in latest["skills"]})
                 self.assertNotIn(token, json.dumps(second))
             finally:
                 server.shutdown()
@@ -230,6 +243,8 @@ class ApiControlCommandTests(unittest.TestCase):
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
             ZyraRequestHandler = _fresh_api_handler()
 
@@ -240,121 +255,96 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Record skill invocation.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
-                _get(
+                skills = _get(base_url, "/skills")
+                selected_skill = skills["registry"]["revisions"][-1]["skills"][0]["name"]
+                session_id = "api-skill-invocation-session"
+                session = _post(
                     base_url,
-                    f"/workspaces/{workspace_id}/files?path=skill-input.txt&read=true&encoding=utf-8",
-                )
-                _post(
-                    base_url,
-                    f"/workspaces/{workspace_id}/files",
+                    "/permissions/sessions/open",
                     {
-                        "path": "skill-input.txt",
-                        "encoding": "utf-8",
-                        "content": "skill worker context",
+                        "session_id": session_id,
+                        "run_id": created["task"]["run_id"],
+                        "task_id": task_id,
                     },
-                )
-                invoked = _post(
+                )["session"]
+                token = session["bearer_token"]
+                headers = {"Authorization": f"Bearer {token}"}
+                invocation_payload = {
+                    "skill_name": selected_skill,
+                    "arguments": {},
+                    "tool_call_id": "api-skill-invocation-1",
+                    "session_id": session_id,
+                }
+                first_status, first = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/skills",
-                    {
-                        "skill_name": "web-research",
-                        "arguments": {"query": "dynamic heterogeneous agents"},
-                    },
+                    invocation_payload,
+                    headers=headers,
                 )
+                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first["error"], "permission_approval_required")
+                self.assertEqual(first["tool_call_id"], "api-skill-invocation-1")
+                pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={session_id}&run_id={created['task']['run_id']}"
+                        f"&task_id={task_id}&pending_only=true"
+                    ),
+                    headers=headers,
+                )["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                resolved = _post(
+                    base_url,
+                    f"/permissions/requests/{pending[0]['request_id']}/resolve",
+                    {
+                        "session_id": session_id,
+                        "run_id": created["task"]["run_id"],
+                        "task_id": task_id,
+                        "effect": "allow",
+                        "idempotency_key": "approve-api-skill-invocation",
+                    },
+                    headers=headers,
+                )
+                status, invoked = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/skills",
+                    invocation_payload,
+                    headers=headers,
+                )
+                self.assertEqual(status, 201, invoked)
                 skills_view = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/skills"})
 
-                self.assertGreaterEqual(len(invoked["events"]), 5)
-                self.assertTrue(all(event["event_type"] == "skill_invoked" for event in invoked["events"]))
-                self.assertEqual(invoked["skill"]["metadata"]["name"], "web-research")
-                self.assertEqual(invoked["skill"]["provenance"]["source_kind"], "builtin")
-                self.assertTrue(invoked["skill"]["version_ref"]["content_digest"])
-                self.assertEqual(invoked["skill_result"]["runtime_status"], "fork_pending")
-                self.assertFalse(invoked["skill_result"]["body_returned"])
-                self.assertFalse(invoked["skill_result"]["body_in_checkpoint"])
-                projection = invoked["task"]["metadata"]["skill_invocation_projection"]
-                self.assertEqual(projection["qualified_name"], "builtin:web-research")
-                self.assertFalse(projection["body_in_checkpoint"])
-                self.assertEqual(projection["permission_owner"], "M1-03A")
-                self.assertIn(
-                    "states",
-                    invoked["task"]["metadata"]["skill_runtime_state"]["state_snapshot"],
-                )
-                self.assertEqual(
-                    invoked["task"]["metadata"]["skill_session_context"]["invoked_skill_refs"],
-                    [],
-                )
+                self.assertTrue(invoked["ok"])
+                self.assertEqual(invoked["canonical_entrypoint"], "E02CapabilityCoordinator.execute")
+                self.assertFalse(invoked["python_skill_fallback"])
+                receipt = invoked["execution"]["receipt"]
+                self.assertEqual(receipt["owner"], "typescript-skill")
                 self.assertTrue(
-                    invoked["task"]["metadata"]["skill_runtime_state"]["state_snapshot"]["fork_handoff"]["requests"]
+                    receipt["permitId"].startswith("e02-capability-permit-"),
+                    receipt,
                 )
-                self.assertNotIn(
-                    "message_deltas",
-                    invoked["task"]["metadata"]["skill_session_context"],
-                )
-                invocation_id = invoked["skill_result"]["invocation"]["state"]["invocation_id"]
-                causal_event_id = next(
-                    event["event_id"]
-                    for event in invoked["events"]
-                    if event.get("payload", {}).get("skill_runtime", {}).get("invocation_id")
-                    == invocation_id
-                )
-                completed = _post(
-                    base_url,
-                    f"/tasks/{task_id}/skills/{invocation_id}/complete",
-                    {
-                        "event_ids": [causal_event_id],
-                    },
-                )
-                self.assertEqual(completed["skill_state"]["status"], "completed")
-                self.assertEqual(completed["session_checkpoint"]["active_invocation_ids"], [])
-                self.assertEqual(completed["outcome_projection"]["outcome_refs"], [])
-                self.assertTrue(completed["outcome_projection"]["evidence_refs"])
-                completed_context = completed["task"]["metadata"]["skill_session_context"]
-                self.assertFalse(completed_context["permission_hook_active"])
-                self.assertEqual(completed_context["permission_hook_id"], "")
-                self.assertEqual(
-                    completed["task"]["metadata"]["skill_invocation_projection"]["status"],
-                    "completed",
-                )
-                worker_status, worker = _post_with_status(
-                    base_url,
-                    f"/tasks/{task_id}/workers/code",
-                    {
-                        "tool_plan": [
-                            {
-                                "tool_name": "file_read",
-                                "arguments": {"path": "skill-input.txt"},
-                            }
-                        ]
-                    },
-                )
-                self.assertEqual(worker_status, 201, worker)
-                skill_messages = [
-                    message
-                    for message in worker["worker_request"]["messages"]
-                    if message.get("metadata", {}).get("skill_invocation_id") == invocation_id
-                ]
-                self.assertEqual(skill_messages, [])
-                self.assertEqual(
-                    completed["session_checkpoint"]["active_invocation_ids"],
-                    [],
-                )
-                self.assertEqual(
-                    skills_view["command_result"]["summary"],
-                    "Versioned skills and the task-scoped invocation projection.",
-                )
-                self.assertEqual(
-                    skills_view["command_result"]["data"]["skill_invocation"]["qualified_name"],
-                    "builtin:web-research",
-                )
-                events = _get(base_url, f"/tasks/{task_id}/events")["events"]
-                self.assertTrue(any(event["event_type"] == "skill_invoked" for event in events))
+                self.assertFalse(receipt["replayed"])
+                self.assertTrue(receipt["result"]["ok"])
+                self.assertEqual(receipt["result"]["output"]["invocation"]["status"], "completed")
+                projection = invoked["task"]["metadata"]["skill_invocation_projection"]
+                self.assertEqual(projection["canonical_owner"], "typescript.SkillCoordinator")
+                self.assertEqual(projection["tool_call_id"], "api-skill-invocation-1")
+                self.assertEqual(projection["skill"], selected_skill)
+                self.assertEqual(projection["snapshot_hash"], invoked["execution"]["snapshot_hash"])
+                skill_data = skills_view["command_result"]["data"]
+                self.assertEqual(skills_view["command_result"]["status"], "completed")
+                self.assertEqual(skills_view["command_result"]["receipt"]["owner"], "typescript-command")
+                self.assertFalse(skill_data["body_in_projection"])
+                visible_skills = skill_data["registry"]["revisions"][-1]["skills"]
+                self.assertIn(selected_skill, {item["name"] for item in visible_skills})
+                self.assertNotIn(token, json.dumps(invoked))
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_skill_api_disable_flag_fails_closed(self) -> None:
+    def test_retired_python_skill_disable_flag_cannot_shadow_typescript_owner(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -374,8 +364,11 @@ class ApiControlCommandTests(unittest.TestCase):
                     {"skill_name": "verification"},
                 )
 
-                self.assertEqual(status, 404)
-                self.assertEqual(response["error"], "skill_registry_disabled")
+                self.assertEqual(status, 409)
+                self.assertEqual(response["error"], "permission_approval_required")
+                self.assertEqual(response["canonical_entrypoint"], "E02CapabilityCoordinator.execute")
+                self.assertFalse(response["python_skill_fallback"])
+                self.assertTrue(response["tool_call_id"])
             finally:
                 os.environ.pop("ZYRA_SKILL_RUNTIME_DISABLED", None)
                 server.shutdown()
@@ -437,29 +430,27 @@ class ApiControlCommandTests(unittest.TestCase):
                     {"text": "/permissions"},
                 )
 
-                self.assertIn("context_session", helped["command_result"]["data"]["groups"])
-                self.assertIn("/team-onboarding", helped["command_result"]["data"]["groups"]["extension_team"])
-                self.assertEqual(context["command_result"]["data"]["control_commands"], 2)
+                help_result = helped["command_result"]
+                help_names = {item["name"] for item in help_result["data"]["commands"]}
+                self.assertIn("help", help_names)
+                self.assertIn("skills", help_names)
+                self.assertIn("tools", help_names)
+                self.assertEqual(help_result["status"], "completed")
+                self.assertEqual(help_result["receipt"]["owner"], "typescript-command")
+                self.assertEqual(help_result["canonical_entrypoint"], "E02CapabilityCoordinator.execute")
+                self.assertEqual(context["command_result"]["data"]["control_commands"], 1)
                 self.assertEqual(context["command_result"]["name"], "/context")
-                self.assertEqual(
-                    mcp["command_result"]["summary"],
-                    "MCP runtime status",
-                )
-                self.assertEqual(mcp["command_result"]["data"]["owner_slice"], "M1-S03B-02")
-                self.assertFalse(mcp["command_result"]["data"]["requires_node_sidecar"])
-                self.assertFalse(mcp["command_result"]["data"]["sidecar_contracts_used"])
-                self.assertTrue(mcp["command_result"]["data"]["enabled"])
-                self.assertEqual(
-                    mcp["command_result"]["data"]["state_owner"],
-                    "McpClientRuntime",
-                )
-                self.assertTrue(mcp["command_result"]["data"]["control"]["ok"])
-                self.assertEqual(
-                    mcp["command_result"]["data"]["control"]["action"],
-                    "status",
-                )
+                mcp_result = mcp["command_result"]
+                self.assertEqual(mcp_result["status"], "completed")
+                self.assertEqual(mcp_result["permission"]["effect"], "allow")
+                self.assertEqual(mcp_result["receipt"]["owner"], "typescript-command")
+                self.assertEqual(mcp_result["canonical_command_owner"], "typescript.CommandCoordinator")
+                self.assertFalse(mcp_result["python_parser_fallback"])
+                self.assertFalse(mcp_result["python_dispatch_fallback"])
                 permission_data = permissions["command_result"]["data"]
-                self.assertTrue(permission_data["custody_required_for_details"])
+                self.assertEqual(permission_data["canonical_owner"], "typescript.PermissionCoordinator")
+                self.assertFalse(permission_data["python_decision_fallback"])
+                self.assertEqual(permission_data["health"]["canonical_owner"], "typescript")
                 self.assertNotIn("requests", permission_data)
                 self.assertNotIn("rules", permission_data)
                 self.assertNotIn("session_ids", permission_data)
@@ -598,19 +589,18 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Exercise M4 memory fabric.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                _post(
+                artifact_run = _run_code_tool(
                     base_url,
-                    f"/tasks/{task_id}/tools",
+                    task_id,
+                    "artifact_write",
                     {
-                        "tool_name": "artifact_write",
-                        "arguments": {
-                            "title": "Verifier evidence",
-                            "content": "requirement change evidence and trajectory replay notes",
-                            "kind": "markdown",
-                        },
+                        "title": "Verifier evidence",
+                        "content": "requirement change evidence and trajectory replay notes",
+                        "kind": "markdown",
                     },
                 )
-                _post(base_url, f"/tasks/{task_id}/skills", {"skill_name": "trace-summary"})
+                self.assertTrue(_completed_tool_result(artifact_run, "artifact_write")["ok"])
+                _post(base_url, f"/tasks/{task_id}/commands", {"text": "/skills"})
                 _post(base_url, f"/tasks/{task_id}/commands", {"text": "/change add replay evidence"})
                 _post(
                     base_url,
@@ -663,14 +653,13 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Evaluate trace.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                _post(
+                artifact_run = _run_code_tool(
                     base_url,
-                    f"/tasks/{task_id}/tools",
-                    {
-                        "tool_name": "artifact_write",
-                        "arguments": {"title": "Evidence", "content": "trace evidence"},
-                    },
+                    task_id,
+                    "artifact_write",
+                    {"title": "Evidence", "content": "trace evidence"},
                 )
+                self.assertTrue(_completed_tool_result(artifact_run, "artifact_write")["ok"])
                 evaluated = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/eval"})
 
                 self.assertEqual(evaluated["command_result"]["runtime_status"], "stateful")
@@ -698,7 +687,7 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Run a file tool.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                executed = _post(
+                route_status, rejected = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/tools",
                     {
@@ -706,10 +695,26 @@ class ApiControlCommandTests(unittest.TestCase):
                         "arguments": {"path": "notes/result.txt", "content": "tool output"},
                     },
                 )
-
-                self.assertTrue(executed["tool_result"]["ok"])
-                self.assertEqual(executed["tool_result"]["output"]["relative_path"], "notes\\result.txt")
-                self.assertEqual(executed["event"]["payload"]["tool_call"]["tool_name"], "file_write")
+                self.assertEqual(route_status, 409)
+                self.assertEqual(rejected["error"], "e02_route_not_found")
+                self.assertEqual(rejected["canonical_entrypoint"], "E02CapabilityCoordinator.execute")
+                self.assertFalse(rejected["python_execution_fallback"])
+                executed = _run_code_tool(
+                    base_url,
+                    task_id,
+                    "file_write",
+                    {"path": "notes/result.txt", "content": "tool output"},
+                )
+                tool_result = _completed_tool_result(executed, "file_write")
+                self.assertTrue(tool_result["ok"])
+                self.assertEqual(tool_result["output"]["path"], "notes/result.txt")
+                self.assertEqual(tool_result["metadata"]["sandbox_gateway_routed"], "true")
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                written = _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?path=notes/result.txt&read=true&encoding=utf-8",
+                )
+                self.assertEqual(written["content"], "tool output")
                 self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 2)
             finally:
                 server.shutdown()
@@ -740,19 +745,26 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Search local research.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                searched = _post(
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                _post(
                     base_url,
-                    f"/tasks/{task_id}/tools",
+                    f"/workspaces/{workspace_id}/files",
                     {
-                        "tool_name": "web_search",
-                        "arguments": {"query": "requirement change", "paths": ["research"]},
+                        "path": "research/brief.md",
+                        "encoding": "utf-8",
+                        "content": "Dynamic heterogeneous agents need traceable requirement change handling.",
                     },
                 )
-
-                self.assertTrue(searched["tool_result"]["ok"])
-                self.assertEqual(searched["tool_result"]["output"]["result_count"], 1)
-                self.assertEqual(len(searched["task"]["artifacts"]), 1)
-                artifact_id = searched["task"]["artifacts"][0]["artifact_id"]
+                searched = _run_code_tool(
+                    base_url,
+                    task_id,
+                    "web_search",
+                    {"query": "requirement change", "paths": ["research"]},
+                )
+                tool_result = _completed_tool_result(searched, "web_search")
+                self.assertTrue(tool_result["ok"])
+                self.assertEqual(tool_result["output"]["result_count"], 1)
+                artifact_id = tool_result["output"]["artifact_id"]
                 preview = _get(base_url, f"/artifacts/{artifact_id}")["artifact"]["content"]
                 self.assertIn("Zyra Research Search Results", preview)
                 self.assertIn("requirement change", preview)
@@ -777,23 +789,21 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Extract inline browser state.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                browsed = _post(
+                browsed = _run_code_tool(
                     base_url,
-                    f"/tasks/{task_id}/tools",
+                    task_id,
+                    "browser",
                     {
-                        "tool_name": "browser",
-                        "arguments": {
-                            "action": "extract_text",
-                            "html": "<html><head><title>API Browser</title></head><body><p>Runtime browser evidence.</p></body></html>",
-                        },
+                        "action": "extract_text",
+                        "html": "<html><head><title>API Browser</title></head><body><p>Runtime browser evidence.</p></body></html>",
                     },
                 )
-
-                self.assertTrue(browsed["tool_result"]["ok"])
-                self.assertEqual(browsed["tool_result"]["output"]["state"]["title"], "API Browser")
-                self.assertIn("Runtime browser evidence", browsed["tool_result"]["output"]["state"]["text_preview"])
-                self.assertEqual(len(browsed["task"]["artifacts"]), 2)
-                artifact_id = browsed["task"]["artifacts"][0]["artifact_id"]
+                tool_result = _completed_tool_result(browsed, "browser")
+                self.assertTrue(tool_result["ok"])
+                self.assertEqual(tool_result["output"]["state"]["title"], "API Browser")
+                self.assertIn("Runtime browser evidence", tool_result["output"]["state"]["text_preview"])
+                self.assertEqual(len(tool_result["artifacts"]), 2)
+                artifact_id = tool_result["artifacts"][0]["artifact_id"]
                 preview = _get(base_url, f"/artifacts/{artifact_id}")["artifact"]["content"]
                 self.assertIn("API Browser", preview)
             finally:
@@ -817,20 +827,18 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Read task trace.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                traced = _post(
+                traced = _run_code_tool(
                     base_url,
-                    f"/tasks/{task_id}/tools",
-                    {
-                        "tool_name": "trace",
-                        "arguments": {"limit": 3, "write_artifact": True},
-                    },
+                    task_id,
+                    "trace",
+                    {"limit": 3, "write_artifact": True},
                 )
-
-                self.assertTrue(traced["tool_result"]["ok"])
-                self.assertGreaterEqual(traced["tool_result"]["output"]["event_count"], 1)
-                self.assertEqual(traced["tool_result"]["output"]["returned_count"], 3)
-                self.assertEqual(len(traced["task"]["artifacts"]), 1)
-                artifact_id = traced["task"]["artifacts"][0]["artifact_id"]
+                tool_result = _completed_tool_result(traced, "trace")
+                self.assertTrue(tool_result["ok"])
+                self.assertGreaterEqual(tool_result["output"]["event_count"], 1)
+                self.assertEqual(tool_result["output"]["returned_count"], 3)
+                self.assertEqual(len(tool_result["artifacts"]), 1)
+                artifact_id = tool_result["artifacts"][0]["artifact_id"]
                 preview = _get(base_url, f"/artifacts/{artifact_id}")["artifact"]["content"]
                 self.assertIn("event_type", preview)
             finally:
@@ -854,20 +862,23 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Read checkpoint.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                checkpoint = _post(
+                checkpoint = _run_code_tool(
                     base_url,
-                    f"/tasks/{task_id}/tools",
-                    {
-                        "tool_name": "checkpoint",
-                        "arguments": {"include_state": True, "write_artifact": True},
-                    },
+                    task_id,
+                    "checkpoint",
+                    {"include_state": True, "write_artifact": True},
                 )
-
-                self.assertTrue(checkpoint["tool_result"]["ok"])
-                self.assertEqual(checkpoint["tool_result"]["output"]["summary"]["task_id"], task_id)
-                self.assertIn("checkpoint", checkpoint["tool_result"]["output"])
-                self.assertEqual(len(checkpoint["task"]["artifacts"]), 1)
-                artifact_id = checkpoint["task"]["artifacts"][0]["artifact_id"]
+                tool_result = _completed_tool_result(checkpoint, "checkpoint")
+                self.assertTrue(tool_result["ok"])
+                self.assertTrue(tool_result["output"]["truncated"])
+                self.assertEqual(tool_result["metadata"]["tool_result_budget_applied"], "true")
+                checkpoint_artifacts = [
+                    artifact
+                    for artifact in tool_result["artifacts"]
+                    if artifact["title"] == f"checkpoint:{task_id}"
+                ]
+                self.assertEqual(len(checkpoint_artifacts), 1)
+                artifact_id = checkpoint_artifacts[0]["artifact_id"]
                 preview = _get(base_url, f"/artifacts/{artifact_id}")["artifact"]["content"]
                 self.assertIn(task_id, preview)
             finally:
@@ -911,7 +922,8 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(metadata["canonical_runtime_owner"], "typescript")
                 self.assertEqual(metadata["loop"], "zyra_typescript_query_engine_runtime")
                 self.assertEqual(metadata["tool_runtime_completed"], "1")
-                self.assertEqual(metadata["query_plan_ok"], "true")
+                self.assertEqual(metadata["query_plan_ok"], "false")
+                self.assertEqual(metadata["query_session_consistent"], "true")
                 self.assertIn("permission_session", blocked)
                 self.assertTrue(blocked["permission_session"]["session_custody_token_included"])
                 self.assertFalse((Path(tmpdir) / "workspace" / "worker" / "output.txt").exists())
@@ -1042,13 +1054,48 @@ class ApiControlCommandTests(unittest.TestCase):
                 created = _post(base_url, "/tasks", {"goal": "Approve one browser request.", "auto_run": False})
                 task = created["task"]
                 plan = [{"action": "open_url", "arguments": {"url": target_url}}]
+                idempotency_key = "api-browser-exact-approval"
+                network_constraints = {
+                    "browser_backend": "static",
+                    "allowed_schemes": ["http"],
+                    "allowed_domains": ["127.0.0.1"],
+                    "allow_private_network": True,
+                    "allow_loopback_network": True,
+                }
                 first_status, first = _post_with_status(
                     base_url,
                     f"/tasks/{task['task_id']}/workers/browser",
-                    {"browser_plan": plan, "constraints": {"browser_backend": "static"}},
+                    {
+                        "browser_plan": plan,
+                        "constraints": network_constraints,
+                        "idempotency_key": idempotency_key,
+                    },
                 )
 
-                self.assertEqual(first_status, 409, first)
+                self.assertEqual(
+                    first_status,
+                    202,
+                    {
+                        "worker_error": first.get("worker_result", {}).get("error"),
+                        "worker_metadata": first.get("worker_result", {}).get("metadata"),
+                        "event_payload_keys": [
+                            sorted(event.get("payload", {})) for event in first.get("events", [])
+                        ],
+                        "browser_results": [
+                            {
+                                "error": event.get("payload", {}).get("browser_result", {}).get("error"),
+                                "output_keys": sorted(
+                                    event.get("payload", {}).get("browser_result", {}).get("output", {})
+                                ),
+                                "event_count": len(
+                                    event.get("payload", {}).get("browser_result", {}).get("events", [])
+                                ),
+                            }
+                            for event in first.get("events", [])
+                            if isinstance(event.get("payload", {}).get("browser_result"), dict)
+                        ],
+                    },
+                )
                 self.assertEqual(PageHandler.hit_count, 0)
                 first_browser_events = [
                     event
@@ -1087,8 +1134,9 @@ class ApiControlCommandTests(unittest.TestCase):
 
                 retry_payload = {
                     "browser_plan": plan,
+                    "idempotency_key": idempotency_key,
                     "constraints": {
-                        "browser_backend": "static",
+                        **network_constraints,
                         "permission_session_id": session["session_id"],
                         "permission_session_custody_token": token,
                     },
@@ -1098,7 +1146,28 @@ class ApiControlCommandTests(unittest.TestCase):
                     f"/tasks/{task['task_id']}/workers/browser",
                     retry_payload,
                 )
-                self.assertEqual(second_status, 201)
+                self.assertEqual(
+                    second_status,
+                    201,
+                    {
+                        "worker_error": second.get("worker_result", {}).get("error"),
+                        "worker_metadata": second.get("worker_result", {}).get("metadata"),
+                        "browser_results": [
+                            {
+                                "error": event.get("payload", {}).get("browser_result", {}).get("error"),
+                                "summary": event.get("payload", {}).get("browser_result", {}).get("summary"),
+                                "output": event.get("payload", {}).get("browser_result", {}).get("output"),
+                                "effect": event.get("payload", {})
+                                .get("browser_result", {})
+                                .get("output", {})
+                                .get("permission_decision", {})
+                                .get("effect"),
+                            }
+                            for event in second.get("events", [])
+                            if isinstance(event.get("payload", {}).get("browser_result"), dict)
+                        ],
+                    },
+                )
                 self.assertTrue(second["worker_result"]["ok"])
                 self.assertEqual(PageHandler.hit_count, 1)
                 self.assertNotIn("custody_token", second["permission_session"])
@@ -1112,16 +1181,9 @@ class ApiControlCommandTests(unittest.TestCase):
                     f"/tasks/{task['task_id']}/workers/browser",
                     retry_payload,
                 )
-                self.assertEqual(replay_status, 409)
-                replay_browser_events = [
-                    event
-                    for event in replay["events"]
-                    if isinstance(event.get("payload", {}).get("browser_result"), dict)
-                ]
-                self.assertEqual(
-                    replay_browser_events[0]["payload"]["browser_result"]["error"],
-                    "permission_required",
-                )
+                self.assertEqual(replay_status, 200)
+                self.assertTrue(replay["idempotent_replay"])
+                self.assertTrue(replay["worker_result"]["ok"])
                 self.assertEqual(PageHandler.hit_count, 1)
                 for path in root.rglob("*"):
                     if path.is_file():
@@ -1152,22 +1214,28 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Approve shell.", "auto_run": False})
                 task_id = created["task"]["task_id"]
+                session_id = "structured-shell-permission-session"
                 command = f'"{sys.executable}" -c "print(789)"'
+                plan = [[{
+                    "tool_name": "shell",
+                    "tool_call_id": "structured-shell-retry-1",
+                    "arguments": {"command": command},
+                }]]
                 status, blocked = _post_with_status(
                     base_url,
-                    f"/tasks/{task_id}/tools",
-                    {"tool_name": "shell", "arguments": {"command": command}},
+                    f"/tasks/{task_id}/workers/code",
+                    {"constraints": {"session_id": session_id, "query_turns": plan}},
                 )
 
                 self.assertEqual(status, 409)
-                request_id = blocked["tool_result"]["metadata"]["permission_request_id"]
+                self.assertEqual(blocked["worker_result"]["error"], "permission_suspended")
                 session = blocked["permission_session"]
-                retry_identity = blocked["permission_retry_identity"]
-                custody_token = session["bearer_token"]
+                custody_token = session["session_custody_token"]
+                self.assertTrue(session["session_custody_token_included"])
                 run_id = created["task"]["run_id"]
                 query_path = (
                     "/permissions/requests"
-                    f"?session_id={session['session_id']}"
+                    f"?session_id={session_id}"
                     f"&run_id={run_id}&task_id={task_id}"
                 )
                 query_token_status, query_token_response = _get_with_status(
@@ -1184,6 +1252,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     query_path,
                     headers={"Authorization": f"Bearer {custody_token}"},
                 )
+                request_id = permissions["requests"]["items"][0]["request_id"]
                 self.assertEqual(
                     permissions["requests"]["items"][0]["request_id"],
                     request_id,
@@ -1193,7 +1262,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     base_url,
                     f"/permissions/requests/{request_id}/resolve",
                     {
-                        "session_id": session["session_id"],
+                        "session_id": session_id,
                         "run_id": run_id,
                         "task_id": task_id,
                         "effect": "not-a-permission-effect",
@@ -1207,7 +1276,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     base_url,
                     f"/permissions/requests/{request_id}/resolve",
                     {
-                        "session_id": session["session_id"],
+                        "session_id": session_id,
                         "run_id": run_id,
                         "task_id": task_id,
                         "effect": "allow",
@@ -1223,7 +1292,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     base_url,
                     f"/permissions/requests/{request_id}/resolve",
                     {
-                        "session_id": session["session_id"],
+                        "session_id": session_id,
                         "run_id": run_id,
                         "task_id": task_id,
                         "effect": "allow",
@@ -1246,7 +1315,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     base_url,
                     f"/permissions/requests/{request_id}/resolve",
                     {
-                        "session_id": session["session_id"],
+                        "session_id": session_id,
                         "run_id": run_id,
                         "task_id": task_id,
                         "effect": "allow",
@@ -1255,36 +1324,57 @@ class ApiControlCommandTests(unittest.TestCase):
                     headers={"Authorization": f"Bearer {custody_token}"},
                 )
                 self.assertEqual(
-                    resolved["result"]["request"]["status"],
+                    resolved["receipt"]["request"]["status"],
                     "approved",
                 )
 
                 second_status, executed = _post_with_status(
                     base_url,
-                    f"/tasks/{task_id}/tools",
+                    f"/tasks/{task_id}/workers/code",
                     {
-                        "tool_name": "shell",
-                        "arguments": {"command": command},
-                        **retry_identity,
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": custody_token,
+                            "query_turns": plan,
+                        },
                     },
                     headers={"Authorization": f"Bearer {custody_token}"},
                 )
                 self.assertEqual(second_status, 201)
-                self.assertTrue(executed["tool_result"]["ok"])
-                self.assertIn("789", executed["tool_result"]["output"]["stdout"])
+                executed_result = _completed_tool_result(executed, "shell")
+                self.assertTrue(executed_result["ok"])
+                self.assertIn("789", executed_result["output"]["stdout"])
 
                 forged_status, forged = _post_with_status(
                     base_url,
-                    f"/tasks/{task_id}/tools",
+                    f"/tasks/{task_id}/workers/code",
                     {
-                        "tool_name": "shell",
-                        "arguments": {"command": f'{sys.executable} -c "print(999)"'},
-                        **retry_identity,
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": custody_token,
+                            "query_turns": [[{
+                                "tool_name": "shell",
+                                "tool_call_id": "structured-shell-retry-1",
+                                "arguments": {"command": f'{sys.executable} -c "print(999)"'},
+                            }]],
+                        },
                     },
                     headers={"Authorization": f"Bearer {custody_token}"},
                 )
-                self.assertNotEqual(forged_status, 201)
-                self.assertFalse(forged.get("tool_result", {}).get("ok", False))
+                self.assertNotEqual(
+                    forged_status,
+                    201,
+                    {
+                        "worker_error": forged.get("worker_result", {}).get("error"),
+                        "tool_results": [
+                            event.get("payload", {}).get("query_session", {}).get("tool_result")
+                            for event in forged.get("events", [])
+                            if event.get("payload", {}).get("query_session", {}).get("phase")
+                            == "tool_call_completed"
+                        ],
+                    },
+                )
+                self.assertFalse(forged["worker_result"]["ok"])
                 task_events = _get(base_url, f"/tasks/{task_id}/events")["events"]
                 permission_kinds = [
                     event.get("payload", {})
@@ -1294,7 +1384,16 @@ class ApiControlCommandTests(unittest.TestCase):
                     for event in task_events
                 ]
                 self.assertIn("permission_request_resolved", permission_kinds)
-                self.assertIn("permission_execution_grant_consumed", permission_kinds)
+                self.assertTrue(
+                    executed_result["metadata"][
+                        "sandbox_gateway_permission_consumption_id"
+                    ],
+                    executed_result,
+                )
+                self.assertEqual(
+                    executed["worker_result"]["metadata"]["e02_port_consumed"],
+                    "1",
+                )
             finally:
                 server.shutdown()
                 server.server_close()
@@ -1352,15 +1451,21 @@ class ApiControlCommandTests(unittest.TestCase):
                     {**identity, "mode": "dont_ask", "expected_mode_revision": 0},
                     headers=headers,
                 )
-                self.assertEqual(changed["result"]["metadata"]["mode"]["revision"], 1)
-                status, escalated = _post_with_status(
+                transition = changed["receipt"]["transition"]
+                self.assertEqual(transition["from"], "default")
+                self.assertEqual(transition["to"], "dontAsk")
+                self.assertEqual(transition["revisionBefore"], 0)
+                self.assertEqual(transition["revisionAfter"], 1)
+                self.assertEqual(changed["state_owner"], "typescript.PermissionCoordinator")
+                self.assertFalse(changed["python_decision_fallback"])
+                status, stale = _post_with_status(
                     base_url,
                     "/permissions/mode",
-                    {**identity, "mode": "auto"},
+                    {**identity, "mode": "auto", "expected_mode_revision": 0},
                     headers=headers,
                 )
-                self.assertEqual(status, 403)
-                self.assertEqual(escalated["error"], "forbidden")
+                self.assertEqual(status, 409)
+                self.assertIn("revision conflict", stale["message"])
 
                 selected = _get(
                     base_url,
@@ -1371,7 +1476,8 @@ class ApiControlCommandTests(unittest.TestCase):
                     ),
                     headers=headers,
                 )
-                self.assertEqual(selected["mode"], "dont_ask")
+                self.assertEqual(selected["mode"]["mode"], "dontAsk")
+                self.assertEqual(selected["mode"]["revision"], 1)
                 state_text = Path(os.environ["ZYRA_PERMISSION_STATE"]).read_text(encoding="utf-8")
                 self.assertNotIn(token, state_text)
                 self.assertFalse(Path(os.environ["ZYRA_PERMISSION_STORE"]).exists())
@@ -1927,6 +2033,71 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)
+
+
+def _run_code_tool(
+    base_url: str,
+    task_id: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    status, response = _post_with_status(
+        base_url,
+        f"/tasks/{task_id}/workers/code",
+        {
+            "constraints": {
+                "query_turns": [[{
+                    "tool_name": tool_name,
+                    "tool_call_id": f"api-{tool_name}-1",
+                    "arguments": arguments,
+                }]],
+                "e02PermissionPolicy": {"default_effect": "allow"},
+                "permission_interactive": False,
+                "permission_headless": True,
+            },
+        },
+    )
+    if status != 201:
+        phases = []
+        for event in response.get("events", []):
+            query_session = event.get("payload", {}).get("query_session", {})
+            if not isinstance(query_session, dict):
+                continue
+            phases.append(
+                {
+                    "phase": query_session.get("phase"),
+                    "tool_name": query_session.get("tool_name"),
+                    "error": (query_session.get("tool_result") or {}).get("error")
+                    if isinstance(query_session.get("tool_result"), dict)
+                    else None,
+                    "summary": (query_session.get("tool_result") or {}).get("summary")
+                    if isinstance(query_session.get("tool_result"), dict)
+                    else None,
+                    "reason": (query_session.get("tool_result") or {})
+                    .get("metadata", {})
+                    .get("sandbox_gateway_reason")
+                    if isinstance(query_session.get("tool_result"), dict)
+                    else None,
+                }
+            )
+        raise AssertionError(
+            f"CodeWorker {tool_name} returned HTTP {status}: "
+            f"worker_error={response.get('worker_result', {}).get('error')!r}, "
+            f"phases={phases!r}"
+        )
+    return response
+
+
+def _completed_tool_result(response: dict[str, Any], tool_name: str) -> dict[str, Any]:
+    for event in response.get("events", []):
+        query_session = event.get("payload", {}).get("query_session", {})
+        if (
+            query_session.get("phase") == "tool_call_completed"
+            and query_session.get("tool_name") == tool_name
+            and isinstance(query_session.get("tool_result"), dict)
+        ):
+            return query_session["tool_result"]
+    raise AssertionError(f"CodeWorker response has no completed {tool_name} result")
 
 
 def _raise_with_body(error: HTTPError, method: str, url: str) -> None:

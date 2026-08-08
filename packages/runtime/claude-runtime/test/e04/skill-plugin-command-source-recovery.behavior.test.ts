@@ -212,6 +212,7 @@ function executionContext(input: RuntimeRunInput, calls: RuntimeRunInput[]): Age
 test("e04-skill-plugin-command", async () => {
   const fixture = await createCapabilityWorkspace("zyra-e04-skill-capability-");
   const input = runtimeInput(fixture.workspace);
+  input.restoredState = { parent_only_snapshot: true };
   const childCalls: RuntimeRunInput[] = [];
   const capabilities = await TypeScriptCapabilityRuntime.open(input);
   try {
@@ -225,6 +226,8 @@ test("e04-skill-plugin-command", async () => {
     }, executionContext(input, childCalls), { toolCallId: "e04-invoke-skill-1" });
     assert.equal(childCalls.length, 1);
     assert.match(childCalls[0]!.taskId, /:skill:e04-fork-skill:/);
+    assert.equal(childCalls[0]!.restoredState, null);
+    assert.deepEqual(childCalls[0]!.turns, []);
     assert.equal(childCalls[0]!.config.maxTurns, 4);
     assert.equal((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_network_allowed, false);
     assert.equal(

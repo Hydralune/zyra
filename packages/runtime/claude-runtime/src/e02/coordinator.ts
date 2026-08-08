@@ -2004,7 +2004,8 @@ export class E02CapabilityCoordinator {
         ok: result.ok,
         stopped_reason: result.stoppedReason,
         step_summaries: result.stepSummaries,
-        session_snapshot: result.sessionSnapshot,
+        session_snapshot_artifact_id:
+          result.metadata.query_session_snapshot_artifact_id ?? null,
         metadata: result.metadata,
       },
       artifacts: result.artifacts.map((artifact) => canonicalize(artifact) as JsonObject),

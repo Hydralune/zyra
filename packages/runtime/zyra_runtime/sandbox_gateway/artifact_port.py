@@ -172,6 +172,7 @@ class GatewayFileArtifactPort:
             owner_epoch_after=int(getattr(after, "owner_epoch", 0)),
             transaction_id=transaction_id,
             artifact_ref=artifact_ref,
+            artifact_records=result_artifacts,
             reason="artifact committed through WorkspaceEditPort",
             metadata={
                 "policy_digest": decision.policy_digest,

@@ -8,7 +8,7 @@ import time
 from uuid import uuid4
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
 from zyra_runtime.executor import ToolExecutionContext
@@ -93,6 +93,8 @@ class CodeWorkerRuntime:
         tool_registry: Any | None = None,
         dynamic_handlers: Mapping[str, Any] | None = None,
         runtime_services: Mapping[str, Any] | None = None,
+        event_reader: Callable[[str], list[dict[str, Any]]] | None = None,
+        checkpoint_reader: Callable[[str], dict[str, Any] | None] | None = None,
         skill_fork_port: Any | None = None,
         retrieval_context_runtime: WorkerRetrievalContextRuntime | None = None,
     ) -> None:
@@ -135,6 +137,8 @@ class CodeWorkerRuntime:
             artifact_root=artifact_root,
             permission_store=permission_store,
             registry=tool_registry,
+            event_reader=event_reader,
+            checkpoint_reader=checkpoint_reader,
             dynamic_handlers=dynamic_handlers,
             runtime_services=services,
         )
@@ -202,9 +206,6 @@ class CodeWorkerRuntime:
             constraints.setdefault("permission_transport_queue_enabled", True)
         turns = self._query_turns(constraints)
         restored_state = self._restored_state(session_id, constraints)
-        logical_worker_request_id = str(
-            restored_state.get("worker_request_id") or request.request_id
-        )
         request_messages: Sequence[Any] = tuple(request.messages)
         request_metadata = {
             **request.metadata,
@@ -234,6 +235,24 @@ class CodeWorkerRuntime:
             request_messages = (*request_messages, *retrieval_context.messages)
             constraints.update(retrieval_context.constraint_delta)
             request_metadata.update(retrieval_context.metadata)
+        logical_request_digest = hashlib.sha256(
+            json.dumps(
+                to_jsonable(
+                    {
+                        "turns": turns,
+                        "messages": list(request_messages),
+                    }
+                ),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        logical_worker_request_id = self._logical_worker_request_id(
+            restored_state,
+            request_id=request.request_id,
+            request_digest=logical_request_digest,
+        )
         try:
             engine = self.query_engine_factory(
                 self.execution_context,
@@ -397,6 +416,7 @@ class CodeWorkerRuntime:
                     "canonical_owner": "typescript",
                     "session_id": session_id,
                     "worker_request_id": logical_worker_request_id,
+                    "logical_request_digest": logical_request_digest,
                     "session_snapshot": to_jsonable(loop_result.session_snapshot),
                     "metadata": to_jsonable(loop_result.metadata),
                 },
@@ -605,6 +625,37 @@ class CodeWorkerRuntime:
         except (OSError, json.JSONDecodeError):
             return {}
         return dict(raw) if isinstance(raw, Mapping) else {}
+
+    @staticmethod
+    def _logical_worker_request_id(
+        restored_state: Mapping[str, Any],
+        *,
+        request_id: str,
+        request_digest: str,
+    ) -> str:
+        """Resume only an unfinished logical request in a durable session.
+
+        Permission ASK deliberately has no terminal receipt so the approved
+        retry keeps the exact worker binding.  Once a terminal receipt exists,
+        a later API call is a new logical request; reusing the old identifier
+        would recover its completed result and silently skip the new tool
+        arguments.
+        """
+
+        restored_request_id = str(restored_state.get("worker_request_id") or "")
+        if not restored_request_id:
+            return request_id
+        session_snapshot = restored_state.get("session_snapshot")
+        if not isinstance(session_snapshot, Mapping):
+            return restored_request_id
+        terminal_receipts = session_snapshot.get("terminal_result_receipts")
+        if (
+            isinstance(terminal_receipts, Mapping)
+            and restored_request_id in terminal_receipts
+        ):
+            if str(restored_state.get("logical_request_digest") or "") != request_digest:
+                return request_id
+        return restored_request_id
 
     def _persist_runtime_state(
         self,

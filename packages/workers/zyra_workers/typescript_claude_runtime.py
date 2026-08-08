@@ -1784,6 +1784,11 @@ class TypeScriptClaudeQueryEngine:
         )
         result = executor.execute(call, permission_grant=permit)
         encoded_result = to_jsonable(result)
+        encoded_metadata = dict(encoded_result.get("metadata") or {})
+        encoded_metadata["e02_permit_id"] = str(
+            metadata.get("e02_permit_id") or ""
+        )
+        encoded_result["metadata"] = encoded_metadata
         with receipt_lock:
             tool_effect_receipts[tool_call_id] = {
                 "request_digest": request_digest,

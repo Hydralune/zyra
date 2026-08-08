@@ -80,6 +80,14 @@ export class TypeScriptSkillRuntime {
       ...parent,
       taskId: input.childTaskId,
       workerRequestId: input.workerRequestId,
+      // A parent QueryEngine snapshot is identity-bound to its task.  Passing
+      // it into the forked skill would make the child restore parent E01/E02
+      // authority under a different task identity.
+      restoredState: null,
+      // Parent scripted/model turns contain the SkillTool call itself.  A
+      // fork must re-plan from the rendered skill messages, never recursively
+      // replay the parent's tool batch under the child identity.
+      turns: [],
       messages: [
         ...parent.messages.map(cloneJson),
         {

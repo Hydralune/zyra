@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .typed_transport import (
@@ -3482,6 +3482,7 @@ def get_browser_runtime_services(
     task_id: str = "",
     session_id: str = "",
     worker_id: str = "BrowserWorker",
+    gateway_constraints: Mapping[str, Any] | None = None,
 ) -> tuple[Any, BrowserWorkerRuntime]:
     """Bind API requests to one registry runtime and its shared services."""
 
@@ -3515,6 +3516,17 @@ def get_browser_runtime_services(
         workspace_gateway_required = True
     else:
         workspace_root = tool_workspace_path()
+    gateway_constraints = dict(gateway_constraints or {})
+    allowed_schemes = {
+        str(item).strip().casefold()
+        for item in gateway_constraints.get("allowed_schemes", ())
+        if str(item).strip()
+    }
+    allowed_hosts = tuple(
+        str(item).strip()
+        for item in gateway_constraints.get("allowed_domains", ())
+        if str(item).strip()
+    )
     worker = BrowserWorkerRuntime(
         project_root=PROJECT_ROOT,
         workspace_root=workspace_root,
@@ -3524,6 +3536,18 @@ def get_browser_runtime_services(
         browser_runtime_registry=_BROWSER_RUNTIME_REGISTRY,
         workspace_edit_port=workspace_edit_port,
         workspace_gateway_required=workspace_gateway_required,
+        sandbox_gateway_services={
+            "sandbox_gateway_allowed_hosts": allowed_hosts,
+            "sandbox_gateway_allow_public_http": bool(
+                "http" in allowed_schemes and allowed_hosts
+            ),
+            "sandbox_gateway_allow_private_network": bool(
+                gateway_constraints.get("allow_private_network") and allowed_hosts
+            ),
+            "sandbox_gateway_allow_loopback_network": bool(
+                gateway_constraints.get("allow_loopback_network") and allowed_hosts
+            ),
+        },
         e02_permission_port=get_mcp_runtime(),
     )
     return runtime, worker
@@ -3786,6 +3810,66 @@ def _browser_viewer_receipt(
         "replayed": replayed,
         "completed_at": now_iso(),
     }
+
+
+def _tool_checkpoint_reader(store: SQLiteStore) -> Callable[[str], dict[str, Any] | None]:
+    """Expose canonical task checkpoints to physical CodeWorker tools."""
+
+    def read(task_id: str) -> dict[str, Any] | None:
+        state = store.load_task(task_id)
+        return to_jsonable(state) if state is not None else None
+
+    return read
+
+
+def _browser_pending_permission_metadata(run_result: Any) -> dict[str, str]:
+    """Recover a pending browser permission from the physical action result.
+
+    BrowserWorker normally projects these fields from its productized plan
+    coordinator.  A permission request can also originate at the final
+    browser-session effect boundary, so the API must recognize that canonical
+    E02 request instead of caching the recoverable result as a terminal 409.
+    """
+
+    metadata = dict(getattr(run_result.worker_result, "metadata", {}) or {})
+    if str(metadata.get("browser_permission_pending") or "").lower() == "true":
+        return {
+            "browser_permission_pending": "true",
+            "browser_pending_checkpoint_id": str(
+                metadata.get("browser_pending_checkpoint_id") or ""
+            ),
+            "browser_pending_permission_request_id": str(
+                metadata.get("browser_pending_permission_request_id") or ""
+            ),
+            "browser_pending_permission_tool_use_id": str(
+                metadata.get("browser_pending_permission_tool_use_id") or ""
+            ),
+        }
+
+    for event in getattr(run_result, "event_records", ()):
+        payload = getattr(event, "payload", {})
+        if not isinstance(payload, Mapping):
+            continue
+        action = payload.get("browser_action")
+        result = payload.get("browser_result")
+        if not isinstance(result, Mapping) and isinstance(action, Mapping):
+            result = action.get("browser_result")
+        if not isinstance(result, Mapping) or result.get("error") != "permission_required":
+            continue
+        output = result.get("output")
+        decision = output.get("permission_decision") if isinstance(output, Mapping) else None
+        pending = output.get("pending_request") if isinstance(output, Mapping) else None
+        if not isinstance(pending, Mapping) and isinstance(decision, Mapping):
+            pending = decision.get("pending_request")
+        if not isinstance(pending, Mapping) or pending.get("status") != "pending":
+            continue
+        return {
+            "browser_permission_pending": "true",
+            "browser_pending_checkpoint_id": "",
+            "browser_pending_permission_request_id": str(pending.get("request_id") or ""),
+            "browser_pending_permission_tool_use_id": str(pending.get("tool_use_id") or ""),
+        }
+    return {}
 
 
 def reset_browser_runtime(*, stop: bool = True) -> None:
@@ -4492,6 +4576,8 @@ def _run_typescript_agent_request(
         permission_store=get_permission_store(),
         permission_state_path=permission_state_path(),
         tool_registry=default_tool_registry(),
+        event_reader=canonical_store.task_events,
+        checkpoint_reader=_tool_checkpoint_reader(canonical_store),
         runtime_services={
             "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
                 state,
@@ -4517,6 +4603,103 @@ def _run_typescript_agent_request(
                 canonical_store,
                 state,
             ),
+            "fault_observation_sink_required": True,
+        },
+        retrieval_context_runtime=retrieval_context,
+    ).run(request)
+
+
+def _run_typescript_skill_request(
+    store: SQLiteStore,
+    state: Any,
+    *,
+    skill_name: str,
+    skill_arguments: Mapping[str, Any],
+    resources: Sequence[str],
+    tool_call_id: str,
+    session_id: str,
+    session_custody_token: str,
+) -> Any:
+    """Run SkillTool inside the QueryEngine context required by E02."""
+
+    workspace_manager = get_workspace_manager()
+    workspace_access = workspace_manager.acquire_for_worker(
+        task_id=state.task_id,
+        session_id="",
+        worker_id="CodeWorkerRuntime",
+    )
+    worker_workspace_root = workspace_manager.internal_task_root(workspace_access)
+    materialize_bundled_skills(PROJECT_ROOT, worker_workspace_root)
+    constraints: dict[str, Any] = {
+        "query_turns": [[{
+            "tool_name": "skill",
+            "tool_call_id": tool_call_id,
+            "arguments": {
+                "skill": skill_name,
+                "arguments": dict(skill_arguments),
+                "resources": list(resources),
+            },
+        }]],
+        "session_id": session_id,
+        "workspace_ref": workspace_access.to_public_dict(),
+        "permission_interactive": True,
+        "permission_headless": False,
+    }
+    if session_custody_token:
+        constraints["session_custody_token"] = session_custody_token
+    request = WorkerRequest(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=state.root_node_id,
+        worker_name="CodeWorkerRuntime",
+        request_id=(
+            "skill-worker-request-"
+            + hashlib.sha256(
+                f"{state.task_id}:{session_id}:{tool_call_id}".encode("utf-8")
+            ).hexdigest()[:24]
+        ),
+        constraints=constraints,
+        metadata={
+            "origin": "typescript-skill-api",
+            "canonical_skill_owner": "typescript.SkillCoordinator",
+        },
+    )
+    retrieval_context = _worker_retrieval_context(
+        store,
+        task_id=state.task_id,
+        workspace_manager=workspace_manager,
+        workspace_access=workspace_access,
+    )
+    return CodeWorkerRuntime(
+        project_root=PROJECT_ROOT,
+        workspace_root=worker_workspace_root,
+        artifact_root=artifact_root_path(),
+        permission_store=get_permission_store(),
+        permission_state_path=permission_state_path(),
+        tool_registry=default_tool_registry(),
+        event_reader=store.task_events,
+        checkpoint_reader=_tool_checkpoint_reader(store),
+        runtime_services={
+            "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
+                state,
+                workspace_root=worker_workspace_root,
+                route_sources=(constraints,),
+            ),
+            "workspace_edit_port": WorkspaceEditPort(
+                workspace_manager,
+                workspace_access,
+                worker_id="CodeWorkerRuntime",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                artifact_store=LocalArtifactStore(artifact_root_path()),
+            ),
+            "workspace_isolation_runtime": WorkspaceIsolationRuntime(
+                workspace_manager,
+                artifact_store=LocalArtifactStore(artifact_root_path()),
+            ),
+            "workspace_gateway_required": True,
+            "fault_observation_sink": codeworker_fault_observation_sink(store, state),
             "fault_observation_sink_required": True,
         },
         retrieval_context_runtime=retrieval_context,
@@ -8184,7 +8367,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         {
                             "action": "mode",
                             "mode": payload.get("mode"),
-                            "expected_revision": payload.get("expected_revision"),
+                            "expected_revision": (
+                                payload.get("expected_revision")
+                                if payload.get("expected_revision") is not None
+                                else payload.get("expected_mode_revision")
+                            ),
                             "actor_id": authority.actor_id,
                             "reason": str(payload.get("reason") or "permission API mode update"),
                         }
@@ -12701,6 +12888,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     task_id=state.task_id,
                     session_id=session_id,
                     worker_id="BrowserWorker",
+                    gateway_constraints=constraints,
                 )
                 run_result = browser_worker.run(
                     request,
@@ -12723,10 +12911,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            browser_action_pending = (
-                str(run_result.worker_result.metadata.get("browser_permission_pending") or "").lower()
-                == "true"
-            )
+            pending_permission_metadata = _browser_pending_permission_metadata(run_result)
+            if pending_permission_metadata:
+                run_result = replace(
+                    run_result,
+                    worker_result=replace(
+                        run_result.worker_result,
+                        metadata={
+                            **dict(run_result.worker_result.metadata),
+                            **pending_permission_metadata,
+                        },
+                    ),
+                )
+            browser_action_pending = bool(pending_permission_metadata)
             viewer_control_receipt: dict[str, Any] = {}
             if viewer_control is not None:
                 control_action = str(viewer_control["action"])
@@ -12945,6 +13142,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             arguments = payload.get("arguments")
             resources = payload.get("resources")
+            session_id = str(
+                payload.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
+            )
             tool_call_id = str(
                 payload.get("tool_call_id")
                 or payload.get("tool_use_id")
@@ -12952,45 +13154,108 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 or new_id("skillcall")
             )
             try:
-                execution = get_mcp_runtime().execute(
-                    "skill",
-                    {
-                        "skill": skill_name,
-                        "arguments": dict(arguments) if isinstance(arguments, dict) else {},
-                        "resources": list(resources)
-                        if isinstance(resources, list) and all(isinstance(item, str) for item in resources)
-                        else [],
-                    },
-                    identity={
-                        "tool_call_id": tool_call_id,
-                        "namespace": "skill",
-                        "operation": "invoke",
-                        "permit_id": str(payload.get("permit_id") or ""),
-                        "actor_id": self._permission_actor_id(),
-                        "correlation_id": str(payload.get("correlation_id") or tool_call_id),
-                        "task_id": state.task_id,
-                        "run_id": state.run_id,
-                    },
+                run = _run_typescript_skill_request(
+                    store,
+                    state,
+                    skill_name=skill_name,
+                    skill_arguments=dict(arguments) if isinstance(arguments, dict) else {},
+                    resources=(
+                        tuple(resources)
+                        if isinstance(resources, list)
+                        and all(isinstance(item, str) for item in resources)
+                        else ()
+                    ),
+                    tool_call_id=tool_call_id,
+                    session_id=session_id,
+                    session_custody_token=extract_bearer_token(self.headers, payload),
                 )
-            except TypeScriptE02PortError as error:
+            except Exception as error:  # noqa: BLE001 - typed worker failure projection below.
                 self._send_json(
-                    HTTPStatus.CONFLICT,
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
                     {
                         "ok": False,
-                        "error": error.code,
-                        "message": str(error),
-                        "detail": error.detail,
+                        "error": "skill_worker_failed",
+                        "message": "Skill QueryEngine execution failed.",
+                        "exception_type": type(error).__name__,
+                        "tool_call_id": tool_call_id,
+                        "task_id": state.task_id,
+                        "run_id": state.run_id,
                         "canonical_entrypoint": "E02CapabilityCoordinator.execute",
                         "python_skill_fallback": False,
                     },
                     headers={"Cache-Control": "no-store, max-age=0"},
                 )
                 return
+            persist_events(store, run.event_records)
+            _attach_artifacts(state, list(run.worker_result.artifacts))
+            _record_code_worker_session_metadata(state, run)
+            tool_result: dict[str, Any] | None = None
+            for event in run.event_records:
+                query_session = event.payload.get("query_session")
+                if not isinstance(query_session, Mapping):
+                    continue
+                candidate = query_session.get("tool_result")
+                if (
+                    query_session.get("phase") == "tool_call_completed"
+                    and query_session.get("tool_name") == "skill"
+                    and isinstance(candidate, Mapping)
+                ):
+                    tool_result = dict(candidate)
+                    break
+            if not run.worker_result.ok or not tool_result or not tool_result.get("ok"):
+                error_code = str(
+                    (tool_result or {}).get("error")
+                    or run.worker_result.error
+                    or "skill_execution_failed"
+                )
+                if error_code == "permission_suspended":
+                    error_code = "permission_approval_required"
+                store.save_checkpoint(state)
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": error_code,
+                        "message": str(
+                            (tool_result or {}).get("summary")
+                            or run.worker_result.summary
+                            or "Skill execution failed."
+                        ),
+                        "detail": {},
+                        "tool_call_id": tool_call_id,
+                        "task_id": state.task_id,
+                        "run_id": state.run_id,
+                        "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                        "python_skill_fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            snapshot_hash = str(
+                get_mcp_runtime().snapshot(("skill",)).get("snapshotHash") or ""
+            )
+            execution = {
+                "receipt": {
+                    "owner": "typescript-skill",
+                    "permitId": str(
+                        (tool_result.get("metadata") or {}).get("e02_permit_id")
+                        or payload.get("permit_id")
+                        or ""
+                    ),
+                    "replayed": (
+                        str((tool_result.get("metadata") or {}).get("effect_replay_fenced"))
+                        .lower()
+                        == "true"
+                    ),
+                    "result": tool_result,
+                },
+                "snapshot_hash": snapshot_hash,
+            }
             state.metadata["skill_invocation_projection"] = {
                 "canonical_owner": "typescript.SkillCoordinator",
                 "tool_call_id": tool_call_id,
                 "skill": skill_name,
-                "snapshot_hash": execution.get("snapshot_hash"),
+                "snapshot_hash": snapshot_hash,
             }
             store.save_checkpoint(state)
             self._send_json(
@@ -13030,8 +13295,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "tool_call_id": tool_call_id,
                     "namespace": "skill",
                     "operation": "reload",
+                    "permit_id": str(payload.get("permit_id") or ""),
                     "actor_id": self._permission_actor_id(),
                     "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
                 },
             )
         except TypeScriptE02PortError as error:
@@ -13042,6 +13310,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "error": error.code,
                     "message": str(error),
                     "detail": error.detail,
+                    "tool_call_id": tool_call_id,
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
                     "canonical_entrypoint": "E02CapabilityCoordinator.execute",
                     "python_skill_fallback": False,
                 },
@@ -13203,6 +13474,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     permission_store=get_permission_store(),
                     permission_state_path=permission_state_path(),
                     tool_registry=default_tool_registry(),
+                    event_reader=store.task_events,
+                    checkpoint_reader=_tool_checkpoint_reader(store),
                     runtime_services={
                         "backend_action_dispatch_port": _code_worker_backend_action_dispatch_port(
                             state,

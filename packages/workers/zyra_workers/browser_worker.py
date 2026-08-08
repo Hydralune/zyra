@@ -295,6 +295,7 @@ class BrowserWorkerRuntime:
         workspace_edit_port: Any | None = None,
         workspace_gateway_required: bool = False,
         sandbox_gateway_boundary: Any | None = None,
+        sandbox_gateway_services: Mapping[str, Any] | None = None,
         e02_permission_port: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
@@ -303,12 +304,16 @@ class BrowserWorkerRuntime:
         self.artifact_store = LocalArtifactStore(artifact_root)
         self.workspace_edit_port = workspace_edit_port
         self.workspace_gateway_required = bool(workspace_gateway_required)
-        gateway_services = install_gateway_runtime_services(
-            {
+        gateway_service_seed = {
+            **dict(sandbox_gateway_services or {}),
+            **{
                 "workspace_edit_port": workspace_edit_port,
                 "workspace_gateway_required": workspace_gateway_required,
                 "sandbox_gateway_required": workspace_gateway_required,
             },
+        }
+        gateway_services = install_gateway_runtime_services(
+            gateway_service_seed,
             workspace_root=self.workspace_root,
             artifact_root=self.artifact_store.root,
             worker_id="BrowserWorker",

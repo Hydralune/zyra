@@ -265,6 +265,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
             ...receipt.metadata,
             ...result.metadata,
             permission_effect: "allow",
+            e02_permit_id: request.e02PermitId ?? "",
             canonical_permission_owner: "typescript",
             python_capability_fallback: "false",
           },

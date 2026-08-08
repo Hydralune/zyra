@@ -726,8 +726,30 @@ class GatewayToolExecutionRouter:
         authorization_call: ToolCall | None = None,
     ) -> ToolResult:
         artifact_port = self._require_artifact_port()
+        raw_logical_path = str(call.arguments.get("path") or call.arguments.get("name") or "")
+        if artifact and not raw_logical_path:
+            requested_extension = PurePosixPath(
+                str(call.arguments.get("extension") or "")
+            ).suffix
+            if not requested_extension:
+                requested_extension = {
+                    "markdown": ".md",
+                    "structured_data": ".json",
+                    "trace": ".json",
+                }.get(str(call.arguments.get("kind") or ""), ".txt")
+            raw_logical_path = (
+                "tool-artifacts/"
+                + _filesystem_safe_session_id(
+                    stable_identifier(
+                        "tool-artifact",
+                        call.tool_call_id,
+                        str(call.arguments.get("title") or "Tool artifact"),
+                    )
+                )
+                + requested_extension
+            )
         logical_path = self.bundle.policy_runtime.assert_path(
-            str(call.arguments.get("path") or call.arguments.get("name") or "")
+            raw_logical_path
         )
         content = _content_bytes(call.arguments)
         provenance = self._internal_provenance(
@@ -849,6 +871,7 @@ class GatewayToolExecutionRouter:
             ),
             output={
                 "path": logical_path,
+                "artifact_id": file_receipt.artifact_ref.removeprefix("artifact://"),
                 "content_digest": file_receipt.content_digest,
                 "content_bytes": file_receipt.content_bytes,
                 "transaction_id": file_receipt.transaction_id,
@@ -856,6 +879,7 @@ class GatewayToolExecutionRouter:
                 "quarantine_id": file_receipt.quarantine_id,
                 "gateway_receipt": receipt.safe_dict(),
             },
+            artifacts=list(file_receipt.artifact_records),
             error=None if ok else "artifact_quarantined" if file_receipt.quarantined else "workspace_commit_failed",
             metadata=self.bundle.event_projector.tool_metadata(receipt),
         )

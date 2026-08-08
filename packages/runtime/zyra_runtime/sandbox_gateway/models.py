@@ -892,6 +892,7 @@ class FileArtifactReceipt:
     owner_epoch_after: int = 0
     transaction_id: str = ""
     artifact_ref: str = ""
+    artifact_records: tuple[Any, ...] = field(default_factory=tuple, repr=False, compare=False)
     event_refs: tuple[str, ...] = ()
     reason: str = ""
     created_at: float = field(default_factory=_now)
