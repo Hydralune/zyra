@@ -6440,6 +6440,11 @@ _REASONING_MAX_TURNS = 12
 _REASONING_RUNTIME_TIMEOUT_SECONDS = 600.0
 _REASONING_TRANSPORT_BUDGET_MS = 780_000
 
+# One physical layer may spend the full 600s reasoning budget plus dispatch and
+# recovery overhead, and a task runs several of them.  The validity window has
+# to outlast the run it authorizes, not the single layer that mints it.
+PHASE2_PERMISSION_RECEIPT_VALIDITY = timedelta(hours=1)
+
 _PROVIDER_ENV_FILES = (
     ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
     (
@@ -7090,8 +7095,14 @@ def _phase2_permission_decision(
         ),
         "owner_response_digest": canonical_digest(response),
         "decided_at": now_iso(),
+        # The placement binding is digest-bound to this exact receipt, so the
+        # validity window is what bounds how stale a decision may be, not what
+        # bounds a task.  Five minutes was shorter than a single live-provider
+        # physical layer, so a later layer of a successful long-horizon run
+        # arrived with an expired receipt and failed a task nothing had denied.
+        # A topology change still mints a new receipt and rebinds placement.
         "valid_until": (
-            datetime.now(UTC) + timedelta(minutes=5)
+            datetime.now(UTC) + PHASE2_PERMISSION_RECEIPT_VALIDITY
         ).isoformat().replace("+00:00", "Z"),
     }
     receipt["receipt_digest"] = canonical_digest(receipt)

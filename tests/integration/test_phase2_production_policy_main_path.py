@@ -2266,3 +2266,24 @@ def test_memory_owner_failure_precedes_success_finalization(
     assert not state.metadata.get("phase2_operator_execution_layers")
     assert not state.metadata.get("worker_pool_receipt")
     assert failure["error_metadata"]["reconcile_before_retry"] is True
+
+
+def test_permission_receipt_outlives_a_full_reasoning_layer() -> None:
+    """The receipt validity bounds decision staleness, not task length.
+
+    ``validate_execution_placement`` binds a placement to one exact receipt
+    digest, so an expired receipt cannot be refreshed in place -- the whole
+    placement would have to be rebound.  The window therefore has to outlast
+    the longest layer that can run under it, otherwise a physical layer that
+    succeeds still fails the next placement on ``permission_fresh``.
+    """
+
+    validity = api.PHASE2_PERMISSION_RECEIPT_VALIDITY
+    layer_budget = timedelta(seconds=api._REASONING_RUNTIME_TIMEOUT_SECONDS)
+    transport_budget = timedelta(
+        milliseconds=api._REASONING_TRANSPORT_BUDGET_MS
+    )
+    assert validity > layer_budget
+    assert validity > transport_budget
+    # Several layers plus recovery passes run under one receipt.
+    assert validity >= layer_budget * 4

@@ -391,10 +391,18 @@ export class E02CapabilityCoordinator {
     const policy = asObject(input.config.permissionPolicy);
     const runtimeConstraints = asObject(input.config.runtimeConstraints);
     const mode = permissionMode(policy.mode);
+    // The policy carries its own interactive/headless custody and the caller is
+    // the only party that knows whether an approver exists.  Deriving the flag
+    // from ``mode === "sealed"`` alone left an autonomous dispatch marked
+    // interactive, so ASK stayed ASK, suspended the tool call and ended the
+    // task instead of converting to a deterministic denial the recovery
+    // planner can replan around.
     const interactive = !(
       mode === "sealed"
       || asBoolean(runtimeConstraints.sealedAutonomous)
       || asBoolean(runtimeConstraints.sealed_autonomous)
+      || policy.interactive === false
+      || policy.headless === true
     );
     this.permission = new PermissionCoordinator({
       runtime: this.runtime,
