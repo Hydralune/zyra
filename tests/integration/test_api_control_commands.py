@@ -1929,6 +1929,24 @@ class ApiControlCommandTests(unittest.TestCase):
                 thread.join(timeout=5)
 
 
+def _raise_with_body(error: HTTPError, method: str, url: str) -> None:
+    """Re-raise an HTTP error that still carries the server's own explanation.
+
+    ``urllib`` discards the response body, so a structured API failure reaches
+    pytest as a bare ``HTTP Error 409: Conflict`` and says nothing about which
+    contract was violated.  Diagnosing one of these cost a full reproduction
+    harness; the body is the only place the error code lives.
+    """
+
+    try:
+        body = error.read().decode("utf-8")
+    except Exception:  # noqa: BLE001 - the original error must survive
+        body = "<unreadable>"
+    raise AssertionError(
+        f"{method} {url} -> HTTP {error.code}: {body}"
+    ) from error
+
+
 def _get(
     base_url: str,
     path: str,
@@ -1940,8 +1958,12 @@ def _get(
         headers=headers or {},
         method="GET",
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        _raise_with_body(error, "GET", f"{base_url}{path}")
+        raise
 
 
 def _get_with_status(
@@ -1975,8 +1997,12 @@ def _post(
         headers={"Content-Type": "application/json", **(headers or {})},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        _raise_with_body(error, "POST", f"{base_url}{path}")
+        raise
 
 
 def _post_with_status(

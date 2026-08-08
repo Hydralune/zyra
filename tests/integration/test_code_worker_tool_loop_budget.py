@@ -33,7 +33,13 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
         self.assertTrue(contract["readOnlyConcurrent"])
         self.assertTrue(contract["writeSerial"])
         self.assertEqual(contract["resultBudgetOwner"], "typescript")
-        self.assertEqual(contract["sideEffectOwner"], "python-tool-gateway")
+        # Since the e02 cutover a side effect is owned by the Python tool
+        # gateway or by a TypeScript capability, depending on which one owns
+        # the route; orchestration stays with TypeScript either way.
+        self.assertEqual(
+            contract["sideEffectOwner"],
+            "python-tool-gateway-or-typescript-capability",
+        )
 
     def test_read_only_tools_batch_and_conflicting_writes_are_serialized(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -43,6 +49,14 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             run = runtime.run(
                 _request(
                     state,
+                    # This case measures batching and write serialization, so the
+                    # writes have to reach the gateway.  Under the `default`
+                    # mode a workspace edit parks for approval and nothing here
+                    # can answer it, which measures the permission runtime
+                    # instead of the tool loop.
+                    permission_mode="acceptEdits",
+                    permission_interactive=False,
+                    permission_headless=True,
                     query_turns=[[
                         {"tool_name": "file_read", "arguments": {"path": "a.txt"}},
                         {"tool_name": "file_read", "arguments": {"path": "b.txt"}},
@@ -54,16 +68,36 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
 
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
             batches = _query_events(run.event_records, "tool_batch_started")
-            self.assertEqual(
-                [item["execution_mode"] for item in batches],
-                ["concurrent_read_only", "serial_non_read_only", "serial_non_read_only"],
-            )
+            # How many batches the writes are split across is the runtime's
+            # own packing choice.  What this case owns is that reads share one
+            # concurrent batch, that nothing non-read-only joins them, and that
+            # the conflicting writes land in a declared order.
+            self.assertEqual(batches[0]["execution_mode"], "concurrent_read_only")
             self.assertEqual(batches[0]["tool_count"], 2)
-            self.assertEqual(batches[2]["conflict_protected"], "true")
+            self.assertEqual(
+                {item["execution_mode"] for item in batches[1:]},
+                {"serial_non_read_only"},
+            )
+            self.assertTrue(
+                any(item.get("conflict_protected") == "true" for item in batches[1:]),
+                batches,
+            )
+            self.assertEqual(run.worker_result.metadata["tool_runtime_completed"], "4")
+            self.assertEqual(run.worker_result.metadata["tool_runtime_mutating"], "2")
             self.assertEqual(run.worker_result.metadata["tool_conflict_protected"], "1")
             self.assertEqual((workspace / "same.txt").read_text(encoding="utf-8"), "two")
 
-    def test_session_and_opencode_tool_uses_reach_typescript_tool_loop(self) -> None:
+    def test_adapter_tool_use_formats_do_not_reenter_the_productized_tool_loop(self) -> None:
+        """Productization retired the sidecar adapter formats deliberately.
+
+        The CodeWorker used to accept upstream ``session_messages`` and
+        opencode ``tool_parts`` and replay them as tool steps.  The productized
+        runtime owns one canonical entry -- ``query_turns`` -- and
+        ``verify_claude_productization_foundation`` fails the clean-runtime
+        probe when ``sidecar_contracts_used`` is true.  Assert the retirement
+        holds so an adapter path cannot quietly come back.
+        """
+
         with tempfile.TemporaryDirectory() as tmpdir:
             runtime, state, workspace = _runtime(tmpdir, "Bridge session tool uses.")
             (workspace / "alpha.txt").write_text("alpha", encoding="utf-8")
@@ -93,9 +127,39 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             )
 
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
+            self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
+            self.assertEqual(run.worker_result.metadata["tool_steps"], "0")
+            self.assertEqual(
+                run.worker_result.metadata["loop"],
+                "zyra_typescript_query_engine_runtime",
+            )
+            completed = _query_events(run.event_records, "tool_call_completed")
+            self.assertEqual(
+                {item["tool_call_id"] for item in completed} & {"session-alpha", "opencode-beta"},
+                set(),
+            )
+
+    def test_canonical_query_turns_reach_the_typescript_tool_loop(self) -> None:
+        """The canonical replacement for the retired adapter formats."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime, state, workspace = _runtime(tmpdir, "Read both files.")
+            (workspace / "alpha.txt").write_text("alpha", encoding="utf-8")
+            (workspace / "beta.txt").write_text("beta", encoding="utf-8")
+            run = runtime.run(
+                _request(
+                    state,
+                    query_turns=[[
+                        {"tool_name": "file_read", "arguments": {"path": "alpha.txt"}},
+                        {"tool_name": "file_read", "arguments": {"path": "beta.txt"}},
+                    ]],
+                )
+            )
+
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
             self.assertEqual(run.worker_result.metadata["tool_steps"], "2")
             completed = _query_events(run.event_records, "tool_call_completed")
-            self.assertEqual({item["tool_call_id"] for item in completed}, {"session-alpha", "opencode-beta"})
+            self.assertEqual(len(completed), 2)
             self.assertTrue(all(item["tool_result"]["ok"] for item in completed))
 
     def test_large_result_is_externalized_and_routes_budget_signal(self) -> None:
@@ -140,6 +204,12 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             run = runtime.run(
                 _request(
                     state,
+                    # Nothing in this run can answer an approval prompt, and the
+                    # case is about the denial reaching the permission runtime
+                    # rather than about parking.  Declaring that lets the
+                    # evaluator settle the high-risk ASK as a denial.
+                    permission_interactive=False,
+                    permission_headless=True,
                     query_turns=[[
                         {
                             "tool_name": "shell",
