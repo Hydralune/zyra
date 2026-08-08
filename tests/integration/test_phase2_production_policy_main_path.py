@@ -1311,7 +1311,53 @@ def test_api_composition_root_missing_outcome_mutation_is_explicit_baseline() ->
     assert policy["used_baseline"] is True
     assert policy["committed"] is False
     assert policy["operator_candidate_set"] is None
+    assert (
+        policy["operator_candidate_set_absent_reason"]
+        == "baseline_profile_selected"
+    )
     assert policy["physical_placement"]["candidate_set_digest"] == ""
+
+
+def test_placement_without_candidate_set_fails_closed_outside_baseline() -> None:
+    state, created = api.make_task_created_event(
+        "Implement a code artifact and verify the result."
+    )
+    ensure_default_graph(state)
+    context = api.graph_execution_context()
+    bridge = context.topology_policy_trigger
+    route_node = next(
+        item
+        for item in state.plan_nodes.values()
+        if item.metadata.get("stage") == "route"
+    )
+
+    _, event = TopologyRouter(
+        resource_scheduler=context.resource_scheduler,
+        topology_policy_trigger=bridge,
+    ).route(state, node=route_node, cause_event=created)
+    policy = dict(event.payload["topology_policy"])
+    assert policy["operator_candidate_set"] is None
+
+    # A strongest-profile run whose topology commit was rejected reaches
+    # placement with the same empty constraint the baseline profile carries
+    # legitimately.  Only the baseline is entitled to place without one.
+    decision = context.resource_scheduler.decide(
+        state,
+        node=route_node,
+        cause_event=created,
+        operator_input=None,
+    )
+    for reason in (
+        "topology_strongest_not_committed",
+        "operator_policy_selected_no_proposal",
+        "",
+    ):
+        lost = {**policy, "operator_candidate_set_absent_reason": reason}
+        with pytest.raises(
+            production_policy.Phase2ProductionPolicyError,
+            match="no MaAS candidate set outside the baseline profile",
+        ):
+            bridge.bind_resource_decision(state, route_node, decision, lost)
 
 
 def test_scheduler_failure_after_maas_candidate_set_fails_closed(

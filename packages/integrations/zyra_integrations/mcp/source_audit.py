@@ -84,40 +84,55 @@ class SourceAuditError(RuntimeError):
 
 
 _MCP_ROOT = "packages/integrations/zyra_integrations/mcp"
-_CONFIG = f"{_MCP_ROOT}/config.py"
-_CONNECTION = f"{_MCP_ROOT}/connection.py"
-_TRANSPORT = f"{_MCP_ROOT}/transport.py"
-_PROTOCOL = f"{_MCP_ROOT}/protocol.py"
-_AUTH = f"{_MCP_ROOT}/auth.py"
+_TS_ROOT = "packages/integrations/claude-mcp/src"
+_TS_PACKAGE = "@zyra/claude-mcp"
+
+# ``1b1ffeb`` productized the MCP client runtime into TypeScript and deleted the
+# Python modules that used to own these mechanisms.  A target must name the file
+# that owns the mechanism today; the Python package keeps durable state, result
+# budgets, events and credential custody, so those targets stay Python.
+_CONFIG = f"{_TS_ROOT}/config/config-store.ts"
+_CONNECTION = f"{_TS_ROOT}/connection/connection-runtime.ts"
+_TRANSPORT_CONTRACTS = f"{_TS_ROOT}/connection/contracts.ts"
+_TRANSPORT_STDIO = f"{_TS_ROOT}/connection/stdio-transport.ts"
+_TRANSPORT_HTTP = f"{_TS_ROOT}/connection/http-transport.ts"
+_TRANSPORT_SSE = f"{_TS_ROOT}/connection/sse-parser.ts"
+_PROTOCOL = f"{_TS_ROOT}/core/protocol.ts"
+_AUTH = f"{_TS_ROOT}/auth/oauth-runtime.ts"
+_CAPABILITIES = f"{_TS_ROOT}/catalog/capability-catalog.ts"
+_PROJECTION = f"{_TS_ROOT}/projection/tool-projection.ts"
+_ELICITATION = f"{_TS_ROOT}/runtime/elicitation-runtime.ts"
+_SAMPLING = f"{_TS_ROOT}/runtime/sampling-runtime.ts"
+_INSTRUCTIONS = f"{_TS_ROOT}/projection/instruction-runtime.ts"
+_TASKS = f"{_TS_ROOT}/runtime/task-runtime.ts"
 _CREDENTIALS = f"{_MCP_ROOT}/credentials.py"
-_CAPABILITIES = f"{_MCP_ROOT}/capabilities.py"
-_PROJECTION = f"{_MCP_ROOT}/projection.py"
 _OUTPUT = f"{_MCP_ROOT}/output.py"
-_ELICITATION = f"{_MCP_ROOT}/elicitation.py"
-_SAMPLING = f"{_MCP_ROOT}/sampling.py"
-_INSTRUCTIONS = f"{_MCP_ROOT}/instructions.py"
-_TASKS = f"{_MCP_ROOT}/tasks.py"
 _EVENTS = f"{_MCP_ROOT}/events.py"
 _STORE = f"{_MCP_ROOT}/store.py"
 _MODELS = f"{_MCP_ROOT}/models.py"
 
-_CONFIG_ENTRY = "zyra_integrations.mcp.config.McpConfigStore"
-_CONNECTION_ENTRY = "zyra_integrations.mcp.connection.McpConnectionRuntime"
-_AUTH_ENTRY = "zyra_integrations.mcp.auth.McpAuthRuntime"
-_CAPABILITY_ENTRY = "zyra_integrations.mcp.capabilities.McpCapabilityCatalog"
-_PROJECTION_ENTRY = "zyra_integrations.mcp.projection.McpToolProjectionRuntime"
+_CONFIG_ENTRY = f"{_TS_PACKAGE}/config/config-store#McpConfigStore"
+_CONNECTION_ENTRY = f"{_TS_PACKAGE}/connection/connection-runtime#McpConnectionRuntime"
+_AUTH_ENTRY = f"{_TS_PACKAGE}/auth/oauth-runtime#McpOAuthRuntime"
+_CAPABILITY_ENTRY = f"{_TS_PACKAGE}/catalog/capability-catalog#McpCapabilityCatalog"
+_PROJECTION_ENTRY = f"{_TS_PACKAGE}/projection/tool-projection#McpToolProjection"
 _OUTPUT_ENTRY = "zyra_integrations.mcp.output.McpOutputBudgetRuntime"
-_ELICITATION_ENTRY = "zyra_integrations.mcp.elicitation.McpElicitationQueue"
-_SAMPLING_ENTRY = "zyra_integrations.mcp.sampling.McpSamplingRuntime"
-_INSTRUCTIONS_ENTRY = "zyra_integrations.mcp.instructions.McpInstructionsRuntime"
-_TASK_ENTRY = "zyra_integrations.mcp.tasks.McpTaskLifecycleRuntime"
+_ELICITATION_ENTRY = f"{_TS_PACKAGE}/runtime/elicitation-runtime#McpElicitationRuntime"
+_SAMPLING_ENTRY = f"{_TS_PACKAGE}/runtime/sampling-runtime#McpSamplingRuntime"
+_INSTRUCTIONS_ENTRY = f"{_TS_PACKAGE}/projection/instruction-runtime#McpInstructionRuntime"
+_TASK_ENTRY = f"{_TS_PACKAGE}/runtime/task-runtime#McpTaskRuntime"
 
-_CONFIG_TEST = "tests/unit/test_mcp_config_store.py"
-_TRANSPORT_TEST = "tests/unit/test_mcp_transport_protocol.py"
-_AUTH_TEST = "tests/unit/test_mcp_auth_sampling.py"
-_CAPABILITY_TEST = "tests/unit/test_mcp_capabilities_output_tasks.py"
-_WORKER_TEST = "tests/integration/test_mcp_codeworker_permission_integration.py"
-_API_TEST = "tests/integration/test_mcp_api_control_restore.py"
+_CLAUDE_MCP_TEST = "packages/integrations/claude-mcp/test"
+_CLAUDE_RUNTIME_TEST = "packages/runtime/claude-runtime/test"
+# The behavior suite is organized by custody boundary rather than by module, so
+# several roles legitimately resolve to the same file.  Each name still records
+# which behavior the row is claiming.
+_CONFIG_TEST = f"{_CLAUDE_MCP_TEST}/e02/mcp-custody.behavior.test.ts"
+_TRANSPORT_TEST = f"{_CLAUDE_MCP_TEST}/e02/mcp-live-transport.behavior.test.ts"
+_AUTH_TEST = f"{_CLAUDE_MCP_TEST}/e02/mcp-custody.behavior.test.ts"
+_CAPABILITY_TEST = f"{_CLAUDE_MCP_TEST}/e02/mcp-catalog-matrix.test.ts"
+_WORKER_TEST = f"{_CLAUDE_RUNTIME_TEST}/e04/permission-mcp-source-recovery.behavior.test.ts"
+_API_TEST = f"{_CLAUDE_MCP_TEST}/e02/mcp-custody.behavior.test.ts"
 _ALLOWED_TEST_TARGETS = frozenset(
     {_CONFIG_TEST, _TRANSPORT_TEST, _AUTH_TEST, _CAPABILITY_TEST, _WORKER_TEST, _API_TEST}
 )
@@ -189,7 +204,7 @@ def _claude(
 
 _CONFIG_CHAIN = "McpConfigStore -> McpConnectionRuntime -> session mcp_runtime state and MCP diagnostics API"
 _CONNECTION_CHAIN = "McpConnectionRuntime -> transport JSON-RPC initialize -> capability snapshot replacement"
-_TOOL_CHAIN = "McpToolProjectionRuntime -> ToolRegistryRuntime -> ToolExecutionRuntime -> ToolPermissionRuntime"
+_TOOL_CHAIN = "McpToolProjection -> ToolRegistryRuntime -> ToolExecutionRuntime -> ToolPermissionRuntime"
 _CONTROL_CHAIN = "MCP API/control request -> durable MCP state/event -> exact resolve or compact restore"
 
 
@@ -242,18 +257,19 @@ MCP_SOURCE_DECISIONS: tuple[McpSourceDecision, ...] = (
             test=_CAPABILITY_TEST, evidence=_CONNECTION_CHAIN),
     _claude("src/services/mcp/InProcessTransport.ts", SourceDisposition.ACTIVE,
             ("in-process request/notification exchange", "deterministic fake-server transport"),
-            targets=(_TRANSPORT, _PROTOCOL), entry=_CONNECTION_ENTRY,
+            targets=(_TRANSPORT_CONTRACTS, _PROTOCOL), entry=_CONNECTION_ENTRY,
             test=_TRANSPORT_TEST, evidence=_CONNECTION_CHAIN),
     _claude("src/services/mcp/SdkControlTransport.ts", SourceDisposition.ADAPTER,
             ("control-channel request/reply", "transport close propagation"),
-            targets=(_TRANSPORT, _PROTOCOL), entry=_CONNECTION_ENTRY,
+            targets=(_TRANSPORT_CONTRACTS, _PROTOCOL), entry=_CONNECTION_ENTRY,
             test=_TRANSPORT_TEST, evidence=_CONNECTION_CHAIN),
     _claude("src/services/mcp/vscodeSdkMcp.ts", SourceDisposition.DEFERRED,
             ("editor-provided MCP registration", "SDK lifecycle bridge"), targets=(_CONNECTION,),
             replacement="the MCP config/API boundary accepts editor adapters without owning editor state",
             next_owner="M2-04A", rationale="VS Code host integration is outside the backend foundation."),
     _claude("src/utils/mcpWebSocketTransport.ts", SourceDisposition.REFERENCE_ONLY,
-            ("WebSocket framing", "close and reconnect notification"), targets=(_TRANSPORT,),
+            ("WebSocket framing", "close and reconnect notification"),
+            targets=(_TRANSPORT_STDIO, _TRANSPORT_HTTP, _TRANSPORT_SSE),
             replacement="stdio, in-process, Streamable HTTP and SSE transports",
             rationale="WebSocket MCP is not required for this foundation and cannot bypass transport policy."),
     _claude("src/services/mcp/claudeai.ts", SourceDisposition.ADAPTER,
@@ -363,7 +379,8 @@ MCP_SOURCE_DECISIONS: tuple[McpSourceDecision, ...] = (
     # token concurrency and Streamable HTTP recovery implementation.
     _decision("opencode", "packages/opencode/src/mcp/index.ts", SourceDisposition.ACTIVE,
               ("stdio/HTTP/SSE lifecycle", "roots/instructions", "dynamic list notifications"),
-              targets=(_CONNECTION, _TRANSPORT, _CAPABILITIES), entry=_CONNECTION_ENTRY,
+              targets=(_CONNECTION, _TRANSPORT_STDIO, _TRANSPORT_HTTP, _TRANSPORT_SSE, _CAPABILITIES),
+              entry=_CONNECTION_ENTRY,
               test=_TRANSPORT_TEST, evidence=_CONNECTION_CHAIN),
     _decision("opencode", "packages/opencode/src/mcp/catalog.ts", SourceDisposition.ACTIVE,
               ("tool catalog conversion", "structured content and schema fallback"),

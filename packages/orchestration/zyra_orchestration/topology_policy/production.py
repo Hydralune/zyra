@@ -83,6 +83,13 @@ from ..goal_contracts import (
 # spending more of the execution budget.
 _PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS = 1
 
+# Why placement was handed no MaAS candidate set.  Only the deterministic
+# baseline profile is entitled to place without one; every other cause means a
+# constraint was lost, and placement must fail closed rather than pick freely.
+_CANDIDATE_ABSENT_BASELINE_PROFILE = "baseline_profile_selected"
+_CANDIDATE_ABSENT_NOT_COMMITTED = "topology_strongest_not_committed"
+_CANDIDATE_ABSENT_NO_PROPOSAL = "operator_policy_selected_no_proposal"
+
 
 class Phase2ProductionPolicyError(RuntimeError):
     """The active strongest profile cannot be composed from canonical owners."""
@@ -504,9 +511,18 @@ class Phase2StrongestProductionBridge:
                 "operator_selection": {
                     "mode": "baseline",
                     "degraded": True,
-                    "degraded_reason": "topology_strongest_not_committed",
+                    "degraded_reason": (
+                        _CANDIDATE_ABSENT_BASELINE_PROFILE
+                        if topology.used_baseline
+                        else _CANDIDATE_ABSENT_NOT_COMMITTED
+                    ),
                 },
                 "operator_candidate_set": None,
+                "operator_candidate_set_absent_reason": (
+                    _CANDIDATE_ABSENT_BASELINE_PROFILE
+                    if topology.used_baseline
+                    else _CANDIDATE_ABSENT_NOT_COMMITTED
+                ),
                 "readiness_report_digest": readiness_digest,
                 "permission_receipt": dict(permission_receipt),
                 "loopx_pre_control": loopx_consumption,
@@ -629,6 +645,9 @@ class Phase2StrongestProductionBridge:
                 **result,
                 "operator_selection": selected.to_dict(),
                 "operator_candidate_set": None,
+                "operator_candidate_set_absent_reason": (
+                    _CANDIDATE_ABSENT_NO_PROPOSAL
+                ),
                 "readiness_report_digest": readiness_digest,
                 "permission_receipt": dict(permission_receipt),
                 "loopx_pre_control": loopx_consumption,
@@ -913,7 +932,22 @@ class Phase2StrongestProductionBridge:
             )
             or ""
         )
-        if candidate_set is not None:
+        if candidate_set is None:
+            # Skipping the consumption check when the constraint is missing is
+            # the wrong direction to fail: an unconstrained placement can hand a
+            # physical operator to a worker that cannot host one, and that only
+            # surfaces later at dispatch binding.  The deterministic baseline
+            # profile is the one caller entitled to place without a candidate
+            # set; anything else lost a constraint it was supposed to carry.
+            absent_reason = str(
+                topology_policy.get("operator_candidate_set_absent_reason") or ""
+            )
+            if absent_reason != _CANDIDATE_ABSENT_BASELINE_PROFILE:
+                raise Phase2ProductionPolicyError(
+                    "placement has no MaAS candidate set outside the baseline "
+                    f"profile: reason={absent_reason or '[unrecorded]'}"
+                )
+        else:
             consumed = bool(
                 decision.signals.metadata.get(
                     "operator_candidate_contract_consumed",

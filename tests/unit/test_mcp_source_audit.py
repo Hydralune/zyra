@@ -69,6 +69,13 @@ class McpSourceAuditTests(unittest.TestCase):
                 self.assertTrue(decision.runtime_entry)
                 self.assertTrue(decision.test_target)
                 self.assertTrue(decision.main_path_evidence)
+                # A behavior test that no longer exists is not evidence.  The
+                # ledger silently pointed at deleted pre-cutover test modules
+                # because only membership in the allow-list was checked.
+                self.assertTrue(
+                    (PROJECT_ROOT / decision.test_target).is_file(),
+                    decision.test_target,
+                )
                 for target in decision.target_paths:
                     self.assertTrue((PROJECT_ROOT / target).is_file(), target)
                     self.assertNotIn("vendor", Path(target).parts)

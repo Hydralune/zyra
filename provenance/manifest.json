@@ -1392,7 +1392,7 @@
       "kind": "internalization_ledger_source_evidence",
       "normalization": "utf8_lf",
       "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
-      "sha256": "c6a02097f295f14f384c40033fb9d3e5b7180f7e8ad7cc8c732ebd826909330a"
+      "sha256": "d6dddc5952d0763a5b45ee4c36ac69fd790103d272b66ef699294ea8a4c0b910"
     }
   ],
   "loopx": {

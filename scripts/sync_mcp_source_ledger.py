@@ -102,8 +102,13 @@ def runtime_entry_for_decision(decision: McpSourceDecision) -> RuntimeEntry:
         if decision.claims_runtime_ownership and decision.runtime_entry
         else "zyra_integrations.mcp.source_audit.source_decision"
     )
-    module, separator, function = symbol.rpartition(".")
-    if not separator:
+    # TypeScript entries are ``<package>/<module>#<Symbol>``; Python entries stay
+    # dotted.  The MCP client runtime has been TypeScript since the e02 cutover.
+    if "#" in symbol:
+        module, _, function = symbol.partition("#")
+    else:
+        module, _, function = symbol.rpartition(".")
+    if not module or not function:
         raise ValueError(f"Invalid MCP runtime entry symbol: {symbol!r}")
     return RuntimeEntry(
         module=module,
@@ -114,14 +119,11 @@ def runtime_entry_for_decision(decision: McpSourceDecision) -> RuntimeEntry:
             else "zyra-mcp-source-decision-v1"
         ),
         health_check=(
-            "python -m unittest tests.unit.test_mcp_config_store "
-            "tests.unit.test_mcp_transport_protocol tests.unit.test_mcp_auth_sampling "
-            "tests.unit.test_mcp_capabilities_output_tasks "
-            "tests.integration.test_mcp_codeworker_permission_integration "
-            "tests.integration.test_mcp_api_control_restore"
+            "bun test packages/integrations/claude-mcp/test && "
+            "python -m unittest tests.unit.test_mcp_source_audit"
         ),
         config_refs=[
-            "packages/integrations/zyra_integrations/mcp/config.py",
+            "packages/integrations/claude-mcp/src/config/config-store.ts",
             "packages/integrations/zyra_integrations/mcp/store.py",
             "packages/integrations/zyra_integrations/mcp/models.py",
         ],
@@ -132,11 +134,18 @@ def test_entry_for_decision(decision: McpSourceDecision) -> TestEntry:
     path = decision.test_target if decision.claims_runtime_ownership else SOURCE_AUDIT_TEST
     if not path:
         raise ValueError(f"MCP runtime decision has no test target: {decision.key}")
-    module = path.removesuffix(".py").replace("/", ".")
-    kind = "integration" if "/integration/" in f"/{path}" else "unit"
+    if path.endswith(".ts"):
+        # The MCP behavior suite is TypeScript since the e02 cutover; a Python
+        # unittest module path derived from it would not name a runnable test.
+        command = f"bun test {path}"
+        kind = "behavior"
+    else:
+        module = path.removesuffix(".py").replace("/", ".")
+        command = f"python -m unittest {module}"
+        kind = "integration" if "/integration/" in f"/{path}" else "unit"
     return TestEntry(
         path=path,
-        command=f"python -m unittest {module}",
+        command=command,
         kind=kind,
         expected_signal=(
             "real MCP connection/capability/auth/tool/restore behavior changes the main path"
