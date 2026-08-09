@@ -166,7 +166,7 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
     )
     ensure_default_graph(state)
 
-    original_binding = api.topology.bind_physical_attempt
+    original_binding = api._bind_task_graph_acquisition
 
     class ReceiptProjection:
         committed = True
@@ -201,8 +201,8 @@ def test_api_acquisition_projection_failure_cancels_real_lease_and_attempt(
         )
 
     monkeypatch.setattr(
-        api.topology,
-        "bind_physical_attempt",
+        api,
+        "_bind_task_graph_acquisition",
         fail_binding,
     )
     with pytest.raises(
