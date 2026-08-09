@@ -444,16 +444,18 @@ export async function resolveModelTurns(
           }),
         };
       }
+      const requestBody: JsonObject = {
+        model,
+        messages: requestMessages,
+        stream: true,
+        ...(requestTools.length > 0
+          ? { tools: requestTools, tool_choice: "auto" }
+          : {}),
+      };
       const response = await fetch(modelEndpoint(baseUrl), {
         method: "POST",
         headers: modelHeaders(constraints),
-        body: JSON.stringify({
-          model,
-          messages: requestMessages,
-          tools: requestTools,
-          tool_choice: "auto",
-          stream: true,
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) {

@@ -1380,10 +1380,30 @@ export class ClaudeRuntimeCore {
         && activeIterationRoundId
         && turnIndex + 1 <= turnLimit
       ) {
+        const finalResponseOnly = turnIndex + 1 === turnLimit;
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
         if (pendingRestoreProviderMessage) {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
           pendingRestoreProviderMessage = null;
+        }
+        if (finalResponseOnly) {
+          providerMessages = [
+            ...providerMessages,
+            {
+              role: "user",
+              content: [
+                "The executable tool-turn budget is now exhausted.",
+                "Do not call any tool.",
+                "Provide the concise final answer to the original request now.",
+              ].join(" "),
+            },
+          ];
+          await emit("provider_finalization_requested", {
+            turn_index: turnIndex,
+            max_turns: turnLimit,
+            tools_advertised: 0,
+            executable_tool_budget_expanded: false,
+          });
         }
         const nextRound = iteration.beginProviderRound({
           requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
@@ -1394,7 +1414,7 @@ export class ClaudeRuntimeCore {
           input,
           config,
           [],
-          registry.list(),
+          finalResponseOnly ? [] : registry.list(),
           emit,
           (observation) => e01.decideProviderRecovery(observation),
           e01.journal.restartEpoch,
@@ -1415,6 +1435,18 @@ export class ClaudeRuntimeCore {
           await emit("error", {
             error: stoppedReason,
             detail: nextModel.error ?? "provider revision failed",
+            source: "model_iteration_runtime",
+          });
+        } else if (finalResponseOnly && nextModel.turns.length > 0) {
+          iteration.failProviderRound(nextRound.roundId, "max_turns_exceeded");
+          ok = false;
+          stoppedReason = "max_turns_exceeded";
+          await emit("error", {
+            error: stoppedReason,
+            detail: [
+              "provider attempted a tool call during the response-only",
+              "finalization round",
+            ].join(" "),
             source: "model_iteration_runtime",
           });
         } else {

@@ -428,6 +428,16 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.equal(firstProviderPath.type, "string");
   assert.ok(Array.isArray(providerBodies[1].messages));
   assert.ok((providerBodies[1].messages as JsonObject[]).some((message) => message.role === "tool"));
+  assert.equal(providerBodies[1].tools, undefined);
+  assert.equal(providerBodies[1].tool_choice, undefined);
+  assert.ok(
+    (providerBodies[1].messages as JsonObject[]).some((message) =>
+      /tool-turn budget is now exhausted.*Do not call any tool/i.test(
+        String(message.content ?? ""),
+      )
+    ),
+    JSON.stringify(providerBodies[1].messages),
+  );
   assert.ok(successState.telemetry.prompts.length >= 1);
   assert.equal(successState.telemetry.samples.length, 2);
   assert.ok(successState.providerPrompt.lastPrompt?.fingerprint);
