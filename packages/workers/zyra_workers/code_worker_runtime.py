@@ -763,6 +763,9 @@ def _execution_evidence(result: Any) -> dict[str, Any]:
             raw_observed_usage = (
                 dict(raw_usage) if isinstance(raw_usage, Mapping) else {}
             )
+            prompt_token_details = _mapping(
+                raw_observed_usage.get("prompt_tokens_details")
+            )
             observed_usage = {
                 **raw_observed_usage,
                 "input_tokens": int(
@@ -778,6 +781,7 @@ def _execution_evidence(result: Any) -> dict[str, Any]:
                 "cache_read_input_tokens": int(
                     raw_observed_usage.get("cache_read_input_tokens")
                     or raw_observed_usage.get("cached_prompt_tokens")
+                    or prompt_token_details.get("cached_tokens")
                     or 0
                 ),
             }
