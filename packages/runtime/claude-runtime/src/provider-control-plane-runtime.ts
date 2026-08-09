@@ -186,7 +186,7 @@ export async function resolveProviderControlPlaneTurns(
       },
     });
     const result = await controlPlane.dispatch(request);
-    const steps = toolSteps(result.frames);
+    const steps = providerControlPlaneToolSteps(result.frames);
     const evidenceFrames = providerControlPlaneEvidenceFrames(result.frames);
     const compactedContentFrames = result.frames.filter(
       (frame) => HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind),
@@ -461,12 +461,21 @@ function normalizeProviderTools(tools: readonly ToolSpecContract[]): DispatchToo
   }));
 }
 
-function toolSteps(frames: readonly ProviderStreamFrame[]): ToolStep[] {
+export function providerControlPlaneToolSteps(frames: readonly ProviderStreamFrame[]): ToolStep[] {
   const accumulators = new Map<string, ToolAccumulator>();
+  const providerIndexOwners = new Map<string, string>();
   for (const frame of frames) {
-    if (frame.kind !== "tool_call_delta" || frame.toolCallId === null) continue;
-    const current = accumulators.get(frame.toolCallId) ?? {
-      toolCallId: frame.toolCallId,
+    if (frame.kind !== "tool_call_delta") continue;
+    const providerIndex = providerToolIndex(frame);
+    const explicitToolCallId = frame.toolCallId?.trim() || null;
+    if (providerIndex !== null && explicitToolCallId !== null) {
+      providerIndexOwners.set(providerIndex, explicitToolCallId);
+    }
+    const toolCallId = explicitToolCallId
+      ?? (providerIndex === null ? null : providerIndexOwners.get(providerIndex) ?? null);
+    if (toolCallId === null) continue;
+    const current = accumulators.get(toolCallId) ?? {
+      toolCallId,
       toolName: frame.toolName ?? "",
       json: "",
       firstSequence: frame.sequence,
@@ -475,7 +484,7 @@ function toolSteps(frames: readonly ProviderStreamFrame[]): ToolStep[] {
     if (frame.toolName) current.toolName = frame.toolName;
     if (frame.jsonDelta) current.json += frame.jsonDelta;
     current.lastSequence = frame.sequence;
-    accumulators.set(frame.toolCallId, current);
+    accumulators.set(toolCallId, current);
   }
   return [...accumulators.values()]
     .sort((left, right) => left.firstSequence - right.firstSequence)
@@ -490,6 +499,13 @@ function toolSteps(frames: readonly ProviderStreamFrame[]): ToolStep[] {
         arguments_digest: digestJson(parseArguments(item.json)),
       },
     }));
+}
+
+function providerToolIndex(frame: ProviderStreamFrame): string | null {
+  const value = frame.metadata.providerIndex;
+  if (typeof value === "number" && Number.isFinite(value)) return `number:${value}`;
+  if (typeof value === "string" && value.trim()) return `string:${value.trim()}`;
+  return null;
 }
 
 function parseArguments(value: string): JsonObject {

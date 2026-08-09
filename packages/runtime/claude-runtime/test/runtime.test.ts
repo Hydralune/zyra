@@ -14,7 +14,10 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../src/index.ts";
-import { providerControlPlaneEvidenceFrames } from "../src/provider-control-plane-runtime.ts";
+import {
+  providerControlPlaneEvidenceFrames,
+  providerControlPlaneToolSteps,
+} from "../src/provider-control-plane-runtime.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -257,6 +260,46 @@ test("provider evidence keeps structural frames without replaying content tokens
     "tool_call_delta",
     "usage",
     "response_end",
+  ]);
+});
+
+test("provider control plane rejoins fragmented OpenAI tool arguments by provider index", () => {
+  type Frame = Parameters<typeof providerControlPlaneToolSteps>[0][number];
+  const frame = (
+    sequence: number,
+    providerIndex: number,
+    toolCallId: string | null,
+    toolName: string | null,
+    jsonDelta: string | null,
+  ): Frame => ({
+    frameId: `frame-${sequence}`,
+    dispatchId: "dispatch-1",
+    routeId: "route-1",
+    sequence,
+    kind: "tool_call_delta",
+    text: null,
+    toolCallId,
+    toolName,
+    jsonDelta,
+    usage: {},
+    providerEvent: "chat.completion.chunk",
+    createdAt: sequence,
+    metadata: { providerIndex },
+  });
+  const steps = providerControlPlaneToolSteps([
+    frame(1, 0, "call-shell", "shell", ""),
+    frame(2, 0, null, null, '{"command":"ls'),
+    frame(3, 0, null, null, ' -la"}'),
+    frame(4, 1, "call-read", "file_read", ""),
+    frame(5, 1, null, null, '{"path":"README.md"}'),
+  ]);
+  assert.deepEqual(steps.map((step) => ({
+    id: step.step_id,
+    name: step.tool_name,
+    arguments: step.arguments,
+  })), [
+    { id: "call-shell", name: "shell", arguments: { command: "ls -la" } },
+    { id: "call-read", name: "file_read", arguments: { path: "README.md" } },
   ]);
 });
 
