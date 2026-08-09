@@ -173,6 +173,25 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
         self.assertEqual(allowed.effect, CommandEffect.ASK)
         self.assertEqual(denied.effect, CommandEffect.DENY)
 
+    def test_dotted_file_argument_is_not_misclassified_as_a_network_target(self) -> None:
+        network = NetworkPolicy()
+
+        local = network.evaluate(
+            command(
+                "python3",
+                ("-m", "fleetledger", "--config", "config.json"),
+            )
+        )
+        explicit_url = network.evaluate(
+            command("python3", ("-c", "fetch('https://example.test/data')"))
+        )
+        network_tool = network.evaluate(command("curl", ("example.test",)))
+
+        self.assertEqual(local.effect, CommandEffect.ALLOW)
+        self.assertEqual(local.targets, ())
+        self.assertEqual(explicit_url.effect, CommandEffect.DENY)
+        self.assertEqual(network_tool.effect, CommandEffect.DENY)
+
     def test_paths_reject_traversal_unc_drive_and_reserved_devices(self) -> None:
         for value in (
             "../outside.txt",

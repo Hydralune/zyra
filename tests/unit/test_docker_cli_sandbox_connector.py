@@ -45,6 +45,40 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             720.0,
         )
 
+    def test_explicit_long_horizon_benchmark_has_a_separate_bounded_budget(self) -> None:
+        context = {
+            "benchmark_long_horizon": True,
+            "max_turns": 80,
+            "reasoning_timeout_seconds": 2_400,
+        }
+        self.assertEqual(
+            code_worker_adapter._code_worker_reasoning_budget(
+                context,
+                benchmark_execution=True,
+            ),
+            (64, 1_800.0),
+        )
+        self.assertEqual(
+            _typescript_runtime_timeout_seconds(
+                {
+                    "benchmark_physical_dispatch": True,
+                    "benchmark_long_horizon": True,
+                    "typescript_runtime_timeout_seconds": 2_400,
+                }
+            ),
+            1_800.0,
+        )
+        # The marker alone cannot relax a normal production execution.
+        self.assertEqual(
+            _typescript_runtime_timeout_seconds(
+                {
+                    "benchmark_long_horizon": True,
+                    "typescript_runtime_timeout_seconds": 2_400,
+                }
+            ),
+            600.0,
+        )
+
     def test_production_reasoning_budget_keeps_existing_ceiling(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(

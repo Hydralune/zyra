@@ -463,6 +463,17 @@ def _code_worker_reasoning_budget(
     independent verifier.
     """
 
+    if benchmark_execution and context.get("benchmark_long_horizon") is True:
+        return (
+            max(24, min(64, int(context.get("max_turns") or 64))),
+            max(
+                720.0,
+                min(
+                    1_800.0,
+                    float(context.get("reasoning_timeout_seconds") or 1_800.0),
+                ),
+            ),
+        )
     if benchmark_execution:
         return 24, 720.0
     return (

@@ -223,13 +223,21 @@ class NetworkPolicy:
 
     def extract_targets(self, envelope: GatewayCommandEnvelope) -> tuple[NetworkTarget, ...]:
         values = [envelope.executable, *envelope.argv]
+        executable = executable_name(envelope.executable)
+        accepts_bare_network_targets = executable in {
+            item.casefold() for item in NETWORK_EXECUTABLES
+        }
         targets: dict[tuple[str, str, int | None], NetworkTarget] = {}
         for value in values:
             text = str(value)
             for match in _URL.finditer(text):
                 target = self._from_url(match.group(0), source="url")
                 targets[(target.scheme, target.host, target.port)] = target
-            if _HOST_TOKEN.match(text):
+            # A dotted filename such as ``config.json`` has the same lexical
+            # shape as a bare hostname.  Only network-capable executables may
+            # interpret that ambiguous form as a target.  Explicit URLs remain
+            # visible for every executable, including interpreter ``-c`` code.
+            if accepts_bare_network_targets and _HOST_TOKEN.match(text):
                 target = self._target("", text, None, source="argv")
                 targets[(target.scheme, target.host, target.port)] = target
         return tuple(

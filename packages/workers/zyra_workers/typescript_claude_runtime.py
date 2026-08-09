@@ -63,11 +63,12 @@ _CHECKPOINT_LOCKS_GUARD = threading.RLock()
 def _typescript_runtime_timeout_seconds(constraints: Mapping[str, Any]) -> float:
     """Keep the wider timeout exclusive to an externally verified benchmark."""
 
-    ceiling = (
-        720.0
-        if constraints.get("benchmark_physical_dispatch") is True
-        else 600.0
+    benchmark_dispatch = constraints.get("benchmark_physical_dispatch") is True
+    long_horizon = (
+        benchmark_dispatch
+        and constraints.get("benchmark_long_horizon") is True
     )
+    ceiling = 1_800.0 if long_horizon else (720.0 if benchmark_dispatch else 600.0)
     return min(
         ceiling,
         max(

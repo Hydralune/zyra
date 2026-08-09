@@ -6735,6 +6735,12 @@ def _production_physical_dispatch_port(
         workspace = get_workspace_manager().config
         payload["provider"] = route_ref.provider_id
         payload["model"] = route_ref.model_id
+        (
+            reasoning_max_turns,
+            reasoning_runtime_timeout_seconds,
+            reasoning_transport_budget_ms,
+            benchmark_long_horizon,
+        ) = _reasoning_budget_from_environment()
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
@@ -6755,14 +6761,15 @@ def _production_physical_dispatch_port(
                 database_path=provider_db
             ),
             "model_id": route_ref.model_id,
-            "max_turns": _REASONING_MAX_TURNS,
+            "max_turns": reasoning_max_turns,
             "model_output_token_limit": 8192,
             # The runtime deadline must expire before the transport deadline so
             # a slow reasoning loop still returns a structured receipt instead
             # of aborting the dispatch connection with an unknown outcome.
-            "reasoning_timeout_seconds": _REASONING_RUNTIME_TIMEOUT_SECONDS,
+            "reasoning_timeout_seconds": reasoning_runtime_timeout_seconds,
+            "benchmark_long_horizon": benchmark_long_horizon,
         }
-        execution_budget_ms = _REASONING_TRANSPORT_BUDGET_MS
+        execution_budget_ms = reasoning_transport_budget_ms
     task = PhysicalDispatchTask(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -6796,6 +6803,39 @@ def _production_physical_dispatch_port(
 _REASONING_MAX_TURNS = 12
 _REASONING_RUNTIME_TIMEOUT_SECONDS = 600.0
 _REASONING_TRANSPORT_BUDGET_MS = 780_000
+_LONG_HORIZON_REASONING_MAX_TURNS = 64
+_LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS = 1_800.0
+_LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS = 1_860_000
+
+
+def _reasoning_budget_from_environment() -> tuple[int, float, int, bool]:
+    """Select the bounded physical budget for an explicitly isolated long run.
+
+    Merely setting the long-horizon flag is insufficient: both external Docker
+    binding values must be present, so ordinary production and Terminal-Bench
+    executions retain their existing limits.
+    """
+
+    benchmark_bound = bool(
+        str(os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or "").strip()
+        and str(os.environ.get("ZYRA_BENCHMARK_DOCKER_WORKDIR") or "").strip()
+    )
+    long_horizon = benchmark_bound and str(
+        os.environ.get("ZYRA_BENCHMARK_LONG_HORIZON") or ""
+    ).strip().casefold() in {"1", "true", "yes"}
+    if long_horizon:
+        return (
+            _LONG_HORIZON_REASONING_MAX_TURNS,
+            _LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS,
+            _LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS,
+            True,
+        )
+    return (
+        _REASONING_MAX_TURNS,
+        _REASONING_RUNTIME_TIMEOUT_SECONDS,
+        _REASONING_TRANSPORT_BUDGET_MS,
+        False,
+    )
 
 # One physical layer may spend the full 600s reasoning budget plus dispatch and
 # recovery overhead, and a task runs several of them.  The validity window has

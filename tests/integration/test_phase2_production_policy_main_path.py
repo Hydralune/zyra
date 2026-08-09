@@ -2298,3 +2298,29 @@ def test_permission_receipt_outlives_a_full_reasoning_layer() -> None:
     assert validity > transport_budget
     # Several layers plus recovery passes run under one receipt.
     assert validity >= layer_budget * 4
+
+
+def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_BENCHMARK_LONG_HORIZON", "true")
+    assert api._reasoning_budget_from_environment() == (
+        api._REASONING_MAX_TURNS,
+        api._REASONING_RUNTIME_TIMEOUT_SECONDS,
+        api._REASONING_TRANSPORT_BUDGET_MS,
+        False,
+    )
+
+    monkeypatch.setenv("ZYRA_BENCHMARK_DOCKER_CONTAINER", "task-main-1")
+    monkeypatch.setenv("ZYRA_BENCHMARK_DOCKER_WORKDIR", "/app/task")
+    turns, runtime_seconds, transport_ms, enabled = (
+        api._reasoning_budget_from_environment()
+    )
+    assert enabled is True
+    assert turns == api._LONG_HORIZON_REASONING_MAX_TURNS
+    assert runtime_seconds == api._LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS
+    assert transport_ms == api._LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS
+    assert transport_ms > runtime_seconds * 1_000
+    assert api.PHASE2_PERMISSION_RECEIPT_VALIDITY > timedelta(
+        milliseconds=transport_ms
+    )
