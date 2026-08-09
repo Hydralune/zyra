@@ -239,6 +239,127 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 },
             )
 
+    def test_benchmark_shell_is_ordered_between_mirror_push_and_pull(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            (workspace / "tracked.txt").write_text("live", encoding="utf-8")
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+            calls: list[str] = []
+
+            def fake_push(*_args, **_kwargs):
+                calls.append("push")
+                return {
+                    "written_count": 0,
+                    "deleted_count": 0,
+                    "written_path_digests": [],
+                    "deleted_path_digests": [],
+                }
+
+            def fake_pull(*_args, **_kwargs):
+                calls.append("pull")
+
+            mirror = code_worker_adapter._BenchmarkWorkspaceMirror(
+                binding,
+                workspace,
+                synced_manifest=code_worker_adapter._workspace_manifest(workspace),
+            )
+            connector = code_worker_adapter._BenchmarkDockerCliSandboxConnector(
+                container="task-main-1",
+                workdir="/app",
+                docker_executable="docker-test",
+                benchmark_mirror=mirror,
+            )
+            envelope = GatewayCommandEnvelope.build(
+                session_id="session-1",
+                run_id="run-1",
+                task_id="task-1",
+                worker_id="worker-1",
+                executable="git",
+                argv=("status", "--short"),
+            )
+            session = BackendSession(
+                session_id="session-1",
+                backend_id=connector.backend_id,
+                execution_root=root,
+                generation=1,
+                prepared_at=0.0,
+            )
+            expected = object()
+
+            def fake_execute(*_args, **_kwargs):
+                calls.append("execute")
+                return expected
+
+            with (
+                patch.object(
+                    code_worker_adapter,
+                    "_push_benchmark_workspace_delta",
+                    side_effect=fake_push,
+                ),
+                patch.object(
+                    code_worker_adapter,
+                    "_pull_benchmark_workspace",
+                    side_effect=fake_pull,
+                ),
+                patch.object(
+                    DockerCliSandboxConnector,
+                    "execute",
+                    side_effect=fake_execute,
+                ),
+            ):
+                result = connector.execute(session, envelope, CancellationToken())
+
+            self.assertIs(result, expected)
+            self.assertEqual(calls, ["push", "execute", "pull"])
+            self.assertEqual(mirror.report()["ordering"], "live-serialized")
+
+    def test_benchmark_file_port_pulls_before_read_and_pushes_after_apply(self) -> None:
+        calls: list[str] = []
+
+        class Mirror:
+            def __init__(self) -> None:
+                import threading
+
+                self.guard = threading.RLock()
+
+            def pull_from_container(self) -> None:
+                calls.append("pull")
+
+            def push_to_container(self) -> None:
+                calls.append("push")
+
+        port = object.__new__(code_worker_adapter._BenchmarkWorkspaceEditPort)
+        port._benchmark_mirror = Mirror()
+        read_result = object()
+        apply_result = object()
+
+        with patch.object(
+            code_worker_adapter.WorkspaceEditPort,
+            "read_bytes",
+            side_effect=lambda *_args, **_kwargs: calls.append("read") or read_result,
+        ):
+            self.assertIs(port.read_bytes("tracked.txt"), read_result)
+        with patch.object(
+            code_worker_adapter.WorkspaceEditPort,
+            "apply",
+            side_effect=lambda *_args, **_kwargs: calls.append("apply") or apply_result,
+        ):
+            self.assertIs(port.apply(()), apply_result)
+
+        self.assertEqual(calls, ["pull", "read", "apply", "push"])
+
     def test_benchmark_permission_rule_is_exactly_session_and_workspace_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary).resolve() / "managed-workspace"

@@ -393,6 +393,9 @@ test("runtime commits provider prompt usage and recovery state through default l
       workerRequestId: "provider-success-request",
       turns: [],
       config: {
+        // One tool-bearing turn still owns a final provider-only response
+        // round; that round must not expand the executable tool budget.
+        maxTurns: 1,
         runtimeConstraints: {
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",

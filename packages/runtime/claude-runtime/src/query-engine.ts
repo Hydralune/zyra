@@ -107,7 +107,10 @@ export class ClaudeRuntimeCore {
       providerMessages = structuredClone(restoredIteration.transcript);
     } else {
       iteration.start(providerMessages, {
-        maximumRounds: config.maxTurns ?? 1_000,
+        // maxTurns bounds tool-bearing turns. HTTP model loops need one
+        // additional provider round to turn the final tool observation into
+        // a user-facing answer without granting another tool execution.
+        maximumRounds: (config.maxTurns ?? 1_000) + (modelTransport === "http_sse" ? 1 : 0),
         maximumToolCalls: Math.max(1_000, (config.maxTurns ?? 1_000) * 32),
       });
     }
@@ -1375,7 +1378,7 @@ export class ClaudeRuntimeCore {
         modelTransport === "http_sse"
         && ok
         && activeIterationRoundId
-        && turnIndex + 1 < turnLimit
+        && turnIndex + 1 <= turnLimit
       ) {
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
         if (pendingRestoreProviderMessage) {

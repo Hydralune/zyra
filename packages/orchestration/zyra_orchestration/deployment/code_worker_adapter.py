@@ -8,6 +8,7 @@ import posixpath
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
@@ -133,18 +134,35 @@ def execute_code_worker_operator(
             workspace_config.get("data_root"), "workspace data root"
         ),
     )
+    benchmark_mirror: _BenchmarkWorkspaceMirror | None = None
     if benchmark_binding is not None:
         _pull_benchmark_workspace(benchmark_binding, workspace_root)
     before = _workspace_manifest(workspace_root)
-    edit_port = WorkspaceEditPort(
-        manager,
-        access,
-        worker_id=worker_id,
-        run_id=run_id,
-        task_id=task_id,
-        node_id=node_id,
-        artifact_store=LocalArtifactStore(artifact_root),
-    )
+    edit_port_arguments = {
+        "worker_id": worker_id,
+        "run_id": run_id,
+        "task_id": task_id,
+        "node_id": node_id,
+        "artifact_store": LocalArtifactStore(artifact_root),
+    }
+    if benchmark_binding is not None:
+        benchmark_mirror = _BenchmarkWorkspaceMirror(
+            benchmark_binding,
+            workspace_root,
+            synced_manifest=before,
+        )
+        edit_port = _BenchmarkWorkspaceEditPort(
+            manager,
+            access,
+            benchmark_mirror=benchmark_mirror,
+            **edit_port_arguments,
+        )
+    else:
+        edit_port = WorkspaceEditPort(
+            manager,
+            access,
+            **edit_port_arguments,
+        )
 
     permission_session_id = _physical_permission_session_id(
         payload,
@@ -212,12 +230,12 @@ def execute_code_worker_operator(
             f"{execution_prompt}\n\n"
             "OFFICIAL BENCHMARK ENVIRONMENT: The shell tool is physically bound to "
             "the canonical external task container. Use shell commands for repository "
-            "inspection, Git operations, tests, and delivery. File tools are mirrored "
-            "into that same container at the end of the run, but prefer shell commands "
-            "whenever Git state or command/file ordering matters. Each shell call must "
-            "be one executable command without redirects, pipes, &&, ||, or command "
-            "substitution; use file_write/file_read for file contents. Complete the "
-            "task in the environment; do not merely describe what should be done."
+            "inspection, Git operations, tests, and delivery. File tools and shell "
+            "commands share one live, ordered view of that container workspace. Each "
+            "shell call must be one executable command without redirects, pipes, &&, "
+            "||, or command substitution; use file_write/file_read for file contents. "
+            "Complete the task in the environment; do not merely describe what should "
+            "be done."
         )
     request = WorkerRequest(
         run_id=run_id,
@@ -260,11 +278,14 @@ def execute_code_worker_operator(
         "sandbox_gateway_state_root": sandbox_gateway_state_root,
     }
     if benchmark_binding is not None:
+        assert benchmark_mirror is not None
         runtime_services["sandbox_gateway_backend"] = DockerSandboxBackend(
             sandbox_gateway_state_root / "backend",
-            DockerCliSandboxConnector(
+            _BenchmarkDockerCliSandboxConnector(
                 container=str(benchmark_binding["container"]),
                 workdir=str(benchmark_binding["workdir"]),
+                docker_executable=str(benchmark_binding["docker_executable"]),
+                benchmark_mirror=benchmark_mirror,
             ),
         )
     runtime = CodeWorkerRuntime(
@@ -290,14 +311,10 @@ def execute_code_worker_operator(
     workspace_root = manager.internal_task_root(current_access)
     benchmark_sync: dict[str, Any] | None = None
     if benchmark_binding is not None:
-        host_after_runtime = _workspace_manifest(workspace_root)
-        benchmark_sync = _push_benchmark_workspace_delta(
-            benchmark_binding,
-            workspace_root,
-            before=before,
-            after=host_after_runtime,
-        )
-        _pull_benchmark_workspace(benchmark_binding, workspace_root)
+        assert benchmark_mirror is not None
+        benchmark_mirror.push_to_container()
+        benchmark_mirror.pull_from_container()
+        benchmark_sync = benchmark_mirror.report()
     after = _workspace_manifest(workspace_root)
     workspace_delta = _workspace_delta(before, after)
     evidence = dict(run.execution_evidence)
@@ -309,6 +326,7 @@ def execute_code_worker_operator(
             "container_workdir": str(benchmark_binding["workdir"]),
             "initial_pull_verified": True,
             "final_pull_verified": True,
+            "live_bidirectional_sync_verified": True,
             "host_file_delta_push": dict(benchmark_sync or {}),
             "container_lifecycle_owner": "external-harness",
         }
@@ -1025,6 +1043,117 @@ def _workspace_delta(
         "after_manifest_digest": _digest(dict(after)),
         "physical_location_redacted": True,
     }
+
+
+class _BenchmarkWorkspaceMirror:
+    """Keep WorkspaceEditPort and an external benchmark container coherent.
+
+    The external harness owns the canonical container.  File tools still pass
+    through WorkspaceManager for transaction and evidence custody, so this
+    bridge synchronizes that managed mirror at every file/shell boundary.  A
+    shared lock gives mixed tool calls one physical ordering instead of the
+    former end-of-run eventual consistency.
+    """
+
+    def __init__(
+        self,
+        binding: Mapping[str, Any],
+        workspace_root: Path,
+        *,
+        synced_manifest: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        self.binding = dict(binding)
+        self.workspace_root = workspace_root.resolve()
+        self.guard = threading.RLock()
+        self._synced_manifest = {
+            path: dict(record) for path, record in synced_manifest.items()
+        }
+        self._push_cycles = 0
+        self._pull_cycles = 1
+        self._written_path_digests: set[str] = set()
+        self._deleted_path_digests: set[str] = set()
+
+    def pull_from_container(self) -> None:
+        with self.guard:
+            _pull_benchmark_workspace(self.binding, self.workspace_root)
+            self._synced_manifest = _workspace_manifest(self.workspace_root)
+            self._pull_cycles += 1
+
+    def push_to_container(self) -> dict[str, Any]:
+        with self.guard:
+            after = _workspace_manifest(self.workspace_root)
+            result = _push_benchmark_workspace_delta(
+                self.binding,
+                self.workspace_root,
+                before=self._synced_manifest,
+                after=after,
+            )
+            self._synced_manifest = after
+            self._push_cycles += 1
+            self._written_path_digests.update(
+                str(item) for item in result.get("written_path_digests") or ()
+            )
+            self._deleted_path_digests.update(
+                str(item) for item in result.get("deleted_path_digests") or ()
+            )
+            return self.report()
+
+    def report(self) -> dict[str, Any]:
+        with self.guard:
+            return {
+                "written_count": len(self._written_path_digests),
+                "deleted_count": len(self._deleted_path_digests),
+                "written_path_digests": sorted(self._written_path_digests),
+                "deleted_path_digests": sorted(self._deleted_path_digests),
+                "push_cycles": self._push_cycles,
+                "pull_cycles": self._pull_cycles,
+                "ordering": "live-serialized",
+            }
+
+
+class _BenchmarkWorkspaceEditPort(WorkspaceEditPort):
+    """Workspace transaction port synchronized with a benchmark container."""
+
+    def __init__(
+        self,
+        *args: Any,
+        benchmark_mirror: _BenchmarkWorkspaceMirror,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._benchmark_mirror = benchmark_mirror
+
+    def read_bytes(self, *args: Any, **kwargs: Any) -> Any:
+        with self._benchmark_mirror.guard:
+            self._benchmark_mirror.pull_from_container()
+            return super().read_bytes(*args, **kwargs)
+
+    def apply(self, *args: Any, **kwargs: Any) -> Any:
+        with self._benchmark_mirror.guard:
+            result = super().apply(*args, **kwargs)
+            self._benchmark_mirror.push_to_container()
+            return result
+
+
+class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
+    """Serialize shell execution with the managed file-tool mirror."""
+
+    def __init__(
+        self,
+        *,
+        benchmark_mirror: _BenchmarkWorkspaceMirror,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._benchmark_mirror = benchmark_mirror
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        with self._benchmark_mirror.guard:
+            self._benchmark_mirror.push_to_container()
+            try:
+                return super().execute(*args, **kwargs)
+            finally:
+                self._benchmark_mirror.pull_from_container()
 
 
 def _benchmark_docker_binding(
