@@ -1464,6 +1464,35 @@ class Phase2StrongestProductionBridge:
             "observed_at": now_iso(),
         }
 
+    @staticmethod
+    def _checkpointed_side_effect_recovery_allowed(
+        reconciliation: Mapping[str, Any],
+    ) -> bool:
+        """Admit continuation only for an explicitly durable benchmark workspace.
+
+        A lost transport after observable mutations must remain outcome-unknown;
+        it is never safe to replay blindly.  The long-horizon Docker harness is
+        different: its container workspace survives deployment-node loss and
+        the next physical pass is a checkpoint continuation with a fresh lease,
+        fence, permission session, and idempotency key.  Keep this opt-in tied
+        to all three environment bindings so ordinary production dispatches
+        continue to fail closed.
+        """
+
+        long_horizon = str(
+            os.environ.get("ZYRA_BENCHMARK_LONG_HORIZON") or ""
+        ).strip().casefold() in {"1", "true", "yes"}
+        return bool(
+            reconciliation.get("side_effect_confirmed") is True
+            and long_horizon
+            and str(
+                os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or ""
+            ).strip()
+            and str(
+                os.environ.get("ZYRA_BENCHMARK_DOCKER_WORKDIR") or ""
+            ).strip()
+        )
+
     def _emit_physical_recovery_event(
         self,
         state: TaskState,
@@ -1825,6 +1854,12 @@ class Phase2StrongestProductionBridge:
                 reconciliations.append(reconciliation)
                 if reconciliation["side_effect_confirmed"] is False:
                     side_effect_started = False
+                checkpointed_recovery = (
+                    side_effect_started
+                    and self._checkpointed_side_effect_recovery_allowed(
+                        reconciliation
+                    )
+                )
                 attempt_index += 1
                 if (
                     not side_effect_started
@@ -1858,11 +1893,18 @@ class Phase2StrongestProductionBridge:
                         "automatic_execution_retry_allowed": not side_effect_started,
                         "reconcile_before_retry": side_effect_started,
                         "physical_dispatch_reconciliations": list(reconciliations),
+                        "checkpointed_side_effect_recovery_requested": (
+                            checkpointed_recovery
+                        ),
                         # The in-loop budget is spent, but a dispatch observed
                         # to have written nothing still deserves one stage-level
-                        # replan onto placement bound to a live process.
+                        # replan onto placement bound to a live process.  An
+                        # explicitly durable benchmark workspace may instead
+                        # continue from its observable checkpoint; the unknown
+                        # attempt remains a terminal failure receipt.
                         "physical_execution_replan_requested": (
                             reconciliation["side_effect_confirmed"] is False
+                            or checkpointed_recovery
                         ),
                     },
                 ) from error

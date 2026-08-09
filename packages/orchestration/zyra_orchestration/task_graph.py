@@ -238,10 +238,10 @@ def ensure_default_graph(state: TaskState) -> list[EventRecord]:
 
 
 # Two replan passes per run admit the complete three-route production provider
-# chain (initial GLM route, then DeepSeek, then Kimi).  Every pass is still
-# gated on reconciliation proving that no side effect started.  A third
-# identical failure is therefore a persistent fault for the recovery planner,
-# not an unbounded replay inside this loop.
+# chain (initial GLM route, then DeepSeek, then Kimi).  A pass is gated either
+# on reconciliation proving no side effect started or on the explicit durable
+# workspace continuation contract.  A third identical failure is therefore a
+# persistent fault for the recovery planner, not an unbounded replay.
 _EXECUTION_RECOVERY_PASSES = 2
 
 
@@ -307,6 +307,12 @@ def _reset_stage_for_recovery(
             payload={
                 "schema": "zyra.execution-recovery-replan/v1",
                 "summary": (
+                    "Dispatch crossed a lost node after a durable workspace "
+                    "checkpoint; continuing on fresh placement."
+                    if request.get(
+                        "checkpointed_side_effect_recovery_requested"
+                    )
+                    else
                     "Dispatch outcome reconciled as never started; replanning "
                     "the execute node onto fresh placement."
                 ),
@@ -315,6 +321,11 @@ def _reset_stage_for_recovery(
                 "error_message": str(request.get("error_message") or ""),
                 "reconciliations": request.get("reconciliations") or [],
                 "dispatch_error": request.get("dispatch_error") or {},
+                "checkpointed_side_effect_recovery_requested": bool(
+                    request.get(
+                        "checkpointed_side_effect_recovery_requested"
+                    )
+                ),
                 "runtime_refresh_error": str(
                     request.get("runtime_refresh_error") or ""
                 ),
@@ -904,10 +915,11 @@ def _run_execute_node(
                 execution_context,
             )
     except Exception as error:  # noqa: BLE001 - worker failures must stay in the trace.
-        # A dispatch whose outcome was reconciled as "never started" is not a
-        # task failure yet.  Record the request so the stage pass can replan
-        # this node onto fresh placement instead of ending the run.  This reads
-        # the dedicated replan signal rather than the broader
+        # A dispatch reconciled as "never started", or one explicitly bound to
+        # a durable continuation workspace, is not a task failure yet.  Record
+        # the request so the stage pass can replan this node onto fresh
+        # placement instead of ending the run.  This reads the dedicated
+        # replan signal rather than the broader
         # ``automatic_execution_retry_allowed``, which several older failure
         # paths set to describe side-effect safety alone.
         retry_metadata = dict(getattr(error, "metadata", {}) or {})
@@ -921,6 +933,11 @@ def _run_execute_node(
                 ),
                 "dispatch_error": to_jsonable(
                     retry_metadata.get("physical_dispatch_error") or {}
+                ),
+                "checkpointed_side_effect_recovery_requested": bool(
+                    retry_metadata.get(
+                        "checkpointed_side_effect_recovery_requested"
+                    )
                 ),
             }
         node.status = PlanNodeStatus.FAILED
