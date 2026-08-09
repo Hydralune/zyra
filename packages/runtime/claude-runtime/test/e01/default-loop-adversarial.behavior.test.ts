@@ -572,6 +572,52 @@ describe("execution settlement custody", () => {
     expect(() => runtime.appendProgress("progress-call", 2, "stdout", "gap"))
       .toThrow("sequence gap");
   });
+
+  test("settlement snapshot permits security terminology in source output", () => {
+    const runtime = settlementRuntime();
+    runtime.planBatch({
+      batchId: "source-audit-batch",
+      executionMode: "serial",
+      calls: [plannedCall("source-audit", 0)],
+    });
+    runtime.recordPermission("source-audit", "allow", "allowed");
+    runtime.beginDelegation("source-audit-batch", ["source-audit"]);
+    runtime.recordGatewayReceipt({
+      callId: "source-audit",
+      ok: true,
+      summary: "source inspected",
+      output: {
+        content: "basic = parse_auth(self.environ.get('HTTP_AUTHORIZATION', ''))",
+      },
+      error: null,
+    });
+    runtime.completeBatch("source-audit-batch");
+
+    expect(runtime.snapshot().calls[0]?.output).toEqual({
+      content: "basic = parse_auth(self.environ.get('HTTP_AUTHORIZATION', ''))",
+    });
+  });
+
+  test("settlement snapshot rejects credential-bearing fields", () => {
+    const runtime = settlementRuntime();
+    runtime.planBatch({
+      batchId: "credential-batch",
+      executionMode: "serial",
+      calls: [plannedCall("credential-output", 0)],
+    });
+    runtime.recordPermission("credential-output", "allow", "allowed");
+    runtime.beginDelegation("credential-batch", ["credential-output"]);
+    runtime.recordGatewayReceipt({
+      callId: "credential-output",
+      ok: true,
+      summary: "unsafe output",
+      output: { authorization: "Bearer live-secret-value" },
+      error: null,
+    });
+    runtime.completeBatch("credential-batch");
+
+    expect(() => runtime.snapshot()).toThrow("forbidden credential material: authorization");
+  });
 });
 
 function settlementRuntime(runId = "settlement-run"): ToolExecutionSettlementRuntime {

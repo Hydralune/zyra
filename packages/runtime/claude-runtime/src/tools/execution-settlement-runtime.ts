@@ -192,6 +192,66 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+const SENSITIVE_CREDENTIAL_FIELDS = new Set([
+  "access_token",
+  "api_key",
+  "apikey",
+  "authorization",
+  "cookie",
+  "password",
+  "passwd",
+  "proxy_authorization",
+  "refresh_token",
+  "secret",
+  "set_cookie",
+  "x_api_key",
+]);
+
+function normalizedCredentialField(value: string): string {
+  return value.trim().toLowerCase().replaceAll("-", "_");
+}
+
+function isRedactedCredentialValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") return true;
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === ""
+    || normalized === "redacted"
+    || normalized === "[redacted]"
+    || normalized === "<redacted>"
+    || normalized === "***";
+}
+
+function credentialMaterial(value: unknown): string | null {
+  if (typeof value === "string") {
+    const explicit = value.match(
+      /\b(authorization|proxy-authorization)\s*[:=]\s*(bearer|basic)\s+[a-z0-9+/_=.-]{8,}/i,
+    );
+    if (explicit) return explicit[1]?.toLowerCase() ?? "authorization";
+    const named = value.match(
+      /\b(x-api-key|api[_-]?key|access[_-]?token|refresh[_-]?token)\s*[:=]\s*["']?[a-z0-9+/_=.-]{8,}/i,
+    );
+    return named?.[1]?.toLowerCase() ?? null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = credentialMaterial(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (value === null || typeof value !== "object") return null;
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    const normalized = normalizedCredentialField(key);
+    if (SENSITIVE_CREDENTIAL_FIELDS.has(normalized) && !isRedactedCredentialValue(item)) {
+      return normalized;
+    }
+    const found = credentialMaterial(item);
+    if (found) return found;
+  }
+  return null;
+}
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -1163,9 +1223,7 @@ export class ToolExecutionSettlementRuntime {
   }
 
   private assertSecretFree(value: unknown): void {
-    const serialized = stable(value).toLowerCase();
-    const forbidden = ["authorization", "x-api-key", "api_key\":\"", "access_token\":\"", "secret\":\""];
-    const found = forbidden.find((token) => serialized.includes(token));
+    const found = credentialMaterial(value);
     if (found) {
       throw new ExecutionSettlementError(
         "settlement_snapshot_secret",
