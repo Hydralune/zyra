@@ -52,6 +52,16 @@ const DEFAULT_CONFIG: RuntimeConfig = {
   controlCommands: [],
 };
 
+// These events are intentionally high-frequency observations. They remain in
+// the runtime event/journal evidence, but persisting the complete session for
+// every streamed provider chunk turns one model response into hundreds of
+// multi-megabyte atomic writes. Recovery only needs the surrounding semantic
+// boundaries (request prepared/report, tool and turn transitions).
+const TRANSIENT_CHECKPOINT_PHASES = new Set([
+  "message_delta",
+  "model_stream_frame",
+]);
+
 export class ClaudeRuntimeCore {
   async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
     // Retain QueryEngine.ask's outer lifecycle ordering in the real default
@@ -201,13 +211,15 @@ export class ClaudeRuntimeCore {
       }
       e01.recordRuntimeEvent(phase, payload);
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
-      await host.checkpointState?.({
-        ...session.snapshot(),
-        e01Runtime: e01.snapshot() as unknown as JsonObject,
-        modelIteration: iteration.snapshot() as unknown as JsonObject,
-        checkpointPhase: phase,
-        checkpointEventSequence: eventSequence,
-      });
+      if (!TRANSIENT_CHECKPOINT_PHASES.has(phase)) {
+        await host.checkpointState?.({
+          ...session.snapshot(),
+          e01Runtime: e01.snapshot() as unknown as JsonObject,
+          modelIteration: iteration.snapshot() as unknown as JsonObject,
+          checkpointPhase: phase,
+          checkpointEventSequence: eventSequence,
+        });
+      }
     };
 
     await emit(restored ? "context_restored" : "session_started", {

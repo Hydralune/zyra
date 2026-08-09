@@ -220,8 +220,12 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   assert.ok((e01State(result).journal.state.query?.revision ?? 0) > 0);
   assert.ok(host.events.some((event) => event.phase === "stream_request_start"));
   assert.ok(host.events.some((event) => event.phase === "session_completed"));
+  assert.ok(host.events.some((event) => event.phase === "model_stream_frame"));
+  assert.ok(host.events.some((event) => event.phase === "message_delta"));
   assert.ok(host.checkpoints.length > 0);
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.e01Runtime !== undefined));
+  assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "model_stream_frame"));
+  assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "message_delta"));
 });
 
 test("session restore preserves the unique active turn boundary", () => {
