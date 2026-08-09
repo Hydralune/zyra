@@ -77,6 +77,14 @@ describe("FE-S01 CLI argument and output contract", () => {
     expect(scenario.labels).toEqual({ source: "cli" })
   })
 
+  test("accepts a benchmark-length timeout within the bounded client window", () => {
+    const run = parseCliArgs(["run", "--timeout=14m", "complete", "the", "task"])
+    expect(run.kind).toBe("run")
+    if (run.kind !== "run") throw new Error("run command expected")
+    expect(run.timeoutMs).toBe(840_000)
+    expect(() => parseCliArgs(["run", "--timeout=16m", "task"])).toThrow(CliUsageError)
+  })
+
   test("accepts bounded piped stdin and rejects invalid origins", async () => {
     const command = parseCliArgs(["run"])
     expect(command.kind).toBe("run")

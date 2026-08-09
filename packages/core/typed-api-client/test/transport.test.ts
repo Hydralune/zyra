@@ -6,6 +6,7 @@ import {
   CONTRACT_NAMES,
   FetchApiTransport,
   HttpResponseError,
+  MAX_TIMEOUT_MS,
   MalformedJsonError,
   NormalizerDisabledError,
   OPERATION_NAMES,
@@ -19,6 +20,7 @@ import {
   TransportCircuitBreaker,
   createIdempotencyKey,
   createReceiptId,
+  clampTimeout,
   normalizeHealth,
   normalizeReceipt,
   registerCoreNormalizers,
@@ -55,6 +57,12 @@ function registryWith(fetch: typeof globalThis.fetch, options: { attempts?: numb
   registerCoreNormalizers(registry.normalizers)
   return { transport, registry }
 }
+
+test("keeps long-running requests inside a fifteen-minute hard ceiling", () => {
+  expect(MAX_TIMEOUT_MS).toBe(900_000)
+  expect(clampTimeout(840_000)).toBe(840_000)
+  expect(clampTimeout(1_200_000)).toBe(900_000)
+})
 
 describe("typed transport contract", () => {
   test("deduplicates the same request identity and normalizes one real response", async () => {

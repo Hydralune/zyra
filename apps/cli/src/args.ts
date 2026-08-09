@@ -45,7 +45,7 @@ const COMMON_SPECS: readonly CommandArgumentSpec[] = [
     required: false,
     flag: "--timeout",
     minimum: 1_000,
-    maximum: 10 * 60_000,
+    maximum: 15 * 60_000,
     description: "Bounded command timeout.",
   },
 ]
