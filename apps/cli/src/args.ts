@@ -13,6 +13,7 @@ import {
 const DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 const DEFAULT_STARTUP_TIMEOUT_MS = 60_000
 const DEFAULT_RUN_TIMEOUT_MS = 10 * 60_000
+const MAX_RUN_TIMEOUT_MS = 4 * 60 * 60_000
 
 const COMMON_SPECS: readonly CommandArgumentSpec[] = [
   {
@@ -45,7 +46,7 @@ const COMMON_SPECS: readonly CommandArgumentSpec[] = [
     required: false,
     flag: "--timeout",
     minimum: 1_000,
-    maximum: 60 * 60_000,
+    maximum: MAX_RUN_TIMEOUT_MS,
     description: "Bounded command timeout.",
   },
 ]

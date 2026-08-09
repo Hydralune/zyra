@@ -86,7 +86,11 @@ describe("FE-S01 CLI argument and output contract", () => {
     expect(longRun.kind).toBe("run")
     if (longRun.kind !== "run") throw new Error("run command expected")
     expect(longRun.timeoutMs).toBe(2_600_000)
-    expect(() => parseCliArgs(["run", "--timeout=61m", "task"])).toThrow(CliUsageError)
+    const ultraLongRun = parseCliArgs(["run", "--timeout=150m", "complete", "the", "ultra-long", "task"])
+    expect(ultraLongRun.kind).toBe("run")
+    if (ultraLongRun.kind !== "run") throw new Error("run command expected")
+    expect(ultraLongRun.timeoutMs).toBe(9_000_000)
+    expect(() => parseCliArgs(["run", "--timeout=241m", "task"])).toThrow(CliUsageError)
   })
 
   test("accepts bounded piped stdin and rejects invalid origins", async () => {
