@@ -65,12 +65,18 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         self.assertEqual(
             _typescript_runtime_timeout_seconds(
                 {
-                    "benchmark_physical_dispatch": True,
-                    "benchmark_long_horizon": True,
+                    **code_worker_adapter._benchmark_runtime_markers(context),
                     "typescript_runtime_timeout_seconds": 2_400,
                 }
             ),
             1_800.0,
+        )
+        self.assertEqual(
+            code_worker_adapter._benchmark_runtime_markers(context),
+            {
+                "benchmark_physical_dispatch": True,
+                "benchmark_long_horizon": True,
+            },
         )
         # The marker alone cannot relax a normal production execution.
         self.assertEqual(
