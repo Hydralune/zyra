@@ -11,6 +11,7 @@ from .canonical import (
     is_path_like_argument,
 )
 from .constants import DEFAULT_ALLOWED_ENVIRONMENT_KEYS, SHELL_EXECUTABLES
+from .errors import SandboxGatewayError
 from .git_policy import GitCommandPolicy, GitPolicyResult
 from .models import (
     CommandEffect,
@@ -502,6 +503,20 @@ class ShellBoundaryRule:
                 return " ".join(argv[index + 1 :])
             if value.casefold() in {"-encodedcommand", "-enc"}:
                 return " ".join(argv[index:])
+        if name in {"bash", "fish", "sh", "zsh"} and argv:
+            # A workspace-owned script is the reviewed artifact required by the
+            # gateway's legacy-string policy.  ``sh bin/verify`` is structured
+            # execution of that artifact, not an opaque ``sh -c`` payload.  Only
+            # normalized relative paths are admitted here; absolute/traversal
+            # paths and option-led invocations remain fail-closed.
+            script = str(argv[0])
+            if not script.startswith("-"):
+                try:
+                    canonical_logical_path(script)
+                except (SandboxGatewayError, TypeError, ValueError):
+                    pass
+                else:
+                    return " ".join(argv)
         return ""
 
 

@@ -246,6 +246,14 @@ function commandText(argumentsValue: JsonObject): string {
     if (typeof value === "string") return value;
     if (Array.isArray(value) && value.every((part) => typeof part === "string")) return value.join(" ");
   }
+  const executable = argumentsValue.executable;
+  const argv = argumentsValue.argv;
+  if (
+    typeof executable === "string"
+    && (argv === undefined || (Array.isArray(argv) && argv.every((part) => typeof part === "string")))
+  ) {
+    return [executable, ...((argv ?? []) as string[])].join(" ");
+  }
   return "";
 }
 
@@ -260,7 +268,10 @@ function extractPaths(argumentsValue: JsonObject): string[] {
 }
 
 function commandDialect(argumentsValue: JsonObject): "posix" | "powershell" | "cmd" | "unknown" {
-  const value = argumentsValue.dialect ?? argumentsValue.shell ?? argumentsValue.shell_kind;
+  const value = argumentsValue.dialect
+    ?? argumentsValue.shell
+    ?? argumentsValue.shell_kind
+    ?? argumentsValue.executable;
   if (typeof value !== "string") return "unknown";
   const normalized = value.toLowerCase();
   if (normalized.includes("powershell") || normalized.includes("pwsh")) return "powershell";

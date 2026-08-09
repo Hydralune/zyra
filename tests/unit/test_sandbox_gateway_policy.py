@@ -107,6 +107,20 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
             {item.code for item in encoded.evidence},
         )
 
+    def test_posix_shell_accepts_only_normalized_workspace_script_artifacts(self) -> None:
+        policy = StructuredCommandPolicy()
+
+        script = policy.evaluate(command("sh", ("bin/verify",)))
+        missing = policy.evaluate(command("sh"))
+        escaped = policy.evaluate(command("sh", ("../outside.sh",)))
+
+        self.assertFalse(script.denied)
+        self.assertTrue(script.requires_approval)
+        self.assertNotIn("shell.command_missing", {item.code for item in script.evidence})
+        self.assertTrue(missing.denied)
+        self.assertTrue(escaped.denied)
+        self.assertIn("shell.command_missing", {item.code for item in escaped.evidence})
+
     def test_sealed_mode_denies_ask_and_caller_bypass_has_no_authority(self) -> None:
         policy = StructuredCommandPolicy()
         decision = policy.evaluate(

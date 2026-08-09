@@ -590,6 +590,16 @@ test("permission command risk parses shell segments, redirections, endpoints, an
   assert.equal(report.level, "high");
   assert.ok(report.score >= 60, "compound command must be high risk");
   assert.equal(report.digest.length, 64);
+  const structured = new PermissionRiskRuntime().classify(PermissionIdentity.create(input(
+    "risk-structured-shell",
+    {
+      toolName: "shell",
+      operation: "execute",
+      arguments: { executable: "sh", argv: ["bin/verify"], cwd: "." },
+    },
+  )));
+  assert.ok(structured.deterministicSignals.includes("tool:shell"));
+  assert.notEqual(structured.level, "unknown");
   const readOnly = analyzer.analyze("git status", {
     workspaceRoot: "G:/workspace",
     dialect: "posix",

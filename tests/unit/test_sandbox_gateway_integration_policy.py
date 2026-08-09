@@ -84,6 +84,7 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
             runtime_services={
                 "sandbox_gateway_required": True,
                 "sandbox_gateway_allowed_hosts": ("example.com",),
+                "sandbox_gateway_allowed_environment_keys": ("PYTHONPATH",),
             },
         )
 
@@ -115,6 +116,56 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
         decision = self.bundle.policy_runtime.evaluate_command(envelope)
         self.assertTrue(decision.requires_permission)
         self.assertFalse(decision.hard_denied)
+        pythonpath = self.bundle.policy_runtime.command_from_arguments(
+            {
+                "executable": "python3",
+                "argv": ["-m", "unittest"],
+                "environment": {"PYTHONPATH": "src"},
+            }
+        )
+        pythonpath_decision = self.bundle.policy_runtime.evaluate_command(
+            GatewayCommandEnvelope(
+                command_id="command-policy-pythonpath",
+                session_id="session-policy",
+                run_id="run-policy",
+                task_id="task-policy",
+                worker_id="CodeWorkerRuntime",
+                executable=pythonpath[0],
+                argv=pythonpath[1],
+                environment=pythonpath[2],
+                cwd=pythonpath[3],
+                operation=OperationKind.COMMAND,
+                tool_use_id="tool-policy-pythonpath",
+            )
+        )
+        self.assertFalse(pythonpath_decision.hard_denied)
+        self.assertNotIn(
+            "environment.key_not_allowed",
+            {item.code for item in pythonpath_decision.findings},
+        )
+        script = self.bundle.policy_runtime.command_from_arguments(
+            {"command": "sh bin/verify"}
+        )
+        script_decision = self.bundle.policy_runtime.evaluate_command(
+            GatewayCommandEnvelope(
+                command_id="command-policy-script",
+                session_id="session-policy",
+                run_id="run-policy",
+                task_id="task-policy",
+                worker_id="CodeWorkerRuntime",
+                executable=script[0],
+                argv=script[1],
+                environment=script[2],
+                cwd=script[3],
+                operation=OperationKind.COMMAND,
+                tool_use_id="tool-policy-script",
+            )
+        )
+        self.assertFalse(script_decision.hard_denied)
+        self.assertNotIn(
+            "shell.command_missing",
+            {item.code for item in script_decision.findings},
+        )
         with self.assertRaisesRegex(ValueError, "shell operators"):
             self.bundle.policy_runtime.command_from_arguments(
                 {"command": "python -c pass && echo bypass"}

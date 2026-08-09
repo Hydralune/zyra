@@ -292,6 +292,12 @@ def execute_code_worker_operator(
     }
     if benchmark_binding is not None:
         assert benchmark_mirror is not None
+        # PYTHONPATH is a common, non-secret test-runner input.  Keep the
+        # exception scoped to the externally isolated benchmark container;
+        # the default host gateway whitelist remains unchanged.
+        runtime_services["sandbox_gateway_allowed_environment_keys"] = (
+            "PYTHONPATH",
+        )
         runtime_services["sandbox_gateway_backend"] = DockerSandboxBackend(
             sandbox_gateway_state_root / "backend",
             _BenchmarkDockerCliSandboxConnector(

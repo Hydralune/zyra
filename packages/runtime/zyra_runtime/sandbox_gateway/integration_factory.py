@@ -210,6 +210,17 @@ def build_gateway_runtime_bundle(
             deny_direct_shell_strings=False,
             deny_destructive=True,
             require_permission_for_all_commands=True,
+            allowed_environment_keys=(
+                CommandPolicyConfig().allowed_environment_keys
+                | frozenset(
+                    str(item)
+                    for item in services.get(
+                        "sandbox_gateway_allowed_environment_keys",
+                        (),
+                    )
+                    if str(item)
+                )
+            ),
         ),
         network_policy=network_policy,
         git_policy=GitCommandPolicy(
