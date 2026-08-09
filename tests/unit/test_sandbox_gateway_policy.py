@@ -70,6 +70,22 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
             {item.code for item in destructive.evidence},
         )
 
+    def test_lost_commit_diagnostics_distinguish_reads_from_local_recovery(self) -> None:
+        policy = StructuredCommandPolicy()
+
+        reflog = policy.evaluate(command("git", ("reflog", "--all", "-30")))
+        lost_found = policy.evaluate(command("git", ("fsck", "--lost-found")))
+
+        self.assertEqual(reflog.effect, CommandEffect.ALLOW)
+        self.assertTrue(reflog.eligible_for_sealed_auto_allow)
+        self.assertIn("git.read_only", {item.code for item in reflog.evidence})
+        self.assertEqual(lost_found.effect, CommandEffect.ASK)
+        self.assertFalse(lost_found.eligible_for_sealed_auto_allow)
+        self.assertIn(
+            "git.local_mutation",
+            {item.code for item in lost_found.evidence},
+        )
+
     def test_shell_redirection_and_encoded_powershell_fail_closed(self) -> None:
         policy = StructuredCommandPolicy()
 
