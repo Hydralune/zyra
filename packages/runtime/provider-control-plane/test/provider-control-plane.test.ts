@@ -539,6 +539,8 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
   const body = JSON.parse(request.body) as Record<string, unknown>;
   assert.equal(body.model, "chat-model");
   assert.equal(body.stream, true);
+  assert.equal(body.max_tokens, 256);
+  assert.equal("max_completion_tokens" in body, false);
   assert.ok(Buffer.byteLength(request.body) > 0);
   assert.equal(result.attempts[0]?.requestBytes, Buffer.byteLength(request.body));
 });

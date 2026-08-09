@@ -83,7 +83,12 @@ function openAiChatBody(
     messages: encoded,
     stream: true,
     stream_options: { include_usage: true },
-    max_completion_tokens: request.maximumOutputTokens,
+    // ``openai_chat`` is the compatibility protocol used by Zhipu, DeepSeek,
+    // Kimi, and other non-OpenAI chat-completions providers.  Their published
+    // wire contract uses ``max_tokens``.  Sending OpenAI's newer
+    // ``max_completion_tokens`` spelling is silently ignored by Zhipu and can
+    // turn a bounded agent turn into an effectively unbounded reasoning stream.
+    max_tokens: request.maximumOutputTokens,
     ...(request.temperature === null ? {} : { temperature: request.temperature }),
     ...encodedTools(request.tools, "openai_chat"),
   });
