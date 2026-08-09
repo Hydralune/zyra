@@ -691,6 +691,70 @@ def test_host_checkpoint_compare_and_swap_rejects_stale_writer(tmp_path: Path) -
     assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
 
 
+def test_host_checkpoint_retries_transient_windows_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    session_id = "e04-host-checkpoint-transient-replace"
+    real_replace = os.replace
+    replace_attempts = 0
+    retry_delays: list[float] = []
+
+    def transient_replace(
+        source: str | bytes | Path,
+        target: str | bytes | Path,
+    ) -> None:
+        nonlocal replace_attempts
+        replace_attempts += 1
+        if replace_attempts < 3:
+            raise PermissionError(5, "transient Windows sharing violation")
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", transient_replace)
+    monkeypatch.setattr(time, "sleep", retry_delays.append)
+
+    committed = engine._persist_incremental_checkpoint(session_id, {"value": 1})
+
+    assert committed["host_checkpoint_revision"] == 1
+    assert replace_attempts == 3
+    assert retry_delays == [0.05, 0.1]
+    assert engine._checkpoint_path(session_id).exists()
+    assert not tuple(engine._checkpoint_path(session_id).parent.glob("*.tmp"))
+
+
+def test_host_checkpoint_replace_denial_exhaustion_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    session_id = "e04-host-checkpoint-permanent-replace"
+    original = engine._persist_incremental_checkpoint(session_id, {"value": 1})
+    retry_delays: list[float] = []
+
+    def denied_replace(source: str | bytes | Path, target: str | bytes | Path) -> None:
+        raise PermissionError(5, "persistent Windows sharing violation")
+
+    monkeypatch.setattr(os, "replace", denied_replace)
+    monkeypatch.setattr(time, "sleep", retry_delays.append)
+
+    with pytest.raises(PermissionError, match="persistent Windows sharing violation"):
+        engine._persist_incremental_checkpoint(session_id, {"value": 2})
+
+    persisted = json.loads(
+        engine._checkpoint_path(session_id).read_text(encoding="utf-8")
+    )
+    assert (
+        persisted["host_checkpoint_commit_id"]
+        == original["host_checkpoint_commit_id"]
+    )
+    assert persisted["host_checkpoint_revision"] == 1
+    assert retry_delays == [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+    assert not tuple(engine._checkpoint_path(session_id).parent.glob("*.tmp"))
+
+
 def test_host_checkpoint_corruption_fails_closed(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     engine = TypeScriptClaudeQueryEngine(runtime.execution_context)

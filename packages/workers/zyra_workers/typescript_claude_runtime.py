@@ -58,6 +58,27 @@ RUNTIME_PROTOCOL_VERSION = "zyra.claude-runtime.v1"
 TYPESCRIPT_RUNTIME_ID = "zyra-typescript-claude-runtime"
 _CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
 _CHECKPOINT_LOCKS_GUARD = threading.RLock()
+_CHECKPOINT_REPLACE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
+
+
+def _replace_checkpoint_with_retry(staged: Path, path: Path) -> None:
+    """Commit a checkpoint across transient Windows sharing violations.
+
+    Antivirus and indexing processes can briefly open a newly written, large
+    checkpoint without delete sharing.  Windows then reports ``WinError 5`` or
+    ``WinError 32`` for an otherwise valid atomic replace.  Retrying only
+    ``PermissionError`` keeps the operation bounded and fail-closed while
+    allowing that external reader to release its handle.
+    """
+
+    for retry_delay in (*_CHECKPOINT_REPLACE_RETRY_DELAYS_SECONDS, None):
+        try:
+            os.replace(staged, path)
+            return
+        except PermissionError:
+            if retry_delay is None:
+                raise
+            time.sleep(retry_delay)
 
 
 def _typescript_runtime_timeout_seconds(constraints: Mapping[str, Any]) -> float:
@@ -1331,7 +1352,10 @@ class TypeScriptClaudeQueryEngine:
         checkpoint: Mapping[str, Any],
     ) -> dict[str, Any]:
         path = self._checkpoint_path(session_id)
-        staged = path.with_suffix(path.suffix + ".tmp")
+        staged = path.with_name(
+            f"{path.name}.{os.getpid()}.{threading.get_ident()}."
+            f"{self._checkpoint_writer_id[:16]}.tmp"
+        )
         lock_key = str(path)
         with _CHECKPOINT_LOCKS_GUARD:
             checkpoint_lock = _CHECKPOINT_LOCKS.setdefault(lock_key, threading.RLock())
@@ -1383,7 +1407,15 @@ class TypeScriptClaudeQueryEngine:
             ).hexdigest()
             encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
             staged.write_text(encoded, encoding="utf-8")
-            os.replace(staged, path)
+            try:
+                _replace_checkpoint_with_retry(staged, path)
+            finally:
+                try:
+                    staged.unlink(missing_ok=True)
+                except OSError:
+                    # Never mask the atomic commit result with best-effort
+                    # cleanup of a diagnostic staging file.
+                    pass
             self._checkpoint_revision = next_revision
             return payload
 
