@@ -36,6 +36,7 @@ class ProviderRouteLeaseRef:
     model_id: str = field(default="", repr=False)
     credential_id: str = field(default="", repr=False)
     credential_environment_name: str = field(default="", repr=False)
+    previous_route_id: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         required = {
@@ -75,6 +76,11 @@ class ProviderRouteLeaseRef:
             credential_id=str(value.get("credentialId") or ""),
             credential_environment_name=str(
                 value.get("credentialEnvironmentName") or ""
+            ),
+            previous_route_id=(
+                str(value.get("previousRouteId"))
+                if value.get("previousRouteId") is not None
+                else None
             ),
         )
 
@@ -309,8 +315,9 @@ class ProviderRouteBindingRuntime:
         if not candidates:
             return None
         candidates.sort(key=lambda item: (item.catalog_revision, item.route_id), reverse=True)
-        # Multiple active routes for one turn indicate a pre-05D-02 race. Fail
-        # closed unless they project exactly the same immutable route.
+        # Multiple unrelated routes for one turn indicate a pre-05D-02 race.
+        # Expiry renewal deliberately preserves immutable predecessors, so a
+        # single linear renewal chain is valid and its leaf is authoritative.
         identities = {
             (
                 item.route_id,
@@ -322,13 +329,33 @@ class ProviderRouteBindingRuntime:
             )
             for item in candidates
         }
-        if len(identities) != 1:
-            raise ProviderRouteBindingError(
-                "provider_turn_route_conflict",
-                "multiple provider route leases exist for the same worker turn",
-                detail={"route_ids": sorted(item.route_id for item in candidates)},
-            )
-        return candidates[0]
+        if len(identities) == 1:
+            return candidates[0]
+
+        by_route_id = {item.route_id: item for item in candidates}
+        predecessor_ids = {
+            item.previous_route_id
+            for item in candidates
+            if item.previous_route_id is not None
+        }
+        leaves = [item for item in candidates if item.route_id not in predecessor_ids]
+        if len(leaves) == 1:
+            selected = leaves[0]
+            visited: set[str] = set()
+            current: ProviderRouteLeaseRef | None = selected
+            while current is not None and current.route_id not in visited:
+                visited.add(current.route_id)
+                if current.previous_route_id is None:
+                    break
+                current = by_route_id.get(current.previous_route_id)
+            if visited == set(by_route_id):
+                return selected
+
+        raise ProviderRouteBindingError(
+            "provider_turn_route_conflict",
+            "multiple provider route leases exist for the same worker turn",
+            detail={"route_ids": sorted(item.route_id for item in candidates)},
+        )
 
     @staticmethod
     def _assert_identity(
