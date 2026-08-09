@@ -60,6 +60,23 @@ _CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
 _CHECKPOINT_LOCKS_GUARD = threading.RLock()
 
 
+def _typescript_runtime_timeout_seconds(constraints: Mapping[str, Any]) -> float:
+    """Keep the wider timeout exclusive to an externally verified benchmark."""
+
+    ceiling = (
+        720.0
+        if constraints.get("benchmark_physical_dispatch") is True
+        else 600.0
+    )
+    return min(
+        ceiling,
+        max(
+            1.0,
+            float(constraints.get("typescript_runtime_timeout_seconds") or 120.0),
+        ),
+    )
+
+
 class TypeScriptRuntimeError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -348,10 +365,7 @@ class TypeScriptClaudeQueryEngine:
                 "The canonical TypeScript query runtime is disabled.",
             )
         command, transport = self._runtime_command()
-        timeout_seconds = min(
-            600.0,
-            max(1.0, float(constraints.get("typescript_runtime_timeout_seconds") or 120.0)),
-        )
+        timeout_seconds = _typescript_runtime_timeout_seconds(constraints)
         raw_restored_runtime_state = self.config.restored_runtime_state or {}
         nested_session_snapshot = raw_restored_runtime_state.get("session_snapshot")
         restored_runtime_state = (

@@ -11458,13 +11458,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 task_id=state.task_id,
                 run_id=state.run_id,
             )
+            worker_pool_cancel_errors: list[dict[str, str]] = []
             if pool_cancel.phase.value == "applied":
-                pool_api.reconcile_task_graph_binding(
-                    state,
-                    reason=reason,
-                    actor_id="task-control-api",
-                    causation_id=f"task-cancel-graph:{pool_cancel.command_id}",
-                )
+                try:
+                    pool_api.reconcile_task_graph_binding(
+                        state,
+                        reason=reason,
+                        actor_id="task-control-api",
+                        causation_id=f"task-cancel-graph:{pool_cancel.command_id}",
+                    )
+                except Exception as error:  # noqa: BLE001 - control is already authoritative.
+                    # The worker-pool cancellation is the authoritative fence.
+                    # A stale/concurrently terminal graph projection must be
+                    # reported for repair without turning a committed cancel
+                    # into an HTTP 500 or leaving the task checkpoint pending.
+                    worker_pool_cancel_errors.append(
+                        {
+                            "stage": "task_graph_reconciliation",
+                            "error": _diagnostic_error_message(error),
+                            "exception_type": type(error).__name__,
+                        }
+                    )
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
             cancelled_physical_children: list[dict[str, Any]] = []
@@ -11563,6 +11577,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     **pool_cancel.to_dict(),
                     **dict(pool_cancel.effect.get("cancellation") or {}),
                 },
+                "worker_pool_cancel_errors": worker_pool_cancel_errors,
                 "memory_curator": curator,
             }
             committed = self._commit_typed_receipt(

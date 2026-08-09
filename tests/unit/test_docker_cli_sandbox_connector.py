@@ -21,9 +21,45 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     ProcessTermination,
 )
 from zyra_orchestration.deployment import code_worker_adapter  # noqa: E402
+from zyra_workers.typescript_claude_runtime import (  # noqa: E402
+    _typescript_runtime_timeout_seconds,
+)
 
 
 class DockerCliSandboxConnectorTests(unittest.TestCase):
+    def test_benchmark_reasoning_budget_is_wider_but_still_transport_bounded(self) -> None:
+        self.assertEqual(
+            code_worker_adapter._code_worker_reasoning_budget(
+                {"max_turns": 12, "reasoning_timeout_seconds": 600},
+                benchmark_execution=True,
+            ),
+            (24, 720.0),
+        )
+        self.assertEqual(
+            _typescript_runtime_timeout_seconds(
+                {
+                    "benchmark_physical_dispatch": True,
+                    "typescript_runtime_timeout_seconds": 900,
+                }
+            ),
+            720.0,
+        )
+
+    def test_production_reasoning_budget_keeps_existing_ceiling(self) -> None:
+        self.assertEqual(
+            code_worker_adapter._code_worker_reasoning_budget(
+                {"max_turns": 48, "reasoning_timeout_seconds": 900},
+                benchmark_execution=False,
+            ),
+            (24, 600.0),
+        )
+        self.assertEqual(
+            _typescript_runtime_timeout_seconds(
+                {"typescript_runtime_timeout_seconds": 900}
+            ),
+            600.0,
+        )
+
     def test_rejects_ambiguous_container_and_workdir(self) -> None:
         with self.assertRaisesRegex(ValueError, "container reference"):
             DockerCliSandboxConnector(container="bad container", workdir="/app")

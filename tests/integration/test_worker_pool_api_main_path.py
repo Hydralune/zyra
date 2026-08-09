@@ -238,6 +238,43 @@ def test_task_api_uses_physical_lease_dynamic_graph_projection_and_real_cancel(t
         assert terminal_execute["state"] == "cancelled"
 
 
+def test_task_cancel_survives_stale_graph_reconciliation(tmp_path: Path) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Cancel even when the graph projection is concurrently stale.",
+                "auto_run": False,
+            },
+        )["task"]
+        pool_api = api_main.get_worker_pool_api()
+
+        with patch.object(
+            pool_api,
+            "reconcile_task_graph_binding",
+            side_effect=RuntimeError("controlled stale graph projection"),
+        ):
+            status, cancelled = _post_with_status(
+                base_url,
+                f"/tasks/{task['task_id']}/cancel",
+                {"reason": "benchmark deadline elapsed"},
+            )
+
+        assert status == 200
+        assert cancelled["task"]["status"] == "cancelled"
+        assert cancelled["worker_pool_control"]["phase"] == "applied"
+        assert cancelled["worker_pool_cancel_errors"] == [
+            {
+                "stage": "task_graph_reconciliation",
+                "error": "controlled stale graph projection",
+                "exception_type": "RuntimeError",
+            }
+        ]
+        stored = api_main.get_store().load_task(task["task_id"])
+        assert stored is not None and stored.status.value == "cancelled"
+
+
 def test_expired_task_rebind_terminalizes_old_graph_before_new_binding(
     tmp_path: Path,
 ) -> None:

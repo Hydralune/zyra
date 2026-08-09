@@ -169,6 +169,10 @@ def execute_code_worker_operator(
         task_id,
         layer_index,
     )
+    max_turns, runtime_timeout_seconds = _code_worker_reasoning_budget(
+        context,
+        benchmark_execution=benchmark_binding is not None,
+    )
     constraints = {
         **dict(provider_constraints),
         "model_transport": "http_sse",
@@ -187,15 +191,11 @@ def execute_code_worker_operator(
         # spends its session id for good, so a recovery attempt owns a distinct
         # one rather than failing closed on a token nobody holds.
         "session_id": permission_session_id,
-        "max_turns": max(2, min(24, int(context.get("max_turns") or 12))),
-        # Bounded by the TypeScript runtime's own 600s ceiling.  This deadline
-        # governs the whole multi-turn reasoning loop, so it must be large
-        # enough for a live provider yet still expire before the dispatch
-        # transport deadline.
-        "typescript_runtime_timeout_seconds": max(
-            60.0,
-            min(600.0, float(context.get("reasoning_timeout_seconds") or 120.0)),
-        ),
+        "max_turns": max_turns,
+        # This deadline governs the whole multi-turn reasoning loop and stays
+        # below the physical dispatch transport budget. Official benchmark
+        # containers receive a larger, still-bounded allowance below.
+        "typescript_runtime_timeout_seconds": runtime_timeout_seconds,
         "tool_result_budget_chars": 120_000,
         "query_context_budget_chars": 128_000,
         "model_output_token_limit": max(
@@ -207,6 +207,7 @@ def execute_code_worker_operator(
         "synthetic_turns_forbidden": True,
     }
     if benchmark_binding is not None:
+        constraints["benchmark_physical_dispatch"] = True
         constraints["e02PermissionPolicy"] = _benchmark_permission_policy(
             session_id=permission_session_id,
             workspace_root=workspace_root,
@@ -426,6 +427,32 @@ def execute_code_worker_operator(
         "workspace_delta": workspace_delta,
         "final_text": final_text,
     }
+
+
+def _code_worker_reasoning_budget(
+    context: Mapping[str, Any],
+    *,
+    benchmark_execution: bool,
+) -> tuple[int, float]:
+    """Resolve one bounded model-loop budget without relaxing production defaults.
+
+    Terminal-Bench tasks have an official 900-second agent window. The normal
+    twelve-turn/600-second production allowance proved too small for a genuine
+    reverse-engineering task, so the externally verified Docker path gets up to
+    twenty-four turns and 720 seconds. This remains below the 780-second
+    physical-dispatch transport deadline and leaves Harbor time to run its
+    independent verifier.
+    """
+
+    if benchmark_execution:
+        return 24, 720.0
+    return (
+        max(2, min(24, int(context.get("max_turns") or 12))),
+        max(
+            60.0,
+            min(600.0, float(context.get("reasoning_timeout_seconds") or 120.0)),
+        ),
+    )
 
 
 _DROPPED_PUBLIC_EVENT_PHASES = frozenset(
