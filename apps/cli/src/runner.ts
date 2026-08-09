@@ -313,23 +313,7 @@ export async function executeRun(input: {
     .catch((error: unknown) => ({ ok: false as const, error }))
     .finally(() => { settled = true })
 
-  let ingressError: unknown
-  while (!settled && !input.signal.aborted) {
-    try {
-      const page = await input.api.nextIngress(task.taskId, cursor, generation)
-      cursor = page.cursor
-      generation = page.generation
-      for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
-    } catch (error) {
-      ingressError = error
-      while (!settled && !input.signal.aborted) {
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
-      }
-      break
-    }
-  }
-
-  if (input.signal.aborted) {
+  const finishCancelled = async (): Promise<CommandOutcome> => {
     input.signal.removeEventListener("abort", cancel)
     cancel()
     const cancelled = await cancellation
@@ -357,7 +341,65 @@ export async function executeRun(input: {
     }
   }
 
+  let ingressError: unknown
+  while (!settled && !input.signal.aborted) {
+    try {
+      const page = await input.api.nextIngress(task.taskId, cursor, generation)
+      cursor = page.cursor
+      generation = page.generation
+      for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
+    } catch (error) {
+      ingressError = error
+      while (!settled && !input.signal.aborted) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
+      }
+      break
+    }
+  }
+
+  if (input.signal.aborted) {
+    return finishCancelled()
+  }
+
   const run = await runPromise
+  if (!run.ok && run.error instanceof RequestCancelledError && !input.signal.aborted) {
+    input.output.event(
+      {
+        schema: "zyra.cli-run-reconciliation.v1",
+        phase: "waiting",
+        task_id: task.taskId,
+        run_id: task.runId,
+        reason: "mutation_transport_detached_without_command_cancellation",
+      },
+      { taskId: task.taskId, runId: task.runId },
+    )
+    let observed = await input.api.task(task.taskId)
+    while (!observed.terminal && !input.signal.aborted) {
+      try {
+        const page = await input.api.nextIngress(task.taskId, cursor, generation)
+        cursor = page.cursor
+        generation = page.generation
+        for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
+      } catch (error) {
+        ingressError ??= error
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
+      }
+      observed = await input.api.task(task.taskId)
+    }
+    if (!input.signal.aborted) {
+      input.output.event(
+        {
+          schema: "zyra.cli-run-reconciliation.v1",
+          phase: "terminal",
+          task_id: observed.taskId,
+          run_id: observed.runId,
+          status: observed.status,
+        },
+        { taskId: observed.taskId, runId: observed.runId },
+      )
+    }
+  }
+  if (input.signal.aborted) return finishCancelled()
   input.signal.removeEventListener("abort", cancel)
   for (let attempts = 0; attempts < 8; attempts += 1) {
     try {
