@@ -190,8 +190,22 @@ class ProviderRouteBindingRuntime:
                 # when the operator changed it between daemon lifecycles.
                 client.install_configured_profiles()
                 if route_id:
-                    wire = client.routing.get(route_id)
-                    ref = ProviderRouteLeaseRef.from_wire(wire)
+                    try:
+                        wire = client.routing.get(route_id)
+                        ref = ProviderRouteLeaseRef.from_wire(wire)
+                    except ProviderControlPlanePortError as error:
+                        if error.code != "route_expired":
+                            raise
+                        ref = self._existing_turn_route(
+                            client,
+                            run_id=run_id,
+                            task_id=task_id,
+                            session_id=session_id,
+                            turn_id=turn_id,
+                            required_route_id=route_id,
+                        )
+                        if ref is None:
+                            raise error
                     self._assert_identity(
                         ref,
                         run_id=run_id,
@@ -303,6 +317,7 @@ class ProviderRouteBindingRuntime:
         task_id: str,
         session_id: str,
         turn_id: str,
+        required_route_id: str | None = None,
     ) -> ProviderRouteLeaseRef | None:
         candidates: list[ProviderRouteLeaseRef] = []
         for value in client.routing.list(run_id=run_id, task_id=task_id):
@@ -314,6 +329,14 @@ class ProviderRouteBindingRuntime:
                 candidates.append(ref)
         if not candidates:
             return None
+        if required_route_id is not None and all(
+            item.route_id != required_route_id for item in candidates
+        ):
+            raise ProviderRouteBindingError(
+                "provider_route_identity_mismatch",
+                "expired provider route does not belong to this worker turn",
+                detail={"route_id": required_route_id},
+            )
         candidates.sort(key=lambda item: (item.catalog_revision, item.route_id), reverse=True)
         # Multiple unrelated routes for one turn indicate a pre-05D-02 race.
         # Expiry renewal deliberately preserves immutable predecessors, so a
