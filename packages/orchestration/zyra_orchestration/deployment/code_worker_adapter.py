@@ -146,6 +146,11 @@ def execute_code_worker_operator(
         artifact_store=LocalArtifactStore(artifact_root),
     )
 
+    permission_session_id = _physical_permission_session_id(
+        payload,
+        task_id,
+        layer_index,
+    )
     constraints = {
         **dict(provider_constraints),
         "model_transport": "http_sse",
@@ -163,7 +168,7 @@ def execute_code_worker_operator(
         # back inside the dispatch response.  A node lost mid-dispatch therefore
         # spends its session id for good, so a recovery attempt owns a distinct
         # one rather than failing closed on a token nobody holds.
-        "session_id": _physical_permission_session_id(payload, task_id, layer_index),
+        "session_id": permission_session_id,
         "max_turns": max(2, min(24, int(context.get("max_turns") or 12))),
         # Bounded by the TypeScript runtime's own 600s ceiling.  This deadline
         # governs the whole multi-turn reasoning loop, so it must be large
@@ -183,6 +188,12 @@ def execute_code_worker_operator(
         "physical_dispatch_goal_digest": _digest(goal),
         "synthetic_turns_forbidden": True,
     }
+    if benchmark_binding is not None:
+        constraints["e02PermissionPolicy"] = _benchmark_permission_policy(
+            session_id=permission_session_id,
+            workspace_root=workspace_root,
+            container_ref_digest=str(benchmark_binding["container_ref_digest"]),
+        )
     execution_prompt = _execution_prompt(
         goal,
         delivery_contract=(
@@ -1052,6 +1063,60 @@ def _benchmark_docker_binding(
         "docker_executable": connector.docker_executable,
         "workspace_data_root": resolved_data_root,
         "sync_root": sync_root,
+    }
+
+
+def _benchmark_permission_policy(
+    *,
+    session_id: str,
+    workspace_root: Path,
+    container_ref_digest: str,
+) -> dict[str, Any]:
+    """Authorize tool calls that remain fenced by the Docker command policy.
+
+    Autonomous physical workers cannot answer an interactive ``ASK``.  Normal
+    deployments therefore fail closed for unruled shell use.  An official
+    benchmark binding is different: the external harness owns a disposable
+    container and the structured Docker gateway independently rejects shell
+    control syntax, path escape, destructive Git, and network Git.  This rule
+    gives the canonical TypeScript permission owner authority to issue exact,
+    one-use grants for the remaining commands, scoped to one physical session
+    and its managed mirror workspace.
+    """
+
+    resolved_workspace = workspace_root.resolve()
+    return {
+        "version": "zyra.e02-typescript-permission-policy-input.v1",
+        "canonical_owner": "typescript",
+        "mode": "acceptEdits",
+        "interactive": False,
+        "headless": True,
+        "rules": [
+            {
+                "rule_id": "managed-harbor-docker-shell",
+                "effect": "allow",
+                "source": "managed",
+                "kind": "tool",
+                "tool_pattern": "shell",
+                "namespace_pattern": "builtin",
+                "operation_pattern": "execute",
+                "workspace_pattern": str(resolved_workspace),
+                "session_pattern": session_id,
+                "argument_pattern": "*",
+                "priority": 1000,
+                "enabled": True,
+                "reason": (
+                    "official benchmark shell is fenced by the structured "
+                    "Docker command policy"
+                ),
+                "metadata": {
+                    "authority": "external-disposable-benchmark-container",
+                    "container_ref_digest": container_ref_digest,
+                    "gateway_hard_denies_remain_authoritative": True,
+                },
+            }
+        ],
+        "python_policy_fallback": False,
     }
 
 

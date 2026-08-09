@@ -239,6 +239,36 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 },
             )
 
+    def test_benchmark_permission_rule_is_exactly_session_and_workspace_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary).resolve() / "managed-workspace"
+            workspace.mkdir()
+            policy = code_worker_adapter._benchmark_permission_policy(
+                session_id="physical:task-1:layer:1:worker-1",
+                workspace_root=workspace,
+                container_ref_digest="sha256:container-ref",
+            )
+
+        self.assertEqual(policy["mode"], "acceptEdits")
+        self.assertFalse(policy["interactive"])
+        self.assertTrue(policy["headless"])
+        self.assertFalse(policy["python_policy_fallback"])
+        self.assertEqual(len(policy["rules"]), 1)
+        rule = policy["rules"][0]
+        self.assertEqual(rule["effect"], "allow")
+        self.assertEqual(rule["source"], "managed")
+        self.assertEqual(rule["tool_pattern"], "shell")
+        self.assertEqual(rule["namespace_pattern"], "builtin")
+        self.assertEqual(rule["operation_pattern"], "execute")
+        self.assertEqual(
+            rule["session_pattern"],
+            "physical:task-1:layer:1:worker-1",
+        )
+        self.assertEqual(rule["workspace_pattern"], str(workspace))
+        self.assertTrue(
+            rule["metadata"]["gateway_hard_denies_remain_authoritative"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
