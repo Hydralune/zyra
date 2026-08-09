@@ -86,14 +86,18 @@ async function captureServer(
   };
 }
 
-function makeControlPlane(t: TestContext): { controlPlane: ProviderControlPlane; secrets: InMemorySecretResolver } {
+function makeControlPlane(
+  t: TestContext,
+  options: { readonly clock?: { now(): number }; readonly routeLeaseMilliseconds?: number } = {},
+): { controlPlane: ProviderControlPlane; secrets: InMemorySecretResolver } {
   const directory = mkdtempSync(join(tmpdir(), "zyra-provider-control-"));
   const secrets = new InMemorySecretResolver();
   const controlPlane = new ProviderControlPlane({
     databasePath: join(directory, "provider.sqlite3"),
     secrets,
     ids: new SequenceIdFactory("test"),
-    route: { leaseMilliseconds: 60_000 },
+    clock: options.clock,
+    route: { leaseMilliseconds: options.routeLeaseMilliseconds ?? 60_000 },
   });
   t.after(() => {
     controlPlane.close();
@@ -468,6 +472,40 @@ test("catalog revisions pin immutable route fields and V1 stays read-only", asyn
   assert.equal(compat.writable, false);
   assert.equal(compat.defaultModel, null);
   assert.equal(compat.providers[0]?.models["alpha-model"]?.context, 32_000);
+});
+
+test("expired pinned routes renew without changing provider or credential identity", (t) => {
+  let now = 1_000_000;
+  const { controlPlane, secrets } = makeControlPlane(t, {
+    clock: { now: () => now },
+    routeLeaseMilliseconds: 1_000,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "renewable",
+    modelId: "renewable-model",
+    baseUrl: "https://renewable.example.test",
+    protocol: "openai_chat",
+  });
+  const original = controlPlane.acquireRoute(routeRequest("renewable", "renewable-model"));
+  now += 1_001;
+
+  assert.throws(
+    () => controlPlane.routes.require(original.routeId),
+    (error: unknown) => error instanceof ProviderControlPlaneError && error.kind === "route_expired",
+  );
+  assert.equal(controlPlane.routes.requirePersisted(original.routeId).checksum, original.checksum);
+
+  const renewed = controlPlane.renewExpiredRoute(original.routeId);
+  assert.notEqual(renewed.routeId, original.routeId);
+  assert.equal(renewed.previousRouteId, original.routeId);
+  assert.equal(renewed.providerId, original.providerId);
+  assert.equal(renewed.modelId, original.modelId);
+  assert.equal(renewed.credentialId, original.credentialId);
+  assert.equal(renewed.credentialVersion, original.credentialVersion);
+  assert.equal(renewed.credentialFingerprint, original.credentialFingerprint);
+  assert.equal(renewed.expiresAt, now + 1_000);
+  assert.equal(controlPlane.renewExpiredRoute(original.routeId).routeId, renewed.routeId);
+  assert.equal(controlPlane.store.listRoutes("run-1", "task-1").length, 2);
 });
 
 test("credential rotation preserves an acquired route snapshot and changes only the next route", async (t) => {

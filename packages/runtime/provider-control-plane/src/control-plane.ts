@@ -179,6 +179,34 @@ export class ProviderControlPlane {
     return lease;
   }
 
+  renewExpiredRoute(routeId: string): ProviderRouteLease {
+    const previous = this.routes.requirePersisted(routeId);
+    const existingRouteIds = new Set(
+      this.routes.list(previous.runId, previous.taskId).map((route) => route.routeId),
+    );
+    const lease = this.routes.renewExpired(routeId);
+    if (lease.routeId !== previous.routeId && !existingRouteIds.has(lease.routeId)) {
+      this.emit("provider.route.renewed", {
+        routeId: lease.routeId,
+        previousRouteId: previous.routeId,
+        providerId: lease.providerId,
+        modelId: lease.modelId,
+        catalogRevision: lease.catalogRevision,
+        credentialId: lease.credentialId,
+        credentialVersion: lease.credentialVersion,
+        transportId: lease.transportId,
+      }, {
+        runId: lease.runId,
+        taskId: lease.taskId,
+        nodeId: lease.nodeId,
+        routeId: lease.routeId,
+        causationId: previous.routeId,
+        correlationId: lease.turnId,
+      });
+    }
+    return lease;
+  }
+
   async dispatch(request: ProviderDispatchRequest, signal?: AbortSignal): Promise<ProviderDispatchResult> {
     const claim = this.dispatches.claim(request);
     if (claim.disposition === "cached" && claim.result !== null) {

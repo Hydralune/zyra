@@ -211,6 +211,23 @@ export class ProviderRoutePlanner {
   }
 
   require(routeId: string): ProviderRouteLease {
+    const lease = this.requirePersisted(routeId);
+    if (lease.expiresAt <= this.clock.now()) {
+      throw new ProviderControlPlaneError({
+        layer: "route",
+        kind: "route_expired",
+        message: `provider route expired: ${routeId}`,
+        routeId,
+        providerId: lease.providerId,
+        modelId: lease.modelId,
+        credentialId: lease.credentialId,
+        recoveryIntent: "change_provider_route",
+      });
+    }
+    return lease;
+  }
+
+  requirePersisted(routeId: string): ProviderRouteLease {
     assertIdentifier(routeId, "routeId");
     const lease = this.store.getRoute(routeId);
     if (lease === null) {
@@ -230,19 +247,71 @@ export class ProviderRoutePlanner {
         routeId,
       });
     }
-    if (lease.expiresAt <= this.clock.now()) {
+    return deepClone(lease);
+  }
+
+  renewExpired(routeId: string): ProviderRouteLease {
+    const previous = this.requirePersisted(routeId);
+    const now = this.clock.now();
+    if (previous.expiresAt > now) return previous;
+
+    const reusable = this.store.listRoutes(previous.runId, previous.taskId)
+      .filter((candidate) => candidate.previousRouteId === previous.routeId)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .find((candidate) => {
+        try {
+          const live = this.require(candidate.routeId);
+          return samePinnedRoute(previous, live);
+        } catch {
+          return false;
+        }
+      });
+    if (reusable !== undefined) return this.require(reusable.routeId);
+
+    const credentialSnapshot = this.store.getRouteCredentialSnapshot(previous.routeId);
+    if (credentialSnapshot === null) {
       throw new ProviderControlPlaneError({
-        layer: "route",
-        kind: "route_expired",
-        message: `provider route expired: ${routeId}`,
-        routeId,
-        providerId: lease.providerId,
-        modelId: lease.modelId,
-        credentialId: lease.credentialId,
+        layer: "credential",
+        kind: "credential_missing",
+        message: `route credential snapshot not found: ${previous.routeId}`,
+        routeId: previous.routeId,
+        credentialId: previous.credentialId,
         recoveryIntent: "change_provider_route",
       });
     }
-    return deepClone(lease);
+    const { checksum: snapshotChecksum, ...snapshotBody } = credentialSnapshot;
+    if (digestJson(snapshotBody) !== snapshotChecksum) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_version_conflict",
+        message: `route credential snapshot checksum mismatch: ${previous.routeId}`,
+        routeId: previous.routeId,
+        credentialId: previous.credentialId,
+        recoveryIntent: "surface_to_operator",
+      });
+    }
+
+    const { checksum: _previousChecksum, ...previousBody } = previous;
+    const body = {
+      ...previousBody,
+      routeId: this.ids.next("provider_route"),
+      createdAt: now,
+      expiresAt: now + this.leaseMilliseconds,
+      previousRouteId: previous.routeId,
+      reason: `${previous.reason}; renewed expired route`,
+    };
+    const renewed: ProviderRouteLease = { ...body, checksum: digestJson(body) };
+    const renewedSnapshotBody = {
+      ...snapshotBody,
+      routeId: renewed.routeId,
+      createdAt: now,
+    };
+    const renewedSnapshot: ProviderRouteCredentialSnapshot = {
+      ...renewedSnapshotBody,
+      checksum: digestJson(renewedSnapshotBody),
+    };
+    this.store.putRoute(renewed, renewedSnapshot);
+    return deepClone(renewed);
   }
 
   list(runId?: string, taskId?: string): ProviderRouteLease[] {
@@ -302,6 +371,22 @@ export class ProviderRoutePlanner {
     }
     return results.sort((left, right) => right.score - left.score || left.provider.providerId.localeCompare(right.provider.providerId) || left.model.modelId.localeCompare(right.model.modelId));
   }
+}
+
+function samePinnedRoute(left: ProviderRouteLease, right: ProviderRouteLease): boolean {
+  return left.runId === right.runId
+    && left.taskId === right.taskId
+    && left.nodeId === right.nodeId
+    && left.sessionId === right.sessionId
+    && left.turnId === right.turnId
+    && left.providerId === right.providerId
+    && left.modelId === right.modelId
+    && left.credentialId === right.credentialId
+    && left.credentialVersion === right.credentialVersion
+    && left.credentialFingerprint === right.credentialFingerprint
+    && left.integrationId === right.integrationId
+    && left.transportId === right.transportId
+    && left.protocol === right.protocol;
 }
 
 function snapshotIntegration(snapshot: import("./contracts.ts").CatalogSnapshot, integrationId: string) {

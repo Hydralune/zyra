@@ -86,8 +86,27 @@ export async function resolveProviderControlPlaneTurns(
     `round${Math.max(0, Math.floor(requestRound))}`,
   ].join("_");
   try {
-    const route = controlPlane.routes.require(routeRef.routeId);
-    assertRouteRef(route, routeRef, input);
+    let route: ProviderRouteLease;
+    try {
+      route = controlPlane.routes.require(routeRef.routeId);
+      assertRouteRef(route, routeRef, input);
+    } catch (error) {
+      if (!(error instanceof ProviderControlPlaneError) || error.kind !== "route_expired") throw error;
+      const expired = controlPlane.routes.requirePersisted(routeRef.routeId);
+      assertRouteRef(expired, routeRef, input);
+      route = controlPlane.renewExpiredRoute(routeRef.routeId);
+      assertRenewedRoute(route, expired, input);
+      await emit("provider_route_renewed", {
+        provider_route: {
+          previous_route_id: expired.routeId,
+          route_id: route.routeId,
+          route_checksum: route.checksum,
+          expires_at: route.expiresAt,
+          provider: route.providerId,
+          model: route.modelId,
+        },
+      });
+    }
     const promptMessages = overrideMessages ? [...overrideMessages] : normalizeMessages(input);
     const messages = normalizeProviderMessages(promptMessages);
     const providerTools = normalizeProviderTools(tools);
@@ -177,7 +196,7 @@ export async function resolveProviderControlPlaneTurns(
         model_stream_frame: safeFrame(frame),
       });
     }
-    const routeChanged = result.routeId !== route.routeId;
+    const routeChanged = route.routeId !== routeRef.routeId || result.routeId !== route.routeId;
     const succeededAttempt = [...result.attempts]
       .reverse()
       .find((attempt) => attempt.outcome === "succeeded");
@@ -190,7 +209,7 @@ export async function resolveProviderControlPlaneTurns(
         provider: result.providerId,
         model: result.modelId,
         route_id: result.routeId,
-        initial_route_id: route.routeId,
+        initial_route_id: routeRef.routeId,
         provider_route_changed: routeChanged,
         transport: "provider_control_plane",
         protocol: result.protocol,
@@ -228,7 +247,7 @@ export async function resolveProviderControlPlaneTurns(
         runtime_budget_replay_ok: "true",
         provider_control_plane_owner: "typescript.ProviderControlPlane",
         provider_route_id: result.routeId,
-        provider_initial_route_id: route.routeId,
+        provider_initial_route_id: routeRef.routeId,
         provider_route_changed: String(routeChanged),
         provider_route_checksum: route.checksum,
         provider_catalog_revision: String(route.catalogRevision),
@@ -325,6 +344,31 @@ function assertRouteRef(
   const mismatches = checks.filter(([, expected, actual]) => expected !== actual);
   if (mismatches.length > 0) {
     throw new Error(`provider route ref mismatch: ${mismatches.map(([name]) => name).join(", ")}`);
+  }
+}
+
+function assertRenewedRoute(
+  route: ProviderRouteLease,
+  previous: ProviderRouteLease,
+  input: RuntimeRunInput,
+): void {
+  const checks: Array<[string, unknown, unknown]> = [
+    ["previousRouteId", previous.routeId, route.previousRouteId],
+    ["catalogRevision", previous.catalogRevision, route.catalogRevision],
+    ["credentialId", previous.credentialId, route.credentialId],
+    ["credentialVersion", previous.credentialVersion, route.credentialVersion],
+    ["credentialFingerprint", previous.credentialFingerprint, route.credentialFingerprint],
+    ["transportId", previous.transportId, route.transportId],
+    ["sessionId", previous.sessionId, route.sessionId],
+    ["turnId", previous.turnId, route.turnId],
+    ["providerId", previous.providerId, route.providerId],
+    ["modelId", previous.modelId, route.modelId],
+    ["runId", input.runId, route.runId],
+    ["taskId", input.taskId, route.taskId],
+  ];
+  const mismatches = checks.filter(([, expected, actual]) => expected !== actual);
+  if (mismatches.length > 0) {
+    throw new Error(`renewed provider route mismatch: ${mismatches.map(([name]) => name).join(", ")}`);
   }
 }
 
