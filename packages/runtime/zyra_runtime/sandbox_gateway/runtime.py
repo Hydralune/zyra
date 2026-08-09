@@ -723,6 +723,19 @@ class SandboxGatewayRuntime:
                 session = self.backend.get(record.session_id)
             except Exception:
                 session = None
+        if session is None and hasattr(self.backend, "recover"):
+            try:
+                session = self.backend.recover(record)
+            except SandboxGatewayError:
+                raise
+            except Exception as error:
+                raise SandboxGatewayError(
+                    GatewayErrorCode.BACKEND_UNAVAILABLE,
+                    "sandbox backend session recovery failed",
+                    operation="gateway_execute",
+                    retryable=True,
+                    metadata={"error_type": type(error).__name__},
+                ) from error
         if session is None:
             raise SandboxGatewayError(
                 GatewayErrorCode.BACKEND_UNAVAILABLE,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -16,9 +17,12 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     BackendSession,
     CancellationToken,
     DockerCliSandboxConnector,
+    DockerSandboxBackend,
     GatewayCommandEnvelope,
     GatewaySessionRecord,
     ProcessTermination,
+    SandboxGatewayConfig,
+    SandboxGatewayRuntime,
 )
 from zyra_orchestration.deployment import code_worker_adapter  # noqa: E402
 from zyra_workers.typescript_claude_runtime import (  # noqa: E402
@@ -138,11 +142,82 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             workdir="/app",
             docker_executable="docker-test",
         )
-        from zyra_runtime.sandbox_gateway import DockerSandboxBackend
-
         with tempfile.TemporaryDirectory() as temporary:
             backend = DockerSandboxBackend(temporary, connector)
         self.assertIs(backend.redactor, connector.redactor)
+
+    def test_backend_reattaches_durable_connector_session_after_restart(self) -> None:
+        connector = DockerCliSandboxConnector(
+            container="task-main-1",
+            workdir="/app",
+            docker_executable="docker-test",
+        )
+        record = GatewaySessionRecord.create(
+            session_id="session-1",
+            run_id="run-1",
+            task_id="task-1",
+            workspace_id="workspace-1",
+            worker_id="worker-1",
+            backend_id=connector.backend_id,
+        )
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=b"true\n",
+            stderr=b"",
+        )
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "zyra_runtime.sandbox_gateway.docker_cli_connector.subprocess.run",
+            return_value=completed,
+        ) as inspect:
+            original = DockerSandboxBackend(temporary, connector)
+            prepared = original.prepare(record)
+            restarted = DockerSandboxBackend(temporary, connector)
+            with self.assertRaisesRegex(Exception, "not prepared in this process"):
+                restarted.get(record.session_id)
+            recovered = restarted.recover(record)
+
+        self.assertEqual(recovered.session_id, prepared.session_id)
+        self.assertEqual(recovered.execution_root, prepared.execution_root)
+        self.assertTrue(recovered.metadata["recovered"])
+        self.assertEqual(inspect.call_count, 2)
+
+    def test_runtime_lazily_recovers_missing_process_local_backend_session(self) -> None:
+        connector = DockerCliSandboxConnector(
+            container="task-main-1",
+            workdir="/app",
+            docker_executable="docker-test",
+        )
+        record = GatewaySessionRecord.create(
+            session_id="session-1",
+            run_id="run-1",
+            task_id="task-1",
+            workspace_id="workspace-1",
+            worker_id="worker-1",
+            backend_id=connector.backend_id,
+        )
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=b"true\n",
+            stderr=b"",
+        )
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "zyra_runtime.sandbox_gateway.docker_cli_connector.subprocess.run",
+            return_value=completed,
+        ):
+            original = DockerSandboxBackend(temporary, connector)
+            original.prepare(record)
+            restarted = DockerSandboxBackend(temporary, connector)
+            runtime = object.__new__(SandboxGatewayRuntime)
+            runtime.config = SandboxGatewayConfig(state_root=Path(temporary))
+            runtime.backend = restarted
+            runtime._backend_sessions = {}
+            runtime._backend_lock = threading.RLock()
+            recovered = runtime._backend_session(record)
+
+        self.assertTrue(recovered.metadata["recovered"])
+        self.assertIs(runtime._backend_sessions[record.session_id], recovered)
 
     def test_prepare_requires_a_live_preexisting_container(self) -> None:
         connector = DockerCliSandboxConnector(

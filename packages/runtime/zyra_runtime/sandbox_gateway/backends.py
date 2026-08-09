@@ -147,6 +147,36 @@ class ConnectorSandboxBackend:
             self._sessions[session.session_id] = session
         return session
 
+    def get(self, session_id: str) -> BackendSession:
+        """Return a connector session prepared in this process."""
+
+        with self._lock:
+            session = self._sessions.get(session_id)
+        if session is None or not session.execution_root.exists():
+            raise SandboxGatewayError(
+                GatewayErrorCode.BACKEND_UNAVAILABLE,
+                "connector session is not prepared in this process",
+                operation="connector_get",
+                retryable=True,
+            )
+        return session
+
+    def recover(self, record: GatewaySessionRecord) -> BackendSession:
+        """Reattach a durable connector session after a worker-process restart."""
+
+        session = self.prepare(record)
+        recovered = BackendSession(
+            session_id=session.session_id,
+            backend_id=session.backend_id,
+            execution_root=session.execution_root,
+            generation=session.generation,
+            prepared_at=session.prepared_at,
+            metadata={**dict(session.metadata), "recovered": True},
+        )
+        with self._lock:
+            self._sessions[recovered.session_id] = recovered
+        return recovered
+
     def execute(
         self,
         session: BackendSession,
