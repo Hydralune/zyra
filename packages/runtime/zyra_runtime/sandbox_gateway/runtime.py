@@ -22,6 +22,7 @@ from .models import (
     GatewaySessionRecord,
     PatchReceipt,
     ProcessResult,
+    ProcessTermination,
 )
 from .patch_port import GatewayPatchPort
 from .permission_relay import GatewayPermissionRelay, PermissionTicket
@@ -372,14 +373,21 @@ class SandboxGatewayRuntime:
                         else bool(commit_outputs)
                     ),
                 )
+                outcome_requires_recovery = (
+                    result.termination is not ProcessTermination.EXITED
+                )
                 final_record = self.lifecycle.finish_command(
                     record.session_id,
                     lease.lease_id,
                     owner_id=record.worker_id,
                     fence_token=fence_token,
-                    failed=not result.ok,
-                    failure_code=result.error_code,
-                    failure_reason=result.cancellation_reason,
+                    failed=outcome_requires_recovery,
+                    failure_code=(
+                        result.error_code if outcome_requires_recovery else ""
+                    ),
+                    failure_reason=(
+                        result.cancellation_reason if outcome_requires_recovery else ""
+                    ),
                 )
                 finished = self.event_port.emit(
                     final_record,
@@ -424,7 +432,7 @@ class SandboxGatewayRuntime:
                     isolation_delta=delta,
                     patch_receipt=patch_receipt,
                     event_ids=tuple(event_ids),
-                    recovery_required=not result.ok,
+                    recovery_required=outcome_requires_recovery,
                     metadata={
                         "backend_id": backend_session.backend_id,
                         "gateway_owner": "SandboxGatewayRuntime",

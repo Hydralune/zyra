@@ -9,6 +9,7 @@ from pathlib import Path
 from zyra_runtime import LocalArtifactStore  # noqa: E402
 from zyra_runtime.sandbox_gateway import (  # noqa: E402
     CallbackToolPermissionRuntimePort,
+    CommandBudget,
     CommandEffect,
     GatewayCommandEnvelope,
     GatewayEventPort,
@@ -204,6 +205,89 @@ class SandboxGatewayRuntimeIntegrationTests(unittest.TestCase):
                 (self.root / "gateway-state" / "sandbox-sessions").iterdir()
             )
         )
+
+    def test_nonzero_exit_is_observable_without_poisoning_session(self) -> None:
+        runtime = self.runtime()
+        record = runtime.create_session(
+            session_id="session-command-failure",
+            run_id="run-gateway",
+            task_id="task-gateway",
+            workspace_id=self.workspace_port.workspace_id,
+            worker_id="CodeWorkerRuntime",
+        )
+        access = self.workspace_port.current_access()
+
+        failed = runtime.execute(
+            GatewayCommandEnvelope.build(
+                session_id=record.session_id,
+                run_id=record.run_id,
+                task_id=record.task_id,
+                worker_id=record.worker_id,
+                executable=sys.executable,
+                argv=("-c", "raise SystemExit(1)"),
+                tool_use_id="tool-known-command-failure",
+                workspace_id=self.workspace_port.workspace_id,
+                owner_epoch=access.owner_epoch,
+                fence_digest=token_digest(access.fence_token),
+                idempotency_key="gateway-command-known-failure",
+            )
+        )
+
+        self.assertFalse(failed.ok)
+        self.assertFalse(failed.recovery_required)
+        self.assertEqual(failed.result.termination.value, "exited")
+        self.assertEqual(failed.result.return_code, 1)
+        self.assertEqual(failed.record.state.value, "ready")
+
+        recovered = runtime.execute(
+            GatewayCommandEnvelope.build(
+                session_id=record.session_id,
+                run_id=record.run_id,
+                task_id=record.task_id,
+                worker_id=record.worker_id,
+                executable=sys.executable,
+                argv=("-c", "print('recovered')"),
+                tool_use_id="tool-after-known-command-failure",
+                workspace_id=self.workspace_port.workspace_id,
+                owner_epoch=access.owner_epoch,
+                fence_digest=token_digest(access.fence_token),
+                idempotency_key="gateway-command-after-known-failure",
+            )
+        )
+        self.assertTrue(recovered.ok)
+        self.assertEqual(recovered.record.state.value, "ready")
+
+    def test_timed_out_command_poisoning_still_fails_closed(self) -> None:
+        runtime = self.runtime()
+        record = runtime.create_session(
+            session_id="session-command-timeout",
+            run_id="run-gateway",
+            task_id="task-gateway",
+            workspace_id=self.workspace_port.workspace_id,
+            worker_id="CodeWorkerRuntime",
+        )
+        access = self.workspace_port.current_access()
+        timed_out = runtime.execute(
+            GatewayCommandEnvelope.build(
+                session_id=record.session_id,
+                run_id=record.run_id,
+                task_id=record.task_id,
+                worker_id=record.worker_id,
+                executable=sys.executable,
+                argv=("-c", "import time; time.sleep(2)"),
+                budget=CommandBudget(timeout_seconds=0.1),
+                tool_use_id="tool-indeterminate-timeout",
+                workspace_id=self.workspace_port.workspace_id,
+                owner_epoch=access.owner_epoch,
+                fence_digest=token_digest(access.fence_token),
+                idempotency_key="gateway-command-timeout",
+            )
+        )
+
+        self.assertFalse(timed_out.ok)
+        self.assertTrue(timed_out.recovery_required)
+        self.assertEqual(timed_out.result.termination.value, "timed_out")
+        self.assertEqual(timed_out.record.state.value, "failed")
 
     def test_restart_recovers_preparing_session_to_ready(self) -> None:
         runtime = self.runtime()
