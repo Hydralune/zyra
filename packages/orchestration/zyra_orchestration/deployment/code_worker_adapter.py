@@ -207,7 +207,7 @@ def execute_code_worker_operator(
         "synthetic_turns_forbidden": True,
     }
     if benchmark_binding is not None:
-        constraints.update(_benchmark_runtime_markers(context))
+        constraints.update(_benchmark_runtime_constraints(context))
         constraints["benchmark_container_workdir"] = str(
             benchmark_binding["workdir"]
         )
@@ -485,13 +485,19 @@ def _code_worker_reasoning_budget(
     )
 
 
-def _benchmark_runtime_markers(context: Mapping[str, Any]) -> dict[str, bool]:
-    """Carry the externally bound benchmark class across the process boundary."""
+def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]:
+    """Carry bounded, externally verified benchmark settings across processes."""
 
-    markers = {"benchmark_physical_dispatch": True}
+    constraints: dict[str, Any] = {"benchmark_physical_dispatch": True}
     if context.get("benchmark_long_horizon") is True:
-        markers["benchmark_long_horizon"] = True
-    return markers
+        constraints.update(
+            {
+                "benchmark_long_horizon": True,
+                "model_api_timeout_seconds": 300.0,
+                "model_api_timeout_milliseconds": 300_000,
+            }
+        )
+    return constraints
 
 
 _DROPPED_PUBLIC_EVENT_PHASES = frozenset(

@@ -48,6 +48,10 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             ),
             720.0,
         )
+        self.assertEqual(
+            code_worker_adapter._benchmark_runtime_constraints({}),
+            {"benchmark_physical_dispatch": True},
+        )
 
     def test_explicit_long_horizon_benchmark_has_a_separate_bounded_budget(self) -> None:
         context = {
@@ -65,17 +69,19 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         self.assertEqual(
             _typescript_runtime_timeout_seconds(
                 {
-                    **code_worker_adapter._benchmark_runtime_markers(context),
+                    **code_worker_adapter._benchmark_runtime_constraints(context),
                     "typescript_runtime_timeout_seconds": 2_400,
                 }
             ),
             1_800.0,
         )
         self.assertEqual(
-            code_worker_adapter._benchmark_runtime_markers(context),
+            code_worker_adapter._benchmark_runtime_constraints(context),
             {
                 "benchmark_physical_dispatch": True,
                 "benchmark_long_horizon": True,
+                "model_api_timeout_seconds": 300.0,
+                "model_api_timeout_milliseconds": 300_000,
             },
         )
         # The marker alone cannot relax a normal production execution.
