@@ -4,7 +4,7 @@ import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 
@@ -61,7 +61,7 @@ _FILE_PATH_PATTERNS = (
         r"[^`\"'”’\r\n]{1,240}\.[A-Za-z0-9]{1,12})[`\"'”’]"
     ),
     re.compile(
-        r"(?<![\w.])((?:[A-Za-z0-9_.-]+[\\/])*"
+        r"(?<![\w./\\@])((?:[A-Za-z0-9_.-]+[\\/])*"
         r"[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,12})(?![\w.])"
     ),
 )
@@ -317,9 +317,16 @@ def validate_goal_delivery(
 
 def _safe_relative_path(value: str) -> str:
     rendered = str(value or "").strip().replace("\\", "/")
-    if not rendered:
+    if (
+        not rendered
+        or rendered.startswith("/")
+        or rendered.startswith("//")
+        or "@" in rendered
+        or re.match(r"^[A-Za-z]:/", rendered)
+        or re.fullmatch(r"\d+(?:\.\d+)+", rendered)
+    ):
         return ""
-    candidate = Path(rendered)
+    candidate = PurePosixPath(rendered)
     if candidate.is_absolute() or ".." in candidate.parts:
         return ""
     return candidate.as_posix()

@@ -193,6 +193,19 @@ def test_delivery_contract_recognizes_plain_chinese_create_file_wording() -> Non
     assert contract.expected_file_contents == (("smoke.txt", "指定文字"),)
 
 
+def test_delivery_contract_does_not_invent_paths_from_container_paths_emails_or_versions() -> None:
+    contract = goal_delivery_contract(
+        "Create `/app/meeting_scheduled.ics` for alice@example.com with VERSION:2.0."
+    )
+    assert contract.workspace_mutation_required is True
+    assert contract.required_paths == ()
+
+    relative = goal_delivery_contract(
+        "Create meeting_scheduled.ics for alice@example.com with VERSION:2.0."
+    )
+    assert relative.required_paths == ("meeting_scheduled.ics",)
+
+
 def test_delivery_contract_rejects_synthetic_provider_usage(tmp_path) -> None:
     goal = "分析当前任务并给出结论"
     verification = validate_goal_delivery(
