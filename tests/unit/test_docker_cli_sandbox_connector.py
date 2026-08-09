@@ -62,6 +62,18 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             ],
         )
 
+    def test_backend_exposes_the_connectors_redaction_boundary(self) -> None:
+        connector = DockerCliSandboxConnector(
+            container="task-main-1",
+            workdir="/app",
+            docker_executable="docker-test",
+        )
+        from zyra_runtime.sandbox_gateway import DockerSandboxBackend
+
+        with tempfile.TemporaryDirectory() as temporary:
+            backend = DockerSandboxBackend(temporary, connector)
+        self.assertIs(backend.redactor, connector.redactor)
+
     def test_prepare_requires_a_live_preexisting_container(self) -> None:
         connector = DockerCliSandboxConnector(
             container="task-main-1",

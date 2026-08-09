@@ -112,6 +112,7 @@ class ConnectorSandboxBackend:
             raise ValueError("connector backend requires backend_id and connector")
         self.backend_id = str(backend_id)
         self.connector = connector
+        self.redactor = getattr(connector, "redactor", SecretRedactor())
         self.state_root = Path(state_root).resolve()
         self.session_root = self.state_root / "connector-sessions" / self.backend_id.replace("/", "_")
         self.session_root.mkdir(parents=True, exist_ok=True)
