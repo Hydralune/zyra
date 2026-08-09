@@ -203,8 +203,10 @@ def execute_code_worker_operator(
             "the canonical external task container. Use shell commands for repository "
             "inspection, Git operations, tests, and delivery. File tools are mirrored "
             "into that same container at the end of the run, but prefer shell commands "
-            "whenever Git state or command/file ordering matters. Complete the task in "
-            "the environment; do not merely describe what should be done."
+            "whenever Git state or command/file ordering matters. Each shell call must "
+            "be one executable command without redirects, pipes, &&, ||, or command "
+            "substitution; use file_write/file_read for file contents. Complete the "
+            "task in the environment; do not merely describe what should be done."
         )
     request = WorkerRequest(
         run_id=run_id,
