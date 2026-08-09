@@ -260,6 +260,20 @@ export class ModelIterationRuntime {
       steps,
     });
     round.revision += 1;
+    if (steps.length === 0 && isProviderOutputTruncated(round.stopReason)) {
+      round.state = "completed";
+      round.completedAt = timestamp();
+      round.messageCountAfter = this.appendTruncatedAssistant(round.finalText, round);
+      this.activeRoundId = null;
+      this.phase = "ready";
+      this.commit("provider.round.truncated", round.roundId, {
+        provider_request_id: round.providerRequestId,
+        stop_reason: round.stopReason,
+        output_digest: round.outputDigest,
+        partial_text_digest: digest(round.finalText),
+      });
+      return clone(round);
+    }
     if (steps.length === 0) {
       round.state = "completed";
       round.completedAt = timestamp();
@@ -719,6 +733,22 @@ export class ModelIterationRuntime {
     return this.transcript.length;
   }
 
+  private appendTruncatedAssistant(text: string, round: ModelRoundRecord): number {
+    if (!text.trim()) return this.transcript.length;
+    this.transcript.push({
+      role: "assistant",
+      content: [{ type: "text", text: text.trim() }],
+      metadata: {
+        model_round_id: round.roundId,
+        provider_request_id: round.providerRequestId,
+        final_answer: false,
+        truncated: true,
+        canonical_owner: "model_iteration_runtime",
+      },
+    });
+    return this.transcript.length;
+  }
+
   private requireActiveRound(roundId: string, expected: ModelRoundState): ModelRoundRecord {
     const round = this.requireRound(roundId);
     if (this.activeRoundId !== roundId) throw new Error(`model round is not active: ${roundId}`);
@@ -897,6 +927,13 @@ function isToolTerminal(value: IterationToolState): boolean {
 
 function isIterationTerminal(value: ModelIterationPhase): boolean {
   return value === "completed" || value === "failed" || value === "cancelled";
+}
+
+function isProviderOutputTruncated(value: string | null): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase().replaceAll("-", "_");
+  return normalized === "length"
+    || normalized === "max_tokens"
+    || normalized === "maximum_tokens";
 }
 
 function assertSecretFree(value: unknown, path: string): void {

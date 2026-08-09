@@ -496,6 +496,124 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.ok(failureHost.events.some((event) => event.phase === "api_retry_report"));
 });
 
+test("runtime continues a length-truncated provider turn before accepting completion", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const choice = requestCount === 1
+      ? { index: 0, delta: { content: "partial analysis" }, finish_reason: "length" }
+      : requestCount === 2
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "post-truncation-read",
+            type: "function",
+            function: { name: "read", arguments: JSON.stringify({ path: "a" }) },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : { index: 0, delta: { content: "Implementation completed." }, finish_reason: "stop" };
+    const payload = {
+      id: `truncation-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-truncation-run",
+      sessionId: "provider-truncation-session",
+      workerRequestId: "provider-truncation-request",
+      turns: [],
+      config: {
+        maxTurns: 2,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(host.batches.length, 1);
+    assert.ok(host.events.some((event) =>
+      event.phase === "provider_length_continuation_requested"
+    ));
+    assert.ok((requestBodies[1].messages as JsonObject[]).some((message) =>
+      /reached its output limit.*make a concrete tool call/i.test(String(message.content ?? ""))
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("runtime fails closed after bounded length continuations are exhausted", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const payload = {
+      id: `bounded-truncation-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: { content: `partial analysis ${requestCount}` },
+        finish_reason: "length",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-truncation-exhausted-run",
+      sessionId: "provider-truncation-exhausted-session",
+      workerRequestId: "provider-truncation-exhausted-request",
+      turns: [],
+      config: {
+        maxTurns: 8,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.stoppedReason, "model_output_truncated");
+    assert.equal(requestCount, 3);
+    assert.equal(host.events.filter((event) =>
+      event.phase === "provider_length_continuation_requested"
+    ).length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("runtime lets canonical recovery policy stop a non-retryable provider request", async () => {
   const originalFetch = globalThis.fetch;
   let requestCount = 0;

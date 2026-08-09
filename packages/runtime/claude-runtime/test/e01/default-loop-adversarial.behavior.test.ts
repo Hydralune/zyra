@@ -348,6 +348,37 @@ describe("compatible provider protocol", () => {
 });
 
 describe("model iteration recovery", () => {
+  test("e01.mutation.length-stop-without-tools-remains-resumable", () => {
+    const runtime = new ModelIterationRuntime({
+      sessionId: "truncated-session",
+      runId: "truncated-run",
+      taskId: "truncated-task",
+      workerRequestId: "truncated-request",
+    });
+    runtime.start([{ role: "user", content: "Implement the task" }]);
+    const first = runtime.beginProviderRound({
+      requestKey: "truncated-round-zero",
+      model: "provider-model",
+      messages: [{ role: "user", content: "Implement the task" }],
+    });
+
+    runtime.acceptProviderResult({
+      roundId: first.roundId,
+      providerRequestId: "truncated-provider-one",
+      model: "provider-model",
+      stopReason: "length",
+      finalText: "partial analysis",
+      steps: [],
+    });
+
+    const snapshot = runtime.snapshot();
+    expect(snapshot.phase).toBe("ready");
+    expect(snapshot.finalText).toBe("");
+    expect(snapshot.rounds[0]?.state).toBe("completed");
+    expect(snapshot.transitions.at(-1)?.operation).toBe("provider.round.truncated");
+    expect(runtime.audit().ok).toBe(true);
+  });
+
   test("e01.mutation.provider-observation-requires-a-new-provider-round", () => {
     const runtime = new ModelIterationRuntime({
       sessionId: "iteration-session",

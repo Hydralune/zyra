@@ -15,7 +15,11 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "./contracts.ts";
-import { normalizeMessages, resolveModelTurns } from "./model-stream.ts";
+import {
+  normalizeMessages,
+  resolveModelTurns,
+  type ModelStreamResolution,
+} from "./model-stream.ts";
 import { RuntimeSession } from "./session.ts";
 import {
   normalizeTurns,
@@ -27,6 +31,7 @@ import { E01RuntimeCoordinator } from "./e01/coordinator.ts";
 import {
   ModelIterationRuntime,
   type ModelIterationSnapshot,
+  type ModelRoundRecord,
 } from "./loop/model-iteration-runtime.ts";
 import {
   compactBlocksFromMessages,
@@ -61,6 +66,13 @@ const TRANSIENT_CHECKPOINT_PHASES = new Set([
   "message_delta",
   "model_stream_frame",
 ]);
+const MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 2;
+
+interface SettledProviderResolution {
+  model: ModelStreamResolution;
+  round: ModelRoundRecord;
+  truncationExhausted: boolean;
+}
 
 export class ClaudeRuntimeCore {
   async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
@@ -228,6 +240,83 @@ export class ClaudeRuntimeCore {
       }
     };
 
+    const settleProviderResolution = async (
+      initialModel: ModelStreamResolution,
+      initialRound: ModelRoundRecord,
+      allowLengthContinuation: boolean,
+      continuationTools: ReturnType<RuntimeToolRegistry["list"]>,
+    ): Promise<SettledProviderResolution> => {
+      let model = initialModel;
+      let round = initialRound;
+      let continuationCount = 0;
+      const providerRoundLimit = (config.maxTurns ?? 1_000)
+        + (modelTransport === "http_sse" ? 1 : 0);
+      while (model.ok) {
+        iteration.acceptProviderResult({
+          roundId: round.roundId,
+          providerRequestId: model.providerRequestId,
+          model: config.modelName,
+          stopReason: model.stopReason,
+          finalText: model.finalText,
+          steps: model.turns.flat(),
+        });
+        if (!providerOutputWasLengthTruncated(model)) {
+          return { model, round, truncationExhausted: false };
+        }
+        if (
+          !allowLengthContinuation
+          || continuationCount >= MAX_CONSECUTIVE_LENGTH_CONTINUATIONS
+          || providerRoundIndex >= providerRoundLimit
+        ) {
+          return { model, round, truncationExhausted: true };
+        }
+        continuationCount += 1;
+        providerMessages = [
+          ...iteration.currentMessages(),
+          {
+            role: "user",
+            content: [
+              "The previous provider response reached its output limit before completing the task.",
+              "Continue from the durable context without repeating analysis.",
+              "Make a concrete tool call now if work remains; otherwise provide the concise final answer.",
+            ].join(" "),
+          },
+        ];
+        await emit("provider_length_continuation_requested", {
+          provider_round_index: providerRoundIndex,
+          continuation_count: continuationCount,
+          maximum_continuations: MAX_CONSECUTIVE_LENGTH_CONTINUATIONS,
+          previous_stop_reason: model.stopReason,
+          previous_final_text_present: model.finalText.trim().length > 0,
+          tools_advertised: continuationTools.length,
+        });
+        round = iteration.beginProviderRound({
+          requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+          model: config.modelName,
+          messages: providerMessages,
+        });
+        model = await resolveModelTurns(
+          input,
+          config,
+          [],
+          continuationTools,
+          emit,
+          (observation) => e01.decideProviderRecovery(observation),
+          e01.journal.restartEpoch,
+          (observation) => e01.completeProviderRecovery(observation),
+          (requestId) => e01.executePreparedProvider(requestId),
+          providerRoundIndex,
+          providerMessages,
+        );
+        providerRoundIndex += 1;
+        modelMetadata = {
+          ...model.metadata,
+          model_provider_rounds: String(providerRoundIndex),
+        };
+      }
+      return { model, round, truncationExhausted: false };
+    };
+
     await emit(restored ? "context_restored" : "session_started", {
       restored: Boolean(restored),
       resume_process_id: processedResume?.processId ?? null,
@@ -370,15 +459,37 @@ export class ClaudeRuntimeCore {
           source: "model_stream",
         });
       } else if (iterationRound) {
-        iteration.acceptProviderResult({
-          roundId: iterationRound.roundId,
-          providerRequestId: model.providerRequestId,
-          model: config.modelName,
-          stopReason: model.stopReason,
-          finalText: model.finalText,
-          steps: model.turns.flat(),
-        });
-        activeIterationRoundId = model.turns.length > 0 ? iterationRound.roundId : null;
+        const settled = await settleProviderResolution(
+          model,
+          iterationRound,
+          true,
+          registry.list(),
+        );
+        if (!settled.model.ok) {
+          iteration.failProviderRound(
+            settled.round.roundId,
+            settled.model.error ?? "model_stream_failed",
+          );
+          ok = false;
+          stoppedReason = "model_stream_failed";
+          await emit("error", {
+            error: stoppedReason,
+            detail: settled.model.error ?? "provider length continuation failed",
+            source: "model_iteration_runtime",
+          });
+        } else if (settled.truncationExhausted) {
+          iteration.fail("model_output_truncated");
+          ok = false;
+          stoppedReason = "model_output_truncated";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "provider exhausted bounded length-continuation attempts",
+            source: "model_iteration_runtime",
+          });
+        } else {
+          turns = settled.model.turns;
+          activeIterationRoundId = turns.length > 0 ? settled.round.roundId : null;
+        }
       }
     }
 
@@ -1487,17 +1598,36 @@ export class ClaudeRuntimeCore {
             source: "model_iteration_runtime",
           });
         } else {
-          iteration.acceptProviderResult({
-            roundId: nextRound.roundId,
-            providerRequestId: nextModel.providerRequestId,
-            model: config.modelName,
-            stopReason: nextModel.stopReason,
-            finalText: nextModel.finalText,
-            steps: nextModel.turns.flat(),
-          });
-          if (nextModel.turns.length > 0) {
-            turns.push(...nextModel.turns);
-            activeIterationRoundId = nextRound.roundId;
+          const settled = await settleProviderResolution(
+            nextModel,
+            nextRound,
+            !finalResponseOnly,
+            finalResponseOnly ? [] : registry.list(),
+          );
+          if (!settled.model.ok) {
+            iteration.failProviderRound(
+              settled.round.roundId,
+              settled.model.error ?? "model_stream_failed",
+            );
+            ok = false;
+            stoppedReason = "model_stream_failed";
+            await emit("error", {
+              error: stoppedReason,
+              detail: settled.model.error ?? "provider length continuation failed",
+              source: "model_iteration_runtime",
+            });
+          } else if (settled.truncationExhausted) {
+            iteration.fail("model_output_truncated");
+            ok = false;
+            stoppedReason = "model_output_truncated";
+            await emit("error", {
+              error: stoppedReason,
+              detail: "provider exhausted bounded length-continuation attempts",
+              source: "model_iteration_runtime",
+            });
+          } else if (settled.model.turns.length > 0) {
+            turns.push(...settled.model.turns);
+            activeIterationRoundId = settled.round.roundId;
           } else {
             activeIterationRoundId = null;
           }
@@ -1658,6 +1788,14 @@ function mutationTarget(step: { tool_name: string; arguments: JsonObject }): str
     return "workspace_path:" + path.replaceAll("\\", "/").toLowerCase();
   }
   return step.tool_name + ":" + JSON.stringify(step.arguments);
+}
+
+function providerOutputWasLengthTruncated(model: ModelStreamResolution): boolean {
+  if (model.turns.length > 0) return false;
+  const normalized = model.stopReason.trim().toLowerCase().replaceAll("-", "_");
+  return normalized === "length"
+    || normalized === "max_tokens"
+    || normalized === "maximum_tokens";
 }
 
 function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
