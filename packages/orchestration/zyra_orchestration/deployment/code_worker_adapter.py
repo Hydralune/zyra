@@ -3,6 +3,11 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import os
+import posixpath
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
@@ -11,6 +16,11 @@ from zyra_core import AgentMessage, AgentRole, MessageIntent, to_jsonable
 from zyra_runtime import JsonPermissionStore, WorkerRequest
 from zyra_runtime.artifacts import LocalArtifactStore
 from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
+from zyra_runtime.sandbox_gateway import (
+    DockerCliSandboxConnector,
+    DockerSandboxBackend,
+    canonical_logical_path,
+)
 from zyra_workers import CodeWorkerRuntime
 from zyra_workspace import (
     WorkspaceEditPort,
@@ -116,6 +126,15 @@ def execute_code_worker_operator(
         worker_id=worker_id,
     )
     workspace_root = manager.internal_task_root(access)
+    benchmark_binding = _benchmark_docker_binding(
+        node_data_root=Path(node_data_root).resolve(),
+        workspace_root=workspace_root,
+        workspace_data_root=_required_path(
+            workspace_config.get("data_root"), "workspace data root"
+        ),
+    )
+    if benchmark_binding is not None:
+        _pull_benchmark_workspace(benchmark_binding, workspace_root)
     before = _workspace_manifest(workspace_root)
     edit_port = WorkspaceEditPort(
         manager,
@@ -177,6 +196,16 @@ def execute_code_worker_operator(
             else {}
         ),
     )
+    if benchmark_binding is not None:
+        execution_prompt = (
+            f"{execution_prompt}\n\n"
+            "OFFICIAL BENCHMARK ENVIRONMENT: The shell tool is physically bound to "
+            "the canonical external task container. Use shell commands for repository "
+            "inspection, Git operations, tests, and delivery. File tools are mirrored "
+            "into that same container at the end of the run, but prefer shell commands "
+            "whenever Git state or command/file ordering matters. Complete the task in "
+            "the environment; do not merely describe what should be done."
+        )
     request = WorkerRequest(
         run_id=run_id,
         task_id=task_id,
@@ -207,6 +236,24 @@ def execute_code_worker_operator(
             ),
         },
     )
+    sandbox_gateway_state_root = (
+        Path(node_data_root).resolve()
+        / "code-worker-sandbox"
+        / _safe_id(task_id)
+    )
+    runtime_services: dict[str, Any] = {
+        "workspace_edit_port": edit_port,
+        "workspace_gateway_required": True,
+        "sandbox_gateway_state_root": sandbox_gateway_state_root,
+    }
+    if benchmark_binding is not None:
+        runtime_services["sandbox_gateway_backend"] = DockerSandboxBackend(
+            sandbox_gateway_state_root / "backend",
+            DockerCliSandboxConnector(
+                container=str(benchmark_binding["container"]),
+                workdir=str(benchmark_binding["workdir"]),
+            ),
+        )
     runtime = CodeWorkerRuntime(
         project_root=project_root,
         workspace_root=workspace_root,
@@ -222,23 +269,36 @@ def execute_code_worker_operator(
             / f"{_safe_id(task_id)}.json"
         ),
         permission_accept_edits_available=True,
-        runtime_services={
-            "workspace_edit_port": edit_port,
-            "workspace_gateway_required": True,
-            "sandbox_gateway_state_root": (
-                Path(node_data_root).resolve()
-                / "code-worker-sandbox"
-                / _safe_id(task_id)
-            ),
-        },
+        runtime_services=runtime_services,
     )
     run = runtime.run(request)
     runtime_events = [to_jsonable(item) for item in run.event_records]
     current_access = edit_port.current_access()
     workspace_root = manager.internal_task_root(current_access)
+    benchmark_sync: dict[str, Any] | None = None
+    if benchmark_binding is not None:
+        host_after_runtime = _workspace_manifest(workspace_root)
+        benchmark_sync = _push_benchmark_workspace_delta(
+            benchmark_binding,
+            workspace_root,
+            before=before,
+            after=host_after_runtime,
+        )
+        _pull_benchmark_workspace(benchmark_binding, workspace_root)
     after = _workspace_manifest(workspace_root)
     workspace_delta = _workspace_delta(before, after)
     evidence = dict(run.execution_evidence)
+    if benchmark_binding is not None:
+        evidence["benchmark_environment"] = {
+            "schema": "zyra.benchmark-docker-binding/v1",
+            "backend_id": "zyra.docker-sandbox.v1",
+            "container_ref_digest": str(benchmark_binding["container_ref_digest"]),
+            "container_workdir": str(benchmark_binding["workdir"]),
+            "initial_pull_verified": True,
+            "final_pull_verified": True,
+            "host_file_delta_push": dict(benchmark_sync or {}),
+            "container_lifecycle_owner": "external-harness",
+        }
     if not run.worker_result.ok:
         provider_failure = _provider_failure_summary(
             run.worker_result.metadata
@@ -325,6 +385,12 @@ def execute_code_worker_operator(
             "owner_epoch": current_access.owner_epoch,
             "lease_id": current_access.lease_id,
             "physical_location_redacted": True,
+            "external_benchmark_bound": benchmark_binding is not None,
+            "external_container_ref_digest": (
+                str(benchmark_binding["container_ref_digest"])
+                if benchmark_binding is not None
+                else ""
+            ),
         },
         "workspace_delta": workspace_delta,
         "final_text": final_text,
@@ -946,6 +1012,181 @@ def _workspace_delta(
         "after_manifest_digest": _digest(dict(after)),
         "physical_location_redacted": True,
     }
+
+
+def _benchmark_docker_binding(
+    *,
+    node_data_root: Path,
+    workspace_root: Path,
+    workspace_data_root: Path,
+) -> dict[str, Any] | None:
+    """Resolve the explicit Harbor/Docker binding without a default fallback."""
+
+    container = str(os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or "").strip()
+    workdir = str(os.environ.get("ZYRA_BENCHMARK_DOCKER_WORKDIR") or "").strip()
+    if not container and not workdir:
+        return None
+    if not container or not workdir:
+        raise ValueError(
+            "ZYRA_BENCHMARK_DOCKER_CONTAINER and ZYRA_BENCHMARK_DOCKER_WORKDIR "
+            "must be configured together"
+        )
+    connector = DockerCliSandboxConnector(container=container, workdir=workdir)
+    resolved_workspace = workspace_root.resolve()
+    resolved_data_root = workspace_data_root.resolve()
+    try:
+        relative_workspace = resolved_workspace.relative_to(resolved_data_root)
+    except ValueError as error:
+        raise ValueError("benchmark mirror workspace escaped WorkspaceManager data root") from error
+    if str(relative_workspace) in {"", "."}:
+        raise ValueError("benchmark mirror workspace cannot be the WorkspaceManager data root")
+    sync_root = (node_data_root.resolve() / "benchmark-workspace-sync").resolve()
+    sync_root.relative_to(node_data_root.resolve())
+    sync_root.mkdir(parents=True, exist_ok=True)
+    return {
+        "container": container,
+        "container_ref_digest": connector.container_ref_digest,
+        "workdir": connector.workdir,
+        "docker_executable": connector.docker_executable,
+        "workspace_data_root": resolved_data_root,
+        "sync_root": sync_root,
+    }
+
+
+def _pull_benchmark_workspace(
+    binding: Mapping[str, Any],
+    workspace_root: Path,
+) -> None:
+    """Replace the managed mirror with the current canonical container tree."""
+
+    root = _validated_benchmark_workspace(binding, workspace_root)
+    staging = Path(
+        tempfile.mkdtemp(
+            prefix="pull-",
+            dir=_required_path(binding.get("sync_root"), "benchmark sync root"),
+        )
+    ).resolve()
+    try:
+        _run_benchmark_docker(
+            binding,
+            (
+                "cp",
+                f"{binding['container']}:{binding['workdir']}/.",
+                str(staging),
+            ),
+            operation="benchmark_workspace_pull",
+            timeout_seconds=300.0,
+        )
+        for child in tuple(root.iterdir()):
+            if child.is_symlink() or child.is_file():
+                child.unlink()
+            else:
+                shutil.rmtree(child)
+        for child in tuple(staging.iterdir()):
+            shutil.move(str(child), str(root / child.name))
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def _push_benchmark_workspace_delta(
+    binding: Mapping[str, Any],
+    workspace_root: Path,
+    *,
+    before: Mapping[str, Mapping[str, Any]],
+    after: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Apply edits made through file tools to the canonical task container."""
+
+    root = _validated_benchmark_workspace(binding, workspace_root)
+    before_paths = set(before)
+    after_paths = set(after)
+    written = sorted(
+        path
+        for path in after_paths
+        if path not in before_paths
+        or before[path].get("sha256") != after[path].get("sha256")
+    )
+    deleted = sorted(before_paths - after_paths)
+    workdir = str(binding["workdir"])
+    container = str(binding["container"])
+    for relative in written:
+        canonical = canonical_logical_path(relative, allow_root=False)
+        destination = posixpath.join(workdir, canonical)
+        parent = posixpath.dirname(destination)
+        _run_benchmark_docker(
+            binding,
+            ("exec", container, "mkdir", "-p", "--", parent),
+            operation="benchmark_workspace_parent",
+            timeout_seconds=30.0,
+        )
+        source = (root / Path(*canonical.split("/"))).resolve()
+        source.relative_to(root)
+        _run_benchmark_docker(
+            binding,
+            ("cp", str(source), f"{container}:{destination}"),
+            operation="benchmark_workspace_push",
+            timeout_seconds=120.0,
+        )
+    for relative in deleted:
+        canonical = canonical_logical_path(relative, allow_root=False)
+        destination = posixpath.join(workdir, canonical)
+        _run_benchmark_docker(
+            binding,
+            ("exec", container, "rm", "-f", "--", destination),
+            operation="benchmark_workspace_delete",
+            timeout_seconds=30.0,
+        )
+    return {
+        "written_count": len(written),
+        "deleted_count": len(deleted),
+        "written_path_digests": [_digest(path) for path in written],
+        "deleted_path_digests": [_digest(path) for path in deleted],
+    }
+
+
+def _validated_benchmark_workspace(
+    binding: Mapping[str, Any],
+    workspace_root: Path,
+) -> Path:
+    root = workspace_root.resolve()
+    data_root = _required_path(
+        binding.get("workspace_data_root"), "benchmark workspace data root"
+    )
+    try:
+        relative = root.relative_to(data_root)
+    except ValueError as error:
+        raise ValueError("benchmark workspace escaped its declared data root") from error
+    if str(relative) in {"", "."} or not root.is_dir():
+        raise ValueError("benchmark workspace mirror target is not a managed task directory")
+    return root
+
+
+def _run_benchmark_docker(
+    binding: Mapping[str, Any],
+    argv: tuple[str, ...],
+    *,
+    operation: str,
+    timeout_seconds: float,
+) -> subprocess.CompletedProcess[bytes]:
+    try:
+        completed = subprocess.run(
+            [str(binding["docker_executable"]), *argv],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=timeout_seconds,
+            shell=False,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"{operation} could not execute Docker CLI: {type(error).__name__}") from error
+    if completed.returncode != 0:
+        error_text = completed.stderr.decode("utf-8", errors="replace")[:1000]
+        raise RuntimeError(
+            f"{operation} failed with Docker exit {completed.returncode}: {error_text}"
+        )
+    return completed
 
 
 def _required_mapping(value: Any, name: str) -> dict[str, Any]:

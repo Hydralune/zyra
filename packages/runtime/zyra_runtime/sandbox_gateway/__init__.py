@@ -31,6 +31,7 @@ from .credential_relay import (
     CredentialProvider,
     CredentialRelay,
 )
+from .docker_cli_connector import DockerCliSandboxConnector
 from .errors import (
     GatewayErrorCode,
     GatewayErrorDetail,
@@ -187,6 +188,7 @@ __all__ = [
     "LocalProcessSandboxBackend",
     "ConnectorSandboxBackend",
     "DockerSandboxBackend",
+    "DockerCliSandboxConnector",
     "MemoryGatewayEventSink",
     "NetworkPolicy",
     "NetworkPolicyResult",
