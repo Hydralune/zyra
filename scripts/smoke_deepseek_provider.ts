@@ -75,6 +75,7 @@ try {
     nodeId: route.nodeId,
     sessionId: route.sessionId,
     turnId: route.turnId,
+    routeFallbackPolicy: "pin_initial_route",
     messages: [{
       role: "user",
       content: "Reply with exactly ZYRA_DEEPSEEK_OK and nothing else.",
