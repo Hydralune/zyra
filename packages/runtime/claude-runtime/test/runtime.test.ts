@@ -613,6 +613,89 @@ test("model loop observes a failed command and completes a later repair", async 
   }
 });
 
+test("model loop stops three identical failed tool calls instead of burning the turn budget", async () => {
+  class AlwaysFailingHost extends MemoryHost {
+    executionCount = 0;
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.executionCount += 1;
+      this.batches.push(batch);
+      return requests.map((request) => ({
+        tool_call_id: request.toolCallId,
+        ok: false,
+        summary: "SandboxGateway rejected the command",
+        output: { reason: "remove shell composition" },
+        artifacts: [],
+        error: "ValueError",
+        metadata: { termination: "exited", recovery_required: "false" },
+      }));
+    }
+  }
+
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const payload = {
+      id: `repeated-failure-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `repeated-command-${requestCount}`,
+            type: "function",
+            function: {
+              name: "read",
+              arguments: JSON.stringify({ path: "unchanged" }),
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new AlwaysFailingHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "repeated-failure-run",
+      sessionId: "repeated-failure-session",
+      workerRequestId: "repeated-failure-request",
+      turns: [],
+      config: {
+        maxTurns: 20,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.stoppedReason, "repeated_tool_failure");
+    assert.equal(host.executionCount, 3);
+    assert.equal(requestCount, 3);
+    assert.equal(result.metadata.repeated_tool_failure_trips, "1");
+    assert.ok(host.events.some((event) =>
+      event.phase === "watchdog_signal"
+      && ((event.watchdog_signal ?? {}) as JsonObject).action === "stop"
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("model loop fails closed when a tool outcome requires reconciliation", async () => {
   class IndeterminateHost extends MemoryHost {
     override async executeBatch(

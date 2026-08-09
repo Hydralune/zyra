@@ -168,6 +168,9 @@ export class ClaudeRuntimeCore {
     let toolFailureSignals = 0;
     let toolSchemaErrors = 0;
     let toolConflictProtected = 0;
+    let repeatedToolFailureTrips = 0;
+    let previousFailedToolSignature = "";
+    let repeatedToolFailureCount = 0;
     let ok = true;
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
@@ -644,6 +647,40 @@ export class ClaudeRuntimeCore {
           const budget = Math.min(config.maxToolResultChars, remainingTurnBudget);
           const budgeted = await e01.enforceToolResultBudget(host, result, budget);
           result = budgeted.result;
+          if (!result.ok) {
+            const failureSignature = JSON.stringify([
+              step.tool_name,
+              step.arguments,
+              result.error || "tool_error",
+            ]);
+            repeatedToolFailureCount = failureSignature === previousFailedToolSignature
+              ? repeatedToolFailureCount + 1
+              : 1;
+            previousFailedToolSignature = failureSignature;
+            if (repeatedToolFailureCount >= 3) {
+              repeatedToolFailureTrips += 1;
+              result = {
+                ...result,
+                output: {
+                  ...result.output,
+                  repeated_failure: {
+                    count: repeatedToolFailureCount,
+                    original_error: result.error || "tool_error",
+                    guidance: "The same failed tool call was attempted three times without changing its arguments.",
+                  },
+                },
+                error: "repeated_tool_failure",
+                metadata: {
+                  ...result.metadata,
+                  repeated_tool_failure: "true",
+                  repeated_tool_failure_count: String(repeatedToolFailureCount),
+                },
+              };
+            }
+          } else {
+            previousFailedToolSignature = "";
+            repeatedToolFailureCount = 0;
+          }
           const toolCustody = e01.completeToolExecution({
             callId: result.tool_call_id,
             toolName: step.tool_name,
@@ -1582,6 +1619,7 @@ export class ClaudeRuntimeCore {
         tool_failure_signals: String(toolFailureSignals),
         tool_schema_errors: String(toolSchemaErrors),
         tool_conflict_protected: String(toolConflictProtected),
+        repeated_tool_failure_trips: String(repeatedToolFailureTrips),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -1629,6 +1667,7 @@ function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
     || error === "missing_tool_result"
     || error === "tool_effect_identity_conflict"
     || error === "tool_execution_timeout"
+    || error === "repeated_tool_failure"
   ) {
     return false;
   }

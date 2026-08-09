@@ -306,13 +306,27 @@ def default_tool_registry() -> ToolRegistry:
             ),
             ToolSpec(
                 "shell",
-                "Run classified shell commands with permission policy.",
+                (
+                    "Run one classified executable with permission policy. Prefer "
+                    "executable/argv/cwd/environment for a working directory or environment; "
+                    "the legacy command string cannot contain shell composition or redirects."
+                ),
                 "claude-code-best BashTool/PowerShellTool",
                 input_schema={
                     "type": "object",
-                    "required": ["command"],
+                    "anyOf": [
+                        {"required": ["command"]},
+                        {"required": ["executable"]},
+                    ],
                     "properties": {
                         "command": {"type": "string"},
+                        "executable": {"type": "string"},
+                        "argv": {"type": "array", "items": {"type": "string"}},
+                        "cwd": {"type": "string"},
+                        "environment": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                        },
                         "approved": {"type": "boolean"},
                         "timeout_seconds": {"type": "integer"},
                     },

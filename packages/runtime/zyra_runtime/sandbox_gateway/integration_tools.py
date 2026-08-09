@@ -1276,15 +1276,26 @@ class GatewayToolExecutionRouter:
         *,
         metadata: Mapping[str, Any] | None = None,
     ) -> ToolResult:
+        public_reason = str(reason or code or "sandbox gateway rejected the tool call")[:2_000]
         return ToolResult(
             tool_call_id=call.tool_call_id,
             ok=False,
             summary=f"{call.tool_name} was blocked by SandboxGateway",
+            # ModelIteration deliberately projects summary/output/error but not
+            # host metadata into the next provider observation.  Keeping the
+            # actionable, bounded reason only in metadata made an autonomous
+            # worker see a bare ``ValueError`` and repeat an identical rejected
+            # command until its long-horizon deadline expired.
+            output={
+                "code": str(code),
+                "reason": public_reason,
+                "recovery_hint": "Change the tool arguments before retrying; do not repeat an identical rejected call.",
+            },
             error=code,
             metadata={
                 "sandbox_gateway_routed": "true",
                 "sandbox_gateway_failure": "true",
-                "sandbox_gateway_reason": str(reason),
+                "sandbox_gateway_reason": public_reason,
                 **{str(key): str(value) for key, value in dict(metadata or {}).items()},
             },
         )

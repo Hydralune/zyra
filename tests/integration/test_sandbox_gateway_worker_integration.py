@@ -132,6 +132,27 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertFalse(blocked.worker_result.ok)
         self.assertFalse((workspace / "must-not-exist.txt").exists())
 
+    def test_gateway_rejection_reason_is_visible_to_the_model(self) -> None:
+        call = ToolCall(
+            run_id="run-gateway-diagnostic",
+            task_id="task-gateway-diagnostic",
+            node_id="node-gateway-diagnostic",
+            tool_name="shell",
+            tool_call_id="gateway-diagnostic-1",
+            arguments={"command": "cd work && python -m unittest"},
+        )
+
+        result = GatewayToolExecutionRouter._error(  # noqa: SLF001
+            call,
+            "ValueError",
+            "shell operators and redirects require an explicit reviewed script artifact",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.output["code"], "ValueError")
+        self.assertIn("shell operators", result.output["reason"])
+        self.assertIn("do not repeat", result.output["recovery_hint"])
+
     def test_browser_workspace_load_uses_shared_file_artifact_port(self) -> None:
         state = create_task_state("Browser uses the shared gateway")
         port, workspace = self._port(state, "BrowserWorker")
