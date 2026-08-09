@@ -50,6 +50,11 @@ interface ToolAccumulator {
   lastSequence: number;
 }
 
+const HIGH_VOLUME_CONTENT_FRAME_KINDS = new Set([
+  "text_delta",
+  "thinking_delta",
+]);
+
 export function providerControlPlaneRequired(config: RuntimeConfig): boolean {
   return asBoolean(config.runtimeConstraints.provider_control_plane_required);
 }
@@ -163,7 +168,11 @@ export async function resolveProviderControlPlaneTurns(
     });
     const result = await controlPlane.dispatch(request);
     const steps = toolSteps(result.frames);
-    for (const frame of result.frames) {
+    const evidenceFrames = providerControlPlaneEvidenceFrames(result.frames);
+    const compactedContentFrames = result.frames.filter(
+      (frame) => HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind),
+    );
+    for (const frame of evidenceFrames) {
       await emit("model_stream_frame", {
         model_stream_frame: safeFrame(frame),
       });
@@ -187,6 +196,14 @@ export async function resolveProviderControlPlaneTurns(
         protocol: result.protocol,
         attempt_count: result.attempts.length,
         frame_count: result.frames.length,
+        evidence_frame_count: evidenceFrames.length,
+        compacted_content_frame_count: compactedContentFrames.length,
+        compacted_content_digest: digestJson(compactedContentFrames.map((frame) => ({
+          sequence: frame.sequence,
+          kind: frame.kind,
+          text: frame.text,
+        }))),
+        stream_evidence_compacted: evidenceFrames.length !== result.frames.length,
         tool_call_count: steps.length,
         stop_reason: result.stopReason,
         usage: result.usage,
@@ -255,6 +272,17 @@ export async function resolveProviderControlPlaneTurns(
   } finally {
     controlPlane.close();
   }
+}
+
+export function providerControlPlaneEvidenceFrames(
+  frames: readonly ProviderStreamFrame[],
+): ProviderStreamFrame[] {
+  // The provider control plane already durably owns the complete raw stream.
+  // Replaying every text/reasoning token through E01 duplicates that evidence
+  // across the process protocol, journal, telemetry and every later snapshot.
+  // Preserve structural frames needed to audit tool calls, usage and terminal
+  // delivery; the report carries a count and digest for compacted content.
+  return frames.filter((frame) => !HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind));
 }
 
 function routeRefFromConstraints(constraints: JsonObject): ProviderRouteRefProjection {

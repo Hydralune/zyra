@@ -14,6 +14,7 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../src/index.ts";
+import { providerControlPlaneEvidenceFrames } from "../src/provider-control-plane-runtime.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -226,6 +227,37 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.e01Runtime !== undefined));
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "model_stream_frame"));
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "message_delta"));
+});
+
+test("provider evidence keeps structural frames without replaying content tokens", () => {
+  type Frame = Parameters<typeof providerControlPlaneEvidenceFrames>[0][number];
+  const frame = (kind: Frame["kind"], sequence: number): Frame => ({
+    frameId: `frame-${sequence}`,
+    dispatchId: "dispatch-1",
+    routeId: "route-1",
+    sequence,
+    kind,
+    text: kind.endsWith("_delta") ? "token" : null,
+    toolCallId: kind === "tool_call_delta" ? "call-1" : null,
+    toolName: kind === "tool_call_delta" ? "read" : null,
+    jsonDelta: kind === "tool_call_delta" ? "{}" : null,
+    usage: {},
+    providerEvent: kind === "response_end" ? "done" : null,
+    createdAt: sequence,
+    metadata: {},
+  });
+  const evidence = providerControlPlaneEvidenceFrames([
+    frame("thinking_delta", 1),
+    frame("text_delta", 2),
+    frame("tool_call_delta", 3),
+    frame("usage", 4),
+    frame("response_end", 5),
+  ]);
+  assert.deepEqual(evidence.map((item) => item.kind), [
+    "tool_call_delta",
+    "usage",
+    "response_end",
+  ]);
 });
 
 test("session restore preserves the unique active turn boundary", () => {
@@ -477,6 +509,163 @@ test("runtime lets canonical recovery policy stop a non-retryable provider reque
     assert.equal(requestCount, 1);
     assert.equal(state.recovery.contexts.length, 1);
     assert.ok((state.journal.state.provider?.revision ?? 0) > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("model loop observes a failed command and completes a later repair", async () => {
+  class RecoveringHost extends MemoryHost {
+    executionCount = 0;
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.executionCount += 1;
+      if (this.executionCount === 1) {
+        this.batches.push(batch);
+        return requests.map((request) => ({
+          tool_call_id: request.toolCallId,
+          ok: false,
+          summary: "Command exited with a recoverable conflict",
+          output: { return_code: 1, stderr: "merge conflict" },
+          artifacts: [],
+          error: "sandbox_command_failed",
+          metadata: { termination: "exited", recovery_required: "false" },
+        }));
+      }
+      return super.executeBatch(batch, requests);
+    }
+  }
+
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const toolCall = requestCount <= 2
+      ? {
+        index: 0,
+        id: requestCount === 1 ? "conflicting-command" : "repair-command",
+        type: "function",
+        function: {
+          name: "read",
+          arguments: JSON.stringify({ path: requestCount === 1 ? "conflict" : "resolved" }),
+        },
+      }
+      : null;
+    const payload = {
+      id: `recoverable-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: toolCall === null
+          ? { content: "Conflict resolved." }
+          : { tool_calls: [toolCall] },
+        finish_reason: toolCall === null ? "stop" : "tool_calls",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new RecoveringHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "tool-recovery-run",
+      sessionId: "tool-recovery-session",
+      workerRequestId: "tool-recovery-request",
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(host.executionCount, 2);
+    assert.ok(host.events.some((event) => event.phase === "continue"));
+    assert.deepEqual(e01State(result).tools.calls.map((item) => item.state), [
+      "failed",
+      "succeeded",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("model loop fails closed when a tool outcome requires reconciliation", async () => {
+  class IndeterminateHost extends MemoryHost {
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.batches.push(batch);
+      return requests.map((request) => ({
+        tool_call_id: request.toolCallId,
+        ok: false,
+        summary: "Command timed out with an indeterminate outcome",
+        output: {},
+        artifacts: [],
+        error: "tool_execution_timeout",
+        metadata: { termination: "timed_out", recovery_required: "true" },
+      }));
+    }
+  }
+
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const payload = {
+      id: "indeterminate-provider-message",
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "indeterminate-command",
+            type: "function",
+            function: { name: "read", arguments: JSON.stringify({ path: "a" }) },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new IndeterminateHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "tool-indeterminate-run",
+      sessionId: "tool-indeterminate-session",
+      workerRequestId: "tool-indeterminate-request",
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+    assert.equal(result.ok, false);
+    assert.equal(result.stoppedReason, "tool_execution_timeout");
+    assert.equal(requestCount, 1);
+    const watchdog = host.events.find((event) => event.phase === "watchdog_signal");
+    assert.equal((watchdog?.watchdog_signal as JsonObject).action, "stop");
   } finally {
     globalThis.fetch = originalFetch;
   }

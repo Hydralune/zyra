@@ -480,6 +480,7 @@ export class ClaudeRuntimeCore {
       let turnResultChars = 0;
       let turnOk = true;
       let turnError: string | null = null;
+      let turnMustStop = false;
       for (const batch of batches) {
         e01.startToolBatch(batch);
         let conflictProtected = false;
@@ -773,6 +774,11 @@ export class ClaudeRuntimeCore {
               ? "permission_suspended"
               : result.error || "tool_error";
             continuedFailureReason = turnError;
+            const modelRecoveryAllowed = modelTransport === "http_sse"
+              && modelCanRecoverToolFailure(result);
+            const continueAfterFailure = !permissionSuspended
+              && (config.continueOnError || modelRecoveryAllowed);
+            if (!continueAfterFailure) turnMustStop = true;
             toolFailureSignals += 1;
             if (result.error === "schema_error" || result.error === "tool_schema_validation_failed") {
               toolSchemaErrors += 1;
@@ -805,10 +811,10 @@ export class ClaudeRuntimeCore {
               watchdog_signal: {
                 kind: failureKind,
                 route: failureRoute,
-                action: config.continueOnError && !permissionSuspended ? "continue" : "stop",
+                action: continueAfterFailure ? "continue" : "stop",
               },
             });
-            if (config.continueOnError && !permissionSuspended) {
+            if (continueAfterFailure) {
               await emit("continue", {
                 turn_id: turn.turn_id,
                 turn_index: turnIndex,
@@ -849,7 +855,7 @@ export class ClaudeRuntimeCore {
             });
           }
         }
-        if (!turnOk && (!config.continueOnError || permissionSuspended)) {
+        if (!turnOk && (turnMustStop || permissionSuspended)) {
           break;
         }
       }
@@ -1328,6 +1334,12 @@ export class ClaudeRuntimeCore {
 
       session.completeTurn(turnOk, turnError);
       e01.completeCanonicalTurn(turn.turn_id, turnIndex, turnOk, turnError);
+      if (turnOk && modelTransport === "http_sse") {
+        // A successful model-directed repair settles an earlier observable
+        // tool failure. Scripted continue-on-error retains its historical
+        // fail-at-end contract.
+        continuedFailureReason = null;
+      }
       const sourceContinuation = e01.advanceQueryLoop({
         messagesForQuery: [{ turn_id: turn.turn_id, prompt }],
         assistantMessages: [{ ok: turnOk, error: turnError }],
@@ -1351,7 +1363,7 @@ export class ClaudeRuntimeCore {
         ok: turnOk,
         error: turnError,
       });
-      if (!turnOk && (!config.continueOnError || permissionSuspended)) {
+      if (!turnOk && (turnMustStop || permissionSuspended)) {
         ok = false;
         stoppedReason = turnError || "tool_error";
       }
@@ -1573,6 +1585,24 @@ function mutationTarget(step: { tool_name: string; arguments: JsonObject }): str
     return "workspace_path:" + path.replaceAll("\\", "/").toLowerCase();
   }
   return step.tool_name + ":" + JSON.stringify(step.arguments);
+}
+
+function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
+  const error = result.error || "tool_error";
+  if (
+    error === "permission_approval_required"
+    || error === "missing_tool_result"
+    || error === "tool_effect_identity_conflict"
+    || error === "tool_execution_timeout"
+  ) {
+    return false;
+  }
+  if (asString(result.metadata.permission_abort_loop).toLowerCase() === "true") return false;
+  if (asString(result.metadata.receipt_validation_failed).toLowerCase() === "true") return false;
+  if (asString(result.metadata.recovery_required).toLowerCase() === "true") return false;
+  if (asString(result.metadata.late_result_fenced).toLowerCase() === "true") return false;
+  const termination = asString(result.metadata.termination).toLowerCase();
+  return !termination || termination === "exited";
 }
 
 function normalizeConfig(value: Partial<RuntimeConfig>): RuntimeConfig {
