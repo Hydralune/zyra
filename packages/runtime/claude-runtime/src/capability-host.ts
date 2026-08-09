@@ -12,6 +12,7 @@ import type {
   ToolExecutionRequest,
   ToolExecutionResponse,
 } from "./contracts.ts";
+import { posix } from "node:path";
 import { asObject, asString } from "./contracts.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
@@ -72,6 +73,13 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   ): Promise<ToolExecutionResponse[]> {
     const enriched = [];
     for (const request of requests) {
+      const argumentsValue = normalizeBenchmarkContainerFileArguments(
+        request.toolName,
+        request.arguments,
+        asString(
+          asObject(this.input.config.runtimeConstraints).benchmark_container_workdir,
+        ),
+      );
       const revision = sessionRevision(this.input);
       const tool = this.input.tools.find((item) => item.name === request.toolName);
       const identity = inferToolIdentity(
@@ -92,7 +100,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         serverId: identity.serverId,
         operation: inferOperation(request.toolName, tool),
         workspaceRoot: workspaceRoot(this.input),
-        arguments: request.arguments,
+        arguments: argumentsValue,
         issueExecutionPermit: local,
         metadata: {
           ...request.metadata,
@@ -339,6 +347,40 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       capabilities: capabilities as unknown as JsonObject,
     };
   }
+}
+
+const BENCHMARK_FILE_TOOLS = new Set(["file_read", "file_write", "file_edit"]);
+const FILE_PATH_ARGUMENTS = ["path", "file_path", "target", "destination"] as const;
+
+export function normalizeBenchmarkContainerFileArguments(
+  toolName: string,
+  argumentsValue: JsonObject,
+  containerWorkdir: string,
+): JsonObject {
+  if (!BENCHMARK_FILE_TOOLS.has(toolName) || !containerWorkdir) {
+    return argumentsValue;
+  }
+  const root = posix.normalize(containerWorkdir.replaceAll("\\", "/"));
+  if (!posix.isAbsolute(root)) return argumentsValue;
+  const result: JsonObject = { ...argumentsValue };
+  for (const key of FILE_PATH_ARGUMENTS) {
+    const raw = result[key];
+    if (typeof raw !== "string" || !posix.isAbsolute(raw.replaceAll("\\", "/"))) {
+      continue;
+    }
+    const normalized = posix.normalize(raw.replaceAll("\\", "/"));
+    const relative = posix.relative(root, normalized);
+    if (
+      relative === ""
+      || relative === ".."
+      || relative.startsWith("../")
+      || posix.isAbsolute(relative)
+    ) {
+      continue;
+    }
+    result[key] = relative;
+  }
+  return result;
 }
 
 function restoredCapabilityState(value: JsonObject | null | undefined): JsonObject {

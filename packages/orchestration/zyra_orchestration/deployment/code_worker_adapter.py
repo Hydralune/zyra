@@ -208,6 +208,9 @@ def execute_code_worker_operator(
     }
     if benchmark_binding is not None:
         constraints["benchmark_physical_dispatch"] = True
+        constraints["benchmark_container_workdir"] = str(
+            benchmark_binding["workdir"]
+        )
         constraints["e02PermissionPolicy"] = _benchmark_permission_policy(
             session_id=permission_session_id,
             workspace_root=workspace_root,
@@ -233,6 +236,9 @@ def execute_code_worker_operator(
             "the canonical external task container. Use shell commands for repository "
             "inspection, Git operations, tests, and delivery. File tools and shell "
             "commands share one live, ordered view of that container workspace. Each "
+            "file tool may use either a workspace-relative path or a container-absolute "
+            f"path beneath {benchmark_binding['workdir']}; the runtime securely maps "
+            "the latter to the managed mirror. "
             "shell call must be one executable command without redirects, pipes, &&, "
             "||, or command substitution; use file_write/file_read for file contents. "
             "Complete the task in the environment; do not merely describe what should "
@@ -328,6 +334,7 @@ def execute_code_worker_operator(
             "initial_pull_verified": True,
             "final_pull_verified": True,
             "live_bidirectional_sync_verified": True,
+            "container_absolute_file_paths_translated": True,
             "host_file_delta_push": dict(benchmark_sync or {}),
             "container_lifecycle_owner": "external-harness",
         }

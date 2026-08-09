@@ -7,6 +7,7 @@ import { test } from "bun:test";
 import {
   PermissionedCapabilityHost,
   TypeScriptCapabilityRuntime,
+  normalizeBenchmarkContainerFileArguments,
   type ArtifactReceipt,
   type ArtifactRequest,
   type JsonObject,
@@ -17,6 +18,33 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../../src/index.ts";
+
+test("benchmark file tools map only container-workdir absolute paths", () => {
+  assert.deepEqual(
+    normalizeBenchmarkContainerFileArguments(
+      "file_write",
+      { path: "/app/src/program.py", content: "result" },
+      "/app",
+    ),
+    { path: "src/program.py", content: "result" },
+  );
+  assert.deepEqual(
+    normalizeBenchmarkContainerFileArguments(
+      "file_read",
+      { path: "/app/../etc/passwd" },
+      "/app",
+    ),
+    { path: "/app/../etc/passwd" },
+  );
+  assert.deepEqual(
+    normalizeBenchmarkContainerFileArguments(
+      "shell",
+      { command: "ls -la /app" },
+      "/app",
+    ),
+    { command: "ls -la /app" },
+  );
+});
 
 class CommitOnlyGateway implements RuntimeHost {
   readonly delegated: ToolExecutionRequest[] = [];
