@@ -563,12 +563,28 @@ def test_lost_tool_batch_ack_resumes_without_reexecution(tmp_path: Path) -> None
         ),
     ):
         first = runtime.run(request)
+    assert first.worker_result.ok is False
+    assert dropped is True
+    assert first.worker_result.metadata["query_turns"] == "1"
+    assert first.worker_result.metadata["tool_steps"] == "1"
+    failed_checkpoint = _checkpoint(first)
+    failed_snapshot = failed_checkpoint["session_snapshot"]
+    assert isinstance(failed_snapshot, dict)
+    assert failed_snapshot["stats"]["turn_count"] == 1
+    trace_artifact = next(
+        artifact
+        for artifact in first.worker_result.artifacts
+        if artifact.title.startswith("CodeWorker E01 trace")
+    )
+    trace_text = runtime.execution_context.artifact_store.resolve_path(
+        trace_artifact
+    ).read_text(encoding="utf-8")
+    assert "- turns: `1`" in trace_text
+    assert "- tool_calls: `1`" in trace_text
 
     with mock.patch.object(ToolExecutor, "execute", counting_execute):
         resumed = runtime.run(request)
 
-    assert first.worker_result.ok is False
-    assert dropped is True
     assert resumed.worker_result.ok is True, json.dumps(
         resumed.worker_result.events[-1], ensure_ascii=False
     )

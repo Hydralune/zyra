@@ -77,6 +77,13 @@ def _typescript_runtime_timeout_seconds(constraints: Mapping[str, Any]) -> float
     )
 
 
+def _nonnegative_count(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 class TypeScriptRuntimeError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -2355,14 +2362,32 @@ class TypeScriptClaudeQueryEngine:
         failed_snapshot["protocol_frame_trace"] = to_jsonable(
             self._protocol_frame_trace
         )
+        snapshot_stats = dict(failed_snapshot.get("stats") or {})
+        runtime_snapshot = dict(self._latest_runtime_checkpoint or {})
+        turn_count = max(
+            _nonnegative_count(snapshot_stats.get("turn_count")),
+            _nonnegative_count(runtime_snapshot.get("turn_count")),
+        )
+        tool_call_count = max(
+            _nonnegative_count(snapshot_stats.get("tool_message_count")),
+            _nonnegative_count(runtime_snapshot.get("tool_call_count")),
+            len(self._tool_effect_receipts),
+        )
+        context_compaction_count = max(
+            _nonnegative_count(snapshot_stats.get("context_compaction_count")),
+            _nonnegative_count(runtime_snapshot.get("compaction_count")),
+        )
         return ClaudeQueryEngineResult(
             ok=False,
             event_records=[*self._host_events, event],
             artifacts=self._dedupe_artifacts(self._host_artifacts),
-            step_summaries=[],
-            turn_count=0,
-            tool_call_count=0,
-            context_compaction_count=0,
+            step_summaries=[
+                f"TypeScript runtime stopped with {error.code} after "
+                f"{turn_count} turns and {tool_call_count} tool calls."
+            ],
+            turn_count=turn_count,
+            tool_call_count=tool_call_count,
+            context_compaction_count=context_compaction_count,
             stopped_reason=error.code,
             session_snapshot=failed_snapshot,
             metadata={
