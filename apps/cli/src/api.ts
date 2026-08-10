@@ -837,7 +837,13 @@ export class CliApi {
     }
   }
 
-  async nextIngress(taskId: string, cursor: string, generation: number, waitMs = 750): Promise<IngressPage> {
+  async nextIngress(
+    taskId: string,
+    cursor: string,
+    generation: number,
+    waitMs = 750,
+    signal?: AbortSignal,
+  ): Promise<IngressPage> {
     const selected = normalizeIdentity("task", taskId)
     const response = await this.client.endpoint<Record<string, unknown>>(
       OPERATION_NAMES.taskEventIngressDelta,
@@ -845,6 +851,7 @@ export class CliApi {
         path: { task_id: selected },
         query: { cursor, generation, limit: 500, wait_ms: waitMs },
         binding: { taskId: selected },
+        signal,
         timeoutMs: Math.min(this.timeoutMs, Math.max(10_000, waitMs + 5_000)),
         coordinationKey: `cli.ingress.delta:${selected}:${cursor}`,
         latestWins: true,

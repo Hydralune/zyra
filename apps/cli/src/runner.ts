@@ -312,6 +312,7 @@ export async function executeRun(input: {
     .then((value) => ({ ok: true as const, value }))
     .catch((error: unknown) => ({ ok: false as const, error }))
     .finally(() => { settled = true })
+  const runSettledSignal = runPromise.then(() => ({ kind: "run_settled" as const }))
 
   const finishCancelled = async (): Promise<CommandOutcome> => {
     input.signal.removeEventListener("abort", cancel)
@@ -343,13 +344,29 @@ export async function executeRun(input: {
 
   let ingressError: unknown
   while (!settled && !input.signal.aborted) {
-    try {
-      const page = await input.api.nextIngress(task.taskId, cursor, generation)
+    const ingressController = new AbortController()
+    const ingressPromise = input.api.nextIngress(
+      task.taskId,
+      cursor,
+      generation,
+      750,
+      ingressController.signal,
+    )
+      .then((page) => ({ kind: "ingress" as const, page }))
+      .catch((error: unknown) => ({ kind: "ingress_error" as const, error }))
+    const next = await Promise.race([ingressPromise, runSettledSignal])
+    if (next.kind === "run_settled") {
+      ingressController.abort("task run request settled")
+      void ingressPromise.then(() => undefined)
+      break
+    }
+    if (next.kind === "ingress") {
+      const page = next.page
       cursor = page.cursor
       generation = page.generation
       for (const frame of page.frames) emitFrame(input.output, frame, accumulator)
-    } catch (error) {
-      ingressError = error
+    } else {
+      ingressError = next.error
       while (!settled && !input.signal.aborted) {
         await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
       }

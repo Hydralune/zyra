@@ -193,6 +193,50 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(stdout.text).toContain('"phase":"terminal"')
   })
 
+  test("does not wait for a stuck ingress poll after the run request settles", async () => {
+    const pending = task("pending")
+    const blocked = task("blocked")
+    let ingressCalls = 0
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async openIngress() {
+        return { cursor: "opaque.cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() { throw new Error("structured task execution failure") },
+      async nextIngress() {
+        ingressCalls += 1
+        if (ingressCalls === 1) return new Promise(() => undefined)
+        return { cursor: "opaque.cursor.next", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return blocked },
+      async events() { return [] },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+    const output = new CliOutput({
+      stdout: new Capture(),
+      stderr: new Capture(),
+      requestId: "request_contract_stuck_ingress",
+      command: "run",
+    })
+
+    await expect(executeRun({
+      command: {
+        kind: "run",
+        goal: "Verify a real result.",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+        sealed: false,
+      },
+      api: fake,
+      output,
+      stdin: Readable.from([]),
+      signal: new AbortController().signal,
+    })).rejects.toThrow("structured task execution failure")
+    expect(ingressCalls).toBeGreaterThanOrEqual(2)
+  })
+
   test("unknown event ingress schema fails closed", async () => {
     const fetchMock = (async (_input: URL | RequestInfo, init?: RequestInit) => {
       const requestId = new Headers(init?.headers).get("X-Request-Id")!

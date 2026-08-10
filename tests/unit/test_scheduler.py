@@ -252,6 +252,48 @@ class SchedulerTests(unittest.TestCase):
             "worker:code-worker@1",
         )
 
+        code_state = create_task_state(
+            "Implement a Python module with shell tools, then preserve its memory."
+        )
+        memory_continuation_input = {
+            **operator_input,
+            "run_id": code_state.run_id,
+            "task_id": code_state.task_id,
+            "proposal_id": "proposal-memory-continuation",
+            "expected_depth": 1,
+            "candidates": [
+                {
+                    **later_candidate,
+                    "layer_index": 1,
+                    "layer_rank": 1,
+                }
+            ],
+        }
+        memory_continuation_input.pop("candidate_set_digest", None)
+        memory_continuation_input["candidate_set_digest"] = canonical_digest(
+            memory_continuation_input
+        )
+
+        memory_continuation = scheduler.decide(
+            code_state,
+            operator_input=memory_continuation_input,
+        )
+
+        self.assertEqual(
+            memory_continuation.selected_manifest_id,
+            "memory-worker",
+        )
+        self.assertEqual(
+            memory_continuation.metadata["operator_placement"]["route_mode"],
+            "operator_constrained",
+        )
+        self.assertEqual(
+            memory_continuation.metadata["operator_placement"][
+                "selected_operator_refs"
+            ],
+            ["worker:memory-worker@1"],
+        )
+
         same_layer_candidate = {
             **later_candidate,
             "layer_index": 1,

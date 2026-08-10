@@ -92,6 +92,7 @@ class ResourceScheduler:
                 state=state,
                 node=node,
                 health=health.get(manifest.worker_id),
+                enforce_task_profile_capabilities=not operator_constrained,
             )
             if not operator_constrained:
                 scored.append(base)
@@ -417,6 +418,7 @@ class ResourceScheduler:
         state: TaskState,
         node: PlanNode | None,
         health: Any,
+        enforce_task_profile_capabilities: bool = True,
     ) -> _ScoredManifest:
         if not manifest.enabled:
             return _ScoredManifest(manifest, -999.0, ["manifest disabled"])
@@ -429,7 +431,7 @@ class ResourceScheduler:
             return _ScoredManifest(manifest, -999.0, ["blocked by allowed_workers constraint"])
 
         missing_tools = [tool for tool in signals.required_tools if tool and tool not in manifest.tools and tool not in manifest.capabilities]
-        if missing_tools:
+        if missing_tools and enforce_task_profile_capabilities:
             return _ScoredManifest(manifest, -130.0, [f"missing required tools: {', '.join(missing_tools)}"])
 
         score = 10.0
@@ -474,7 +476,7 @@ class ResourceScheduler:
         # local-only code task may fail closed when no local code executor is
         # registered, but it must never be silently assigned to memory-only
         # infrastructure.
-        if signals.task_profile == "code" and not (
+        if enforce_task_profile_capabilities and signals.task_profile == "code" and not (
             "coding" in manifest.capabilities
             and "shell" in {*manifest.capabilities, *manifest.tools}
         ):
