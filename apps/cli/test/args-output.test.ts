@@ -110,6 +110,19 @@ describe("FE-S01 CLI argument and output contract", () => {
     expect(() => parseCliArgs(["run", "--file=a", "goal"])).toThrow(CliUsageError)
   })
 
+  test("preserves benchmark task syntax through stdin without argv parsing", async () => {
+    const command = parseCliArgs(["run", "--timeout=0ms"])
+    expect(command.kind).toBe("run")
+    if (command.kind !== "run") throw new Error("run command expected")
+    const source = "- leading option-like text\nquoted \"值\" and 'single'\n第二行"
+    expect(await goalFrom(
+      command,
+      Readable.from([Buffer.from(source, "utf8")]),
+      new AbortController().signal,
+    )).toBe(source)
+    expect(command.timeoutMs).toBe(0)
+  })
+
   test("reads a bounded UTF-8 goal file without exporting its path", async () => {
     const directory = await mkdtemp(join(tmpdir(), "zyra-cli-goal-"))
     const path = join(directory, "goal.txt")

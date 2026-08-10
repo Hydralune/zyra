@@ -31,13 +31,29 @@ from zyra_workers.typescript_claude_runtime import (  # noqa: E402
 
 
 class DockerCliSandboxConnectorTests(unittest.TestCase):
-    def test_benchmark_reasoning_budget_is_wider_but_still_transport_bounded(self) -> None:
+    def test_worker_failure_with_workspace_effects_requires_verification(self) -> None:
+        self.assertEqual(
+            code_worker_adapter._workspace_execution_outcome(
+                worker_ok=False,
+                workspace_delta={"created": ["answer.txt"]},
+            ),
+            ("needs_verification", True),
+        )
+        self.assertEqual(
+            code_worker_adapter._workspace_execution_outcome(
+                worker_ok=False,
+                workspace_delta={"created": [], "modified": [], "deleted": []},
+            ),
+            ("failed", False),
+        )
+
+    def test_explicit_benchmark_reasoning_budget_propagates_without_hidden_caps(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(
                 {"max_turns": 12, "reasoning_timeout_seconds": 600},
                 benchmark_execution=True,
             ),
-            (24, 720.0),
+            (12, 600.0),
         )
         self.assertEqual(
             _typescript_runtime_timeout_seconds(
@@ -46,14 +62,14 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                     "typescript_runtime_timeout_seconds": 900,
                 }
             ),
-            720.0,
+            900.0,
         )
         self.assertEqual(
             code_worker_adapter._benchmark_runtime_constraints({}),
             {"benchmark_physical_dispatch": True},
         )
 
-    def test_explicit_long_horizon_benchmark_has_a_separate_bounded_budget(self) -> None:
+    def test_explicit_long_horizon_budget_uses_the_authoritative_deadline(self) -> None:
         context = {
             "benchmark_long_horizon": True,
             "max_turns": 80,
@@ -64,7 +80,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 context,
                 benchmark_execution=True,
             ),
-            (64, 1_800.0),
+            (80, 2_400.0),
         )
         self.assertEqual(
             _typescript_runtime_timeout_seconds(
@@ -73,7 +89,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                     "typescript_runtime_timeout_seconds": 2_400,
                 }
             ),
-            1_800.0,
+            2_400.0,
         )
         self.assertEqual(
             code_worker_adapter._benchmark_runtime_constraints(context),
@@ -84,31 +100,37 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "model_api_timeout_milliseconds": 300_000,
             },
         )
-        # The marker alone cannot relax a normal production execution.
-        self.assertEqual(
+        # The long-horizon marker does not invent a separate internal budget.
+        self.assertIsNone(
             _typescript_runtime_timeout_seconds(
                 {
                     "benchmark_long_horizon": True,
-                    "typescript_runtime_timeout_seconds": 2_400,
                 }
-            ),
-            600.0,
+            )
         )
 
-    def test_production_reasoning_budget_keeps_existing_ceiling(self) -> None:
+    def test_production_reasoning_budget_is_open_without_an_explicit_deadline(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(
                 {"max_turns": 48, "reasoning_timeout_seconds": 900},
                 benchmark_execution=False,
             ),
-            (24, 600.0),
+            (48, 900.0),
         )
         self.assertEqual(
             _typescript_runtime_timeout_seconds(
                 {"typescript_runtime_timeout_seconds": 900}
             ),
-            600.0,
+            900.0,
         )
+        self.assertEqual(
+            code_worker_adapter._code_worker_reasoning_budget(
+                {},
+                benchmark_execution=False,
+            ),
+            (None, None),
+        )
+        self.assertIsNone(_typescript_runtime_timeout_seconds({}))
 
     def test_rejects_ambiguous_container_and_workdir(self) -> None:
         with self.assertRaisesRegex(ValueError, "container reference"):

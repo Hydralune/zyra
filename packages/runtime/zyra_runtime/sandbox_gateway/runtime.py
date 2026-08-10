@@ -335,18 +335,7 @@ class SandboxGatewayRuntime:
                 )
                 event_ids.append(started.event_id)
                 cancellation = self.budget_registry.register(envelope.command_id)
-                chunks: list[StreamChunk] = []
-
                 def on_chunk(chunk: StreamChunk) -> None:
-                    chunks.append(chunk)
-
-                result = self.backend.execute(
-                    backend_session,
-                    envelope,
-                    cancellation,
-                    on_chunk=on_chunk,
-                )
-                for chunk in chunks:
                     output_event = self.event_port.emit(
                         busy,
                         GatewayEventKind.COMMAND_OUTPUT,
@@ -359,8 +348,19 @@ class SandboxGatewayRuntime:
                         },
                         causation_id=started.event_id,
                         correlation_id=envelope.correlation_id,
+                        idempotency_key=(
+                            f"command-output:{envelope.command_id}:"
+                            f"{chunk.stream}:{chunk.sequence}"
+                        ),
                     )
                     event_ids.append(output_event.event_id)
+
+                result = self.backend.execute(
+                    backend_session,
+                    envelope,
+                    cancellation,
+                    on_chunk=on_chunk,
+                )
                 delta, patch_receipt = self._collect_and_commit(
                     record,
                     envelope,

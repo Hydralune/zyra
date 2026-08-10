@@ -33,6 +33,24 @@ from ..goal_contracts import direct_response_contract
 from .errors import DispatchRejected
 
 
+def _workspace_execution_outcome(
+    *,
+    worker_ok: bool,
+    workspace_delta: Mapping[str, Any],
+) -> tuple[str, bool]:
+    """Settle a worker attempt without erasing effects observed at its boundary."""
+
+    workspace_effect_observed = any(
+        workspace_delta.get(name)
+        for name in ("created", "modified", "deleted")
+    )
+    if worker_ok:
+        return "completed", workspace_effect_observed
+    if workspace_effect_observed:
+        return "needs_verification", True
+    return "failed", False
+
+
 def _physical_permission_session_id(
     payload: Mapping[str, Any],
     task_id: str,
@@ -192,14 +210,17 @@ def execute_code_worker_operator(
         # one rather than failing closed on a token nobody holds.
         "session_id": permission_session_id,
         "max_turns": max_turns,
-        # This deadline governs the whole multi-turn reasoning loop and stays
-        # below the physical dispatch transport budget. Official benchmark
-        # containers receive a larger, still-bounded allowance below.
         "typescript_runtime_timeout_seconds": runtime_timeout_seconds,
+        "external_deadline_epoch_ms": context.get("external_deadline_epoch_ms"),
         "tool_result_budget_chars": 120_000,
         "query_context_budget_chars": 128_000,
         "model_output_token_limit": max(
-            512, min(32_768, int(context.get("model_output_token_limit") or 8192))
+            512, int(context.get("model_output_token_limit") or 16_384)
+        ),
+        "model_output_token_budget": dict(
+            context.get("model_output_token_budget")
+            if isinstance(context.get("model_output_token_budget"), Mapping)
+            else {}
         ),
         "disable_retrieval_context": True,
         "physical_dispatch_task": True,
@@ -350,6 +371,11 @@ def execute_code_worker_operator(
             "host_file_delta_push": dict(benchmark_sync or {}),
             "container_lifecycle_owner": "external-harness",
         }
+    execution_outcome, workspace_effect_observed = _workspace_execution_outcome(
+        worker_ok=run.worker_result.ok,
+        workspace_delta=workspace_delta,
+    )
+    runtime_terminal_error: dict[str, Any] = {}
     if not run.worker_result.ok:
         provider_failure = _provider_failure_summary(
             run.worker_result.metadata
@@ -358,35 +384,34 @@ def execute_code_worker_operator(
             provider_failure
             and provider_failure.get("output_observed") is False
         )
-        raise DispatchRejected(
-            (
-                "node_provider_failure"
-                if provider_failed_before_output
-                else "node_code_worker_failed"
-            ),
-            "canonical TypeScript CodeWorker failed",
-            operation="phase2-operator-execution",
-            profile="cloud",
-            retryable=provider_failed_before_output,
-            details={
-                "worker_error": str(
-                    run.worker_result.error or "unknown"
-                )[:200],
-                "worker_summary": str(run.worker_result.summary)[:500],
-                # The runtime-level message carries the child's stderr, which is
-                # the only place a stall or crash inside the TypeScript runtime
-                # explains itself.  Without it the node reports a bare code.
-                "worker_error_message": str(
-                    (run.worker_result.metadata or {}).get(
-                        "typescript_runtime_error_message"
-                    )
-                    or ""
-                )[:2000],
-                "provider_failure": provider_failure,
-                "provider_called": evidence.get("provider_called") is True,
-                "tool_call_count": int(evidence.get("tool_call_count") or 0),
-            },
-        )
+        runtime_terminal_error = {
+            "worker_error": str(run.worker_result.error or "unknown")[:200],
+            "worker_summary": str(run.worker_result.summary)[:500],
+            "worker_error_message": str(
+                (run.worker_result.metadata or {}).get(
+                    "typescript_runtime_error_message"
+                )
+                or ""
+            )[:2000],
+            "provider_failure": provider_failure,
+        }
+        if execution_outcome == "failed":
+            raise DispatchRejected(
+                (
+                    "node_provider_failure"
+                    if provider_failed_before_output
+                    else "node_code_worker_failed"
+                ),
+                "canonical TypeScript CodeWorker failed",
+                operation="phase2-operator-execution",
+                profile="cloud",
+                retryable=provider_failed_before_output,
+                details={
+                    **runtime_terminal_error,
+                    "provider_called": evidence.get("provider_called") is True,
+                    "tool_call_count": int(evidence.get("tool_call_count") or 0),
+                },
+            )
     if evidence.get("provider_called") is not True:
         raise RuntimeError(
             "canonical TypeScript CodeWorker completed without a real provider response"
@@ -445,6 +470,9 @@ def execute_code_worker_operator(
         },
         "workspace_delta": workspace_delta,
         "final_text": final_text,
+        "execution_outcome": execution_outcome,
+        "runtime_terminal_error": runtime_terminal_error,
+        "workspace_effect_observed": workspace_effect_observed,
     }
 
 
@@ -452,37 +480,20 @@ def _code_worker_reasoning_budget(
     context: Mapping[str, Any],
     *,
     benchmark_execution: bool,
-) -> tuple[int, float]:
-    """Resolve one bounded model-loop budget without relaxing production defaults.
+) -> tuple[int | None, float | None]:
+    """Resolve the one authoritative total deadline for a model loop.
 
-    Terminal-Bench tasks have an official 900-second agent window. The normal
-    twelve-turn/600-second production allowance proved too small for a genuine
-    reverse-engineering task, so the externally verified Docker path gets up to
-    twenty-four turns and 720 seconds. This remains below the 780-second
-    physical-dispatch transport deadline and leaves Harbor time to run its
-    independent verifier.
+    No context value means an open run.  An outer harness may provide its
+    remaining time, which is forwarded unchanged instead of minting a fresh
+    recovery budget.
     """
 
-    if benchmark_execution and context.get("benchmark_long_horizon") is True:
-        return (
-            max(24, min(64, int(context.get("max_turns") or 64))),
-            max(
-                720.0,
-                min(
-                    1_800.0,
-                    float(context.get("reasoning_timeout_seconds") or 1_800.0),
-                ),
-            ),
-        )
-    if benchmark_execution:
-        return 24, 720.0
-    return (
-        max(2, min(24, int(context.get("max_turns") or 12))),
-        max(
-            60.0,
-            min(600.0, float(context.get("reasoning_timeout_seconds") or 120.0)),
-        ),
-    )
+    del benchmark_execution
+    raw_timeout = context.get("reasoning_timeout_seconds")
+    timeout = None if raw_timeout in (None, "", 0, 0.0) else max(1.0, float(raw_timeout))
+    raw_turns = context.get("max_turns")
+    turns = None if raw_turns in (None, "", 0) else max(1, int(raw_turns))
+    return turns, timeout
 
 
 def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]:
@@ -889,6 +900,13 @@ def _provider_evidence(
                     "prompt_goal_bound": (
                         prompt_binding.get("goal_present") is True
                     ),
+                    "output_token_budget": dict(
+                        prompt_binding.get("output_token_budget")
+                        if isinstance(
+                            prompt_binding.get("output_token_budget"), Mapping
+                        )
+                        else {}
+                    ),
                 }
             )
     if len(enriched) != len(calls):
@@ -978,6 +996,11 @@ def _provider_prompt_bindings(
                     "goal_present": bool(
                         expected_initial_prompt_digest
                         and initial_prompt_digest == expected_initial_prompt_digest
+                    ),
+                    "output_token_budget": dict(
+                        request.get("output_token_budget")
+                        if isinstance(request.get("output_token_budget"), Mapping)
+                        else {}
                     ),
                 }
             )

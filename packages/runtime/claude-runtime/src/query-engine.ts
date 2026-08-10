@@ -122,8 +122,12 @@ export class ClaudeRuntimeCore {
         // maxTurns bounds tool-bearing turns. HTTP model loops need one
         // additional provider round to turn the final tool observation into
         // a user-facing answer without granting another tool execution.
-        maximumRounds: (config.maxTurns ?? 1_000) + (modelTransport === "http_sse" ? 1 : 0),
-        maximumToolCalls: Math.max(1_000, (config.maxTurns ?? 1_000) * 32),
+        maximumRounds: config.maxTurns === null
+          ? null
+          : config.maxTurns + (modelTransport === "http_sse" ? 1 : 0),
+        maximumToolCalls: config.maxTurns === null
+          ? null
+          : Math.max(1_000, config.maxTurns * 32),
       });
     }
     if (!providerControlPlaneRequired) {
@@ -183,6 +187,8 @@ export class ClaudeRuntimeCore {
     let repeatedToolFailureTrips = 0;
     let previousFailedToolSignature = "";
     let repeatedToolFailureCount = 0;
+    let consecutiveInvalidArgumentFailures = 0;
+    let invalidArgumentRetryTrips = 0;
     let ok = true;
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
@@ -249,8 +255,9 @@ export class ClaudeRuntimeCore {
       let model = initialModel;
       let round = initialRound;
       let continuationCount = 0;
-      const providerRoundLimit = (config.maxTurns ?? 1_000)
-        + (modelTransport === "http_sse" ? 1 : 0);
+      const providerRoundLimit = config.maxTurns === null
+        ? null
+        : config.maxTurns + (modelTransport === "http_sse" ? 1 : 0);
       while (model.ok) {
         iteration.acceptProviderResult({
           roundId: round.roundId,
@@ -266,7 +273,7 @@ export class ClaudeRuntimeCore {
         if (
           !allowLengthContinuation
           || continuationCount >= MAX_CONSECUTIVE_LENGTH_CONTINUATIONS
-          || providerRoundIndex >= providerRoundLimit
+          || (providerRoundLimit !== null && providerRoundIndex >= providerRoundLimit)
         ) {
           return { model, round, truncationExhausted: true };
         }
@@ -493,7 +500,7 @@ export class ClaudeRuntimeCore {
       }
     }
 
-    const turnLimit = config.maxTurns ?? (modelTransport === "http_sse" ? 1_000 : turns.length);
+    const turnLimit = config.maxTurns;
     const restoredActiveTurn = session.activeTurnSnapshot();
     const initialTurnIndex = restoredActiveTurn?.turn_index ?? 0;
     for (let turnIndex = initialTurnIndex; ok && turnIndex < turns.length; turnIndex += 1) {
@@ -758,6 +765,32 @@ export class ClaudeRuntimeCore {
           const budget = Math.min(config.maxToolResultChars, remainingTurnBudget);
           const budgeted = await e01.enforceToolResultBudget(host, result, budget);
           result = budgeted.result;
+          const invalidArguments = result.error === "schema_error"
+            || result.error === "tool_schema_validation_failed";
+          if (invalidArguments) toolSchemaErrors += 1;
+          consecutiveInvalidArgumentFailures = invalidArguments
+            ? consecutiveInvalidArgumentFailures + 1
+            : 0;
+          if (consecutiveInvalidArgumentFailures >= 3) {
+            invalidArgumentRetryTrips += 1;
+            result = {
+              ...result,
+              output: {
+                ...result.output,
+                invalid_argument_recovery: {
+                  attempts: consecutiveInvalidArgumentFailures,
+                  retry_allowed: false,
+                  side_effect_executed: false,
+                },
+              },
+              error: "invalid_tool_arguments_retry_exhausted",
+              metadata: {
+                ...result.metadata,
+                invalid_argument_retry_exhausted: "true",
+                physical_effect_executed: "false",
+              },
+            };
+          }
           if (!result.ok) {
             const failureSignature = JSON.stringify([
               step.tool_name,
@@ -931,9 +964,6 @@ export class ClaudeRuntimeCore {
               && (config.continueOnError || modelRecoveryAllowed);
             if (!continueAfterFailure) turnMustStop = true;
             toolFailureSignals += 1;
-            if (result.error === "schema_error" || result.error === "tool_schema_validation_failed") {
-              toolSchemaErrors += 1;
-            }
             const failureKind = result.error === "permission_approval_required"
               || result.error === "permission_denied"
               ? "permission_denied"
@@ -1526,9 +1556,9 @@ export class ClaudeRuntimeCore {
         modelTransport === "http_sse"
         && ok
         && activeIterationRoundId
-        && turnIndex + 1 <= turnLimit
+        && (turnLimit === null || turnIndex + 1 <= turnLimit)
       ) {
-        const finalResponseOnly = turnIndex + 1 === turnLimit;
+        const finalResponseOnly = turnLimit !== null && turnIndex + 1 === turnLimit;
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
         if (pendingRestoreProviderMessage) {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
@@ -1635,7 +1665,7 @@ export class ClaudeRuntimeCore {
       }
     }
 
-    if (ok && turns.length > turnLimit) {
+    if (ok && turnLimit !== null && turns.length > turnLimit) {
       ok = false;
       stoppedReason = "max_turns_exceeded";
     }
@@ -1750,6 +1780,7 @@ export class ClaudeRuntimeCore {
         tool_schema_errors: String(toolSchemaErrors),
         tool_conflict_protected: String(toolConflictProtected),
         repeated_tool_failure_trips: String(repeatedToolFailureTrips),
+        invalid_argument_retry_trips: String(invalidArgumentRetryTrips),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -1806,6 +1837,7 @@ function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
     || error === "tool_effect_identity_conflict"
     || error === "tool_execution_timeout"
     || error === "repeated_tool_failure"
+    || error === "invalid_tool_arguments_retry_exhausted"
   ) {
     return false;
   }

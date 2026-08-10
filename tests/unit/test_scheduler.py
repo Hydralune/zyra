@@ -29,6 +29,46 @@ from zyra_scheduler import (
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_security_words_do_not_remove_code_execution_capability(self) -> None:
+        state = create_task_state(
+            "Fix the private-key parser and add tests for secret redaction."
+        )
+
+        decision = ResourceScheduler().decide(state)
+
+        self.assertEqual(decision.signals.privacy_mode, "project")
+        self.assertEqual(decision.selected_manifest_id, "provider-code-worker")
+
+    def test_actual_credential_value_is_sensitive_and_redacted_from_hints(self) -> None:
+        state = create_task_state("Run the configured deployment check.")
+        state.metadata["runtime_hints"] = {
+            "privacy_class": "sensitive",
+            "api_key": "sk-example-secret-value-123456",
+        }
+
+        decision = ResourceScheduler().decide(state)
+
+        self.assertEqual(decision.signals.privacy_mode, "sensitive")
+        self.assertEqual(
+            decision.signals.metadata["runtime_hints"]["api_key"],
+            "[REDACTED]",
+        )
+        self.assertNotIn(
+            "sk-example-secret-value-123456",
+            str(decision.signals.metadata),
+        )
+
+    def test_sensitive_code_fails_closed_without_a_local_code_worker(self) -> None:
+        state = create_task_state("Use shell to update the credential-backed deployment.")
+        state.metadata["runtime_hints"] = {
+            "privacy_class": "restricted",
+            "required_tools": ["shell"],
+            "api_key": "sk-example-secret-value-123456",
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "local code-and-shell worker"):
+            ResourceScheduler().decide(state)
+
     def test_default_worker_pool_contains_local_edge_cloud_and_memory_manifests(self) -> None:
         pool = WorkerPool()
         manifest_ids = {manifest.worker_id for manifest in pool.manifests()}

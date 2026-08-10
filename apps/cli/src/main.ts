@@ -226,14 +226,19 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     const api = new CliApi({
       baseUrl: command.baseUrl,
       token,
-      timeoutMs: command.timeoutMs,
+      // The typed HTTP client still needs a finite socket/request guard.  It
+      // is deliberately not the agent's lifetime when the CLI total timeout
+      // is open; the outer AbortSignal remains the cancellation authority.
+      timeoutMs: command.timeoutMs || 4 * 60 * 60_000,
     })
     const signal = bridgeSignal(environment.signal)
-    const timer = setTimeout(
-      () => signal.controller.abort(new Error("Zyra CLI command timeout expired.")),
-      command.timeoutMs,
-    )
-    timer.unref()
+    const timer = command.timeoutMs > 0
+      ? setTimeout(
+          () => signal.controller.abort(new Error("Zyra CLI command timeout expired.")),
+          command.timeoutMs,
+        )
+      : undefined
+    timer?.unref()
     const cancelTimer = command.kind === "run" && command.cancelAfterMs !== undefined
       ? setTimeout(
           () => signal.controller.abort(new Error("Zyra CLI explicit cancel deadline reached.")),
@@ -248,7 +253,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         terminal = await TerminalNodeLifecycle.create({
           baseUrl: command.baseUrl,
           token,
-          timeoutMs: Math.min(command.timeoutMs, 15_000),
+          timeoutMs: Math.min(command.timeoutMs || 15_000, 15_000),
           startupRoot: process.cwd(),
         })
         const registration = await terminal.start()
@@ -267,7 +272,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       try {
         await terminal?.stop("Zyra CLI session complete")
       } finally {
-        clearTimeout(timer)
+        if (timer !== undefined) clearTimeout(timer)
         if (cancelTimer) clearTimeout(cancelTimer)
         signal.dispose()
         api.close("CLI command complete")

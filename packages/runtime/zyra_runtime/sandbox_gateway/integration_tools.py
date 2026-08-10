@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import mimetypes
+import threading
 import time
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence, TYPE_CHECKING
@@ -12,6 +14,7 @@ from .canonical import content_digest as gateway_content_digest
 from .models import (
     CommandBudget,
     GatewayCommandEnvelope,
+    GatewayEventKind,
     GatewayLifecycleState,
     OperationKind,
     ProcessTermination,
@@ -41,6 +44,7 @@ if TYPE_CHECKING:
 _HANDLED_TOOLS = frozenset(
     {
         "shell",
+        "shell_wait",
         "file_read",
         "file_write",
         "file_edit",
@@ -57,6 +61,18 @@ class GatewayToolRoutingDecision:
     operation: GatewayAction | None
     requires_workspace_port: bool
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class _CommandJob:
+    job_id: str
+    command_id: str
+    session_id: str
+    run_id: str
+    task_id: str
+    submitted_at: float
+    cancellation: threading.Event
+    future: Future[ToolResult]
 
 
 def _filesystem_safe_session_id(value: str) -> str:
@@ -81,6 +97,12 @@ class GatewayToolExecutionRouter:
             bundle.policy_runtime,
             allowed_roots=(bundle.workspace_root,),
         )
+        self._jobs_lock = threading.RLock()
+        self._jobs: dict[str, _CommandJob] = {}
+        self._job_pool = ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="zyra-sandbox-command",
+        )
 
     def handles(self, tool_name: str) -> bool:
         selected = str(tool_name)
@@ -92,6 +114,7 @@ class GatewayToolExecutionRouter:
         selected = str(tool_name)
         action = {
             "shell": GatewayAction.COMMAND,
+            "shell_wait": GatewayAction.COMMAND,
             "file_read": GatewayAction.FILE_READ,
             "file_write": GatewayAction.FILE_WRITE,
             "file_edit": GatewayAction.FILE_EDIT,
@@ -102,7 +125,7 @@ class GatewayToolExecutionRouter:
             handled=action is not None,
             tool_name=selected,
             operation=action,
-            requires_workspace_port=selected != "shell",
+            requires_workspace_port=selected not in {"shell", "shell_wait"},
             reason=(
                 "tool is owned by the managed sandbox gateway"
                 if action is not None
@@ -134,7 +157,7 @@ class GatewayToolExecutionRouter:
             # runtime cannot be masked by a direct file adapter.
             self.bundle.runtime.assert_enabled()
             identity = self._identity(call)
-            if call.tool_name != "shell":
+            if call.tool_name not in {"shell", "shell_wait"}:
                 # WorkspaceEditPort operations commit through the same
                 # session-scoped artifact/state custody as shell execution.
                 # Ensure that custody exists before read/write/edit/delete;
@@ -149,6 +172,8 @@ class GatewayToolExecutionRouter:
                     permission_authority=permission_authority,
                     permission_execution_context=permission_execution_context,
                 )
+            if call.tool_name == "shell_wait":
+                return self._shell_wait(call, identity)
             if call.tool_name == "file_read":
                 return self._file_read(call, identity)
             if call.tool_name == "file_write":
@@ -214,6 +239,28 @@ class GatewayToolExecutionRouter:
             return True
         return self.bundle.runtime.cancel(session_id, command_id, reason=reason)
 
+    def cancel_all(self, *, reason: str) -> int:
+        """Cancel every unfinished command owned by this query router."""
+
+        with self._jobs_lock:
+            jobs = tuple(job for job in self._jobs.values() if not job.future.done())
+        for job in jobs:
+            job.cancellation.set()
+            job.future.cancel()
+        deadline = time.monotonic() + 1.0
+        pending = list(jobs)
+        while pending and time.monotonic() < deadline:
+            next_pending: list[_CommandJob] = []
+            for job in pending:
+                if job.future.done():
+                    continue
+                if not self.cancel(job.session_id, job.command_id, reason=reason):
+                    next_pending.append(job)
+            pending = next_pending
+            if pending:
+                time.sleep(0.02)
+        return len(jobs)
+
     def descriptor(self) -> Mapping[str, Any]:
         return {
             "runtime": "GatewayToolExecutionRouter",
@@ -232,6 +279,209 @@ class GatewayToolExecutionRouter:
         permission_authority: Any,
         permission_execution_context: Any,
     ) -> ToolResult:
+        executable, argv, _environment, _cwd = self.bundle.policy_runtime.command_from_arguments(
+            call.arguments
+        )
+        command_id = stable_identifier(
+            "gateway-command",
+            identity.binding_digest,
+            call.tool_call_id,
+            executable,
+            argv,
+        )
+        job_id = stable_identifier(
+            "gateway-command-job",
+            identity.session_id,
+            command_id,
+        )
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                cancellation = threading.Event()
+                future = self._job_pool.submit(
+                    self._shell_sync,
+                    call,
+                    identity,
+                    cancellation_event=cancellation,
+                    permission_grant=permission_grant,
+                    permission_authority=permission_authority,
+                    permission_execution_context=permission_execution_context,
+                )
+                job = _CommandJob(
+                    job_id=job_id,
+                    command_id=command_id,
+                    session_id=identity.session_id,
+                    run_id=identity.run_id,
+                    task_id=identity.task_id,
+                    submitted_at=time.time(),
+                    cancellation=cancellation,
+                    future=future,
+                )
+                self._jobs[job_id] = job
+                self._prune_jobs_locked()
+        foreground_wait = (
+            0.0
+            if bool(call.arguments.get("background", False))
+            else _bounded_float(
+                call.arguments.get("foreground_wait_seconds"),
+                default=10.0,
+                minimum=0.0,
+                maximum=60.0,
+            )
+        )
+        try:
+            result = job.future.result(timeout=foreground_wait)
+        except FutureTimeoutError:
+            return self._running_job_result(call, job, after_sequence=0)
+        return self._completed_job_result(call, job, result)
+
+    def _shell_wait(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+    ) -> ToolResult:
+        job_id = str(call.arguments.get("job_id") or "").strip()
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+        if job is None:
+            return self._error(call, "shell_job_not_found", "unknown or expired shell job_id")
+        if (job.session_id, job.run_id, job.task_id) != (
+            identity.session_id,
+            identity.run_id,
+            identity.task_id,
+        ):
+            return self._error(call, "shell_job_scope_mismatch", "shell job belongs to another task")
+        wait_seconds = _bounded_float(
+            call.arguments.get("timeout_seconds"),
+            default=10.0,
+            minimum=0.0,
+            maximum=60.0,
+        )
+        after_sequence = _bounded_int(
+            call.arguments.get("after_sequence"),
+            default=0,
+            minimum=0,
+            maximum=2_147_483_647,
+        )
+        try:
+            result = job.future.result(timeout=wait_seconds)
+        except FutureTimeoutError:
+            return self._running_job_result(
+                call,
+                job,
+                after_sequence=after_sequence,
+            )
+        return self._completed_job_result(call, job, result)
+
+    def _running_job_result(
+        self,
+        call: ToolCall,
+        job: _CommandJob,
+        *,
+        after_sequence: int,
+    ) -> ToolResult:
+        chunks, last_sequence = self._job_output(job, after_sequence=after_sequence)
+        now = time.time()
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=True,
+            summary="Sandbox command is still running in the background.",
+            output={
+                "job_id": job.job_id,
+                "command_id": job.command_id,
+                "status": "running",
+                "heartbeat_at": now,
+                "elapsed_seconds": max(0.0, now - job.submitted_at),
+                "output_chunks": chunks,
+                "last_sequence": last_sequence,
+            },
+            metadata={
+                "sandbox_command_background": "true",
+                "sandbox_command_status": "running",
+                "sandbox_command_job_id": job.job_id,
+                "sandbox_command_id": job.command_id,
+                "physical_effect_pending": "true",
+            },
+        )
+
+    def _completed_job_result(
+        self,
+        call: ToolCall,
+        job: _CommandJob,
+        result: ToolResult,
+    ) -> ToolResult:
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=result.ok,
+            summary=result.summary,
+            output={
+                **dict(result.output),
+                "job_id": job.job_id,
+                "command_id": job.command_id,
+                "status": "completed",
+            },
+            artifacts=list(result.artifacts),
+            error=result.error,
+            metadata={
+                **dict(result.metadata),
+                "sandbox_command_background": "false",
+                "sandbox_command_status": "completed",
+                "sandbox_command_job_id": job.job_id,
+                "sandbox_command_id": job.command_id,
+                "originating_tool_call_id": result.tool_call_id,
+            },
+        )
+
+    def _job_output(
+        self,
+        job: _CommandJob,
+        *,
+        after_sequence: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        chunks: list[dict[str, Any]] = []
+        last_sequence = after_sequence
+        for event in self.bundle.event_port.list(
+            job.session_id,
+            after_sequence=after_sequence,
+        ):
+            last_sequence = max(last_sequence, int(event.sequence))
+            if event.kind != GatewayEventKind.COMMAND_OUTPUT:
+                continue
+            payload = dict(event.payload)
+            if str(payload.get("command_id") or "") != job.command_id:
+                continue
+            chunks.append(
+                {
+                    "sequence": event.sequence,
+                    "stream": str(payload.get("stream") or ""),
+                    "bytes": int(payload.get("bytes") or 0),
+                    "content": str(payload.get("content") or ""),
+                }
+            )
+        return chunks, last_sequence
+
+    def _prune_jobs_locked(self) -> None:
+        if len(self._jobs) <= 256:
+            return
+        completed = sorted(
+            (job for job in self._jobs.values() if job.future.done()),
+            key=lambda item: item.submitted_at,
+        )
+        for job in completed[: max(0, len(self._jobs) - 256)]:
+            self._jobs.pop(job.job_id, None)
+
+    def _shell_sync(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        *,
+        cancellation_event: threading.Event,
+        permission_grant: Any,
+        permission_authority: Any,
+        permission_execution_context: Any,
+    ) -> ToolResult:
+        if cancellation_event.is_set():
+            return self._error(call, "parent_cancelled", "command cancelled before execution")
         executable, argv, environment, cwd = self.bundle.policy_runtime.command_from_arguments(
             call.arguments
         )
@@ -239,7 +489,7 @@ class GatewayToolExecutionRouter:
             call.arguments.get("timeout_seconds"),
             default=120.0,
             minimum=0.1,
-            maximum=3600.0,
+            maximum=43_200.0,
         )
         stdout_limit = _bounded_int(
             call.arguments.get("stdout_limit_bytes"),
@@ -339,6 +589,8 @@ class GatewayToolExecutionRouter:
                 policy.reason,
                 metadata={"sandbox_gateway_failure_signal_id": signal.signal_id},
             )
+        if cancellation_event.is_set():
+            return self._error(call, "parent_cancelled", "command cancelled before dispatch")
         remote = self._dispatch_backend_action_after_permission(
             call,
             identity,
@@ -349,6 +601,8 @@ class GatewayToolExecutionRouter:
         )
         if remote is not None:
             return remote
+        if cancellation_event.is_set():
+            return self._error(call, "parent_cancelled", "command cancelled before process start")
         if self.bundle.workspace_edit_port is None and not self.bundle.required:
             return self._execute_host_compatibility(
                 call,
@@ -368,6 +622,8 @@ class GatewayToolExecutionRouter:
                 permission_execution_context=permission_execution_context,
             )
         self._ensure_session(identity)
+        if cancellation_event.is_set():
+            return self._error(call, "parent_cancelled", "command cancelled before sandbox start")
         command_digest = str(envelope.identity_digest)
         with self.bundle.permission_bridge.activate(
             call=call,

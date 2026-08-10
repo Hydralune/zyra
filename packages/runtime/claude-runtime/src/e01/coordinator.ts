@@ -479,7 +479,7 @@ export class E01RuntimeCoordinator {
     operation: string,
     input: {
       turnIndex: number;
-      turnLimit: number;
+      turnLimit: number | null;
       empty: boolean;
       allowEmpty: boolean;
       aborted: boolean;
@@ -490,7 +490,7 @@ export class E01RuntimeCoordinator {
     if (input.aborted) {
       accepted = false;
       reason = "user_cancelled";
-    } else if (input.turnIndex >= input.turnLimit) {
+    } else if (input.turnLimit !== null && input.turnIndex >= input.turnLimit) {
       accepted = false;
       reason = "max_turns_exceeded";
     } else if (input.empty && !input.allowEmpty) {
@@ -504,7 +504,7 @@ export class E01RuntimeCoordinator {
     }
     const stopSignal: StopSignal = input.aborted
       ? "explicit_cancel"
-      : input.turnIndex >= input.turnLimit
+      : input.turnLimit !== null && input.turnIndex >= input.turnLimit
         ? "maximum_turns"
         : "model_stop";
     const stopDecision = this.stop.evaluate({

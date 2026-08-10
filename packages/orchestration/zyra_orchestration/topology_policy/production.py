@@ -2007,6 +2007,17 @@ class Phase2StrongestProductionBridge:
             and selected_manifest.runtime_worker == "CodeWorkerRuntime"
             and not selected_ref.startswith("worker:local-memory-curator@")
         )
+        settlement_outcome = str(
+            execution_output.get("execution_outcome")
+            or domain_result.get("execution_outcome")
+            or "completed"
+        )
+        changed_paths = workspace_delta.get("changed")
+        verifiable_interrupted_delivery = bool(
+            settlement_outcome == "needs_verification"
+            and isinstance(changed_paths, list)
+            and changed_paths
+        )
         raw_workspace_ref = state.metadata.get("workspace_ref")
         expected_workspace_id = ""
         if isinstance(raw_workspace_ref, Mapping):
@@ -2093,7 +2104,7 @@ class Phase2StrongestProductionBridge:
                 not code_worker_execution
                 or (
                     domain_result.get("kind") == "code_worker_execution"
-                    and final_text
+                    and (final_text or verifiable_interrupted_delivery)
                     and _is_json_array(workspace_delta.get("changed"))
                     and execution_output.get("operator_adapter_id")
                     == "worker.code-worker.typescript-provider-tool-loop"

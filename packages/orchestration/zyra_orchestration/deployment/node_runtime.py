@@ -1297,6 +1297,9 @@ class DeploymentNodeRuntime:
             "workspace",
             "workspace_delta",
             "final_text",
+            "execution_outcome",
+            "runtime_terminal_error",
+            "workspace_effect_observed",
         ):
             if name in adapter:
                 result[name] = adapter[name]
@@ -1358,6 +1361,12 @@ class DeploymentNodeRuntime:
                 ),
                 "workspace_delta": workspace_delta,
                 "final_answer_digest": digest(final_text),
+                "execution_outcome": str(
+                    execution.get("execution_outcome") or "completed"
+                ),
+                "runtime_terminal_error": dict(
+                    execution.get("runtime_terminal_error") or {}
+                ),
             }
             content = json.dumps(
                 {
@@ -1372,6 +1381,9 @@ class DeploymentNodeRuntime:
                     "workspace": execution.get("workspace") or {},
                     "workspace_delta": workspace_delta,
                     "final_text": final_text,
+                    "execution_outcome": str(
+                        execution.get("execution_outcome") or "completed"
+                    ),
                     "runtime_artifact_refs": execution.get(
                         "runtime_artifacts"
                     )

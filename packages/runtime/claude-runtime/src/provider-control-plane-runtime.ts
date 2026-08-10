@@ -110,6 +110,35 @@ export async function resolveProviderControlPlaneTurns(
     const promptMessages = overrideMessages ? [...overrideMessages] : normalizeMessages(input);
     const messages = normalizeProviderMessages(promptMessages);
     const providerTools = normalizeProviderTools(tools);
+    const modelDefinition = controlPlane.catalog.model(route.providerId, route.modelId);
+    const providerDefinition = controlPlane.catalog.provider(route.providerId);
+    const requestedOutputTokens = boundedPositiveInteger(
+      constraints.model_output_token_limit,
+      modelDefinition.maximumOutputTokens,
+      route.requestDefaults.max_output_tokens,
+    );
+    const providerOutputCap = boundedPositiveInteger(
+      providerDefinition.metadata.maximum_output_tokens,
+      modelDefinition.maximumOutputTokens,
+    );
+    const effectiveOutputTokens = Math.min(
+      requestedOutputTokens,
+      modelDefinition.maximumOutputTokens,
+      providerOutputCap,
+    );
+    const configuredBudget = asObject(constraints.model_output_token_budget);
+    const outputTokenBudget: JsonObject = {
+      schema: "zyra.model-output-token-budget/v1",
+      requested: requestedOutputTokens,
+      effective: effectiveOutputTokens,
+      model_cap: modelDefinition.maximumOutputTokens,
+      provider_cap: providerOutputCap,
+      requested_source: asString(configuredBudget.requested_source, "model-catalog"),
+      model_cap_source: `provider-catalog://${route.providerId}/${route.modelId}`,
+      provider_cap_source: providerDefinition.metadata.maximum_output_tokens
+        ? `provider-profile://${route.providerId}`
+        : `provider-catalog://${route.providerId}/${route.modelId}`,
+    };
     const request: ProviderDispatchRequest = {
       dispatchId,
       routeId: route.routeId,
@@ -124,11 +153,7 @@ export async function resolveProviderControlPlaneTurns(
       routeFallbackPolicy: "pin_initial_route",
       messages,
       tools: providerTools,
-      maximumOutputTokens: boundedPositiveInteger(
-        constraints.model_output_token_limit,
-        8_192,
-        route.requestDefaults.max_output_tokens,
-      ),
+      maximumOutputTokens: effectiveOutputTokens,
       temperature: optionalTemperature(constraints.model_temperature),
       stream: true,
       timeoutMilliseconds: boundedPositiveInteger(
@@ -183,6 +208,7 @@ export async function resolveProviderControlPlaneTurns(
         stream: true,
         provider_state_embedded: false,
         secret_bytes_included: false,
+        output_token_budget: outputTokenBudget,
       },
     });
     const result = await controlPlane.dispatch(request);
@@ -454,11 +480,13 @@ function normalizeProviderMessages(values: readonly JsonObject[]): DispatchMessa
 }
 
 function normalizeProviderTools(tools: readonly ToolSpecContract[]): DispatchTool[] {
-  return tools.map((tool) => ({
+  return tools
+    .filter((tool) => tool.metadata.internal_error_sink !== "true")
+    .map((tool) => ({
     name: tool.name,
     description: tool.purpose,
     inputSchema: tool.input_schema,
-  }));
+    }));
 }
 
 export function providerControlPlaneToolSteps(frames: readonly ProviderStreamFrame[]): ToolStep[] {

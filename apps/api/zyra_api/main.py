@@ -6741,6 +6741,7 @@ def _production_physical_dispatch_port(
             reasoning_transport_budget_ms,
             benchmark_long_horizon,
         ) = _reasoning_budget_from_environment()
+        output_token_budget = _configured_model_output_tokens(payload)
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
@@ -6762,11 +6763,13 @@ def _production_physical_dispatch_port(
             ),
             "model_id": route_ref.model_id,
             "max_turns": reasoning_max_turns,
-            "model_output_token_limit": 8192,
-            # The runtime deadline must expire before the transport deadline so
-            # a slow reasoning loop still returns a structured receipt instead
-            # of aborting the dispatch connection with an unknown outcome.
+            "model_output_token_limit": output_token_budget["requested"],
+            "model_output_token_budget": output_token_budget,
+            # This is absent for an open run. When an external harness provides
+            # its absolute deadline, every execution/recovery attempt receives
+            # only the same deadline's remaining time.
             "reasoning_timeout_seconds": reasoning_runtime_timeout_seconds,
+            "external_deadline_epoch_ms": _external_deadline_epoch_ms(),
             "benchmark_long_horizon": benchmark_long_horizon,
         }
         execution_budget_ms = reasoning_transport_budget_ms
@@ -6793,28 +6796,56 @@ def _production_physical_dispatch_port(
     )
 
 
-# A live provider reasoning loop runs model -> tool -> observation -> model for
-# up to ``_REASONING_MAX_TURNS`` rounds, which routinely exceeds any placement
-# latency SLA.  Placement policy caps ``latency_sla_ms`` at 120s because that
-# value selects the device/edge/cloud tier, so the execution deadline is budgeted
-# separately.  The runtime deadline must stay strictly below the transport
-# deadline: a slow loop then fails as a structured receipt rather than aborting
-# the dispatch connection and leaving the outcome unknown.
-_REASONING_MAX_TURNS = 12
-_REASONING_RUNTIME_TIMEOUT_SECONDS = 600.0
-_REASONING_TRANSPORT_BUDGET_MS = 780_000
-_LONG_HORIZON_REASONING_MAX_TURNS = 64
-_LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS = 1_800.0
-_LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS = 1_860_000
+_BENCHMARK_CLOSEOUT_RESERVE_MS = 30_000
 
 
-def _reasoning_budget_from_environment() -> tuple[int, float, int, bool]:
-    """Select the bounded physical budget for an explicitly isolated long run.
+def _external_deadline_epoch_ms() -> int | None:
+    raw = str(os.environ.get("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise RuntimeError("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS must be an integer") from error
+    if value <= int(time.time() * 1000):
+        raise RuntimeError("the external execution deadline has already elapsed")
+    return value
 
-    Merely setting the long-horizon flag is insufficient: both external Docker
-    binding values must be present, so ordinary production and Terminal-Bench
-    executions retain their existing limits.
-    """
+
+def _configured_model_output_tokens(
+    payload: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    task_value = None if payload is None else (
+        payload.get("max_output_tokens")
+        or payload.get("model_output_token_limit")
+    )
+    benchmark_value = str(os.environ.get("ZYRA_MAX_OUTPUT_TOKENS") or "").strip()
+    profile_value = str(
+        os.environ.get("ZYRA_DEPLOYMENT_MAX_OUTPUT_TOKENS") or ""
+    ).strip()
+    if task_value not in (None, "", 0):
+        raw, source = str(task_value), "task-explicit"
+    elif benchmark_value:
+        raw, source = benchmark_value, "benchmark-environment"
+    elif profile_value:
+        raw, source = profile_value, "deployment-profile"
+    else:
+        raw, source = "16384", "model-catalog-default-request"
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise RuntimeError("ZYRA_MAX_OUTPUT_TOKENS must be an integer") from error
+    if not 512 <= value <= 131_072:
+        raise RuntimeError("ZYRA_MAX_OUTPUT_TOKENS must be between 512 and 131072")
+    return {
+        "schema": "zyra.model-output-token-budget/v1",
+        "requested": value,
+        "requested_source": source,
+    }
+
+
+def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]:
+    """Use an outer deadline when present; otherwise keep the agent open."""
 
     benchmark_bound = bool(
         str(os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or "").strip()
@@ -6823,23 +6854,21 @@ def _reasoning_budget_from_environment() -> tuple[int, float, int, bool]:
     long_horizon = benchmark_bound and str(
         os.environ.get("ZYRA_BENCHMARK_LONG_HORIZON") or ""
     ).strip().casefold() in {"1", "true", "yes"}
-    if long_horizon:
-        return (
-            _LONG_HORIZON_REASONING_MAX_TURNS,
-            _LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS,
-            _LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS,
-            True,
-        )
-    return (
-        _REASONING_MAX_TURNS,
-        _REASONING_RUNTIME_TIMEOUT_SECONDS,
-        _REASONING_TRANSPORT_BUDGET_MS,
-        False,
+    deadline = _external_deadline_epoch_ms()
+    if deadline is None:
+        return (None, None, 0, long_horizon)
+    remaining_ms = (
+        deadline - int(time.time() * 1000) - _BENCHMARK_CLOSEOUT_RESERVE_MS
     )
+    if remaining_ms <= 0:
+        raise RuntimeError(
+            "the external execution deadline has entered its closeout reserve"
+        )
+    return (None, remaining_ms / 1000.0, remaining_ms, long_horizon)
 
-# One physical layer may spend the full 600s reasoning budget plus dispatch and
-# recovery overhead, and a task runs several of them.  The validity window has
-# to outlast the run it authorizes, not the single layer that mints it.
+# Permission freshness is independent from the agent lifetime. This window
+# remains long enough for ordinary multi-layer work without becoming a hidden
+# execution deadline.
 PHASE2_PERMISSION_RECEIPT_VALIDITY = timedelta(hours=1)
 
 _PROVIDER_ENV_FILES = (

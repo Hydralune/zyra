@@ -129,6 +129,7 @@ class GatewayStateStore:
             "sessions": {},
             "permission_bindings": {},
             "events": {},
+            "event_replays": {},
             "receipts": {},
             "quarantine": {},
             "idempotency": {},
@@ -330,6 +331,63 @@ class GatewayStateStore:
                 del events[: len(events) - self.event_history_limit]
             return event
 
+    def append_next_event(
+        self,
+        *,
+        kind: GatewayEventKind | str,
+        run_id: str,
+        task_id: str,
+        session_id: str,
+        worker_id: str,
+        payload: Mapping[str, Any],
+        causation_id: str = "",
+        correlation_id: str = "",
+        idempotency_key: str = "",
+    ) -> GatewayEvent:
+        """Allocate a sequence and append under one cross-process lock."""
+
+        with self.transaction() as state:
+            events = state.setdefault("events", {}).setdefault(session_id, [])
+            replays = state.setdefault("event_replays", {})
+            replay_key = f"{session_id}:{idempotency_key}" if idempotency_key else ""
+            if replay_key:
+                existing_id = str(replays.get(replay_key) or "")
+                if existing_id:
+                    existing = next(
+                        (item for item in events if item.get("event_id") == existing_id),
+                        None,
+                    )
+                    if existing is not None:
+                        return self._event_from_dict(existing)
+                    raise SandboxGatewayError(
+                        GatewayErrorCode.STATE_CORRUPT,
+                        "event replay index refers to a missing retained event",
+                        operation="append_next_event",
+                    )
+            sequence = int(events[-1]["sequence"]) + 1 if events else 1
+            event = GatewayEvent.build(
+                kind=kind,
+                run_id=run_id,
+                task_id=task_id,
+                session_id=session_id,
+                worker_id=worker_id,
+                sequence=sequence,
+                payload=payload,
+                causation_id=causation_id,
+                correlation_id=correlation_id,
+            )
+            events.append(event.to_dict())
+            if replay_key:
+                replays[replay_key] = event.event_id
+            if len(events) > self.event_history_limit:
+                removed = events[: len(events) - self.event_history_limit]
+                del events[: len(removed)]
+                removed_ids = {str(item.get("event_id") or "") for item in removed}
+                for key, value in tuple(replays.items()):
+                    if value in removed_ids:
+                        del replays[key]
+            return event
+
     def next_event_sequence(self, session_id: str) -> int:
         state = self.snapshot()
         events = state["events"].get(session_id, [])
@@ -513,6 +571,7 @@ class GatewayStateStore:
                 "sandbox gateway state schema mismatch",
                 operation="read_state",
             )
+        value.setdefault("event_replays", {})
         return value
 
     def _write_unlocked(self, state: Mapping[str, Any]) -> None:

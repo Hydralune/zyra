@@ -250,6 +250,28 @@ def default_tool_registry() -> ToolRegistry:
     return ToolRegistry(
         [
             ToolSpec(
+                "__zyra_invalid_tool_arguments__",
+                "Internal no-effect error sink for an invalid provider tool call; never select directly.",
+                "zyra compatible-provider safety boundary",
+                input_schema={
+                    "type": "object",
+                    "required": ["original_tool_name", "raw_arguments_digest"],
+                    "properties": {
+                        "original_tool_name": {"type": "string"},
+                        "parse_error": {"type": "string"},
+                        "raw_arguments_digest": {"type": "string"},
+                        "side_effect_executed": {"type": "boolean"},
+                    },
+                },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "mutates_workspace": "false",
+                    "internal_error_sink": "true",
+                },
+            ),
+            ToolSpec(
                 "file_read",
                 "Read files inside the permitted workspace.",
                 "claude-code-best FileReadTool",
@@ -329,6 +351,12 @@ def default_tool_registry() -> ToolRegistry:
                         },
                         "approved": {"type": "boolean"},
                         "timeout_seconds": {"type": "integer"},
+                        "foreground_wait_seconds": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 60,
+                        },
+                        "background": {"type": "boolean"},
                     },
                 },
                 metadata={
@@ -339,6 +367,35 @@ def default_tool_registry() -> ToolRegistry:
                     "source_path": "src/tools/BashTool",
                     "shell_lifecycle_source_path": "src/utils/ShellCommand.ts",
                     "sandbox_source_path": "src/utils/sandbox/sandbox-adapter.ts",
+                },
+            ),
+            ToolSpec(
+                "shell_wait",
+                (
+                    "Poll a background shell job by the stable job_id returned from shell. "
+                    "Returns heartbeat and new output chunks while running, or the real "
+                    "terminal result when complete."
+                ),
+                "zyra unified command lifecycle",
+                input_schema={
+                    "type": "object",
+                    "required": ["job_id"],
+                    "properties": {
+                        "job_id": {"type": "string"},
+                        "timeout_seconds": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 60,
+                        },
+                        "after_sequence": {"type": "integer", "minimum": 0},
+                    },
+                },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "mutates_workspace": "false",
+                    "source_path": "zyra_runtime/sandbox_gateway/integration_tools.py",
                 },
             ),
             ToolSpec(

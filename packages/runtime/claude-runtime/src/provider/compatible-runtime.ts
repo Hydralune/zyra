@@ -37,6 +37,8 @@ export interface CompatibleToolCall {
   input: JsonObject;
   rawArguments: string;
   parseError: string | null;
+  repaired: boolean;
+  originalName: string;
 }
 
 export interface CompatibleUsage {
@@ -356,6 +358,8 @@ export function compatibleTools(tools: readonly JsonObject[] = []): JsonObject[]
   const names = new Set<string>();
   for (const source of tools) {
     const tool = objectValue(source);
+    const metadata = objectValue(tool.metadata);
+    if (stringValue(metadata.internal_error_sink).toLowerCase() === "true") continue;
     const functionRecord = objectValue(tool.function);
     const name = ensureNonEmpty(stringValue(tool.name) || stringValue(functionRecord.name), "tool name");
     if (names.has(name)) {
@@ -416,19 +420,54 @@ export function createCompatibleEnvelope(
   };
 }
 
-function parseArguments(rawArguments: string): { input: JsonObject; error: string | null } {
-  if (!rawArguments.trim()) {
-    return { input: {}, error: null };
-  }
-  try {
-    const parsed = JSON.parse(rawArguments) as unknown;
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { input: {}, error: "tool arguments must decode to an object" };
+function closeIncompleteJson(raw: string): string | null {
+  if (raw.length > 1_048_576 || !raw.trimStart().startsWith("{")) return null;
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const character of raw) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
     }
-    return { input: parsed as JsonObject, error: null };
-  } catch (error) {
-    return { input: {}, error: error instanceof Error ? error.message : String(error) };
+    if (character === '"') inString = true;
+    else if (character === "{" || character === "[") stack.push(character);
+    else if (character === "}" || character === "]") {
+      const expected = character === "}" ? "{" : "[";
+      if (stack.pop() !== expected) return null;
+    }
   }
+  // Never invent bytes inside a string. A truncated path, command, or file
+  // body is semantically ambiguous even if adding a quote would make it valid
+  // JSON, so only missing structural delimiters may be repaired.
+  if (escaped || inString) return null;
+  let repaired = raw;
+  while (stack.length > 0) repaired += stack.pop() === "{" ? "}" : "]";
+  return repaired === raw ? null : repaired;
+}
+
+function parseArguments(rawArguments: string): { input: JsonObject; error: string | null; repaired: boolean } {
+  if (!rawArguments.trim()) {
+    return { input: {}, error: null, repaired: false };
+  }
+  const candidates = [rawArguments, closeIncompleteJson(rawArguments)].filter(
+    (value): value is string => value !== null,
+  );
+  let lastError = "tool arguments are invalid JSON";
+  for (const [index, candidate] of candidates.entries()) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return { input: {}, error: "tool arguments must decode to an object", repaired: false };
+      }
+      return { input: parsed as JsonObject, error: null, repaired: index > 0 };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  return { input: {}, error: lastError, repaired: false };
 }
 
 function normalizeFinishReason(value: unknown): string | null {
@@ -587,12 +626,22 @@ function finalizeResponse(state: MutableResponseState): CompatibleResponse {
     .sort((left, right) => left.index - right.index)
     .map((call, index) => {
       const parsed = parseArguments(call.arguments);
+      const originalName = call.name || "unknown_tool";
       return {
         id: call.id || `call_${index}_${hash(call).slice(0, 12)}`,
-        name: call.name || "unknown_tool",
-        input: parsed.input,
+        name: parsed.error ? "__zyra_invalid_tool_arguments__" : originalName,
+        input: parsed.error
+          ? {
+              original_tool_name: originalName,
+              parse_error: parsed.error.slice(0, 500),
+              raw_arguments_digest: hash(call.arguments),
+              side_effect_executed: false,
+            }
+          : parsed.input,
         rawArguments: call.arguments,
         parseError: parsed.error,
+        repaired: parsed.repaired,
+        originalName,
       };
     });
   const content: JsonObject[] = [];
@@ -806,11 +855,12 @@ export function assertCompatibleResponse(response: CompatibleResponse): void {
       throw new CompatibleProtocolError("compatible_duplicate_tool_call", `duplicate provider tool call id: ${call.id}`);
     }
     ids.add(call.id);
-    if (call.parseError) {
-      throw new CompatibleProtocolError("compatible_invalid_tool_arguments", call.parseError, {
-        call_id: call.id,
-        tool_name: call.name,
-      });
+    if (call.parseError && call.name !== "__zyra_invalid_tool_arguments__") {
+      throw new CompatibleProtocolError(
+        "compatible_invalid_tool_arguments_unpaired",
+        "invalid tool arguments were not converted to a safe paired error call",
+        { call_id: call.id, tool_name: call.name },
+      );
     }
   }
   const normalizedDigest = hash(response.normalized);

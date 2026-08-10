@@ -149,6 +149,32 @@ class ToolExecutor:
                 error="parent_cancelled",
                 metadata={"cooperative_cancellation": "true", "tool_name": call.tool_name},
             )
+        if call.tool_name == "__zyra_invalid_tool_arguments__":
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary=(
+                    "Provider returned incomplete or invalid arguments for "
+                    f"{str(call.arguments.get('original_tool_name') or 'a tool')}; "
+                    "generate a complete replacement tool call."
+                ),
+                output={
+                    "original_tool_name": str(
+                        call.arguments.get("original_tool_name") or ""
+                    ),
+                    "raw_arguments_digest": str(
+                        call.arguments.get("raw_arguments_digest") or ""
+                    ),
+                    "side_effect_executed": False,
+                    "retry_allowed": True,
+                },
+                error="tool_schema_validation_failed",
+                metadata={
+                    "invalid_provider_tool_arguments": "true",
+                    "physical_effect_executed": "false",
+                    "paired_error_result": "true",
+                },
+            )
         spec = self._registry.get(call.tool_name)
         if spec is None:
             return ToolResult(
@@ -165,6 +191,7 @@ class ToolExecutor:
         )
         gateway_owned_tools = {
             "shell",
+            "shell_wait",
             "file_read",
             "file_write",
             "file_edit",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping, Protocol
 
+from .canonical import digest
 from .models import GatewayEvent, GatewayEventKind, GatewaySessionRecord
 from .redaction import SecretRedactor
 from .state_store import GatewayStateStore
@@ -35,23 +36,34 @@ class GatewayEventPort:
         *,
         causation_id: str = "",
         correlation_id: str = "",
+        idempotency_key: str = "",
     ) -> GatewayEvent:
         sanitized = self.redactor.redact_value(
             dict(payload),
             source=f"gateway_event.{kind}",
         )
-        event = GatewayEvent.build(
+        replay_key = idempotency_key or (
+            digest(
+                {
+                    "kind": str(kind),
+                    "causation_id": causation_id,
+                    "payload": sanitized.value,
+                }
+            )
+            if causation_id
+            else ""
+        )
+        committed = self.store.append_next_event(
             kind=kind,
             run_id=record.run_id,
             task_id=record.task_id,
             session_id=record.session_id,
             worker_id=record.worker_id,
-            sequence=self.store.next_event_sequence(record.session_id),
             payload=dict(sanitized.value),
             causation_id=causation_id,
             correlation_id=correlation_id,
+            idempotency_key=replay_key,
         )
-        committed = self.store.append_event(event)
         if self.sink is not None:
             self.sink.append(committed)
         return committed

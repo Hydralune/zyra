@@ -56,7 +56,7 @@ class ClaudeQueryEngineConfig:
     disable_restore_integration_runtime: bool = False
     model_name: str = "zyra-local-code-model"
     model_input_token_limit: int = 200000
-    model_output_token_limit: int = 8192
+    model_output_token_limit: int = 16384
     api_retry_max_attempts: int = 3
     api_retry_fallback_models: Sequence[str] = field(default_factory=lambda: ("zyra-local-fallback",))
     runtime_constraints: Mapping[str, Any] = field(default_factory=dict)

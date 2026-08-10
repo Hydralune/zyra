@@ -109,8 +109,8 @@ export interface ModelIterationSnapshot {
   revision: number;
   restartEpoch: number;
   transitionSequence: number;
-  maximumRounds: number;
-  maximumToolCalls: number;
+  maximumRounds: number | null;
+  maximumToolCalls: number | null;
   rounds: ModelRoundRecord[];
   tools: IterationToolRecord[];
   transcript: JsonObject[];
@@ -153,8 +153,8 @@ export class ModelIterationRuntime {
   private revision = 0;
   private restartEpoch = 0;
   private transitionSequence = 0;
-  private maximumRounds = 1_000;
-  private maximumToolCalls = 5_000;
+  private maximumRounds: number | null = null;
+  private maximumToolCalls: number | null = null;
   private readonly rounds = new Map<string, ModelRoundRecord>();
   private readonly tools = new Map<string, IterationToolRecord>();
   private readonly transcript: JsonObject[] = [];
@@ -168,13 +168,20 @@ export class ModelIterationRuntime {
     this.identity = normalizeIdentity(identity);
   }
 
-  start(messages: readonly JsonObject[], limits: { maximumRounds?: number; maximumToolCalls?: number } = {}): void {
+  start(
+    messages: readonly JsonObject[],
+    limits: { maximumRounds?: number | null; maximumToolCalls?: number | null } = {},
+  ): void {
     if (this.phase !== "idle") {
       if (this.phase === "ready" && this.transcript.length === normalizeTranscript(messages).length) return;
       throw new Error(`model iteration cannot start from ${this.phase}`);
     }
-    this.maximumRounds = boundedInteger(limits.maximumRounds ?? 1_000, 1, 100_000, "maximum rounds");
-    this.maximumToolCalls = boundedInteger(limits.maximumToolCalls ?? 5_000, 1, 1_000_000, "maximum tool calls");
+    this.maximumRounds = limits.maximumRounds === null || limits.maximumRounds === undefined
+      ? null
+      : boundedInteger(limits.maximumRounds, 1, 100_000, "maximum rounds");
+    this.maximumToolCalls = limits.maximumToolCalls === null || limits.maximumToolCalls === undefined
+      ? null
+      : boundedInteger(limits.maximumToolCalls, 1, 1_000_000, "maximum tool calls");
     this.transcript.push(...normalizeTranscript(messages));
     if (this.transcript.length === 0) {
       this.transcript.push({ role: "user", content: "Execute the requested coding task." });
@@ -193,7 +200,7 @@ export class ModelIterationRuntime {
       throw new Error(`provider round cannot start from ${this.phase}`);
     }
     if (this.activeRoundId !== null) throw new Error(`provider round is already active: ${this.activeRoundId}`);
-    if (this.rounds.size >= this.maximumRounds) {
+    if (this.maximumRounds !== null && this.rounds.size >= this.maximumRounds) {
       this.fail("model_round_limit_exceeded");
       throw new Error("model round limit exceeded");
     }
@@ -289,7 +296,10 @@ export class ModelIterationRuntime {
       });
       return clone(round);
     }
-    if (this.tools.size + steps.length > this.maximumToolCalls) {
+    if (
+      this.maximumToolCalls !== null
+      && this.tools.size + steps.length > this.maximumToolCalls
+    ) {
       round.state = "failed";
       round.error = "model_tool_call_limit_exceeded";
       round.completedAt = timestamp();
@@ -648,8 +658,12 @@ export class ModelIterationRuntime {
     this.revision = nonnegative(snapshot.revision, "iteration revision");
     this.restartEpoch = nonnegative(snapshot.restartEpoch, "iteration restart epoch") + 1;
     this.transitionSequence = nonnegative(snapshot.transitionSequence, "iteration transition sequence");
-    this.maximumRounds = boundedInteger(snapshot.maximumRounds, 1, 100_000, "maximum rounds");
-    this.maximumToolCalls = boundedInteger(snapshot.maximumToolCalls, 1, 1_000_000, "maximum tool calls");
+    this.maximumRounds = snapshot.maximumRounds === null
+      ? null
+      : boundedInteger(snapshot.maximumRounds, 1, 100_000, "maximum rounds");
+    this.maximumToolCalls = snapshot.maximumToolCalls === null
+      ? null
+      : boundedInteger(snapshot.maximumToolCalls, 1, 1_000_000, "maximum tool calls");
     this.rounds.clear();
     for (const round of snapshot.rounds) {
       if (this.rounds.has(round.roundId)) throw new Error(`duplicate restored model round: ${round.roundId}`);

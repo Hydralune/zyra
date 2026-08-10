@@ -107,9 +107,9 @@ class PhysicalDispatchTask:
     # Placement policy caps ``latency_sla_ms`` at 120s because it selects the
     # device/edge/cloud tier.  A provider reasoning loop legitimately runs far
     # longer than any placement SLA, so the transport deadline is a separate
-    # budget.  ``0`` keeps the historical behaviour of deriving the deadline
-    # from the placement SLA.
-    execution_budget_ms: int = 0
+    # budget. ``None`` keeps marker/probe callers on the placement SLA while
+    # ``0`` explicitly means that no dispatch-owned total deadline exists.
+    execution_budget_ms: int | None = None
     maximum_cost_usd: float = 0.01
     verifier_id: str = "physical-dispatch-marker-verifier/v1"
     condition: str = "normal"
@@ -139,7 +139,7 @@ class PhysicalDispatchTask:
             raise ValueError("physical dispatch privacy class is invalid")
         if privacy in {"restricted", "local-only"} and placements != ("local",):
             raise ValueError("restricted/local-only dispatch must be local-only")
-        if self.execution_budget_ms < 0:
+        if self.execution_budget_ms is not None and self.execution_budget_ms < 0:
             raise ValueError("physical dispatch execution budget is invalid")
         object.__setattr__(self, "privacy_class", privacy)
         object.__setattr__(self, "operation", self.operation.strip().casefold())
@@ -161,13 +161,15 @@ class PhysicalDispatchTask:
         return canonical_digest(dict(self.payload))
 
     @property
-    def dispatch_timeout_seconds(self) -> float:
+    def dispatch_timeout_seconds(self) -> float | None:
         """Transport deadline for one physical dispatch attempt.
 
         Falls back to the placement SLA so existing marker-probe callers keep
         their historical deadline.
         """
 
+        if self.execution_budget_ms == 0:
+            return None
         budget_ms = self.execution_budget_ms or self.latency_sla_ms
         return max(5.0, budget_ms / 1000)
 

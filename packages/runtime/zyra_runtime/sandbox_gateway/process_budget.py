@@ -193,8 +193,13 @@ class ProcessStreamPump:
 
     def _read(self, name: str, stream: BinaryIO) -> None:
         try:
+            read = getattr(stream, "read1", stream.read)
             while True:
-                content = stream.read(self.chunk_size)
+                # BufferedReader.read(size) may wait for ``size`` bytes or EOF,
+                # which hides progress from a long-running process.  read1()
+                # returns the bytes currently available from the pipe and
+                # therefore makes heartbeat polling genuinely incremental.
+                content = read(self.chunk_size)
                 if not content:
                     break
                 self._queue.put((name, bytes(content)))

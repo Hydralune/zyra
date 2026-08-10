@@ -14,6 +14,7 @@ import type {
 } from "../../src/contracts.ts";
 import { TypeScriptCapabilityRuntime } from "../../src/capabilities.ts";
 import {
+  assertCompatibleResponse,
   consumeCompatibleStream,
   createCompatibleEnvelope,
   parseServerSentEvents,
@@ -328,6 +329,62 @@ describe("compatible provider protocol", () => {
     expect(() => parseServerSentEvents("data: {not-json}\n\n")).toThrow("invalid JSON");
   });
 
+  test("safely closes a truncated object before tool execution", async () => {
+    async function* source(): AsyncIterable<string> {
+      yield `data: ${JSON.stringify({
+        choices: [{
+          delta: { tool_calls: [{ index: 0, id: "repair-one", function: {
+            name: "file_write",
+            arguments: "{\"path\":\"结果.txt\",\"content\":\"ok\"",
+          } }] },
+          finish_reason: "tool_calls",
+        }],
+      })}\n\ndata: [DONE]\n\n`;
+    }
+    const response = await consumeCompatibleStream(source());
+    expect(response.toolCalls[0]?.name).toBe("file_write");
+    expect(response.toolCalls[0]?.input).toEqual({ path: "结果.txt", content: "ok" });
+    expect(response.toolCalls[0]?.repaired).toBeTrue();
+    expect(() => assertCompatibleResponse(response)).not.toThrow();
+  });
+
+  test("converts unrecoverable arguments to a no-effect paired error call", async () => {
+    async function* source(): AsyncIterable<string> {
+      yield `data: ${JSON.stringify({
+        choices: [{
+          delta: { tool_calls: [{ index: 0, id: "broken-one", function: {
+            name: "file_write",
+            arguments: "{\"path\":]",
+          } }] },
+          finish_reason: "tool_calls",
+        }],
+      })}\n\ndata: [DONE]\n\n`;
+    }
+    const response = await consumeCompatibleStream(source());
+    expect(response.toolCalls[0]?.name).toBe("__zyra_invalid_tool_arguments__");
+    expect(response.toolCalls[0]?.input.side_effect_executed).toBeFalse();
+    expect(response.toolCalls[0]?.parseError).not.toBeNull();
+    expect(() => assertCompatibleResponse(response)).not.toThrow();
+  });
+
+  test("never repairs a semantically truncated string argument", async () => {
+    async function* source(): AsyncIterable<string> {
+      yield `data: ${JSON.stringify({
+        choices: [{
+          delta: { tool_calls: [{ index: 0, id: "unsafe-string", function: {
+            name: "file_write",
+            arguments: "{\"path\":\"result.txt\",\"content\":\"partial",
+          } }] },
+          finish_reason: "tool_calls",
+        }],
+      })}\n\ndata: [DONE]\n\n`;
+    }
+    const response = await consumeCompatibleStream(source());
+    expect(response.toolCalls[0]?.name).toBe("__zyra_invalid_tool_arguments__");
+    expect(response.toolCalls[0]?.input.side_effect_executed).toBeFalse();
+    expect(response.toolCalls[0]?.repaired).toBeFalse();
+  });
+
   test("e01.mutation.transport-slot-closes-after-parser-failure", async () => {
     const transport = new ProviderTransportRuntime(async () => new Response(
       "data: {not-json}\n\n",
@@ -348,6 +405,19 @@ describe("compatible provider protocol", () => {
 });
 
 describe("model iteration recovery", () => {
+  test("open runs do not invent a default total turn budget", () => {
+    const runtime = new ModelIterationRuntime({
+      sessionId: "open-session",
+      runId: "open-run",
+      taskId: "open-task",
+      workerRequestId: "open-request",
+    });
+    runtime.start([{ role: "user", content: "Continue while progress is possible" }]);
+    const snapshot = runtime.snapshot();
+    expect(snapshot.maximumRounds).toBeNull();
+    expect(snapshot.maximumToolCalls).toBeNull();
+  });
+
   test("e01.mutation.length-stop-without-tools-remains-resumable", () => {
     const runtime = new ModelIterationRuntime({
       sessionId: "truncated-session",

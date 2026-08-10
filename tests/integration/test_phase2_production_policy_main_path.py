@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -2279,25 +2280,13 @@ def test_memory_owner_failure_precedes_success_finalization(
     assert failure["error_metadata"]["reconcile_before_retry"] is True
 
 
-def test_permission_receipt_outlives_a_full_reasoning_layer() -> None:
-    """The receipt validity bounds decision staleness, not task length.
+def test_permission_receipt_is_not_used_as_an_agent_lifetime() -> None:
+    """Permission freshness remains independent from an open agent run."""
 
-    ``validate_execution_placement`` binds a placement to one exact receipt
-    digest, so an expired receipt cannot be refreshed in place -- the whole
-    placement would have to be rebound.  The window therefore has to outlast
-    the longest layer that can run under it, otherwise a physical layer that
-    succeeds still fails the next placement on ``permission_fresh``.
-    """
-
-    validity = api.PHASE2_PERMISSION_RECEIPT_VALIDITY
-    layer_budget = timedelta(seconds=api._REASONING_RUNTIME_TIMEOUT_SECONDS)
-    transport_budget = timedelta(
-        milliseconds=api._REASONING_TRANSPORT_BUDGET_MS
+    assert api.PHASE2_PERMISSION_RECEIPT_VALIDITY >= timedelta(hours=1)
+    assert api.PHASE2_PERMISSION_RECEIPT_VALIDITY > timedelta(
+        milliseconds=api._BENCHMARK_CLOSEOUT_RESERVE_MS
     )
-    assert validity > layer_budget
-    assert validity > transport_budget
-    # Several layers plus recovery passes run under one receipt.
-    assert validity >= layer_budget * 4
 
 
 def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
@@ -2305,9 +2294,9 @@ def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
 ) -> None:
     monkeypatch.setenv("ZYRA_BENCHMARK_LONG_HORIZON", "true")
     assert api._reasoning_budget_from_environment() == (
-        api._REASONING_MAX_TURNS,
-        api._REASONING_RUNTIME_TIMEOUT_SECONDS,
-        api._REASONING_TRANSPORT_BUDGET_MS,
+        None,
+        None,
+        0,
         False,
     )
 
@@ -2317,10 +2306,47 @@ def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
         api._reasoning_budget_from_environment()
     )
     assert enabled is True
-    assert turns == api._LONG_HORIZON_REASONING_MAX_TURNS
-    assert runtime_seconds == api._LONG_HORIZON_REASONING_RUNTIME_TIMEOUT_SECONDS
-    assert transport_ms == api._LONG_HORIZON_REASONING_TRANSPORT_BUDGET_MS
-    assert transport_ms > runtime_seconds * 1_000
+    assert turns is None
+    assert runtime_seconds is None
+    assert transport_ms == 0
+
+    external_deadline = int(time.time() * 1000) + 120_000
+    monkeypatch.setenv("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS", str(external_deadline))
+    turns, runtime_seconds, transport_ms, enabled = (
+        api._reasoning_budget_from_environment()
+    )
+    assert enabled is True
+    assert turns is None
+    assert runtime_seconds is not None
+    assert 85 <= runtime_seconds <= 90
+    assert transport_ms == pytest.approx(runtime_seconds * 1_000)
     assert api.PHASE2_PERMISSION_RECEIPT_VALIDITY > timedelta(
         milliseconds=transport_ms
     )
+
+
+def test_model_output_token_priority_has_one_auditable_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ZYRA_MAX_OUTPUT_TOKENS", raising=False)
+    monkeypatch.delenv("ZYRA_DEPLOYMENT_MAX_OUTPUT_TOKENS", raising=False)
+    assert api._configured_model_output_tokens() == {
+        "schema": "zyra.model-output-token-budget/v1",
+        "requested": 16_384,
+        "requested_source": "model-catalog-default-request",
+    }
+    monkeypatch.setenv("ZYRA_DEPLOYMENT_MAX_OUTPUT_TOKENS", "12000")
+    assert api._configured_model_output_tokens()["requested_source"] == (
+        "deployment-profile"
+    )
+    monkeypatch.setenv("ZYRA_MAX_OUTPUT_TOKENS", "16384")
+    assert api._configured_model_output_tokens() == {
+        "schema": "zyra.model-output-token-budget/v1",
+        "requested": 16_384,
+        "requested_source": "benchmark-environment",
+    }
+    assert api._configured_model_output_tokens({"max_output_tokens": 32768}) == {
+        "schema": "zyra.model-output-token-budget/v1",
+        "requested": 32_768,
+        "requested_source": "task-explicit",
+    }

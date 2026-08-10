@@ -22,6 +22,13 @@ SCHEDULER_SOURCE_MODULES = {
     "browser-use": ["browser session/controller runtime profile"],
 }
 
+_CREDENTIAL_VALUE_PATTERNS = (
+    re.compile(r"(?i)\b(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*['\"]?[^\s'\"]{8,}"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]{12,}"),
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _ScoredManifest:
@@ -155,6 +162,14 @@ class ResourceScheduler:
                 for manifest in self.worker_pool.manifests()
             ]
             viable = [item for item in scored if item.score > -100]
+        if (
+            not viable
+            and signals.privacy_mode == "sensitive"
+            and signals.task_profile == "code"
+        ):
+            raise RuntimeError(
+                "no privacy-compatible local code-and-shell worker is registered"
+            )
         viable.sort(key=lambda item: item.score, reverse=True)
         selected = viable[0] if viable else _ScoredManifest(
             self.worker_pool.manifests()[0],
@@ -370,7 +385,7 @@ class ResourceScheduler:
         for worker in effective_avoided:
             failure_workers[str(worker)] = failure_workers.get(str(worker), 0) + 3
         profile = _task_profile(text, required_tools)
-        privacy = "sensitive" if _has_any(text, ["secret", "credential", "private", "本地", "隐私", "脱敏"]) else "project"
+        privacy, privacy_evidence = _privacy_mode(state, text=text, hints=hints)
         return SchedulerSignals(
             required_tools=required_tools,
             preferred_worker=preferred_worker,
@@ -389,7 +404,8 @@ class ResourceScheduler:
             source_event_id="" if cause_event is None else str(cause_event.get("event_id") or ""),
             metadata={
                 "text_terms": _keywords(text),
-                "runtime_hints": dict(hints),
+                "runtime_hints": _redacted_runtime_hints(hints),
+                "privacy_evidence": privacy_evidence,
             },
         )
 
@@ -439,12 +455,34 @@ class ResourceScheduler:
             score -= penalty
             reasons.append(f"health status {health.status}")
 
-        if signals.privacy_mode == "sensitive" and manifest.privacy_level == "public_only":
-            score -= 55.0
-            reasons.append("cloud route penalized by sensitive/private context")
+        if (
+            signals.privacy_mode == "sensitive"
+            and manifest.location.value != "local"
+            and manifest.privacy_level
+            not in {"sensitive", "restricted", "local_only"}
+        ):
+            return _ScoredManifest(
+                manifest,
+                -999.0,
+                [*reasons, "actual sensitive data cannot leave a compatible local boundary"],
+            )
         if signals.privacy_mode == "sensitive" and manifest.location.value == "local":
             score += 12.0
             reasons.append("local route protects sensitive context")
+
+        # Capability placement is independent from privacy authorization. A
+        # local-only code task may fail closed when no local code executor is
+        # registered, but it must never be silently assigned to memory-only
+        # infrastructure.
+        if signals.task_profile == "code" and not (
+            "coding" in manifest.capabilities
+            and "shell" in {*manifest.capabilities, *manifest.tools}
+        ):
+            return _ScoredManifest(
+                manifest,
+                -130.0,
+                [*reasons, "code task requires a code-and-shell capable worker"],
+            )
 
         score += max(0, 12 - manifest.current_load * 4)
         score -= manifest.latency_ms / 80
@@ -860,6 +898,65 @@ def _valid_digest(value: str) -> bool:
     return len(value) == 64 and all(
         character in "0123456789abcdef" for character in value.lower()
     )
+
+
+def _privacy_mode(
+    state: TaskState,
+    *,
+    text: str,
+    hints: Mapping[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Classify actual data, not words used to discuss security concepts."""
+
+    explicit = str(
+        hints.get("privacy_class")
+        or state.metadata.get("privacy_class")
+        or ""
+    ).strip().casefold()
+    raw_labels = hints.get("data_labels", state.metadata.get("data_labels", ()))
+    labels = {
+        str(item).strip().casefold()
+        for item in (
+            raw_labels
+            if isinstance(raw_labels, Sequence)
+            and not isinstance(raw_labels, (str, bytes))
+            else (raw_labels,)
+        )
+        if str(item).strip()
+    }
+    explicit_sensitive = explicit in {
+        "sensitive",
+        "restricted",
+        "local-only",
+        "confidential",
+    } or bool(labels & {"sensitive", "restricted", "credential", "secret-value"})
+    actual_value = any(pattern.search(text) is not None for pattern in _CREDENTIAL_VALUE_PATTERNS)
+    sensitive = explicit_sensitive or actual_value
+    return (
+        "sensitive" if sensitive else "project",
+        {
+            "classifier": "resource-and-data-label/v1",
+            "explicit_privacy_class": explicit or "unspecified",
+            "data_labels": sorted(labels),
+            "credential_value_detected": actual_value,
+            "goal_keyword_only_routing_forbidden": True,
+        },
+    )
+
+
+def _redacted_runtime_hints(hints: Mapping[str, Any]) -> dict[str, Any]:
+    public: dict[str, Any] = {}
+    for key, value in hints.items():
+        selected = str(key)
+        if re.search(r"(?i)(secret|credential|password|api[_-]?key|token)", selected):
+            public[selected] = "[REDACTED]"
+            continue
+        rendered = str(value)
+        if any(pattern.search(rendered) is not None for pattern in _CREDENTIAL_VALUE_PATTERNS):
+            public[selected] = "[REDACTED]"
+        else:
+            public[selected] = value
+    return public
 
 
 def _task_text(

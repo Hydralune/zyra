@@ -365,7 +365,7 @@ class CodeWorkerRuntime:
                         constraints.get("model_input_token_limit"), 200000
                     ),
                     model_output_token_limit=_positive_int(
-                        constraints.get("model_output_token_limit"), 8192
+                        constraints.get("model_output_token_limit"), 16384
                     ),
                     api_retry_max_attempts=_positive_int(
                         constraints.get("api_retry_max_attempts"), 3

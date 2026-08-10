@@ -39,6 +39,19 @@ import { RuntimeWatchdogObserver } from "./watchdog/index.ts";
 
 type LineIterator = AsyncIterator<string>;
 
+export function toolBatchDeadlineMs(requests: readonly ToolExecutionRequest[]): number {
+  const declared = requests.map((request) => {
+    const raw = request.arguments.timeout_seconds;
+    return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+      ? Math.min(43_200_000, Math.ceil(raw * 1_000))
+      : 120_000;
+  });
+  // The protocol allowance includes a small settlement margin; it is not a
+  // second command lifetime and therefore cannot expire before the Python
+  // command budget that produced it.
+  return Math.max(...declared, 1_000) + 5_000;
+}
+
 const LEGACY_CANDIDATE_METADATA_PATH =
   "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/candidate-metadata.json";
 const E02_PREREQUISITE_PATH =
@@ -258,7 +271,7 @@ class JsonlRuntimeHost implements RuntimeHost {
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
     const startedAt = Date.now();
-    const deadlineMs = 30_000;
+    const deadlineMs = toolBatchDeadlineMs(requests);
     const payloads = requests.map((request) => ({
       tool_call_id: request.toolCallId,
       tool_name: request.toolName,

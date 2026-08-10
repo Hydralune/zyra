@@ -81,22 +81,15 @@ def _replace_checkpoint_with_retry(staged: Path, path: Path) -> None:
             time.sleep(retry_delay)
 
 
-def _typescript_runtime_timeout_seconds(constraints: Mapping[str, Any]) -> float:
-    """Keep the wider timeout exclusive to an externally verified benchmark."""
+def _typescript_runtime_timeout_seconds(
+    constraints: Mapping[str, Any],
+) -> float | None:
+    """Return only a propagated outer deadline, never an internal run limit."""
 
-    benchmark_dispatch = constraints.get("benchmark_physical_dispatch") is True
-    long_horizon = (
-        benchmark_dispatch
-        and constraints.get("benchmark_long_horizon") is True
-    )
-    ceiling = 1_800.0 if long_horizon else (720.0 if benchmark_dispatch else 600.0)
-    return min(
-        ceiling,
-        max(
-            1.0,
-            float(constraints.get("typescript_runtime_timeout_seconds") or 120.0),
-        ),
-    )
+    raw = constraints.get("typescript_runtime_timeout_seconds")
+    if raw in (None, "", 0, 0.0):
+        return None
+    return max(1.0, float(raw))
 
 
 def _nonnegative_count(value: Any) -> int:
@@ -166,8 +159,10 @@ class _ProcessLineReader:
         self._thread = threading.Thread(target=self._read, args=(stream,), daemon=True)
         self._thread.start()
 
-    def get(self, timeout: float) -> str | None:
+    def get(self, timeout: float | None) -> str | None:
         try:
+            if timeout is None:
+                return self._lines.get()
             return self._lines.get(timeout=max(0.01, timeout))
         except queue.Empty as error:
             diagnostics = self._stderr.text() if self._stderr is not None else ""
@@ -362,6 +357,12 @@ class TypeScriptClaudeQueryEngine:
                 projection=projection,
             )
         finally:
+            gateway_router = self.context.runtime_services.get(
+                "sandbox_gateway_router"
+            )
+            cancel_all = getattr(gateway_router, "cancel_all", None)
+            if callable(cancel_all):
+                cancel_all(reason="TypeScript query runtime completed or failed")
             process = self._active_runtime_process
             self._active_runtime_process = None
             if process is not None:
@@ -573,7 +574,11 @@ class TypeScriptClaudeQueryEngine:
         stderr_collector = _StderrCollector(process.stderr)
         self._active_stderr_collector = stderr_collector
         reader = _ProcessLineReader(process.stdout, stderr=stderr_collector)
-        deadline = time.monotonic() + timeout_seconds
+        deadline = (
+            time.monotonic() + timeout_seconds
+            if timeout_seconds is not None
+            else None
+        )
         outbound_sequence = 1
         inbound_sequence = 1
         self._append_host_event(
@@ -803,7 +808,7 @@ class TypeScriptClaudeQueryEngine:
                     )
 
                 execution_mode = str(payload.get("execution_mode") or "serial_non_read_only")
-                timeout_seconds = max(0.001, min(600.0, float(payload.get("timeout_ms") or 30000) / 1000.0))
+                timeout_seconds = max(0.001, min(43_200.0, float(payload.get("timeout_ms") or 120000) / 1000.0))
                 def permission_effect(item: Mapping[str, Any]) -> str:
                     raw_decision = item.get("permission_decision")
                     decision = raw_decision if isinstance(raw_decision, Mapping) else {}
@@ -1097,7 +1102,13 @@ class TypeScriptClaudeQueryEngine:
 
         process.stdin.close()
         try:
-            exit_code = process.wait(timeout=max(1.0, deadline - time.monotonic()))
+            exit_code = process.wait(
+                timeout=(
+                    max(1.0, deadline - time.monotonic())
+                    if deadline is not None
+                    else 30.0
+                )
+            )
         except subprocess.TimeoutExpired as error:
             self._terminate(process)
             raise TypeScriptRuntimeError(
@@ -1800,6 +1811,36 @@ class TypeScriptClaudeQueryEngine:
                     },
                 )
             )
+        if tool_name == "__zyra_invalid_tool_arguments__":
+            return to_jsonable(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    ok=False,
+                    summary=(
+                        "Provider returned incomplete or invalid arguments for "
+                        f"{str(arguments.get('original_tool_name') or 'a tool')}; "
+                        "generate a complete replacement tool call."
+                    ),
+                    output={
+                        "original_tool_name": str(
+                            arguments.get("original_tool_name") or ""
+                        ),
+                        "raw_arguments_digest": str(
+                            arguments.get("raw_arguments_digest") or ""
+                        ),
+                        "side_effect_executed": False,
+                        "retry_allowed": True,
+                    },
+                    error="tool_schema_validation_failed",
+                    metadata={
+                        "invalid_provider_tool_arguments": "true",
+                        "physical_effect_executed": "false",
+                        "paired_error_result": "true",
+                        "canonical_permission_owner": "typescript",
+                        "permission_decision_id": permit.decision_id,
+                    },
+                )
+            )
         spec = self.context.registry.get(tool_name)
         if spec is None:
             return to_jsonable(
@@ -2442,9 +2483,11 @@ class TypeScriptClaudeQueryEngine:
         *,
         run_id: str,
         expected_sequence: int,
-        deadline: float,
+        deadline: float | None,
     ) -> dict[str, Any]:
-        line = reader.get(deadline - time.monotonic())
+        line = reader.get(
+            deadline - time.monotonic() if deadline is not None else None
+        )
         if line is None:
             stderr = self._stderr_text(process)
             raise TypeScriptRuntimeError(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -388,6 +389,165 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertEqual(result.output["termination"], "output_limit")
         self.assertTrue(result.output["artifact_refs"], (result.output, result.metadata))
         self.assertTrue(port.read_bytes("command-output/gateway-output-spill-1.log").exists)
+
+    def test_long_command_moves_to_background_and_can_be_polled_to_completion(self) -> None:
+        state = create_task_state("Long sandbox command retains its real process lifetime")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        session_id = f"background-{state.task_id}"
+        call = ToolCall(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            tool_name="shell",
+            tool_call_id="gateway-background-1",
+            arguments={
+                "executable": sys.executable,
+                "argv": [
+                    "-c",
+                    (
+                        "import time; print('started', flush=True); "
+                        "time.sleep(0.4); print('finished', flush=True)"
+                    ),
+                ],
+                "timeout_seconds": 5,
+                "foreground_wait_seconds": 0.01,
+            },
+            metadata={"session_id": session_id},
+        )
+        started = router.execute(
+            call,
+            permission_grant={"grant_id": "background-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertTrue(started.ok, started)
+        self.assertEqual(started.output["status"], "running")
+        job_id = str(started.output["job_id"])
+
+        time.sleep(0.15)
+        poll = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell_wait",
+                tool_call_id="gateway-background-poll-1",
+                arguments={"job_id": job_id, "timeout_seconds": 0},
+                metadata={"session_id": session_id},
+            ),
+            permission_grant=None,
+            permission_authority=None,
+            permission_execution_context=None,
+        )
+        self.assertEqual(poll.output["status"], "running")
+        self.assertIn(
+            "started",
+            "".join(str(item["content"]) for item in poll.output["output_chunks"]),
+        )
+
+        completed = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell_wait",
+                tool_call_id="gateway-background-wait-1",
+                arguments={"job_id": job_id, "timeout_seconds": 2},
+                metadata={"session_id": session_id},
+            ),
+            permission_grant=None,
+            permission_authority=None,
+            permission_execution_context=None,
+        )
+        self.assertTrue(completed.ok, completed)
+        self.assertEqual(completed.output["status"], "completed")
+        self.assertEqual(completed.output["termination"], "exited")
+        self.assertIn("finished", completed.output["stdout"])
+        self.assertEqual(
+            completed.metadata["originating_tool_call_id"],
+            "gateway-background-1",
+        )
+
+    def test_parent_cancellation_terminates_a_background_command(self) -> None:
+        state = create_task_state("Outer cancellation owns background command lifetime")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        session_id = f"cancel-background-{state.task_id}"
+        started = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-background-cancel-1",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "import time; time.sleep(10)"],
+                    "timeout_seconds": 30,
+                    "background": True,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "cancel-background-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertEqual(started.output["status"], "running")
+        self.assertEqual(
+            router.cancel_all(reason="outer harness deadline reached"),
+            1,
+        )
+        completed = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell_wait",
+                tool_call_id="gateway-background-cancel-wait-1",
+                arguments={
+                    "job_id": started.output["job_id"],
+                    "timeout_seconds": 3,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant=None,
+            permission_authority=None,
+            permission_execution_context=None,
+        )
+        self.assertFalse(completed.ok, completed)
+        self.assertEqual(completed.output["status"], "completed")
+        self.assertIn(
+            completed.output.get("termination"),
+            {"cancelled", None},
+        )
+        self.assertIn(completed.error, {"sandbox_process_cancelled", "parent_cancelled"})
 
     def test_disabled_gateway_blocks_read_only_workspace_port_without_fallback(self) -> None:
         state = create_task_state("Disabled gateway blocks every owned surface")
