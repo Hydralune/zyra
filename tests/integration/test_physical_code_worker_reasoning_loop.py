@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
 from zyra_orchestration.deployment.code_worker_adapter import (
+    _WorkspaceLeaseHeartbeat,
     _governed_final_response,
     _physical_permission_session_id,
     _provider_failure_summary,
@@ -32,6 +34,44 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_workspace_lease_heartbeat_keeps_long_worker_access_alive(
+    tmp_path: Path,
+) -> None:
+    manager = WorkspaceManagerRuntime(
+        WorkspaceManagerConfig(
+            state_root=tmp_path / "workspace-state",
+            data_root=tmp_path / "workspace-data",
+            lease_ttl_seconds=0.15,
+        )
+    )
+    created = manager.create_for_task(
+        run_id="run-heartbeat",
+        task_id="task-heartbeat",
+        session_id="session-heartbeat",
+        worker_id="worker-heartbeat",
+    )
+
+    class EditPort:
+        def current_access(self):
+            return created.access
+
+    heartbeat = _WorkspaceLeaseHeartbeat(
+        manager,
+        EditPort(),  # type: ignore[arg-type]
+        lease_ttl_seconds=0.15,
+        interval_seconds=0.03,
+    )
+    heartbeat.start()
+    time.sleep(0.45)
+    heartbeat.stop()
+    heartbeat.raise_if_failed()
+
+    assert manager.internal_task_root(created.access).is_dir()
+    lease = manager.store.get_lease(created.access.lease_id)
+    assert lease is not None
+    assert lease.renewed_at > lease.issued_at
 
 
 def test_physical_permission_session_isolated_by_recovery_continuation() -> None:

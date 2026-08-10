@@ -1145,20 +1145,22 @@ class WorkspaceEditPort:
         return self._access.to_public_dict()
 
     def current_access(self) -> WorkspaceAccessHandle:
-        return self._access
+        with self._guard:
+            return self._access
 
     def adopt_access(self, access: WorkspaceAccessHandle) -> None:
         """Adopt a manager-issued replacement capability after isolation merge."""
 
-        if access.workspace_id != self.workspace_id or access.worker_id != self.worker_id:
-            raise WorkspaceError(
-                WorkspaceErrorCode.LEASE_OWNER_MISMATCH,
-                "Workspace edit port cannot adopt a capability for another workspace or worker.",
-                workspace_id=self.workspace_id,
-                operation="adopt_workspace_access",
-            )
-        self._access = access
-        self._evidence.clear()
+        with self._guard:
+            if access.workspace_id != self.workspace_id or access.worker_id != self.worker_id:
+                raise WorkspaceError(
+                    WorkspaceErrorCode.LEASE_OWNER_MISMATCH,
+                    "Workspace edit port cannot adopt a capability for another workspace or worker.",
+                    workspace_id=self.workspace_id,
+                    operation="adopt_workspace_access",
+                )
+            self._access = access
+            self._evidence.clear()
 
     def read_bytes(
         self,

@@ -5,6 +5,7 @@ import os
 import shutil
 import threading
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, TypeVar
 
@@ -391,6 +392,141 @@ class WorkspaceBindingStore:
                     )
                 state.leases[lease.lease_id] = lease.to_dict()
                 return lease
+
+            return self._transaction(mutate)
+
+    def renew_lease(
+        self,
+        *,
+        lease_id: str,
+        workspace_id: str,
+        worker_id: str,
+        owner_epoch: int,
+        capability_revision: int,
+        fence_token_hash: str,
+        expires_at: str,
+    ) -> WorkspaceLease:
+        """Atomically extend the currently bound lease without resurrecting it."""
+
+        with self._workspace_locks.acquire_many((workspace_id,)):
+            def mutate(state: _MutableStoreState) -> WorkspaceLease:
+                binding_value = state.bindings.get(workspace_id)
+                if binding_value is None:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.NOT_FOUND,
+                        "Cannot renew a lease for a missing workspace.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    )
+                binding = binding_from_dict(binding_value)
+                lease_value = state.leases.get(lease_id)
+                if lease_value is None:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.LEASE_NOT_FOUND,
+                        "Workspace lease was not found.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    )
+                lease = lease_from_dict(lease_value)
+                if binding.lease_id != lease_id or lease.workspace_id != workspace_id:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.LEASE_OWNER_MISMATCH,
+                        "Only the workspace's currently bound lease can be renewed.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                        expected=binding.lease_id,
+                        actual=lease_id,
+                    )
+                if lease.state is not WorkspaceLeaseState.ACTIVE:
+                    code = (
+                        WorkspaceErrorCode.LEASE_EXPIRED
+                        if lease.state is WorkspaceLeaseState.EXPIRED
+                        else WorkspaceErrorCode.LEASE_REVOKED
+                    )
+                    raise WorkspaceStoreError(
+                        code,
+                        "Only an active workspace lease can be renewed.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                        actual=lease.state.value,
+                    )
+                if lease.worker_id != worker_id:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.LEASE_OWNER_MISMATCH,
+                        "Workspace lease is owned by another worker.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                        expected=lease.worker_id,
+                        actual=worker_id,
+                    )
+                if lease.owner_epoch != owner_epoch or binding.owner_epoch != owner_epoch:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.OWNER_EPOCH_STALE,
+                        "Workspace lease ownership changed before renewal.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                        expected=binding.owner_epoch,
+                        actual=owner_epoch,
+                    )
+                if (
+                    lease.capability_revision != capability_revision
+                    or binding.capability_revision != capability_revision
+                ):
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.CAPABILITY_STALE,
+                        "Workspace capability changed before lease renewal.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                        expected=binding.capability_revision,
+                        actual=capability_revision,
+                    )
+                if (
+                    lease.fence_token_hash != fence_token_hash
+                    or binding.fence_token_hash != fence_token_hash
+                ):
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.FENCE_TOKEN_MISMATCH,
+                        "Workspace fence token does not authorize lease renewal.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    )
+
+                now = datetime.now(UTC)
+                try:
+                    current_expiration = datetime.fromisoformat(lease.expires_at)
+                    next_expiration = datetime.fromisoformat(expires_at)
+                except ValueError as error:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.STORE_CORRUPT,
+                        "Workspace lease expiry timestamp is invalid.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    ) from error
+                if current_expiration.tzinfo is None:
+                    current_expiration = current_expiration.replace(tzinfo=UTC)
+                if next_expiration.tzinfo is None:
+                    next_expiration = next_expiration.replace(tzinfo=UTC)
+                if current_expiration <= now:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.LEASE_EXPIRED,
+                        "An expired workspace lease cannot be renewed.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    )
+                if next_expiration <= now:
+                    raise WorkspaceStoreError(
+                        WorkspaceErrorCode.INVALID_ARGUMENT,
+                        "Workspace lease renewal must extend into the future.",
+                        workspace_id=workspace_id,
+                        operation="renew_lease",
+                    )
+                renewed = replace(
+                    lease,
+                    renewed_at=now.isoformat(),
+                    expires_at=max(current_expiration, next_expiration).isoformat(),
+                )
+                state.leases[lease_id] = renewed.to_dict()
+                return renewed
 
             return self._transaction(mutate)
 

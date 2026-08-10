@@ -24,6 +24,7 @@ from zyra_runtime.sandbox_gateway import (
 )
 from zyra_workers import CodeWorkerRuntime
 from zyra_workspace import (
+    WorkspaceError,
     WorkspaceEditPort,
     WorkspaceManagerConfig,
     WorkspaceManagerRuntime,
@@ -31,6 +32,75 @@ from zyra_workspace import (
 
 from ..goal_contracts import direct_response_contract
 from .errors import DispatchRejected
+
+
+class _WorkspaceLeaseHeartbeat:
+    """Keep the active CodeWorker lease alive for the lifetime of its loop."""
+
+    def __init__(
+        self,
+        manager: WorkspaceManagerRuntime,
+        edit_port: WorkspaceEditPort,
+        *,
+        lease_ttl_seconds: float,
+        interval_seconds: float | None = None,
+    ) -> None:
+        self._manager = manager
+        self._edit_port = edit_port
+        self._interval_seconds = float(
+            interval_seconds
+            if interval_seconds is not None
+            else max(1.0, min(60.0, lease_ttl_seconds / 3.0))
+        )
+        if self._interval_seconds <= 0:
+            raise ValueError("workspace lease heartbeat interval must be positive")
+        self._stop = threading.Event()
+        self._failure: BaseException | None = None
+        self._thread = threading.Thread(
+            target=self._run,
+            name="zyra-workspace-lease-heartbeat",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=max(5.0, min(30.0, self._interval_seconds + 5.0)))
+        if self._thread.is_alive() and self._failure is None:
+            self._failure = RuntimeError(
+                "workspace lease heartbeat did not stop after the worker completed"
+            )
+
+    def raise_if_failed(self) -> None:
+        if self._failure is not None:
+            raise RuntimeError("workspace lease heartbeat failed") from self._failure
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._renew_current_access()
+            except BaseException as error:  # noqa: BLE001 - relay thread failure.
+                self._failure = error
+                return
+            if self._stop.wait(self._interval_seconds):
+                return
+
+    def _renew_current_access(self) -> None:
+        access = self._edit_port.current_access()
+        try:
+            self._manager.renew_for_worker(access)
+        except WorkspaceError:
+            latest = self._edit_port.current_access()
+            if (
+                latest.lease_id == access.lease_id
+                and latest.owner_epoch == access.owner_epoch
+            ):
+                raise
+            # A successful workspace mutation rotates the capability.  If the
+            # heartbeat raced that atomic rotation, renew the adopted lease.
+            self._manager.renew_for_worker(latest)
 
 
 def _workspace_execution_outcome(
@@ -345,7 +415,17 @@ def execute_code_worker_operator(
         permission_accept_edits_available=True,
         runtime_services=runtime_services,
     )
-    run = runtime.run(request)
+    lease_heartbeat = _WorkspaceLeaseHeartbeat(
+        manager,
+        edit_port,
+        lease_ttl_seconds=manager.config.lease_ttl_seconds,
+    )
+    lease_heartbeat.start()
+    try:
+        run = runtime.run(request)
+    finally:
+        lease_heartbeat.stop()
+    lease_heartbeat.raise_if_failed()
     runtime_events = [to_jsonable(item) for item in run.event_records]
     current_access = edit_port.current_access()
     workspace_root = manager.internal_task_root(current_access)

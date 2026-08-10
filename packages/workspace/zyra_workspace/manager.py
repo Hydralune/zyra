@@ -391,8 +391,60 @@ class WorkspaceManagerRuntime:
                 and token
                 and (operations is None or current_lease.operations == operations)
             ):
-                return self.backend.access_handle(binding, current_lease, fence_token=token)
+                try:
+                    return self.backend.access_handle(binding, current_lease, fence_token=token)
+                except WorkspaceError as error:
+                    if error.code is not WorkspaceErrorCode.LEASE_EXPIRED:
+                        raise
             return self._transfer_lease(binding, worker_id=worker_id, operations=operations)
+
+    def renew_for_worker(
+        self,
+        handle: WorkspaceAccessHandle,
+        *,
+        ttl_seconds: float | None = None,
+    ) -> WorkspaceAccessHandle:
+        """Renew the live worker capability while preserving its fence and epoch."""
+
+        ttl = float(self.config.lease_ttl_seconds if ttl_seconds is None else ttl_seconds)
+        if ttl <= 0:
+            raise WorkspaceError(
+                WorkspaceErrorCode.INVALID_ARGUMENT,
+                "Workspace lease renewal TTL must be positive.",
+                workspace_id=handle.workspace_id,
+                operation="renew_lease",
+                actual=ttl,
+            )
+        with self.integration_store.workspace_locks.acquire_many((handle.workspace_id,)):
+            with self._guard:
+                binding = self.store.require_binding(handle.workspace_id)
+                lease = self.store.get_lease(handle.lease_id)
+                if lease is None:
+                    raise WorkspaceError(
+                        WorkspaceErrorCode.LEASE_NOT_FOUND,
+                        "Worker workspace renewal references a missing lease.",
+                        workspace_id=handle.workspace_id,
+                        operation="renew_lease",
+                    )
+                self.backend.validate_lease(
+                    binding,
+                    lease,
+                    fence_token=handle.fence_token,
+                )
+                renewed = self.store.renew_lease(
+                    lease_id=handle.lease_id,
+                    workspace_id=handle.workspace_id,
+                    worker_id=handle.worker_id,
+                    owner_epoch=handle.owner_epoch,
+                    capability_revision=handle.capability_revision,
+                    fence_token_hash=_fence_hash(handle.fence_token),
+                    expires_at=(datetime.now(UTC) + timedelta(seconds=ttl)).isoformat(),
+                )
+                return self.backend.access_handle(
+                    binding,
+                    renewed,
+                    fence_token=handle.fence_token,
+                )
 
     def project(self, workspace_id: str) -> WorkspacePublicProjection:
         binding = self.store.require_binding(workspace_id)

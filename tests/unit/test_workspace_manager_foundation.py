@@ -6,6 +6,8 @@ import tempfile
 import threading
 import time
 import unittest
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -242,6 +244,68 @@ class WorkspaceManagerFoundationTests(unittest.TestCase):
         )
         reread = self.runtime.backend.read(replacement, mount_kind=WorkspaceKind.TASK, path="shared.txt")
         self.assertEqual(reread.record.owner_epoch, replacement.owner_epoch)
+
+    def test_lease_renewal_extends_current_capability_without_rotating_fence(self) -> None:
+        created = self.create(worker_id="worker-a")
+        original = self.runtime.store.get_lease(created.access.lease_id)
+        self.assertIsNotNone(original)
+
+        renewed_access = self.runtime.renew_for_worker(
+            created.access,
+            ttl_seconds=600,
+        )
+        renewed = self.runtime.store.get_lease(created.access.lease_id)
+
+        self.assertIsNotNone(renewed)
+        self.assertEqual(renewed_access.lease_id, created.access.lease_id)
+        self.assertEqual(renewed_access.owner_epoch, created.access.owner_epoch)
+        self.assertGreater(
+            datetime.fromisoformat(renewed.expires_at),
+            datetime.fromisoformat(original.expires_at),
+        )
+        self.assertTrue(self.runtime.internal_task_root(renewed_access).is_dir())
+
+    def test_expired_lease_cannot_be_renewed_or_reused_by_same_worker(self) -> None:
+        created = self.create(worker_id="worker-a")
+        current = self.runtime.store.get_lease(created.access.lease_id)
+        self.assertIsNotNone(current)
+        self.runtime.store.update_lease(
+            replace(
+                current,
+                expires_at=(datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
+            )
+        )
+
+        with self.assertRaises(WorkspaceError) as renewal:
+            self.runtime.renew_for_worker(created.access)
+        self.assertEqual(renewal.exception.code, WorkspaceErrorCode.LEASE_EXPIRED)
+
+        replacement = self.runtime.acquire_for_worker(
+            task_id="task-1",
+            session_id="session-1",
+            worker_id="worker-a",
+        )
+        self.assertNotEqual(replacement.lease_id, created.access.lease_id)
+        self.assertGreater(replacement.owner_epoch, created.access.owner_epoch)
+        self.assertTrue(self.runtime.internal_task_root(replacement).is_dir())
+
+    def test_revoked_capability_cannot_renew_replacement_lease(self) -> None:
+        created = self.create(worker_id="worker-a")
+        self.runtime.acquire_for_worker(
+            task_id="task-1",
+            session_id="session-1",
+            worker_id="worker-b",
+        )
+
+        with self.assertRaises(WorkspaceError) as stale:
+            self.runtime.renew_for_worker(created.access)
+        self.assertIn(
+            stale.exception.code,
+            {
+                WorkspaceErrorCode.LEASE_OWNER_MISMATCH,
+                WorkspaceErrorCode.LEASE_REVOKED,
+            },
+        )
 
     def test_owner_epoch_rotation_serializes_with_inflight_local_write(self) -> None:
         created = self.create(worker_id="writer")
