@@ -117,7 +117,7 @@ test("DeepSeek V4 Flash profile binds an environment reference without persistin
   assert.equal(profile.provider.baseUrl, "https://api.deepseek.com");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
-  assert.equal(profile.provider.metadata.routing_priority, 200);
+  assert.equal(profile.provider.metadata.routing_priority, 300);
   assert.equal(profile.model.modelId, "deepseek-v4-flash");
   assert.equal(profile.model.displayName, "DeepSeek V4 Flash 0731");
   assert.equal(profile.model.releasedAt, Date.UTC(2026, 6, 31));
@@ -192,7 +192,7 @@ test("Zhipu AI GLM-5.2 profile enables reasoning and persists only an environmen
   assert.equal(profile.provider.baseUrl, "https://open.bigmodel.cn/api/paas/v4");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["open.bigmodel.cn"]);
-  assert.equal(profile.provider.metadata.routing_priority, 300);
+  assert.equal(profile.provider.metadata.routing_priority, 200);
   assert.equal(profile.model.modelId, GLM_52_MODEL_ID);
   assert.equal(profile.model.contextWindow, 1_000_000);
   assert.equal(profile.model.maximumOutputTokens, 131_072);
@@ -216,7 +216,7 @@ test("Zhipu AI GLM-5.2 profile fails closed when its environment secret is absen
   assert.deepEqual(controlPlane.credentials.list(), []);
 });
 
-test("default provider routing prefers GLM, then DeepSeek, with Kimi last", (t) => {
+test("default provider routing prefers DeepSeek, then GLM, with Kimi last", (t) => {
   const { controlPlane } = makeControlPlane(t);
   installGlm52Profile(controlPlane, { [ZAI_API_KEY_ENV]: "zhipu-secret" });
   installKimiK27CodeProfile(controlPlane, { [KIMI_API_KEY_ENV]: "kimi-secret" });
@@ -231,21 +231,21 @@ test("default provider routing prefers GLM, then DeepSeek, with Kimi last", (t) 
     routeHint: null,
   };
   const first = controlPlane.acquireRoute(unconstrained);
-  assert.equal(first.providerId, ZHIPU_PROVIDER_ID);
-  assert.equal(first.modelId, GLM_52_MODEL_ID);
+  assert.equal(first.providerId, DEEPSEEK_PROVIDER_ID);
+  assert.equal(first.modelId, DEEPSEEK_V4_FLASH_MODEL_ID);
 
-  const withoutGlm: RouteRequest = {
+  const withoutDeepSeek: RouteRequest = {
     ...unconstrained,
-    turnId: "turn-without-glm",
+    turnId: "turn-without-deepseek",
     constraints: {
       ...unconstrained.constraints,
-      providerIds: [KIMI_PLATFORM_PROVIDER_ID, DEEPSEEK_PROVIDER_ID],
-      modelIds: [KIMI_K27_CODE_MODEL_ID, DEEPSEEK_V4_FLASH_MODEL_ID],
+      providerIds: [KIMI_PLATFORM_PROVIDER_ID, ZHIPU_PROVIDER_ID],
+      modelIds: [KIMI_K27_CODE_MODEL_ID, GLM_52_MODEL_ID],
     },
   };
-  const second = controlPlane.acquireRoute(withoutGlm);
-  assert.equal(second.providerId, DEEPSEEK_PROVIDER_ID);
-  assert.equal(second.modelId, DEEPSEEK_V4_FLASH_MODEL_ID);
+  const second = controlPlane.acquireRoute(withoutDeepSeek);
+  assert.equal(second.providerId, ZHIPU_PROVIDER_ID);
+  assert.equal(second.modelId, GLM_52_MODEL_ID);
 });
 
 test("RPC server fails closed when the provider control-plane owner is disabled", async (t) => {
@@ -273,7 +273,7 @@ test("RPC server fails closed when the provider control-plane owner is disabled"
 test("RPC installs configured live profiles in the fixed preference order without secret bytes", async (t) => {
   const { controlPlane } = makeControlPlane(t);
   const server = new ProviderControlPlaneRpcServer(controlPlane);
-  const names = [ZAI_API_KEY_ENV, DEEPSEEK_API_KEY_ENV, KIMI_API_KEY_ENV] as const;
+  const names = [DEEPSEEK_API_KEY_ENV, ZAI_API_KEY_ENV, KIMI_API_KEY_ENV] as const;
   const previous = new Map(names.map((name) => [name, process.env[name]]));
   const restore = () => {
     for (const name of names) {
@@ -303,14 +303,14 @@ test("RPC installs configured live profiles in the fixed preference order withou
   assert.deepEqual(
     result.installed.map((item) => `${item.providerId}/${item.modelId}`),
     [
-      `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
       `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
       `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
     ],
   );
   assert.deepEqual(result.preferenceOrder, [
-    `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
     `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+    `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
     `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
   ]);
   assert.equal(result.secretBytesIncluded, false);

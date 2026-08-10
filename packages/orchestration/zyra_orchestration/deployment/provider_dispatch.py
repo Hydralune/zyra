@@ -68,8 +68,8 @@ DEEPSEEK_MODEL_ID = "deepseek-v4-flash"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 
 PROVIDER_PRIORITY = (
-    (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
     (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
+    (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
     (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
 )
 
@@ -314,10 +314,10 @@ class LiveProviderDispatchRuntime:
         idempotency_key: str,
         payload_digest: str,
     ) -> LiveProviderDispatchEvidence:
-        selected_provider = provider_id.strip().casefold() or ZHIPU_PROVIDER_ID
+        selected_provider = provider_id.strip().casefold() or DEEPSEEK_PROVIDER_ID
         selected_model = model_id.strip() or (
-            GLM_52_MODEL_ID
-            if selected_provider == ZHIPU_PROVIDER_ID
+            DEEPSEEK_MODEL_ID
+            if selected_provider == DEEPSEEK_PROVIDER_ID
             else ""
         )
         requested_key = (selected_provider, selected_model)

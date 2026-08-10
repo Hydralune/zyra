@@ -101,8 +101,8 @@ class PhysicalDispatchTask:
     allowed_placements: tuple[str, ...]
     permission_ref: str
     operation: str = "physical-dispatch-proof"
-    provider_id: str = "zhipu"
-    model_id: str = "glm-5.2"
+    provider_id: str = "deepseek"
+    model_id: str = "deepseek-v4-flash"
     latency_sla_ms: int = 120_000
     # Placement policy caps ``latency_sla_ms`` at 120s because it selects the
     # device/edge/cloud tier.  A provider reasoning loop legitimately runs far

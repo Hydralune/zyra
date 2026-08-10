@@ -172,16 +172,16 @@ def test_provider_env_loader_reads_only_the_exact_allowlisted_key(
 
     assert configured == tuple(item[0] for item in api._PROVIDER_ENV_FILES)
     assert os.environ.get("IGNORED_SECRET") is None
-    assert api._preferred_configured_provider() == ("zhipu", "glm-5.2")
-
-    (tmp_path / ".env.glm.local").write_text("", encoding="utf-8")
-    configured_after_removal = api._load_configured_provider_environment()
-    assert "ZAI_API_KEY" not in configured_after_removal
-    assert os.environ.get("ZAI_API_KEY") is None
     assert api._preferred_configured_provider() == (
         "deepseek",
         "deepseek-v4-flash",
     )
+
+    (tmp_path / ".env.deepseek.local").write_text("", encoding="utf-8")
+    configured_after_removal = api._load_configured_provider_environment()
+    assert "DEEPSEEK_API_KEY" not in configured_after_removal
+    assert os.environ.get("DEEPSEEK_API_KEY") is None
+    assert api._preferred_configured_provider() == ("zhipu", "glm-5.2")
 
 
 def test_provider_env_loader_disable_flag_removes_file_managed_values_only(

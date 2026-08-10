@@ -54,7 +54,7 @@ export function glm52Profile(): Glm52Profile {
       billing_mode: "pay-as-you-go",
       key_source: "open.bigmodel.cn",
       preserve_client_identity: true,
-      routing_priority: 300,
+      routing_priority: 200,
     },
   };
   const model: ModelDefinition = {

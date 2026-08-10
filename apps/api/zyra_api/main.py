@@ -6429,7 +6429,7 @@ def _ensure_phase2_production_workers(
     if preferred_provider is None:
         raise RuntimeError(
             "no configured live provider credential is available; expected "
-            "ZAI_API_KEY, DEEPSEEK_API_KEY or KIMI_API_KEY"
+            "DEEPSEEK_API_KEY, ZAI_API_KEY or KIMI_API_KEY"
         )
     provider_environment_names = {
         provider_id: key
@@ -6699,7 +6699,7 @@ def _production_physical_dispatch_port(
         if preferred is None:
             raise RuntimeError(
                 "no configured live provider credential is available; expected "
-                "ZAI_API_KEY, DEEPSEEK_API_KEY or KIMI_API_KEY"
+                "DEEPSEEK_API_KEY, ZAI_API_KEY or KIMI_API_KEY"
             )
         provider_id, model_id = preferred
         session_id = f"physical-provider:{state.run_id}:{state.task_id}"
@@ -6778,8 +6778,8 @@ def _production_physical_dispatch_port(
         allowed_placements=(location,),
         permission_ref=str(permission.get("decision_id") or ""),
         operation="phase2-operator-execution",
-        provider_id=provider_id or "zhipu",
-        model_id=model_id or "glm-5.2",
+        provider_id=provider_id or "deepseek",
+        model_id=model_id or "deepseek-v4-flash",
         execution_budget_ms=execution_budget_ms,
     )
     return PhysicalDispatchCallPort(
@@ -6843,13 +6843,13 @@ def _reasoning_budget_from_environment() -> tuple[int, float, int, bool]:
 PHASE2_PERMISSION_RECEIPT_VALIDITY = timedelta(hours=1)
 
 _PROVIDER_ENV_FILES = (
-    ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
     (
         "DEEPSEEK_API_KEY",
         ".env.deepseek.local",
         "deepseek",
         "deepseek-v4-flash",
     ),
+    ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
     (
         "KIMI_API_KEY",
         ".env.kimi.local",

@@ -231,7 +231,7 @@ def test_local_only_privacy_never_starts_cloud_runtime(tmp_path) -> None:
         )
 
 
-def test_physical_dispatch_defaults_to_glm() -> None:
+def test_physical_dispatch_defaults_to_deepseek() -> None:
     task = PhysicalDispatchTask(
         run_id="run",
         task_id="task",
@@ -241,14 +241,14 @@ def test_physical_dispatch_defaults_to_glm() -> None:
         permission_ref="permission://allowed",
     )
 
-    assert task.provider_id == "zhipu"
-    assert task.model_id == "glm-5.2"
+    assert task.provider_id == "deepseek"
+    assert task.model_id == "deepseek-v4-flash"
 
 
 def test_physical_dispatch_priority_uses_deepseek_flash_before_kimi() -> None:
     assert DEEPSEEK_MODEL_ID == "deepseek-v4-flash"
     assert PROVIDER_PRIORITY == (
-        (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
         (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
+        (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
         (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
     )

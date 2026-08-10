@@ -97,16 +97,16 @@ export class ProviderControlPlaneRpcServer {
         const installed: Array<Record<string, unknown>> = [];
         const profiles = [
           {
-            environmentName: "ZAI_API_KEY",
-            providerId: ZHIPU_PROVIDER_ID,
-            modelId: GLM_52_MODEL_ID,
-            install: () => installGlm52Profile(this.controlPlane),
-          },
-          {
             environmentName: "DEEPSEEK_API_KEY",
             providerId: DEEPSEEK_PROVIDER_ID,
             modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
             install: () => installDeepSeekV4FlashProfile(this.controlPlane),
+          },
+          {
+            environmentName: "ZAI_API_KEY",
+            providerId: ZHIPU_PROVIDER_ID,
+            modelId: GLM_52_MODEL_ID,
+            install: () => installGlm52Profile(this.controlPlane),
           },
           {
             environmentName: "KIMI_API_KEY",
@@ -132,8 +132,8 @@ export class ProviderControlPlaneRpcServer {
           installed,
           configuredCount: installed.length,
           preferenceOrder: [
-            `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
             `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+            `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
             `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
           ],
           secretBytesIncluded: false,

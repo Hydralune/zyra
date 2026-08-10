@@ -50,7 +50,7 @@ export function deepSeekV4FlashProfile(): DeepSeekV4FlashProfile {
     metadata: {
       api_reference: "https://api-docs.deepseek.com/api/create-chat-completion",
       profile_revision: "2026-07-31",
-      routing_priority: 200,
+      routing_priority: 300,
     },
   };
   const model: ModelDefinition = {
