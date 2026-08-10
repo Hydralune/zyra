@@ -634,6 +634,77 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertTrue(recovered.ok, recovered)
         self.assertIn("healthy", recovered.output["stdout"])
 
+    def test_settled_command_timeout_is_recoverable_in_a_new_session(self) -> None:
+        state = create_task_state("A settled timeout remains observable to the model")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={
+                "sandbox_gateway_required": True,
+                "sandbox_gateway_default_command_timeout_seconds": 0.1,
+                "sandbox_gateway_maximum_command_timeout_seconds": 1.0,
+            },
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        session_id = f"timeout-isolation-{state.task_id}"
+        timed_out = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-settled-timeout",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "import time; time.sleep(1)"],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "timeout-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertFalse(timed_out.ok)
+        self.assertEqual(timed_out.error, "process_timeout")
+        self.assertEqual(timed_out.metadata["command_timeout_settled"], "true")
+        self.assertEqual(timed_out.metadata["model_recovery_allowed"], "true")
+        self.assertEqual(
+            bundle.policy_runtime.config.default_command_timeout_seconds,
+            0.1,
+        )
+
+        recovered = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-after-settled-timeout",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "print('healthy after timeout')"],
+                    "timeout_seconds": 1,
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "after-timeout-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertTrue(recovered.ok, recovered)
+        self.assertIn("healthy after timeout", recovered.output["stdout"])
+
     def test_parent_cancellation_terminates_a_background_command(self) -> None:
         state = create_task_state("Outer cancellation owns background command lifetime")
         port, workspace = self._port(state, "CodeWorkerRuntime")

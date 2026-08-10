@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 import os
 import re
 import shlex
@@ -175,6 +176,8 @@ class GatewayPolicyConfig:
     allow_legacy_command_strings: bool = True
     allow_shell_composition: bool = False
     default_command_network_profile: str = "offline"
+    default_command_timeout_seconds: float = 120.0
+    maximum_command_timeout_seconds: float = 43_200.0
     allow_read_only_git_without_approval: bool = True
     allow_public_https: bool = True
     allow_public_http: bool = False
@@ -205,6 +208,19 @@ class GatewayPolicyConfig:
             "default_command_network_profile",
             selected_network_profile,
         )
+        for field_name in (
+            "default_command_timeout_seconds",
+            "maximum_command_timeout_seconds",
+        ):
+            value = float(getattr(self, field_name))
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{field_name} must be a finite positive number")
+            object.__setattr__(self, field_name, value)
+        if self.maximum_command_timeout_seconds < self.default_command_timeout_seconds:
+            raise ValueError(
+                "maximum_command_timeout_seconds must be at least "
+                "default_command_timeout_seconds"
+            )
         for field_name in (
             "maximum_url_chars",
             "maximum_argument_chars",
@@ -252,6 +268,8 @@ class GatewayPolicyConfig:
             "allow_legacy_command_strings": self.allow_legacy_command_strings,
             "allow_shell_composition": self.allow_shell_composition,
             "default_command_network_profile": self.default_command_network_profile,
+            "default_command_timeout_seconds": self.default_command_timeout_seconds,
+            "maximum_command_timeout_seconds": self.maximum_command_timeout_seconds,
             "allow_read_only_git_without_approval": self.allow_read_only_git_without_approval,
             "allow_public_https": self.allow_public_https,
             "allow_public_http": self.allow_public_http,

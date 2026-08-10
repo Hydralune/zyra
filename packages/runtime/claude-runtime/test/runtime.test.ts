@@ -775,6 +775,97 @@ test("model loop observes a failed command and completes a later repair", async 
   }
 });
 
+test("model loop can inspect and repair after a settled sandbox command timeout", async () => {
+  class TimeoutRecoveringHost extends MemoryHost {
+    executionCount = 0;
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.executionCount += 1;
+      if (this.executionCount === 1) {
+        this.batches.push(batch);
+        return requests.map((request) => ({
+          tool_call_id: request.toolCallId,
+          ok: false,
+          summary: "Sandbox command reached its execution deadline",
+          output: { termination: "timed_out" },
+          artifacts: [],
+          error: "process_timeout",
+          metadata: {
+            termination: "timed_out",
+            recovery_required: "true",
+            command_timeout_settled: "true",
+            model_recovery_allowed: "true",
+            process_tree_controlled: "true",
+          },
+        }));
+      }
+      return super.executeBatch(batch, requests);
+    }
+  }
+
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const toolCall = requestCount <= 2
+      ? {
+        index: 0,
+        id: requestCount === 1 ? "long-command" : "inspect-after-timeout",
+        type: "function",
+        function: {
+          name: "read",
+          arguments: JSON.stringify({ path: requestCount === 1 ? "install" : "state" }),
+        },
+      }
+      : null;
+    const payload = {
+      id: `timeout-recovery-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: toolCall === null
+          ? { content: "Recovered after inspecting the timed-out command." }
+          : { tool_calls: [toolCall] },
+        finish_reason: toolCall === null ? "stop" : "tool_calls",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new TimeoutRecoveringHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "settled-timeout-recovery-run",
+      sessionId: "settled-timeout-recovery-session",
+      workerRequestId: "settled-timeout-recovery-request",
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(host.executionCount, 2);
+    assert.ok(host.events.some((event) =>
+      event.phase === "watchdog_signal"
+      && ((event.watchdog_signal ?? {}) as JsonObject).action === "continue"
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("model loop stops three identical failed tool calls instead of burning the turn budget", async () => {
   class AlwaysFailingHost extends MemoryHost {
     executionCount = 0;

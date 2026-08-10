@@ -280,6 +280,12 @@ def build_gateway_runtime_bundle(
         allow_public_http=bool(services.get("sandbox_gateway_allow_public_http", False)),
         allow_shell_composition=allow_shell_composition,
         default_command_network_profile=default_command_network_profile,
+        default_command_timeout_seconds=float(
+            services.get("sandbox_gateway_default_command_timeout_seconds", 120.0)
+        ),
+        maximum_command_timeout_seconds=float(
+            services.get("sandbox_gateway_maximum_command_timeout_seconds", 43_200.0)
+        ),
         allow_private_network=bool(services.get("sandbox_gateway_allow_private_network", False)),
         allow_loopback_network=bool(services.get("sandbox_gateway_allow_loopback_network", False)),
         allow_file_urls=False,

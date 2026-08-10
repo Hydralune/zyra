@@ -1842,6 +1842,13 @@ function providerOutputWasLengthTruncated(model: ModelStreamResolution): boolean
 
 function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
   const error = result.error || "tool_error";
+  const termination = asString(result.metadata.termination).toLowerCase();
+  const settledCommandTimeout = error === "process_timeout"
+    && termination === "timed_out"
+    && asString(result.metadata.command_timeout_settled).toLowerCase() === "true"
+    && asString(result.metadata.model_recovery_allowed).toLowerCase() === "true"
+    && asString(result.metadata.process_tree_controlled).toLowerCase() === "true";
+  if (settledCommandTimeout) return true;
   if (
     error === "permission_approval_required"
     || error === "missing_tool_result"
@@ -1856,7 +1863,6 @@ function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
   if (asString(result.metadata.receipt_validation_failed).toLowerCase() === "true") return false;
   if (asString(result.metadata.recovery_required).toLowerCase() === "true") return false;
   if (asString(result.metadata.late_result_fenced).toLowerCase() === "true") return false;
-  const termination = asString(result.metadata.termination).toLowerCase();
   return !termination || termination === "exited";
 }
 

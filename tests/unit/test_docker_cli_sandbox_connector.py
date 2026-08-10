@@ -110,6 +110,24 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             )
         )
 
+    def test_benchmark_command_budget_preserves_agent_closeout_time(self) -> None:
+        self.assertEqual(
+            code_worker_adapter._benchmark_command_timeout_budget({}),
+            (300.0, 3_600.0),
+        )
+        self.assertEqual(
+            code_worker_adapter._benchmark_command_timeout_budget(
+                {"reasoning_timeout_seconds": 840}
+            ),
+            (300.0, 780.0),
+        )
+        self.assertEqual(
+            code_worker_adapter._benchmark_command_timeout_budget(
+                {"reasoning_timeout_seconds": 30}
+            ),
+            (27.0, 27.0),
+        )
+
     def test_production_reasoning_budget_is_open_without_an_explicit_deadline(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(
@@ -156,7 +174,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             environment={"NO_COLOR": "1"},
         )
         self.assertEqual(
-            connector.command_argv(envelope),
+            connector.raw_command_argv(envelope),
             [
                 "docker-test",
                 "exec",
@@ -170,6 +188,19 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "--short",
             ],
         )
+        managed = connector.command_argv(envelope)
+        self.assertEqual(managed[:8], [
+            "docker-test",
+            "exec",
+            "--workdir",
+            "/app/repo/src",
+            "--env",
+            "NO_COLOR=1",
+            "task-main-1",
+            "sh",
+        ])
+        self.assertEqual(managed[-3:], ["git", "status", "--short"])
+        self.assertIn("setsid", managed[9])
 
     def test_backend_exposes_the_connectors_redaction_boundary(self) -> None:
         connector = DockerCliSandboxConnector(

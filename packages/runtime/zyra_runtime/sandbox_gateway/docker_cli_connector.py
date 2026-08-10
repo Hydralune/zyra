@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import posixpath
 import re
+import secrets
 import shutil
 import subprocess
 import threading
@@ -31,6 +33,65 @@ from .redaction import SecretRedactor
 
 
 _CONTAINER_REF = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+_CONTAINER_COMMAND_WRAPPER = """\
+pid_file=$1
+command_token=$2
+shift 2
+rm -f "$pid_file"
+export ZYRA_SANDBOX_COMMAND_TOKEN="$command_token"
+if command -v setsid >/dev/null 2>&1; then
+    setsid "$@" &
+    child=$!
+    printf 'group %s\\n' "$child" > "$pid_file"
+else
+    "$@" &
+    child=$!
+    printf 'process %s\\n' "$child" > "$pid_file"
+fi
+wait "$child"
+status=$?
+rm -f "$pid_file"
+exit "$status"
+"""
+_CONTAINER_COMMAND_TERMINATOR = """\
+mode=$1
+pid=$2
+pid_file=$3
+grace_ticks=$4
+command_token=$5
+case "$pid" in
+    ''|*[!0-9]*) exit 2 ;;
+esac
+if [ ! -r "/proc/$pid/environ" ] || ! tr '\\000' '\\n' < "/proc/$pid/environ" | grep -Fqx "ZYRA_SANDBOX_COMMAND_TOKEN=$command_token"; then
+    exit 5
+fi
+if [ "$mode" != group ]; then
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 0.1
+    kill -KILL "$pid" 2>/dev/null || true
+    rm -f "$pid_file"
+    exit 3
+fi
+kill -TERM "-$pid" 2>/dev/null || true
+tick=0
+while kill -0 "-$pid" 2>/dev/null && [ "$tick" -lt "$grace_ticks" ]; do
+    sleep 0.1
+    tick=$((tick + 1))
+done
+if kill -0 "-$pid" 2>/dev/null; then
+    kill -KILL "-$pid" 2>/dev/null || true
+fi
+tick=0
+while kill -0 "-$pid" 2>/dev/null && [ "$tick" -lt 10 ]; do
+    sleep 0.1
+    tick=$((tick + 1))
+done
+if kill -0 "-$pid" 2>/dev/null; then
+    exit 4
+fi
+rm -f "$pid_file"
+printf 'controlled\\n'
+"""
 
 
 class DockerCliSandboxConnector:
@@ -68,6 +129,7 @@ class DockerCliSandboxConnector:
         self.redactor = redactor or SecretRedactor()
         self.tree = ProcessTreeController()
         self._processes: dict[str, subprocess.Popen[bytes]] = {}
+        self._command_tokens: dict[str, str] = {}
         self._lock = threading.RLock()
 
     @property
@@ -154,6 +216,8 @@ class DockerCliSandboxConnector:
                 start_new_session=self.tree.start_new_session(),
             )
         except Exception as error:
+            with self._lock:
+                self._command_tokens.pop(envelope.command_id, None)
             return ProcessResult(
                 command_id=envelope.command_id,
                 termination=ProcessTermination.FAILED_TO_START,
@@ -178,6 +242,7 @@ class DockerCliSandboxConnector:
         termination = ProcessTermination.EXITED
         cancellation_reason = ""
         tree_result: Mapping[str, Any] = {}
+        container_termination: Mapping[str, Any] = {}
         try:
             while process.poll() is None:
                 state = pump.drain(timeout_seconds=0.025)
@@ -191,11 +256,30 @@ class DockerCliSandboxConnector:
                     termination = ProcessTermination.TIMED_OUT
                     cancellation_reason = "process deadline exceeded"
                 if termination is not ProcessTermination.EXITED:
+                    container_termination = self._terminate_container_command(
+                        envelope.command_id,
+                        grace_seconds=envelope.budget.cancel_grace_seconds,
+                    )
                     tree_result = self.tree.terminate(
                         process,
                         grace_seconds=envelope.budget.cancel_grace_seconds,
                         reason=cancellation_reason,
                     ).to_dict()
+                    if not bool(container_termination.get("stopped")):
+                        retry = self._terminate_container_command(
+                            envelope.command_id,
+                            grace_seconds=envelope.budget.cancel_grace_seconds,
+                        )
+                        container_termination = {
+                            **dict(container_termination),
+                            "retry": dict(retry),
+                            "stopped": bool(retry.get("stopped")),
+                        }
+                    if not bool(container_termination.get("stopped")):
+                        termination = ProcessTermination.TREE_LEAK
+                        cancellation_reason = (
+                            "container command process group could not be verified stopped"
+                        )
                     break
                 time.sleep(0.01)
             raw_output = pump.finish(
@@ -236,6 +320,11 @@ class DockerCliSandboxConnector:
                     "container_ref_digest": self.container_ref_digest,
                     "container_workdir": self.resolve_cwd(envelope.cwd),
                     "tree_termination": dict(tree_result),
+                    "container_termination": dict(container_termination),
+                    "container_process_tree_controlled": (
+                        termination is ProcessTermination.EXITED
+                        or bool(container_termination.get("stopped"))
+                    ),
                     "redaction_findings": [item.to_dict() for item in findings],
                     "shell": False,
                     "container_lifecycle_owner": "external-harness",
@@ -244,6 +333,7 @@ class DockerCliSandboxConnector:
         finally:
             with self._lock:
                 self._processes.pop(envelope.command_id, None)
+                self._command_tokens.pop(envelope.command_id, None)
             try:
                 process.stdout.close()
                 process.stderr.close()
@@ -251,6 +341,22 @@ class DockerCliSandboxConnector:
                 pass
 
     def command_argv(self, envelope: GatewayCommandEnvelope) -> list[str]:
+        command = self.raw_command_argv(envelope)
+        container_index = command.index(self.container)
+        prefix = command[: container_index + 1]
+        return [
+            *prefix,
+            "sh",
+            "-c",
+            _CONTAINER_COMMAND_WRAPPER,
+            "zyra-command-wrapper",
+            self._command_pid_file(envelope.command_id),
+            self._command_token(envelope.command_id),
+            envelope.executable,
+            *envelope.argv,
+        ]
+
+    def raw_command_argv(self, envelope: GatewayCommandEnvelope) -> list[str]:
         command = [
             self.docker_executable,
             "exec",
@@ -295,11 +401,127 @@ class DockerCliSandboxConnector:
             process = self._processes.get(command_id)
         if process is None:
             return False
-        return self.tree.terminate(
+        container_termination = self._terminate_container_command(
+            command_id,
+            grace_seconds=1.0,
+        )
+        local_stopped = self.tree.terminate(
             process,
             grace_seconds=1.0,
             reason=reason,
         ).stopped
+        if not bool(container_termination.get("stopped")):
+            container_termination = self._terminate_container_command(
+                command_id,
+                grace_seconds=1.0,
+            )
+        return local_stopped and bool(container_termination.get("stopped"))
+
+    def _terminate_container_command(
+        self,
+        command_id: str,
+        *,
+        grace_seconds: float,
+    ) -> Mapping[str, Any]:
+        pid_file = self._command_pid_file(command_id)
+        with self._lock:
+            command_token = self._command_tokens.get(command_id, "")
+        if not command_token:
+            return {
+                "stopped": False,
+                "pid_observed": False,
+                "read_error": "command_token_missing",
+            }
+        selected = ""
+        read_error = ""
+        for _attempt in range(3):
+            try:
+                observed = subprocess.run(
+                    [
+                        self.docker_executable,
+                        "exec",
+                        self.container,
+                        "sh",
+                        "-c",
+                        'cat "$1" 2>/dev/null || true',
+                        "zyra-command-observer",
+                        pid_file,
+                    ],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    timeout=10.0,
+                    shell=False,
+                    creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+                )
+            except (OSError, subprocess.TimeoutExpired) as error:
+                read_error = type(error).__name__
+                break
+            selected = observed.stdout.decode("utf-8", errors="replace").strip()
+            if selected:
+                break
+            time.sleep(0.05)
+        parts = selected.split()
+        if len(parts) != 2 or parts[0] not in {"group", "process"} or not parts[1].isdigit():
+            return {
+                "stopped": False,
+                "pid_observed": False,
+                "read_error": read_error,
+            }
+        mode, pid = parts
+        grace_ticks = max(1, min(300, int(max(0.1, grace_seconds) * 10)))
+        try:
+            stopped = subprocess.run(
+                [
+                    self.docker_executable,
+                    "exec",
+                    self.container,
+                    "sh",
+                    "-c",
+                    _CONTAINER_COMMAND_TERMINATOR,
+                    "zyra-command-terminator",
+                    mode,
+                    pid,
+                    pid_file,
+                    str(grace_ticks),
+                    command_token,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=max(10.0, float(grace_seconds) + 5.0),
+                shell=False,
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return {
+                "stopped": False,
+                "pid_observed": True,
+                "mode": mode,
+                "pid": pid,
+                "error_type": type(error).__name__,
+            }
+        return {
+            "stopped": stopped.returncode == 0 and b"controlled" in stopped.stdout,
+            "pid_observed": True,
+            "mode": mode,
+            "pid": pid,
+            "control_return_code": stopped.returncode,
+        }
+
+    @staticmethod
+    def _command_pid_file(command_id: str) -> str:
+        selected = hashlib.sha256(str(command_id).encode("utf-8")).hexdigest()[:32]
+        return f"/tmp/zyra-sandbox-command-{selected}.pid"
+
+    def _command_token(self, command_id: str) -> str:
+        with self._lock:
+            return self._command_tokens.setdefault(
+                command_id,
+                secrets.token_urlsafe(32),
+            )
 
     def _redact_output(self, output: ProcessOutput) -> tuple[ProcessOutput, tuple[Any, ...]]:
         reports = (

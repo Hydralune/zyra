@@ -534,9 +534,9 @@ class GatewayToolExecutionRouter:
         )
         timeout = _bounded_float(
             call.arguments.get("timeout_seconds"),
-            default=120.0,
+            default=self.bundle.policy_runtime.config.default_command_timeout_seconds,
             minimum=0.1,
-            maximum=43_200.0,
+            maximum=self.bundle.policy_runtime.config.maximum_command_timeout_seconds,
         )
         stdout_limit = _bounded_int(
             call.arguments.get("stdout_limit_bytes"),
@@ -766,12 +766,28 @@ class GatewayToolExecutionRouter:
             )
             signals = (signal,)
         metadata = self.bundle.event_projector.tool_metadata(integration_receipt, signals)
+        process_tree_controlled = (
+            process.metadata.get("container_process_tree_controlled") is True
+            if process.metadata.get("connector") == "docker-cli"
+            else True
+        )
+        settled_timeout = (
+            process.termination is ProcessTermination.TIMED_OUT
+            and process_tree_controlled
+        )
         metadata.update(
             {
                 "return_code": str(process.return_code),
                 "termination": process.termination.value,
                 "output_bounded": "true",
-                "process_tree_controlled": "true",
+                "process_tree_controlled": str(process_tree_controlled).lower(),
+                # A gateway timeout has a synchronously committed process and
+                # workspace receipt.  The child session remains quarantined,
+                # while the model may inspect the committed workspace through
+                # a new isolated command session and replan from the observed
+                # timeout instead of losing the entire agent run.
+                "command_timeout_settled": str(settled_timeout).lower(),
+                "model_recovery_allowed": str(settled_timeout).lower(),
             }
         )
         return ToolResult(

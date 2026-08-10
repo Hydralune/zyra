@@ -337,7 +337,12 @@ def execute_code_worker_operator(
             "Structured executable, argv, environment, and cwd fields remain available when "
             "they are clearer (for example executable=python, argv=[\"-m\",\"unittest\"], "
             "environment={\"PYTHONPATH\":\"src\"}, cwd=\".\"). Public HTTP/HTTPS access is "
-            "available for task dependencies. If SandboxGateway rejects a call, read its "
+            "available for task dependencies. Shell commands default to a 300-second "
+            "execution deadline. For a known long install, build, or test, set "
+            "timeout_seconds explicitly; the runtime caps it below the outer task "
+            "deadline. A timed-out command is terminated and returned as an observation, "
+            "so inspect the workspace and replan instead of abandoning the task. If "
+            "SandboxGateway rejects a call, read its "
             "reason and "
             "change the arguments rather than repeating the same call. "
             "Complete the task in the environment; do not merely describe what should "
@@ -385,6 +390,10 @@ def execute_code_worker_operator(
     }
     if benchmark_binding is not None:
         assert benchmark_mirror is not None
+        (
+            default_command_timeout_seconds,
+            maximum_command_timeout_seconds,
+        ) = _benchmark_command_timeout_budget(context)
         # PYTHONPATH is a common, non-secret test-runner input.  Keep the
         # exception scoped to the externally isolated benchmark container;
         # the default host gateway whitelist remains unchanged.
@@ -394,6 +403,12 @@ def execute_code_worker_operator(
         runtime_services["sandbox_gateway_allow_shell_composition"] = True
         runtime_services["sandbox_gateway_allow_public_http"] = True
         runtime_services["sandbox_gateway_default_command_network_profile"] = "public"
+        runtime_services["sandbox_gateway_default_command_timeout_seconds"] = (
+            default_command_timeout_seconds
+        )
+        runtime_services["sandbox_gateway_maximum_command_timeout_seconds"] = (
+            maximum_command_timeout_seconds
+        )
         runtime_services["sandbox_gateway_backend"] = DockerSandboxBackend(
             sandbox_gateway_state_root / "backend",
             _BenchmarkDockerCliSandboxConnector(
@@ -594,6 +609,20 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
             }
         )
     return constraints
+
+
+def _benchmark_command_timeout_budget(
+    context: Mapping[str, Any],
+) -> tuple[float, float]:
+    """Give long commands room without outliving the authoritative task deadline."""
+
+    raw_runtime_timeout = context.get("reasoning_timeout_seconds")
+    if raw_runtime_timeout in (None, "", 0, 0.0):
+        return (300.0, 3_600.0)
+    runtime_timeout = max(1.0, float(raw_runtime_timeout))
+    closeout_reserve = min(60.0, max(1.0, runtime_timeout * 0.1))
+    maximum = min(3_600.0, max(0.1, runtime_timeout - closeout_reserve))
+    return (min(300.0, maximum), maximum)
 
 
 _DROPPED_PUBLIC_EVENT_PHASES = frozenset(
