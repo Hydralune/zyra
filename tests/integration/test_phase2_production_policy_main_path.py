@@ -2289,6 +2289,26 @@ def test_permission_receipt_is_not_used_as_an_agent_lifetime() -> None:
     )
 
 
+def test_benchmark_agent_closeout_reserve_scales_without_a_turn_cap() -> None:
+    assert api._benchmark_agent_closeout_reserve_seconds(3_480) == 600.0
+    assert api._benchmark_agent_closeout_reserve_seconds(840) == 168.0
+    assert api._benchmark_agent_closeout_reserve_seconds(30) == 15.0
+    assert api._benchmark_deadline_closeout_reserve_seconds(3_480) == 660.0
+    assert api._benchmark_deadline_closeout_reserve_seconds(840) == 228.0
+    assert api._benchmark_deadline_closeout_reserve_seconds(30) == 75.0
+    active = SimpleNamespace(
+        metadata={
+            "runtime_hints": {
+                "external_deadline_epoch_ms": int(time.time() * 1000) + 60_000,
+                "benchmark_closeout_reserve_seconds": 120,
+            }
+        }
+    )
+    assert api._benchmark_deadline_closeout_active(active) is True
+    active.metadata["runtime_hints"]["benchmark_closeout_reserve_seconds"] = 10
+    assert api._benchmark_deadline_closeout_active(active) is False
+
+
 def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -2166,6 +2166,23 @@ def _recovery_continuation_owners(
                         "metadata": {"tool_dispatch_allowed": False, "event_only": False},
                     }
 
+                if _benchmark_deadline_closeout_active(state):
+                    return {
+                        "accepted": False,
+                        "changed": False,
+                        "error_code": "benchmark_deadline_closeout_active",
+                        "message": (
+                            "the benchmark closeout window is active; recovery "
+                            "cannot start another physical dispatch"
+                        ),
+                        "before": before,
+                        "after": before,
+                        "metadata": {
+                            "tool_dispatch_allowed": False,
+                            "event_only": False,
+                        },
+                    }
+
                 fences = dict(state.metadata.get("recovery_continuation_fences") or {})
                 existing = fences.get(idempotency_key)
                 if isinstance(existing, Mapping):
@@ -6773,6 +6790,20 @@ def _production_physical_dispatch_port(
             # only the same deadline's remaining time.
             "reasoning_timeout_seconds": reasoning_runtime_timeout_seconds,
             "external_deadline_epoch_ms": _external_deadline_epoch_ms(),
+            "benchmark_closeout_reserve_seconds": (
+                _benchmark_deadline_closeout_reserve_seconds(
+                    reasoning_runtime_timeout_seconds
+                )
+                if reasoning_runtime_timeout_seconds is not None
+                else None
+            ),
+            "benchmark_agent_closeout_reserve_seconds": (
+                _benchmark_agent_closeout_reserve_seconds(
+                    reasoning_runtime_timeout_seconds
+                )
+                if reasoning_runtime_timeout_seconds is not None
+                else None
+            ),
             "benchmark_long_horizon": benchmark_long_horizon,
         }
         execution_budget_ms = reasoning_transport_budget_ms
@@ -6805,6 +6836,45 @@ _BENCHMARK_CLOSEOUT_RESERVE_MS = 30_000
 # it to the orchestrator.  Sharing one deadline for both layers turns an
 # ordinary model-loop timeout into an ambiguous transport-boundary failure.
 _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS = 30_000
+
+
+def _benchmark_agent_closeout_reserve_seconds(
+    runtime_timeout_seconds: float,
+) -> float:
+    """Reserve a final provider round without imposing a fixed turn cap."""
+
+    runtime_timeout = max(1.0, float(runtime_timeout_seconds))
+    return min(
+        600.0,
+        max(30.0, runtime_timeout * 0.2),
+        runtime_timeout * 0.5,
+    )
+
+
+def _benchmark_deadline_closeout_reserve_seconds(
+    runtime_timeout_seconds: float,
+) -> float:
+    """Express finalization against the original external wall-clock deadline."""
+
+    return (
+        (_BENCHMARK_CLOSEOUT_RESERVE_MS + _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS)
+        / 1000.0
+        + _benchmark_agent_closeout_reserve_seconds(runtime_timeout_seconds)
+    )
+
+
+def _benchmark_deadline_closeout_active(state: Any) -> bool:
+    hints = dict(getattr(state, "metadata", {}).get("runtime_hints") or {})
+    try:
+        deadline = int(hints.get("external_deadline_epoch_ms") or 0)
+        reserve_seconds = float(
+            hints.get("benchmark_closeout_reserve_seconds") or 0.0
+        )
+    except (TypeError, ValueError):
+        return False
+    if deadline <= 0 or reserve_seconds <= 0:
+        return False
+    return int(time.time() * 1000) >= deadline - int(reserve_seconds * 1000)
 
 
 def _external_deadline_epoch_ms() -> int | None:
@@ -11199,6 +11269,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state, created_event = make_task_created_event(user_goal)
             session_id = str(payload.get("session_id") or f"task:{state.task_id}")
             state.metadata["query_session_id"] = session_id
+            external_deadline = _external_deadline_epoch_ms()
+            if external_deadline is not None:
+                runtime_remaining_seconds = max(
+                    1.0,
+                    (
+                        external_deadline
+                        - int(time.time() * 1000)
+                        - _BENCHMARK_CLOSEOUT_RESERVE_MS
+                        - _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS
+                    )
+                    / 1000.0,
+                )
+                state.metadata["runtime_hints"] = {
+                    **dict(state.metadata.get("runtime_hints") or {}),
+                    "external_deadline_epoch_ms": external_deadline,
+                    "benchmark_closeout_reserve_seconds": (
+                        _benchmark_deadline_closeout_reserve_seconds(
+                            runtime_remaining_seconds
+                        )
+                    ),
+                    "benchmark_agent_closeout_reserve_seconds": (
+                        _benchmark_agent_closeout_reserve_seconds(
+                            runtime_remaining_seconds
+                        )
+                    ),
+                }
             requested_mode = str(
                 payload.get("competition_mode")
                 or payload.get("execution_mode")

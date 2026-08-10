@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from zyra_orchestration import GraphExecutionContext, ensure_default_graph, run_
 from zyra_orchestration.task_graph import (
     _code_constraints,
     _consume_execution_retry_request,
+    _plan_runtime_recovery,
     _run_route_node,
     _worker_request_metadata,
 )
@@ -85,6 +87,33 @@ def _formal_route_context():
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_benchmark_closeout_window_stops_runtime_recovery_dispatch(self) -> None:
+        state = create_task_state("Do not exceed the external benchmark deadline.")
+        ensure_default_graph(state)
+        state.metadata["runtime_hints"] = {
+            "external_deadline_epoch_ms": int(time.time() * 1000) + 60_000,
+            "benchmark_closeout_reserve_seconds": 120,
+        }
+        execute_node = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "execute"
+        )
+
+        events = _plan_runtime_recovery(
+            state,
+            execute_node,
+            error=TimeoutError("runtime deadline reached"),
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0].payload["schema"],
+            "zyra.benchmark-deadline-terminal-recovery/v1",
+        )
+        self.assertFalse(events[0].payload["automatic_execution_retry_allowed"])
+        self.assertEqual(execute_node.metadata["recovery_plan"]["action"], "stop")
+
     def test_physical_recovery_budget_admits_three_provider_routes(self) -> None:
         state = create_task_state("Exercise the bounded provider fallback chain.")
 

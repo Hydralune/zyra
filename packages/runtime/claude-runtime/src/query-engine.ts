@@ -69,6 +69,56 @@ const TRANSIENT_CHECKPOINT_PHASES = new Set([
 const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
 const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
 
+interface BenchmarkDeadlineBudget {
+  deadlineEpochMs: number;
+  closeoutReserveMs: number;
+}
+
+function benchmarkDeadlineBudget(config: RuntimeConfig): BenchmarkDeadlineBudget | null {
+  if (!asBoolean(config.runtimeConstraints.benchmark_physical_dispatch)) return null;
+  const deadlineEpochMs = Number(config.runtimeConstraints.external_deadline_epoch_ms);
+  const closeoutReserveSeconds = Number(
+    config.runtimeConstraints.benchmark_closeout_reserve_seconds,
+  );
+  if (
+    !Number.isFinite(deadlineEpochMs)
+    || deadlineEpochMs <= 0
+    || !Number.isFinite(closeoutReserveSeconds)
+    || closeoutReserveSeconds <= 0
+  ) {
+    return null;
+  }
+  return {
+    deadlineEpochMs: Math.floor(deadlineEpochMs),
+    closeoutReserveMs: Math.max(1_000, Math.floor(closeoutReserveSeconds * 1_000)),
+  };
+}
+
+function deadlineCloseoutDue(budget: BenchmarkDeadlineBudget | null): boolean {
+  return budget !== null
+    && Date.now() >= budget.deadlineEpochMs - budget.closeoutReserveMs;
+}
+
+function deadlineCloseoutMessage(): string {
+  return [
+    "The authoritative benchmark deadline has entered its finalization window.",
+    "No more inspection or mutation is permitted, even if the original request",
+    "asked for another check.",
+    "Do not call any tool and do not emit tool-call markup, JSON, XML, DSML, or commands.",
+    "Use only the durable observations already returned by completed tools.",
+    "Return a concise plain-language final answer to the original request now.",
+  ].join(" ");
+}
+
+function deadlineFinalTextAttemptsToolCall(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return normalized.includes("<｜｜dsml｜｜tool_calls>")
+    || normalized.includes("<||dsml||tool_calls>")
+    || normalized.includes("<tool_call")
+    || normalized.includes("<function_calls")
+    || /["']tool_calls["']\s*:/.test(normalized);
+}
+
 interface SettledProviderResolution {
   model: ModelStreamResolution;
   round: ModelRoundRecord;
@@ -213,6 +263,8 @@ export class ClaudeRuntimeCore {
       api_retry_ok: "false",
       api_retry_recovered: "false",
     };
+    const benchmarkDeadline = benchmarkDeadlineBudget(config);
+    let deadlineCloseoutRequested = false;
 
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
       eventSequence += 1;
@@ -335,6 +387,139 @@ export class ClaudeRuntimeCore {
       return { model, round, truncationExhausted: false };
     };
 
+    const requestDeadlineFinalResponse = async (
+      baseMessages: JsonObject[],
+      turnIndex: number,
+    ): Promise<void> => {
+      if (!benchmarkDeadline) return;
+      deadlineCloseoutRequested = true;
+      const remainingMs = Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now());
+      providerMessages = [
+        ...baseMessages,
+        { role: "user", content: deadlineCloseoutMessage() },
+      ];
+      await emit("benchmark_deadline_closeout_requested", {
+        turn_index: turnIndex,
+        deadline_epoch_ms: benchmarkDeadline.deadlineEpochMs,
+        closeout_reserve_ms: benchmarkDeadline.closeoutReserveMs,
+        remaining_ms: remainingMs,
+        tools_advertised: 0,
+      });
+      const maximumAttempts = 2;
+      for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+        const finalRound = iteration.beginProviderRound({
+          requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+          model: config.modelName,
+          messages: providerMessages,
+        });
+        const finalModel = await resolveModelTurns(
+          input,
+          config,
+          [],
+          [],
+          emit,
+          (observation) => e01.decideProviderRecovery(observation),
+          e01.journal.restartEpoch,
+          (observation) => e01.completeProviderRecovery(observation),
+          (requestId) => e01.executePreparedProvider(requestId),
+          providerRoundIndex,
+          providerMessages,
+        );
+        providerRoundIndex += 1;
+        modelMetadata = {
+          ...finalModel.metadata,
+          model_provider_rounds: String(providerRoundIndex),
+        };
+        if (!finalModel.ok) {
+          iteration.failProviderRound(
+            finalRound.roundId,
+            finalModel.error ?? "model_stream_failed",
+          );
+          ok = false;
+          stoppedReason = "model_stream_failed";
+          await emit("error", {
+            error: stoppedReason,
+            detail: finalModel.error ?? "benchmark deadline finalization failed",
+            source: "benchmark_deadline_closeout",
+          });
+          return;
+        }
+        const attemptedToolCall = finalModel.turns.length > 0
+          || deadlineFinalTextAttemptsToolCall(finalModel.finalText);
+        if (attemptedToolCall) {
+          const retryAllowed = attempt < maximumAttempts
+            && benchmarkDeadline.deadlineEpochMs - Date.now() > 5_000;
+          if (retryAllowed) {
+            iteration.rejectProviderRoundForRetry(
+              finalRound.roundId,
+              "deadline_finalization_tool_call",
+            );
+            providerMessages = [
+              ...providerMessages,
+              {
+                role: "user",
+                content: [
+                  "Your previous response attempted a tool call, but tools are permanently disabled.",
+                  "Do not repeat or describe that call.",
+                  "Return only a short plain-language completion summary based on prior tool results.",
+                ].join(" "),
+              },
+            ];
+            await emit("benchmark_deadline_closeout_retry_requested", {
+              turn_index: turnIndex,
+              attempt,
+              next_attempt: attempt + 1,
+              maximum_attempts: maximumAttempts,
+              remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+              tools_advertised: 0,
+            });
+            continue;
+          }
+          iteration.failProviderRound(finalRound.roundId, "deadline_finalization_tool_call");
+          ok = false;
+          stoppedReason = "deadline_finalization_tool_call";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "provider attempted a tool call when no tools were advertised",
+            source: "benchmark_deadline_closeout",
+          });
+          return;
+        }
+        const settled = await settleProviderResolution(
+          finalModel,
+          finalRound,
+          false,
+          [],
+        );
+        if (!settled.model.ok || settled.truncationExhausted) {
+          iteration.failProviderRound(
+            settled.round.roundId,
+            settled.model.error ?? "deadline_finalization_truncated",
+          );
+          ok = false;
+          stoppedReason = settled.truncationExhausted
+            ? "deadline_finalization_truncated"
+            : "model_stream_failed";
+          await emit("error", {
+            error: stoppedReason,
+            detail: settled.model.error ?? "benchmark deadline final response was truncated",
+            source: "benchmark_deadline_closeout",
+          });
+          return;
+        }
+        activeIterationRoundId = null;
+        turns = [];
+        await emit("benchmark_deadline_closeout_completed", {
+          turn_index: turnIndex,
+          attempt,
+          remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+          tools_advertised: 0,
+          provider_round_index: providerRoundIndex - 1,
+        });
+        return;
+      }
+    };
+
     await emit(restored ? "context_restored" : "session_started", {
       restored: Boolean(restored),
       resume_process_id: processedResume?.processId ?? null,
@@ -344,6 +529,13 @@ export class ClaudeRuntimeCore {
       model_name: config.modelName,
       registry_size: registry.list().length,
     });
+    if (benchmarkDeadline) {
+      await emit("benchmark_deadline_budget_accepted", {
+        deadline_epoch_ms: benchmarkDeadline.deadlineEpochMs,
+        closeout_reserve_ms: benchmarkDeadline.closeoutReserveMs,
+        remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+      });
+    }
 
     const restoredControl = asObject(asObject(input.restoredState).typescriptControl);
     const controlRuntime = new TypeScriptControlRuntime(config.modelName, restoredControl);
@@ -443,7 +635,13 @@ export class ClaudeRuntimeCore {
       });
     }
 
-    if (ok) {
+    if (
+      ok
+      && modelTransport === "http_sse"
+      && deadlineCloseoutDue(benchmarkDeadline)
+    ) {
+      await requestDeadlineFinalResponse(providerMessages, -1);
+    } else if (ok) {
       const iterationRound = modelTransport === "http_sse"
         ? iteration.beginProviderRound({
           requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
@@ -515,6 +713,21 @@ export class ClaudeRuntimeCore {
     const restoredActiveTurn = session.activeTurnSnapshot();
     const initialTurnIndex = restoredActiveTurn?.turn_index ?? 0;
     for (let turnIndex = initialTurnIndex; ok && turnIndex < turns.length; turnIndex += 1) {
+      if (
+        modelTransport === "http_sse"
+        && activeIterationRoundId
+        && deadlineCloseoutDue(benchmarkDeadline)
+      ) {
+        // The provider proposed this tool turn before the closeout boundary,
+        // but the boundary arrived before execution began.  Finalize from the
+        // last valid request transcript rather than starting a new side effect.
+        iteration.abandonPlannedToolRoundForFinalization(
+          activeIterationRoundId,
+          "benchmark_deadline_closeout",
+        );
+        await requestDeadlineFinalResponse(providerMessages, turnIndex);
+        break;
+      }
       const queryDecision = e01.decideQuery("turn_preflight", {
         turnIndex,
         turnLimit,
@@ -1569,12 +1782,16 @@ export class ClaudeRuntimeCore {
         && activeIterationRoundId
         && (turnLimit === null || turnIndex + 1 <= turnLimit)
       ) {
-        const finalResponseOnly = turnLimit !== null && turnIndex + 1 === turnLimit;
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
         if (pendingRestoreProviderMessage) {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
           pendingRestoreProviderMessage = null;
         }
+        if (deadlineCloseoutDue(benchmarkDeadline)) {
+          await requestDeadlineFinalResponse(providerMessages, turnIndex);
+          continue;
+        }
+        const finalResponseOnly = turnLimit !== null && turnIndex + 1 === turnLimit;
         if (finalResponseOnly) {
           providerMessages = [
             ...providerMessages,
@@ -1792,6 +2009,7 @@ export class ClaudeRuntimeCore {
         tool_conflict_protected: String(toolConflictProtected),
         repeated_tool_failure_trips: String(repeatedToolFailureTrips),
         invalid_argument_retry_trips: String(invalidArgumentRetryTrips),
+        benchmark_deadline_closeout_requested: String(deadlineCloseoutRequested),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),

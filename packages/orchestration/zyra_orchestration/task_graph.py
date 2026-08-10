@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from collections.abc import Sequence
@@ -1348,6 +1349,31 @@ def _plan_runtime_recovery(
     worker_result: Any | None = None,
     error: BaseException | None = None,
 ) -> list[EventRecord]:
+    if _benchmark_deadline_closeout_active(state):
+        deadline = int(_runtime_hints(state).get("external_deadline_epoch_ms") or 0)
+        node.metadata["recovery_plan"] = {
+            "schema": "zyra.benchmark-deadline-terminal-recovery/v1",
+            "action": "stop",
+            "automatic_execution_retry_allowed": False,
+            "external_deadline_epoch_ms": deadline,
+        }
+        return [
+            EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.SYSTEM_NOTICE,
+                node_id=node.node_id,
+                payload={
+                    "schema": "zyra.benchmark-deadline-terminal-recovery/v1",
+                    "summary": (
+                        "The benchmark closeout window is active; no recovery "
+                        "dispatch will start beyond the authoritative budget."
+                    ),
+                    "automatic_execution_retry_allowed": False,
+                    "external_deadline_epoch_ms": deadline,
+                },
+            )
+        ]
     try:
         from zyra_scheduler import RecoveryPlanner, RuntimeWatchdog
     except Exception:  # noqa: BLE001 - recovery planner should not hide the original worker failure.
@@ -1519,6 +1545,20 @@ def _worker_request_metadata(
 def _runtime_hints(state: TaskState) -> dict[str, Any]:
     hints = state.metadata.get("runtime_hints")
     return dict(hints) if isinstance(hints, dict) else {}
+
+
+def _benchmark_deadline_closeout_active(state: TaskState) -> bool:
+    hints = _runtime_hints(state)
+    try:
+        deadline = int(hints.get("external_deadline_epoch_ms") or 0)
+        reserve_seconds = float(
+            hints.get("benchmark_closeout_reserve_seconds") or 0.0
+        )
+    except (TypeError, ValueError):
+        return False
+    if deadline <= 0 or reserve_seconds <= 0:
+        return False
+    return int(time.time() * 1000) >= deadline - int(reserve_seconds * 1000)
 
 
 def _loopx_continuation(state: TaskState) -> dict[str, Any]:

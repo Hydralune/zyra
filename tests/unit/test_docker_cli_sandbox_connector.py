@@ -119,13 +119,28 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             code_worker_adapter._benchmark_command_timeout_budget(
                 {"reasoning_timeout_seconds": 840}
             ),
-            (300.0, 780.0),
+            (300.0, 672.0),
         )
         self.assertEqual(
             code_worker_adapter._benchmark_command_timeout_budget(
                 {"reasoning_timeout_seconds": 30}
             ),
-            (27.0, 27.0),
+            (15.0, 15.0),
+        )
+
+    def test_benchmark_deadline_propagates_active_closeout_budget(self) -> None:
+        context = {
+            "reasoning_timeout_seconds": 3_480,
+            "external_deadline_epoch_ms": 9_999_999_999_999,
+            "benchmark_closeout_reserve_seconds": 660,
+            "benchmark_agent_closeout_reserve_seconds": 600,
+        }
+        constraints = code_worker_adapter._benchmark_runtime_constraints(context)
+        self.assertEqual(constraints["external_deadline_epoch_ms"], 9_999_999_999_999)
+        self.assertEqual(constraints["benchmark_closeout_reserve_seconds"], 660.0)
+        self.assertEqual(
+            code_worker_adapter._benchmark_command_timeout_budget(context),
+            (300.0, 2_880.0),
         )
 
     def test_production_reasoning_budget_is_open_without_an_explicit_deadline(self) -> None:

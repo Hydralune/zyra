@@ -468,6 +468,62 @@ export class ModelIterationRuntime {
     return clone(this.transcript);
   }
 
+  abandonPlannedToolRoundForFinalization(roundId: string, reason: string): ModelRoundRecord {
+    this.assertOperational("abandon planned tool round for finalization");
+    const round = this.requireActiveRound(roundId, "tools_running");
+    const error = required(reason, "tool round finalization reason");
+    for (const callId of round.toolCallIds) {
+      const tool = this.requireTool(callId);
+      if (tool.state !== "planned") {
+        throw new Error(`tool ${callId} already entered execution from ${tool.state}`);
+      }
+    }
+    for (const callId of round.toolCallIds) {
+      const tool = this.requireTool(callId);
+      tool.state = "cancelled";
+      tool.error = error;
+      tool.completedAt = timestamp();
+      tool.resultDigest = digest({ error, call_id: callId, round_id: roundId });
+      tool.revision += 1;
+    }
+    const abandonedMessage = this.transcript.at(-1);
+    if (
+      !abandonedMessage
+      || asString(asObject(abandonedMessage.metadata).model_round_id) !== roundId
+    ) {
+      throw new Error("planned tool round is not the latest transcript message");
+    }
+    const abandonedMessageDigest = digest(abandonedMessage);
+    this.transcript.pop();
+    round.state = "failed";
+    round.error = error;
+    round.completedAt = timestamp();
+    round.messageCountAfter = this.transcript.length;
+    round.revision += 1;
+    this.activeRoundId = null;
+    this.phase = "ready";
+    this.commit("provider.round.tools_abandoned_for_finalization", roundId, {
+      reason: error,
+      tool_call_ids: round.toolCallIds,
+      abandoned_message_digest: abandonedMessageDigest,
+    });
+    return clone(round);
+  }
+
+  rejectProviderRoundForRetry(roundId: string, reason: string): ModelRoundRecord {
+    this.assertOperational("reject provider round for retry");
+    const round = this.requireActiveRound(roundId, "provider_running");
+    const error = required(reason, "provider retry reason");
+    round.state = "failed";
+    round.error = error;
+    round.completedAt = timestamp();
+    round.revision += 1;
+    this.activeRoundId = null;
+    this.phase = "ready";
+    this.commit("provider.round.rejected_for_retry", roundId, { reason: error });
+    return clone(round);
+  }
+
   failProviderRound(roundId: string, error: string): void {
     const round = this.requireRound(roundId);
     if (round.state === "completed" || round.state === "failed") return;

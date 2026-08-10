@@ -600,6 +600,16 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
     """Carry bounded, externally verified benchmark settings across processes."""
 
     constraints: dict[str, Any] = {"benchmark_physical_dispatch": True}
+    deadline = context.get("external_deadline_epoch_ms")
+    if deadline not in (None, "", 0, 0.0):
+        constraints.update(
+            {
+                "external_deadline_epoch_ms": int(deadline),
+                "benchmark_closeout_reserve_seconds": (
+                    _benchmark_deadline_closeout_reserve_seconds(context)
+                ),
+            }
+        )
     if context.get("benchmark_long_horizon") is True:
         constraints.update(
             {
@@ -611,6 +621,33 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
     return constraints
 
 
+def _benchmark_agent_closeout_reserve_seconds(context: Mapping[str, Any]) -> float:
+    explicit = context.get("benchmark_agent_closeout_reserve_seconds")
+    if explicit not in (None, "", 0, 0.0):
+        return max(1.0, float(explicit))
+    raw_runtime_timeout = context.get("reasoning_timeout_seconds")
+    if raw_runtime_timeout in (None, "", 0, 0.0):
+        return 600.0
+    runtime_timeout = max(1.0, float(raw_runtime_timeout))
+    return min(
+        600.0,
+        max(30.0, runtime_timeout * 0.2),
+        runtime_timeout * 0.5,
+    )
+
+
+def _benchmark_deadline_closeout_reserve_seconds(
+    context: Mapping[str, Any],
+) -> float:
+    explicit = context.get("benchmark_closeout_reserve_seconds")
+    if explicit not in (None, "", 0, 0.0):
+        return max(1.0, float(explicit))
+    # Direct adapter callers do not know the API transport constants.  When
+    # the original absolute deadline is present, retain the same two 30-second
+    # outer reserves used by the production API.
+    return 60.0 + _benchmark_agent_closeout_reserve_seconds(context)
+
+
 def _benchmark_command_timeout_budget(
     context: Mapping[str, Any],
 ) -> tuple[float, float]:
@@ -620,7 +657,7 @@ def _benchmark_command_timeout_budget(
     if raw_runtime_timeout in (None, "", 0, 0.0):
         return (300.0, 3_600.0)
     runtime_timeout = max(1.0, float(raw_runtime_timeout))
-    closeout_reserve = min(60.0, max(1.0, runtime_timeout * 0.1))
+    closeout_reserve = _benchmark_agent_closeout_reserve_seconds(context)
     maximum = min(3_600.0, max(0.1, runtime_timeout - closeout_reserve))
     return (min(300.0, maximum), maximum)
 

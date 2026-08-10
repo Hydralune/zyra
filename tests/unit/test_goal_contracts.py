@@ -205,6 +205,12 @@ def test_delivery_contract_does_not_invent_paths_from_container_paths_emails_or_
     )
     assert relative.required_paths == ("meeting_scheduled.ics",)
 
+    hyphenated_absolute = goal_delivery_contract(
+        "Create /workspace/deadline-proof.txt and verify it."
+    )
+    assert hyphenated_absolute.workspace_mutation_required is True
+    assert hyphenated_absolute.required_paths == ()
+
 
 def test_delivery_contract_rejects_synthetic_provider_usage(tmp_path) -> None:
     goal = "分析当前任务并给出结论"

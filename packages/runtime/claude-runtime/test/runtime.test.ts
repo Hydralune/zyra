@@ -608,6 +608,264 @@ test("runtime continues a length-truncated provider turn before accepting comple
   }
 });
 
+test("benchmark deadline closeout removes tools and returns a final response", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const payload = {
+      id: "deadline-closeout-provider",
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{
+        index: 0,
+        delta: { content: "Completed from durable workspace state." },
+        finish_reason: "stop",
+      }],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          benchmark_physical_dispatch: true,
+          external_deadline_epoch_ms: Date.now() + 60_000,
+          benchmark_closeout_reserve_seconds: 120,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBodies.length, 1);
+    assert.equal(((requestBodies[0].tools as unknown[]) ?? []).length, 0);
+    assert.equal(host.batches.length, 0);
+    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "true");
+    assert.ok(host.events.some((event) =>
+      event.phase === "benchmark_deadline_budget_accepted"
+    ));
+    assert.ok(host.events.some((event) =>
+      event.phase === "benchmark_deadline_closeout_requested"
+      && event.tools_advertised === 0
+    ));
+    assert.ok(host.events.some((event) =>
+      event.phase === "benchmark_deadline_closeout_completed"
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("benchmark deadline outside closeout keeps the open tool loop", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const requestCount = requestBodies.length;
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "deadline-far-read",
+            type: "function",
+            function: { name: "read", arguments: JSON.stringify({ path: "a" }) },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : {
+        index: 0,
+        delta: { content: "Normal tool loop completed." },
+        finish_reason: "stop",
+      };
+    const payload = {
+      id: `deadline-far-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          benchmark_physical_dispatch: true,
+          external_deadline_epoch_ms: Date.now() + 600_000,
+          benchmark_closeout_reserve_seconds: 60,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBodies.length, 2);
+    assert.ok(((requestBodies[0].tools as unknown[]) ?? []).length > 0);
+    assert.equal(host.batches.length, 1);
+    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "false");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("benchmark deadline closeout retries textual DSML instead of accepting it", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const content = requestCount === 1
+      ? '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="shell">late inspection</｜｜DSML｜｜invoke>'
+      : "The requested artifact and required wait completed successfully.";
+    const payload = {
+      id: `deadline-dsml-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{ index: 0, delta: { content }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          benchmark_physical_dispatch: true,
+          external_deadline_epoch_ms: Date.now() + 120_000,
+          benchmark_closeout_reserve_seconds: 180,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBodies.length, 2);
+    assert.ok(requestBodies.every((body) =>
+      ((body.tools as unknown[]) ?? []).length === 0
+    ));
+    assert.equal(host.batches.length, 0);
+    assert.ok(host.events.some((event) =>
+      event.phase === "benchmark_deadline_closeout_retry_requested"
+      && event.tools_advertised === 0
+    ));
+    assert.ok(host.events.some((event) =>
+      event.phase === "benchmark_deadline_closeout_completed"
+      && event.attempt === 2
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("benchmark deadline crossing fences an unexecuted provider tool turn", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let nowMs = 2_000_000_000_000;
+  let requestCount = 0;
+  const requestBodies: JsonObject[] = [];
+  Date.now = () => nowMs;
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "late-tool-proposal",
+            type: "function",
+            function: { name: "write", arguments: JSON.stringify({ path: "late", content: "no" }) },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : {
+        index: 0,
+        delta: { content: "Finalized without starting the late side effect." },
+        finish_reason: "stop",
+      };
+    if (requestCount === 1) nowMs += 100_000;
+    const payload = {
+      id: `deadline-crossing-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          benchmark_physical_dispatch: true,
+          external_deadline_epoch_ms: nowMs + 120_000,
+          benchmark_closeout_reserve_seconds: 60,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBodies.length, 2);
+    assert.ok(((requestBodies[0].tools as unknown[]) ?? []).length > 0);
+    assert.equal(((requestBodies[1].tools as unknown[]) ?? []).length, 0);
+    assert.equal(host.batches.length, 0);
+    assert.equal(result.toolCallCount, 0);
+    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "true");
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("runtime fails closed after bounded length continuations are exhausted", async () => {
   const originalFetch = globalThis.fetch;
   let requestCount = 0;
