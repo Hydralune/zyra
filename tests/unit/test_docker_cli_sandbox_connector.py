@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import unittest
@@ -342,24 +343,96 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "sync_root": sync_root,
             }
 
-            def fake_docker(_binding, argv, **_kwargs):
-                destination = Path(argv[2])
-                destination.joinpath(".git").mkdir()
-                destination.joinpath(".git", "HEAD").write_text(
+            def fake_archive(_binding, archive_path, **_kwargs):
+                source = root / "archive-source"
+                source.joinpath(".git").mkdir(parents=True)
+                source.joinpath(".git", "HEAD").write_text(
                     "ref: refs/heads/master\n", encoding="utf-8"
                 )
-                destination.joinpath("site.txt").write_text("live", encoding="utf-8")
-                return subprocess.CompletedProcess(argv, 0, b"", b"")
+                source.joinpath("site.txt").write_text("live", encoding="utf-8")
+                with tarfile.open(archive_path, "w") as archive:
+                    archive.add(source, arcname=".")
 
             with patch.object(
                 code_worker_adapter,
-                "_run_benchmark_docker",
-                side_effect=fake_docker,
+                "_run_benchmark_docker_archive",
+                side_effect=fake_archive,
             ):
                 code_worker_adapter._pull_benchmark_workspace(binding, workspace)
             self.assertFalse((workspace / "stale.txt").exists())
             self.assertEqual((workspace / "site.txt").read_text(encoding="utf-8"), "live")
             self.assertTrue((workspace / ".git" / "HEAD").is_file())
+
+    def test_container_pull_streams_a_dereferenced_tar_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            archive_path = Path(temporary) / "workspace.tar"
+            binding = {
+                "container": "task-main-1",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+            }
+            completed = subprocess.CompletedProcess([], 0, None, b"")
+            with patch(
+                "zyra_orchestration.deployment.code_worker_adapter.subprocess.run",
+                return_value=completed,
+            ) as run:
+                code_worker_adapter._run_benchmark_docker_archive(
+                    binding,
+                    archive_path,
+                    timeout_seconds=300.0,
+                )
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "docker-test",
+                "exec",
+                "task-main-1",
+                "tar",
+                "-chf",
+                "-",
+                "-C",
+                "/app",
+                ".",
+            ],
+        )
+        self.assertEqual(run.call_args.kwargs["timeout"], 300.0)
+
+    def test_container_pull_rejects_an_unresolved_symlink_before_replacing_mirror(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            workspace.joinpath("preserved.txt").write_text("safe", encoding="utf-8")
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+
+            def fake_archive(_binding, archive_path, **_kwargs):
+                with tarfile.open(archive_path, "w") as archive:
+                    link = tarfile.TarInfo("venv/bin/python")
+                    link.type = tarfile.SYMTYPE
+                    link.linkname = "python3"
+                    archive.addfile(link)
+
+            with patch.object(
+                code_worker_adapter,
+                "_run_benchmark_docker_archive",
+                side_effect=fake_archive,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "unsafe or unresolved"):
+                    code_worker_adapter._pull_benchmark_workspace(binding, workspace)
+            self.assertEqual(
+                workspace.joinpath("preserved.txt").read_text(encoding="utf-8"),
+                "safe",
+            )
 
     def test_host_file_delta_is_pushed_with_structured_docker_argv(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -418,7 +491,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 },
             )
 
-    def test_benchmark_shell_is_ordered_between_mirror_push_and_pull(self) -> None:
+    def test_benchmark_shell_pushes_before_execution_and_defers_pull(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             data_root = root / "data"
@@ -501,7 +574,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 result = connector.execute(session, envelope, CancellationToken())
 
             self.assertIs(result, expected)
-            self.assertEqual(calls, ["push", "execute", "pull"])
+            self.assertEqual(calls, ["push", "execute"])
             self.assertEqual(mirror.report()["ordering"], "live-serialized")
 
     def test_benchmark_file_port_pulls_before_read_and_pushes_after_apply(self) -> None:
@@ -537,7 +610,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         ):
             self.assertIs(port.apply(()), apply_result)
 
-        self.assertEqual(calls, ["pull", "read", "apply", "push"])
+        self.assertEqual(calls, ["pull", "read", "pull", "apply", "push"])
 
     def test_benchmark_permission_rule_is_exactly_session_and_workspace_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

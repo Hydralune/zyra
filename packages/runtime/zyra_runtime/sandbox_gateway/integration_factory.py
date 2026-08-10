@@ -163,6 +163,12 @@ def build_gateway_runtime_bundle(
         services.get("sandbox_gateway_required", services.get("workspace_gateway_required", True))
     )
     sealed = bool(services.get("sandbox_gateway_sealed", False))
+    allow_shell_composition = bool(
+        services.get("sandbox_gateway_allow_shell_composition", False)
+    )
+    default_command_network_profile = str(
+        services.get("sandbox_gateway_default_command_network_profile") or "offline"
+    ).strip()
     state_root = Path(
         services.get("sandbox_gateway_state_root")
         or artifacts / ".sandbox-gateway" / _safe_segment(worker_id)
@@ -200,6 +206,28 @@ def build_gateway_runtime_bundle(
                 allow_link_local=False,
                 require_approval=True,
             ),
+            NetworkProfile(
+                profile_id="public",
+                allowed_schemes=(
+                    frozenset({"http", "https"})
+                    if bool(services.get("sandbox_gateway_allow_public_http", False))
+                    else frozenset({"https"})
+                ),
+                allowed_hosts=frozenset(
+                    str(item)
+                    for item in services.get("sandbox_gateway_allowed_hosts", ())
+                    if str(item)
+                ),
+                denied_hosts=frozenset(
+                    str(item)
+                    for item in services.get("sandbox_gateway_denied_hosts", ())
+                    if str(item)
+                ),
+                allow_private=False,
+                allow_loopback=False,
+                allow_link_local=False,
+                require_approval=True,
+            ),
         )
     )
     command_policy = StructuredCommandPolicy(
@@ -208,6 +236,7 @@ def build_gateway_runtime_bundle(
             allow_read_only_without_human=True,
             sealed_mode_denies_ask=True,
             deny_direct_shell_strings=False,
+            allow_shell_composition=allow_shell_composition,
             deny_destructive=True,
             require_permission_for_all_commands=True,
             allowed_environment_keys=(
@@ -249,6 +278,8 @@ def build_gateway_runtime_bundle(
         workspace_root=workspace,
         allow_public_https=bool(services.get("sandbox_gateway_allow_public_https", True)),
         allow_public_http=bool(services.get("sandbox_gateway_allow_public_http", False)),
+        allow_shell_composition=allow_shell_composition,
+        default_command_network_profile=default_command_network_profile,
         allow_private_network=bool(services.get("sandbox_gateway_allow_private_network", False)),
         allow_loopback_network=bool(services.get("sandbox_gateway_allow_loopback_network", False)),
         allow_file_urls=False,

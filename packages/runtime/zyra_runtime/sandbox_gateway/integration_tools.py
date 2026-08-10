@@ -4,13 +4,14 @@ import mimetypes
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence, TYPE_CHECKING
 
 from ..executor import ToolCall, ToolResult
 from .artifact_port import FileArtifactRequest
 from .canonical import content_digest as gateway_content_digest
+from .errors import GatewayErrorCode, SandboxGatewayError
 from .models import (
     CommandBudget,
     GatewayCommandEnvelope,
@@ -68,6 +69,7 @@ class _CommandJob:
     job_id: str
     command_id: str
     session_id: str
+    parent_session_id: str
     run_id: str
     task_id: str
     submitted_at: float
@@ -99,6 +101,8 @@ class GatewayToolExecutionRouter:
         )
         self._jobs_lock = threading.RLock()
         self._jobs: dict[str, _CommandJob] = {}
+        self._session_cleanup_lock = threading.RLock()
+        self._pending_session_cleanup: set[str] = set()
         self._job_pool = ThreadPoolExecutor(
             max_workers=4,
             thread_name_prefix="zyra-sandbox-command",
@@ -237,6 +241,8 @@ class GatewayToolExecutionRouter:
     def cancel(self, session_id: str, command_id: str, *, reason: str) -> bool:
         if self._host_runtime.cancel(command_id, reason=reason):
             return True
+        if session_id not in self.bundle.state_store.snapshot().get("sessions", {}):
+            return False
         return self.bundle.runtime.cancel(session_id, command_id, reason=reason)
 
     def cancel_all(self, *, reason: str) -> int:
@@ -282,16 +288,27 @@ class GatewayToolExecutionRouter:
         executable, argv, _environment, _cwd = self.bundle.policy_runtime.command_from_arguments(
             call.arguments
         )
+        parent_session_id = identity.session_id
+        command_identity = replace(
+            identity,
+            session_id=_filesystem_safe_session_id(
+                stable_identifier(
+                    "gateway-command-session",
+                    parent_session_id,
+                    call.tool_call_id,
+                )
+            ),
+        )
         command_id = stable_identifier(
             "gateway-command",
-            identity.binding_digest,
+            command_identity.binding_digest,
             call.tool_call_id,
             executable,
             argv,
         )
         job_id = stable_identifier(
             "gateway-command-job",
-            identity.session_id,
+            parent_session_id,
             command_id,
         )
         with self._jobs_lock:
@@ -299,9 +316,9 @@ class GatewayToolExecutionRouter:
             if job is None:
                 cancellation = threading.Event()
                 future = self._job_pool.submit(
-                    self._shell_sync,
+                    self._shell_sync_and_close,
                     call,
-                    identity,
+                    command_identity,
                     cancellation_event=cancellation,
                     permission_grant=permission_grant,
                     permission_authority=permission_authority,
@@ -310,7 +327,8 @@ class GatewayToolExecutionRouter:
                 job = _CommandJob(
                     job_id=job_id,
                     command_id=command_id,
-                    session_id=identity.session_id,
+                    session_id=command_identity.session_id,
+                    parent_session_id=parent_session_id,
                     run_id=identity.run_id,
                     task_id=identity.task_id,
                     submitted_at=time.time(),
@@ -345,7 +363,7 @@ class GatewayToolExecutionRouter:
             job = self._jobs.get(job_id)
         if job is None:
             return self._error(call, "shell_job_not_found", "unknown or expired shell job_id")
-        if (job.session_id, job.run_id, job.task_id) != (
+        if (job.parent_session_id, job.run_id, job.task_id) != (
             identity.session_id,
             identity.run_id,
             identity.task_id,
@@ -470,6 +488,35 @@ class GatewayToolExecutionRouter:
         for job in completed[: max(0, len(self._jobs) - 256)]:
             self._jobs.pop(job.job_id, None)
 
+    def _queue_command_session_cleanup(self, session_id: str) -> None:
+        """Close completed sessions once the shared backend has no live process."""
+
+        with self._session_cleanup_lock:
+            self._pending_session_cleanup.add(session_id)
+            known_sessions = self.bundle.state_store.snapshot().get("sessions", {})
+            for pending_session_id in tuple(sorted(self._pending_session_cleanup)):
+                if pending_session_id not in known_sessions:
+                    self._pending_session_cleanup.discard(pending_session_id)
+                    continue
+                try:
+                    self.bundle.runtime.close_session(pending_session_id)
+                except SandboxGatewayError as error:
+                    if error.code is GatewayErrorCode.PROCESS_TREE_LEAK:
+                        continue
+                    raise
+                self._pending_session_cleanup.discard(pending_session_id)
+
+    def _shell_sync_and_close(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        **kwargs: Any,
+    ) -> ToolResult:
+        try:
+            return self._shell_sync(call, identity, **kwargs)
+        finally:
+            self._queue_command_session_cleanup(identity.session_id)
+
     def _shell_sync(
         self,
         call: ToolCall,
@@ -541,7 +588,10 @@ class GatewayToolExecutionRouter:
             workspace_id=identity.workspace_id,
             owner_epoch=identity.owner_epoch,
             fence_digest=_workspace_fence_digest(self.bundle.workspace_edit_port),
-            network_profile=str(call.arguments.get("network_profile") or "offline"),
+            network_profile=str(
+                call.arguments.get("network_profile")
+                or self.bundle.policy_runtime.config.default_command_network_profile
+            ),
             provenance_ref=str(call.metadata.get("provenance_ref") or ""),
             idempotency_key=str(call.arguments.get("idempotency_key") or call.tool_call_id),
             causation_id=call.tool_call_id,

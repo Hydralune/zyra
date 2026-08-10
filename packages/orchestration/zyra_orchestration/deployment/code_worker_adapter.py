@@ -7,6 +7,7 @@ import os
 import posixpath
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import threading
 from pathlib import Path
@@ -326,17 +327,18 @@ def execute_code_worker_operator(
             "OFFICIAL BENCHMARK ENVIRONMENT: The shell tool is physically bound to "
             "the canonical external task container. Use shell commands for repository "
             "inspection, Git operations, tests, and delivery. File tools and shell "
-            "commands share one live, ordered view of that container workspace. Each "
+            "commands share one coherent view of that container workspace. Each "
             "file tool may use either a workspace-relative path or a container-absolute "
             f"path beneath {benchmark_binding['workdir']}; the runtime securely maps "
             "the latter to the managed mirror. Every shell call already starts in "
             f"{benchmark_binding['workdir']}; do not prefix it with cd. "
-            "Each shell call must be one executable command without redirects, pipes, &&, "
-            "||, or command substitution. When a command needs an environment or a "
-            "subdirectory, use the shell tool's structured executable, argv, environment, "
-            "and cwd fields (for example executable=python, argv=[\"-m\",\"unittest\"], "
-            "environment={\"PYTHONPATH\":\"src\"}, cwd=\".\"); use file_write/file_read "
-            "for file contents. If SandboxGateway rejects a call, read its reason and "
+            "Ordinary shell pipelines, redirects, command chaining, and command substitution "
+            "are available inside this disposable task container after exact tool approval. "
+            "Structured executable, argv, environment, and cwd fields remain available when "
+            "they are clearer (for example executable=python, argv=[\"-m\",\"unittest\"], "
+            "environment={\"PYTHONPATH\":\"src\"}, cwd=\".\"). Public HTTP/HTTPS access is "
+            "available for task dependencies. If SandboxGateway rejects a call, read its "
+            "reason and "
             "change the arguments rather than repeating the same call. "
             "Complete the task in the environment; do not merely describe what should "
             "be done."
@@ -389,6 +391,9 @@ def execute_code_worker_operator(
         runtime_services["sandbox_gateway_allowed_environment_keys"] = (
             "PYTHONPATH",
         )
+        runtime_services["sandbox_gateway_allow_shell_composition"] = True
+        runtime_services["sandbox_gateway_allow_public_http"] = True
+        runtime_services["sandbox_gateway_default_command_network_profile"] = "public"
         runtime_services["sandbox_gateway_backend"] = DockerSandboxBackend(
             sandbox_gateway_state_root / "backend",
             _BenchmarkDockerCliSandboxConnector(
@@ -1228,9 +1233,9 @@ class _BenchmarkWorkspaceMirror:
 
     The external harness owns the canonical container.  File tools still pass
     through WorkspaceManager for transaction and evidence custody, so this
-    bridge synchronizes that managed mirror at every file/shell boundary.  A
-    shared lock gives mixed tool calls one physical ordering instead of the
-    former end-of-run eventual consistency.
+    bridge synchronizes that managed mirror at file/shell boundaries.  A
+    shared lock orders the short synchronization phases without serializing
+    the complete lifetime of independent background commands.
     """
 
     def __init__(
@@ -1308,13 +1313,14 @@ class _BenchmarkWorkspaceEditPort(WorkspaceEditPort):
 
     def apply(self, *args: Any, **kwargs: Any) -> Any:
         with self._benchmark_mirror.guard:
+            self._benchmark_mirror.pull_from_container()
             result = super().apply(*args, **kwargs)
             self._benchmark_mirror.push_to_container()
             return result
 
 
 class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
-    """Serialize shell execution with the managed file-tool mirror."""
+    """Synchronize shell dispatch with the managed file-tool mirror."""
 
     def __init__(
         self,
@@ -1328,10 +1334,7 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
     def execute(self, *args: Any, **kwargs: Any) -> Any:
         with self._benchmark_mirror.guard:
             self._benchmark_mirror.push_to_container()
-            try:
-                return super().execute(*args, **kwargs)
-            finally:
-                self._benchmark_mirror.pull_from_container()
+        return super().execute(*args, **kwargs)
 
 
 def _benchmark_docker_binding(
@@ -1384,11 +1387,12 @@ def _benchmark_permission_policy(
     Autonomous physical workers cannot answer an interactive ``ASK``.  Normal
     deployments therefore fail closed for unruled shell use.  An official
     benchmark binding is different: the external harness owns a disposable
-    container and the structured Docker gateway independently rejects shell
-    control syntax, path escape, destructive Git, and network Git.  This rule
-    gives the canonical TypeScript permission owner authority to issue exact,
-    one-use grants for the remaining commands, scoped to one physical session
-    and its managed mirror workspace.
+    container and the structured Docker gateway still rejects path escape,
+    private-network access, unsafe control targets, and destructive Git.  This
+    rule gives the canonical TypeScript permission owner authority to issue
+    exact, one-use grants, including ordinary shell composition and public
+    dependency downloads, scoped to one physical session and its managed
+    mirror workspace.
     """
 
     resolved_workspace = workspace_root.resolve()
@@ -1440,17 +1444,31 @@ def _pull_benchmark_workspace(
             dir=_required_path(binding.get("sync_root"), "benchmark sync root"),
         )
     ).resolve()
+    archive_path = Path(f"{staging}.tar").resolve()
     try:
-        _run_benchmark_docker(
+        _run_benchmark_docker_archive(
             binding,
-            (
-                "cp",
-                f"{binding['container']}:{binding['workdir']}/.",
-                str(staging),
-            ),
-            operation="benchmark_workspace_pull",
+            archive_path,
             timeout_seconds=300.0,
         )
+        with tarfile.open(archive_path, mode="r:") as archive:
+            members = archive.getmembers()
+            for member in members:
+                logical_name = str(member.name).replace("\\", "/")
+                parts = tuple(part for part in logical_name.split("/") if part not in {"", "."})
+                if (
+                    logical_name.startswith("/")
+                    or ".." in parts
+                    or any(":" in part for part in parts)
+                    or member.issym()
+                    or member.ischr()
+                    or member.isblk()
+                    or member.isfifo()
+                ):
+                    raise RuntimeError(
+                        "benchmark workspace archive contains an unsafe or unresolved entry"
+                    )
+            archive.extractall(staging, members=members, filter="data")
         for child in tuple(root.iterdir()):
             if child.is_symlink() or child.is_file():
                 child.unlink()
@@ -1459,6 +1477,7 @@ def _pull_benchmark_workspace(
         for child in tuple(staging.iterdir()):
             shutil.move(str(child), str(root / child.name))
     finally:
+        archive_path.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
 
 
@@ -1561,6 +1580,50 @@ def _run_benchmark_docker(
             f"{operation} failed with Docker exit {completed.returncode}: {error_text}"
         )
     return completed
+
+
+def _run_benchmark_docker_archive(
+    binding: Mapping[str, Any],
+    archive_path: Path,
+    *,
+    timeout_seconds: float,
+) -> None:
+    """Stream a symlink-dereferenced container workspace into a host archive."""
+
+    command = [
+        str(binding["docker_executable"]),
+        "exec",
+        str(binding["container"]),
+        "tar",
+        "-chf",
+        "-",
+        "-C",
+        str(binding["workdir"]),
+        ".",
+    ]
+    try:
+        with archive_path.open("wb") as output:
+            completed = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=timeout_seconds,
+                shell=False,
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+            )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(
+            "benchmark_workspace_pull could not execute Docker CLI: "
+            f"{type(error).__name__}"
+        ) from error
+    if completed.returncode != 0:
+        error_text = completed.stderr.decode("utf-8", errors="replace")[:1000]
+        raise RuntimeError(
+            "benchmark_workspace_pull failed with Docker exit "
+            f"{completed.returncode}: {error_text}"
+        )
 
 
 def _required_mapping(value: Any, name: str) -> dict[str, Any]:

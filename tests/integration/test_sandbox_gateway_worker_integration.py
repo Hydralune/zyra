@@ -420,7 +420,7 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
                     "-c",
                     (
                         "import time; print('started', flush=True); "
-                        "time.sleep(0.4); print('finished', flush=True)"
+                        "time.sleep(1.0); print('finished', flush=True)"
                     ),
                 ],
                 "timeout_seconds": 5,
@@ -438,26 +438,30 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertEqual(started.output["status"], "running")
         job_id = str(started.output["job_id"])
 
-        time.sleep(0.15)
-        poll = router.execute(
-            ToolCall(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                tool_name="shell_wait",
-                tool_call_id="gateway-background-poll-1",
-                arguments={"job_id": job_id, "timeout_seconds": 0},
-                metadata={"session_id": session_id},
-            ),
-            permission_grant=None,
-            permission_authority=None,
-            permission_execution_context=None,
-        )
+        poll_deadline = time.monotonic() + 0.8
+        while True:
+            poll = router.execute(
+                ToolCall(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    tool_name="shell_wait",
+                    tool_call_id="gateway-background-poll-1",
+                    arguments={"job_id": job_id, "timeout_seconds": 0},
+                    metadata={"session_id": session_id},
+                ),
+                permission_grant=None,
+                permission_authority=None,
+                permission_execution_context=None,
+            )
+            streamed = "".join(
+                str(item["content"]) for item in poll.output.get("output_chunks", ())
+            )
+            if "started" in streamed or time.monotonic() >= poll_deadline:
+                break
+            time.sleep(0.02)
         self.assertEqual(poll.output["status"], "running")
-        self.assertIn(
-            "started",
-            "".join(str(item["content"]) for item in poll.output["output_chunks"]),
-        )
+        self.assertIn("started", streamed)
 
         completed = router.execute(
             ToolCall(
@@ -481,6 +485,154 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
             completed.metadata["originating_tool_call_id"],
             "gateway-background-1",
         )
+        child_session_id = router._jobs[job_id].session_id  # noqa: SLF001
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            record = bundle.state_store.require_session(child_session_id)
+            if record.state.value == "closed":
+                break
+            time.sleep(0.01)
+        self.assertEqual(
+            bundle.state_store.require_session(child_session_id).state.value,
+            "closed",
+        )
+
+    def test_background_command_does_not_block_a_second_shell_session(self) -> None:
+        state = create_task_state("Concurrent shell calls use isolated gateway sessions")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        session_id = f"parallel-{state.task_id}"
+        background = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-parallel-slow",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "import time; time.sleep(0.6)"],
+                    "timeout_seconds": 5,
+                    "background": True,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "parallel-slow-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertEqual(background.output["status"], "running")
+        foreground = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-parallel-fast",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "print('not blocked')"],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "parallel-fast-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertTrue(foreground.ok, foreground)
+        self.assertEqual(foreground.output["status"], "completed")
+        self.assertIn("not blocked", foreground.output["stdout"])
+        child_sessions = {
+            job.session_id for job in router._jobs.values()  # noqa: SLF001
+        }
+        self.assertEqual(len(child_sessions), 2)
+        completed = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell_wait",
+                tool_call_id="gateway-parallel-slow-wait",
+                arguments={"job_id": background.output["job_id"], "timeout_seconds": 3},
+                metadata={"session_id": session_id},
+            ),
+            permission_grant=None,
+            permission_authority=None,
+            permission_execution_context=None,
+        )
+        self.assertEqual(completed.output["status"], "completed")
+
+    def test_failed_shell_session_does_not_poison_the_next_command(self) -> None:
+        state = create_task_state("A failed command is isolated from later shell calls")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        session_id = f"failure-isolation-{state.task_id}"
+        failed = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-isolated-failure",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "raise SystemExit(7)"],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "isolated-failure-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertFalse(failed.ok)
+        recovered = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-after-isolated-failure",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "print('healthy')"],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": session_id},
+            ),
+            permission_grant={"grant_id": "after-failure-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+        self.assertTrue(recovered.ok, recovered)
+        self.assertIn("healthy", recovered.output["stdout"])
 
     def test_parent_cancellation_terminates_a_background_command(self) -> None:
         state = create_task_state("Outer cancellation owns background command lifetime")

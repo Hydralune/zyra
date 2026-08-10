@@ -126,6 +126,7 @@ class CommandPolicyConfig:
     allow_read_only_without_human: bool = True
     sealed_mode_denies_ask: bool = True
     deny_direct_shell_strings: bool = False
+    allow_shell_composition: bool = False
     deny_destructive: bool = True
     require_permission_for_all_commands: bool = True
     maximum_argument_bytes: int = 64 * 1024
@@ -143,6 +144,7 @@ class CommandPolicyConfig:
             "allow_read_only_without_human": self.allow_read_only_without_human,
             "sealed_mode_denies_ask": self.sealed_mode_denies_ask,
             "deny_direct_shell_strings": self.deny_direct_shell_strings,
+            "allow_shell_composition": self.allow_shell_composition,
             "deny_destructive": self.deny_destructive,
             "require_permission_for_all_commands": self.require_permission_for_all_commands,
             "maximum_argument_bytes": self.maximum_argument_bytes,
@@ -397,9 +399,21 @@ class ShellBoundaryRule:
             evidence.append(
                 CommandEvidence(
                     code="shell.command_substitution",
-                    effect=CommandEffect.DENY,
-                    reason="command substitution can mutate the approved execution graph",
-                    risk=CommandRisk.CRITICAL,
+                    effect=(
+                        CommandEffect.ASK
+                        if self.config.allow_shell_composition
+                        else CommandEffect.DENY
+                    ),
+                    reason=(
+                        "command substitution requires exact approval in this execution profile"
+                        if self.config.allow_shell_composition
+                        else "command substitution can mutate the approved execution graph"
+                    ),
+                    risk=(
+                        CommandRisk.HIGH
+                        if self.config.allow_shell_composition
+                        else CommandRisk.CRITICAL
+                    ),
                     source=self.rule_id,
                 )
             )
@@ -417,9 +431,21 @@ class ShellBoundaryRule:
             evidence.append(
                 CommandEvidence(
                     code="shell.redirection",
-                    effect=CommandEffect.DENY,
-                    reason="shell redirection bypasses WorkspaceEditPort transactions",
-                    risk=CommandRisk.CRITICAL,
+                    effect=(
+                        CommandEffect.ASK
+                        if self.config.allow_shell_composition
+                        else CommandEffect.DENY
+                    ),
+                    reason=(
+                        "shell redirection requires exact approval in this execution profile"
+                        if self.config.allow_shell_composition
+                        else "shell redirection bypasses WorkspaceEditPort transactions"
+                    ),
+                    risk=(
+                        CommandRisk.HIGH
+                        if self.config.allow_shell_composition
+                        else CommandRisk.CRITICAL
+                    ),
                     source=self.rule_id,
                 )
             )

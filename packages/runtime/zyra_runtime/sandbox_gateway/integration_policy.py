@@ -173,6 +173,8 @@ class GatewayPolicyConfig:
     workspace_root: Path
     require_structured_argv: bool = True
     allow_legacy_command_strings: bool = True
+    allow_shell_composition: bool = False
+    default_command_network_profile: str = "offline"
     allow_read_only_git_without_approval: bool = True
     allow_public_https: bool = True
     allow_public_http: bool = False
@@ -195,6 +197,14 @@ class GatewayPolicyConfig:
     def __post_init__(self) -> None:
         root = Path(self.workspace_root).resolve()
         object.__setattr__(self, "workspace_root", root)
+        selected_network_profile = str(self.default_command_network_profile).strip()
+        if not selected_network_profile:
+            raise ValueError("default_command_network_profile is required")
+        object.__setattr__(
+            self,
+            "default_command_network_profile",
+            selected_network_profile,
+        )
         for field_name in (
             "maximum_url_chars",
             "maximum_argument_chars",
@@ -240,6 +250,8 @@ class GatewayPolicyConfig:
             "workspace_root_digest": content_digest(str(self.workspace_root)),
             "require_structured_argv": self.require_structured_argv,
             "allow_legacy_command_strings": self.allow_legacy_command_strings,
+            "allow_shell_composition": self.allow_shell_composition,
+            "default_command_network_profile": self.default_command_network_profile,
             "allow_read_only_git_without_approval": self.allow_read_only_git_without_approval,
             "allow_public_https": self.allow_public_https,
             "allow_public_http": self.allow_public_http,
@@ -748,7 +760,13 @@ class GatewayPolicyRuntime:
 
     def _parse_legacy_command(self, command: str) -> tuple[str, tuple[str, ...]]:
         if _contains_unquoted_shell_syntax(command):
-            raise ValueError("shell operators and redirects require an explicit reviewed script artifact")
+            if not self.config.allow_shell_composition:
+                raise ValueError(
+                    "shell operators and redirects require an explicit reviewed script artifact"
+                )
+            if len(command) > self.config.maximum_argument_chars:
+                raise ValueError("command exceeds the gateway character budget")
+            return "sh", ("-c", command)
         if len(command) > self.config.maximum_argument_chars:
             raise ValueError("command exceeds the gateway character budget")
         try:
@@ -771,10 +789,21 @@ class GatewayPolicyRuntime:
                 if executable in _SHELL_INTERPRETERS and (
                     _SHELL_OPERATORS.search(nested) or _REDIRECT_OPERATOR.search(nested)
                 ):
-                    yield _deny(
-                        "broad_interpreter_payload",
-                        "interpreter payload contains shell composition or redirect operators",
-                    )
+                    if self.config.allow_shell_composition:
+                        yield GatewayPolicyFinding(
+                            code="shell_composition_requires_exact_approval",
+                            severity="warning",
+                            reason=(
+                                "shell composition in the disposable execution profile "
+                                "requires exact one-use approval"
+                            ),
+                            requires_approval=True,
+                        )
+                    else:
+                        yield _deny(
+                            "broad_interpreter_payload",
+                            "interpreter payload contains shell composition or redirect operators",
+                        )
                 else:
                     yield GatewayPolicyFinding(
                         code="interpreter_requires_exact_approval",

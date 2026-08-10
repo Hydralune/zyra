@@ -179,6 +179,51 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
                 }
             )
 
+    def test_benchmark_profile_allows_exactly_approved_shell_composition_and_network(self) -> None:
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=self.workspace,
+            artifact_root=self.root / "benchmark-artifacts",
+            worker_id="BenchmarkCodeWorkerRuntime",
+            workspace_edit_port=self.port,
+            runtime_services={
+                "sandbox_gateway_required": True,
+                "sandbox_gateway_allow_shell_composition": True,
+                "sandbox_gateway_allow_public_http": True,
+                "sandbox_gateway_default_command_network_profile": "public",
+            },
+        )
+        executable, argv, environment, cwd = bundle.policy_runtime.command_from_arguments(
+            {
+                "command": (
+                    "wget http://example.com/archive.tar.gz -O archive.tar.gz "
+                    "&& printf done > status.txt"
+                )
+            }
+        )
+        self.assertEqual((executable, argv[:1]), ("sh", ("-c",)))
+        envelope = GatewayCommandEnvelope(
+            command_id="benchmark-composition-command",
+            session_id="benchmark-composition-session",
+            run_id="benchmark-composition-run",
+            task_id="benchmark-composition-task",
+            worker_id="BenchmarkCodeWorkerRuntime",
+            executable=executable,
+            argv=argv,
+            cwd=cwd,
+            environment=environment,
+            operation=OperationKind.COMMAND,
+            tool_use_id="benchmark-composition-tool",
+            network_profile=bundle.policy_runtime.config.default_command_network_profile,
+        )
+        decision = bundle.policy_runtime.evaluate_command(envelope)
+        self.assertFalse(decision.hard_denied, decision.findings)
+        self.assertTrue(decision.requires_permission)
+        self.assertEqual(decision.normalized["network_profile"], "public")
+        self.assertIn(
+            "shell_composition_requires_exact_approval",
+            {item.code for item in decision.findings},
+        )
+
     def test_interactive_host_uses_single_use_scoped_credential_relay(self) -> None:
         relay = CredentialRelay(
             CallbackCredentialProvider(lambda _request: "test-only-secret")
