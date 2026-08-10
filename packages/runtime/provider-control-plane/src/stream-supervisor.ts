@@ -100,6 +100,15 @@ const DEFAULT_BUDGET: ProviderStreamBudget = {
   maximumProviderNotices: 10_000,
 };
 
+// A provider may emit one normalized frame per output token and additional
+// reasoning/usage/terminal frames.  Keep the anti-flood ceiling, but scale it
+// with the output budget advertised in the same request.  A fixed 100k limit
+// is smaller than the 131k output window used by long benchmark turns and can
+// therefore reject a valid provider response before its terminal frame.
+const FRAMES_PER_OUTPUT_TOKEN = 4;
+const FRAME_BUDGET_OVERHEAD = 1_024;
+const MAXIMUM_DYNAMIC_FRAMES = 1_000_000;
+
 interface MutableToolCall {
   readonly key: string;
   toolCallId: string | null;
@@ -801,11 +810,14 @@ function normalizeBudget(
     positiveInteger(override.chunkMilliseconds ?? request.chunkTimeoutMilliseconds, "chunkMilliseconds"),
     totalMilliseconds,
   );
+  const maximumFrames = override.maximumFrames === undefined
+    ? defaultMaximumFrames(request.maximumOutputTokens)
+    : positiveInteger(override.maximumFrames, "maximumFrames");
   return {
     firstByteMilliseconds,
     chunkMilliseconds,
     totalMilliseconds,
-    maximumFrames: positiveInteger(override.maximumFrames ?? DEFAULT_BUDGET.maximumFrames, "maximumFrames"),
+    maximumFrames,
     maximumTextCharacters: positiveInteger(override.maximumTextCharacters ?? DEFAULT_BUDGET.maximumTextCharacters, "maximumTextCharacters"),
     maximumThinkingCharacters: positiveInteger(override.maximumThinkingCharacters ?? DEFAULT_BUDGET.maximumThinkingCharacters, "maximumThinkingCharacters"),
     maximumToolCalls: positiveInteger(override.maximumToolCalls ?? DEFAULT_BUDGET.maximumToolCalls, "maximumToolCalls"),
@@ -815,6 +827,17 @@ function normalizeBudget(
     ),
     maximumProviderNotices: positiveInteger(override.maximumProviderNotices ?? DEFAULT_BUDGET.maximumProviderNotices, "maximumProviderNotices"),
   };
+}
+
+function defaultMaximumFrames(maximumOutputTokens: number): number {
+  const outputTokens = positiveInteger(maximumOutputTokens, "maximumOutputTokens");
+  const maximumScalableTokens = Math.floor(
+    (MAXIMUM_DYNAMIC_FRAMES - FRAME_BUDGET_OVERHEAD) / FRAMES_PER_OUTPUT_TOKEN,
+  );
+  const scaled = outputTokens >= maximumScalableTokens
+    ? MAXIMUM_DYNAMIC_FRAMES
+    : outputTokens * FRAMES_PER_OUTPUT_TOKEN + FRAME_BUDGET_OVERHEAD;
+  return Math.max(DEFAULT_BUDGET.maximumFrames, scaled);
 }
 
 function positiveInteger(value: number, name: string): number {

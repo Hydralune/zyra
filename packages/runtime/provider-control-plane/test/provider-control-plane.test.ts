@@ -8,10 +8,12 @@ import {
   InMemorySecretResolver,
   ProviderControlPlane,
   ProviderControlPlaneError,
+  ProviderStreamSupervisor,
   SequenceIdFactory,
   fingerprintSecret,
   type ProviderDispatchRequest,
   type ProviderRouteLease,
+  type ProviderStreamFrame,
   type RouteRequest,
   type TransportProtocol,
 } from "../src/index.ts";
@@ -653,6 +655,65 @@ test("active SSE progress may outlive the request-header timeout", async (t) => 
   assert.equal(result.text, "12345");
   assert.equal(result.attempts[0]?.outcome, "succeeded");
   assert.equal(capture.requests.length, 1);
+});
+
+test("large output windows admit valid normalized streams beyond the fixed legacy frame cap", (t) => {
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "large-stream",
+    modelId: "large-stream-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("large-stream", "large-stream-model"));
+  const request: ProviderDispatchRequest = {
+    ...dispatchRequest(route.routeId),
+    maximumOutputTokens: 131_072,
+  };
+  const supervisor = new ProviderStreamSupervisor(request, route, { now: () => 1_000 });
+  const frame = (
+    sequence: number,
+    kind: ProviderStreamFrame["kind"],
+    text: string | null = null,
+  ): ProviderStreamFrame => ({
+    frameId: `large-frame-${sequence}`,
+    dispatchId: request.dispatchId,
+    routeId: route.routeId,
+    sequence,
+    kind,
+    text,
+    toolCallId: null,
+    toolName: null,
+    jsonDelta: null,
+    usage: {},
+    providerEvent: null,
+    createdAt: 1_000,
+    metadata: {},
+  });
+
+  supervisor.observe([frame(1, "response_start")]);
+  for (let sequence = 2; sequence <= 100_002; sequence += 1) {
+    supervisor.observe([frame(sequence, "text_delta", "x")]);
+  }
+  supervisor.observe([frame(100_003, "response_end")]);
+  const completed = supervisor.complete({ requireTerminalFrame: true });
+
+  assert.equal(completed.accepted, true);
+  assert.equal(completed.snapshot.frameCount, 100_003);
+  assert.equal(completed.snapshot.textCharacters, 100_001);
+
+  const explicitSupervisor = new ProviderStreamSupervisor(request, route, {
+    now: () => 1_000,
+    budget: { maximumFrames: 2 },
+  });
+  assert.throws(
+    () => explicitSupervisor.observe([
+      frame(1, "response_start"),
+      frame(2, "text_delta", "x"),
+      frame(3, "response_end"),
+    ]),
+    /provider stream exceeded normalized frame budget/,
+  );
 });
 
 test("Anthropic-compatible dispatch uses Messages wire and parses deltas", async (t) => {
