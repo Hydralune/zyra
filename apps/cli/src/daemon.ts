@@ -40,7 +40,7 @@ interface DaemonRuntimeIdentity {
   pid: number
 }
 
-interface DaemonHealthIdentity {
+export interface DaemonHealthIdentity {
   healthy: boolean
   generation?: string
   pid?: number
@@ -149,6 +149,18 @@ function processAlive(pid: number): boolean {
   } catch (error) {
     return isErrno(error, "EPERM")
   }
+}
+
+export function daemonHealthOwnsState(
+  state: DaemonState | undefined,
+  health: DaemonHealthIdentity,
+): boolean {
+  return Boolean(
+    state
+    && health.healthy
+    && health.pid === state.pid
+    && health.generation === state.generation,
+  )
 }
 
 function markerExists(candidate: string): boolean {
@@ -443,15 +455,16 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
 
 export async function daemonStatus(options: Pick<DaemonOptions, "baseUrl" | "token">): Promise<DaemonStatus> {
   const state = await readState()
-  const reachable = await probeHealth(options.baseUrl, options.token)
+  const health = await probeHealthIdentity(options.baseUrl, options.token)
   const selected = state?.base_url === options.baseUrl ? state : undefined
+  const managed = daemonHealthOwnsState(selected, health)
   return {
-    reachable,
-    managed: Boolean(selected && processAlive(selected.pid)),
+    reachable: health.healthy,
+    managed,
     pid: selected?.pid,
     generation: selected?.generation,
     baseUrl: options.baseUrl,
-    staleState: Boolean(selected && !processAlive(selected.pid)),
+    staleState: Boolean(selected && !managed),
   }
 }
 
@@ -500,8 +513,20 @@ export async function stopManagedDaemon(
       "daemon_not_managed",
     )
   }
-  const reachable = await probeHealth(options.baseUrl, options.token)
-  const active = reachable ? await activeTaskIds(options.baseUrl, options.token) : []
+  const health = await probeHealthIdentity(options.baseUrl, options.token)
+  if (!daemonHealthOwnsState(state, health)) {
+    throw new CliTaskError(
+      "The daemon health identity does not match this Zyra CLI state record; the recorded PID will not be signalled.",
+      "daemon_not_managed",
+      {
+        recorded_pid: state.pid,
+        recorded_generation: state.generation,
+        observed_pid: health.pid,
+        observed_generation: health.generation,
+      },
+    )
+  }
+  const active = await activeTaskIds(options.baseUrl, options.token)
   const auditId = `daemon_stop_${crypto.randomUUID().replaceAll("-", "")}`
   if (!options.force && active.length) {
     await appendDaemonAudit({
