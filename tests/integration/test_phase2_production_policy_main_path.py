@@ -2339,6 +2339,11 @@ def test_model_output_token_priority_has_one_auditable_source(
         "requested": 16_384,
         "requested_source": "model-catalog-default-request",
     }
+    assert api._configured_model_output_tokens(live_model_bound=True) == {
+        "schema": "zyra.model-output-token-budget/v1",
+        "requested": 131_072,
+        "requested_source": "model-catalog-default-request",
+    }
     monkeypatch.setenv("ZYRA_DEPLOYMENT_MAX_OUTPUT_TOKENS", "12000")
     assert api._configured_model_output_tokens()["requested_source"] == (
         "deployment-profile"

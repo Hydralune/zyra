@@ -66,7 +66,8 @@ const TRANSIENT_CHECKPOINT_PHASES = new Set([
   "message_delta",
   "model_stream_frame",
 ]);
-const MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 2;
+const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
+const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
 
 interface SettledProviderResolution {
   model: ModelStreamResolution;
@@ -255,6 +256,16 @@ export class ClaudeRuntimeCore {
       let model = initialModel;
       let round = initialRound;
       let continuationCount = 0;
+      const maximumLengthContinuations = Math.max(
+        1,
+        Math.min(
+          MAX_CONFIGURED_LENGTH_CONTINUATIONS,
+          positiveInteger(
+            config.runtimeConstraints.max_length_continuations,
+            DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS,
+          ),
+        ),
+      );
       const providerRoundLimit = config.maxTurns === null
         ? null
         : config.maxTurns + (modelTransport === "http_sse" ? 1 : 0);
@@ -272,7 +283,7 @@ export class ClaudeRuntimeCore {
         }
         if (
           !allowLengthContinuation
-          || continuationCount >= MAX_CONSECUTIVE_LENGTH_CONTINUATIONS
+          || continuationCount >= maximumLengthContinuations
           || (providerRoundLimit !== null && providerRoundIndex >= providerRoundLimit)
         ) {
           return { model, round, truncationExhausted: true };
@@ -292,7 +303,7 @@ export class ClaudeRuntimeCore {
         await emit("provider_length_continuation_requested", {
           provider_round_index: providerRoundIndex,
           continuation_count: continuationCount,
-          maximum_continuations: MAX_CONSECUTIVE_LENGTH_CONTINUATIONS,
+          maximum_continuations: maximumLengthContinuations,
           previous_stop_reason: model.stopReason,
           previous_final_text_present: model.finalText.trim().length > 0,
           tools_advertised: continuationTools.length,

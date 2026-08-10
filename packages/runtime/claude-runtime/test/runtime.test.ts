@@ -549,9 +549,9 @@ test("runtime continues a length-truncated provider turn before accepting comple
   ) => {
     requestCount += 1;
     requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
-    const choice = requestCount === 1
+    const choice = requestCount <= 3
       ? { index: 0, delta: { content: "partial analysis" }, finish_reason: "length" }
-      : requestCount === 2
+      : requestCount === 4
       ? {
         index: 0,
         delta: {
@@ -585,7 +585,7 @@ test("runtime continues a length-truncated provider turn before accepting comple
       workerRequestId: "provider-truncation-request",
       turns: [],
       config: {
-        maxTurns: 2,
+        maxTurns: 8,
         runtimeConstraints: {
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
@@ -595,11 +595,11 @@ test("runtime continues a length-truncated provider turn before accepting comple
     }), host);
 
     assert.equal(result.ok, true);
-    assert.equal(requestCount, 3);
+    assert.equal(requestCount, 5);
     assert.equal(host.batches.length, 1);
-    assert.ok(host.events.some((event) =>
+    assert.equal(host.events.filter((event) =>
       event.phase === "provider_length_continuation_requested"
-    ));
+    ).length, 3);
     assert.ok((requestBodies[1].messages as JsonObject[]).some((message) =>
       /reached its output limit.*make a concrete tool call/i.test(String(message.content ?? ""))
     ));
@@ -642,6 +642,7 @@ test("runtime fails closed after bounded length continuations are exhausted", as
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
           model_api_key: "test-only-provider-key",
+          max_length_continuations: 2,
         },
       },
     }), host);

@@ -6741,7 +6741,10 @@ def _production_physical_dispatch_port(
             reasoning_transport_budget_ms,
             benchmark_long_horizon,
         ) = _reasoning_budget_from_environment()
-        output_token_budget = _configured_model_output_tokens(payload)
+        output_token_budget = _configured_model_output_tokens(
+            payload,
+            live_model_bound=True,
+        )
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
@@ -6819,6 +6822,8 @@ def _external_deadline_epoch_ms() -> int | None:
 
 def _configured_model_output_tokens(
     payload: Mapping[str, Any] | None = None,
+    *,
+    live_model_bound: bool = False,
 ) -> dict[str, Any]:
     task_value = None if payload is None else (
         payload.get("max_output_tokens")
@@ -6835,7 +6840,12 @@ def _configured_model_output_tokens(
     elif profile_value:
         raw, source = profile_value, "deployment-profile"
     else:
-        raw, source = "16384", "model-catalog-default-request"
+        # A bound live model is clamped again by the provider catalog in the
+        # TypeScript runtime.  Request enough headroom for reasoning-capable
+        # coding models so their hidden/visible analysis does not consume a
+        # small generic allowance before they can emit a tool call.
+        raw = "131072" if live_model_bound else "16384"
+        source = "model-catalog-default-request"
     try:
         value = int(raw)
     except ValueError as error:

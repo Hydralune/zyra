@@ -97,6 +97,30 @@ def test_default_code_worker_reaches_typescript_owner(tmp_path: Path) -> None:
     assert len(run.event_records) >= 2
 
 
+def test_runtime_state_capsule_does_not_duplicate_complete_snapshot(
+    tmp_path: Path,
+) -> None:
+    run = _runtime(tmp_path).run(
+        _request("e01-compact-resume-capsule", session_id="e01-compact-capsule")
+    )
+
+    session_snapshot = _checkpoint(run)["session_snapshot"]
+    assert isinstance(session_snapshot, dict)
+    runtime_state = session_snapshot["runtime_state"]
+    assert isinstance(runtime_state, dict)
+    capsule = runtime_state["session_snapshot"]
+    assert isinstance(capsule, dict)
+    assert capsule["schema"] == "zyra.typescript-runtime.resume-capsule/v1"
+    assert capsule["session_id"] == "e01-compact-capsule"
+    assert capsule["resume_token"] == session_snapshot["resume_token"]
+    assert capsule["host_checkpoint_revision"] == session_snapshot[
+        "host_checkpoint_revision"
+    ]
+    assert "typescript_runtime_snapshot" not in capsule
+    assert "transcript" not in capsule
+    assert "messages" not in capsule
+
+
 def test_environment_disconnect_fails_without_python_fallback(tmp_path: Path) -> None:
     with mock.patch.dict(os.environ, {"ZYRA_DISABLE_TYPESCRIPT_RUNTIME": "1"}):
         run = _runtime(tmp_path).run(_request("e01-environment-disabled"))

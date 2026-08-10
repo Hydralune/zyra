@@ -1191,6 +1191,42 @@ class TypeScriptClaudeQueryEngine:
             if isinstance(raw_terminal_receipts, Mapping)
             else {}
         )
+        terminal_receipt_index: dict[str, dict[str, Any]] = {}
+        for receipt_key, raw_receipt in dict(
+            raw_terminal_receipts
+            if isinstance(raw_terminal_receipts, Mapping)
+            else {}
+        ).items():
+            if not isinstance(raw_receipt, Mapping):
+                continue
+            receipt = dict(raw_receipt)
+            encoded_result = json.dumps(
+                to_jsonable(receipt.get("result")),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            terminal_receipt_index[str(receipt_key)] = {
+                key: to_jsonable(receipt.get(key))
+                for key in (
+                    "schema_version",
+                    "run_id",
+                    "session_id",
+                    "worker_request_id",
+                    "terminal_id",
+                    "terminal_revision",
+                    "state",
+                )
+            } | {
+                "result_sha256": hashlib.sha256(encoded_result).hexdigest(),
+                "result_storage": "durable-typescript-checkpoint",
+            }
+        # ``runtime_state`` is a portable resume capsule, not a second copy of
+        # the complete QuerySession.  The previous recursive projection copied
+        # transcripts, the TypeScript journal and terminal results into this
+        # field again, doubling every long-run checkpoint and artifact.  Exact
+        # recovery remains owned by the atomically committed E01 checkpoint;
+        # the capsule carries its identity, revision and terminal receipt index.
         session_snapshot["runtime_state"] = {
             "schema_version": 1,
             "query_session_id": session_id,
@@ -1198,9 +1234,20 @@ class TypeScriptClaudeQueryEngine:
                 session_snapshot.get("resume_token") or session_id
             ),
             "session_snapshot": {
-                key: value
-                for key, value in session_snapshot.items()
-                if key != "runtime_state"
+                "schema": "zyra.typescript-runtime.resume-capsule/v1",
+                "session_id": session_id,
+                "resume_token": str(
+                    session_snapshot.get("resume_token") or session_id
+                ),
+                "host_checkpoint_revision": self._checkpoint_revision,
+                "host_checkpoint_commit_id": str(
+                    self._latest_runtime_checkpoint.get(
+                        "host_checkpoint_commit_id"
+                    )
+                    or ""
+                ),
+                "runtime_process_epoch": self._runtime_process_epoch,
+                "terminal_result_receipts": terminal_receipt_index,
             },
         }
         snapshot_artifact = self.context.artifact_store.write_text(
