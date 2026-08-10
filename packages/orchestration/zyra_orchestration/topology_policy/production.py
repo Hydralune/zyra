@@ -159,6 +159,19 @@ def _is_json_array(value: Any) -> bool:
     return isinstance(value, (list, tuple))
 
 
+def _has_verifiable_interrupted_delivery(
+    settlement_outcome: str,
+    changed_paths: Any,
+) -> bool:
+    """Preserve an interrupted CodeWorker delivery when files actually changed."""
+
+    return bool(
+        settlement_outcome == "needs_verification"
+        and _is_json_array(changed_paths)
+        and changed_paths
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _PhysicalWorkerRun:
     """Task-graph projection of one canonical physical operator call."""
@@ -2013,10 +2026,9 @@ class Phase2StrongestProductionBridge:
             or "completed"
         )
         changed_paths = workspace_delta.get("changed")
-        verifiable_interrupted_delivery = bool(
-            settlement_outcome == "needs_verification"
-            and isinstance(changed_paths, list)
-            and changed_paths
+        verifiable_interrupted_delivery = _has_verifiable_interrupted_delivery(
+            settlement_outcome,
+            changed_paths,
         )
         raw_workspace_ref = state.metadata.get("workspace_ref")
         expected_workspace_id = ""

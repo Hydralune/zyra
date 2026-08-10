@@ -7,6 +7,7 @@ from zyra_memory import MemoryLayer, MemoryRecord
 from zyra_orchestration.topology_policy.contracts import FrozenDict, canonical_digest
 from zyra_orchestration.topology_policy.production import (
     _canonical_memory_record_digest,
+    _has_verifiable_interrupted_delivery,
     _is_json_array,
     _physical_dispatch_payload_binding,
 )
@@ -57,7 +58,20 @@ def test_immutable_json_array_is_valid_delivery_evidence() -> None:
 
     assert isinstance(workspace_delta["changed"], tuple)
     assert _is_json_array(workspace_delta["changed"]) is True
+    assert _has_verifiable_interrupted_delivery(
+        "needs_verification",
+        workspace_delta["changed"],
+    ) is True
     assert _is_json_array("smoke.txt") is False
+
+
+def test_interrupted_delivery_requires_changed_paths_and_verification() -> None:
+    assert _has_verifiable_interrupted_delivery("completed", ("smoke.txt",)) is False
+    assert _has_verifiable_interrupted_delivery("needs_verification", ()) is False
+    assert _has_verifiable_interrupted_delivery(
+        "needs_verification",
+        "smoke.txt",
+    ) is False
 
 
 def test_memory_record_digest_ignores_only_refresh_timestamps() -> None:
