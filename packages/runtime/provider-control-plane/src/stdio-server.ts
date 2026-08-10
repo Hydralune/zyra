@@ -221,6 +221,8 @@ export class ProviderControlPlaneRpcServer {
         );
       case "route.get":
         return this.controlPlane.routes.require(String(payload.routeId ?? ""));
+      case "route.get_persisted":
+        return this.controlPlane.routes.requirePersisted(String(payload.routeId ?? ""));
       case "route.list":
         return this.controlPlane.routes.list(
           typeof payload.runId === "string" ? payload.runId : undefined,

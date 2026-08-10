@@ -24,6 +24,13 @@ class ProviderRoutingPort:
     def get(self, route_id: str) -> dict[str, Any]:
         return dict(self.process.request("route.get", {"routeId": route_id}) or {})
 
+    def get_persisted(self, route_id: str) -> dict[str, Any]:
+        """Read an immutable route snapshot without requiring a live lease."""
+
+        return dict(
+            self.process.request("route.get_persisted", {"routeId": route_id}) or {}
+        )
+
     def list(self, *, run_id: str = "", task_id: str = "") -> list[dict[str, Any]]:
         payload = {key: value for key, value in {"runId": run_id, "taskId": task_id}.items() if value}
         values = self.process.request("route.list", payload)

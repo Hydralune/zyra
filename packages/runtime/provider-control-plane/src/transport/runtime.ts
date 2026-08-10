@@ -172,7 +172,7 @@ export class ProviderTransportRuntime {
     let admissionPermit: ProviderAdmissionPermit | null = null;
     const frames = [];
     const controller = new AbortController();
-    const timeout = setTimeout(
+    let requestTimeout: ReturnType<typeof setTimeout> | null = setTimeout(
       () => controller.abort(new Error(`provider request timed out after ${request.timeoutMilliseconds} ms`)),
       request.timeoutMilliseconds,
     );
@@ -225,6 +225,7 @@ export class ProviderTransportRuntime {
         });
       }
       const contentType = response.headers.get("content-type") ?? "";
+      const streamingResponse = contentType.toLowerCase().includes("text/event-stream");
       if (!response.ok) {
         const errorBody = await response.text();
         responseBytes = Buffer.byteLength(errorBody);
@@ -241,7 +242,15 @@ export class ProviderTransportRuntime {
           outputObserved: false,
         });
       }
-      if (!contentType.toLowerCase().includes("text/event-stream")) {
+      if (streamingResponse && requestTimeout !== null) {
+        // The request timeout owns connection setup and response headers. Once
+        // a successful SSE body is live, readSse and ProviderStreamSupervisor
+        // enforce first-frame/chunk-idle progress. Keeping this absolute timer
+        // armed would abort a healthy, actively streaming long response.
+        clearTimeout(requestTimeout);
+        requestTimeout = null;
+      }
+      if (!streamingResponse) {
         const text = await response.text();
         responseBytes = Buffer.byteLength(text);
         const decodedFrames = decodeProviderEvent(lease, text, "response.completed", frameState);
@@ -261,7 +270,7 @@ export class ProviderTransportRuntime {
         }
       }
       streamCompletion = streamSupervisor.complete({
-        requireTerminalFrame: contentType.toLowerCase().includes("text/event-stream"),
+        requireTerminalFrame: streamingResponse,
       });
       attempt = {
         ...attempt,
@@ -354,7 +363,7 @@ export class ProviderTransportRuntime {
       );
       throw classified;
     } finally {
-      clearTimeout(timeout);
+      if (requestTimeout !== null) clearTimeout(requestTimeout);
       if (admissionPermit && this.routeHealth) this.routeHealth.release(admissionPermit);
     }
   }

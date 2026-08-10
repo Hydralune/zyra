@@ -188,13 +188,6 @@ export class ProviderStreamSupervisor {
   checkWatchdog(now = this.now()): void {
     this.assertActive();
     const totalElapsed = now - this.startedAt;
-    if (totalElapsed > this.budget.totalMilliseconds) {
-      throw this.fail("stream_timeout", "provider stream exceeded total deadline", {
-        watchdog: "total",
-        elapsedMilliseconds: totalElapsed,
-        limitMilliseconds: this.budget.totalMilliseconds,
-      });
-    }
     if (this.lastFrameAtValue === null) {
       if (totalElapsed > this.budget.firstByteMilliseconds) {
         throw this.fail("stream_timeout", "provider stream did not produce a first frame", {

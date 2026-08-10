@@ -2318,8 +2318,12 @@ def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
     assert enabled is True
     assert turns is None
     assert runtime_seconds is not None
-    assert 85 <= runtime_seconds <= 90
-    assert transport_ms == pytest.approx(runtime_seconds * 1_000)
+    assert 55 <= runtime_seconds <= 60
+    assert transport_ms - runtime_seconds * 1_000 == pytest.approx(
+        api._PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS,
+        abs=100,
+    )
+    assert 85_000 <= transport_ms <= 90_000
     assert api.PHASE2_PERMISSION_RECEIPT_VALIDITY > timedelta(
         milliseconds=transport_ms
     )

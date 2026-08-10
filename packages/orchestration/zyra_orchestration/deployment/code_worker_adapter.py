@@ -825,7 +825,10 @@ def _provider_evidence(
                 final_attempt.get("requestDigest") or ""
             )
             route_id = str(call.get("route_id") or "")
-            route = client.routing.get(route_id) if route_id else {}
+            # Provider evidence is historical data.  A route expiring after a
+            # successful long-running call must not invalidate that immutable
+            # call record or turn successful task execution into a node error.
+            route = client.routing.get_persisted(route_id) if route_id else {}
             provider_id = str(call.get("provider_id") or route.get("providerId") or "")
             model_id = str(call.get("model_id") or route.get("modelId") or "")
             provider = client.catalog.provider(provider_id)

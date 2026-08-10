@@ -11,6 +11,7 @@ import {
   SequenceIdFactory,
   fingerprintSecret,
   type ProviderDispatchRequest,
+  type ProviderRouteLease,
   type RouteRequest,
   type TransportProtocol,
 } from "../src/index.ts";
@@ -508,6 +509,41 @@ test("expired pinned routes renew without changing provider or credential identi
   assert.equal(controlPlane.store.listRoutes("run-1", "task-1").length, 2);
 });
 
+test("RPC archival route lookup remains available after lease expiry", async (t) => {
+  let now = 1_000_000;
+  const { controlPlane, secrets } = makeControlPlane(t, {
+    clock: { now: () => now },
+    routeLeaseMilliseconds: 1_000,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "archival",
+    modelId: "archival-model",
+    baseUrl: "https://archival.example.test",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("archival", "archival-model"));
+  now += 1_001;
+  const server = new ProviderControlPlaneRpcServer(controlPlane);
+
+  const live = await server.handle({
+    protocol: RPC_PROTOCOL,
+    requestId: "expired-live-route",
+    operation: "route.get",
+    payload: { routeId: route.routeId },
+  });
+  const archived = await server.handle({
+    protocol: RPC_PROTOCOL,
+    requestId: "expired-archival-route",
+    operation: "route.get_persisted",
+    payload: { routeId: route.routeId },
+  });
+
+  assert.equal(live.ok, false);
+  assert.equal(live.error?.code, "route_expired");
+  assert.equal(archived.ok, true);
+  assert.equal((archived.result as ProviderRouteLease).checksum, route.checksum);
+});
+
 test("credential rotation preserves an acquired route snapshot and changes only the next route", async (t) => {
   const capture = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
@@ -581,6 +617,42 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
   assert.equal("max_completion_tokens" in body, false);
   assert.ok(Buffer.byteLength(request.body) > 0);
   assert.equal(result.attempts[0]?.requestBytes, Buffer.byteLength(request.body));
+});
+
+test("active SSE progress may outlive the request-header timeout", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.flushHeaders();
+    let sequence = 0;
+    const interval = setInterval(() => {
+      sequence += 1;
+      response.write(
+        `data: {"choices":[{"delta":{"content":"${sequence}"},"finish_reason":null}]}\n\n`,
+      );
+      if (sequence < 5) return;
+      clearInterval(interval);
+      response.write('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n');
+      response.end("data: [DONE]\n\n");
+    }, 50);
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "long-stream",
+    modelId: "long-stream-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("long-stream", "long-stream-model"));
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(route.routeId),
+    timeoutMilliseconds: 125,
+    chunkTimeoutMilliseconds: 100,
+  });
+
+  assert.equal(result.text, "12345");
+  assert.equal(result.attempts[0]?.outcome, "succeeded");
+  assert.equal(capture.requests.length, 1);
 });
 
 test("Anthropic-compatible dispatch uses Messages wire and parses deltas", async (t) => {

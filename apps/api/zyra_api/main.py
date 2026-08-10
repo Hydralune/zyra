@@ -6797,6 +6797,11 @@ def _production_physical_dispatch_port(
 
 
 _BENCHMARK_CLOSEOUT_RESERVE_MS = 30_000
+# A physical worker must finish before its HTTP transport does so the node can
+# synchronize the benchmark workspace, persist the terminal receipt and return
+# it to the orchestrator.  Sharing one deadline for both layers turns an
+# ordinary model-loop timeout into an ambiguous transport-boundary failure.
+_PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS = 30_000
 
 
 def _external_deadline_epoch_ms() -> int | None:
@@ -6857,14 +6862,22 @@ def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]
     deadline = _external_deadline_epoch_ms()
     if deadline is None:
         return (None, None, 0, long_horizon)
-    remaining_ms = (
+    transport_remaining_ms = (
         deadline - int(time.time() * 1000) - _BENCHMARK_CLOSEOUT_RESERVE_MS
     )
-    if remaining_ms <= 0:
+    if transport_remaining_ms <= _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS:
         raise RuntimeError(
-            "the external execution deadline has entered its closeout reserve"
+            "the external execution deadline has entered its receipt and closeout reserves"
         )
-    return (None, remaining_ms / 1000.0, remaining_ms, long_horizon)
+    runtime_remaining_ms = (
+        transport_remaining_ms - _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS
+    )
+    return (
+        None,
+        runtime_remaining_ms / 1000.0,
+        transport_remaining_ms,
+        long_horizon,
+    )
 
 # Permission freshness is independent from the agent lifetime. This window
 # remains long enough for ordinary multi-layer work without becoming a hidden
