@@ -125,7 +125,7 @@ describe("FE-S01 run result and fail-closed contracts", () => {
             cursor: "opaque.cursor.final",
             event: {
               runId: blocked.runId,
-              payload: {
+              inline: {
                 schema: "zyra.production-independent-final-verifier/v2",
                 passed: false,
               },

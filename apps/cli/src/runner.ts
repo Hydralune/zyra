@@ -78,6 +78,7 @@ function captureVerifier(
 
 function emitFrame(output: CliOutput, frame: IngressFrame, accumulator: EventAccumulator): void {
   captureVerifier(eventPayload(frame), accumulator.verifier)
+  captureVerifier(record(frame.event.inline), accumulator.verifier)
   if (accumulator.seen.has(frame.eventId)) return
   accumulator.seen.add(frame.eventId)
   output.event(
