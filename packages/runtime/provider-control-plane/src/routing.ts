@@ -266,7 +266,34 @@ export class ProviderRoutePlanner {
       minimumValidityMilliseconds,
       this.leaseMilliseconds,
     );
-    const previous = this.requirePersisted(routeId);
+    let previous = this.requirePersisted(routeId);
+    const visited = new Set<string>();
+    while (!visited.has(previous.routeId)) {
+      visited.add(previous.routeId);
+      const children = this.store.listRoutes(previous.runId, previous.taskId)
+        .filter((candidate) => (
+          candidate.previousRouteId === previous.routeId
+          && samePinnedRoute(previous, candidate)
+        ))
+        .sort((left, right) => right.createdAt - left.createdAt);
+      if (children.length === 0) break;
+      if (
+        children.length > 1
+        && !children.every((candidate) => candidate.reason.endsWith("; renewed expired route"))
+      ) {
+        throw new ProviderControlPlaneError({
+          layer: "route",
+          kind: "route_revision_conflict",
+          message: `provider route renewal chain forked: ${previous.routeId}`,
+          routeId: previous.routeId,
+        });
+      }
+      // Older runtimes repeatedly renewed the root route and produced a
+      // star.  Renewal records carry an exact reason marker and immutable
+      // pinned identity, so the newest child is the only forward repair; an
+      // unmarked fork still fails closed above.
+      previous = this.requirePersisted(children[0]!.routeId);
+    }
     const now = this.clock.now();
     if (
       previous.expiresAt > now

@@ -509,6 +509,12 @@ test("expired pinned routes renew without changing provider or credential identi
   assert.equal(renewed.expiresAt, now + 1_000);
   assert.equal(controlPlane.renewExpiredRoute(original.routeId).routeId, renewed.routeId);
   assert.equal(controlPlane.store.listRoutes("run-1", "task-1").length, 2);
+
+  now += 1_001;
+  const renewedAgain = controlPlane.renewExpiredRoute(original.routeId);
+  assert.notEqual(renewedAgain.routeId, renewed.routeId);
+  assert.equal(renewedAgain.previousRouteId, renewed.routeId);
+  assert.equal(controlPlane.store.listRoutes("run-1", "task-1").length, 3);
 });
 
 test("pinned routes renew before their remaining validity can strand a dispatch", (t) => {

@@ -37,6 +37,8 @@ class ProviderRouteLeaseRef:
     credential_id: str = field(default="", repr=False)
     credential_environment_name: str = field(default="", repr=False)
     previous_route_id: str | None = field(default=None, repr=False)
+    created_at: int = field(default=0, repr=False)
+    reason: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         required = {
@@ -82,6 +84,8 @@ class ProviderRouteLeaseRef:
                 if value.get("previousRouteId") is not None
                 else None
             ),
+            created_at=int(value.get("createdAt") or 0),
+            reason=str(value.get("reason") or ""),
         )
 
     def safe_dict(self) -> dict[str, Any]:
@@ -374,11 +378,81 @@ class ProviderRouteBindingRuntime:
             if visited == set(by_route_id):
                 return selected
 
+        legacy_leaf = ProviderRouteBindingRuntime._legacy_renewal_leaf(
+            candidates
+        )
+        if legacy_leaf is not None:
+            return legacy_leaf
+
         raise ProviderRouteBindingError(
             "provider_turn_route_conflict",
             "multiple provider route leases exist for the same worker turn",
             detail={"route_ids": sorted(item.route_id for item in candidates)},
         )
+
+    @staticmethod
+    def _legacy_renewal_leaf(
+        candidates: Sequence[ProviderRouteLeaseRef],
+    ) -> ProviderRouteLeaseRef | None:
+        """Resolve only the strictly evidenced renewal star from older runtimes."""
+
+        roots = [item for item in candidates if item.previous_route_id is None]
+        if len(roots) != 1:
+            return None
+        root = roots[0]
+        descendants = [item for item in candidates if item is not root]
+        if not descendants or any(
+            not item.reason.endswith("; renewed expired route")
+            or item.created_at <= root.created_at
+            for item in descendants
+        ):
+            return None
+        pinned = {
+            (
+                item.catalog_revision,
+                item.credential_version,
+                item.credential_fingerprint,
+                item.transport_id,
+                item.provider_id,
+                item.model_id,
+                item.credential_id,
+            )
+            for item in candidates
+        }
+        if len(pinned) != 1 or len({item.created_at for item in candidates}) != len(
+            candidates
+        ):
+            return None
+        by_parent: dict[str, list[ProviderRouteLeaseRef]] = {}
+        by_route_id = {item.route_id: item for item in candidates}
+        for item in descendants:
+            if item.previous_route_id not in by_route_id:
+                return None
+            by_parent.setdefault(str(item.previous_route_id), []).append(item)
+        direct = sorted(
+            by_parent.get(root.route_id, ()),
+            key=lambda item: (item.created_at, item.route_id),
+        )
+        if not direct:
+            return None
+        current = direct[-1]
+        canonical = {root.route_id, current.route_id}
+        while True:
+            children = by_parent.get(current.route_id, ())
+            if not children:
+                break
+            if len(children) != 1:
+                return None
+            current = children[0]
+            if current.route_id in canonical:
+                return None
+            canonical.add(current.route_id)
+        abandoned = {item.route_id for item in direct[:-1]}
+        if any(by_parent.get(route_id) for route_id in abandoned):
+            return None
+        if canonical | abandoned != set(by_route_id):
+            return None
+        return current
 
     @staticmethod
     def _assert_identity(

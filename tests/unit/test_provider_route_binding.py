@@ -19,7 +19,13 @@ from zyra_runtime.provider_control_plane import (
 )
 
 
-def _route(route_id: str, previous_route_id: str | None = None) -> dict[str, Any]:
+def _route(
+    route_id: str,
+    previous_route_id: str | None = None,
+    *,
+    created_at: int = 1,
+    reason: str = "test route",
+) -> dict[str, Any]:
     return {
         "routeId": route_id,
         "checksum": f"sha256:{route_id}",
@@ -36,6 +42,8 @@ def _route(route_id: str, previous_route_id: str | None = None) -> dict[str, Any
         "modelId": "model-1",
         "credentialId": "credential-1",
         "previousRouteId": previous_route_id,
+        "createdAt": created_at,
+        "reason": reason,
     }
 
 
@@ -139,6 +147,24 @@ class ProviderRouteBindingRenewalTests(unittest.TestCase):
             raised.exception.detail["route_ids"],
             ["route-1", "route-2", "route-3"],
         )
+
+    def test_recovers_strictly_evidenced_legacy_renewal_star(self) -> None:
+        renewal = "provider routing; renewed expired route"
+        selected = ProviderRouteBindingRuntime._existing_turn_route(
+            _client([
+                _route("route-1", created_at=1),
+                _route("route-2", "route-1", created_at=2, reason=renewal),
+                _route("route-3", "route-1", created_at=3, reason=renewal),
+                _route("route-4", "route-3", created_at=4, reason=renewal),
+            ]),
+            run_id="run-1",
+            task_id="task-1",
+            session_id="session-1",
+            turn_id="turn-1",
+        )
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.route_id, "route-4")
 
 
 if __name__ == "__main__":
