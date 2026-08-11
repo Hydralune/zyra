@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import type { Readable } from "node:stream"
 import {
   RequestCancelledError,
+  ZyraApiError,
   type EventProjection,
   type TaskMutationProjection,
   type TaskProjection,
@@ -46,6 +47,13 @@ interface EventAccumulator {
 }
 
 const SETTLEMENT_PROBE_INTERVAL_MS = 250
+
+function mutationTransportDetached(error: unknown): boolean {
+  return error instanceof RequestCancelledError || (
+    error instanceof ZyraApiError
+    && (error.category === "disconnect" || error.category === "timeout")
+  )
+}
 
 export function taskHasSettledRunResult(
   task: TaskProjection,
@@ -509,7 +517,7 @@ export async function executeRun(input: {
   }
 
   const run = observedSettlement ? undefined : await runPromise
-  if (run && !run.ok && run.error instanceof RequestCancelledError && !input.signal.aborted) {
+  if (run && !run.ok && mutationTransportDetached(run.error) && !input.signal.aborted) {
     input.output.event(
       {
         schema: "zyra.cli-run-reconciliation.v1",

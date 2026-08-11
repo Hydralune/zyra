@@ -211,6 +211,17 @@ export class FetchApiTransport implements ApiTransport {
             if (!retryEnabled || !classified.retryable || attempt >= retryPolicy.attempts) return "fail"
             if (classified.category === "authentication" || classified.category === "version") return "fail"
             if (classified.category === "receipt" || classified.category === "protocol") return "fail"
+            // Once a mutation has been written to the socket, a disconnect or
+            // local timeout is an ambiguous outcome: the server may still be
+            // applying physical effects. An idempotency key can replay a
+            // committed response, but it does not make concurrent execution
+            // safe while the first request is still in flight. Mutation
+            // owners must reconcile durable state instead of blindly issuing
+            // the same command again.
+            if (
+              isMutatingHttpMethod(request.method)
+              && (classified.category === "disconnect" || classified.category === "timeout")
+            ) return "fail"
             return "retry"
           },
         },

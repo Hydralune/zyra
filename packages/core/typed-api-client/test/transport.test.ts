@@ -196,6 +196,28 @@ describe("typed transport contract", () => {
     expect(script.calls).toHaveLength(2)
   })
 
+  test("does not replay an ambiguous mutating request after transport disconnect", async () => {
+    const script = scriptedFetch([
+      new TypeError("fetch failed: headers timeout after request dispatch"),
+      jsonResponse({ ok: true }),
+    ])
+    const { registry } = registryWith(script.fetch, { attempts: 3 })
+    const request = factory().post(
+      OPERATION_NAMES.taskResume,
+      CONTRACT_NAMES.taskMutation,
+      "/tasks/task_0123456789ab/run",
+      { requested_by: "transport-test" },
+      {
+        requestId: requestId(71),
+        idempotencyKey: "task-resume-ambiguous-disconnect",
+        retry: true,
+      },
+    )
+
+    await expect(registry.execute(request)).rejects.toBeInstanceOf(TransportDisconnectedError)
+    expect(script.calls).toHaveLength(1)
+  })
+
   test("times out a fetch and does not fabricate a response", async () => {
     const id = requestId(8)
     const hangingFetch = ((_input: RequestInfo | URL, init?: RequestInit) =>

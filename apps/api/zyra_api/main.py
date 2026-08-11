@@ -7971,6 +7971,36 @@ def _task_execution_failed_event(state: Any, error: BaseException) -> EventRecor
     )
 
 
+def _task_execution_started_event(
+    state: Any,
+    reservation: ReceiptReservation | None,
+) -> EventRecord:
+    """Persist observable task ownership before a long synchronous dispatch."""
+
+    started_at = now_iso()
+    state.status = PlanNodeStatus.RUNNING
+    state.updated_at = started_at
+    state.metadata["execution_in_flight"] = {
+        "schema": "zyra.task-execution-in-flight/v1",
+        "started_at": started_at,
+        "receipt_id": reservation.receipt_id if reservation is not None else "",
+        "operation": "task.resume",
+    }
+    return EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=state.root_node_id,
+        event_type=EventType.SYSTEM_NOTICE,
+        payload={
+            "schema": "zyra.task-execution-started/v1",
+            "status": str(state.status),
+            "started_at": started_at,
+            "receipt_id": reservation.receipt_id if reservation is not None else "",
+            "request_id": reservation.request_id if reservation is not None else "",
+        },
+    )
+
+
 def _task_execution_error_response(
     state: Any,
     error: BaseException,
@@ -11507,15 +11537,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             if receipt_reservation is False:
                 return
-            pool_api = get_worker_pool_api()
-            pool_journal = pool_api.pool.store.journal(limit=10000)
-            pool_sequence = pool_journal[-1].sequence if pool_journal else 0
-            _fence_pending_task_reservation(
-                pool_api,
-                state,
-                reason="superseded by task resume physical dispatch",
-            )
+            pool_api = None
+            pool_sequence = 0
+            events: list[EventRecord] = []
             try:
+                pool_api = get_worker_pool_api()
+                pool_journal = pool_api.pool.store.journal(limit=10000)
+                pool_sequence = pool_journal[-1].sequence if pool_journal else 0
+                _fence_pending_task_reservation(
+                    pool_api,
+                    state,
+                    reason="superseded by task resume physical dispatch",
+                )
+                started_event = _task_execution_started_event(
+                    state,
+                    (
+                        receipt_reservation
+                        if isinstance(receipt_reservation, ReceiptReservation)
+                        else None
+                    ),
+                )
+                events.append(started_event)
+                # GET /tasks and event ingress must be able to prove that the
+                # mutation owner is still working even if the response socket
+                # detaches before this long call completes.
+                persist_events(store, [started_event])
+                store.save_checkpoint(state)
                 if _task_is_sealed_control(state, payload):
                     prepare_phase2_loopx_pre_control(
                         state,
@@ -11523,9 +11570,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             f"task-resume:{state.run_id}:{state.task_id}"
                         ),
                     )
-                events = run_task_graph(
-                    state,
-                    execution_context=graph_execution_context(),
+                events.extend(
+                    run_task_graph(
+                        state,
+                        execution_context=graph_execution_context(),
+                    )
                 )
                 pool_api.finalize_task(
                     state,
@@ -11534,24 +11583,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
             except Exception as error:  # noqa: BLE001 - HTTP boundary must stay structured.
                 failure_event = _task_execution_failed_event(state, error)
-                events = [failure_event]
+                state.metadata.pop("execution_in_flight", None)
+                events.append(failure_event)
                 try:
-                    pool_api.finalize_task(
-                        state,
-                        success=False,
-                        summary="task resume failed before completion",
-                    )
+                    if pool_api is not None:
+                        pool_api.finalize_task(
+                            state,
+                            success=False,
+                            summary="task resume failed before completion",
+                        )
                 except Exception:  # noqa: BLE001 - preserve the primary failure.
                     pass
-                events.extend(
-                    event
-                    for event in pool_api.pool.events.project_after(
-                        pool_api.pool.store,
-                        pool_sequence,
+                if pool_api is not None:
+                    events.extend(
+                        event
+                        for event in pool_api.pool.events.project_after(
+                            pool_api.pool.store,
+                            pool_sequence,
+                        )
+                        if event.run_id == state.run_id
+                        and event.task_id == state.task_id
                     )
-                    if event.run_id == state.run_id
-                    and event.task_id == state.task_id
-                )
                 persist_events(store, events)
                 store.save_checkpoint(state)
                 response_body = _task_execution_error_response(
@@ -11580,6 +11632,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     headers=receipt_headers,
                 )
                 return
+            state.metadata.pop("execution_in_flight", None)
             events.extend(
                 event
                 for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)

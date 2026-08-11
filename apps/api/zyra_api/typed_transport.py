@@ -230,6 +230,12 @@ def canonical_request_digest(
 class TypedReceiptStore:
     def __init__(self, sqlite_file: Path) -> None:
         self._path = Path(sqlite_file)
+        # Database age alone cannot prove that a mutation owner died. A
+        # long-running request can legitimately outlive the stale-row window,
+        # so retain process-local custody for every live reservation. After a
+        # daemon restart this set is empty and the existing bounded stale-row
+        # recovery remains available.
+        self._active_receipt_ids: set[str] = set()
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
@@ -341,8 +347,12 @@ class TypedReceiptStore:
                         status=HTTPStatus(int(row["status_code"])),
                         body=dict(body),
                     )
+                receipt_id = str(row["receipt_id"])
                 age = now - float(row["created_at"])
-                if age <= RECEIPT_PENDING_TTL_SECONDS:
+                if (
+                    receipt_id in self._active_receipt_ids
+                    or age <= RECEIPT_PENDING_TTL_SECONDS
+                ):
                     raise TypedTransportError(
                         HTTPStatus.CONFLICT,
                         "receipt_pending",
@@ -350,6 +360,9 @@ class TypedReceiptStore:
                         details={
                             "receipt_id": str(row["receipt_id"]),
                             "pending_age_seconds": round(age, 3),
+                            "active_owner": (
+                                receipt_id in self._active_receipt_ids
+                            ),
                         },
                         retryable=True,
                     )
@@ -362,8 +375,9 @@ class TypedReceiptStore:
                     """,
                     (context.request_id, now, idempotency_key),
                 )
+                self._active_receipt_ids.add(receipt_id)
                 return ReceiptReservation(
-                    receipt_id=str(row["receipt_id"]),
+                    receipt_id=receipt_id,
                     request_id=context.request_id,
                     idempotency_key=idempotency_key,
                     operation=operation,
@@ -387,6 +401,7 @@ class TypedReceiptStore:
                     now,
                 ),
             )
+            self._active_receipt_ids.add(receipt_id)
             return ReceiptReservation(
                 receipt_id=receipt_id,
                 request_id=context.request_id,
@@ -467,6 +482,7 @@ class TypedReceiptStore:
                     "Typed mutation receipt could not be committed.",
                     details={"receipt_id": reservation.receipt_id},
                 )
+            self._active_receipt_ids.discard(reservation.receipt_id)
         return response, {
             RECEIPT_ID_HEADER: reservation.receipt_id,
             RECEIPT_REPLAY_HEADER: "false",
@@ -480,6 +496,7 @@ class TypedReceiptStore:
                 "DELETE FROM typed_api_receipts WHERE receipt_id = ? AND state = 'pending'",
                 (reservation.receipt_id,),
             )
+            self._active_receipt_ids.discard(reservation.receipt_id)
 
     def lookup(self, idempotency_key: str) -> dict[str, Any] | None:
         with self._connection() as connection:
