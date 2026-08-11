@@ -193,12 +193,12 @@ def test_delivery_contract_recognizes_plain_chinese_create_file_wording() -> Non
     assert contract.expected_file_contents == (("smoke.txt", "指定文字"),)
 
 
-def test_delivery_contract_does_not_invent_paths_from_container_paths_emails_or_versions() -> None:
+def test_delivery_contract_maps_known_app_workspace_paths_without_inventing_other_paths() -> None:
     contract = goal_delivery_contract(
         "Create `/app/meeting_scheduled.ics` for alice@example.com with VERSION:2.0."
     )
     assert contract.workspace_mutation_required is True
-    assert contract.required_paths == ()
+    assert contract.required_paths == ("meeting_scheduled.ics",)
 
     relative = goal_delivery_contract(
         "Create meeting_scheduled.ics for alice@example.com with VERSION:2.0."
@@ -210,6 +210,53 @@ def test_delivery_contract_does_not_invent_paths_from_container_paths_emails_or_
     )
     assert hyphenated_absolute.workspace_mutation_required is True
     assert hyphenated_absolute.required_paths == ()
+
+
+def test_delivery_contract_rejects_missing_terminal_bench_output_and_incomplete_admission(
+    tmp_path,
+) -> None:
+    goal = (
+        "A video is located at /app/video.mp4. Transcribe all chess moves and "
+        "create a file /app/solution.txt containing the result."
+    )
+    contract = goal_delivery_contract(goal)
+    provider = {
+        "provider_called": True,
+        "task_execution_verified": True,
+        "prompt_goal_bound": True,
+        "synthetic_usage": False,
+        "calls": [{"request_id": "provider-request-1"}],
+    }
+    (tmp_path / "video.mp4").write_bytes(b"input-video")
+    incomplete = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["frames/001.png"]},
+        final_response=(
+            "The task deadline has been reached. I was unable to complete the "
+            "transcription and could not create /app/solution.txt."
+        ),
+        provider_evidence=provider,
+    )
+
+    assert contract.required_paths == ("video.mp4", "solution.txt")
+    assert incomplete["passed"] is False
+    assert incomplete["checks"]["required_paths_present"] is False
+    assert (
+        incomplete["checks"]["final_response_no_incomplete_admission"] is False
+    )
+
+    (tmp_path / "solution.txt").write_text("1. e4 e5\n", encoding="utf-8")
+    complete = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["solution.txt"]},
+        final_response="Completed the transcription and created the requested file.",
+        provider_evidence=provider,
+    )
+    assert complete["passed"] is True
 
 
 def test_delivery_contract_rejects_synthetic_provider_usage(tmp_path) -> None:

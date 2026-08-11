@@ -57,6 +57,10 @@ _WORKSPACE_CHANGE = re.compile(
 )
 _FILE_PATH_PATTERNS = (
     re.compile(
+        r"(?<![\w./\\@-])(/app/(?:[A-Za-z0-9_.-]+/)*"
+        r"[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,12})(?!\w)(?!\.[A-Za-z0-9])"
+    ),
+    re.compile(
         r"[`\"'“‘]((?![A-Za-z]+://)(?![A-Za-z]:[\\/])"
         r"[^`\"'”’\r\n]{1,240}\.[A-Za-z0-9]{1,12})[`\"'”’]"
     ),
@@ -86,6 +90,30 @@ _FILE_CONTENT_PATTERNS = (
         r"([^，,。.!！?？\r\n]{1,500})",
         re.IGNORECASE,
     ),
+)
+
+_FINAL_RESPONSE_INCOMPLETE_PATTERNS = (
+    re.compile(
+        r"\b(?:i|we)\s+(?:(?:was|were|am|are)\s+)?"
+        r"(?:unable|not\s+able)\s+to\s+"
+        r"(?:complete|finish|create|produce|deliver|write|implement|solve)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:i|we)\s+(?:could\s+not|couldn't|cannot|can't)\s+"
+        r"(?:complete|finish|create|produce|deliver|write|implement|solve)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:the\s+)?(?:task|work|request)\s+"
+        r"(?:is|remains)\s+(?:incomplete|unfinished)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:我|我们)?(?:未能|无法|没能)(?:按时)?"
+        r"(?:完成|创建|生成|交付|写入|实现|解决)"
+    ),
+    re.compile(r"(?:任务|工作|请求)(?:尚未|仍未|未)(?:完成|交付|解决)"),
 )
 
 
@@ -251,6 +279,9 @@ def validate_goal_delivery(
         "final_response_present": bool(
             not contract.final_response_required or response
         ),
+        "final_response_no_incomplete_admission": bool(
+            direct is not None or not _final_response_admits_incomplete(response)
+        ),
         "workspace_mutation_observed": bool(
             not contract.workspace_mutation_required
             or any(delta.get(name) for name in ("created", "modified", "deleted"))
@@ -317,6 +348,8 @@ def validate_goal_delivery(
 
 def _safe_relative_path(value: str) -> str:
     rendered = str(value or "").strip().replace("\\", "/")
+    if rendered.startswith("/app/"):
+        rendered = rendered.removeprefix("/app/")
     if (
         not rendered
         or rendered.startswith("/")
@@ -330,6 +363,12 @@ def _safe_relative_path(value: str) -> str:
     if candidate.is_absolute() or ".." in candidate.parts:
         return ""
     return candidate.as_posix()
+
+
+def _final_response_admits_incomplete(value: str) -> bool:
+    return any(
+        pattern.search(value) for pattern in _FINAL_RESPONSE_INCOMPLETE_PATTERNS
+    )
 
 
 def _resolve_contract_path(root: Path | None, relative: str) -> Path | None:
