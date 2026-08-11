@@ -511,6 +511,65 @@ test("expired pinned routes renew without changing provider or credential identi
   assert.equal(controlPlane.store.listRoutes("run-1", "task-1").length, 2);
 });
 
+test("pinned routes renew before their remaining validity can strand a dispatch", (t) => {
+  let now = 1_000_000;
+  const { controlPlane, secrets } = makeControlPlane(t, {
+    clock: { now: () => now },
+    routeLeaseMilliseconds: 1_000,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "proactive-renewal",
+    modelId: "proactive-renewal-model",
+    baseUrl: "https://proactive-renewal.example.test",
+    protocol: "openai_chat",
+  });
+  const original = controlPlane.acquireRoute(
+    routeRequest("proactive-renewal", "proactive-renewal-model"),
+  );
+
+  assert.equal(
+    controlPlane.renewExpiredRoute(original.routeId, 300).routeId,
+    original.routeId,
+  );
+  now += 750;
+
+  const renewed = controlPlane.renewExpiredRoute(original.routeId, 300);
+  assert.notEqual(renewed.routeId, original.routeId);
+  assert.equal(renewed.previousRouteId, original.routeId);
+  assert.equal(renewed.expiresAt, now + 1_000);
+  assert.equal(
+    controlPlane.renewExpiredRoute(original.routeId, 300).routeId,
+    renewed.routeId,
+  );
+});
+
+test("proactive validity requests clamp to the configured route lease", (t) => {
+  let now = 2_000_000;
+  const { controlPlane, secrets } = makeControlPlane(t, {
+    clock: { now: () => now },
+    routeLeaseMilliseconds: 1_000,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "clamped-renewal",
+    modelId: "clamped-renewal-model",
+    baseUrl: "https://clamped-renewal.example.test",
+    protocol: "openai_chat",
+  });
+  const original = controlPlane.acquireRoute(
+    routeRequest("clamped-renewal", "clamped-renewal-model"),
+  );
+
+  assert.equal(
+    controlPlane.renewExpiredRoute(original.routeId, 10_000).routeId,
+    original.routeId,
+  );
+  now += 1;
+  assert.notEqual(
+    controlPlane.renewExpiredRoute(original.routeId, 10_000).routeId,
+    original.routeId,
+  );
+});
+
 test("RPC archival route lookup remains available after lease expiry", async (t) => {
   let now = 1_000_000;
   const { controlPlane, secrets } = makeControlPlane(t, {

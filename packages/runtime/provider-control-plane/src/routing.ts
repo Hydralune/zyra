@@ -250,10 +250,28 @@ export class ProviderRoutePlanner {
     return deepClone(lease);
   }
 
-  renewExpired(routeId: string): ProviderRouteLease {
+  renewExpired(
+    routeId: string,
+    minimumValidityMilliseconds = 0,
+  ): ProviderRouteLease {
+    if (
+      !Number.isSafeInteger(minimumValidityMilliseconds)
+      || minimumValidityMilliseconds < 0
+    ) {
+      throw new TypeError(
+        "minimumValidityMilliseconds must be a non-negative integer",
+      );
+    }
+    const requiredValidityMilliseconds = Math.min(
+      minimumValidityMilliseconds,
+      this.leaseMilliseconds,
+    );
     const previous = this.requirePersisted(routeId);
     const now = this.clock.now();
-    if (previous.expiresAt > now) return previous;
+    if (
+      previous.expiresAt > now
+      && previous.expiresAt - now >= requiredValidityMilliseconds
+    ) return previous;
 
     const reusable = this.store.listRoutes(previous.runId, previous.taskId)
       .filter((candidate) => candidate.previousRouteId === previous.routeId)
@@ -261,7 +279,8 @@ export class ProviderRoutePlanner {
       .find((candidate) => {
         try {
           const live = this.require(candidate.routeId);
-          return samePinnedRoute(previous, live);
+          return samePinnedRoute(previous, live)
+            && live.expiresAt - now >= requiredValidityMilliseconds;
         } catch {
           return false;
         }

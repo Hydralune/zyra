@@ -179,12 +179,18 @@ export class ProviderControlPlane {
     return lease;
   }
 
-  renewExpiredRoute(routeId: string): ProviderRouteLease {
+  renewExpiredRoute(
+    routeId: string,
+    minimumValidityMilliseconds = 0,
+  ): ProviderRouteLease {
     const previous = this.routes.requirePersisted(routeId);
     const existingRouteIds = new Set(
       this.routes.list(previous.runId, previous.taskId).map((route) => route.routeId),
     );
-    const lease = this.routes.renewExpired(routeId);
+    const lease = this.routes.renewExpired(
+      routeId,
+      minimumValidityMilliseconds,
+    );
     if (lease.routeId !== previous.routeId && !existingRouteIds.has(lease.routeId)) {
       this.emit("provider.route.renewed", {
         routeId: lease.routeId,

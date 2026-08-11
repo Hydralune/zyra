@@ -86,19 +86,34 @@ export async function resolveProviderControlPlaneTurns(
     `round${Math.max(0, Math.floor(requestRound))}`,
   ].join("_");
   try {
-    let route: ProviderRouteLease;
-    try {
-      route = controlPlane.routes.require(routeRef.routeId);
+    const providerTimeoutMilliseconds = boundedPositiveInteger(
+      constraints.model_api_timeout_milliseconds,
+      120_000,
+      numberValue(constraints.model_api_timeout_seconds) * 1_000,
+    );
+    // Route lookup happens before the durable model-request checkpoint is
+    // written.  Large long-horizon checkpoints can take tens of seconds, so
+    // accepting a route that is technically live but nearly expired races the
+    // later transport gate.  Reserve the provider timeout plus one minute;
+    // the route store renews the pinned identity without changing provider or
+    // credential custody.
+    const routeMinimumValidityMilliseconds = Math.min(
+      600_000,
+      Math.max(60_000, providerTimeoutMilliseconds + 60_000),
+    );
+    const persistedRoute = controlPlane.routes.requirePersisted(routeRef.routeId);
+    assertRouteRef(persistedRoute, routeRef, input);
+    const route = controlPlane.renewExpiredRoute(
+      routeRef.routeId,
+      routeMinimumValidityMilliseconds,
+    );
+    if (route.routeId === persistedRoute.routeId) {
       assertRouteRef(route, routeRef, input);
-    } catch (error) {
-      if (!(error instanceof ProviderControlPlaneError) || error.kind !== "route_expired") throw error;
-      const expired = controlPlane.routes.requirePersisted(routeRef.routeId);
-      assertRouteRef(expired, routeRef, input);
-      route = controlPlane.renewExpiredRoute(routeRef.routeId);
-      assertRenewedRoute(route, expired, input);
+    } else {
+      assertRenewedRoute(route, persistedRoute, input);
       await emit("provider_route_renewed", {
         provider_route: {
-          previous_route_id: expired.routeId,
+          previous_route_id: persistedRoute.routeId,
           route_id: route.routeId,
           route_checksum: route.checksum,
           expires_at: route.expiresAt,
@@ -156,11 +171,7 @@ export async function resolveProviderControlPlaneTurns(
       maximumOutputTokens: effectiveOutputTokens,
       temperature: optionalTemperature(constraints.model_temperature),
       stream: true,
-      timeoutMilliseconds: boundedPositiveInteger(
-        constraints.model_api_timeout_milliseconds,
-        120_000,
-        numberValue(constraints.model_api_timeout_seconds) * 1_000,
-      ),
+      timeoutMilliseconds: providerTimeoutMilliseconds,
       chunkTimeoutMilliseconds: boundedPositiveInteger(
         constraints.model_chunk_timeout_milliseconds,
         30_000,

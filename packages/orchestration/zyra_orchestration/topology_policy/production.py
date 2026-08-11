@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -111,6 +113,167 @@ def _physical_in_loop_retry_allowed(
         and not reconciled_side_effect_started
         and attempt_index <= _PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS
     )
+
+
+class _PhysicalLeaseHeartbeat:
+    """Keep one fenced physical lease alive while its exact process is live.
+
+    A deployment-node call can contain an unbounded model/tool loop.  The
+    outer worker-pool lease therefore cannot depend on the call returning in
+    order to observe liveness.  This heartbeat independently probes the
+    already selected process, records a canonical worker heartbeat and renews
+    the same fenced lease.  Process generation, endpoint, worker identity and
+    fence identity must all remain unchanged; a replacement process cannot
+    inherit the lease.
+    """
+
+    def __init__(
+        self,
+        *,
+        pool_api: Any,
+        binding: Mapping[str, Any],
+        lease_private: Mapping[str, Any],
+        process_manager: Any,
+        interval_seconds: float | None = None,
+        ttl_seconds: float | None = None,
+    ) -> None:
+        self._pool = pool_api.pool
+        self._lease_id = str(binding.get("lease_id") or "")
+        self._worker_id = str(binding.get("worker_id") or "")
+        self._fence_token = str(lease_private.get("fence_token") or "")
+        self._fence_epoch = int(lease_private.get("fence_epoch") or 0)
+        location = str(binding.get("selected_location") or "").casefold()
+        deployment_profile = {
+            "local": "device",
+            "edge": "edge",
+            "cloud": "cloud",
+        }.get(location, "")
+        self._component_id = f"profile:{deployment_profile}"
+        self._expected_endpoint = str(binding.get("worker_endpoint") or "")
+        self._expected_generation = str(
+            binding.get("worker_deployment_generation_id") or ""
+        )
+        if not all(
+            (
+                self._lease_id,
+                self._worker_id,
+                self._fence_token,
+                self._fence_epoch,
+                deployment_profile,
+                self._expected_endpoint,
+                self._expected_generation,
+            )
+        ):
+            raise ValueError("physical lease heartbeat binding is incomplete")
+        lease = self._pool.store.require_lease(self._lease_id)
+        acquired = datetime.fromisoformat(
+            str(lease.acquired_at).replace("Z", "+00:00")
+        )
+        deadline = datetime.fromisoformat(
+            str(lease.deadline_at).replace("Z", "+00:00")
+        )
+        original_ttl = max(1.0, (deadline - acquired).total_seconds())
+        self._ttl_seconds = float(ttl_seconds or original_ttl)
+        self._interval_seconds = float(
+            interval_seconds
+            if interval_seconds is not None
+            else max(1.0, min(60.0, self._ttl_seconds / 3.0))
+        )
+        if self._ttl_seconds <= 0 or self._interval_seconds <= 0:
+            raise ValueError("physical lease heartbeat timing is invalid")
+        self._process_manager = process_manager
+        self._stop = threading.Event()
+        self._failure: BaseException | None = None
+        self._pulse_count = 0
+        self._renewal_count = 0
+        self._heartbeat_count = 0
+        self._last_deadline_at = str(lease.deadline_at)
+        self._started_monotonic = time.monotonic()
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"zyra-physical-lease-heartbeat-{self._worker_id}",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=10.0)
+        if self._thread.is_alive() and self._failure is None:
+            self._failure = RuntimeError(
+                "physical lease heartbeat did not stop after dispatch"
+            )
+
+    def raise_if_failed(self) -> None:
+        if self._failure is not None:
+            raise RuntimeError("physical lease heartbeat failed") from self._failure
+
+    def report(self) -> dict[str, Any]:
+        return {
+            "schema": "zyra.physical-lease-heartbeat/v1",
+            "lease_id": self._lease_id,
+            "worker_id": self._worker_id,
+            "component_id": self._component_id,
+            "fence_epoch": self._fence_epoch,
+            "interval_seconds": self._interval_seconds,
+            "ttl_seconds": self._ttl_seconds,
+            "pulse_count": self._pulse_count,
+            "worker_heartbeat_count": self._heartbeat_count,
+            "lease_renewal_count": self._renewal_count,
+            "last_deadline_at": self._last_deadline_at,
+            "failure_type": (
+                "" if self._failure is None else type(self._failure).__name__
+            ),
+            "fence_token_persisted": False,
+        }
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._pulse()
+            except BaseException as error:  # noqa: BLE001 - relay thread failure.
+                self._failure = error
+                return
+            if self._stop.wait(self._interval_seconds):
+                return
+
+    def _pulse(self) -> None:
+        process = self._process_manager.status(self._component_id)
+        status = str(getattr(getattr(process, "status", None), "value", ""))
+        if process is None or status != "ready":
+            raise RuntimeError("physical deployment process is not ready")
+        if str(getattr(process, "endpoint", "")) != self._expected_endpoint:
+            raise RuntimeError("physical deployment endpoint changed during lease")
+        if (
+            str(getattr(process, "generation_id", ""))
+            != self._expected_generation
+        ):
+            raise RuntimeError("physical deployment generation changed during lease")
+        lease = self._pool.store.require_lease(self._lease_id)
+        if lease.worker_id != self._worker_id or lease.terminal:
+            raise RuntimeError("physical worker lease is no longer active")
+        latest = self._pool.store.latest_heartbeat(self._worker_id)
+        self._pool.heartbeat_local_worker(
+            self._worker_id,
+            sequence=1 if latest is None else latest.sequence + 1,
+            process_uptime_ms=max(
+                1,
+                int((time.monotonic() - self._started_monotonic) * 1_000),
+            ),
+        )
+        self._heartbeat_count += 1
+        renewed = self._pool.leases.renew(
+            self._lease_id,
+            worker_id=self._worker_id,
+            fence_token=self._fence_token,
+            fence_epoch=self._fence_epoch,
+            ttl_seconds=self._ttl_seconds,
+        )
+        self._pulse_count += 1
+        self._renewal_count += 1
+        self._last_deadline_at = str(renewed.deadline_at)
 
 
 def _canonical_memory_record_digest(record: Any) -> str:
@@ -1874,7 +2037,23 @@ class Phase2StrongestProductionBridge:
                     },
                 ) from error
             try:
-                call_result = port.execute(execution_context)
+                lease_heartbeat = _PhysicalLeaseHeartbeat(
+                    pool_api=self.worker_pool_api,
+                    binding=binding,
+                    lease_private=lease_private,
+                    process_manager=port.process_manager,
+                )
+                lease_heartbeat.start()
+                try:
+                    call_result = port.execute(execution_context)
+                finally:
+                    lease_heartbeat.stop()
+                    heartbeat_history = list(
+                        state.metadata.get("physical_lease_heartbeats") or ()
+                    )
+                    heartbeat_history.append(lease_heartbeat.report())
+                    state.metadata["physical_lease_heartbeats"] = heartbeat_history
+                lease_heartbeat.raise_if_failed()
                 break
             except Exception as error:
                 error_metadata = dict(getattr(error, "metadata", {}) or {})
