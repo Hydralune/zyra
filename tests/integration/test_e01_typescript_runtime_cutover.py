@@ -620,6 +620,131 @@ def test_lost_tool_batch_ack_resumes_without_reexecution(tmp_path: Path) -> None
     assert len(receipts) == 1
 
 
+def test_dispatched_non_idempotent_tool_is_fenced_after_restart(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    original_execute = ToolExecutor.execute
+    executions = 0
+
+    def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        nonlocal executions
+        executions += 1
+        return original_execute(self, call, **kwargs)
+
+    request = _request(
+        "e01-dispatch-outcome-unknown",
+        session_id="e01-dispatch-outcome-unknown-session",
+        permission_mode="acceptEdits",
+        query_turns=[[
+            {
+                "tool_name": "file_write",
+                "arguments": {"path": "effect.txt", "content": "must execute once"},
+            }
+        ]],
+    )
+    with mock.patch.object(ToolExecutor, "execute", counting_execute):
+        failed = runtime.run(
+            _request(
+                "e01-dispatch-outcome-unknown",
+                session_id="e01-dispatch-outcome-unknown-session",
+                permission_mode="acceptEdits",
+                query_turns=[[
+                    {
+                        "tool_name": "file_write",
+                        "arguments": {
+                            "path": "effect.txt",
+                            "content": "must execute once",
+                        },
+                    }
+                ]],
+                typescript_fault_injection="tool_dispatched_before_execution",
+            )
+        )
+        recovered = runtime.run(request)
+
+    assert failed.worker_result.ok is False
+    failed_snapshot = _checkpoint(failed)["session_snapshot"]
+    assert isinstance(failed_snapshot, dict)
+    failed_receipts = failed_snapshot["tool_effect_receipts"]
+    assert isinstance(failed_receipts, dict) and len(failed_receipts) == 1, (
+        failed.worker_result.error,
+        failed.worker_result.events[-1],
+        failed_receipts,
+    )
+    assert executions == 0
+    assert not (workspace / "effect.txt").exists()
+    recovered_snapshot = _checkpoint(recovered)["session_snapshot"]
+    assert isinstance(recovered_snapshot, dict)
+    receipts = recovered_snapshot["tool_effect_receipts"]
+    assert isinstance(receipts, dict) and len(receipts) == 1
+    receipt = next(iter(receipts.values()))
+    assert receipt["transaction_state"] == "dispatched"
+    assert receipt["recovery_attempts"] == 1
+    assert receipt["result"] is None
+    settlement = recovered_snapshot["typescript_runtime_snapshot"][
+        "typescriptCapabilities"
+    ]["settlement"]
+    assert settlement["calls"][0]["transactionState"] == "outcome_unknown"
+    assert settlement["calls"][0]["dispatchCredential"]
+
+
+def test_pre_dispatch_intent_recovers_once_with_the_same_idempotency_key(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    original_execute = ToolExecutor.execute
+    executions = 0
+
+    def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        nonlocal executions
+        executions += 1
+        return original_execute(self, call, **kwargs)
+
+    common = {
+        "session_id": "e01-pre-dispatch-intent-session",
+        "permission_mode": "acceptEdits",
+        "query_turns": [[{
+            "tool_name": "file_write",
+            "arguments": {"path": "intent.txt", "content": "one execution"},
+        }]],
+    }
+    with mock.patch.object(ToolExecutor, "execute", counting_execute):
+        failed = runtime.run(
+            _request(
+                "e01-pre-dispatch-intent",
+                **common,
+                typescript_fault_injection="tool_intent_before_dispatch",
+            )
+        )
+        recovered = runtime.run(_request("e01-pre-dispatch-intent", **common))
+
+    assert failed.worker_result.ok is False
+    assert recovered.worker_result.ok is True
+    assert executions == 1
+    assert (workspace / "intent.txt").read_text(encoding="utf-8") == "one execution"
+    snapshot = _checkpoint(recovered)["session_snapshot"]
+    assert isinstance(snapshot, dict)
+    receipts = snapshot["tool_effect_receipts"]
+    assert isinstance(receipts, dict) and len(receipts) == 1
+    receipt = next(iter(receipts.values()))
+    assert receipt["transaction_state"] == "completed"
+    assert receipt["recovery_attempts"] == 1
+    assert receipt["effect_key"]
+
+
 @pytest.mark.parametrize(
     ("fault_point", "minimum_launches", "minimum_epochs"),
     [

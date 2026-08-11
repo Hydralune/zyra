@@ -599,15 +599,18 @@ def _code_worker_reasoning_budget(
 def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]:
     """Carry bounded, externally verified benchmark settings across processes."""
 
+    # Keep the legacy dispatch marker for adapter compatibility. Runtime
+    # closeout no longer depends on it; the generic resource fields below are
+    # authoritative for every caller that provides a deadline.
     constraints: dict[str, Any] = {"benchmark_physical_dispatch": True}
     deadline = context.get("external_deadline_epoch_ms")
     if deadline not in (None, "", 0, 0.0):
+        closeout_reserve = _benchmark_deadline_closeout_reserve_seconds(context)
         constraints.update(
             {
                 "external_deadline_epoch_ms": int(deadline),
-                "benchmark_closeout_reserve_seconds": (
-                    _benchmark_deadline_closeout_reserve_seconds(context)
-                ),
+                "closeout_reserve_seconds": closeout_reserve,
+                "benchmark_closeout_reserve_seconds": closeout_reserve,
             }
         )
     if context.get("benchmark_long_horizon") is True:

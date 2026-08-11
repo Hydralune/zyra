@@ -433,6 +433,8 @@ def run_task_graph(
     if _all_stage_nodes_completed(state):
         state.status = PlanNodeStatus.COMPLETED
         state.updated_at = now_iso()
+        verifier: dict[str, Any] = {}
+        gate: dict[str, Any] = {}
         if execution_context is not None and execution_context.final_verifier is not None:
             verifier = dict(execution_context.final_verifier(state, tuple(events)))
             events.append(
@@ -452,6 +454,19 @@ def run_task_graph(
             except Exception as error:  # noqa: BLE001 - post-side-effect uncertainty is terminal for this pass.
                 state.status = PlanNodeStatus.BLOCKED
                 state.updated_at = now_iso()
+                diagnostic = {
+                    "schema": "zyra.task-outcome-diagnostic/v1",
+                    "stage": "completion_gate",
+                    "error_type": type(error).__name__,
+                    "message": str(error),
+                    "recoverable": True,
+                }
+                _commit_canonical_task_outcome(
+                    state,
+                    verifier=verifier,
+                    gate={},
+                    diagnostics=(diagnostic,),
+                )
                 events.append(
                     EventRecord(
                         run_id=state.run_id,
@@ -511,6 +526,11 @@ def run_task_graph(
             if not gate_allows_completion:
                 state.status = PlanNodeStatus.BLOCKED
                 state.updated_at = now_iso()
+                _commit_canonical_task_outcome(
+                    state,
+                    verifier=verifier,
+                    gate=gate,
+                )
                 events.append(
                     EventRecord(
                         run_id=state.run_id,
@@ -531,6 +551,14 @@ def run_task_graph(
                     )
                 )
                 return events
+        elif verifier and verifier.get("passed") is not True:
+            state.status = PlanNodeStatus.BLOCKED
+            state.updated_at = now_iso()
+        _commit_canonical_task_outcome(
+            state,
+            verifier=verifier,
+            gate=gate,
+        )
         events.append(
             EventRecord(
                 run_id=state.run_id,
@@ -546,6 +574,61 @@ def run_task_graph(
         )
 
     return events
+
+
+def _commit_canonical_task_outcome(
+    state: TaskState,
+    *,
+    verifier: Mapping[str, Any],
+    gate: Mapping[str, Any],
+    diagnostics: Sequence[Mapping[str, Any]] = (),
+) -> Mapping[str, Any]:
+    """Commit the immutable task result; later reconciliation is diagnostic-only."""
+
+    existing = state.metadata.get("canonical_task_outcome")
+    if isinstance(existing, Mapping) and existing.get("schema") == "zyra.task-outcome/v1":
+        if diagnostics:
+            supplemental = state.metadata.setdefault("task_outcome_diagnostics", [])
+            if isinstance(supplemental, list):
+                supplemental.extend(to_jsonable(tuple(diagnostics)))
+        return dict(existing)
+    status = str(state.status)
+    terminal = state.status in {
+        PlanNodeStatus.COMPLETED,
+        PlanNodeStatus.BLOCKED,
+        PlanNodeStatus.CANCELLED,
+        PlanNodeStatus.FAILED,
+    }
+    outcome = {
+        "schema": "zyra.task-outcome/v1",
+        "revision": 1,
+        "task_id": state.task_id,
+        "run_id": state.run_id,
+        "task_status": status,
+        "terminal": terminal,
+        "execution_result": {
+            "status": status,
+            "source": "canonical_task_state",
+        },
+        "verification": {
+            "final_verifier": {
+                "schema": str(verifier.get("schema") or ""),
+                "passed": verifier.get("passed"),
+                "decision_id": str(verifier.get("decision_id") or ""),
+            },
+            "completion_gate": {
+                "schema": str(gate.get("schema") or ""),
+                "hard_conditions_passed": gate.get("hard_conditions_passed"),
+                "decision": str(gate.get("decision") or ""),
+            },
+        },
+        "diagnostics": to_jsonable(tuple(diagnostics)),
+        "confirmed_at": state.updated_at,
+    }
+    state.metadata["canonical_task_outcome"] = outcome
+    if diagnostics:
+        state.metadata["task_outcome_diagnostics"] = to_jsonable(tuple(diagnostics))
+    return outcome
 
 
 def _prepare_adaptive_depth_continuation(state: TaskState) -> None:

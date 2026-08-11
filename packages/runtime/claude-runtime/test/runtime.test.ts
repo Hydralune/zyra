@@ -18,6 +18,7 @@ import {
   providerControlPlaneEvidenceFrames,
   providerControlPlaneToolSteps,
 } from "../src/provider-control-plane-runtime.ts";
+import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -641,9 +642,8 @@ test("benchmark deadline closeout removes tools and returns a final response", a
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
           model_api_key: "test-only-provider-key",
-          benchmark_physical_dispatch: true,
           external_deadline_epoch_ms: Date.now() + 60_000,
-          benchmark_closeout_reserve_seconds: 120,
+          closeout_reserve_seconds: 120,
         },
       },
     }), host);
@@ -652,16 +652,16 @@ test("benchmark deadline closeout removes tools and returns a final response", a
     assert.equal(requestBodies.length, 1);
     assert.equal(((requestBodies[0].tools as unknown[]) ?? []).length, 0);
     assert.equal(host.batches.length, 0);
-    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "true");
+    assert.equal(result.metadata.execution_closeout_requested, "true");
     assert.ok(host.events.some((event) =>
-      event.phase === "benchmark_deadline_budget_accepted"
+      event.phase === "execution_resource_budget_accepted"
     ));
     assert.ok(host.events.some((event) =>
-      event.phase === "benchmark_deadline_closeout_requested"
+      event.phase === "execution_closeout_requested"
       && event.tools_advertised === 0
     ));
     assert.ok(host.events.some((event) =>
-      event.phase === "benchmark_deadline_closeout_completed"
+      event.phase === "execution_closeout_completed"
     ));
   } finally {
     globalThis.fetch = originalFetch;
@@ -716,9 +716,8 @@ test("benchmark deadline outside closeout keeps the open tool loop", async () =>
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
           model_api_key: "test-only-provider-key",
-          benchmark_physical_dispatch: true,
           external_deadline_epoch_ms: Date.now() + 600_000,
-          benchmark_closeout_reserve_seconds: 60,
+          closeout_reserve_seconds: 60,
         },
       },
     }), host);
@@ -727,7 +726,7 @@ test("benchmark deadline outside closeout keeps the open tool loop", async () =>
     assert.equal(requestBodies.length, 2);
     assert.ok(((requestBodies[0].tools as unknown[]) ?? []).length > 0);
     assert.equal(host.batches.length, 1);
-    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "false");
+    assert.equal(result.metadata.execution_closeout_requested, "false");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -767,9 +766,8 @@ test("benchmark deadline closeout retries textual DSML instead of accepting it",
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
           model_api_key: "test-only-provider-key",
-          benchmark_physical_dispatch: true,
           external_deadline_epoch_ms: Date.now() + 120_000,
-          benchmark_closeout_reserve_seconds: 180,
+          closeout_reserve_seconds: 180,
         },
       },
     }), host);
@@ -781,11 +779,11 @@ test("benchmark deadline closeout retries textual DSML instead of accepting it",
     ));
     assert.equal(host.batches.length, 0);
     assert.ok(host.events.some((event) =>
-      event.phase === "benchmark_deadline_closeout_retry_requested"
+      event.phase === "execution_closeout_retry_requested"
       && event.tools_advertised === 0
     ));
     assert.ok(host.events.some((event) =>
-      event.phase === "benchmark_deadline_closeout_completed"
+      event.phase === "execution_closeout_completed"
       && event.attempt === 2
     ));
   } finally {
@@ -846,9 +844,8 @@ test("benchmark deadline crossing fences an unexecuted provider tool turn", asyn
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
           model_api_key: "test-only-provider-key",
-          benchmark_physical_dispatch: true,
           external_deadline_epoch_ms: nowMs + 120_000,
-          benchmark_closeout_reserve_seconds: 60,
+          closeout_reserve_seconds: 60,
         },
       },
     }), host);
@@ -859,7 +856,7 @@ test("benchmark deadline crossing fences an unexecuted provider tool turn", asyn
     assert.equal(((requestBodies[1].tools as unknown[]) ?? []).length, 0);
     assert.equal(host.batches.length, 0);
     assert.equal(result.toolCallCount, 0);
-    assert.equal(result.metadata.benchmark_deadline_closeout_requested, "true");
+    assert.equal(result.metadata.execution_closeout_requested, "true");
   } finally {
     Date.now = originalNow;
     globalThis.fetch = originalFetch;
@@ -1423,4 +1420,123 @@ test("runtime projects control commands and failure recovery signals", async () 
   assert.equal(failed.ok, false);
   assert.ok(failureHost.events.some((event) => event.phase === "tool_failure_signal"));
   assert.ok(failureHost.events.some((event) => event.phase === "watchdog_signal"));
+});
+
+test("required delivery turns an analysis-only final into an incremental tool action", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount === 1
+      ? { index: 0, delta: { content: "I have enough information to describe the change." }, finish_reason: "stop" }
+      : requestCount === 2
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "progressive-write",
+              type: "function",
+              function: { name: "write", arguments: '{"path":"draft.txt","content":"minimum result"}' },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : { index: 0, delta: { content: "The durable result was created and checked." }, finish_reason: "stop" };
+    return new Response(`data: ${JSON.stringify({
+      id: `progressive-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(host.batches.length, 1);
+    assert.equal(host.batches[0]?.steps[0]?.tool_name, "write");
+    assert.ok(
+      host.events.some((event) => event.phase === "progressive_action_requested"),
+      JSON.stringify(host.events.map((event) => event.phase)),
+    );
+    assert.equal(result.metadata.progressive_real_actions, "1");
+    assert.equal(result.metadata.progressive_action_nudges, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("progressive execution requests action after analysis-only loops and records delivery", () => {
+  let clock = 1_000;
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => clock,
+    constraints: {},
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  progressive.observeProviderRound("Inspect the repository and consider options.", 0);
+  clock += 1_000;
+  progressive.observeProviderRound("Inspect the repository and consider options.", 0);
+  const stalled = progressive.decide(1_000, 10_000);
+
+  assert.equal(stalled.action, "nudge_action");
+  assert.equal(stalled.snapshot.requiredDeliveryMissing, true);
+  assert.equal(stalled.snapshot.repeatedAnalysisRounds, 1);
+
+  progressive.observeToolResult({
+    toolCallId: "write-1",
+    toolName: "write",
+    arguments: { path: "result.txt" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "batch-1",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  }, {
+    tool_call_id: "write-1",
+    ok: true,
+    summary: "created an incremental result",
+    output: {},
+    artifacts: [{ artifact_id: "artifact-1", kind: "file", uri: "workspace:result.txt", title: "result" }],
+    metadata: { physical_effect_executed: "true" },
+  }, false);
+  const delivered = progressive.decide(2_000, 10_000);
+
+  assert.equal(delivered.action, "continue");
+  assert.equal(delivered.snapshot.requiredDeliveryMissing, false);
+  assert.equal(delivered.snapshot.workspaceMutationCount, 1);
+  assert.equal(delivered.snapshot.artifactCount, 1);
+});
+
+test("progressive closeout accounts for artifacts, verification, background work, and context", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => 10_000,
+    constraints: {
+      external_deadline_epoch_ms: 20_000,
+      closeout_reserve_seconds: 2,
+    },
+  });
+  const normal = progressive.decide(1_000, 10_000);
+  const contextBoundary = progressive.decide(9_800, 10_000);
+
+  assert.equal(normal.action, "continue");
+  assert.equal(contextBoundary.action, "closeout");
+  assert.match(contextBoundary.reason, /resource boundary/);
+  assert.equal(contextBoundary.snapshot.phase, "closeout");
 });

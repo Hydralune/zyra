@@ -212,7 +212,7 @@ def test_delivery_contract_maps_known_app_workspace_paths_without_inventing_othe
     assert hyphenated_absolute.required_paths == ()
 
 
-def test_delivery_contract_rejects_missing_terminal_bench_output_and_incomplete_admission(
+def test_delivery_contract_uses_objective_workspace_evidence_over_model_wording(
     tmp_path,
 ) -> None:
     goal = (
@@ -243,9 +243,8 @@ def test_delivery_contract_rejects_missing_terminal_bench_output_and_incomplete_
     assert contract.required_paths == ("video.mp4", "solution.txt")
     assert incomplete["passed"] is False
     assert incomplete["checks"]["required_paths_present"] is False
-    assert (
-        incomplete["checks"]["final_response_no_incomplete_admission"] is False
-    )
+    assert incomplete["schema"] == "zyra.goal-delivery-verification/v2"
+    assert "required_paths_present" in incomplete["decision"]["decisive_failures"]
 
     (tmp_path / "solution.txt").write_text("1. e4 e5\n", encoding="utf-8")
     complete = validate_goal_delivery(
@@ -253,10 +252,70 @@ def test_delivery_contract_rejects_missing_terminal_bench_output_and_incomplete_
         projection=contract.to_dict(),
         workspace_root=tmp_path,
         workspace_delta={"created": ["solution.txt"]},
-        final_response="Completed the transcription and created the requested file.",
+        final_response=(
+            "I am not sure the transcription was completed or that the requested "
+            "file is ready."
+        ),
         provider_evidence=provider,
     )
     assert complete["passed"] is True
+    assert complete["decision"]["decisive_failures"] == []
+    assert complete["evidence"][-1] == {
+        "tier": 4,
+        "source": "model_final_response",
+        "name": "final_response_present",
+        "passed": True,
+        "decisive": True,
+    }
+
+
+def test_delivery_contract_rejects_model_claim_without_artifact(tmp_path) -> None:
+    goal = "Create result.txt with file content 'ready'."
+    contract = goal_delivery_contract(goal)
+    verification = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={},
+        final_response="Completed successfully.",
+        provider_evidence={
+            "provider_called": True,
+            "task_execution_verified": True,
+            "prompt_goal_bound": True,
+            "synthetic_usage": False,
+            "calls": [{"request_id": "provider-request"}],
+        },
+    )
+
+    assert verification["passed"] is False
+    assert verification["checks"]["required_paths_present"] is False
+    assert verification["checks"]["workspace_mutation_observed"] is False
+
+
+def test_delivery_contract_rejects_artifact_when_deterministic_content_check_fails(
+    tmp_path,
+) -> None:
+    goal = "Create result.txt with file content 'ready'."
+    contract = goal_delivery_contract(goal)
+    (tmp_path / "result.txt").write_text("wrong\n", encoding="utf-8")
+    verification = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["result.txt"]},
+        final_response="Completed successfully.",
+        provider_evidence={
+            "provider_called": True,
+            "task_execution_verified": True,
+            "prompt_goal_bound": True,
+            "synthetic_usage": False,
+            "calls": [{"request_id": "provider-request"}],
+        },
+    )
+
+    assert verification["passed"] is False
+    assert verification["checks"]["required_paths_present"] is True
+    assert verification["checks"]["expected_file_contents_match"] is False
 
 
 def test_delivery_contract_rejects_synthetic_provider_usage(tmp_path) -> None:

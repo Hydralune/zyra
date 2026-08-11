@@ -94,6 +94,14 @@ export class ProviderTransportRuntime {
         return { ...result, attempts: deepClone(allAttempts) };
       } catch (error) {
         lastError = asProviderError(error);
+        if (lifecycleOwnerToken && this.lifecycle) {
+          this.lifecycle.recordRecoveryFailure(
+            request.dispatchId,
+            lifecycleOwnerToken,
+            lastError,
+            attemptNumber,
+          );
+        }
         if (lastError.credentialId === lease.credentialId && lastError.kind !== "credential_version_conflict") {
           try { this.credentials.recordFailure(lease.credentialId, lease.credentialVersion, lastError.kind); } catch { /* preserve transport error */ }
         }
@@ -166,7 +174,11 @@ export class ProviderTransportRuntime {
     const streamSupervisor = new ProviderStreamSupervisor(
       { ...request, routeId: lease.routeId },
       lease,
-      { now: () => this.clock.now() },
+      {
+        now: () => this.clock.now(),
+        recoveryAttempt: attemptNumber,
+        maximumRecoveryAttempts: lease.retryPolicy.maximumAttempts,
+      },
     );
     let streamCompletion: ProviderStreamCompletion | null = null;
     let admissionPermit: ProviderAdmissionPermit | null = null;
@@ -254,7 +266,12 @@ export class ProviderTransportRuntime {
         const text = await response.text();
         responseBytes = Buffer.byteLength(text);
         const decodedFrames = decodeProviderEvent(lease, text, "response.completed", frameState);
-        if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(request.dispatchId, lifecycleOwnerToken, decodedFrames);
+        if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(
+          request.dispatchId,
+          lifecycleOwnerToken,
+          decodedFrames,
+          attemptNumber,
+        );
         streamSupervisor.observe(decodedFrames);
         frames.push(...decodedFrames);
       } else {
@@ -264,7 +281,12 @@ export class ProviderTransportRuntime {
         })) {
           responseBytes += Buffer.byteLength(event.data);
           const decodedFrames = decodeProviderEvent(lease, event.data, event.event, frameState);
-          if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(request.dispatchId, lifecycleOwnerToken, decodedFrames);
+          if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(
+            request.dispatchId,
+            lifecycleOwnerToken,
+            decodedFrames,
+            attemptNumber,
+          );
           streamSupervisor.observe(decodedFrames);
           frames.push(...decodedFrames);
         }

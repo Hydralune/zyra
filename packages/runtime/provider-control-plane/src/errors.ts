@@ -31,6 +31,7 @@ export type ProviderFailureKind =
   | "context_overflow"
   | "request_too_large"
   | "response_protocol_error"
+  | "tool_arguments_incomplete"
   | "partial_response_observed"
   | "request_aborted"
   | "unknown_provider_failure";

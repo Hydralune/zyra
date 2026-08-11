@@ -1708,6 +1708,13 @@ class TypeScriptClaudeQueryEngine:
         decision = dict(payload.get("permission_decision") or {})
         permission_only = bool(payload.get("permission_only"))
         execution_owner = str(payload.get("execution_owner") or "python-tool-executor")
+        transaction_metadata = dict(payload.get("metadata") or {})
+        transaction_idempotency_key = str(
+            transaction_metadata.get("tool_idempotency_key") or ""
+        )
+        dispatch_credential = str(
+            transaction_metadata.get("tool_dispatch_credential") or ""
+        )
         request_digest = hashlib.sha256(
             json.dumps(
                 {"tool_name": tool_name, "arguments": arguments},
@@ -1716,7 +1723,7 @@ class TypeScriptClaudeQueryEngine:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
-        effect_key = hashlib.sha256(
+        derived_effect_key = hashlib.sha256(
             json.dumps(
                 {
                     "run_id": run_id,
@@ -1734,17 +1741,22 @@ class TypeScriptClaudeQueryEngine:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
+        effect_key = transaction_idempotency_key or derived_effect_key
+        recovery_attempts = 0
+        cached_storage_key = tool_call_id
         with receipt_lock:
             cached = tool_effect_receipts.get(tool_call_id)
             if cached is None:
-                cached = next(
+                cached_match = next(
                     (
-                        receipt
-                        for receipt in tool_effect_receipts.values()
+                        (receipt_key, receipt)
+                        for receipt_key, receipt in tool_effect_receipts.items()
                         if str(receipt.get("effect_key") or "") == effect_key
                     ),
                     None,
                 )
+                if cached_match is not None:
+                    cached_storage_key, cached = cached_match
             if cached is not None:
                 if str(cached.get("request_digest") or "") != request_digest:
                     return {
@@ -1759,17 +1771,67 @@ class TypeScriptClaudeQueryEngine:
                             "effect_replay_fenced": "true",
                         },
                     }
-                replayed = dict(cached.get("result") or {})
-                replayed_metadata = dict(replayed.get("metadata") or {})
-                replayed_metadata["effect_replay_fenced"] = "true"
-                replayed_metadata["effect_replayed"] = "false"
-                replayed_metadata["effect_key"] = effect_key
-                replayed_metadata["original_tool_call_id"] = str(
-                    cached.get("original_tool_call_id") or replayed.get("tool_call_id") or ""
+                transaction_state = str(
+                    cached.get("transaction_state") or "completed"
                 )
-                replayed["tool_call_id"] = tool_call_id
-                replayed["metadata"] = replayed_metadata
-                return replayed
+                if transaction_state != "completed" or not cached.get("result"):
+                    recovery_attempts = int(cached.get("recovery_attempts") or 0) + 1
+                    cached["recovery_attempts"] = recovery_attempts
+                    tool_effect_receipts[cached_storage_key] = cached
+                    checkpoint = dict(self._latest_runtime_checkpoint)
+                    checkpoint["tool_effect_receipts"] = to_jsonable(
+                        tool_effect_receipts
+                    )
+                    self._latest_runtime_checkpoint = (
+                        self._persist_incremental_checkpoint(
+                            session_id,
+                            checkpoint,
+                        )
+                    )
+                if transaction_state == "dispatch_intent_recorded":
+                    if cached_storage_key != tool_call_id:
+                        tool_effect_receipts.pop(cached_storage_key, None)
+                elif transaction_state != "completed" or not cached.get("result"):
+                    return {
+                        "tool_call_id": tool_call_id,
+                        "ok": False,
+                        "summary": (
+                            "Tool dispatch was durably recorded, but its outcome "
+                            "could not be confirmed. Automatic re-execution is fenced."
+                        ),
+                        "output": {
+                            "dispatch_credential": str(
+                                cached.get("dispatch_credential") or dispatch_credential
+                            ),
+                            "idempotency_key": effect_key,
+                            "duplicate_effect_fenced": True,
+                            "recovery_attempts": recovery_attempts,
+                        },
+                        "artifacts": [],
+                        "error": "tool_outcome_unknown",
+                        "metadata": {
+                            "tool_transaction_state": "outcome_unknown",
+                            "physical_effect_executed": "unknown",
+                            "effect_replay_fenced": "true",
+                            "tool_dispatch_credential": str(
+                                cached.get("dispatch_credential") or dispatch_credential
+                            ),
+                        },
+                    }
+                if transaction_state == "completed":
+                    replayed = dict(cached.get("result") or {})
+                    replayed_metadata = dict(replayed.get("metadata") or {})
+                    replayed_metadata["effect_replay_fenced"] = "true"
+                    replayed_metadata["effect_replayed"] = "false"
+                    replayed_metadata["effect_key"] = effect_key
+                    replayed_metadata["original_tool_call_id"] = str(
+                        cached.get("original_tool_call_id")
+                        or replayed.get("tool_call_id")
+                        or ""
+                    )
+                    replayed["tool_call_id"] = tool_call_id
+                    replayed["metadata"] = replayed_metadata
+                    return replayed
         raw_binding = decision.get("requestBinding", decision.get("request_binding"))
         binding = dict(raw_binding) if isinstance(raw_binding, Mapping) else {}
         namespace = str(binding.get("namespace") or "builtin")
@@ -1902,7 +1964,7 @@ class TypeScriptClaudeQueryEngine:
                     },
                 )
             )
-        metadata = {str(key): str(value) for key, value in dict(payload.get("metadata") or {}).items()}
+        metadata = {str(key): str(value) for key, value in transaction_metadata.items()}
         metadata.update(
             {
                 "tool_namespace": namespace,
@@ -1913,6 +1975,8 @@ class TypeScriptClaudeQueryEngine:
                 "canonical_permission_owner": "typescript",
                 "execution_owner": execution_owner,
                 "e02_receipt_digest": permit.receipt_digest,
+                "tool_idempotency_key": effect_key,
+                "tool_dispatch_credential": dispatch_credential,
             }
         )
         call = ToolCall(
@@ -1924,11 +1988,63 @@ class TypeScriptClaudeQueryEngine:
             tool_call_id=tool_call_id,
             metadata=metadata,
         )
+        with receipt_lock:
+            transaction_receipt = {
+                "request_digest": request_digest,
+                "effect_key": effect_key,
+                "original_tool_call_id": tool_call_id,
+                "decision_id": permit.decision_id,
+                "receipt_digest": permit.receipt_digest,
+                "dispatch_credential": dispatch_credential,
+                "transaction_state": "dispatch_intent_recorded",
+                "dispatch_attempt": int(
+                    transaction_metadata.get("tool_dispatch_attempt") or 1
+                ),
+                "recovery_attempts": recovery_attempts,
+                "result": None,
+            }
+            tool_effect_receipts[tool_call_id] = transaction_receipt
+            checkpoint = dict(self._latest_runtime_checkpoint)
+            checkpoint["tool_effect_receipts"] = to_jsonable(tool_effect_receipts)
+            self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                session_id, checkpoint
+            )
+            if str(
+                self.config.runtime_constraints.get("typescript_fault_injection")
+                or ""
+            ) == "tool_intent_before_dispatch":
+                raise TypeScriptRuntimeError(
+                    "typescript_tool_intent_fault_injected",
+                    "Disconnected after durable dispatch intent and before dispatch.",
+                )
+            transaction_receipt["transaction_state"] = "dispatched"
+            tool_effect_receipts[tool_call_id] = transaction_receipt
+            checkpoint = dict(self._latest_runtime_checkpoint)
+            checkpoint["tool_effect_receipts"] = to_jsonable(tool_effect_receipts)
+            self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                session_id, checkpoint
+            )
+        if str(
+            self.config.runtime_constraints.get("typescript_fault_injection")
+            or ""
+        ) == "tool_dispatched_before_execution":
+            raise TypeScriptRuntimeError(
+                "typescript_tool_dispatch_fault_injected",
+                "Disconnected after durable tool dispatch and before result acknowledgement.",
+            )
         result = executor.execute(call, permission_grant=permit)
         encoded_result = to_jsonable(result)
         encoded_metadata = dict(encoded_result.get("metadata") or {})
         encoded_metadata["e02_permit_id"] = str(
             metadata.get("e02_permit_id") or ""
+        )
+        encoded_metadata.update(
+            {
+                "tool_transaction_state": "completed",
+                "tool_idempotency_key": effect_key,
+                "tool_dispatch_credential": dispatch_credential,
+                "physical_effect_executed": "true",
+            }
         )
         encoded_result["metadata"] = encoded_metadata
         with receipt_lock:
@@ -1938,6 +2054,12 @@ class TypeScriptClaudeQueryEngine:
                 "original_tool_call_id": tool_call_id,
                 "decision_id": permit.decision_id,
                 "receipt_digest": permit.receipt_digest,
+                "dispatch_credential": dispatch_credential,
+                "transaction_state": "completed",
+                "dispatch_attempt": int(
+                    transaction_metadata.get("tool_dispatch_attempt") or 1
+                ),
+                "recovery_attempts": recovery_attempts,
                 "result": encoded_result,
             }
             checkpoint = dict(self._latest_runtime_checkpoint)

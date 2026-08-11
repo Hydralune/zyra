@@ -486,6 +486,69 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(ingressCalls).toBeGreaterThanOrEqual(2)
   })
 
+  test("keeps the canonical terminal outcome when result refresh and event sync fail", async () => {
+    const pending = task("pending")
+    const completed = task("completed")
+    const finalVerifier = {
+      eventId: "event_terminal_final_verifier",
+      eventType: "final_verifier",
+      taskId: completed.taskId,
+      runId: completed.runId,
+      createdAt: "2026-08-04T00:00:02.000Z",
+      payload: { schema: "zyra.production-independent-final-verifier/v2", passed: true },
+    }
+    const completionGate = {
+      eventId: "event_terminal_completion_gate",
+      eventType: "completion_gate",
+      taskId: completed.taskId,
+      runId: completed.runId,
+      createdAt: "2026-08-04T00:00:03.000Z",
+      payload: { schema: "zyra.production-adaptive-depth-completion-gate/v1", hard_conditions_passed: true },
+    }
+    const fake = {
+      async createPendingTask() {
+        return { ...mutation(pending), events: [finalVerifier, completionGate] }
+      },
+      async openIngress() {
+        return { cursor: "opaque.cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() { return mutation(completed) },
+      async nextIngress() {
+        return { cursor: "opaque.cursor.final", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { throw new ApiVersionMismatchError("2.0", ["1.0"]) },
+      async events() { throw new Error("post-terminal event synchronization failed") },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+
+    const outcome = await executeRun({
+      command: {
+        kind: "run",
+        goal: "Return the canonical task outcome.",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+        sealed: true,
+      },
+      api: fake,
+      output: new CliOutput({
+        stdout: new Capture(),
+        stderr: new Capture(),
+        requestId: "request_terminal_diagnostic",
+        command: "run",
+      }),
+      stdin: Readable.from([]),
+      signal: new AbortController().signal,
+    })
+
+    expect(outcome.exitCode).toBe(CliExitCode.SUCCESS)
+    expect(outcome.status).toBe("completed")
+    expect(outcome.canonicalOutcome?.schema).toBe("zyra.task-outcome/v1")
+    expect(outcome.diagnostics?.map((item) => item.stage)).toEqual(["result_read", "event_sync"])
+    expect(outcome.diagnostics?.map((item) => item.recoverable)).toEqual([false, true])
+  })
+
   test("unknown event ingress schema fails closed", async () => {
     const fetchMock = (async (_input: URL | RequestInfo, init?: RequestInit) => {
       const requestId = new Headers(init?.headers).get("X-Request-Id")!

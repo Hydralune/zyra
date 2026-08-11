@@ -21,6 +21,18 @@ export interface CommandOutcome {
   runId?: string
   verifier?: Readonly<Record<string, unknown>>
   result?: Readonly<Record<string, unknown>>
+  canonicalOutcome?: Readonly<Record<string, unknown>>
+  diagnostics?: readonly OutcomeDiagnostic[]
+}
+
+export interface OutcomeDiagnostic {
+  schema: "zyra.task-outcome-diagnostic/v1"
+  stage: "task_execution" | "result_read" | "event_sync" | "log_enrichment" | "client_connection"
+  error_type: string
+  message: string
+  recoverable: boolean
+  cause?: string
+  cause_chain?: readonly string[]
 }
 
 interface VerifierEvidence {
@@ -182,6 +194,7 @@ export async function goalFrom(
 export function classifyTaskOutcome(
   task: TaskProjection,
   evidence: VerifierEvidence,
+  diagnostics: readonly OutcomeDiagnostic[] = [],
 ): CommandOutcome {
   const delivery = record(task.metadata.delivery)
   const verifier = {
@@ -218,63 +231,116 @@ export function classifyTaskOutcome(
         }
       : undefined,
   }
+  const persistedCanonicalOutcome = record(task.metadata.canonical_task_outcome)
+  const finalize = (outcome: Omit<CommandOutcome, "canonicalOutcome" | "diagnostics">): CommandOutcome => ({
+    ...outcome,
+    canonicalOutcome: persistedCanonicalOutcome.schema === "zyra.task-outcome/v1"
+      ? {
+        ...persistedCanonicalOutcome,
+        diagnostic_count: diagnostics.length,
+      }
+      : {
+        schema: "zyra.task-outcome/v1",
+        revision: 1,
+        task_id: task.taskId,
+        run_id: task.runId,
+        task_status: task.status,
+        terminal: task.terminal,
+        command_status: outcome.status,
+        exit_code: outcome.exitCode,
+        execution_result_source: "canonical_task_projection",
+        diagnostic_count: diagnostics.length,
+      },
+    ...(diagnostics.length > 0 ? { diagnostics: [...diagnostics] } : {}),
+  })
   if (task.status === "cancelled") {
-    return {
+    return finalize({
       exitCode: CliExitCode.CANCELLED,
       status: "cancelled",
       taskId: task.taskId,
       runId: task.runId,
       verifier,
       result,
-    }
+    })
   }
   if (evidence.final && evidence.final.passed !== true) {
-    return {
+    return finalize({
       exitCode: CliExitCode.VERIFIER_FAILED,
       status: "verifier_failed",
       taskId: task.taskId,
       runId: task.runId,
       verifier,
       result,
-    }
+    })
   }
   if (evidence.gate && evidence.gate.hard_conditions_passed !== true) {
-    return {
+    return finalize({
       exitCode: CliExitCode.VERIFIER_FAILED,
       status: "verifier_failed",
       taskId: task.taskId,
       runId: task.runId,
       verifier,
       result,
-    }
+    })
   }
   if (task.status === "completed") {
     if (!evidence.final || !evidence.gate) {
-      return {
+      return finalize({
         exitCode: CliExitCode.VERIFIER_FAILED,
         status: "verifier_evidence_missing",
         taskId: task.taskId,
         runId: task.runId,
         verifier,
         result,
-      }
+      })
     }
-    return {
+    return finalize({
       exitCode: CliExitCode.SUCCESS,
       status: "completed",
       taskId: task.taskId,
       runId: task.runId,
       verifier,
       result,
-    }
+    })
   }
-  return {
+  return finalize({
     exitCode: CliExitCode.TASK_FAILED,
     status: task.status || "failed",
     taskId: task.taskId,
     runId: task.runId,
     verifier,
     result,
+  })
+}
+
+function outcomeDiagnostic(
+  stage: OutcomeDiagnostic["stage"],
+  error: unknown,
+  recoverable = true,
+): OutcomeDiagnostic {
+  const value = error instanceof Error ? error : new Error(String(error))
+  const declaredRetryable = (value as Error & { retryable?: unknown }).retryable
+  const causeChain: string[] = []
+  const visited = new Set<unknown>()
+  let cause: unknown = value.cause
+  while (cause !== undefined && cause !== null && !visited.has(cause)) {
+    visited.add(cause)
+    if (cause instanceof Error) {
+      causeChain.push(`${cause.name}: ${cause.message}`)
+      cause = cause.cause
+    } else {
+      causeChain.push(String(cause))
+      break
+    }
+  }
+  return {
+    schema: "zyra.task-outcome-diagnostic/v1",
+    stage,
+    error_type: value.name || "Error",
+    message: value.message,
+    recoverable: typeof declaredRetryable === "boolean" ? declaredRetryable : recoverable,
+    cause: causeChain[0],
+    cause_chain: causeChain.length > 0 ? causeChain : undefined,
   }
 }
 
@@ -346,16 +412,23 @@ export async function executeRun(input: {
     }
     void runPromise.then(() => undefined)
     const finalTask = cancelled?.task ?? await input.api.task(task.taskId)
-    const replay = await input.api.events(task.taskId)
+    const cancelDiagnostics: OutcomeDiagnostic[] = []
+    let replay: readonly EventProjection[] = []
+    try {
+      replay = await input.api.events(task.taskId)
+    } catch (error) {
+      cancelDiagnostics.push(outcomeDiagnostic("event_sync", error))
+    }
     for (const event of replay) emitLegacyEvent(input.output, event, accumulator)
     return {
-      ...classifyTaskOutcome(finalTask, accumulator.verifier),
+      ...classifyTaskOutcome(finalTask, accumulator.verifier, cancelDiagnostics),
       exitCode: CliExitCode.CANCELLED,
       status: "cancelled",
     }
   }
 
   let ingressError: unknown
+  const diagnostics: OutcomeDiagnostic[] = []
   let observedSettlement: TaskProjection | undefined
   let lastSettlementProbeAt = 0
   const settlementEvidence = () => ({
@@ -494,24 +567,41 @@ export async function executeRun(input: {
     }
   }
 
-  let finalTask: TaskProjection
-  let replay: readonly EventProjection[]
+  let finalTask = observedSettlement
+    ?? (run?.ok && taskHasSettledRunResult(run.value.task, settlementEvidence())
+      ? run.value.task
+      : undefined)
+  if (ingressError && finalTask) diagnostics.push(outcomeDiagnostic("client_connection", ingressError))
+  if (!finalTask) {
+    try {
+      finalTask = await input.api.task(task.taskId)
+    } catch (error) {
+      if (ingressError) throw ingressError
+      throw error
+    }
+  } else if (!observedSettlement) {
+    try {
+      const refreshed = await input.api.task(task.taskId)
+      if (taskHasSettledRunResult(refreshed, settlementEvidence())) finalTask = refreshed
+    } catch (error) {
+      diagnostics.push(outcomeDiagnostic("result_read", error))
+    }
+  }
+  let replay: readonly EventProjection[] = []
   try {
-    [finalTask, replay] = await Promise.all([
-      observedSettlement ?? input.api.task(task.taskId),
-      input.api.events(task.taskId),
-    ])
+    replay = await input.api.events(task.taskId)
   } catch (error) {
-    if (ingressError) throw ingressError
-    throw error
+    if (!finalTask) throw error
+    diagnostics.push(outcomeDiagnostic("event_sync", error))
   }
   for (const event of replay) emitLegacyEvent(input.output, event, accumulator)
 
   if (run && !run.ok && !(run.error instanceof RequestCancelledError)) {
-    const outcome = classifyTaskOutcome(finalTask, accumulator.verifier)
+    const outcome = classifyTaskOutcome(finalTask, accumulator.verifier, diagnostics)
     if (outcome.exitCode !== CliExitCode.SUCCESS && outcome.exitCode !== CliExitCode.VERIFIER_FAILED) {
       throw run.error
     }
+    diagnostics.push(outcomeDiagnostic("client_connection", run.error))
   }
-  return classifyTaskOutcome(finalTask, accumulator.verifier)
+  return classifyTaskOutcome(finalTask, accumulator.verifier, diagnostics)
 }

@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { JsonObject, JsonValue } from "../contracts.ts";
 
-export const EXECUTION_SETTLEMENT_SNAPSHOT_VERSION = "zyra.execution-settlement/v1";
+export const EXECUTION_SETTLEMENT_SNAPSHOT_VERSION = "zyra.execution-settlement/v2";
+const LEGACY_EXECUTION_SETTLEMENT_SNAPSHOT_VERSION = "zyra.execution-settlement/v1";
 
 export type SettlementPermissionEffect = "unknown" | "allow" | "deny" | "ask";
 export type SettlementCallState =
@@ -14,7 +15,16 @@ export type SettlementCallState =
   | "succeeded"
   | "failed"
   | "cancelled"
+  | "outcome_unknown"
   | "protocol_failed";
+export type ToolTransactionState =
+  | "receiving_arguments"
+  | "arguments_complete"
+  | "dispatch_intent_recorded"
+  | "dispatched"
+  | "result_acknowledged"
+  | "outcome_unknown"
+  | "completed";
 export type SettlementBatchState =
   | "planned"
   | "permission_evaluated"
@@ -90,6 +100,15 @@ export interface SettlementCallRecord {
   permissionReason: string;
   permissionRuleId: string | null;
   state: SettlementCallState;
+  transactionState: ToolTransactionState;
+  idempotencyKey: string;
+  dispatchCredential: string | null;
+  dispatchAttempts: number;
+  recoveryAttempts: number;
+  failureHistory: JsonObject[];
+  dispatchIntentAt: string | null;
+  dispatchedAt: string | null;
+  resultAcknowledgedAt: string | null;
   delegated: boolean;
   gatewayAccepted: boolean;
   summary: string;
@@ -297,6 +316,7 @@ function terminalCall(state: SettlementCallState): boolean {
     || state === "succeeded"
     || state === "failed"
     || state === "cancelled"
+    || state === "outcome_unknown"
     || state === "protocol_failed";
 }
 
@@ -410,6 +430,15 @@ export class ToolExecutionSettlementRuntime {
         permissionReason: "",
         permissionRuleId: null,
         state: "planned",
+        transactionState: "arguments_complete",
+        idempotencyKey: this.effectKey(source),
+        dispatchCredential: null,
+        dispatchAttempts: 0,
+        recoveryAttempts: 0,
+        failureHistory: [],
+        dispatchIntentAt: null,
+        dispatchedAt: null,
+        resultAcknowledgedAt: null,
         delegated: false,
         gatewayAccepted: false,
         summary: "",
@@ -577,12 +606,22 @@ export class ToolExecutionSettlementRuntime {
         );
       }
       call.state = "delegating";
+      call.transactionState = "dispatch_intent_recorded";
+      call.dispatchCredential = `tool-dispatch:${hash({
+        idempotencyKey: call.idempotencyKey,
+        argumentsDigest: call.argumentsDigest,
+      })}`;
+      call.dispatchAttempts += 1;
+      call.dispatchIntentAt = delegatedAt;
       call.delegated = true;
       call.delegatedAt = delegatedAt;
       call.revision += 1;
       this.transition(batch, call, "call.delegated", "planned", "delegating", {
         execution_owner: call.executionOwner,
         local_capability: call.localCapability,
+        transaction_state: call.transactionState,
+        idempotency_key: call.idempotencyKey,
+        dispatch_credential: call.dispatchCredential,
       });
     }
     const from = batch.state;
@@ -703,6 +742,34 @@ export class ToolExecutionSettlementRuntime {
       );
     }
     const from = call.state;
+    const receiptTransaction = String(input.receiptMetadata?.tool_transaction_state ?? "");
+    if (receiptTransaction === "outcome_unknown") {
+      call.transactionState = "outcome_unknown";
+      call.state = "outcome_unknown";
+      call.error = input.error ?? "tool_outcome_unknown";
+      call.summary = input.summary.trim() || "Tool dispatch outcome could not be confirmed.";
+      call.output = clone(input.output);
+      call.outputDigest = hash(call.output);
+      call.metadata = { ...call.metadata, ...normalizeMetadata(input.receiptMetadata) };
+      call.completedAt = now();
+      call.failureHistory.push({
+        stage: "result_acknowledgement",
+        error: call.error,
+        recoverable: false,
+        dispatch_credential: call.dispatchCredential,
+      });
+      call.revision += 1;
+      this.addSettled(batch, call.callId);
+      this.transition(batch, call, "gateway.outcome_unknown", from, call.state, {
+        dispatch_credential: call.dispatchCredential,
+        error: call.error,
+      });
+      this.refreshBatchSettlement(batch);
+      return clone(call);
+    }
+    call.transactionState = "result_acknowledged";
+    call.dispatchedAt ??= call.gatewaySettledAt ?? now();
+    call.resultAcknowledgedAt = now();
     call.gatewayAccepted = input.ok;
     call.gatewaySettledAt = now();
     call.summary = input.summary.trim();
@@ -718,6 +785,7 @@ export class ToolExecutionSettlementRuntime {
     });
     if (input.intermediate && input.ok && call.localCapability) {
       call.state = "gateway_accepted";
+      call.transactionState = "dispatch_intent_recorded";
       call.revision += 1;
       this.transition(batch, call, "gateway.permission_commit", from, call.state, {
         receipt_digest: call.outputDigest,
@@ -726,6 +794,7 @@ export class ToolExecutionSettlementRuntime {
       return clone(call);
     }
     call.state = input.ok ? "succeeded" : "failed";
+    call.transactionState = "completed";
     call.completedAt = now();
     call.revision += 1;
     this.addSettled(batch, call.callId);
@@ -756,6 +825,8 @@ export class ToolExecutionSettlementRuntime {
       );
     }
     call.state = "local_running";
+    call.transactionState = "dispatched";
+    call.dispatchedAt = now();
     call.revision += 1;
     this.transition(batch, call, "local.started", "gateway_accepted", "local_running", {
       execution_owner: call.executionOwner,
@@ -791,12 +862,15 @@ export class ToolExecutionSettlementRuntime {
       );
     }
     const from = call.state;
+    call.transactionState = "result_acknowledged";
+    call.resultAcknowledgedAt = now();
     call.summary = input.summary.trim();
     call.output = clone(input.output);
     call.error = input.ok ? null : required(input.error ?? "typescript_capability_error", "local capability error");
     call.metadata = { ...call.metadata, ...normalizeMetadata(input.metadata) };
     call.outputDigest = hash({ ok: input.ok, summary: call.summary, output: call.output, error: call.error });
     call.state = input.ok ? "succeeded" : "failed";
+    call.transactionState = "completed";
     call.completedAt = now();
     call.revision += 1;
     this.addSettled(batch, call.callId);
@@ -1037,7 +1111,10 @@ export class ToolExecutionSettlementRuntime {
     if (this.batches.size > 0 || this.calls.size > 0 || this.transitions.length > 0) {
       throw new ExecutionSettlementError("settlement_restore_dirty", "settlement restore requires a fresh runtime");
     }
-    if (snapshot.version !== EXECUTION_SETTLEMENT_SNAPSHOT_VERSION) {
+    if (
+      snapshot.version !== EXECUTION_SETTLEMENT_SNAPSHOT_VERSION
+      && String(snapshot.version) !== LEGACY_EXECUTION_SETTLEMENT_SNAPSHOT_VERSION
+    ) {
       throw new ExecutionSettlementError(
         "settlement_snapshot_version",
         `unsupported execution settlement snapshot: ${String(snapshot.version)}`,
@@ -1084,18 +1161,55 @@ export class ToolExecutionSettlementRuntime {
       if (this.calls.has(call.callId)) {
         throw new ExecutionSettlementError("settlement_snapshot_duplicate_call", `duplicate restored call ${call.callId}`);
       }
-      this.calls.set(call.callId, clone(call));
+      const restored = clone(call);
+      restored.transactionState ??= restored.state === "planned"
+        ? "arguments_complete"
+        : restored.state === "delegating"
+          ? "dispatch_intent_recorded"
+          : terminalCall(restored.state) ? "completed" : "dispatched";
+      restored.idempotencyKey ??= this.effectKey(restored);
+      restored.dispatchCredential ??= null;
+      restored.dispatchAttempts ??= restored.delegated ? 1 : 0;
+      restored.recoveryAttempts ??= 0;
+      restored.failureHistory ??= [];
+      restored.dispatchIntentAt ??= restored.delegatedAt;
+      restored.dispatchedAt ??= null;
+      restored.resultAcknowledgedAt ??= restored.gatewaySettledAt;
+      this.calls.set(restored.callId, restored);
     }
     this.transitions.push(...snapshot.transitions.map(clone));
     for (const call of this.calls.values()) {
+      if (call.state === "delegating" && call.transactionState === "dispatch_intent_recorded") {
+        call.recoveryAttempts += 1;
+        call.failureHistory.push({
+          stage: "dispatch_intent",
+          error: "runtime_restarted_before_dispatch_confirmation",
+          recoverable: true,
+          restart_epoch: this.restartEpoch,
+        });
+        continue;
+      }
       if (call.state === "delegating" || call.state === "gateway_accepted" || call.state === "local_running") {
         const batch = this.requireBatch(call.batchId);
         const from = call.state;
-        call.state = "protocol_failed";
-        call.error = "execution_interrupted_by_restart";
-        call.summary = "Tool execution was interrupted before a durable final receipt.";
-        call.output = { interrupted: true, prior_state: from, restart_epoch: this.restartEpoch };
+        call.state = "outcome_unknown";
+        call.transactionState = "outcome_unknown";
+        call.error = "tool_outcome_unknown_after_restart";
+        call.summary = "Tool was dispatched but no durable final receipt was acknowledged.";
+        call.output = {
+          interrupted: true,
+          prior_state: from,
+          restart_epoch: this.restartEpoch,
+          dispatch_credential: call.dispatchCredential,
+          duplicate_effect_fenced: true,
+        };
         call.outputDigest = hash(call.output);
+        call.failureHistory.push({
+          stage: "result_acknowledgement",
+          error: call.error,
+          recoverable: false,
+          restart_epoch: this.restartEpoch,
+        });
         call.completedAt = now();
         call.revision += 1;
         this.addSettled(batch, call.callId);
@@ -1129,6 +1243,24 @@ export class ToolExecutionSettlementRuntime {
         blocked_call_ids: calls.filter((call) => call.permissionEffect !== "allow").map((call) => call.callId),
       });
     }
+  }
+
+  private effectKey(source: PlannedSettlementCall): string {
+    const metadata = normalizeMetadata(source.metadata);
+    const logicalCoordinates = {
+      turnIndex: metadata.tool_transaction_turn_index ?? null,
+      stepIndex: metadata.tool_transaction_step_index ?? null,
+      batchIndex: metadata.tool_transaction_batch_index ?? source.position,
+    };
+    const hasStableCoordinates = typeof logicalCoordinates.turnIndex === "number"
+      && typeof logicalCoordinates.stepIndex === "number";
+    return `tool-effect:${hash({
+      sessionId: this.identity.sessionId,
+      logicalCoordinates: hasStableCoordinates ? logicalCoordinates : null,
+      legacyCallId: hasStableCoordinates ? null : source.callId,
+      toolName: source.toolName,
+      argumentsDigest: hash(source.arguments),
+    })}`;
   }
 
   private refreshBatchSettlement(batch: SettlementBatchRecord): void {

@@ -41,6 +41,7 @@ export interface ProviderToolCallSnapshot {
   readonly firstSequence: number;
   readonly lastSequence: number;
   readonly deltaCount: number;
+  readonly transactionState: "receiving_arguments" | "arguments_complete";
 }
 
 export interface ProviderStreamSnapshot {
@@ -86,6 +87,8 @@ export interface ProviderStreamFailureContext {
 export interface ProviderStreamSupervisorOptions {
   readonly budget?: Partial<ProviderStreamBudget>;
   readonly now?: () => number;
+  readonly recoveryAttempt?: number;
+  readonly maximumRecoveryAttempts?: number;
 }
 
 const DEFAULT_BUDGET: ProviderStreamBudget = {
@@ -134,6 +137,8 @@ export class ProviderStreamSupervisor {
   private readonly budget: ProviderStreamBudget;
   private readonly now: () => number;
   private readonly startedAt: number;
+  private readonly recoveryAttempt: number;
+  private readonly maximumRecoveryAttempts: number;
   private phaseValue: ProviderStreamPhase = "created";
   private responseStartedAtValue: number | null = null;
   private firstOutputAtValue: number | null = null;
@@ -155,6 +160,7 @@ export class ProviderStreamSupervisor {
   private readonly toolIndexKeys = new Map<string, string>();
   private currentAnonymousToolKey: string | null = null;
   private failureValue: ProviderControlPlaneError | null = null;
+  private readonly observedFrameDigests = new Map<string, string>();
 
   constructor(
     request: ProviderDispatchRequest,
@@ -165,6 +171,8 @@ export class ProviderStreamSupervisor {
     this.lease = lease;
     this.now = options.now ?? Date.now;
     this.startedAt = this.now();
+    this.recoveryAttempt = Math.max(0, Math.trunc(options.recoveryAttempt ?? 0));
+    this.maximumRecoveryAttempts = Math.max(1, Math.trunc(options.maximumRecoveryAttempts ?? 1));
     this.budget = normalizeBudget(request, options.budget ?? {});
     this.assertIdentity();
   }
@@ -182,7 +190,7 @@ export class ProviderStreamSupervisor {
   }
 
   get replaySafe(): boolean {
-    return !this.outputObservedValue && !this.sideEffectCandidateObservedValue;
+    return !this.sideEffectCandidateObservedValue;
   }
 
   get failed(): boolean {
@@ -237,12 +245,16 @@ export class ProviderStreamSupervisor {
       }
       const finalized = call.assembler.finalize();
       if (!finalized.complete) {
-        throw this.fail("partial_response_observed", "provider tool arguments ended with incomplete JSON", {
+        throw this.fail("tool_arguments_incomplete", "provider tool arguments ended with incomplete JSON", {
           toolKey: call.key,
           toolCallId: call.toolCallId ?? "",
           toolName: call.toolName,
           argumentCharacters: call.assembler.length,
           parserState: finalized.reason,
+          argumentFragments: call.assembler.text,
+          recoveryAttempt: this.recoveryAttempt,
+          maximumRecoveryAttempts: this.maximumRecoveryAttempts,
+          recoveryExhausted: this.recoveryAttempt >= this.maximumRecoveryAttempts,
         });
       }
       if (!isJsonObject(finalized.value)) {
@@ -267,7 +279,7 @@ export class ProviderStreamSupervisor {
   }
 
   failure(
-    kind: "stream_timeout" | "response_protocol_error" | "partial_response_observed",
+    kind: "stream_timeout" | "response_protocol_error" | "tool_arguments_incomplete" | "partial_response_observed",
     message: string,
     context: ProviderStreamFailureContext,
     detail: JsonRecord = {},
@@ -308,6 +320,9 @@ export class ProviderStreamSupervisor {
   }
 
   recoveryFor(error: ProviderControlPlaneError): ProviderStreamRecoveryAction {
+    if (error.kind === "tool_arguments_incomplete") {
+      return error.retryable ? "retry_same_route" : "surface_to_operator";
+    }
     if (error.outputObserved || this.outputObservedValue || this.sideEffectCandidateObservedValue) {
       return "reconcile_partial_response";
     }
@@ -320,6 +335,15 @@ export class ProviderStreamSupervisor {
 
   private observeFrame(frame: ProviderStreamFrame): void {
     this.assertFrameIdentity(frame);
+    const frameDigest = digestJson(frame as unknown as JsonValue);
+    const observedDigest = this.observedFrameDigests.get(frame.frameId);
+    if (observedDigest !== undefined) {
+      if (observedDigest === frameDigest) return;
+      throw this.fail("response_protocol_error", "provider reused a frame identity with different content", {
+        frameId: frame.frameId,
+        sequence: frame.sequence,
+      });
+    }
     this.checkWatchdog(frame.createdAt);
     if (this.phaseValue === "terminal") {
       throw this.fail("response_protocol_error", "provider emitted a frame after terminal response", {
@@ -342,6 +366,7 @@ export class ProviderStreamSupervisor {
       });
     }
     this.nextSequenceValue += 1;
+    this.observedFrameDigests.set(frame.frameId, frameDigest);
     this.frameCountValue += 1;
     this.lastFrameAtValue = frame.createdAt;
     if (this.frameCountValue > this.budget.maximumFrames) {
@@ -475,7 +500,8 @@ export class ProviderStreamSupervisor {
     if (frame.jsonDelta !== null) call.assembler.append(frame.jsonDelta);
     call.lastSequence = frame.sequence;
     call.deltaCount += 1;
-    this.markOutput(frame.createdAt, true);
+    // Model argument bytes are not a physical tool dispatch.
+    this.markOutput(frame.createdAt, false);
   }
 
   private observeUsage(frame: ProviderStreamFrame): void {
@@ -636,23 +662,30 @@ export class ProviderStreamSupervisor {
   }
 
   private fail(
-    kind: "stream_timeout" | "response_protocol_error" | "partial_response_observed",
+    kind: "stream_timeout" | "response_protocol_error" | "tool_arguments_incomplete" | "partial_response_observed",
     message: string,
     detail: JsonRecord,
     context?: ProviderStreamFailureContext,
   ): ProviderControlPlaneError {
     this.phaseValue = "failed";
     this.completedAtValue = this.now();
+    const toolArgumentsIncomplete = kind === "tool_arguments_incomplete";
     const outputObserved = this.outputObservedValue || this.sideEffectCandidateObservedValue;
-    const effectiveKind = outputObserved && kind !== "partial_response_observed"
+    const effectiveKind = outputObserved && !toolArgumentsIncomplete && kind !== "partial_response_observed"
       ? "partial_response_observed"
       : kind;
+    const recoveryExhausted = toolArgumentsIncomplete
+      && this.recoveryAttempt >= this.maximumRecoveryAttempts;
     const error = new ProviderControlPlaneError({
       layer: "protocol",
       kind: effectiveKind,
       message,
-      retryable: !outputObserved && kind === "stream_timeout",
-      recoveryIntent: outputObserved ? "reconcile_partial_response" : kind === "stream_timeout" ? "change_provider_route" : "surface_to_operator",
+      retryable: toolArgumentsIncomplete
+        ? !recoveryExhausted
+        : !outputObserved && kind === "stream_timeout",
+      recoveryIntent: toolArgumentsIncomplete
+        ? recoveryExhausted ? "surface_to_operator" : "retry_same_route"
+        : outputObserved ? "reconcile_partial_response" : kind === "stream_timeout" ? "change_provider_route" : "surface_to_operator",
       providerId: context?.providerId ?? this.lease.providerId,
       modelId: context?.modelId ?? this.lease.modelId,
       routeId: this.lease.routeId,
@@ -665,6 +698,10 @@ export class ProviderStreamSupervisor {
         streamPhase: this.phaseValue,
         streamFrameCount: this.frameCountValue,
         streamEvidenceDigest: digestJson(this.snapshotEvidence()),
+        recoveryAttempt: this.recoveryAttempt,
+        maximumRecoveryAttempts: this.maximumRecoveryAttempts,
+        recoveryExhausted,
+        toolCalls: canonicalize([...this.toolCalls.values()].map((call) => toolSnapshot(call))),
       },
     });
     this.failureValue = error;
@@ -859,6 +896,7 @@ function toolSnapshot(call: MutableToolCall): ProviderToolCallSnapshot {
     firstSequence: call.firstSequence,
     lastSequence: call.lastSequence,
     deltaCount: call.deltaCount,
+    transactionState: finalized.complete ? "arguments_complete" : "receiving_arguments",
   };
 }
 

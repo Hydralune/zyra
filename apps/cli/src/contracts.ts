@@ -140,6 +140,8 @@ export interface CliResultRecord {
   run_id?: string
   verifier?: Readonly<Record<string, unknown>>
   result?: Readonly<Record<string, unknown>>
+  canonical_outcome?: Readonly<Record<string, unknown>>
+  diagnostics?: readonly unknown[]
   error?: Readonly<Record<string, unknown>>
 }
 

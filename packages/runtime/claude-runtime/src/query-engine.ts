@@ -34,6 +34,11 @@ import {
   type ModelRoundRecord,
 } from "./loop/model-iteration-runtime.ts";
 import {
+  PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
+  ProgressiveExecutionRuntime,
+  type ProgressiveExecutionSnapshot,
+} from "./loop/progressive-execution-runtime.ts";
+import {
   compactBlocksFromMessages,
   digest as skillMemoryDigest,
   type CurrentSkillAuthority,
@@ -69,16 +74,15 @@ const TRANSIENT_CHECKPOINT_PHASES = new Set([
 const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
 const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
 
-interface BenchmarkDeadlineBudget {
+interface ResourceCloseoutBudget {
   deadlineEpochMs: number;
   closeoutReserveMs: number;
 }
 
-function benchmarkDeadlineBudget(config: RuntimeConfig): BenchmarkDeadlineBudget | null {
-  if (!asBoolean(config.runtimeConstraints.benchmark_physical_dispatch)) return null;
+function resourceCloseoutBudget(config: RuntimeConfig): ResourceCloseoutBudget | null {
   const deadlineEpochMs = Number(config.runtimeConstraints.external_deadline_epoch_ms);
   const closeoutReserveSeconds = Number(
-    config.runtimeConstraints.benchmark_closeout_reserve_seconds,
+    config.runtimeConstraints.closeout_reserve_seconds,
   );
   if (
     !Number.isFinite(deadlineEpochMs)
@@ -94,23 +98,18 @@ function benchmarkDeadlineBudget(config: RuntimeConfig): BenchmarkDeadlineBudget
   };
 }
 
-function deadlineCloseoutDue(budget: BenchmarkDeadlineBudget | null): boolean {
-  return budget !== null
-    && Date.now() >= budget.deadlineEpochMs - budget.closeoutReserveMs;
-}
-
-function deadlineCloseoutMessage(): string {
+function resourceCloseoutMessage(): string {
   return [
-    "The authoritative benchmark deadline has entered its finalization window.",
-    "No more inspection or mutation is permitted, even if the original request",
-    "asked for another check.",
+    "The execution has entered a resource-aware closeout window.",
+    "Do not start a new side effect. Reconcile any background work and use",
+    "the durable artifacts, receipts, and verification evidence already available.",
     "Do not call any tool and do not emit tool-call markup, JSON, XML, DSML, or commands.",
     "Use only the durable observations already returned by completed tools.",
     "Return a concise plain-language final answer to the original request now.",
   ].join(" ");
 }
 
-function deadlineFinalTextAttemptsToolCall(text: string): boolean {
+function closeoutFinalTextAttemptsToolCall(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return normalized.includes("<｜｜dsml｜｜tool_calls>")
     || normalized.includes("<||dsml||tool_calls>")
@@ -240,6 +239,7 @@ export class ClaudeRuntimeCore {
     let repeatedToolFailureCount = 0;
     let consecutiveInvalidArgumentFailures = 0;
     let invalidArgumentRetryTrips = 0;
+    let progressiveActionNudges = 0;
     let ok = true;
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
@@ -263,13 +263,19 @@ export class ClaudeRuntimeCore {
       api_retry_ok: "false",
       api_retry_recovered: "false",
     };
-    const benchmarkDeadline = benchmarkDeadlineBudget(config);
-    let deadlineCloseoutRequested = false;
+    const resourceBudget = resourceCloseoutBudget(config);
+    let closeoutRequested = false;
+    const progressive = new ProgressiveExecutionRuntime({
+      constraints: config.runtimeConstraints,
+      deliveryContract: asObject(asObject(input.metadata).delivery_contract),
+      restored: selectRestoredProgressiveExecutionSnapshot(input.restoredState) ?? undefined,
+    });
 
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
       eventSequence += 1;
       const publicPayload = publicRuntimeEventPayload(phase, payload);
       const event: RuntimeEvent = {
+        ...publicPayload,
         phase,
         sequence: eventSequence,
         canonical_owner: "typescript",
@@ -278,7 +284,6 @@ export class ClaudeRuntimeCore {
         run_id: input.runId,
         task_id: input.taskId,
         worker_request_id: input.workerRequestId,
-        ...publicPayload,
       };
       if (phase === "model_stream_report") {
         e01.observeProviderGateway(phase, {
@@ -293,6 +298,7 @@ export class ClaudeRuntimeCore {
           ...session.snapshot(),
           e01Runtime: e01.snapshot() as unknown as JsonObject,
           modelIteration: iteration.snapshot() as unknown as JsonObject,
+          progressiveExecution: progressive.snapshot() as unknown as JsonObject,
           checkpointPhase: phase,
           checkpointEventSequence: eventSequence,
         });
@@ -322,6 +328,61 @@ export class ClaudeRuntimeCore {
         ? null
         : config.maxTurns + (modelTransport === "http_sse" ? 1 : 0);
       while (model.ok) {
+        const progress = progressive.observeProviderRound(model.finalText, model.turns.flat().length);
+        const progressDecision = progressive.decide(session.contextChars(), config.maxQueryContextChars);
+        if (
+          progressDecision.action === "nudge_action"
+          && model.turns.flat().length === 0
+          && !providerOutputWasLengthTruncated(model)
+          && continuationTools.length > 0
+          && progressiveActionNudges < 2
+          && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit)
+        ) {
+          progressiveActionNudges += 1;
+          iteration.rejectProviderRoundForRetry(round.roundId, "progressive_action_required");
+          providerMessages = [
+            ...iteration.currentMessages(),
+            ...(model.finalText.trim()
+              ? [{ role: "assistant", content: model.finalText }]
+              : []),
+            {
+              role: "user",
+              content: [
+                "The required delivery is still missing and further explanation is not effective progress.",
+                "Perform the smallest reversible, low-risk tool action that creates a durable intermediate result.",
+                "Then validate and improve that result incrementally.",
+              ].join(" "),
+            },
+          ];
+          await emit("progressive_action_requested", {
+            reason: progressDecision.reason,
+            execution_phase: progress.phase,
+            action_nudge: progressiveActionNudges,
+            analysis_only_rounds: progress.analysisOnlyRounds,
+            repeated_analysis_rounds: progress.repeatedAnalysisRounds,
+            required_delivery_missing: progress.requiredDeliveryMissing,
+          });
+          round = iteration.beginProviderRound({
+            requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+            model: config.modelName,
+            messages: providerMessages,
+          });
+          model = await resolveModelTurns(
+            input,
+            config,
+            [],
+            continuationTools,
+            emit,
+            (observation) => e01.decideProviderRecovery(observation),
+            e01.journal.restartEpoch,
+            (observation) => e01.completeProviderRecovery(observation),
+            (requestId) => e01.executePreparedProvider(requestId),
+            providerRoundIndex,
+            providerMessages,
+          );
+          providerRoundIndex += 1;
+          continue;
+        }
         iteration.acceptProviderResult({
           roundId: round.roundId,
           providerRequestId: model.providerRequestId,
@@ -387,21 +448,21 @@ export class ClaudeRuntimeCore {
       return { model, round, truncationExhausted: false };
     };
 
-    const requestDeadlineFinalResponse = async (
+    const requestCloseoutFinalResponse = async (
       baseMessages: JsonObject[],
       turnIndex: number,
     ): Promise<void> => {
-      if (!benchmarkDeadline) return;
-      deadlineCloseoutRequested = true;
-      const remainingMs = Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now());
+      if (!resourceBudget) return;
+      closeoutRequested = true;
+      const remainingMs = Math.max(0, resourceBudget.deadlineEpochMs - Date.now());
       providerMessages = [
         ...baseMessages,
-        { role: "user", content: deadlineCloseoutMessage() },
+        { role: "user", content: resourceCloseoutMessage() },
       ];
-      await emit("benchmark_deadline_closeout_requested", {
+      await emit("execution_closeout_requested", {
         turn_index: turnIndex,
-        deadline_epoch_ms: benchmarkDeadline.deadlineEpochMs,
-        closeout_reserve_ms: benchmarkDeadline.closeoutReserveMs,
+        deadline_epoch_ms: resourceBudget.deadlineEpochMs,
+        closeout_reserve_ms: resourceBudget.closeoutReserveMs,
         remaining_ms: remainingMs,
         tools_advertised: 0,
       });
@@ -439,20 +500,20 @@ export class ClaudeRuntimeCore {
           stoppedReason = "model_stream_failed";
           await emit("error", {
             error: stoppedReason,
-            detail: finalModel.error ?? "benchmark deadline finalization failed",
-            source: "benchmark_deadline_closeout",
+            detail: finalModel.error ?? "resource-aware finalization failed",
+            source: "execution_closeout",
           });
           return;
         }
         const attemptedToolCall = finalModel.turns.length > 0
-          || deadlineFinalTextAttemptsToolCall(finalModel.finalText);
+          || closeoutFinalTextAttemptsToolCall(finalModel.finalText);
         if (attemptedToolCall) {
           const retryAllowed = attempt < maximumAttempts
-            && benchmarkDeadline.deadlineEpochMs - Date.now() > 5_000;
+            && resourceBudget.deadlineEpochMs - Date.now() > 5_000;
           if (retryAllowed) {
             iteration.rejectProviderRoundForRetry(
               finalRound.roundId,
-              "deadline_finalization_tool_call",
+              "closeout_tool_call_rejected",
             );
             providerMessages = [
               ...providerMessages,
@@ -465,23 +526,23 @@ export class ClaudeRuntimeCore {
                 ].join(" "),
               },
             ];
-            await emit("benchmark_deadline_closeout_retry_requested", {
+            await emit("execution_closeout_retry_requested", {
               turn_index: turnIndex,
               attempt,
               next_attempt: attempt + 1,
               maximum_attempts: maximumAttempts,
-              remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+              remaining_ms: Math.max(0, resourceBudget.deadlineEpochMs - Date.now()),
               tools_advertised: 0,
             });
             continue;
           }
-          iteration.failProviderRound(finalRound.roundId, "deadline_finalization_tool_call");
+          iteration.failProviderRound(finalRound.roundId, "closeout_tool_call_rejected");
           ok = false;
-          stoppedReason = "deadline_finalization_tool_call";
+          stoppedReason = "closeout_tool_call_rejected";
           await emit("error", {
             error: stoppedReason,
             detail: "provider attempted a tool call when no tools were advertised",
-            source: "benchmark_deadline_closeout",
+            source: "execution_closeout",
           });
           return;
         }
@@ -494,25 +555,25 @@ export class ClaudeRuntimeCore {
         if (!settled.model.ok || settled.truncationExhausted) {
           iteration.failProviderRound(
             settled.round.roundId,
-            settled.model.error ?? "deadline_finalization_truncated",
+            settled.model.error ?? "closeout_response_truncated",
           );
           ok = false;
           stoppedReason = settled.truncationExhausted
-            ? "deadline_finalization_truncated"
+            ? "closeout_response_truncated"
             : "model_stream_failed";
           await emit("error", {
             error: stoppedReason,
-            detail: settled.model.error ?? "benchmark deadline final response was truncated",
-            source: "benchmark_deadline_closeout",
+            detail: settled.model.error ?? "resource-aware final response was truncated",
+            source: "execution_closeout",
           });
           return;
         }
         activeIterationRoundId = null;
         turns = [];
-        await emit("benchmark_deadline_closeout_completed", {
+        await emit("execution_closeout_completed", {
           turn_index: turnIndex,
           attempt,
-          remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+          remaining_ms: Math.max(0, resourceBudget.deadlineEpochMs - Date.now()),
           tools_advertised: 0,
           provider_round_index: providerRoundIndex - 1,
         });
@@ -529,11 +590,11 @@ export class ClaudeRuntimeCore {
       model_name: config.modelName,
       registry_size: registry.list().length,
     });
-    if (benchmarkDeadline) {
-      await emit("benchmark_deadline_budget_accepted", {
-        deadline_epoch_ms: benchmarkDeadline.deadlineEpochMs,
-        closeout_reserve_ms: benchmarkDeadline.closeoutReserveMs,
-        remaining_ms: Math.max(0, benchmarkDeadline.deadlineEpochMs - Date.now()),
+    if (resourceBudget) {
+      await emit("execution_resource_budget_accepted", {
+        deadline_epoch_ms: resourceBudget.deadlineEpochMs,
+        closeout_reserve_ms: resourceBudget.closeoutReserveMs,
+        remaining_ms: Math.max(0, resourceBudget.deadlineEpochMs - Date.now()),
       });
     }
 
@@ -638,9 +699,10 @@ export class ClaudeRuntimeCore {
     if (
       ok
       && modelTransport === "http_sse"
-      && deadlineCloseoutDue(benchmarkDeadline)
+      && resourceBudget !== null
+      && progressive.decide(session.contextChars(), config.maxQueryContextChars).action === "closeout"
     ) {
-      await requestDeadlineFinalResponse(providerMessages, -1);
+      await requestCloseoutFinalResponse(providerMessages, -1);
     } else if (ok) {
       const iterationRound = modelTransport === "http_sse"
         ? iteration.beginProviderRound({
@@ -716,16 +778,17 @@ export class ClaudeRuntimeCore {
       if (
         modelTransport === "http_sse"
         && activeIterationRoundId
-        && deadlineCloseoutDue(benchmarkDeadline)
+        && resourceBudget !== null
+        && progressive.decide(session.contextChars(), config.maxQueryContextChars).action === "closeout"
       ) {
         // The provider proposed this tool turn before the closeout boundary,
         // but the boundary arrived before execution began.  Finalize from the
         // last valid request transcript rather than starting a new side effect.
         iteration.abandonPlannedToolRoundForFinalization(
           activeIterationRoundId,
-          "benchmark_deadline_closeout",
+          "execution_closeout",
         );
-        await requestDeadlineFinalResponse(providerMessages, turnIndex);
+        await requestCloseoutFinalResponse(providerMessages, turnIndex);
         break;
       }
       const queryDecision = e01.decideQuery("turn_preflight", {
@@ -1058,6 +1121,16 @@ export class ClaudeRuntimeCore {
             error: result.error ?? null,
             maximumCharacters: budget,
           });
+          const observedRequest = hostRequests.find(
+            (request) => request.toolCallId === result.tool_call_id,
+          );
+          if (observedRequest) {
+            progressive.observeToolResult(
+              observedRequest,
+              result,
+              registry.readOnly(step.tool_name),
+            );
+          }
           turnResultChars += budgeted.originalChars;
           if (budgeted.artifact) {
             artifacts.push(budgeted.artifact);
@@ -1787,8 +1860,11 @@ export class ClaudeRuntimeCore {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
           pendingRestoreProviderMessage = null;
         }
-        if (deadlineCloseoutDue(benchmarkDeadline)) {
-          await requestDeadlineFinalResponse(providerMessages, turnIndex);
+        if (
+          resourceBudget !== null
+          && progressive.decide(session.contextChars(), config.maxQueryContextChars).action === "closeout"
+        ) {
+          await requestCloseoutFinalResponse(providerMessages, turnIndex);
           continue;
         }
         const finalResponseOnly = turnLimit !== null && turnIndex + 1 === turnLimit;
@@ -1960,12 +2036,14 @@ export class ClaudeRuntimeCore {
       typescriptControl: controlRuntime.snapshot(),
       e01Runtime: e01.snapshot() as unknown as JsonObject,
       modelIteration: iteration.snapshot() as unknown as JsonObject,
+      progressiveExecution: progressive.snapshot() as unknown as JsonObject,
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
       snapshot_checksum: snapshot.checksum,
       snapshot_revision: snapshot.revision,
     });
+    const progressiveState = progressive.snapshot();
     sourceResult = {
       ok,
       stoppedReason,
@@ -2009,7 +2087,16 @@ export class ClaudeRuntimeCore {
         tool_conflict_protected: String(toolConflictProtected),
         repeated_tool_failure_trips: String(repeatedToolFailureTrips),
         invalid_argument_retry_trips: String(invalidArgumentRetryTrips),
-        benchmark_deadline_closeout_requested: String(deadlineCloseoutRequested),
+        execution_closeout_requested: String(closeoutRequested),
+        progressive_execution_phase: progressiveState.phase,
+        progressive_real_actions: String(progressiveState.realActionCount),
+        progressive_artifacts: String(progressiveState.artifactCount),
+        progressive_required_delivery_missing: String(progressiveState.requiredDeliveryMissing),
+        progressive_active_background: String(progressiveState.activeBackgroundCount),
+        progressive_last_progress_age_ms: String(
+          Math.max(0, Date.now() - progressiveState.lastEffectiveProgressAt),
+        ),
+        progressive_action_nudges: String(progressiveActionNudges),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -2253,6 +2340,26 @@ function selectRestoredModelIterationSnapshot(
     const snapshot = asObject(candidate.modelIteration);
     if (snapshot.version === "zyra.model-iteration/v1") {
       return snapshot as unknown as ModelIterationSnapshot;
+    }
+  }
+  return null;
+}
+
+function selectRestoredProgressiveExecutionSnapshot(
+  value: JsonObject | null | undefined,
+): ProgressiveExecutionSnapshot | null {
+  const root = asObject(value);
+  const candidates = [
+    root,
+    asObject(root.typescript_runtime),
+    asObject(root.typescript_runtime_snapshot),
+    asObject(root.query_engine),
+    asObject(asObject(root.metadata).typescript_runtime_snapshot),
+  ];
+  for (const candidate of candidates) {
+    const snapshot = asObject(candidate.progressiveExecution);
+    if (snapshot.version === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION) {
+      return snapshot as unknown as ProgressiveExecutionSnapshot;
     }
   }
   return null;

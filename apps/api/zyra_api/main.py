@@ -6204,6 +6204,8 @@ class _CanonicalFinalVerifierOwner:
             "schema": "zyra.production-independent-final-verifier/v2",
             "passed": passed,
             "checks": checks,
+            "delivery_verification": delivery_verification,
+            "evidence_policy": delivery_verification.get("decision") or {},
             "decision_id": decision.decision_id,
             "verifier_receipt_ref": verifier_ref,
             "invalid_artifact_ids": sorted(invalid_artifact_ids),

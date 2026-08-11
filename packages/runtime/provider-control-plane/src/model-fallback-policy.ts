@@ -63,6 +63,14 @@ export class ModelFallbackPolicy {
       outputObserved,
       attemptedRoutes: history.map((item) => item.routeId),
     };
+    if (error.kind === "tool_arguments_incomplete") {
+      if (!error.retryable || attempt >= lease.retryPolicy.maximumAttempts) {
+        return this.result("stop", false, false, false, error, lease, attempt,
+          "incomplete tool-argument recovery exhausted its bounded attempt budget", evidence);
+      }
+      return this.result("retry_same_route", true, false, false, error, lease, attempt,
+        "tool arguments were incomplete before any physical tool dispatch", evidence);
+    }
     if (outputObserved || error.kind === "partial_response_observed") {
       return this.result("reconcile_partial_output", false, false, false, error, lease, attempt,
         "observable provider output forbids automatic replay", evidence);

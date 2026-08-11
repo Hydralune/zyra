@@ -28,6 +28,7 @@ from zyra_core import (
 from zyra_orchestration import GraphExecutionContext, ensure_default_graph, run_task_graph
 from zyra_orchestration.task_graph import (
     _code_constraints,
+    _commit_canonical_task_outcome,
     _consume_execution_retry_request,
     _plan_runtime_recovery,
     _run_route_node,
@@ -87,6 +88,43 @@ def _formal_route_context():
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_canonical_task_outcome_is_immutable_and_diagnostics_are_supplemental(
+        self,
+    ) -> None:
+        state = create_task_state("Persist exactly one canonical outcome.")
+        state.status = PlanNodeStatus.COMPLETED
+        committed = _commit_canonical_task_outcome(
+            state,
+            verifier={"schema": "verifier/v1", "passed": True, "decision_id": "ok"},
+            gate={"schema": "gate/v1", "hard_conditions_passed": True, "decision": "exit"},
+        )
+        state.status = PlanNodeStatus.BLOCKED
+        observed = _commit_canonical_task_outcome(
+            state,
+            verifier={"schema": "verifier/v1", "passed": False},
+            gate={},
+            diagnostics=({
+                "schema": "zyra.task-outcome-diagnostic/v1",
+                "stage": "event_sync",
+                "error_type": "OSError",
+                "message": "late event read failed",
+                "recoverable": True,
+            },),
+        )
+
+        self.assertEqual(committed, observed)
+        self.assertEqual(committed["task_status"], "completed")
+        self.assertEqual(
+            state.metadata["canonical_task_outcome"]["verification"][
+                "final_verifier"
+            ]["passed"],
+            True,
+        )
+        self.assertEqual(
+            state.metadata["task_outcome_diagnostics"][0]["stage"],
+            "event_sync",
+        )
+
     def test_benchmark_closeout_window_stops_runtime_recovery_dispatch(self) -> None:
         state = create_task_state("Do not exceed the external benchmark deadline.")
         ensure_default_graph(state)

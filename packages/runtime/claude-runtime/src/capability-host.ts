@@ -17,6 +17,7 @@ import { asObject, asString } from "./contracts.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import {
+  EXECUTION_SETTLEMENT_SNAPSHOT_VERSION,
   ToolExecutionSettlementRuntime,
   type ExecutionSettlementSnapshot,
 } from "./tools/execution-settlement-runtime.ts";
@@ -26,6 +27,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   private readonly input: RuntimeRunInput;
   private readonly capabilities: TypeScriptCapabilityRuntime;
   private readonly settlement: ToolExecutionSettlementRuntime;
+  private lastRuntimeSnapshot: JsonObject;
 
   constructor(
     delegate: RuntimeHost,
@@ -35,6 +37,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     this.delegate = delegate;
     this.input = input;
     this.capabilities = capabilities;
+    this.lastRuntimeSnapshot = asObject(input.restoredState);
     this.settlement = new ToolExecutionSettlementRuntime({
       runtimeId: `execution-settlement:${input.sessionId}:${input.workerRequestId}`,
       sessionId: input.sessionId,
@@ -52,6 +55,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   }
 
   checkpointState(snapshot: JsonObject): Promise<void> {
+    this.lastRuntimeSnapshot = structuredClone(snapshot);
     return this.delegate.checkpointState?.({
       ...snapshot,
       typescriptCapabilities: this.snapshot(),
@@ -71,7 +75,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     batch: ToolBatch,
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
-    const enriched = [];
+    const enriched: ToolExecutionRequest[] = [];
     for (const request of requests) {
       const argumentsValue = normalizeBenchmarkContainerFileArguments(
         request.toolName,
@@ -145,10 +149,15 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         callId: request.toolCallId,
         toolName: request.toolName,
         arguments: request.arguments,
-        localCapability: request.permissionOnly,
-        executionOwner: request.executionOwner,
+        localCapability: request.permissionOnly === true,
+        executionOwner: request.executionOwner ?? "python-tool-executor",
         position,
-        metadata: request.metadata,
+        metadata: {
+          ...request.metadata,
+          tool_transaction_turn_index: request.turnIndex,
+          tool_transaction_step_index: request.stepIndex,
+          tool_transaction_batch_index: request.batchIndex,
+        },
       })),
     });
     for (const request of enriched) {
@@ -175,6 +184,23 @@ export class PermissionedCapabilityHost implements RuntimeHost {
           .filter((request) => (request.permissionDecision as unknown as { effect?: string }).effect === "allow")
           .map((request) => request.toolCallId),
       );
+      for (const request of enriched) {
+        const transaction = this.settlement.call(request.toolCallId);
+        if (!transaction || transaction.permissionEffect !== "allow") continue;
+        request.metadata = {
+          ...request.metadata,
+          tool_transaction_schema: EXECUTION_SETTLEMENT_SNAPSHOT_VERSION,
+          tool_transaction_state: transaction.transactionState,
+          tool_idempotency_key: transaction.idempotencyKey,
+          tool_dispatch_credential: transaction.dispatchCredential ?? "",
+          tool_dispatch_attempt: transaction.dispatchAttempts,
+        };
+      }
+      await this.delegate.checkpointState?.({
+        ...this.lastRuntimeSnapshot,
+        checkpointPhase: "tool_dispatch_intent_recorded",
+        typescriptCapabilities: this.snapshot(),
+      });
     }
     const committed = await this.delegate.executeBatch(batch, enriched);
     if (awaitingApproval) return committed;

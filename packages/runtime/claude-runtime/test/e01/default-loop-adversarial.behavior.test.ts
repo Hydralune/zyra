@@ -641,7 +641,7 @@ describe("execution settlement custody", () => {
     expect(runtime.audit().ok).toBe(true);
   });
 
-  test("settlement restore fences an in-flight delegated side effect", () => {
+  test("settlement restore keeps a pre-dispatch intent safely recoverable", () => {
     const first = settlementRuntime("settlement-run-one");
     first.planBatch({
       batchId: "restart-batch",
@@ -653,9 +653,72 @@ describe("execution settlement custody", () => {
     const snapshot = first.snapshot();
     const restored = settlementRuntime("settlement-run-two");
     restored.restore(snapshot, true);
-    expect(restored.call("in-flight")?.state).toBe("protocol_failed");
-    expect(restored.call("in-flight")?.error).toBe("execution_interrupted_by_restart");
+    expect(restored.call("in-flight")?.state).toBe("delegating");
+    expect(restored.call("in-flight")?.transactionState).toBe("dispatch_intent_recorded");
+    expect(restored.call("in-flight")?.recoveryAttempts).toBe(1);
+    expect(restored.call("in-flight")?.failureHistory.at(-1)?.recoverable).toBe(true);
     expect(restored.audit().ok).toBe(true);
+  });
+
+  test("settlement restore fences a dispatched non-idempotent effect as outcome unknown", () => {
+    const first = settlementRuntime("settlement-dispatched-one");
+    first.planBatch({
+      batchId: "dispatched-batch",
+      executionMode: "serial",
+      calls: [{ ...plannedCall("dispatched-call", 0), localCapability: true, executionOwner: "typescript" }],
+    });
+    first.recordPermission("dispatched-call", "allow", "allowed");
+    first.beginDelegation("dispatched-batch", ["dispatched-call"]);
+    first.recordGatewayReceipt({
+      callId: "dispatched-call",
+      ok: true,
+      summary: "permission committed",
+      output: { permission_committed: true },
+      error: null,
+      intermediate: true,
+    });
+    first.beginLocalCapability("dispatched-call");
+    const before = first.call("dispatched-call");
+    expect(before).toBeDefined();
+    const restored = settlementRuntime("settlement-dispatched-two");
+    restored.restore(first.snapshot(), true);
+    const after = restored.call("dispatched-call");
+    expect(after).toBeDefined();
+
+    expect(before!.transactionState).toBe("dispatched");
+    expect(after!.state).toBe("outcome_unknown");
+    expect(after!.transactionState).toBe("outcome_unknown");
+    expect(after!.idempotencyKey).toBe(before!.idempotencyKey);
+    expect(after!.dispatchCredential).toBe(before!.dispatchCredential);
+    expect(after!.output.duplicate_effect_fenced).toBe(true);
+    expect(restored.audit().ok).toBe(true);
+  });
+
+  test("logical tool position keeps idempotency stable when provider call ids change", () => {
+    const first = settlementRuntime("logical-run-one");
+    const second = settlementRuntime("logical-run-two");
+    const logicalCall = (callId: string) => ({
+      ...plannedCall(callId, 0),
+      arguments: { path: "stable.txt", content: "one effect" },
+      metadata: {
+        tool_transaction_turn_index: 2,
+        tool_transaction_step_index: 0,
+        tool_transaction_batch_index: 0,
+      },
+    });
+    first.planBatch({ batchId: "batch-one", executionMode: "serial", calls: [logicalCall("provider-call-one")] });
+    second.planBatch({ batchId: "batch-two", executionMode: "serial", calls: [logicalCall("provider-call-two")] });
+    first.recordPermission("provider-call-one", "allow", "allowed");
+    second.recordPermission("provider-call-two", "allow", "allowed");
+    first.beginDelegation("batch-one", ["provider-call-one"]);
+    second.beginDelegation("batch-two", ["provider-call-two"]);
+
+    expect(first.call("provider-call-one")!.idempotencyKey).toBe(
+      second.call("provider-call-two")!.idempotencyKey,
+    );
+    expect(first.call("provider-call-one")!.dispatchCredential).toBe(
+      second.call("provider-call-two")!.dispatchCredential,
+    );
   });
 
   test("settlement progress enforces sequence and bounded storage", () => {

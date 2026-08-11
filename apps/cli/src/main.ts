@@ -217,6 +217,8 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         task_id: outcome.taskId,
         run_id: outcome.runId,
         result: outcome.result,
+        canonical_outcome: outcome.canonicalOutcome,
+        diagnostics: outcome.diagnostics,
       })
       return outcome.exitCode
     }
@@ -339,6 +341,8 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       run_id: outcome.runId,
       verifier: outcome.verifier,
       result: outcome.result,
+      canonical_outcome: outcome.canonicalOutcome,
+      diagnostics: outcome.diagnostics,
     })
     return outcome.exitCode
   } catch (unknownError) {

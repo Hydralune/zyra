@@ -716,6 +716,112 @@ test("large output windows admit valid normalized streams beyond the fixed legac
   );
 });
 
+test("stream supervisor joins concurrent tool fragments and ignores identical duplicate frames", (t) => {
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "fragment-stream",
+    modelId: "fragment-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("fragment-stream", "fragment-model"));
+  const request = dispatchRequest(route.routeId);
+  const supervisor = new ProviderStreamSupervisor(request, route, { now: () => 2_000 });
+  const frame = (
+    sequence: number,
+    frameId: string,
+    kind: ProviderStreamFrame["kind"],
+    toolCallId: string | null = null,
+    toolName: string | null = null,
+    jsonDelta: string | null = null,
+  ): ProviderStreamFrame => ({
+    frameId,
+    dispatchId: request.dispatchId,
+    routeId: route.routeId,
+    sequence,
+    kind,
+    text: null,
+    toolCallId,
+    toolName,
+    jsonDelta,
+    usage: {},
+    providerEvent: null,
+    createdAt: 2_000,
+    metadata: {},
+  });
+  const duplicate = frame(3, "fragment-3", "tool_call_delta", "call-b", "tool_b", "{\"n\":");
+
+  supervisor.observe([
+    frame(1, "fragment-1", "response_start"),
+    frame(2, "fragment-2", "tool_call_delta", "call-a", "tool_a", "{\"path\":\"a"),
+    duplicate,
+  ]);
+  supervisor.observe([duplicate]);
+  supervisor.observe([
+    frame(4, "fragment-4", "tool_call_delta", "call-a", null, ".txt\",\"value\":1}"),
+    frame(5, "fragment-5", "tool_call_delta", "call-b", null, "2}"),
+    frame(6, "fragment-6", "response_end"),
+  ]);
+  const completed = supervisor.complete({ requireTerminalFrame: true });
+
+  assert.equal(completed.replaySafe, true);
+  assert.equal(completed.snapshot.frameCount, 6);
+  assert.equal(completed.snapshot.sideEffectCandidateObserved, false);
+  assert.deepEqual(
+    completed.snapshot.toolCalls.map((call) => [call.toolCallId, call.transactionState, call.parsedArguments]),
+    [
+      ["call-a", "arguments_complete", { path: "a.txt", value: 1 }],
+      ["call-b", "arguments_complete", { n: 2 }],
+    ],
+  );
+});
+
+test("stream supervisor accepts every JSON fragment boundary before dispatch", (t) => {
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "boundary-stream",
+    modelId: "boundary-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("boundary-stream", "boundary-model"));
+  const serialized = '{"path":"nested/file.txt","payload":{"count":2,"enabled":true}}';
+  for (let boundary = 0; boundary <= serialized.length; boundary += 1) {
+    const request = { ...dispatchRequest(route.routeId), dispatchId: `boundary-dispatch-${boundary}` };
+    const supervisor = new ProviderStreamSupervisor(request, route, { now: () => 3_000 });
+    const frame = (
+      sequence: number,
+      kind: ProviderStreamFrame["kind"],
+      delta: string | null = null,
+    ): ProviderStreamFrame => ({
+      frameId: `boundary-${boundary}-${sequence}`,
+      dispatchId: request.dispatchId,
+      routeId: route.routeId,
+      sequence,
+      kind,
+      text: null,
+      toolCallId: kind === "tool_call_delta" ? "call-boundary" : null,
+      toolName: sequence === 2 ? "write_file" : null,
+      jsonDelta: delta,
+      usage: {},
+      providerEvent: null,
+      createdAt: 3_000,
+      metadata: {},
+    });
+    supervisor.observe([
+      frame(1, "response_start"),
+      frame(2, "tool_call_delta", serialized.slice(0, boundary)),
+      frame(3, "tool_call_delta", serialized.slice(boundary)),
+      frame(4, "response_end"),
+    ]);
+    const completed = supervisor.complete({ requireTerminalFrame: true });
+    assert.deepEqual(completed.snapshot.toolCalls[0]?.parsedArguments, {
+      path: "nested/file.txt",
+      payload: { count: 2, enabled: true },
+    });
+  }
+});
+
 test("Anthropic-compatible dispatch uses Messages wire and parses deltas", async (t) => {
   const capture = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
@@ -903,7 +1009,7 @@ test("partial output followed by malformed stream is reconcile-only and never re
   assert.equal(controlPlane.store.listAttempts("dispatch-turn-1").length, 1);
 });
 
-test("Anthropic thinking and fragmented tool JSON remain one normalized side-effect candidate", async (t) => {
+test("Anthropic thinking and fragmented tool JSON remain one pre-dispatch transaction", async (t) => {
   const capture = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.write('event: message_start\ndata: {"type":"message_start","message":{"id":"tool-message"}}\n\n');
@@ -937,12 +1043,12 @@ test("Anthropic thinking and fragmented tool JSON remain one normalized side-eff
   assert.equal(toolFrames[0]?.toolCallId, "call-read");
   assert.equal(toolFrames[0]?.toolName, "read_file");
   assert.equal(toolFrames.slice(1).map((frame) => frame.jsonDelta).join(""), '{"path":"README.md"}');
-  assert.equal(result.metadata.streamReplaySafe, false);
+  assert.equal(result.metadata.streamReplaySafe, true);
   assert.equal(result.attempts[0]?.metadata.streamToolCallCount, 1);
   assert.equal(capture.requests.length, 1);
 });
 
-test("incomplete tool JSON after observable call is reconcile-only and blocks model fallback", async (t) => {
+test("incomplete tool JSON retries safely before dispatch and reports structured exhaustion", async (t) => {
   const primary = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.write('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-partial","function":{"name":"write_file","arguments":"{\\"path\\":\\"a.txt\\""}}]},"finish_reason":"tool_calls"}]}\n\n');
@@ -976,18 +1082,67 @@ test("incomplete tool JSON after observable call is reconcile-only and blocks mo
     }),
     (error: unknown) => {
       assert.ok(error instanceof ProviderControlPlaneError);
-      assert.equal(error.kind, "partial_response_observed");
+      assert.equal(error.kind, "tool_arguments_incomplete");
       assert.equal(error.outputObserved, true);
-      assert.equal(error.recoveryIntent, "reconcile_partial_response");
+      assert.equal(error.recoveryIntent, "surface_to_operator");
+      assert.equal(error.detail.recoveryExhausted, true);
+      assert.equal(error.detail.maximumRecoveryAttempts, 3);
+      assert.equal(Array.isArray(error.detail.toolCalls), true);
       return true;
     },
   );
-  assert.equal(primary.requests.length, 1);
+  assert.equal(primary.requests.length, 3);
   assert.equal(fallback.requests.length, 0);
   const attempts = controlPlane.store.listAttempts("dispatch-turn-1");
-  assert.equal(attempts.length, 1);
-  assert.equal(attempts[0]?.metadata.streamReplaySafe, false);
-  assert.equal(attempts[0]?.metadata.streamRecoveryAction, "reconcile_partial_response");
+  assert.equal(attempts.length, 3);
+  assert.equal(attempts.every((attempt) => attempt.metadata.streamReplaySafe === true), true);
+  assert.equal(attempts.at(-1)?.metadata.streamRecoveryAction, "surface_to_operator");
+  const lifecycle = controlPlane.dispatches.require("dispatch-turn-1");
+  assert.equal(lifecycle.state, "failed");
+  assert.equal(lifecycle.recoveryCount, 2);
+  assert.equal(lifecycle.recoveryFailures.length, 3);
+  const persistedCall = lifecycle.toolArgumentStreams["call-partial"] as Record<string, unknown>;
+  assert.equal(persistedCall.transaction_state, "receiving_arguments");
+  assert.equal((persistedCall.attempt_history as unknown[]).length, 2);
+});
+
+test("a disconnected half-JSON tool call regenerates once without changing route", async (t) => {
+  let requests = 0;
+  const capture = await captureServer((_request, response) => {
+    requests += 1;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    if (requests === 1) {
+      response.end('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-recover","function":{"name":"write_file","arguments":"{\\"path\\":\\"result.txt\\""}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n');
+      return;
+    }
+    response.end('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-recover","function":{"name":"write_file","arguments":"{\\"path\\":\\"result.txt\\",\\"content\\":\\"ready\\"}"}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "recover-provider",
+    modelId: "recover-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("recover-provider", "recover-model"));
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(route.routeId),
+    tools: [{ name: "write_file", description: "Write a file", inputSchema: { type: "object" } }],
+  });
+
+  assert.equal(requests, 2);
+  assert.equal(result.routeId, route.routeId);
+  assert.equal(result.attempts.length, 2);
+  assert.equal(result.attempts[0]?.failureKind, "tool_arguments_incomplete");
+  assert.equal(result.frames.filter((frame) => frame.kind === "tool_call_delta").length, 1);
+  const lifecycle = controlPlane.dispatches.require("dispatch-turn-1");
+  assert.equal(lifecycle.state, "succeeded");
+  assert.equal(lifecycle.recoveryCount, 1);
+  const persistedCall = lifecycle.toolArgumentStreams["call-recover"] as Record<string, unknown>;
+  assert.equal(persistedCall.transaction_state, "arguments_complete");
+  assert.equal(persistedCall.fragments, '{"path":"result.txt","content":"ready"}');
+  assert.equal((persistedCall.attempt_history as unknown[]).length, 1);
 });
 
 test("rate limit performs a second real request on a new provider route", async (t) => {

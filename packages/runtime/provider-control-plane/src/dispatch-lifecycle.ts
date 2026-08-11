@@ -1,4 +1,4 @@
-import type { JsonRecord } from "./canonical.ts";
+import type { JsonRecord, JsonValue } from "./canonical.ts";
 import {
   type Clock,
   type IdFactory,
@@ -36,6 +36,11 @@ export interface DispatchLifecycleSnapshot {
   readonly outputObserved: boolean;
   readonly frameCount: number;
   readonly lastSequence: number;
+  readonly streamAttempt: number;
+  readonly recoveryCount: number;
+  readonly attemptFrameIds: readonly string[];
+  readonly toolArgumentStreams: JsonRecord;
+  readonly recoveryFailures: readonly JsonRecord[];
   readonly streamEvidenceDigest: string;
   readonly result: ProviderDispatchResult | null;
   readonly failure: JsonRecord | null;
@@ -104,6 +109,11 @@ export class ProviderDispatchLifecycle {
           outputObserved: false,
           frameCount: 0,
           lastSequence: 0,
+          streamAttempt: 0,
+          recoveryCount: 0,
+          attemptFrameIds: [],
+          toolArgumentStreams: {},
+          recoveryFailures: [],
           streamEvidenceDigest: "",
           result: null,
           failure: null,
@@ -119,7 +129,10 @@ export class ProviderDispatchLifecycle {
         if (existing.result === null) throw lifecycleCorruption(existing, "succeeded dispatch has no cached result");
         return { disposition: "cached", snapshot: deepClone(existing), result: deepClone(existing.result) };
       }
-      if (existing.state === "reconcile_required" || existing.outputObserved) {
+      const retryableIncompleteArguments = existing.state === "failed"
+        && existing.failure?.kind === "tool_arguments_incomplete"
+        && existing.failure?.retryable === true;
+      if (!retryableIncompleteArguments && (existing.state === "reconcile_required" || existing.outputObserved)) {
         throw lifecycleConflict(request, "observable output requires reconciliation and forbids replay", {
           state: existing.state,
           epoch: existing.epoch,
@@ -156,20 +169,89 @@ export class ProviderDispatchLifecycle {
     }));
   }
 
+  recordRecoveryFailure(
+    dispatchId: string,
+    ownerToken: string,
+    error: unknown,
+    attemptNumber: number,
+  ): DispatchLifecycleSnapshot {
+    const providerError = asProviderError(error);
+    return this.mutateOwned(dispatchId, ownerToken, (current, now) => ({
+      ...current,
+      recoveryFailures: [
+        ...(current.recoveryFailures ?? []),
+        recoveryFailure(providerError, attemptNumber),
+      ],
+      recoveryCount: Math.max(current.recoveryCount ?? 0, attemptNumber - 1),
+      leaseExpiresAt: now + this.leaseMilliseconds,
+      updatedAt: now,
+    }));
+  }
+
   observeFrames(
     dispatchId: string,
     ownerToken: string,
     frames: readonly ProviderStreamFrame[],
+    attemptNumber = 1,
   ): DispatchLifecycleSnapshot {
     if (frames.length === 0) return this.require(dispatchId);
     return this.mutateOwned(dispatchId, ownerToken, (current, now) => {
+      if (!Number.isSafeInteger(attemptNumber) || attemptNumber < 1) {
+        throw lifecycleCorruption(current, "stream attempt must be a positive integer");
+      }
+      const currentAttempt = current.streamAttempt ?? 0;
+      if (attemptNumber < currentAttempt) throw lifecycleCorruption(current, "stream attempt regressed");
+      const changedAttempt = attemptNumber > currentAttempt;
       let outputObserved = current.outputObserved;
-      let lastSequence = current.lastSequence;
+      let lastSequence = changedAttempt ? 0 : current.lastSequence;
+      const attemptFrameIds = new Set(changedAttempt ? [] : current.attemptFrameIds ?? []);
+      const toolArgumentStreams = deepClone(current.toolArgumentStreams ?? {}) as Record<string, JsonValue>;
+      let acceptedFrames = 0;
       for (const frame of frames) {
         if (frame.dispatchId !== current.dispatchId) throw lifecycleCorruption(current, "frame dispatch identity mismatch");
+        if (attemptFrameIds.has(frame.frameId)) continue;
         if (frame.sequence <= lastSequence) throw lifecycleCorruption(current, "frame sequence is not strictly increasing");
         lastSequence = frame.sequence;
+        attemptFrameIds.add(frame.frameId);
+        acceptedFrames += 1;
         if (frame.kind === "text_delta" || frame.kind === "tool_call_delta") outputObserved = true;
+        if (frame.kind === "tool_call_delta") {
+          const providerIndex = frame.metadata.provider_tool_index;
+          const key = frame.toolCallId
+            ?? (typeof providerIndex === "string" || typeof providerIndex === "number"
+              ? `index:${String(providerIndex)}`
+              : `sequence:${frame.sequence}`);
+          const previous = toolArgumentStreams[key];
+          const previousRecord = previous && typeof previous === "object" && !Array.isArray(previous)
+            ? previous as JsonRecord
+            : {};
+          const sameAttempt = Number(previousRecord.attempt ?? 0) === attemptNumber;
+          const attemptHistory = Array.isArray(previousRecord.attempt_history)
+            ? [...previousRecord.attempt_history]
+            : [];
+          if (!sameAttempt && typeof previousRecord.fragments === "string") {
+            attemptHistory.push({
+              attempt: previousRecord.attempt ?? currentAttempt,
+              fragments: previousRecord.fragments,
+              fragment_digest: previousRecord.fragment_digest ?? digestJson(previousRecord.fragments),
+              transaction_state: previousRecord.transaction_state ?? "receiving_arguments",
+              last_sequence: previousRecord.last_sequence ?? current.lastSequence,
+            });
+          }
+          const fragments = `${sameAttempt ? String(previousRecord.fragments ?? "") : ""}${frame.jsonDelta ?? ""}`;
+          toolArgumentStreams[key] = {
+            tool_call_id: frame.toolCallId,
+            tool_name: frame.toolName ?? previousRecord.tool_name ?? null,
+            fragments,
+            fragment_digest: digestJson(fragments),
+            transaction_state: jsonObjectComplete(fragments)
+              ? "arguments_complete"
+              : "receiving_arguments",
+            attempt: attemptNumber,
+            last_sequence: frame.sequence,
+            attempt_history: attemptHistory,
+          };
+        }
       }
       const evidence = {
         previous: current.streamEvidenceDigest,
@@ -185,8 +267,12 @@ export class ProviderDispatchLifecycle {
       return {
         ...current,
         outputObserved,
-        frameCount: current.frameCount + frames.length,
+        frameCount: current.frameCount + acceptedFrames,
         lastSequence,
+        streamAttempt: attemptNumber,
+        recoveryCount: Math.max(current.recoveryCount ?? 0, attemptNumber - 1),
+        attemptFrameIds: [...attemptFrameIds],
+        toolArgumentStreams,
         streamEvidenceDigest: digestJson(evidence),
         leaseExpiresAt: now + this.leaseMilliseconds,
         updatedAt: now,
@@ -221,13 +307,20 @@ export class ProviderDispatchLifecycle {
   ): DispatchLifecycleSnapshot {
     const providerError = asProviderError(error);
     return this.mutateOwned(dispatchId, ownerToken, (current, now) => {
+      const incompleteArguments = providerError.kind === "tool_arguments_incomplete";
       const outputObserved = current.outputObserved || providerError.outputObserved;
       return {
         ...current,
-        state: outputObserved ? "reconcile_required" : providerError.kind === "request_aborted" ? "cancelled" : "failed",
+        state: incompleteArguments
+          ? "failed"
+          : outputObserved ? "reconcile_required" : providerError.kind === "request_aborted" ? "cancelled" : "failed",
         outputObserved,
         result: null,
         failure: canonicalize(providerError.safe()) as JsonRecord,
+        recoveryFailures: appendRecoveryFailure(
+          current.recoveryFailures ?? [],
+          recoveryFailure(providerError, current.streamAttempt),
+        ),
         leaseExpiresAt: now,
         updatedAt: now,
         completedAt: now,
@@ -403,8 +496,45 @@ export class ProviderDispatchLifecycle {
 
   private decode(json: string): DispatchLifecycleSnapshot {
     const value = JSON.parse(json) as DispatchLifecycleSnapshot;
-    return deepClone(value);
+    return deepClone({
+      ...value,
+      streamAttempt: value.streamAttempt ?? 0,
+      recoveryCount: value.recoveryCount ?? 0,
+      attemptFrameIds: value.attemptFrameIds ?? [],
+      toolArgumentStreams: value.toolArgumentStreams ?? {},
+      recoveryFailures: value.recoveryFailures ?? [],
+    });
   }
+}
+
+function recoveryFailure(
+  error: ProviderControlPlaneError,
+  attempt: number,
+): JsonRecord {
+  return canonicalize({
+    kind: error.kind,
+    layer: error.layer,
+    message: error.message,
+    retryable: error.retryable,
+    recoveryIntent: error.recoveryIntent,
+    attempt,
+    cause: error.cause instanceof Error
+      ? `${error.cause.name}: ${error.cause.message}`
+      : null,
+  }) as JsonRecord;
+}
+
+function appendRecoveryFailure(
+  history: readonly JsonRecord[],
+  failure: JsonRecord,
+): readonly JsonRecord[] {
+  const previous = history.at(-1);
+  if (
+    previous?.kind === failure.kind
+    && previous?.attempt === failure.attempt
+    && previous?.message === failure.message
+  ) return [...history];
+  return [...history, failure];
 }
 
 function validateRequest(request: ProviderDispatchRequest): void {
@@ -436,6 +566,16 @@ function digestRequest(request: ProviderDispatchRequest): string {
 
 function isObservableFrame(frame: ProviderStreamFrame): boolean {
   return frame.kind === "text_delta" || frame.kind === "tool_call_delta";
+}
+
+function jsonObjectComplete(value: string): boolean {
+  if (!value.trim()) return true;
+  try {
+    const decoded = JSON.parse(value) as unknown;
+    return decoded !== null && typeof decoded === "object" && !Array.isArray(decoded);
+  } catch {
+    return false;
+  }
 }
 
 function lifecycleConflict(

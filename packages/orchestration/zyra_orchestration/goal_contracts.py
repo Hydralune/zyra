@@ -92,31 +92,6 @@ _FILE_CONTENT_PATTERNS = (
     ),
 )
 
-_FINAL_RESPONSE_INCOMPLETE_PATTERNS = (
-    re.compile(
-        r"\b(?:i|we)\s+(?:(?:was|were|am|are)\s+)?"
-        r"(?:unable|not\s+able)\s+to\s+"
-        r"(?:complete|finish|create|produce|deliver|write|implement|solve)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(?:i|we)\s+(?:could\s+not|couldn't|cannot|can't)\s+"
-        r"(?:complete|finish|create|produce|deliver|write|implement|solve)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(?:the\s+)?(?:task|work|request)\s+"
-        r"(?:is|remains)\s+(?:incomplete|unfinished)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"(?:我|我们)?(?:未能|无法|没能)(?:按时)?"
-        r"(?:完成|创建|生成|交付|写入|实现|解决)"
-    ),
-    re.compile(r"(?:任务|工作|请求)(?:尚未|仍未|未)(?:完成|交付|解决)"),
-)
-
-
 def _normalized(value: str) -> str:
     return unicodedata.normalize("NFKC", str(value or "")).strip()
 
@@ -279,9 +254,6 @@ def validate_goal_delivery(
         "final_response_present": bool(
             not contract.final_response_required or response
         ),
-        "final_response_no_incomplete_admission": bool(
-            direct is not None or not _final_response_admits_incomplete(response)
-        ),
         "workspace_mutation_observed": bool(
             not contract.workspace_mutation_required
             or any(delta.get(name) for name in ("created", "modified", "deleted"))
@@ -336,12 +308,81 @@ def validate_goal_delivery(
         checks["expected_file_contents_match"] = (
             checks["expected_file_contents_match"] and matches
         )
+    evidence = [
+        _evidence(
+            tier=1,
+            source="task_contract",
+            name="delivery_contract_projection_exact",
+            passed=checks["delivery_contract_projection_exact"],
+            decisive=True,
+        ),
+        _evidence(
+            tier=1,
+            source="workspace",
+            name="required_paths_present",
+            passed=checks["required_paths_present"],
+            decisive=bool(contract.required_paths),
+        ),
+        _evidence(
+            tier=1,
+            source="workspace",
+            name="expected_file_contents_match",
+            passed=checks["expected_file_contents_match"],
+            decisive=bool(contract.expected_file_contents),
+        ),
+        _evidence(
+            tier=1,
+            source="task_contract",
+            name="direct_response_exact",
+            passed=checks["direct_response_exact"],
+            decisive=direct is not None,
+        ),
+        _evidence(
+            tier=2,
+            source="deterministic_verifier",
+            name="provider_reasoning_executed",
+            passed=checks["provider_reasoning_executed"],
+            decisive=contract.provider_reasoning_required,
+        ),
+        _evidence(
+            tier=3,
+            source="workspace_delta",
+            name="workspace_mutation_observed",
+            passed=checks["workspace_mutation_observed"],
+            decisive=contract.workspace_mutation_required,
+        ),
+        _evidence(
+            tier=4,
+            source="model_final_response",
+            name="final_response_present",
+            passed=checks["final_response_present"],
+            decisive=contract.final_response_required,
+        ),
+    ]
+    failed = [item for item in evidence if item["decisive"] and not item["passed"]]
+    passed = not failed
     return {
-        "schema": "zyra.goal-delivery-verification/v1",
-        "passed": all(checks.values()),
+        "schema": "zyra.goal-delivery-verification/v2",
+        "passed": passed,
         "checks": checks,
         "contract": expected_projection,
         "path_evidence": path_evidence,
+        "evidence": evidence,
+        "decision": {
+            "policy": "contract_evidence_priority",
+            "priority": [
+                "external_state_and_contract",
+                "deterministic_verification",
+                "tool_artifact_and_workspace_receipts",
+                "model_final_response",
+            ],
+            "decisive_failures": [item["name"] for item in failed],
+            "reason": (
+                "all decisive contract evidence passed"
+                if passed
+                else "one or more decisive higher-priority contract checks failed"
+            ),
+        },
         "workspace_root_redacted": True,
     }
 
@@ -365,10 +406,21 @@ def _safe_relative_path(value: str) -> str:
     return candidate.as_posix()
 
 
-def _final_response_admits_incomplete(value: str) -> bool:
-    return any(
-        pattern.search(value) for pattern in _FINAL_RESPONSE_INCOMPLETE_PATTERNS
-    )
+def _evidence(
+    *,
+    tier: int,
+    source: str,
+    name: str,
+    passed: bool,
+    decisive: bool,
+) -> dict[str, Any]:
+    return {
+        "tier": tier,
+        "source": source,
+        "name": name,
+        "passed": bool(passed),
+        "decisive": bool(decisive),
+    }
 
 
 def _resolve_contract_path(root: Path | None, relative: str) -> Path | None:
