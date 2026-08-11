@@ -6,7 +6,7 @@ import { Readable, Writable } from "node:stream"
 import { parseCliArgs } from "../src/args.ts"
 import { CliUsageError } from "../src/contracts.ts"
 import { JsonlWriter } from "../src/output.ts"
-import { runMain } from "../src/main.ts"
+import { runMain, stopTerminalBestEffort } from "../src/main.ts"
 import { goalFrom } from "../src/runner.ts"
 
 class Capture extends Writable {
@@ -213,5 +213,19 @@ describe("FE-S01 CLI argument and output contract", () => {
     const result = JSON.parse(offlineOut.text.trim().split("\n").at(-1)!)
     expect(result).toMatchObject({ type: "result", exit_code: 3 })
     expect(result.task_id).toBeUndefined()
+  })
+
+  test("terminal cleanup failures are diagnostic and preserve the task result", async () => {
+    const warning = await stopTerminalBestEffort({
+      async stop() {
+        throw new Error("controlled terminal cleanup failure")
+      },
+    })
+    expect(warning).toEqual({
+      schema: "zyra.cli-terminal-cleanup-warning.v1",
+      error: "Error",
+      message: "controlled terminal cleanup failure",
+      task_result_preserved: true,
+    })
   })
 })

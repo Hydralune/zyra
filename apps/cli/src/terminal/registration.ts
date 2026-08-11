@@ -24,6 +24,13 @@ export interface TerminalRegistrationOptions {
   priority?: number
 }
 
+export interface TerminalRegistrationDisableOptions {
+  /** Total cleanup budget, shared by revision lookup and disable commit. */
+  timeoutMs?: number
+  /** Cleanup must not spin on registry conflicts during process shutdown. */
+  maximumAttempts?: number
+}
+
 export interface TerminalRegistrationReceipt {
   schema: "zyra.cli-terminal-registration-receipt/v1"
   backend_id: string
@@ -58,14 +65,14 @@ export class TerminalNodeRegistration {
     return receipt
   }
 
-  async disable(): Promise<TerminalRegistrationReceipt> {
-    const receipt = await this.#upsert(false)
+  async disable(options: TerminalRegistrationDisableOptions = {}): Promise<TerminalRegistrationReceipt> {
+    const receipt = await this.#upsert(false, options)
     this.server.markRegistered(false)
     return receipt
   }
 
-  async #revision(): Promise<number> {
-    const response = await this.#request("GET", "/backends/health")
+  async #revision(timeoutMs = this.timeoutMs): Promise<number> {
+    const response = await this.#request("GET", "/backends/health", undefined, timeoutMs)
     const result = record(response.result, "backend registry health")
     const revision = Number(result.registry_revision)
     if (!Number.isSafeInteger(revision) || revision < 0) {
@@ -74,10 +81,29 @@ export class TerminalNodeRegistration {
     return revision
   }
 
-  async #upsert(enabled: boolean): Promise<TerminalRegistrationReceipt> {
+  async #upsert(
+    enabled: boolean,
+    options: TerminalRegistrationDisableOptions = {},
+  ): Promise<TerminalRegistrationReceipt> {
+    const maximumAttempts = Math.max(1, Math.floor(options.maximumAttempts ?? 5))
+    const deadline = options.timeoutMs === undefined
+      ? undefined
+      : Date.now() + Math.max(1, Math.floor(options.timeoutMs))
+    const remainingTimeout = (): number => {
+      if (deadline === undefined) return this.timeoutMs
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) {
+        throw new TerminalProtocolError(
+          "Terminal registration cleanup deadline expired.",
+          "terminal_registration_timeout",
+          504,
+        )
+      }
+      return Math.max(1, Math.min(this.timeoutMs, remaining))
+    }
     let lastError: unknown
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const expectedRevision = await this.#revision()
+    for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+      const expectedRevision = await this.#revision(remainingTimeout())
       try {
         const response = await this.#request("POST", "/backends", {
           expected_revision: expectedRevision,
@@ -124,7 +150,7 @@ export class TerminalNodeRegistration {
               real_terminal_dispatch_claimed: true,
             },
           },
-        })
+        }, remainingTimeout())
         const result = record(response.result, "terminal registration result")
         const revision = Number(result.registry_revision)
         if (result.backend_id !== this.server.backendId || !Number.isSafeInteger(revision) || revision <= expectedRevision) {
@@ -148,9 +174,17 @@ export class TerminalNodeRegistration {
     throw lastError
   }
 
-  async #request(method: "GET" | "POST", path: string, payload?: Record<string, unknown>): Promise<ApiEnvelope> {
+  async #request(
+    method: "GET" | "POST",
+    path: string,
+    payload?: Record<string, unknown>,
+    timeoutMs = this.timeoutMs,
+  ): Promise<ApiEnvelope> {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(new Error("terminal registration request timed out")), this.timeoutMs)
+    const timer = setTimeout(
+      () => controller.abort(new Error("terminal registration request timed out")),
+      Math.max(1, timeoutMs),
+    )
     timer.unref()
     try {
       const headers = new Headers({ accept: "application/json", "cache-control": "no-store" })

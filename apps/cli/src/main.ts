@@ -26,6 +26,32 @@ import { executeList } from "./commands/list.ts"
 import { TerminalNodeLifecycle } from "./terminal/lifecycle.ts"
 import { launchUi } from "./ui.ts"
 
+export interface TerminalCleanupWarning {
+  schema: "zyra.cli-terminal-cleanup-warning.v1"
+  error: string
+  message: string
+  task_result_preserved: true
+}
+
+export async function stopTerminalBestEffort(
+  terminal: Pick<TerminalNodeLifecycle, "stop"> | undefined,
+): Promise<TerminalCleanupWarning | undefined> {
+  if (!terminal) return undefined
+  try {
+    await terminal.stop("Zyra CLI session complete")
+    return undefined
+  } catch (error) {
+    return {
+      schema: "zyra.cli-terminal-cleanup-warning.v1",
+      error: error instanceof Error ? error.name : "TerminalCleanupError",
+      message: error instanceof Error
+        ? error.message.slice(0, 500)
+        : "Terminal cleanup failed.",
+      task_result_preserved: true,
+    }
+  }
+}
+
 export interface MainEnvironment {
   stdout?: Writable
   stderr?: Writable
@@ -270,7 +296,8 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       }
     } finally {
       try {
-        await terminal?.stop("Zyra CLI session complete")
+        const cleanupWarning = await stopTerminalBestEffort(terminal)
+        if (cleanupWarning) output.event({ ...cleanupWarning })
       } finally {
         if (timer !== undefined) clearTimeout(timer)
         if (cancelTimer) clearTimeout(cancelTimer)

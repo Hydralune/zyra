@@ -44,14 +44,19 @@ export class TerminalNodeLifecycle {
   async stop(reason = "Zyra CLI session complete"): Promise<TerminalRegistrationReceipt | undefined> {
     if (this.#stopped) return undefined
     this.#stopped = true
-    await this.server.drain(reason)
-    await this.server.settle(this.shutdownTimeoutMs)
-    let receipt: TerminalRegistrationReceipt | undefined
+    const deadline = Date.now() + Math.max(100, this.shutdownTimeoutMs)
     try {
-      if (this.#started) receipt = await this.registration.disable()
+      await this.server.drain(reason)
+      await this.server.settle(Math.max(100, deadline - Date.now()))
+      if (!this.#started) return undefined
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) throw new Error("Terminal node cleanup deadline expired.")
+      return await this.registration.disable({
+        timeoutMs: remaining,
+        maximumAttempts: 1,
+      })
     } finally {
       await this.server.close()
     }
-    return receipt
   }
 }

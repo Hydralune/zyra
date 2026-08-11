@@ -9,6 +9,7 @@ import {
   type TerminalFrame,
 } from "../src/terminal/contracts.ts"
 import { TerminalNodeRegistration } from "../src/terminal/registration.ts"
+import { TerminalNodeLifecycle } from "../src/terminal/lifecycle.ts"
 import { TerminalNodeServer } from "../src/terminal/server.ts"
 
 const servers: TerminalNodeServer[] = []
@@ -386,5 +387,54 @@ describe("FE-S04 terminal node", () => {
     expect(writes[1].backend.enabled).toBe(false)
     expect(writes[1].backend.backend_id).toBe(writes[0].backend.backend_id)
     expect(writes[1].terminal_registration.owner_id).toBe(writes[0].terminal_registration.owner_id)
+  })
+
+  test("shutdown bounds terminal deregistration to one conflict attempt", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zyra-terminal-lifecycle-test-"))
+    roots.push(root)
+    let revision = 3
+    let enabled = true
+    let disableAttempts = 0
+    const fakeFetch = (async (_input: URL | RequestInfo, init?: RequestInit | BunFetchRequestInit) => {
+      if (init?.method !== "POST") {
+        return Response.json({
+          ok: true,
+          schema: "zyra.provider-backend-api/v1",
+          result: { registry_revision: revision },
+        })
+      }
+      const body = JSON.parse(String(init.body)) as Record<string, any>
+      if (body.backend.enabled === false) {
+        disableAttempts += 1
+        return Response.json({
+          ok: false,
+          schema: "zyra.provider-backend-api/v1",
+          error: "provider_backend_operation_rejected",
+          message: "Terminal backend must drain active leases before disable.",
+        }, { status: 409 })
+      }
+      enabled = true
+      revision += 1
+      return Response.json({
+        ok: true,
+        schema: "zyra.provider-backend-api/v1",
+        result: { backend_id: body.backend.backend_id, registry_revision: revision },
+      })
+    }) as typeof fetch
+    const lifecycle = await TerminalNodeLifecycle.create({
+      baseUrl: "http://127.0.0.1:8000",
+      startupRoot: root,
+      fetch: fakeFetch,
+      shutdownTimeoutMs: 250,
+    })
+    servers.push(lifecycle.server)
+    await lifecycle.start()
+    expect(enabled).toBe(true)
+
+    const started = performance.now()
+    await expect(lifecycle.stop()).rejects.toThrow("drain active leases")
+    expect(performance.now() - started).toBeLessThan(1_000)
+    expect(disableAttempts).toBe(1)
+    expect(lifecycle.server.status().accepting).toBe(false)
   })
 })
