@@ -23,6 +23,7 @@ from .permissions import (
     ToolPermissionPolicy,
 )
 from .tools import (
+    BROWSER_TOOL_ACTIONS,
     DynamicToolProvenance,
     ProvenancedDynamicHandler,
     ToolCall,
@@ -30,6 +31,16 @@ from .tools import (
     ToolResult,
     default_tool_registry,
 )
+
+
+_BROWSER_ACTION_ALIASES = {
+    "open": "open_url",
+    "view": "snapshot_state",
+    "capture": "snapshot_state",
+    "screenshot": "snapshot_state",
+    "read": "extract_text",
+}
+_CANONICAL_BROWSER_ACTIONS = frozenset(BROWSER_TOOL_ACTIONS)
 
 
 @dataclass(slots=True)
@@ -771,14 +782,23 @@ class ToolExecutor:
         )
 
     def _browser(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
-        action = str(call.arguments.get("action") or "snapshot_state")
-        if action not in {"open_url", "extract_text", "snapshot_state", "navigate", "extract", "find_elements"}:
+        requested_action = str(
+            call.arguments.get("action") or "snapshot_state"
+        ).strip().casefold()
+        action = _BROWSER_ACTION_ALIASES.get(requested_action, requested_action)
+        if action not in _CANONICAL_BROWSER_ACTIONS:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
                 ok=False,
-                summary=f"Unsupported browser action: {action}",
+                summary=(
+                    f"Unsupported browser action: {requested_action}. Supported "
+                    f"actions: {', '.join(BROWSER_TOOL_ACTIONS)}"
+                ),
                 error="unsupported_browser_action",
-                metadata={"action": action},
+                metadata={
+                    "action": requested_action,
+                    "supported_actions": ",".join(BROWSER_TOOL_ACTIONS),
+                },
             )
         html_content = str(call.arguments.get("html") or "")
         source = "inline_html"
@@ -797,8 +817,16 @@ class ToolExecutor:
                 return ToolResult(
                     tool_call_id=call.tool_call_id,
                     ok=False,
-                    summary="browser requires html or url",
+                    summary=(
+                        "browser requires inline html or an allowed HTTP(S) URL; "
+                        "it cannot inspect a local image or video path, so use "
+                        "shell-based image/OCR utilities for local media"
+                    ),
                     error="missing_browser_source",
+                    metadata={
+                        "requested_action": requested_action,
+                        "normalized_action": action,
+                    },
                 )
             fetched = self._fetch_search_source(call, url, authorized=authorized)
             if isinstance(fetched, ToolResult):
@@ -855,7 +883,11 @@ class ToolExecutor:
                 },
             },
             artifacts=artifacts,
-            metadata={"mode": "inline_html" if source == "inline_html" else "url"},
+            metadata={
+                "mode": "inline_html" if source == "inline_html" else "url",
+                "requested_action": requested_action,
+                "normalized_action": action,
+            },
         )
 
     def _checkpoint(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:

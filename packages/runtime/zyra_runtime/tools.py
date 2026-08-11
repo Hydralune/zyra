@@ -7,6 +7,16 @@ from typing import Any, Callable, Mapping
 from zyra_core import ArtifactRef, new_id, now_iso
 
 
+BROWSER_TOOL_ACTIONS = (
+    "open_url",
+    "navigate",
+    "extract_text",
+    "extract",
+    "snapshot_state",
+    "find_elements",
+)
+
+
 class FrozenDict(dict):
     """Recursively immutable ``dict`` compatible with legacy schema code."""
 
@@ -400,12 +410,23 @@ def default_tool_registry() -> ToolRegistry:
             ),
             ToolSpec(
                 "browser",
-                "Capture a controlled browser-like state snapshot from inline HTML or an allowed URL.",
+                (
+                    "Read inline HTML or an allowed HTTP(S) URL. This tool does "
+                    "not inspect local image or video files; use shell-based "
+                    "image/OCR utilities for local media."
+                ),
                 "browser-use",
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "action": {"type": "string"},
+                        "action": {
+                            "type": "string",
+                            "enum": list(BROWSER_TOOL_ACTIONS),
+                            "description": (
+                                "Browser operation. Use only one of the enumerated "
+                                "canonical action names."
+                            ),
+                        },
                         "url": {"type": "string"},
                         "html": {"type": "string"},
                         "allow_network": {"type": "boolean"},

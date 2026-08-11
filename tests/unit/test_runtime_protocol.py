@@ -37,6 +37,24 @@ class RuntimeProtocolTests(unittest.TestCase):
 
         self.assertTrue({"file_read", "file_edit", "shell", "browser", "artifact_write"}.issubset(names))
 
+    def test_browser_tool_schema_matches_executor_action_contract(self) -> None:
+        browser = default_tool_registry().get("browser")
+
+        self.assertIsNotNone(browser)
+        assert browser is not None
+        self.assertEqual(
+            tuple(browser.input_schema["properties"]["action"]["enum"]),
+            (
+                "open_url",
+                "navigate",
+                "extract_text",
+                "extract",
+                "snapshot_state",
+                "find_elements",
+            ),
+        )
+        self.assertIn("does not inspect local image or video", browser.purpose)
+
     def test_default_worker_descriptors_identify_productized_sources(self) -> None:
         descriptors = {worker.name: worker for worker in default_worker_descriptors()}
 
@@ -243,6 +261,42 @@ class RuntimeProtocolTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error, "permission_required")
             self.assertEqual(result.artifacts, [])
+
+    def test_browser_tool_normalizes_common_model_action_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Read browser state with a natural alias.")
+            context = ToolExecutionContext.for_workspace(
+                Path(tmpdir) / "workspace",
+                Path(tmpdir) / "artifacts",
+            )
+            executor = ToolExecutor(context)
+
+            for alias, expected in (
+                ("open", "open_url"),
+                ("view", "snapshot_state"),
+                ("capture", "snapshot_state"),
+                ("screenshot", "snapshot_state"),
+                ("read", "extract_text"),
+            ):
+                with self.subTest(alias=alias):
+                    result = executor._browser(
+                        ToolCall(
+                            run_id=state.run_id,
+                            task_id=state.task_id,
+                            node_id=state.root_node_id,
+                            tool_name="browser",
+                            arguments={
+                                "action": alias,
+                                "html": "<html><body>browser alias</body></html>",
+                            },
+                        ),
+                        authorized=True,
+                    )
+
+                    self.assertTrue(result.ok)
+                    self.assertEqual(result.output["action"], expected)
+                    self.assertEqual(result.metadata["requested_action"], alias)
+                    self.assertEqual(result.metadata["normalized_action"], expected)
 
     def test_web_search_blocks_network_without_explicit_allow(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
