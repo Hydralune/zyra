@@ -226,7 +226,14 @@ def execute_code_worker_operator(
     benchmark_mirror: _BenchmarkWorkspaceMirror | None = None
     if benchmark_binding is not None:
         _pull_benchmark_workspace(benchmark_binding, workspace_root)
-    before = _workspace_manifest(workspace_root)
+    before = _workspace_manifest(
+        workspace_root,
+        excluded_prefixes=(
+            _benchmark_mirror_excludes(benchmark_binding)
+            if benchmark_binding is not None
+            else ()
+        ),
+    )
     edit_port_arguments = {
         "worker_id": worker_id,
         "run_id": run_id,
@@ -455,7 +462,14 @@ def execute_code_worker_operator(
         benchmark_mirror.push_to_container()
         benchmark_mirror.pull_from_container()
         benchmark_sync = benchmark_mirror.report()
-    after = _workspace_manifest(workspace_root)
+    after = _workspace_manifest(
+        workspace_root,
+        excluded_prefixes=(
+            _benchmark_mirror_excludes(benchmark_binding)
+            if benchmark_binding is not None
+            else ()
+        ),
+    )
     workspace_delta = _workspace_delta(before, after)
     evidence = dict(run.execution_evidence)
     if benchmark_binding is not None:
@@ -1225,7 +1239,43 @@ def _normalized_usd_cost(
     )
 
 
-def _workspace_manifest(root: Path) -> dict[str, dict[str, Any]]:
+_BENCHMARK_MIRROR_EXCLUDED_PREFIXES = (
+    ".runtime/docker-config",
+    ".runtime/temp",
+    ".runtime/tmp",
+    ".runtime/venv",
+)
+
+
+def _benchmark_path_excluded(
+    relative: str,
+    excluded_prefixes: tuple[str, ...],
+) -> bool:
+    canonical = str(relative).replace("\\", "/").strip("/")
+    return any(
+        canonical == prefix or canonical.startswith(f"{prefix}/")
+        for prefix in excluded_prefixes
+    )
+
+
+def _benchmark_mirror_excludes(binding: Mapping[str, Any]) -> tuple[str, ...]:
+    configured = binding.get("mirror_excluded_prefixes")
+    values = (
+        tuple(str(item) for item in configured)
+        if isinstance(configured, (tuple, list))
+        else _BENCHMARK_MIRROR_EXCLUDED_PREFIXES
+    )
+    return tuple(
+        canonical_logical_path(value, allow_root=False)
+        for value in values
+    )
+
+
+def _workspace_manifest(
+    root: Path,
+    *,
+    excluded_prefixes: tuple[str, ...] = (),
+) -> dict[str, dict[str, Any]]:
     output: dict[str, dict[str, Any]] = {}
     total_bytes = 0
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
@@ -1233,9 +1283,11 @@ def _workspace_manifest(root: Path) -> dict[str, dict[str, Any]]:
             continue
         if path.is_symlink():
             raise ValueError("workspace manifest rejects symbolic-link files")
+        relative = path.relative_to(root).as_posix()
+        if _benchmark_path_excluded(relative, excluded_prefixes):
+            continue
         if len(output) >= 100_000:
             raise ValueError("workspace manifest exceeds the 100000-file evidence budget")
-        relative = path.relative_to(root).as_posix()
         size = path.stat().st_size
         total_bytes += size
         if total_bytes > 8 * 1024 * 1024 * 1024:
@@ -1328,12 +1380,41 @@ class _BenchmarkWorkspaceMirror:
     def pull_from_container(self) -> None:
         with self.guard:
             _pull_benchmark_workspace(self.binding, self.workspace_root)
-            self._synced_manifest = _workspace_manifest(self.workspace_root)
+            self._synced_manifest = _workspace_manifest(
+                self.workspace_root,
+                excluded_prefixes=_benchmark_mirror_excludes(self.binding),
+            )
+            self._pull_cycles += 1
+
+    def pull_paths_from_container(self, paths: tuple[str, ...]) -> None:
+        with self.guard:
+            canonical_paths = tuple(
+                dict.fromkeys(
+                    canonical_logical_path(path, allow_root=False)
+                    for path in paths
+                )
+            )
+            _pull_benchmark_workspace_paths(
+                self.binding,
+                self.workspace_root,
+                canonical_paths,
+            )
+            current = _workspace_manifest(
+                self.workspace_root,
+                excluded_prefixes=_benchmark_mirror_excludes(self.binding),
+            )
+            for path in canonical_paths:
+                self._synced_manifest.pop(path, None)
+                if path in current:
+                    self._synced_manifest[path] = current[path]
             self._pull_cycles += 1
 
     def push_to_container(self) -> dict[str, Any]:
         with self.guard:
-            after = _workspace_manifest(self.workspace_root)
+            after = _workspace_manifest(
+                self.workspace_root,
+                excluded_prefixes=_benchmark_mirror_excludes(self.binding),
+            )
             result = _push_benchmark_workspace_delta(
                 self.binding,
                 self.workspace_root,
@@ -1377,12 +1458,23 @@ class _BenchmarkWorkspaceEditPort(WorkspaceEditPort):
 
     def read_bytes(self, *args: Any, **kwargs: Any) -> Any:
         with self._benchmark_mirror.guard:
-            self._benchmark_mirror.pull_from_container()
+            logical_path = (
+                args[0] if args else kwargs.get("logical_path")
+            )
+            self._benchmark_mirror.pull_paths_from_container(
+                (str(logical_path),)
+            )
             return super().read_bytes(*args, **kwargs)
 
     def apply(self, *args: Any, **kwargs: Any) -> Any:
         with self._benchmark_mirror.guard:
-            self._benchmark_mirror.pull_from_container()
+            mutations = args[0] if args else kwargs.get("mutations")
+            paths = tuple(
+                str(item.logical_path)
+                for item in (mutations or ())
+            )
+            if paths:
+                self._benchmark_mirror.pull_paths_from_container(paths)
             result = super().apply(*args, **kwargs)
             self._benchmark_mirror.push_to_container()
             return result
@@ -1442,6 +1534,7 @@ def _benchmark_docker_binding(
         "docker_executable": connector.docker_executable,
         "workspace_data_root": resolved_data_root,
         "sync_root": sync_root,
+        "mirror_excluded_prefixes": _BENCHMARK_MIRROR_EXCLUDED_PREFIXES,
     }
 
 
@@ -1522,6 +1615,8 @@ def _pull_benchmark_workspace(
         )
         with tarfile.open(archive_path, mode="r:") as archive:
             members = archive.getmembers()
+            selected_members: list[tarfile.TarInfo] = []
+            excluded_prefixes = _benchmark_mirror_excludes(binding)
             for member in members:
                 logical_name = str(member.name).replace("\\", "/")
                 parts = tuple(part for part in logical_name.split("/") if part not in {"", "."})
@@ -1537,7 +1632,14 @@ def _pull_benchmark_workspace(
                     raise RuntimeError(
                         "benchmark workspace archive contains an unsafe or unresolved entry"
                     )
-            archive.extractall(staging, members=members, filter="data")
+                relative = "/".join(parts)
+                if relative and _benchmark_path_excluded(
+                    relative,
+                    excluded_prefixes,
+                ):
+                    continue
+                selected_members.append(member)
+            archive.extractall(staging, members=selected_members, filter="data")
         for child in tuple(root.iterdir()):
             if child.is_symlink() or child.is_file():
                 child.unlink()
@@ -1548,6 +1650,88 @@ def _pull_benchmark_workspace(
     finally:
         archive_path.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
+
+
+def _pull_benchmark_workspace_paths(
+    binding: Mapping[str, Any],
+    workspace_root: Path,
+    paths: tuple[str, ...],
+) -> None:
+    """Refresh only file-tool targets from the canonical container.
+
+    Dependency installs and build caches can be hundreds of megabytes.  A
+    file read or edit must not archive that entire tree, so file-tool
+    coherence is maintained with exact-path Docker copies.  The full source
+    tree is still synchronized at dispatch open and closeout.
+    """
+
+    root = _validated_benchmark_workspace(binding, workspace_root)
+    excluded_prefixes = _benchmark_mirror_excludes(binding)
+    workdir = str(binding["workdir"])
+    container = str(binding["container"])
+    for relative in paths:
+        canonical = canonical_logical_path(relative, allow_root=False)
+        if _benchmark_path_excluded(canonical, excluded_prefixes):
+            raise ValueError(
+                "benchmark file tools cannot address an excluded runtime dependency path"
+            )
+        source = posixpath.join(workdir, canonical)
+        target = (root / Path(*canonical.split("/"))).resolve()
+        target.relative_to(root)
+        probe = _run_benchmark_docker(
+            binding,
+            (
+                "exec",
+                container,
+                "sh",
+                "-c",
+                (
+                    'if [ ! -e "$1" ]; then exit 1; fi; '
+                    'if [ -L "$1" ] || [ ! -f "$1" ]; then exit 2; fi'
+                ),
+                "--",
+                source,
+            ),
+            operation="benchmark_workspace_path_probe",
+            timeout_seconds=30.0,
+            allowed_returncodes=(0, 1),
+        )
+        if probe.returncode == 1:
+            if target.is_symlink() or target.is_file():
+                target.unlink()
+            elif target.exists():
+                raise RuntimeError(
+                    "benchmark mirror file target unexpectedly resolved to a directory"
+                )
+            continue
+        staging_root = Path(
+            tempfile.mkdtemp(
+                prefix="path-pull-",
+                dir=_required_path(binding.get("sync_root"), "benchmark sync root"),
+            )
+        ).resolve()
+        staged = staging_root / "payload"
+        try:
+            _run_benchmark_docker(
+                binding,
+                ("cp", f"{container}:{source}", str(staged)),
+                operation="benchmark_workspace_path_pull",
+                timeout_seconds=120.0,
+            )
+            if staged.is_symlink() or not staged.is_file():
+                raise RuntimeError(
+                    "benchmark workspace path pull did not produce a regular file"
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.is_symlink() or target.is_file():
+                target.unlink()
+            elif target.exists():
+                raise RuntimeError(
+                    "benchmark mirror file target unexpectedly resolved to a directory"
+                )
+            shutil.move(str(staged), str(target))
+        finally:
+            shutil.rmtree(staging_root, ignore_errors=True)
 
 
 def _push_benchmark_workspace_delta(
@@ -1629,6 +1813,7 @@ def _run_benchmark_docker(
     *,
     operation: str,
     timeout_seconds: float,
+    allowed_returncodes: tuple[int, ...] = (0,),
 ) -> subprocess.CompletedProcess[bytes]:
     try:
         completed = subprocess.run(
@@ -1643,7 +1828,7 @@ def _run_benchmark_docker(
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RuntimeError(f"{operation} could not execute Docker CLI: {type(error).__name__}") from error
-    if completed.returncode != 0:
+    if completed.returncode not in allowed_returncodes:
         error_text = completed.stderr.decode("utf-8", errors="replace")[:1000]
         raise RuntimeError(
             f"{operation} failed with Docker exit {completed.returncode}: {error_text}"
@@ -1659,6 +1844,10 @@ def _run_benchmark_docker_archive(
 ) -> None:
     """Stream a symlink-dereferenced container workspace into a host archive."""
 
+    excluded_arguments = [
+        f"--exclude=./{prefix}"
+        for prefix in _benchmark_mirror_excludes(binding)
+    ]
     command = [
         str(binding["docker_executable"]),
         "exec",
@@ -1668,6 +1857,7 @@ def _run_benchmark_docker_archive(
         "-",
         "-C",
         str(binding["workdir"]),
+        *excluded_arguments,
         ".",
     ]
     try:

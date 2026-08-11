@@ -438,10 +438,98 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "-",
                 "-C",
                 "/app",
+                "--exclude=./.runtime/docker-config",
+                "--exclude=./.runtime/temp",
+                "--exclude=./.runtime/tmp",
+                "--exclude=./.runtime/venv",
                 ".",
             ],
         )
         self.assertEqual(run.call_args.kwargs["timeout"], 300.0)
+
+    def test_container_pull_omits_runtime_dependencies_from_mirror(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+
+            def fake_archive(_binding, archive_path, **_kwargs):
+                source = root / "archive-source"
+                source.joinpath(".runtime", "venv").mkdir(parents=True)
+                source.joinpath(".runtime", "venv", "large.bin").write_bytes(b"x")
+                source.joinpath(".runtime", "simulation-result.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+                with tarfile.open(archive_path, "w") as archive:
+                    archive.add(source, arcname=".")
+
+            with patch.object(
+                code_worker_adapter,
+                "_run_benchmark_docker_archive",
+                side_effect=fake_archive,
+            ):
+                code_worker_adapter._pull_benchmark_workspace(binding, workspace)
+
+            self.assertFalse(workspace.joinpath(".runtime", "venv").exists())
+            self.assertTrue(
+                workspace.joinpath(
+                    ".runtime", "simulation-result.json"
+                ).is_file()
+            )
+
+    def test_targeted_pull_copies_only_requested_regular_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+            calls: list[tuple[str, ...]] = []
+
+            def fake_docker(_binding, argv, **_kwargs):
+                calls.append(argv)
+                if argv[0] == "cp":
+                    Path(argv[-1]).write_text("current", encoding="utf-8")
+                return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+            with patch.object(
+                code_worker_adapter,
+                "_run_benchmark_docker",
+                side_effect=fake_docker,
+            ):
+                code_worker_adapter._pull_benchmark_workspace_paths(
+                    binding,
+                    workspace,
+                    ("services/api.py",),
+                )
+
+            self.assertEqual(
+                workspace.joinpath("services", "api.py").read_text(encoding="utf-8"),
+                "current",
+            )
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[1][0], "cp")
+            self.assertEqual(calls[1][1], "task-main-1:/app/services/api.py")
 
     def test_container_pull_rejects_an_unresolved_symlink_before_replacing_mirror(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -632,8 +720,8 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
 
                 self.guard = threading.RLock()
 
-            def pull_from_container(self) -> None:
-                calls.append("pull")
+            def pull_paths_from_container(self, paths) -> None:
+                calls.append(f"pull:{','.join(paths)}")
 
             def push_to_container(self) -> None:
                 calls.append("push")
@@ -654,9 +742,19 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             "apply",
             side_effect=lambda *_args, **_kwargs: calls.append("apply") or apply_result,
         ):
-            self.assertIs(port.apply(()), apply_result)
+            mutation = type("Mutation", (), {"logical_path": "tracked.txt"})()
+            self.assertIs(port.apply((mutation,)), apply_result)
 
-        self.assertEqual(calls, ["pull", "read", "pull", "apply", "push"])
+        self.assertEqual(
+            calls,
+            [
+                "pull:tracked.txt",
+                "read",
+                "pull:tracked.txt",
+                "apply",
+                "push",
+            ],
+        )
 
     def test_benchmark_permission_rule_is_exactly_session_and_workspace_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
