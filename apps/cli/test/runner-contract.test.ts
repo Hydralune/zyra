@@ -8,7 +8,7 @@ import { ApiVersionMismatchError, RequestCancelledError } from "@zyra/typed-api-
 import { CliApi } from "../src/api.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { CliOutput } from "../src/output.ts"
-import { classifyTaskOutcome, executeRun } from "../src/runner.ts"
+import { classifyTaskOutcome, executeRun, taskHasSettledRunResult } from "../src/runner.ts"
 
 class Capture extends Writable {
   text = ""
@@ -77,6 +77,95 @@ describe("FE-S01 run result and fail-closed contracts", () => {
       changed_paths: ["smoke.txt"],
       file_api_resource: "workspaces/ws_contract_001/files",
     })
+  })
+
+  test("treats verifier-backed blocked state as settled for the current run only", () => {
+    expect(taskHasSettledRunResult(task("blocked"), {})).toBe(false)
+    expect(taskHasSettledRunResult(task("blocked"), { finalPassed: false })).toBe(true)
+    expect(taskHasSettledRunResult(task("blocked"), { finalPassed: true })).toBe(false)
+    expect(taskHasSettledRunResult(task("blocked"), {
+      finalPassed: true,
+      completionGatePresent: true,
+    })).toBe(true)
+    expect(taskHasSettledRunResult(task("running"), { finalPassed: false })).toBe(false)
+    expect(taskHasSettledRunResult(task("completed"), {})).toBe(true)
+  })
+
+  test("returns a verifier-backed blocked result without waiting for stuck mutation transport", async () => {
+    const pending = task("pending")
+    const blocked = task("blocked")
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async openIngress() {
+        return { cursor: "opaque.cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<TaskMutationProjection>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new RequestCancelledError("mutation response transport remained open")),
+            { once: true },
+          )
+        })
+      },
+      async nextIngress() {
+        return {
+          cursor: "opaque.cursor.final",
+          generation: 1,
+          frames: [{
+            schema: "zyra.event-ingress-frame/v1",
+            kind: "event",
+            source: "runtime-event-spine",
+            generation: 1,
+            taskId: blocked.taskId,
+            sequence: 1,
+            previousSequence: 0,
+            eventId: "event_blocked_final_verifier",
+            eventType: "runtime.audit.finding",
+            cursor: "opaque.cursor.final",
+            event: {
+              runId: blocked.runId,
+              payload: {
+                schema: "zyra.production-independent-final-verifier/v2",
+                passed: false,
+              },
+            },
+            raw: {},
+          }],
+          hasMore: false,
+          caughtUp: true,
+          nextSequence: 2,
+        }
+      },
+      async task() { return blocked },
+      async events() { return [] },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+    const stdout = new Capture()
+    const outcome = await executeRun({
+      command: {
+        kind: "run",
+        goal: "Return the settled verifier result.",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+        sealed: true,
+      },
+      api: fake,
+      output: new CliOutput({
+        stdout,
+        stderr: new Capture(),
+        requestId: "request_contract_blocked_settlement",
+        command: "run",
+      }),
+      stdin: Readable.from([]),
+      signal: new AbortController().signal,
+    })
+
+    expect(outcome.exitCode).toBe(CliExitCode.VERIFIER_FAILED)
+    expect(outcome.status).toBe("verifier_failed")
+    expect(stdout.text).toContain("canonical_task_result_settled_before_mutation_transport")
   })
 
   test("does not infer success after event ingress disconnect and missing verifier", async () => {

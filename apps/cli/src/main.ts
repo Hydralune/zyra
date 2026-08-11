@@ -52,6 +52,17 @@ export async function stopTerminalBestEffort(
   }
 }
 
+export function externalDeadlineDelayMs(
+  environment: NodeJS.ProcessEnv = process.env,
+  now = Date.now(),
+): number | undefined {
+  const raw = String(environment.ZYRA_EXTERNAL_DEADLINE_EPOCH_MS ?? "").trim()
+  if (!raw || !/^\d+$/u.test(raw)) return undefined
+  const deadline = Number(raw)
+  if (!Number.isSafeInteger(deadline) || deadline <= 0) return undefined
+  return Math.max(0, deadline - now)
+}
+
 export interface MainEnvironment {
   stdout?: Writable
   stderr?: Writable
@@ -265,10 +276,25 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         )
       : undefined
     timer?.unref()
-    const cancelTimer = command.kind === "run" && command.cancelAfterMs !== undefined
+    const externalCancelAfterMs = command.kind === "run"
+      ? externalDeadlineDelayMs()
+      : undefined
+    const cancelAfterMs = command.kind === "run"
+      ? [command.cancelAfterMs, externalCancelAfterMs]
+          .filter((value): value is number => value !== undefined)
+          .reduce<number | undefined>(
+            (selected, value) => selected === undefined ? value : Math.min(selected, value),
+            undefined,
+          )
+      : undefined
+    const cancelTimer = cancelAfterMs !== undefined
       ? setTimeout(
-          () => signal.controller.abort(new Error("Zyra CLI explicit cancel deadline reached.")),
-          command.cancelAfterMs,
+          () => signal.controller.abort(new Error(
+            externalCancelAfterMs !== undefined && cancelAfterMs === externalCancelAfterMs
+              ? "Zyra external execution deadline reached."
+              : "Zyra CLI explicit cancel deadline reached.",
+          )),
+          cancelAfterMs,
         )
       : undefined
     cancelTimer?.unref()

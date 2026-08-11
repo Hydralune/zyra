@@ -6,7 +6,7 @@ import { Readable, Writable } from "node:stream"
 import { parseCliArgs } from "../src/args.ts"
 import { CliUsageError } from "../src/contracts.ts"
 import { JsonlWriter } from "../src/output.ts"
-import { runMain, stopTerminalBestEffort } from "../src/main.ts"
+import { externalDeadlineDelayMs, runMain, stopTerminalBestEffort } from "../src/main.ts"
 import { goalFrom } from "../src/runner.ts"
 
 class Capture extends Writable {
@@ -227,5 +227,12 @@ describe("FE-S01 CLI argument and output contract", () => {
       message: "controlled terminal cleanup failure",
       task_result_preserved: true,
     })
+  })
+
+  test("derives an explicit CLI cancellation delay only from a valid external deadline", () => {
+    expect(externalDeadlineDelayMs({ ZYRA_EXTERNAL_DEADLINE_EPOCH_MS: "2500" }, 1_000)).toBe(1_500)
+    expect(externalDeadlineDelayMs({ ZYRA_EXTERNAL_DEADLINE_EPOCH_MS: "500" }, 1_000)).toBe(0)
+    expect(externalDeadlineDelayMs({ ZYRA_EXTERNAL_DEADLINE_EPOCH_MS: "invalid" }, 1_000)).toBeUndefined()
+    expect(externalDeadlineDelayMs({}, 1_000)).toBeUndefined()
   })
 })

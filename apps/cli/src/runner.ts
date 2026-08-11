@@ -33,6 +33,18 @@ interface EventAccumulator {
   verifier: VerifierEvidence
 }
 
+const SETTLEMENT_PROBE_INTERVAL_MS = 250
+
+export function taskHasSettledRunResult(
+  task: TaskProjection,
+  evidence: { finalPassed?: boolean; completionGatePresent?: boolean },
+): boolean {
+  return task.terminal || (
+    task.status === "blocked"
+    && (evidence.finalPassed === false || evidence.completionGatePresent === true)
+  )
+}
+
 function record(value: unknown): Readonly<Record<string, unknown>> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Readonly<Record<string, unknown>>
@@ -343,6 +355,8 @@ export async function executeRun(input: {
   }
 
   let ingressError: unknown
+  let observedSettlement: TaskProjection | undefined
+  let lastSettlementProbeAt = 0
   while (!settled && !input.signal.aborted) {
     const ingressController = new AbortController()
     const ingressPromise = input.api.nextIngress(
@@ -372,14 +386,51 @@ export async function executeRun(input: {
       }
       break
     }
+    const now = Date.now()
+    if (
+      !settled
+      && accumulator.verifier.final !== undefined
+      && now - lastSettlementProbeAt >= SETTLEMENT_PROBE_INTERVAL_MS
+    ) {
+      lastSettlementProbeAt = now
+      try {
+        const observed = await input.api.task(task.taskId)
+        if (taskHasSettledRunResult(observed, {
+          finalPassed: accumulator.verifier.final?.passed === true
+            ? true
+            : accumulator.verifier.final?.passed === false
+              ? false
+              : undefined,
+          completionGatePresent: accumulator.verifier.gate !== undefined,
+        })) {
+          observedSettlement = observed
+          runController.abort("canonical task result settled before mutation transport")
+          input.output.event(
+            {
+              schema: "zyra.cli-run-reconciliation.v1",
+              phase: "terminal",
+              task_id: observed.taskId,
+              run_id: observed.runId,
+              status: observed.status,
+              reason: "canonical_task_result_settled_before_mutation_transport",
+            },
+            { taskId: observed.taskId, runId: observed.runId },
+          )
+          break
+        }
+      } catch {
+        // The long mutation request remains authoritative while a best-effort
+        // settlement probe is unavailable.
+      }
+    }
   }
 
   if (input.signal.aborted) {
     return finishCancelled()
   }
 
-  const run = await runPromise
-  if (!run.ok && run.error instanceof RequestCancelledError && !input.signal.aborted) {
+  const run = observedSettlement ? undefined : await runPromise
+  if (run && !run.ok && run.error instanceof RequestCancelledError && !input.signal.aborted) {
     input.output.event(
       {
         schema: "zyra.cli-run-reconciliation.v1",
@@ -435,7 +486,7 @@ export async function executeRun(input: {
   let replay: readonly EventProjection[]
   try {
     [finalTask, replay] = await Promise.all([
-      input.api.task(task.taskId),
+      observedSettlement ?? input.api.task(task.taskId),
       input.api.events(task.taskId),
     ])
   } catch (error) {
@@ -444,7 +495,7 @@ export async function executeRun(input: {
   }
   for (const event of replay) emitLegacyEvent(input.output, event, accumulator)
 
-  if (!run.ok && !(run.error instanceof RequestCancelledError)) {
+  if (run && !run.ok && !(run.error instanceof RequestCancelledError)) {
     const outcome = classifyTaskOutcome(finalTask, accumulator.verifier)
     if (outcome.exitCode !== CliExitCode.SUCCESS && outcome.exitCode !== CliExitCode.VERIFIER_FAILED) {
       throw run.error
