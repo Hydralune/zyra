@@ -103,8 +103,10 @@ export class ProgressiveExecutionRuntime {
     response: ToolExecutionResponse,
     readOnly: boolean,
   ): ProgressiveExecutionSnapshot {
-    const physicalEffect = response.metadata.physical_effect_executed;
-    const mutated = !readOnly && response.ok && physicalEffect !== "false";
+    const mutationCommitted = String(
+      response.metadata.workspace_mutation_committed ?? "false",
+    ).toLowerCase() === "true";
+    const mutated = response.ok && mutationCommitted;
     const artifacts = response.artifacts.length;
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;

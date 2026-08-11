@@ -49,7 +49,12 @@ class MemoryHost implements RuntimeHost {
         : { arguments: request.arguments }) as JsonObject,
       artifacts: [],
       error: request.arguments.fail === true ? "tool_failed" : null,
-      metadata: { host: "memory" },
+      metadata: {
+        host: "memory",
+        workspace_mutation_committed: String(
+          request.toolName === "write" && request.arguments.fail !== true,
+        ),
+      },
     }));
   }
 
@@ -1514,7 +1519,10 @@ test("progressive execution requests action after analysis-only loops and record
     summary: "created an incremental result",
     output: {},
     artifacts: [{ artifact_id: "artifact-1", kind: "file", uri: "workspace:result.txt", title: "result" }],
-    metadata: { physical_effect_executed: "true" },
+    metadata: {
+      physical_effect_executed: "true",
+      workspace_mutation_committed: "true",
+    },
   }, false);
   const delivered = progressive.decide(2_000, 10_000);
 
@@ -1522,6 +1530,38 @@ test("progressive execution requests action after analysis-only loops and record
   assert.equal(delivered.snapshot.requiredDeliveryMissing, false);
   assert.equal(delivered.snapshot.workspaceMutationCount, 1);
   assert.equal(delivered.snapshot.artifactCount, 1);
+});
+
+test("progressive execution does not treat command execution as a workspace mutation", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+
+  progressive.observeToolResult({
+    toolCallId: "shell-1",
+    toolName: "shell",
+    arguments: { executable: "git", argv: ["status", "--short"] },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "batch-1",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  }, {
+    tool_call_id: "shell-1",
+    ok: true,
+    summary: "command completed",
+    output: {},
+    artifacts: [],
+    metadata: { physical_effect_executed: "true" },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.equal(observed.realActionCount, 1);
+  assert.equal(observed.workspaceMutationCount, 0);
+  assert.equal(observed.requiredDeliveryMissing, true);
+  assert.doesNotMatch(observed.progressReasons.join("\n"), /workspace_mutation_committed/);
 });
 
 test("progressive closeout accounts for artifacts, verification, background work, and context", () => {

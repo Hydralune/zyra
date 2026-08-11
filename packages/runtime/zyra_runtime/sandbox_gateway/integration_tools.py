@@ -781,6 +781,11 @@ class GatewayToolExecutionRouter:
                 "termination": process.termination.value,
                 "output_bounded": "true",
                 "process_tree_controlled": str(process_tree_controlled).lower(),
+                "workspace_mutation_committed": str(
+                    succeeded
+                    and execution.patch_receipt is not None
+                    and execution.patch_receipt.committed
+                ).lower(),
                 # A gateway timeout has a synchronously committed process and
                 # workspace receipt.  The child session remains quarantined,
                 # while the model may inspect the committed workspace through
@@ -1181,6 +1186,8 @@ class GatewayToolExecutionRouter:
         )
         self.bundle.receipt_journal.append(receipt, idempotency_key=request.idempotency_key)
         ok = file_receipt.committed and not file_receipt.quarantined
+        metadata = self.bundle.event_projector.tool_metadata(receipt)
+        metadata["workspace_mutation_committed"] = str(ok).lower()
         return ToolResult(
             tool_call_id=call.tool_call_id,
             ok=ok,
@@ -1203,7 +1210,7 @@ class GatewayToolExecutionRouter:
             },
             artifacts=list(file_receipt.artifact_records),
             error=None if ok else "artifact_quarantined" if file_receipt.quarantined else "workspace_commit_failed",
-            metadata=self.bundle.event_projector.tool_metadata(receipt),
+            metadata=metadata,
         )
 
     def _file_edit(
@@ -1321,13 +1328,15 @@ class GatewayToolExecutionRouter:
             failure_code="" if result.ok else str(result.error or "workspace_delete_failed"),
         )
         self.bundle.receipt_journal.append(receipt)
+        metadata = self.bundle.event_projector.tool_metadata(receipt)
+        metadata["workspace_mutation_committed"] = str(bool(result.ok)).lower()
         return ToolResult(
             tool_call_id=call.tool_call_id,
             ok=bool(result.ok),
             summary=f"Deleted {logical_path} through SandboxGateway" if result.ok else f"Delete failed for {logical_path}",
             output={"path": logical_path, "gateway_receipt": receipt.safe_dict()},
             error=None if result.ok else str(result.error or "workspace_delete_failed"),
-            metadata=self.bundle.event_projector.tool_metadata(receipt),
+            metadata=metadata,
         )
 
     def _dispatch_backend_action_after_permission(

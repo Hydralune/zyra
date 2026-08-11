@@ -556,6 +556,10 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertTrue(foreground.ok, foreground)
         self.assertEqual(foreground.output["status"], "completed")
         self.assertIn("not blocked", foreground.output["stdout"])
+        self.assertEqual(
+            foreground.metadata["workspace_mutation_committed"],
+            "false",
+        )
         child_sessions = {
             job.session_id for job in router._jobs.values()  # noqa: SLF001
         }
