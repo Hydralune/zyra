@@ -168,6 +168,92 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(stdout.text).toContain("canonical_task_result_settled_before_mutation_transport")
   })
 
+  test("retries canonical settlement after ingress closes during the verifier projection race", async () => {
+    const pending = task("pending")
+    const blocked = task("blocked")
+    let ingressCalls = 0
+    let taskReads = 0
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async openIngress() {
+        return { cursor: "opaque.cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<TaskMutationProjection>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new RequestCancelledError("mutation response transport remained open")),
+            { once: true },
+          )
+        })
+      },
+      async nextIngress() {
+        ingressCalls += 1
+        if (ingressCalls > 1) throw new Error("terminal ingress generation closed")
+        return {
+          cursor: "opaque.cursor.final",
+          generation: 1,
+          frames: [{
+            schema: "zyra.event-ingress-frame/v1",
+            kind: "event",
+            source: "runtime-event-spine",
+            generation: 1,
+            taskId: blocked.taskId,
+            sequence: 1,
+            previousSequence: 0,
+            eventId: "event_racing_final_verifier",
+            eventType: "runtime.audit.finding",
+            cursor: "opaque.cursor.final",
+            event: {
+              runId: blocked.runId,
+              inline: {
+                schema: "zyra.production-independent-final-verifier/v2",
+                passed: false,
+              },
+            },
+            raw: {},
+          }],
+          hasMore: false,
+          caughtUp: true,
+          nextSequence: 2,
+        }
+      },
+      async task() {
+        taskReads += 1
+        return taskReads === 1 ? pending : blocked
+      },
+      async events() { return [] },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+    const stdout = new Capture()
+    const outcome = await executeRun({
+      command: {
+        kind: "run",
+        goal: "Return the settled verifier result after ingress closes.",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+        sealed: true,
+      },
+      api: fake,
+      output: new CliOutput({
+        stdout,
+        stderr: new Capture(),
+        requestId: "request_contract_ingress_projection_race",
+        command: "run",
+      }),
+      stdin: Readable.from([]),
+      signal: new AbortController().signal,
+    })
+
+    expect(ingressCalls).toBeGreaterThanOrEqual(2)
+    expect(taskReads).toBe(2)
+    expect(outcome.exitCode).toBe(CliExitCode.VERIFIER_FAILED)
+    expect(outcome.status).toBe("verifier_failed")
+    expect(stdout.text).toContain("canonical_task_result_settled_before_mutation_transport")
+  })
+
   test("does not infer success after event ingress disconnect and missing verifier", async () => {
     const pending = task("pending")
     const completed = task("completed")

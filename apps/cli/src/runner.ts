@@ -358,6 +358,37 @@ export async function executeRun(input: {
   let ingressError: unknown
   let observedSettlement: TaskProjection | undefined
   let lastSettlementProbeAt = 0
+  const probeSettlement = async (): Promise<boolean> => {
+    try {
+      const observed = await input.api.task(task.taskId)
+      if (!taskHasSettledRunResult(observed, {
+        finalPassed: accumulator.verifier.final?.passed === true
+          ? true
+          : accumulator.verifier.final?.passed === false
+            ? false
+            : undefined,
+        completionGatePresent: accumulator.verifier.gate !== undefined,
+      })) return false
+      observedSettlement = observed
+      runController.abort("canonical task result settled before mutation transport")
+      input.output.event(
+        {
+          schema: "zyra.cli-run-reconciliation.v1",
+          phase: "terminal",
+          task_id: observed.taskId,
+          run_id: observed.runId,
+          status: observed.status,
+          reason: "canonical_task_result_settled_before_mutation_transport",
+        },
+        { taskId: observed.taskId, runId: observed.runId },
+      )
+      return true
+    } catch {
+      // The long mutation request remains authoritative while a best-effort
+      // settlement probe is unavailable.
+      return false
+    }
+  }
   while (!settled && !input.signal.aborted) {
     const ingressController = new AbortController()
     const ingressPromise = input.api.nextIngress(
@@ -383,6 +414,7 @@ export async function executeRun(input: {
     } else {
       ingressError = next.error
       while (!settled && !input.signal.aborted) {
+        if (accumulator.verifier.final !== undefined && await probeSettlement()) break
         await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
       }
       break
@@ -394,35 +426,7 @@ export async function executeRun(input: {
       && now - lastSettlementProbeAt >= SETTLEMENT_PROBE_INTERVAL_MS
     ) {
       lastSettlementProbeAt = now
-      try {
-        const observed = await input.api.task(task.taskId)
-        if (taskHasSettledRunResult(observed, {
-          finalPassed: accumulator.verifier.final?.passed === true
-            ? true
-            : accumulator.verifier.final?.passed === false
-              ? false
-              : undefined,
-          completionGatePresent: accumulator.verifier.gate !== undefined,
-        })) {
-          observedSettlement = observed
-          runController.abort("canonical task result settled before mutation transport")
-          input.output.event(
-            {
-              schema: "zyra.cli-run-reconciliation.v1",
-              phase: "terminal",
-              task_id: observed.taskId,
-              run_id: observed.runId,
-              status: observed.status,
-              reason: "canonical_task_result_settled_before_mutation_transport",
-            },
-            { taskId: observed.taskId, runId: observed.runId },
-          )
-          break
-        }
-      } catch {
-        // The long mutation request remains authoritative while a best-effort
-        // settlement probe is unavailable.
-      }
+      if (await probeSettlement()) break
     }
   }
 
