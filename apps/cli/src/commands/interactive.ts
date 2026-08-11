@@ -172,7 +172,12 @@ export async function observeTask(input: {
   }
   let runSettled = false
   let runResult: Promise<unknown> | undefined
-  if (["pending", "paused", "interrupted"].includes(input.task.status)) {
+  // `zyra resume` is an explicit request to reacquire task execution, not
+  // merely to attach to the event stream.  A daemon/process loss can leave
+  // the durable task projection at `running` even though its in-process
+  // execution owner no longer exists.  The task-run endpoint owns fencing
+  // the stale reservation and restoring the physical continuation.
+  if (input.resume || ["pending", "paused", "interrupted"].includes(input.task.status)) {
     runResult = input.api.runTask(input.task, input.signal).finally(() => { runSettled = true })
   }
   if (terminal && controls && permissions && input.stderr) {

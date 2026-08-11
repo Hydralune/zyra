@@ -193,6 +193,52 @@ describe("FE-S02 bounded canonical observation", () => {
     expect(output.text).toContain("[disconnected]")
   })
 
+  test("explicit resume reacquires a durable task left in running state", async () => {
+    const output = new Capture(120, false)
+    let runCalls = 0
+    const running = {
+      taskId: "task_test",
+      runId: "run_test",
+      status: "running",
+      terminal: false,
+    } as TaskProjection
+    const completed = {
+      ...running,
+      status: "completed",
+      terminal: true,
+    } as TaskProjection
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: "task_test", generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        runCalls += 1
+        return { task: completed, events: [], receipt: {}, controls: {}, raw: {} }
+      },
+      async *streamIngress() {
+        yield { kind: "event", taskId: "task_test", generation: 1, sequence: 1, frame: frame(1, "runtime.task.completed") }
+        yield { kind: "close", taskId: "task_test", generation: 1, sequence: 1, cursor: "cursor_1" }
+      },
+      async task() { return completed },
+    } as unknown as CliApi
+
+    const result = await observeTask({
+      api,
+      task: running,
+      cwd: "G:\\agent-zoo",
+      output,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+
+    expect(runCalls).toBe(1)
+    expect(result.exitCode).toBe(0)
+    expect(result.result).toMatchObject({ resumed: true })
+  })
+
   test("rejects a missing stream cursor before transport access", async () => {
     const api = new CliApi({ baseUrl: "http://127.0.0.1:1", timeoutMs: 1_000 })
     try {
