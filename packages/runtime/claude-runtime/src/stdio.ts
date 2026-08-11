@@ -42,14 +42,23 @@ type LineIterator = AsyncIterator<string>;
 export function toolBatchDeadlineMs(requests: readonly ToolExecutionRequest[]): number {
   const declared = requests.map((request) => {
     const raw = request.arguments.timeout_seconds;
-    return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+    const requested = typeof raw === "number" && Number.isFinite(raw) && raw > 0
       ? Math.min(43_200_000, Math.ceil(raw * 1_000))
       : 120_000;
+    // Python's shell_wait route deliberately caps one poll at 60 seconds.
+    // Mirror that semantic cap here: a caller may pass the command's total
+    // timeout back to shell_wait, but it must not accidentally mint a much
+    // longer TypeScript host-call deadline.
+    return request.toolName === "shell_wait"
+      ? Math.min(60_000, requested)
+      : requested;
   });
-  // The protocol allowance includes a small settlement margin; it is not a
-  // second command lifetime and therefore cannot expire before the Python
-  // command budget that produced it.
-  return Math.max(...declared, 1_000) + 5_000;
+  // The gateway result traverses sandbox teardown, receipt persistence,
+  // permission settlement and the Python/TypeScript stdio bridge after the
+  // command or wait ends. Real Docker workloads have shown that phase taking
+  // well over five seconds. This allowance is only result-settlement time; it
+  // cannot extend the physical command budget enforced by Python.
+  return Math.max(...declared, 1_000) + 60_000;
 }
 
 const LEGACY_CANDIDATE_METADATA_PATH =

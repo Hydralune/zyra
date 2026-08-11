@@ -8,6 +8,28 @@ import {
   RUNTIME_PROTOCOL_VERSION,
   RuntimeProtocolError,
 } from "../src/index.ts";
+import type { ToolExecutionRequest } from "../src/contracts.ts";
+import { toolBatchDeadlineMs } from "../src/stdio.ts";
+
+test("tool batch deadline leaves room for cross-process result settlement", () => {
+  const request = (toolName: string, timeoutSeconds?: number): ToolExecutionRequest => ({
+    toolCallId: `call-${toolName}`,
+    toolName,
+    arguments: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds },
+    turnIndex: 1,
+    stepIndex: 0,
+    batchId: "batch-1",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  });
+
+  assert.equal(toolBatchDeadlineMs([request("shell")]), 180_000);
+  assert.equal(toolBatchDeadlineMs([request("shell", 200)]), 260_000);
+  assert.equal(toolBatchDeadlineMs([request("shell_wait", 60)]), 120_000);
+  assert.equal(toolBatchDeadlineMs([request("shell_wait", 600)]), 120_000);
+});
 
 test("protocol accepts a versioned ordered frame", () => {
   const frame = createFrame(1, "run-1", "run.start", { value: "ok" });
