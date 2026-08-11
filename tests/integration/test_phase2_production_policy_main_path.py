@@ -2289,6 +2289,26 @@ def test_permission_receipt_is_not_used_as_an_agent_lifetime() -> None:
     )
 
 
+def test_post_boundary_transport_failure_never_replays_in_same_dispatch_loop() -> None:
+    """An unchanged workspace is not proof that an in-flight call has stopped."""
+
+    assert production_policy._physical_in_loop_retry_allowed(
+        reported_side_effect_started=False,
+        reconciled_side_effect_started=False,
+        attempt_index=1,
+    ) is True
+    assert production_policy._physical_in_loop_retry_allowed(
+        reported_side_effect_started=True,
+        reconciled_side_effect_started=False,
+        attempt_index=1,
+    ) is False
+    assert production_policy._physical_in_loop_retry_allowed(
+        reported_side_effect_started=True,
+        reconciled_side_effect_started=True,
+        attempt_index=1,
+    ) is False
+
+
 def test_benchmark_agent_closeout_reserve_scales_without_a_turn_cap() -> None:
     assert api._benchmark_agent_closeout_reserve_seconds(3_480) == 600.0
     assert api._benchmark_agent_closeout_reserve_seconds(840) == 168.0

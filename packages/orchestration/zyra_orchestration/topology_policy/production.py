@@ -91,6 +91,28 @@ _CANDIDATE_ABSENT_NOT_COMMITTED = "topology_strongest_not_committed"
 _CANDIDATE_ABSENT_NO_PROPOSAL = "operator_policy_selected_no_proposal"
 
 
+def _physical_in_loop_retry_allowed(
+    *,
+    reported_side_effect_started: bool,
+    reconciled_side_effect_started: bool,
+    attempt_index: int,
+) -> bool:
+    """Allow only pre-boundary failures to reuse one dispatch identity.
+
+    A transport failure reported after the request crossed the node boundary
+    can still be running even when its delivery paths have not changed yet.
+    Replaying that request in the same loop risks duplicate side effects or an
+    idempotency conflict.  Such failures leave through the canonical recovery
+    path, which gives a replacement generation a fresh recovery identity.
+    """
+
+    return bool(
+        not reported_side_effect_started
+        and not reconciled_side_effect_started
+        and attempt_index <= _PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS
+    )
+
+
 def _canonical_memory_record_digest(record: Any) -> str:
     """Digest the durable logical record, excluding refresh-local timestamps.
 
@@ -1856,9 +1878,10 @@ class Phase2StrongestProductionBridge:
                 break
             except Exception as error:
                 error_metadata = dict(getattr(error, "metadata", {}) or {})
-                side_effect_started = bool(
+                reported_side_effect_started = bool(
                     error_metadata.get("side_effect_started")
                 )
+                side_effect_started = reported_side_effect_started
                 reconciliation = self._reconcile_physical_outcome(
                     state,
                     before=delivery_state_before,
@@ -1874,9 +1897,10 @@ class Phase2StrongestProductionBridge:
                     )
                 )
                 attempt_index += 1
-                if (
-                    not side_effect_started
-                    and attempt_index <= _PHYSICAL_DISPATCH_RECOVERY_ATTEMPTS
+                if _physical_in_loop_retry_allowed(
+                    reported_side_effect_started=reported_side_effect_started,
+                    reconciled_side_effect_started=side_effect_started,
+                    attempt_index=attempt_index,
                 ):
                     self._emit_physical_recovery_event(
                         state,

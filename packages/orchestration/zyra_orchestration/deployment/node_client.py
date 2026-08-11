@@ -53,12 +53,18 @@ class DeploymentNodeClient:
         *,
         accepted_statuses: tuple[int, ...] = (200,),
         timeout_seconds: float | None = None,
+        use_default_timeout: bool = True,
     ) -> dict[str, Any]:
         signed = self.signer.sign(method, path, payload)
+        effective_timeout = (
+            self.timeout_seconds
+            if use_default_timeout and timeout_seconds is None
+            else timeout_seconds
+        )
         connection = HTTPConnection(
             self.host,
             self.port,
-            timeout=timeout_seconds or self.timeout_seconds,
+            timeout=effective_timeout,
         )
         try:
             connection.request(
@@ -191,12 +197,22 @@ class DeploymentNodeClient:
         *,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
+        """Execute one workload with an explicit transport budget.
+
+        ``None`` deliberately means no transport deadline.  Health and
+        lifecycle requests retain the client's short default, but a live
+        model/tool loop may legitimately remain active for hours.  Keeping the
+        two meanings separate also mirrors the deployment task contract where
+        an execution budget of zero is an open run.
+        """
+
         return self.request(
             "POST",
             "/execute",
             payload,
             accepted_statuses=(200, 503),
             timeout_seconds=timeout_seconds,
+            use_default_timeout=False,
         )
 
     def inject_fault(self, payload: Mapping[str, Any]) -> dict[str, Any]:
