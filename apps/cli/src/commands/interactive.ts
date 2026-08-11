@@ -145,11 +145,14 @@ export async function observeTask(input: {
       revision: projection.snapshot().revision,
     })
   }
-  if (terminalTask(input.task) || projection.terminal) {
+  const resumableTerminal = input.resume
+    && ["failed", "blocked"].includes(input.task.status)
+  if ((terminalTask(input.task) || projection.terminal) && !resumableTerminal) {
     projection.complete()
     renderer.finish(projection.snapshot())
     return { exitCode: input.task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED, status: input.task.status, taskId: input.task.taskId, runId: input.task.runId }
   }
+  if (resumableTerminal) projection.resume()
 
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean } | undefined)?.isTTY)
   let terminal: TerminalPrompt | undefined

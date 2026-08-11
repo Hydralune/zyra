@@ -197,6 +197,12 @@ export class SessionProjection {
   connected(): void { this.#connection = "live" }
   disconnected(): void { this.#connection = "disconnected" }
   complete(): void { this.#connection = "complete" }
+
+  resume(): void {
+    this.#terminal = false
+    this.#connection = "connecting"
+    this.#action = "runtime.task.resuming"
+  }
   recovering(action = "event_stream_recovering"): void { this.#connection = "connecting"; this.#action = action }
 
   follow(enabled: boolean): void {
