@@ -330,6 +330,63 @@ def test_expired_task_rebind_terminalizes_old_graph_before_new_binding(
         assert old_snapshot.commit_id != current.commit_id
 
 
+def test_task_resume_recovers_graph_successor_missing_from_task_checkpoint(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Recover a successor committed before TaskState.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        prior = dict(state.metadata["worker_pool"])
+        pool_api.pool.leases.expire(
+            prior["lease_id"],
+            reason="controlled prior reservation expiry",
+        )
+        pool_api.reconcile_task_graph_binding(
+            state,
+            reason="controlled prior reservation expiry",
+            actor_id="test-worker-pool",
+            causation_id="test-prior-reservation-expiry",
+        )
+        successor = pool_api.ensure_task_lease(
+            state,
+            payload={"idempotency_key": "successor-before-task-checkpoint"},
+        )
+        assert successor is not None
+        successor_projection = dict(state.metadata["worker_pool"])
+
+        # Model a crash after WorkerPool + graph commit but before TaskState
+        # persisted the successor projection.
+        state.metadata["worker_pool"] = prior
+
+        fenced_lease_id = api_main._fence_pending_task_reservation(
+            pool_api,
+            state,
+            reason="resume after process loss",
+        )
+
+        assert fenced_lease_id == successor.lease.lease_id
+        assert state.metadata["worker_pool"]["attempt_id"] == successor.attempt.attempt_id
+        assert state.metadata["worker_pool"]["lease_id"] == successor.lease.lease_id
+        assert state.metadata["worker_pool"] != prior
+        assert state.metadata["worker_pool"]["graph_ref"]["revision"] >= successor_projection[
+            "graph_ref"
+        ]["revision"]
+        current = pool_api.graph_custody.current(state.metadata["dynamic_graph_id"])
+        rebound = next(
+            node
+            for node in current.nodes
+            if node.physical_attempt_ref == successor.attempt.attempt_id
+        )
+        assert rebound.worker_lease_ref == successor.lease.lease_id
+        assert rebound.state.value == "cancelled"
+
+
 def test_normal_task_finalize_replays_lease_and_graph_success(
     tmp_path: Path,
 ) -> None:

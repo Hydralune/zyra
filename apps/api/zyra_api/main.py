@@ -1974,6 +1974,12 @@ def _fence_pending_task_reservation(
 ) -> str:
     """Fence an API-process reservation before binding a real deployment worker."""
 
+    # GraphStateCustody and WorkerPool commit before the TaskState checkpoint.
+    # A process loss in that window leaves TaskState pointing at the prior
+    # reservation.  Recover the canonical graph successor before applying a
+    # fence, otherwise the stale projection attempts to terminalize a newer
+    # physical binding and correctly trips the graph lease fence.
+    pool_api.recover_task_acquisition_from_graph(state)
     projection = state.metadata.get("worker_pool")
     if not isinstance(projection, Mapping):
         return ""

@@ -1209,6 +1209,51 @@ class WorkerPoolApiService:
             "projection_applied": projection_applied,
         }
 
+    def recover_task_acquisition_from_graph(
+        self,
+        state: TaskState,
+    ) -> Mapping[str, Any] | None:
+        """Repair TaskState when GraphStateCustody committed the successor first."""
+
+        projection = state.metadata.get("worker_pool")
+        if not isinstance(projection, Mapping):
+            return None
+        graph_id_value = str(state.metadata.get("dynamic_graph_id") or "")
+        if not graph_id_value:
+            return None
+        execute_node_id = next(
+            (
+                node.node_id
+                for node in state.plan_nodes.values()
+                if str(node.metadata.get("stage") or "") == "execute"
+            ),
+            state.root_node_id,
+        )
+        node = self.graph_custody.current(graph_id_value).node_map.get(execute_node_id)
+        if node is None:
+            raise RuntimeError("canonical graph execute node is unavailable")
+        if (
+            node.physical_attempt_ref == str(projection.get("attempt_id") or "")
+            and node.worker_lease_ref == str(projection.get("lease_id") or "")
+        ):
+            return None
+        if not node.physical_attempt_ref or not node.worker_lease_ref:
+            return None
+        lease = self.pool.store.get_lease(node.worker_lease_ref)
+        if lease is None or lease.attempt_id != node.physical_attempt_ref:
+            raise RuntimeError(
+                "canonical graph physical binding has no matching WorkerPool lease"
+            )
+        recovered = self.recover_task_acquisition(
+            state,
+            idempotency_key=lease.idempotency_key,
+        )
+        if recovered is None or not bool(recovered.get("projection_applied")):
+            raise RuntimeError(
+                "canonical graph successor could not be projected into TaskState"
+            )
+        return recovered
+
     def _verified_terminal_receipt_enrichment(
         self,
         state: TaskState,

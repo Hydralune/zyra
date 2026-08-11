@@ -363,7 +363,14 @@ export class CliApi {
   }
 
   async runTask(task: TaskProjection, signal?: AbortSignal): Promise<TaskMutationProjection> {
-    const body = { requested_by: "zyra-cli" }
+    // One invocation keeps one key across transport retries, while a later
+    // explicit `zyra resume` receives a fresh generation.  Reusing a key
+    // across CLI invocations would replay a previously committed 503 forever
+    // after the underlying recovery defect had been repaired.
+    const body = {
+      requested_by: "zyra-cli",
+      resume_invocation_id: `resume_${crypto.randomUUID().replaceAll("-", "")}`,
+    }
     const idempotencyKey = createIdempotencyKey(OPERATION_NAMES.taskResume, task.binding, body)
     const response = await this.client.endpoint<TaskMutationProjection, typeof body>(OPERATION_NAMES.taskResume, {
       path: { task_id: task.taskId },
