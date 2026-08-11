@@ -167,6 +167,73 @@ def test_loopx_pre_control_replays_valid_task_bound_receipt(
         )
 
 
+def test_loopx_pre_control_replays_expired_historical_permission_when_graph_fact_is_durable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, _ = api.make_task_created_event(
+        "Replay a durable LoopX graph fact without another privileged write."
+    )
+    ensure_default_graph(state)
+    pool_api = api.get_worker_pool_api()
+    graph_id_value = pool_api.ensure_task_graph(state)
+    goal_id = f"goal_sealed_{state.task_id}"
+    branch = pool_api.graph_custody.branch(
+        graph_id_value,
+        branch_id=f"sealed-loopx-pre-control:{state.task_id}",
+        actor_id="LoopXControlRuntime",
+        causation_id="historical-loopx-pre-control",
+        idempotency_key=(
+            f"sealed:{state.run_id}:{state.task_id}:loopx:pre-control"
+        ),
+    )
+    branch.set_metadata(
+        "loopx_pre_control",
+        {
+            "schema": "zyra.loopx-pre-control-ref/v1",
+            "goal_id": goal_id,
+            "continuation_required": True,
+            "private_payload_excluded": True,
+        },
+    )
+    committed = pool_api.graph_custody.commit(branch.build())
+    permission = {
+        "decision_id": "decision-loopx-historical",
+        "canonical_owner": "typescript.PermissionCoordinator",
+        "effect": "allow",
+        "allowed_permissions": ["graph.write", "worker.dispatch"],
+        "valid_until": "2000-01-01T00:00:00Z",
+    }
+    permission["receipt_digest"] = canonical_digest(permission)
+    receipt = {
+        "schema": "zyra.phase2-production-loopx-pre-control/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "goal_id": goal_id,
+        "canonical_commit_id": committed.receipt.commit_id,
+        "canonical_commit": committed.to_dict(),
+        "canonical_commit_digest": canonical_digest(committed.to_dict()),
+        "permission_receipt": permission,
+        "continuation": {"allowed": True},
+        "checks": {"canonical_commit": True, "permission_allowed": True},
+    }
+    receipt["receipt_digest"] = canonical_digest(receipt)
+    state.metadata["phase2_loopx_pre_control"] = dict(receipt)
+    monkeypatch.setattr(
+        api,
+        "_phase2_permission_decision",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("durable historical replay must not request a new mutation")
+        ),
+    )
+
+    replayed = api.prepare_phase2_loopx_pre_control(
+        state,
+        causation_id="resume-after-permission-expiry",
+    )
+
+    assert replayed == receipt
+
+
 @pytest.mark.parametrize(
     ("location", "backend_kind", "expected"),
     (

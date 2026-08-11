@@ -4187,6 +4187,34 @@ def prepare_phase2_loopx_pre_control(
             replay_permission_fresh = False
         replay_continuation = dict(replay.get("continuation") or {})
         replay_commit = dict(replay.get("canonical_commit") or {})
+        replay_commit_receipt = dict(replay_commit.get("receipt") or {})
+        replay_graph_durable = False
+        graph_id_value = str(state.metadata.get("dynamic_graph_id") or "")
+        if graph_id_value and replay.get("goal_id"):
+            try:
+                current_graph = get_worker_pool_api().graph_custody.current(
+                    graph_id_value
+                )
+                replay_graph_durable = bool(
+                    current_graph.run_id == state.run_id
+                    and replay_commit_receipt.get("graph_id") == graph_id_value
+                    and replay.get("canonical_commit_id")
+                    == replay_commit_receipt.get("commit_id")
+                    and 0
+                    < int(replay_commit_receipt.get("committed_revision") or 0)
+                    <= current_graph.revision
+                    and dict(
+                        current_graph.metadata.get("loopx_pre_control") or {}
+                    )
+                    == {
+                        "schema": "zyra.loopx-pre-control-ref/v1",
+                        "goal_id": str(replay.get("goal_id")),
+                        "continuation_required": True,
+                        "private_payload_excluded": True,
+                    }
+                )
+            except (KeyError, RuntimeError, TypeError, ValueError):
+                replay_graph_durable = False
         if (
             replay.get("schema")
             == "zyra.phase2-production-loopx-pre-control/v1"
@@ -4208,10 +4236,14 @@ def prepare_phase2_loopx_pre_control(
             and {"graph.write", "worker.dispatch"}.issubset(
                 set(replay_permission.get("allowed_permissions") or ())
             )
-            and replay_permission_fresh
+            # Permission freshness is required for a new graph mutation.  A
+            # historical receipt may be replayed after expiry only when the
+            # exact committed pre-control fact is still present in the
+            # current canonical graph; replay performs no privileged write.
+            and (replay_permission_fresh or replay_graph_durable)
             and replay_continuation.get("allowed") is True
             and str(
-                dict(replay_commit.get("receipt") or {}).get("status") or ""
+                replay_commit_receipt.get("status") or ""
             )
             in {"committed", "rebased", "replayed"}
             and replay.get("canonical_commit_digest")
