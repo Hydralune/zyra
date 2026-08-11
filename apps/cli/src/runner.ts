@@ -358,17 +358,18 @@ export async function executeRun(input: {
   let ingressError: unknown
   let observedSettlement: TaskProjection | undefined
   let lastSettlementProbeAt = 0
+  const settlementEvidence = () => ({
+    finalPassed: accumulator.verifier.final?.passed === true
+      ? true
+      : accumulator.verifier.final?.passed === false
+        ? false
+        : undefined,
+    completionGatePresent: accumulator.verifier.gate !== undefined,
+  })
   const probeSettlement = async (): Promise<boolean> => {
     try {
       const observed = await input.api.task(task.taskId)
-      if (!taskHasSettledRunResult(observed, {
-        finalPassed: accumulator.verifier.final?.passed === true
-          ? true
-          : accumulator.verifier.final?.passed === false
-            ? false
-            : undefined,
-        completionGatePresent: accumulator.verifier.gate !== undefined,
-      })) return false
+      if (!taskHasSettledRunResult(observed, settlementEvidence())) return false
       observedSettlement = observed
       runController.abort("canonical task result settled before mutation transport")
       input.output.event(
@@ -447,7 +448,10 @@ export async function executeRun(input: {
       { taskId: task.taskId, runId: task.runId },
     )
     let observed = await input.api.task(task.taskId)
-    while (!observed.terminal && !input.signal.aborted) {
+    while (
+      !taskHasSettledRunResult(observed, settlementEvidence())
+      && !input.signal.aborted
+    ) {
       try {
         const page = await input.api.nextIngress(task.taskId, cursor, generation)
         cursor = page.cursor
@@ -467,6 +471,9 @@ export async function executeRun(input: {
           task_id: observed.taskId,
           run_id: observed.runId,
           status: observed.status,
+          reason: observed.terminal
+            ? undefined
+            : "canonical_task_result_settled_after_mutation_transport_detached",
         },
         { taskId: observed.taskId, runId: observed.runId },
       )
