@@ -30,6 +30,7 @@ export interface ProgressiveExecutionSnapshot {
   actionNudgeCount: number;
   lastActionNudgeObservationCount: number;
   lastActionNudgeProviderRound: number;
+  recoveryInspectionAllowance: number;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -83,6 +84,7 @@ export class ProgressiveExecutionRuntime {
         actionNudgeCount: 0,
         lastActionNudgeObservationCount: 0,
         lastActionNudgeProviderRound: 0,
+        recoveryInspectionAllowance: 0,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -104,6 +106,9 @@ export class ProgressiveExecutionRuntime {
         ),
         lastActionNudgeProviderRound: nonnegativeInteger(
           restored.lastActionNudgeProviderRound,
+        ),
+        recoveryInspectionAllowance: nonnegativeInteger(
+          restored.recoveryInspectionAllowance,
         ),
         // Gateway jobs are scoped to the runtime session that created them.
         // A resumed model session cannot safely infer that a persisted count
@@ -186,6 +191,7 @@ export class ProgressiveExecutionRuntime {
         : "incremental_delivery";
       this.state.requiredDeliveryMissing = false;
       this.state.consecutivePreDeliveryObservations = 0;
+      this.state.recoveryInspectionAllowance = 0;
       this.progress(mutated ? "workspace_mutation_committed" : "artifact_receipt_committed");
     } else if (
       response.ok
@@ -207,7 +213,21 @@ export class ProgressiveExecutionRuntime {
     } else if (backgroundTerminal) {
       this.state.activeBackgroundCount = Math.max(0, this.state.activeBackgroundCount - 1);
     }
-    if (!response.ok) this.state.progressReasons.push(`tool_failed:${request.toolName}`);
+    if (!response.ok) {
+      this.state.progressReasons.push(`tool_failed:${request.toolName}`);
+      if (
+        this.state.requiredDeliveryMissing
+        && !readOnly
+        && String(response.metadata.pre_delivery_inspection_blocked ?? "false").toLowerCase() !== "true"
+      ) {
+        // A concrete edit/build/service attempt can fail because the target
+        // changed or a path was wrong.  Permit one bounded observation to
+        // re-anchor the next attempt; successful delivery or consumption
+        // closes the allowance again.
+        this.state.recoveryInspectionAllowance = 1;
+        this.record("failed_delivery_attempt_recovery_inspection_granted");
+      }
+    }
     return this.snapshot();
   }
 
@@ -334,6 +354,15 @@ export class ProgressiveExecutionRuntime {
     );
     return this.state.requiredDeliveryMissing
       && this.state.actionNudgeCount >= maximumNudges;
+  }
+
+  consumeRecoveryInspectionAllowance(): boolean {
+    if (!this.inspectionCircuitOpen() || this.state.recoveryInspectionAllowance < 1) {
+      return false;
+    }
+    this.state.recoveryInspectionAllowance -= 1;
+    this.record("failed_delivery_attempt_recovery_inspection_consumed");
+    return true;
   }
 
   recordActionNudge(): ProgressiveExecutionSnapshot {

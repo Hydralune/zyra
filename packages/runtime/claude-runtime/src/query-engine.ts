@@ -1081,6 +1081,7 @@ export class ClaudeRuntimeCore {
           } else if (
             progressive.inspectionCircuitOpen()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
+            && !progressive.consumeRecoveryInspectionAllowance()
           ) {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,

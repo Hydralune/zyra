@@ -1860,6 +1860,79 @@ test("required delivery circuit applies cross-session handoff progress before to
   }
 });
 
+test("failed delivery attempt permits one recovery inspection before the circuit closes again", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const tool = requestCount === 1
+      ? { name: "write", arguments: '{"path":"result.txt","content":"stale","fail":true}' }
+      : requestCount <= 3
+        ? { name: "read", arguments: JSON.stringify({ path: `target-${requestCount}.txt` }) }
+        : requestCount === 4
+          ? { name: "write", arguments: '{"path":"result.txt","content":"delivered"}' }
+          : null;
+    const choice = tool
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `recovery-inspection-${requestCount}`,
+            type: "function",
+            function: tool,
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : { index: 0, delta: { content: "Implemented and verified." }, finish_reason: "stop" };
+    return new Response(`data: ${JSON.stringify({
+      id: `recovery-inspection-round-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: { workspace_mutation_required: true },
+        task_handoff_progress: {
+          requiredDeliveryMissing: true,
+          providerRounds: 9,
+          actionNudgeCount: 4,
+        },
+      },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          pre_delivery_inspection_block_after_nudges: 3,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 5);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["write", "read", "write"],
+    );
+    assert.equal(
+      host.events.filter((event) => event.phase === "pre_delivery_inspection_blocked").length,
+      1,
+    );
+    assert.equal(result.metadata.progressive_real_actions, "2");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("progressive execution requests action after analysis-only loops and records delivery", () => {
   let clock = 1_000;
   const progressive = new ProgressiveExecutionRuntime({
@@ -2128,6 +2201,42 @@ test("pre-delivery inspection circuit carries bounded debt across fenced session
   });
   assert.equal(delivered.inspectionCircuitOpen(), false);
   assert.equal(delivered.snapshot().actionNudgeCount, 0);
+});
+
+test("failed delivery grants exactly one bounded recovery inspection", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  progressive.observeToolResult({
+    toolCallId: "stale-edit",
+    toolName: "file_edit",
+    arguments: { path: "result.txt" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "stale-edit-batch",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  }, {
+    tool_call_id: "stale-edit",
+    ok: false,
+    summary: "old text was not found",
+    output: {},
+    artifacts: [],
+    error: "edit_old_text_not_found",
+    metadata: {},
+  }, false);
+
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 1);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 0);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
+  assert.equal(progressive.inspectionCircuitOpen(), true);
 });
 
 test("pre-delivery inspection classifier blocks reads but permits delivery and verification", () => {
