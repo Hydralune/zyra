@@ -1297,6 +1297,25 @@ _BENCHMARK_MIRROR_EXCLUDED_PREFIXES = (
     ".runtime/venv",
 )
 
+_WORKSPACE_STATE_EPHEMERAL_PREFIXES = (
+    ".runtime/cache",
+)
+
+_WORKSPACE_STATE_EPHEMERAL_SEGMENTS = frozenset(
+    {
+        ".cache",
+        ".mypy_cache",
+        ".nox",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
+)
+
 
 def _benchmark_path_excluded(
     relative: str,
@@ -1306,6 +1325,22 @@ def _benchmark_path_excluded(
     return any(
         canonical == prefix or canonical.startswith(f"{prefix}/")
         for prefix in excluded_prefixes
+    )
+
+
+def _workspace_state_path_excluded(
+    relative: str,
+    excluded_prefixes: tuple[str, ...],
+) -> bool:
+    canonical = str(relative).replace("\\", "/").strip("/")
+    if _benchmark_path_excluded(
+        canonical,
+        tuple((*excluded_prefixes, *_WORKSPACE_STATE_EPHEMERAL_PREFIXES)),
+    ):
+        return True
+    return any(
+        segment in _WORKSPACE_STATE_EPHEMERAL_SEGMENTS
+        for segment in canonical.split("/")
     )
 
 
@@ -1409,9 +1444,10 @@ def _workspace_state_snapshot(
 
     Benchmark shells operate on the harness-owned bind mount, while file tools
     use a managed mirror.  For shell commands explicitly classified as
-    delivery-driving, hash the Git worktree delta plus untracked file bytes so
-    a successful command can prove that canonical workspace state changed.
-    Ignored dependency/cache trees are intentionally outside this signal.
+    delivery-driving, hash the Git worktree delta plus untracked and ignored
+    deliverable bytes so a successful command can prove that canonical
+    workspace state changed. Ignored dependency/cache trees are intentionally
+    outside this signal, but an ignored submission/output directory is not.
     """
 
     resolved = root.resolve()
@@ -1442,48 +1478,83 @@ def _workspace_state_snapshot(
             shell=False,
             creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
         )
-        if diff.returncode == 0 and untracked.returncode == 0:
-            untracked_records: list[dict[str, Any]] = []
+        ignored = subprocess.run(
+            [
+                *git_prefix,
+                "ls-files",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+                "-z",
+            ],
+            cwd=resolved,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=60.0,
+            shell=False,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+        )
+        if (
+            diff.returncode == 0
+            and untracked.returncode == 0
+            and ignored.returncode == 0
+        ):
+            records: dict[str, list[dict[str, Any]]] = {
+                "untracked": [],
+                "ignored": [],
+            }
             total_bytes = 0
-            for raw_path in sorted(
-                item for item in untracked.stdout.split(b"\0") if item
+            total_records = 0
+            for record_kind, raw_listing in (
+                ("untracked", untracked.stdout),
+                ("ignored", ignored.stdout),
             ):
-                relative = raw_path.decode("utf-8", errors="strict").replace(
-                    "\\", "/"
-                )
-                canonical = canonical_logical_path(relative, allow_root=False)
-                if _benchmark_path_excluded(canonical, excluded_prefixes):
-                    continue
-                path = (resolved / Path(*canonical.split("/"))).resolve()
-                path.relative_to(resolved)
-                if path.is_symlink() or not path.is_file():
-                    continue
-                size = path.stat().st_size
-                total_bytes += size
-                if len(untracked_records) >= 100_000 or total_bytes > 8 * 1024**3:
-                    raise ValueError(
-                        "workspace state snapshot exceeds its evidence budget"
+                for raw_path in sorted(
+                    item for item in raw_listing.split(b"\0") if item
+                ):
+                    relative = raw_path.decode("utf-8", errors="strict").replace(
+                        "\\", "/"
                     )
-                file_digest = hashlib.sha256()
-                with path.open("rb") as handle:
-                    while chunk := handle.read(1024 * 1024):
-                        file_digest.update(chunk)
-                untracked_records.append(
-                    {
-                        "path_digest": _digest(canonical),
-                        "sha256": file_digest.hexdigest(),
-                        "size": size,
-                    }
-                )
+                    canonical = canonical_logical_path(relative, allow_root=False)
+                    if _workspace_state_path_excluded(
+                        canonical,
+                        excluded_prefixes,
+                    ):
+                        continue
+                    path = (resolved / Path(*canonical.split("/"))).resolve()
+                    path.relative_to(resolved)
+                    if path.is_symlink() or not path.is_file():
+                        continue
+                    size = path.stat().st_size
+                    total_bytes += size
+                    total_records += 1
+                    if total_records > 100_000 or total_bytes > 8 * 1024**3:
+                        raise ValueError(
+                            "workspace state snapshot exceeds its evidence budget"
+                        )
+                    file_digest = hashlib.sha256()
+                    with path.open("rb") as handle:
+                        while chunk := handle.read(1024 * 1024):
+                            file_digest.update(chunk)
+                    records[record_kind].append(
+                        {
+                            "path_digest": _digest(canonical),
+                            "sha256": file_digest.hexdigest(),
+                            "size": size,
+                        }
+                    )
             payload = {
                 "mode": "git-head-diff",
                 "tracked_diff_sha256": hashlib.sha256(diff.stdout).hexdigest(),
-                "untracked": untracked_records,
+                **records,
             }
             return {
                 "mode": payload["mode"],
                 "digest": _digest(payload),
-                "untracked_count": len(untracked_records),
+                "untracked_count": len(records["untracked"]),
+                "ignored_count": len(records["ignored"]),
             }
 
     manifest = _workspace_manifest(

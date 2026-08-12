@@ -64,6 +64,57 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             self.assertEqual(before["mode"], "git-head-diff")
             self.assertNotEqual(before["digest"], after["digest"])
 
+    def test_git_workspace_state_detects_ignored_delivery_but_not_dependency_cache(
+        self,
+    ) -> None:
+        git = shutil.which("git")
+        if git is None:
+            self.skipTest("git is unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            workspace.joinpath(".gitignore").write_text(
+                "submission/\nnode_modules/\n",
+                encoding="utf-8",
+            )
+            for arguments in (
+                ("init",),
+                ("add", ".gitignore"),
+                (
+                    "-c",
+                    "user.name=Zyra Test",
+                    "-c",
+                    "user.email=test@zyra.local",
+                    "commit",
+                    "-m",
+                    "base",
+                ),
+            ):
+                completed = subprocess.run(
+                    [git, *arguments],
+                    cwd=workspace,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+            delivery = workspace / "submission" / "manifest.json"
+            delivery.parent.mkdir()
+            delivery.write_text('{"status":"draft"}\n', encoding="utf-8")
+            dependency = workspace / "node_modules" / "package" / "cache.bin"
+            dependency.parent.mkdir(parents=True)
+            dependency.write_bytes(b"before")
+
+            before = code_worker_adapter._workspace_state_snapshot(workspace)
+            delivery.write_text('{"status":"ready"}\n', encoding="utf-8")
+            after_delivery = code_worker_adapter._workspace_state_snapshot(workspace)
+            dependency.write_bytes(b"after")
+            after_cache = code_worker_adapter._workspace_state_snapshot(workspace)
+
+            self.assertEqual(before["mode"], "git-head-diff")
+            self.assertEqual(before["ignored_count"], 1)
+            self.assertNotEqual(before["digest"], after_delivery["digest"])
+            self.assertEqual(after_delivery["digest"], after_cache["digest"])
+
     def test_delivery_driving_benchmark_shell_records_real_host_workspace_change(
         self,
     ) -> None:
