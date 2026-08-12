@@ -1780,6 +1780,86 @@ test("required delivery circuit declines further inspection and accepts the next
   }
 });
 
+test("required delivery circuit applies cross-session handoff progress before tools run", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "continued-read",
+            type: "function",
+            function: { name: "read", arguments: '{"path":"another-source.ts"}' },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 2
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "continued-write",
+              type: "function",
+              function: { name: "write", arguments: '{"path":"result.txt","content":"delivered"}' },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : { index: 0, delta: { content: "Implemented and verified." }, finish_reason: "stop" };
+    return new Response(`data: ${JSON.stringify({
+      id: `continued-circuit-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: { workspace_mutation_required: true },
+        task_handoff_progress: {
+          requiredDeliveryMissing: true,
+          providerRounds: 9,
+          preDeliveryObservationCount: 6,
+          consecutivePreDeliveryObservations: 6,
+          actionNudgeCount: 4,
+          lastActionNudgeObservationCount: 6,
+          lastActionNudgeProviderRound: 7,
+        },
+      },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          pre_delivery_inspection_block_after_nudges: 3,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["write"],
+    );
+    assert.ok(host.events.some((event) => event.phase === "pre_delivery_inspection_blocked"));
+    assert.equal(result.metadata.progressive_action_nudges, "4");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("progressive execution requests action after analysis-only loops and records delivery", () => {
   let clock = 1_000;
   const progressive = new ProgressiveExecutionRuntime({
@@ -2017,6 +2097,37 @@ test("pre-delivery inspection circuit opens after repeated durable nudges", () =
   assert.equal(progressive.inspectionCircuitOpen(), false);
   progressive.recordActionNudge();
   assert.equal(progressive.inspectionCircuitOpen(), true);
+});
+
+test("pre-delivery inspection circuit carries bounded debt across fenced sessions", () => {
+  const carried = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: true,
+      providerRounds: 9,
+      preDeliveryObservationCount: 6,
+      consecutivePreDeliveryObservations: 6,
+      actionNudgeCount: 4,
+      lastActionNudgeObservationCount: 6,
+      lastActionNudgeProviderRound: 7,
+    },
+  });
+  assert.equal(carried.inspectionCircuitOpen(), true);
+  assert.equal(carried.snapshot().providerRounds, 9);
+  assert.equal(carried.snapshot().actionNudgeCount, 4);
+
+  const delivered = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      providerRounds: 9,
+      actionNudgeCount: 4,
+    },
+  });
+  assert.equal(delivered.inspectionCircuitOpen(), false);
+  assert.equal(delivered.snapshot().actionNudgeCount, 0);
 });
 
 test("pre-delivery inspection classifier blocks reads but permits delivery and verification", () => {

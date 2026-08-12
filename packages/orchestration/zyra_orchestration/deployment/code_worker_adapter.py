@@ -334,16 +334,17 @@ def execute_code_worker_operator(
         # constraints remain the fail-closed signal if an intermediate input
         # projector drops optional metadata.
         constraints["requires_delivery_artifact"] = True
+    task_handoff = load_task_handoff_projection(
+        artifact_root,
+        task_id=task_id,
+        run_id=run_id,
+        current_session_id=permission_session_id,
+    )
     execution_prompt = _execution_prompt(
         goal,
         delivery_contract=delivery_contract,
         goal_contract=goal_contract,
-        handoff=load_task_handoff_projection(
-            artifact_root,
-            task_id=task_id,
-            run_id=run_id,
-            current_session_id=permission_session_id,
-        ),
+        handoff=task_handoff,
     )
     if benchmark_binding is not None:
         execution_prompt = (
@@ -402,6 +403,14 @@ def execute_code_worker_operator(
             ),
             "delivery_contract": delivery_contract,
             "goal_contract": goal_contract,
+            # This bounded projection contains progress counters only.  It
+            # carries no permission, lease, credential, process, or tool
+            # authority into the newly fenced physical session.
+            "task_handoff_progress": dict(
+                task_handoff.get("inspection_continuity") or {}
+            )
+            if task_handoff is not None
+            else {},
         },
     )
     sandbox_gateway_state_root = (

@@ -62,6 +62,15 @@ _CHECKPOINT_REPLACE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
 _HANDOFF_SCHEMA = "zyra.typescript-runtime-handoff/v1"
 _HANDOFF_MAXIMUM_TEXT_CHARACTERS = 2_000
 _HANDOFF_MAXIMUM_FILE_BYTES = 96_000
+_HANDOFF_LEGACY_PROGRESS_MAXIMUM_FILE_BYTES = 16 * 1024 * 1024
+_HANDOFF_INSPECTION_PROGRESS_FIELDS = (
+    "providerRounds",
+    "preDeliveryObservationCount",
+    "consecutivePreDeliveryObservations",
+    "actionNudgeCount",
+    "lastActionNudgeObservationCount",
+    "lastActionNudgeProviderRound",
+)
 _HANDOFF_SECRET_PATTERNS = (
     re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)\bsk-[a-z0-9_-]{8,}"),
@@ -247,6 +256,11 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "artifactCount",
         "requiredDeliveryMissing",
         "repeatedAnalysisRounds",
+        "preDeliveryObservationCount",
+        "consecutivePreDeliveryObservations",
+        "actionNudgeCount",
+        "lastActionNudgeObservationCount",
+        "lastActionNudgeProviderRound",
     )
     projection = {
         "schema": _HANDOFF_SCHEMA,
@@ -284,6 +298,84 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
             compact_summary, 2_000
         )
     return projection
+
+
+def _enrich_legacy_handoff_inspection_progress(
+    sidecar_path: Path,
+    projection: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recover safe counters omitted by early bounded handoff sidecars.
+
+    Only the non-authoritative progress counters used to detect repeated
+    inspection are read.  Large legacy checkpoints remain excluded so resume
+    startup cannot turn into an unbounded history scan.
+    """
+
+    enriched = dict(projection)
+    progress = dict(enriched.get("progress") or {})
+    missing = [
+        field
+        for field in _HANDOFF_INSPECTION_PROGRESS_FIELDS
+        if progress.get(field) is None
+    ]
+    if not missing:
+        return enriched
+    suffix = ".handoff.json"
+    if not sidecar_path.name.endswith(suffix):
+        return enriched
+    checkpoint_path = sidecar_path.with_name(sidecar_path.name[: -len(suffix)])
+    try:
+        if (
+            not checkpoint_path.is_file()
+            or checkpoint_path.stat().st_size
+            > _HANDOFF_LEGACY_PROGRESS_MAXIMUM_FILE_BYTES
+        ):
+            return enriched
+        checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return enriched
+    if not isinstance(checkpoint, Mapping):
+        return enriched
+    progressive = checkpoint.get("progressiveExecution")
+    if not isinstance(progressive, Mapping):
+        return enriched
+    for field in missing:
+        if progressive.get(field) is not None:
+            progress[field] = _nonnegative_count(progressive.get(field))
+    enriched["progress"] = progress
+    return enriched
+
+
+def _inspection_continuity_progress(
+    projections: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Merge inspection debt only since the most recent durable delivery."""
+
+    pending_segments: list[Mapping[str, Any]] = []
+    for projection in projections:
+        progress = dict(projection.get("progress") or {})
+        delivered = (
+            _nonnegative_count(progress.get("workspaceMutationCount")) > 0
+            or _nonnegative_count(progress.get("artifactCount")) > 0
+            or progress.get("requiredDeliveryMissing") is False
+        )
+        if delivered:
+            break
+        if progress.get("requiredDeliveryMissing") is not True:
+            break
+        pending_segments.append(progress)
+    if not pending_segments:
+        return {}
+    continuity: dict[str, Any] = {"requiredDeliveryMissing": True}
+    for field in _HANDOFF_INSPECTION_PROGRESS_FIELDS:
+        values = [
+            progress.get(field)
+            for progress in pending_segments
+            if progress.get(field) is not None
+        ]
+        if values:
+            continuity[field] = max(_nonnegative_count(value) for value in values)
+    return continuity
 
 
 def load_task_handoff_projection(
@@ -331,7 +423,9 @@ def load_task_handoff_projection(
         except (OSError, json.JSONDecodeError):
             continue
         if matches(value) and str(value.get("schema") or "") == _HANDOFF_SCHEMA:
-            matched_sidecars.append(dict(value))
+            matched_sidecars.append(
+                _enrich_legacy_handoff_inspection_progress(path, value)
+            )
     if matched_sidecars:
         newest = dict(matched_sidecars[0])
 
@@ -370,6 +464,11 @@ def load_task_handoff_projection(
             "verificationCount",
             "artifactCount",
             "repeatedAnalysisRounds",
+            "preDeliveryObservationCount",
+            "consecutivePreDeliveryObservations",
+            "actionNudgeCount",
+            "lastActionNudgeObservationCount",
+            "lastActionNudgeProviderRound",
         )
         newest_progress = dict(newest.get("progress") or {})
         for field in numeric_progress_fields:
@@ -392,6 +491,9 @@ def load_task_handoff_projection(
         newest["recent_reasoning"] = merged_tail("recent_reasoning", 6)
         newest["recent_tool_observations"] = merged_tail(
             "recent_tool_observations", 8
+        )
+        newest["inspection_continuity"] = _inspection_continuity_progress(
+            matched_sidecars
         )
         newest["continuity_segments_merged"] = len(matched_sidecars)
         newest["authority_transfer"] = False

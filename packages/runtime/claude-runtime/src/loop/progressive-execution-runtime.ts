@@ -51,6 +51,7 @@ interface ProgressiveOptions {
   constraints?: JsonObject;
   deliveryContract?: JsonObject;
   restored?: JsonObject | ProgressiveExecutionSnapshot;
+  continuityProgress?: JsonObject;
 }
 
 export class ProgressiveExecutionRuntime {
@@ -113,6 +114,26 @@ export class ProgressiveExecutionRuntime {
           : [],
       }
       : initial;
+    const continuity = asObject(options.continuityProgress);
+    if (
+      asBoolean(continuity.requiredDeliveryMissing)
+      && this.state.workspaceMutationCount === 0
+      && this.state.artifactCount === 0
+    ) {
+      for (const field of [
+        "providerRounds",
+        "preDeliveryObservationCount",
+        "consecutivePreDeliveryObservations",
+        "actionNudgeCount",
+        "lastActionNudgeObservationCount",
+        "lastActionNudgeProviderRound",
+      ] as const) {
+        this.state[field] = Math.max(
+          this.state[field],
+          nonnegativeInteger(continuity[field]),
+        );
+      }
+    }
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
     // delivery obligation merely because it persisted `false`.
