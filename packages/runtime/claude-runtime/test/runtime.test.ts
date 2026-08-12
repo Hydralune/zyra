@@ -2135,9 +2135,16 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("cat src/app.ts && git diff --stat"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("find src -type f | xargs grep -n TODO 2>/dev/null | head"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose ps && docker compose config --services"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python -c \"from pathlib import Path; print(Path('src/app.ts').read_text())\""), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python - <<'PY'\nfrom pathlib import Path\nprint(Path('src/app.ts').read_text())\nPY"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("some-opaque-command --inspect src"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("cat > src/app.ts <<'EOF'\nchanged\nEOF"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python -c \"from pathlib import Path; Path('src/app.ts').write_text('changed')\""), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python tools/afctl.py simulate"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python -m pytest tests"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("curl https://service.invalid/status"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
 });

@@ -1085,7 +1085,7 @@ export class ClaudeRuntimeCore {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,
               ok: false,
-              summary: "Pre-delivery inspection circuit is open; this read-only action was not executed.",
+              summary: "Pre-delivery inspection circuit is open; this action did not demonstrate delivery and was not executed.",
               output: {
                 guidance: [
                   "Use the concrete evidence already gathered and make the next workspace edit.",
@@ -2349,42 +2349,48 @@ export function isClearlyPreDeliveryInspection(
   if (step.tool_name === "shell_wait") return false;
   if (readOnly) return true;
   if (step.tool_name !== "shell") return false;
-  return isClearlyReadOnlyShellCommand(asString(step.arguments.command));
+  // Once repeated inspection has opened the circuit, an opaque shell command
+  // is not evidence of delivery merely because the registry classifies the
+  // shell tool itself as mutating.  Only commands whose arguments clearly
+  // drive an edit, build, test, migration, service, or external state change
+  // cross this boundary.  This also closes interpreter-wrapped read bypasses.
+  return !isClearlyDeliveryDrivingShellCommand(asString(step.arguments.command));
 }
 
-function isClearlyReadOnlyShellCommand(value: string): boolean {
-  let command = value.trim();
+function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
+  const command = value.trim();
   if (!command) return false;
-  command = command
-    .replace(/\b(?:\d?>|&>)\s*(?:\/dev\/null|nul)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  // Any remaining output redirection or an interpreter can create arbitrary
-  // state, so let the governed shell and its normal permission policy decide.
-  if (/(?:^|\s)(?:>>|>|<<)(?!\s*(?:\/dev\/null|nul)\b)/i.test(command)) return false;
-  if (/\b(?:python(?:3)?|node|bun|deno|ruby|perl|pwsh|powershell|cmd(?:\.exe)?)\b/i.test(command)) return false;
-  if (/\b(?:apply_patch|patch|tee|touch|mkdir|rmdir|rm|mv|cp|install|chmod|chown)\b/i.test(command)) return false;
-  if (/\b(?:pytest|unittest|npm|npx|pnpm|yarn|cargo|go|gradle|mvn|make|cmake)\b/i.test(command)) return false;
-  if (/\bgit\s+(?:add|commit|checkout|switch|restore|reset|merge|rebase|apply|am|clean|push|pull|fetch)\b/i.test(command)) return false;
-  if (/\bdocker(?:\.exe)?\s+(?:run|exec|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(command)) return false;
-  if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bexec\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(command)) return false;
-  if (/\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b/i.test(command)) return false;
+  const normalized = command.replace(/\s+/g, " ");
 
-  const segments = command
-    .split(/(?:&&|\|\||[;|\n])/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (segments.length === 0) return false;
-  return segments.every((segment) => {
-    const normalized = segment
-      .replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*/, "")
-      .replace(/^sudo\s+/, "")
-      .trim();
-    return /^(?:cd|pwd|ls|dir|cat|head|tail|less|more|grep|egrep|fgrep|rg|find|fd|stat|file|wc|which|where|type|echo|printf|sort|uniq|cut|awk|jq|xargs\s+(?:cat|head|tail|grep|egrep|fgrep|rg)|test|true|false|get-content|get-childitem|select-string|resolve-path|test-path)\b/i.test(normalized)
-      || /^git\s+(?:status|diff|log|show|branch|rev-parse|ls-files|grep)\b/i.test(normalized)
-      || /^docker(?:\.exe)?\s+(?:ps|inspect|logs|images|info|version|stats|top)\b/i.test(normalized)
-      || /^docker(?:\.exe)?\s+compose\b[^;&|]*\b(?:ps|config|logs|images|top)\b/i.test(normalized);
-  });
+  // Direct filesystem and source mutations.
+  if (/(?:^|\s)(?:\d?>>|\d?>|&>)(?!\s*(?:\/dev\/null|nul)\b)/i.test(normalized)) return true;
+  if (/\b(?:apply_patch|patch|tee|touch|mkdir|rmdir|rm|mv|cp|install|chmod|chown)\b/i.test(normalized)) return true;
+  if (/\b(?:sed|perl)\b[^;&|]*\s-i(?:\s|$)/i.test(normalized)) return true;
+
+  // Inline interpreters are opaque by default.  Admit them only when their
+  // program text contains an explicit durable-write primitive or a test run.
+  if (/\b(?:python(?:3)?|node|bun|deno|ruby|perl|pwsh|powershell|cmd(?:\.exe)?)\b/i.test(normalized)) {
+    if (/\b(?:write_text|write_bytes|writeFile|writeFileSync|appendFile|appendFileSync|rename|replace|unlink|mkdir|makedirs)\s*\(/i.test(normalized)) return true;
+    if (/\bopen\s*\([^)]*,\s*["'][wax+][^"']*["']/i.test(normalized)) return true;
+    if (/\b(?:pytest|unittest|compileall|pip|uv|poetry)\b/i.test(normalized)) return true;
+    if (!/(?:^|\s)-(?:c|e|Command)(?:\s|$)/i.test(normalized)
+      && /(?:^|\s)(?:bootstrap|build|test|install|up|down|start|stop|restart|simulate|migrate|deploy|apply|rollback|request-acceptance)(?:\s|$)/i.test(normalized)) return true;
+    return false;
+  }
+
+  // Builds, tests, dependency changes and schema migrations.
+  if (/\b(?:pytest|unittest|npm|npx|pnpm|yarn|cargo|go|gradle|mvn|make|cmake|pip|uv|poetry|alembic|flyway|prisma|psql)\b/i.test(normalized)) return true;
+  if (/\b(?:sh|bash)\b[^;&|]*(?:build|test|install|migrate|deploy|bootstrap|simulate)[^;&|]*\.sh\b/i.test(normalized)) return true;
+  if (/\/(?:[^\s/]+\/)*(?:build|test|install|migrate|deploy|bootstrap|simulate)[^\s/]*(?:\.sh)?\b/i.test(normalized)) return true;
+
+  // VCS delivery, real services and explicit state-changing HTTP calls.
+  if (/\bgit\s+(?:add|commit|checkout|switch|restore|reset|merge|rebase|apply|am|clean|push|pull|fetch)\b/i.test(normalized)) return true;
+  if (/\bdocker(?:\.exe)?\s+(?:run|exec|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(normalized)) return true;
+  if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bexec\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(normalized)) return true;
+  if (/\b(?:systemctl|service)\s+(?:start|stop|restart|reload|enable|disable)\b/i.test(normalized)) return true;
+  if (/\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b[^;&|]*(?:\s-X\s*(?:POST|PUT|PATCH|DELETE)\b|--request\s+(?:POST|PUT|PATCH|DELETE)\b|--data(?:-binary|-raw|-urlencode)?\b|-d\s)/i.test(normalized)) return true;
+
+  return false;
 }
 
 function providerOutputWasLengthTruncated(model: ModelStreamResolution): boolean {
