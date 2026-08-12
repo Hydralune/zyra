@@ -269,6 +269,17 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
         self.assertEqual(custody["canonical_gateway_owner"], "SandboxGatewayRuntime")
         self.assertEqual(custody["second_gateway_count"], 0)
 
+    def test_dynamic_url_port_is_a_structured_policy_denial(self) -> None:
+        for url in (
+            "http://127.0.0.1:{port}/health",
+            "http://127.0.0.1:$port/health",
+        ):
+            with self.subTest(url=url):
+                decision = self.bundle.policy_runtime.evaluate_url(url)
+                self.assertFalse(decision.allowed)
+                self.assertIn("url_invalid", {item.code for item in decision.findings})
+                self.assertIsNone(decision.normalized["port"])
+
     def test_dispatch_attestation_detects_workspace_tampering(self) -> None:
         attestor = GatewayDispatchAttestor.for_workspace(
             workspace_root=self.workspace,

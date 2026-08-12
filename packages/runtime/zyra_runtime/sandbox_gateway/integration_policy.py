@@ -531,15 +531,24 @@ class GatewayPolicyRuntime:
     ) -> GatewaySurfacePolicyDecision:
         findings: list[GatewayPolicyFinding] = []
         normalized_url = str(url or "").strip()
+        candidate_url = normalized_url
         if not normalized_url:
             findings.append(_deny("url_missing", "URL is required"))
-            parsed = urlparse("invalid://missing")
+            candidate_url = "invalid://missing"
         elif len(normalized_url) > self.config.maximum_url_chars:
             findings.append(_deny("url_too_long", "URL exceeds the gateway budget"))
-            parsed = urlparse(normalized_url[: self.config.maximum_url_chars])
-        else:
-            parsed = urlparse(normalized_url)
-        scheme = parsed.scheme.casefold()
+            candidate_url = normalized_url[: self.config.maximum_url_chars]
+        try:
+            parsed = urlparse(candidate_url)
+            scheme = parsed.scheme.casefold()
+            host = _canonical_host(parsed.hostname or "")
+            port = parsed.port
+        except ValueError:
+            findings.append(_deny("url_invalid", "URL could not be parsed"))
+            parsed = urlparse("invalid://missing")
+            scheme = ""
+            host = ""
+            port = None
         configured_schemes = {str(item).casefold() for item in allowed_schemes}
         if configured_schemes and scheme not in configured_schemes:
             findings.append(_deny("scheme_not_allowed", f"URL scheme {scheme!r} is not allowed"))
@@ -551,7 +560,6 @@ class GatewayPolicyRuntime:
             findings.append(_deny("file_url_denied", "file URLs cannot bypass the workspace gateway"))
         elif scheme not in {"https", "http", "workspace", "file"}:
             findings.append(_deny("unsupported_url_scheme", f"unsupported URL scheme {scheme!r}"))
-        host = _canonical_host(parsed.hostname or "")
         requested_hosts = {_canonical_host(item) for item in allowed_hosts if str(item).strip()}
         if scheme in {"http", "https"}:
             if not host:
@@ -589,7 +597,7 @@ class GatewayPolicyRuntime:
                 {
                     "scheme": scheme,
                     "host": host,
-                    "port": parsed.port,
+                    "port": port,
                     "path_digest": content_digest(unquote(parsed.path)),
                 }
             ),
@@ -598,7 +606,7 @@ class GatewayPolicyRuntime:
             normalized={
                 "scheme": scheme,
                 "host": host,
-                "port": parsed.port,
+                "port": port,
                 "url_digest": content_digest(normalized_url),
             },
             recovery=("reduce_scope", "replan") if outcome == GatewayOutcome.DENIED else (),

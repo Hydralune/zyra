@@ -192,6 +192,40 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
         self.assertEqual(explicit_url.effect, CommandEffect.DENY)
         self.assertEqual(network_tool.effect, CommandEffect.DENY)
 
+    def test_dynamic_url_ports_fail_closed_without_parser_exceptions(self) -> None:
+        network = NetworkPolicy(
+            [
+                NetworkProfile(
+                    profile_id="local",
+                    allowed_schemes=frozenset({"http"}),
+                    allowed_hosts=frozenset({"127.0.0.1"}),
+                    allow_private=True,
+                    allow_loopback=True,
+                    require_approval=False,
+                )
+            ]
+        )
+
+        for envelope in (
+            command(
+                "python3",
+                ("-c", "fetch(f'http://127.0.0.1:{port}/')"),
+                network_profile="local",
+            ),
+            command(
+                "sh",
+                ("-c", "curl http://127.0.0.1:$port/"),
+                network_profile="local",
+            ),
+        ):
+            with self.subTest(argv=envelope.argv):
+                decision = network.evaluate(envelope)
+                self.assertEqual(decision.effect, CommandEffect.DENY)
+                self.assertIn(
+                    "network.target_invalid",
+                    {item.code for item in decision.evidence},
+                )
+
     def test_paths_reject_traversal_unc_drive_and_reserved_devices(self) -> None:
         for value in (
             "../outside.txt",

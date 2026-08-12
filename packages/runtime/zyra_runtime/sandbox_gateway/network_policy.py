@@ -114,7 +114,7 @@ class NetworkPolicy:
         )
 
     def evaluate(self, envelope: GatewayCommandEnvelope) -> NetworkPolicyResult:
-        targets = self.extract_targets(envelope)
+        targets, invalid_target_count = self._extract_targets(envelope)
         executable = executable_name(envelope.executable)
         network_capable = executable in {item.casefold() for item in NETWORK_EXECUTABLES}
         if executable in {"git", "git.exe"}:
@@ -130,7 +130,7 @@ class NetworkPolicy:
                 "push",
                 "submodule",
             }
-        if not targets and not network_capable:
+        if not targets and not network_capable and not invalid_target_count:
             return NetworkPolicyResult(
                 effect=CommandEffect.ALLOW,
                 profile=envelope.network_profile,
@@ -158,6 +158,17 @@ class NetworkPolicy:
                 policy_digest=self.policy_digest,
             )
         evidence: list[CommandEvidence] = []
+        if invalid_target_count:
+            evidence.append(
+                CommandEvidence(
+                    code="network.target_invalid",
+                    effect=CommandEffect.DENY,
+                    reason="network target could not be parsed",
+                    risk=CommandRisk.HIGH,
+                    source="network_policy",
+                    metadata={"count": invalid_target_count},
+                )
+            )
         if profile.profile_id == "offline":
             evidence.append(
                 CommandEvidence(
@@ -222,16 +233,27 @@ class NetworkPolicy:
         )
 
     def extract_targets(self, envelope: GatewayCommandEnvelope) -> tuple[NetworkTarget, ...]:
+        targets, _invalid_target_count = self._extract_targets(envelope)
+        return targets
+
+    def _extract_targets(
+        self,
+        envelope: GatewayCommandEnvelope,
+    ) -> tuple[tuple[NetworkTarget, ...], int]:
         values = [envelope.executable, *envelope.argv]
         executable = executable_name(envelope.executable)
         accepts_bare_network_targets = executable in {
             item.casefold() for item in NETWORK_EXECUTABLES
         }
         targets: dict[tuple[str, str, int | None], NetworkTarget] = {}
+        invalid_target_count = 0
         for value in values:
             text = str(value)
             for match in _URL.finditer(text):
                 target = self._from_url(match.group(0), source="url")
+                if target is None:
+                    invalid_target_count += 1
+                    continue
                 targets[(target.scheme, target.host, target.port)] = target
             # A dotted filename such as ``config.json`` has the same lexical
             # shape as a bare hostname.  Only network-capable executables may
@@ -240,8 +262,11 @@ class NetworkPolicy:
             if accepts_bare_network_targets and _HOST_TOKEN.match(text):
                 target = self._target("", text, None, source="argv")
                 targets[(target.scheme, target.host, target.port)] = target
-        return tuple(
-            sorted(targets.values(), key=lambda item: (item.host, item.scheme, item.port or 0))
+        return (
+            tuple(
+                sorted(targets.values(), key=lambda item: (item.host, item.scheme, item.port or 0))
+            ),
+            invalid_target_count,
         )
 
     def _target_effect(
@@ -276,9 +301,15 @@ class NetworkPolicy:
                 return True
         return False
 
-    def _from_url(self, value: str, *, source: str) -> NetworkTarget:
-        parsed = urlsplit(value)
-        return self._target(parsed.scheme, parsed.hostname or "", parsed.port, source=source)
+    def _from_url(self, value: str, *, source: str) -> NetworkTarget | None:
+        try:
+            parsed = urlsplit(value)
+            scheme = parsed.scheme
+            host = parsed.hostname or ""
+            port = parsed.port
+        except ValueError:
+            return None
+        return self._target(scheme, host, port, source=source)
 
     @staticmethod
     def _target(scheme: str, host: str, port: int | None, *, source: str) -> NetworkTarget:
