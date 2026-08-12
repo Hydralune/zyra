@@ -2180,6 +2180,29 @@ test("progressive execution keeps verification debt until a behavioral command p
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
 });
 
+test("progressive execution restores unverified delivery debt across fenced sessions", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      providerRounds: 12,
+      realActionCount: 9,
+      workspaceMutationCount: 3,
+      verificationCount: 0,
+      verificationNudgeCount: 1,
+      lastVerificationNudgeProviderRound: 12,
+      artifactCount: 0,
+    },
+  });
+
+  const restored = progressive.snapshot();
+  assert.equal(restored.requiredDeliveryMissing, false);
+  assert.equal(restored.workspaceMutationCount, 3);
+  assert.equal(restored.verificationCount, 0);
+  assert.equal(restored.verificationNudgeCount, 1);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+});
+
 test("progressive execution does not treat command execution as a workspace mutation", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

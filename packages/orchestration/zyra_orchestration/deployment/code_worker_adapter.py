@@ -408,7 +408,9 @@ def execute_code_worker_operator(
             # carries no permission, lease, credential, process, or tool
             # authority into the newly fenced physical session.
             "task_handoff_progress": dict(
-                task_handoff.get("inspection_continuity") or {}
+                task_handoff.get("execution_continuity")
+                or task_handoff.get("inspection_continuity")
+                or {}
             )
             if task_handoff is not None
             else {},

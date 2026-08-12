@@ -253,6 +253,8 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "realActionCount",
         "workspaceMutationCount",
         "verificationCount",
+        "verificationNudgeCount",
+        "lastVerificationNudgeProviderRound",
         "artifactCount",
         "requiredDeliveryMissing",
         "repeatedAnalysisRounds",
@@ -378,6 +380,44 @@ def _inspection_continuity_progress(
     return continuity
 
 
+def _execution_continuity_progress(
+    projections: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Carry delivery and verification debt without carrying runtime authority.
+
+    A continuation is a new fenced process session, not a new task.  The most
+    recent segment that durably delivered workspace state therefore remains
+    the task's delivery baseline even when a newer, sparse recovery segment
+    was interrupted before doing useful work.  Only monotonic counters cross
+    this boundary; permission, lease, credential, process and tool state stay
+    excluded by the bounded handoff projection.
+    """
+
+    for projection in projections:
+        progress = dict(projection.get("progress") or {})
+        delivered = (
+            _nonnegative_count(progress.get("workspaceMutationCount")) > 0
+            or _nonnegative_count(progress.get("artifactCount")) > 0
+            or progress.get("requiredDeliveryMissing") is False
+        )
+        if not delivered:
+            continue
+        continuity: dict[str, Any] = {"requiredDeliveryMissing": False}
+        for field in (
+            "providerRounds",
+            "realActionCount",
+            "workspaceMutationCount",
+            "verificationCount",
+            "verificationNudgeCount",
+            "lastVerificationNudgeProviderRound",
+            "artifactCount",
+        ):
+            if progress.get(field) is not None:
+                continuity[field] = _nonnegative_count(progress.get(field))
+        return continuity
+    return {}
+
+
 def load_task_handoff_projection(
     artifact_root: str | Path,
     *,
@@ -462,6 +502,8 @@ def load_task_handoff_projection(
             "realActionCount",
             "workspaceMutationCount",
             "verificationCount",
+            "verificationNudgeCount",
+            "lastVerificationNudgeProviderRound",
             "artifactCount",
             "repeatedAnalysisRounds",
             "preDeliveryObservationCount",
@@ -493,6 +535,9 @@ def load_task_handoff_projection(
             "recent_tool_observations", 8
         )
         newest["inspection_continuity"] = _inspection_continuity_progress(
+            matched_sidecars
+        )
+        newest["execution_continuity"] = _execution_continuity_progress(
             matched_sidecars
         )
         newest["continuity_segments_merged"] = len(matched_sidecars)

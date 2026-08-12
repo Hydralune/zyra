@@ -156,6 +156,27 @@ export class ProgressiveExecutionRuntime {
           nonnegativeInteger(continuity[field]),
         );
       }
+    } else if (
+      continuity.requiredDeliveryMissing === false
+      && (
+        nonnegativeInteger(continuity.workspaceMutationCount) > 0
+        || nonnegativeInteger(continuity.artifactCount) > 0
+      )
+    ) {
+      for (const field of [
+        "providerRounds",
+        "realActionCount",
+        "workspaceMutationCount",
+        "verificationCount",
+        "verificationNudgeCount",
+        "lastVerificationNudgeProviderRound",
+        "artifactCount",
+      ] as const) {
+        this.state[field] = Math.max(
+          this.state[field],
+          nonnegativeInteger(continuity[field]),
+        );
+      }
     }
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding

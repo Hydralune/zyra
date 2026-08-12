@@ -922,6 +922,12 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
     assert handoff["progress"]["actionNudgeCount"] == 3
     assert handoff["progress"]["lastActionNudgeProviderRound"] == 18
     assert handoff["inspection_continuity"] == {}
+    assert handoff["execution_continuity"] == {
+        "requiredDeliveryMissing": False,
+        "providerRounds": 19,
+        "workspaceMutationCount": 4,
+        "verificationCount": 2,
+    }
     assert handoff["recent_reasoning"][-1]["text"].endswith("full stack.")
     assert handoff["authority_transfer"] is False
     assert (
@@ -1035,6 +1041,12 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
     assert handoff["progress"]["verificationCount"] == 8
     assert handoff["inspection_continuity"]["requiredDeliveryMissing"] is True
     assert handoff["inspection_continuity"]["actionNudgeCount"] == 1
+    assert handoff["execution_continuity"] == {
+        "requiredDeliveryMissing": False,
+        "providerRounds": 18,
+        "workspaceMutationCount": 4,
+        "verificationCount": 8,
+    }
     assert handoff["latest_compact_summary"].startswith("Public tests pass")
     assert [item["text"] for item in handoff["recent_reasoning"]] == [
         "Continue with dynamic events.",
@@ -1114,6 +1126,85 @@ def test_cross_session_handoff_recovers_safe_progress_from_legacy_sidecar(
         "lastActionNudgeObservationCount": 6,
         "lastActionNudgeProviderRound": 7,
     }
+    assert handoff["execution_continuity"] == {}
+
+
+def test_cross_session_handoff_preserves_unverified_delivery_debt(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    checkpoint_root = (
+        Path(runtime.execution_context.artifact_store.root) / ".runtime-checkpoints"
+    )
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+    common = {
+        "schema": "zyra.typescript-runtime-handoff/v1",
+        "task_id": "delivery-task",
+        "run_id": "delivery-run",
+        "authority_transfer": False,
+        "claims_require_revalidation": True,
+        "counters": {},
+        "recent_reasoning": [],
+        "recent_tool_observations": [],
+    }
+    delivered_path = checkpoint_root / "typescript-e01-delivered.json.handoff.json"
+    delivered_path.write_text(
+        json.dumps(
+            {
+                **common,
+                "source_session_id": "delivered-session",
+                "progress": {
+                    "providerRounds": 12,
+                    "realActionCount": 9,
+                    "workspaceMutationCount": 3,
+                    "verificationCount": 0,
+                    "verificationNudgeCount": 1,
+                    "lastVerificationNudgeProviderRound": 12,
+                    "artifactCount": 0,
+                    "requiredDeliveryMissing": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    sparse_path = checkpoint_root / "typescript-e01-sparse-after-delivery.json.handoff.json"
+    sparse_path.write_text(
+        json.dumps(
+            {
+                **common,
+                "source_session_id": "sparse-session",
+                "progress": {
+                    "providerRounds": 2,
+                    "workspaceMutationCount": 0,
+                    "verificationCount": 0,
+                    "requiredDeliveryMissing": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(delivered_path, ns=(1_000_000_000, 1_000_000_000))
+    os.utime(sparse_path, ns=(2_000_000_000, 2_000_000_000))
+
+    handoff = load_task_handoff_projection(
+        runtime.execution_context.artifact_store.root,
+        task_id="delivery-task",
+        run_id="delivery-run",
+        current_session_id="fresh-session",
+    )
+
+    assert handoff is not None
+    assert handoff["execution_continuity"] == {
+        "requiredDeliveryMissing": False,
+        "providerRounds": 12,
+        "realActionCount": 9,
+        "workspaceMutationCount": 3,
+        "verificationCount": 0,
+        "verificationNudgeCount": 1,
+        "lastVerificationNudgeProviderRound": 12,
+        "artifactCount": 0,
+    }
+    assert handoff["authority_transfer"] is False
 
 
 def test_host_checkpoint_retries_transient_windows_replace_denial(
