@@ -91,6 +91,10 @@ export class ProgressiveExecutionRuntime {
         consecutivePreDeliveryObservations: nonnegativeInteger(
           restored.consecutivePreDeliveryObservations,
         ),
+        // Gateway jobs are scoped to the runtime session that created them.
+        // A resumed model session cannot safely infer that a persisted count
+        // still represents live work, so rebuild it from new job results.
+        activeBackgroundCount: 0,
         progressReasons: Array.isArray(restored.progressReasons)
           ? restored.progressReasons.map(String).slice(-64)
           : [],
@@ -137,8 +141,8 @@ export class ProgressiveExecutionRuntime {
       ?? response.output.status
       ?? "",
     ).toLowerCase();
-    const backgroundCoordination = request.toolName === "shell_wait"
-      || ["running", "pending", "queued"].includes(background);
+    const backgroundRunning = ["running", "pending", "queued"].includes(background);
+    const backgroundTerminal = ["completed", "failed", "cancelled", "stopped"].includes(background);
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
@@ -150,22 +154,23 @@ export class ProgressiveExecutionRuntime {
       this.state.consecutivePreDeliveryObservations = 0;
       this.progress(mutated ? "workspace_mutation_committed" : "artifact_receipt_committed");
     } else if (
-      readOnly
-      && response.ok
+      response.ok
       && this.state.requiredDeliveryMissing
-      && !backgroundCoordination
+      && !backgroundRunning
     ) {
       this.state.preDeliveryObservationCount += 1;
       this.state.consecutivePreDeliveryObservations += 1;
-      this.record("pre_delivery_read_only_observation");
+      this.record(readOnly
+        ? "pre_delivery_read_only_observation"
+        : "pre_delivery_non_delivery_action");
     } else if (readOnly && response.ok && !this.state.requiredDeliveryMissing) {
       this.state.verificationCount += 1;
       this.state.phase = "validation";
       this.progress("post_action_validation_passed");
     }
-    if (["running", "pending", "queued"].includes(background)) {
+    if (backgroundRunning && request.toolName !== "shell_wait") {
       this.state.activeBackgroundCount += 1;
-    } else if (["completed", "failed", "cancelled", "stopped"].includes(background)) {
+    } else if (backgroundTerminal) {
       this.state.activeBackgroundCount = Math.max(0, this.state.activeBackgroundCount - 1);
     }
     if (!response.ok) this.state.progressReasons.push(`tool_failed:${request.toolName}`);

@@ -27,6 +27,10 @@ from zyra_runtime.sandbox_gateway.integration_factory import (  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_browser import BrowserGatewayBoundary  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_mcp import McpGatewayBoundary  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_tools import GatewayToolExecutionRouter  # noqa: E402
+from zyra_runtime.sandbox_gateway.integration_tools import (  # noqa: E402
+    _DEFAULT_FOREGROUND_WAIT_SECONDS,
+    _foreground_wait_seconds,
+)
 from zyra_workers import BrowserWorkerRuntime, CodeWorkerRuntime  # noqa: E402
 from zyra_workspace import (  # noqa: E402
     WorkspaceEditPort,
@@ -68,6 +72,20 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
             artifact_store=LocalArtifactStore(self.artifacts),
         )
         return port, self.manager.internal_task_root(created.access)
+
+    def test_default_foreground_wait_covers_container_startup_overhead(self) -> None:
+        self.assertEqual(_DEFAULT_FOREGROUND_WAIT_SECONDS, 30.0)
+        self.assertEqual(_foreground_wait_seconds({}), 30.0)
+        self.assertEqual(
+            _foreground_wait_seconds({"foreground_wait_seconds": 45}),
+            45.0,
+        )
+        self.assertEqual(
+            _foreground_wait_seconds(
+                {"foreground_wait_seconds": 45, "background": True}
+            ),
+            0.0,
+        )
 
     def test_code_worker_read_uses_gateway_and_disconnect_fails_closed(self) -> None:
         state = create_task_state("Read a managed workspace through SandboxGateway")

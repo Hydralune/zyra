@@ -1783,7 +1783,60 @@ test("progressive execution does not treat command execution as a workspace muta
   assert.equal(observed.realActionCount, 1);
   assert.equal(observed.workspaceMutationCount, 0);
   assert.equal(observed.requiredDeliveryMissing, true);
+  assert.equal(observed.preDeliveryObservationCount, 1);
+  assert.equal(observed.consecutivePreDeliveryObservations, 1);
+  assert.match(observed.progressReasons.join("\n"), /pre_delivery_non_delivery_action/);
   assert.doesNotMatch(observed.progressReasons.join("\n"), /workspace_mutation_committed/);
+});
+
+test("progressive execution counts each background job once and observes its terminal result", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  const request = (toolCallId: string, toolName: string): ToolExecutionRequest => ({
+    toolCallId,
+    toolName,
+    arguments: {},
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "batch-background",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  });
+  const response = (
+    toolCallId: string,
+    status: "running" | "completed",
+  ): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: status,
+    output: { status },
+    artifacts: [],
+    metadata: {},
+  });
+
+  progressive.observeToolResult(
+    request("shell-start", "shell"),
+    response("shell-start", "running"),
+    false,
+  );
+  progressive.observeToolResult(
+    request("shell-poll", "shell_wait"),
+    response("shell-poll", "running"),
+    true,
+  );
+  assert.equal(progressive.snapshot().activeBackgroundCount, 1);
+  assert.equal(progressive.snapshot().preDeliveryObservationCount, 0);
+
+  progressive.observeToolResult(
+    request("shell-complete", "shell_wait"),
+    response("shell-complete", "completed"),
+    true,
+  );
+  assert.equal(progressive.snapshot().activeBackgroundCount, 0);
+  assert.equal(progressive.snapshot().preDeliveryObservationCount, 1);
 });
 
 test("progressive execution nudges after sustained pre-delivery inspection", () => {

@@ -341,7 +341,9 @@ def default_tool_registry() -> ToolRegistry:
                 (
                     "Run one classified executable with permission policy. Prefer "
                     "executable/argv/cwd/environment for a working directory or environment; "
-                    "the legacy command string cannot contain shell composition or redirects."
+                    "the legacy command string cannot contain shell composition or redirects. "
+                    "Foreground execution waits up to 30 seconds by default; set background=true "
+                    "for immediate detachment or foreground_wait_seconds to override the bounded wait."
                 ),
                 "claude-code-best BashTool/PowerShellTool",
                 input_schema={

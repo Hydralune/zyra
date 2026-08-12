@@ -54,6 +54,25 @@ _HANDLED_TOOLS = frozenset(
     }
 )
 
+# A sandboxed command can spend several seconds crossing the host/container
+# boundary before the child process even starts.  Ten seconds caused ordinary
+# inspections and quick test commands to be reported as background work in
+# real Docker-backed tasks, forcing an otherwise unnecessary provider round
+# just to poll a command that completed moments later.  Keep the window
+# bounded and overridable, but cover that normal isolation overhead by default.
+_DEFAULT_FOREGROUND_WAIT_SECONDS = 30.0
+
+
+def _foreground_wait_seconds(arguments: Mapping[str, Any]) -> float:
+    if bool(arguments.get("background", False)):
+        return 0.0
+    return _bounded_float(
+        arguments.get("foreground_wait_seconds"),
+        default=_DEFAULT_FOREGROUND_WAIT_SECONDS,
+        minimum=0.0,
+        maximum=60.0,
+    )
+
 
 @dataclass(frozen=True, slots=True)
 class GatewayToolRoutingDecision:
@@ -337,16 +356,7 @@ class GatewayToolExecutionRouter:
                 )
                 self._jobs[job_id] = job
                 self._prune_jobs_locked()
-        foreground_wait = (
-            0.0
-            if bool(call.arguments.get("background", False))
-            else _bounded_float(
-                call.arguments.get("foreground_wait_seconds"),
-                default=10.0,
-                minimum=0.0,
-                maximum=60.0,
-            )
-        )
+        foreground_wait = _foreground_wait_seconds(call.arguments)
         try:
             result = job.future.result(timeout=foreground_wait)
         except FutureTimeoutError:
