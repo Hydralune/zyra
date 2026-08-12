@@ -216,6 +216,29 @@ afterEach(() => {
 });
 
 describe("06C skill outcome and compact/restore foundation", () => {
+  test("pairs canonical camelCase tool results during compaction", () => {
+    const blocks = compactBlocksFromMessages([
+      {
+        id: "canonical-message-1",
+        role: "assistant",
+        content: [{ type: "tool_use", id: "canonical-call", name: "file_read", text: "read source" }],
+        createdAt: "2026-07-21T08:01:00.000Z",
+        turnIndex: 1,
+        apiRound: 1,
+      },
+      {
+        id: "canonical-message-2",
+        role: "tool",
+        content: [{ type: "tool_result", toolUseId: "canonical-call", text: "verified source output" }],
+        createdAt: "2026-07-21T08:01:01.000Z",
+        turnIndex: 1,
+        apiRound: 1,
+      },
+    ]);
+
+    expect(blocks.map((block) => block.toolPairId)).toEqual(["canonical-call", "canonical-call"]);
+  });
+
   test("admits immutable outcome provenance without taking 03C invocation ownership", () => {
     const { runtime } = application();
     const receipt = runtime.recordSkillOutcome(outcome());

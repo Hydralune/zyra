@@ -428,7 +428,14 @@ export class SkillMemoryApplication {
 export function compactBlocksFromMessages(messages: Array<{
   id: string;
   role: string;
-  content: Array<{ type: string; text?: string; id?: string; tool_use_id?: string; name?: string }>;
+  content: Array<{
+    type: string;
+    text?: string;
+    id?: string;
+    tool_use_id?: string;
+    toolUseId?: string;
+    name?: string;
+  }>;
   createdAt: string;
   turnIndex: number | null;
   apiRound: number | null;
@@ -439,7 +446,11 @@ export function compactBlocksFromMessages(messages: Array<{
     for (let index = 0; index < message.content.length; index += 1) {
       const block = message.content[index];
       const kind = block.type === "tool_use" ? "tool_call" : block.type === "tool_result" ? "tool_result" : block.type === "attachment" ? "attachment" : "text";
-      const toolPairId = kind === "tool_call" ? block.id ?? null : kind === "tool_result" ? block.tool_use_id ?? null : null;
+      const toolPairId = kind === "tool_call"
+        ? block.id ?? null
+        : kind === "tool_result"
+          ? block.tool_use_id ?? block.toolUseId ?? null
+          : null;
       const text = block.text ?? (kind === "tool_call" ? `${block.name ?? "tool"} call ${JSON.stringify(block)}` : JSON.stringify(block));
       blocks.push({
         blockId: `${message.id}:block:${index}`,
