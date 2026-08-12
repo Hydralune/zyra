@@ -21,6 +21,7 @@ import {
 } from "../src/provider-control-plane-runtime.ts";
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
 import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
+import { durableCompactionSummary } from "../src/query-engine.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -404,6 +405,63 @@ test("session restore preserves the unique active turn boundary", () => {
   assert.throws(() => restored.beginTurn(1, "must not overlap"), /query_turn_already_active/);
   restored.completeTurn(false, "interrupted_before_resume");
   assert.doesNotThrow(() => restored.beginTurn(1, "continue after deterministic settlement"));
+});
+
+test("durable compaction summary keeps objective progress verification and open work", async () => {
+  const summary = await durableCompactionSummary({
+    trigger: "auto_threshold",
+    previousSummary: "",
+    systemPrompt: "runtime",
+    customInstructions: "preserve work",
+    tokenBudget: 4_096,
+    messages: [
+      {
+        id: "goal",
+        role: "user",
+        content: [{ type: "text", text: "Complete the release workflow." }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: null,
+        apiRound: 0,
+        synthetic: false,
+        metadata: {},
+      },
+      {
+        id: "decision",
+        role: "assistant",
+        content: [{ type: "text", text: "The migrations are complete; start the full stack next." }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: 18,
+        apiRound: 18,
+        synthetic: false,
+        metadata: {},
+      },
+      {
+        id: "verification",
+        role: "user",
+        content: [{
+          type: "tool_result",
+          toolUseId: "tests",
+          content: "138 passed; api_key=must-not-survive; postgresql://worker:db-password@db/task",
+          isError: false,
+          createdAt: new Date(0).toISOString(),
+          compacted: false,
+        }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: 18,
+        apiRound: 18,
+        synthetic: false,
+        metadata: {},
+      },
+    ],
+  });
+
+  assert.match(summary, /Complete the release workflow/);
+  assert.match(summary, /migrations are complete/);
+  assert.match(summary, /138 passed/);
+  assert.match(summary, /Open work/);
+  assert.doesNotMatch(summary, /must-not-survive/);
+  assert.doesNotMatch(summary, /db-password/);
+  assert.match(summary, /\[REDACTED\]/);
 });
 
 test("runtime rejects invalid tool arguments before the Python host", async () => {

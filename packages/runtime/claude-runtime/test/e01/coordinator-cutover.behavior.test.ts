@@ -420,13 +420,23 @@ describe("E01 coordinator default TypeScript cutover", () => {
       before_tokens: 80_000,
       after_tokens: 20_000,
       compact_id: "compact-1",
+      compact_summary: [
+        "## Active objective",
+        "Complete the governed release.",
+        "## Verified tool observations",
+        "138 tests passed.",
+        "## Open work",
+        "Start the stack and run the simulation.",
+      ].join("\n"),
     });
     const summary = coordinator.compactSummary.snapshot().summaries.at(-1);
 
     expect(receipt.domain).toBe("context");
     expect(receipt.effect?.ok).toBe(true);
     expect(summary).toBeDefined();
-    expect(summary?.items[0]?.subject).toBe("context");
+    expect(summary?.items[0]?.subject).toBe("governed task");
+    expect(summary?.items.some((item) => item.kind === "open_loop")).toBe(true);
+    expect(summary?.rendered).toContain("138 tests passed");
     expect(summary?.items[0]?.citations).toHaveLength(1);
     expect(summary?.items[0]?.metadata.canonical_owner).toBe("typescript");
     expect((coordinator.query.project().control as Record<string, unknown>).pending_compact).toBe(

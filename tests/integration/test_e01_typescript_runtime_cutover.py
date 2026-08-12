@@ -31,6 +31,7 @@ from zyra_workers import CodeWorkerRuntime  # noqa: E402
 from zyra_workers.typescript_claude_runtime import (  # noqa: E402
     TypeScriptClaudeQueryEngine,
     TypeScriptRuntimeError,
+    load_task_handoff_projection,
 )
 
 
@@ -840,6 +841,86 @@ def test_host_checkpoint_compare_and_swap_rejects_stale_writer(tmp_path: Path) -
     assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
 
 
+def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    session_id = "spent-permission-session"
+    committed = engine._persist_incremental_checkpoint(
+        session_id,
+        {
+            "task_id": "e01-task",
+            "run_id": "run-handoff",
+            "phase": "running",
+            "turn_count": 19,
+            "tool_call_count": 11,
+            "compaction_count": 1,
+            "progressiveExecution": {
+                "providerRounds": 19,
+                "workspaceMutationCount": 4,
+                "verificationCount": 2,
+            },
+            "modelIteration": {
+                "rounds": [
+                    {
+                        "roundIndex": 18,
+                        "finalText": "Public tests now pass; next start the full stack.",
+                    }
+                ]
+            },
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "summary": "Sandbox command completed",
+                            "output": {
+                                "stdout": (
+                                    "138 passed; api_key=should-never-cross-session; "
+                                    "postgresql://worker:database-password@db/task"
+                                )
+                            },
+                        }
+                    ),
+                }
+            ],
+        },
+    )
+
+    sidecar = engine._handoff_path(session_id)
+    assert sidecar.is_file()
+    assert sidecar.stat().st_size < 96_000
+    encoded = sidecar.read_text(encoding="utf-8")
+    assert "should-never-cross-session" not in encoded
+    assert "database-password" not in encoded
+    assert "[REDACTED]" in encoded
+    handoff = load_task_handoff_projection(
+        runtime.execution_context.artifact_store.root,
+        task_id="e01-task",
+        run_id="run-handoff",
+        current_session_id="fresh-permission-session",
+    )
+    assert handoff is not None
+    assert handoff["source_session_id"] == session_id
+    assert handoff["source_checkpoint_commit_id"] == committed[
+        "host_checkpoint_commit_id"
+    ]
+    assert handoff["progress"]["workspaceMutationCount"] == 4
+    assert handoff["recent_reasoning"][-1]["text"].endswith("full stack.")
+    assert handoff["authority_transfer"] is False
+    assert (
+        load_task_handoff_projection(
+            runtime.execution_context.artifact_store.root,
+            task_id="e01-task",
+            run_id="run-handoff",
+            current_session_id=session_id,
+        )
+        is None
+    )
+
+
 def test_host_checkpoint_retries_transient_windows_replace_denial(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -867,7 +948,7 @@ def test_host_checkpoint_retries_transient_windows_replace_denial(
     committed = engine._persist_incremental_checkpoint(session_id, {"value": 1})
 
     assert committed["host_checkpoint_revision"] == 1
-    assert replace_attempts == 3
+    assert replace_attempts == 4
     assert retry_delays == [0.05, 0.1]
     assert engine._checkpoint_path(session_id).exists()
     assert not tuple(engine._checkpoint_path(session_id).parent.glob("*.tmp"))

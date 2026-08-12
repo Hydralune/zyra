@@ -21,6 +21,11 @@ import {
   type ModelStreamResolution,
 } from "./model-stream.ts";
 import { RuntimeSession } from "./session.ts";
+import type {
+  CompactContentBlock,
+  CompactMessage,
+  SummaryRequest,
+} from "./compact/context-runtime.ts";
 import {
   normalizeTurns,
   RuntimeToolRegistry,
@@ -73,6 +78,129 @@ const TRANSIENT_CHECKPOINT_PHASES = new Set([
 ]);
 const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
 const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
+
+function redactCompactionText(value: string): string {
+  return value
+    .replace(/\bbearer\s+[a-z0-9._~+/=-]{8,}/gi, "[REDACTED]")
+    .replace(/\bsk-[a-z0-9_-]{8,}/gi, "[REDACTED]")
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^@\s/]+@/gi, "$1[REDACTED]@")
+    .replace(
+      /((?:api[_-]?key|access[_-]?token|secret|password|authorization)["']?\s*[:=]\s*["']?)[^\s,;}\]\\"']{4,}/gi,
+      "$1[REDACTED]",
+    );
+}
+
+function boundedCompactionText(value: unknown, maximum = 2_000): string {
+  const text = redactCompactionText(String(value ?? "").replaceAll("\0", "").trim());
+  if (text.length <= maximum) return text;
+  const head = Math.floor(maximum / 3);
+  const tail = Math.max(0, maximum - head - 28);
+  return `${text.slice(0, head)}\n...[summary excerpt omitted]...\n${text.slice(-tail)}`;
+}
+
+function compactionBlocks(value: unknown): CompactContentBlock[] {
+  if (!Array.isArray(value)) {
+    return [{ type: "text", text: boundedCompactionText(value, 8_000) }];
+  }
+  return value.flatMap((candidate): CompactContentBlock[] => {
+    const block = asObject(candidate);
+    const type = asString(block.type);
+    if (type === "text") {
+      return [{ type: "text", text: boundedCompactionText(block.text, 8_000) }];
+    }
+    if (type === "tool_use") {
+      return [{
+        type: "tool_use",
+        id: asString(block.id, `tool-use-${runtimeId("compact")}`),
+        name: asString(block.name, "tool"),
+        input: asObject(block.input),
+      }];
+    }
+    if (type === "tool_result") {
+      return [{
+        type: "tool_result",
+        toolUseId: asString(block.toolUseId, asString(block.tool_use_id, "unknown-tool")),
+        content: boundedCompactionText(block.content, 8_000),
+        isError: asBoolean(block.isError, asBoolean(block.is_error, false)),
+        createdAt: asString(block.createdAt, new Date(0).toISOString()),
+        compacted: asBoolean(block.compacted, false),
+      }];
+    }
+    return [{ type: "text", text: boundedCompactionText(JSON.stringify(block), 4_000) }];
+  });
+}
+
+function modelTranscriptForCompaction(
+  transcript: readonly JsonObject[],
+): CompactMessage[] {
+  const createdAt = new Date().toISOString();
+  return transcript.map((message, index) => {
+    const roleValue = asString(message.role, "user");
+    const role = roleValue === "system" || roleValue === "assistant" || roleValue === "tool"
+      ? roleValue
+      : "user";
+    const metadata = asObject(message.metadata);
+    return {
+      id: asString(message.message_id, `model-transcript-${index}`),
+      role,
+      content: compactionBlocks(message.content),
+      createdAt: asString(message.created_at, createdAt),
+      turnIndex: Number.isInteger(message.turn_index) ? Number(message.turn_index) : null,
+      apiRound: Number.isInteger(metadata.model_round_index)
+        ? Number(metadata.model_round_index)
+        : index,
+      synthetic: asBoolean(metadata.synthetic, false),
+      metadata,
+    };
+  });
+}
+
+function blockSummaryText(block: CompactContentBlock): string {
+  if (block.type === "text") return block.text;
+  if (block.type === "tool_use") return `requested ${block.name}`;
+  if (block.type === "tool_result") {
+    return `${block.isError ? "failed" : "completed"} tool ${block.toolUseId}: ${
+      typeof block.content === "string" ? block.content : JSON.stringify(block.content)
+    }`;
+  }
+  if (block.type === "thinking") return block.thinking;
+  if (block.type === "attachment") return `${block.name}: ${block.content}`;
+  return "";
+}
+
+export async function durableCompactionSummary(request: SummaryRequest): Promise<string> {
+  const objective = request.messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.filter((block) => block.type === "text").map(blockSummaryText).join("\n"))
+    .find((value) => value.trim().length > 0) ?? "Continue the current governed task.";
+  const assistantNotes = request.messages
+    .filter((message) => message.role === "assistant")
+    .map((message) => message.content.filter((block) => block.type === "text").map(blockSummaryText).join("\n"))
+    .filter((value) => value.trim().length > 0)
+    .slice(-5)
+    .map((value) => boundedCompactionText(value, 1_600));
+  const toolOutcomes = request.messages
+    .flatMap((message) => message.content.filter((block) => block.type === "tool_result"))
+    .slice(-10)
+    .map((block) => boundedCompactionText(blockSummaryText(block), 1_200));
+  const previous = boundedCompactionText(request.previousSummary, 3_000);
+  const sections = [
+    "## Active objective",
+    boundedCompactionText(objective, 2_500),
+    "",
+    "## Durable progress and decisions",
+    ...(previous ? [previous] : []),
+    ...(assistantNotes.length > 0 ? assistantNotes.map((item) => `- ${item}`) : ["- No separate assistant note was retained."]),
+    "",
+    "## Verified tool observations",
+    ...(toolOutcomes.length > 0 ? toolOutcomes.map((item) => `- ${item}`) : ["- No completed tool observation was retained."]),
+    "",
+    "## Open work",
+    "Continue from the durable progress above, inspect the persisted workspace diff, revalidate externally mutable claims, and finish every unverified delivery requirement.",
+  ];
+  const maximum = Math.max(4_000, Math.min(16_000, request.tokenBudget * 4));
+  return boundedCompactionText(sections.join("\n"), maximum);
+}
 
 interface ResourceCloseoutBudget {
   deadlineEpochMs: number;
@@ -1378,19 +1506,24 @@ export class ClaudeRuntimeCore {
       );
       if (contextDecision.accepted) {
         const fallbackCompact = session.compactCandidates();
-        const compactSource = session.messages.map((item, index) => ({
-          id: item.message_id,
-          role: item.role,
-          content: [{ type: "text" as const, text: item.content }],
-           createdAt: item.created_at,
-           turnIndex: item.turn_index,
-           apiRound: item.turn_index ?? index,
-           synthetic: item.metadata.synthetic === true,
-           metadata: {
-             ...item.metadata,
-             runtime_tool_call_id: item.tool_call_id,
-           },
-         }));
+        const modelCompactSource = modelTranscriptForCompaction(
+          iteration.currentMessages(),
+        );
+        const compactSource = modelCompactSource.length >= 3
+          ? modelCompactSource
+          : session.messages.map((item, index) => ({
+            id: item.message_id,
+            role: item.role,
+            content: [{ type: "text" as const, text: item.content }],
+            createdAt: item.created_at,
+            turnIndex: item.turn_index,
+            apiRound: item.turn_index ?? index,
+            synthetic: item.metadata.synthetic === true,
+            metadata: {
+              ...item.metadata,
+              runtime_tool_call_id: item.tool_call_id,
+            },
+          }));
         const skillMemoryContextWindow = Math.max(
           8_192,
           Math.ceil(config.maxQueryContextChars / 4),
@@ -1449,12 +1582,12 @@ export class ClaudeRuntimeCore {
             ? await e01.compact.compactConversation(
               compactSource,
               compactOptions,
-              async () => fallbackCompact.summary,
+              durableCompactionSummary,
             )
             : await e01.compact.autoCompactIfNeeded(
               compactSource,
               compactOptions,
-              async () => fallbackCompact.summary,
+              durableCompactionSummary,
             )
           : null;
         if (compactSource.length >= 3 && matureCompact === null) {
@@ -1799,6 +1932,7 @@ export class ClaudeRuntimeCore {
           compaction_runtime_applied: matureCompact !== null,
           compact_boundary_id: matureCompact?.boundary.boundaryId ?? null,
           compact_generation: matureCompact?.boundary.compactGeneration ?? session.compactionCount,
+          compact_summary: compact.summary,
         });
         await emit("next_turn_restore_contract", {
           turn_id: turn.turn_id,

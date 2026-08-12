@@ -45,6 +45,7 @@ from .browser_session import (
 )
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .typescript_claude_runtime import load_task_handoff_projection
 from .claude_foundation_worker import (
     ClaudeFoundationWorkerRun,
     ClaudeProductizationFoundationWorker,
@@ -191,6 +192,7 @@ __all__ = [
     "BrowserUseRuntimePaths",
     "CodeWorkerRun",
     "CodeWorkerRuntime",
+    "load_task_handoff_projection",
     "ClaudeFoundationWorkerRun",
     "ClaudeProductizationFoundationWorker",
     "WorkerRetrievalContext",

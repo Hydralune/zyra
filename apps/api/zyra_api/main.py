@@ -1948,55 +1948,70 @@ def _prepare_task_for_explicit_resume(
     state: Any,
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
-    """Consume a durable recovery plan before re-entering a failed graph.
+    """Fence a fresh permission session and reopen a failed graph when needed.
 
     The task-run endpoint is the execution owner for an explicit CLI resume.
-    Merely changing the task status to ``running`` leaves a failed execute node
-    outside ConstraintKeeper's admissible start states, so the graph settles as
-    a false running task without dispatching a worker.  A resumable recovery
-    plan instead reopens route and execution through the same fenced
-    continuation primitive used by RecoveryRuntime.
+    Permission custody tokens intentionally never survive a process boundary,
+    so every explicit invocation must use a newly fenced logical session even
+    when the graph was still running at the last durable checkpoint.  A failed
+    graph additionally consumes its recovery plan and reopens route/execution
+    through the same continuation primitive used by RecoveryRuntime.
     """
 
+    status_before_prepare = state.status
     plan = state.metadata.get("last_recovery_plan")
-    if not isinstance(plan, Mapping) or plan.get("can_continue") is not True:
-        return None
-    affected_ids = {
-        str(item)
-        for item in (
-            *(plan.get("affected_node_ids") or ()),
-            plan.get("node_id"),
+    recoverable_nodes: list[Any] = []
+    selected_action = ""
+    plan_id = ""
+    failure_signal_id = ""
+    changed = False
+    if isinstance(plan, Mapping) and plan.get("can_continue") is True:
+        affected_ids = {
+            str(item)
+            for item in (
+                *(plan.get("affected_node_ids") or ()),
+                plan.get("node_id"),
+            )
+            if str(item or "")
+        }
+        recoverable_nodes = [
+            node
+            for node in state.plan_nodes.values()
+            if node.node_id in affected_ids
+            and node.status in {PlanNodeStatus.FAILED, PlanNodeStatus.BLOCKED}
+            and (
+                bool(node.metadata.get("worker_error"))
+                or isinstance(node.metadata.get("recovery_plan"), Mapping)
+            )
+        ]
+        selected_action = next(
+            (
+                _EXPLICIT_RESUME_ACTIONS[str(item)]
+                for item in plan.get("actions") or ()
+                if str(item) in _EXPLICIT_RESUME_ACTIONS
+            ),
+            "",
         )
-        if str(item or "")
-    }
-    recoverable_nodes = [
-        node
-        for node in state.plan_nodes.values()
-        if node.node_id in affected_ids
-        and node.status in {PlanNodeStatus.FAILED, PlanNodeStatus.BLOCKED}
-        and (
-            bool(node.metadata.get("worker_error"))
-            or isinstance(node.metadata.get("recovery_plan"), Mapping)
-        )
-    ]
-    if not recoverable_nodes:
-        return None
-    selected_action = next(
-        (
-            _EXPLICIT_RESUME_ACTIONS[str(item)]
-            for item in plan.get("actions") or ()
-            if str(item) in _EXPLICIT_RESUME_ACTIONS
-        ),
-        "",
+        if recoverable_nodes and selected_action:
+            plan_id = str(plan.get("plan_id") or "")
+            failure_signal_id = str(plan.get("failure_signal_id") or "")
+            changed = _reopen_task_for_recovery_continuation(
+                state,
+                selected_action,
+                plan_id=plan_id,
+            )
+        else:
+            recoverable_nodes = []
+            selected_action = ""
+
+    owns_prior_execution = bool(
+        isinstance(state.metadata.get("execution_in_flight"), Mapping)
+        or isinstance(state.metadata.get("recovery_continuation_session"), Mapping)
+        or status_before_prepare in {PlanNodeStatus.RUNNING, PlanNodeStatus.BLOCKED}
     )
-    if not selected_action:
+    if not recoverable_nodes and not owns_prior_execution:
         return None
-    plan_id = str(plan.get("plan_id") or "")
-    changed = _reopen_task_for_recovery_continuation(
-        state,
-        selected_action,
-        plan_id=plan_id,
-    )
+
     history = list(state.metadata.get("explicit_resume_recovery_history") or ())
     resume_invocation_id = str(payload.get("resume_invocation_id") or "")
     # A permission-session custody token is intentionally never persisted.  An
@@ -2005,7 +2020,7 @@ def _prepare_task_for_explicit_resume(
     # invocation id when available; the sequence fallback keeps older clients
     # progressing without putting timestamps or random state into the graph.
     session_discriminator = resume_invocation_id or (
-        f"legacy:{plan_id}:{len(history) + 1}"
+        f"legacy:{plan_id or 'active'}:{len(history) + 1}"
     )
     recovery_session_id = (
         f"query:{state.run_id}:{state.task_id}:explicit-resume:"
@@ -2017,7 +2032,7 @@ def _prepare_task_for_explicit_resume(
     state.metadata["recovery_continuation_session"] = {
         "session_id": recovery_session_id,
         "plan_id": plan_id,
-        "action": selected_action,
+        "action": selected_action or "reacquire",
         "resume_invocation_id": resume_invocation_id,
         "custody_mode": "new_fenced_session",
         "persisted_custody_token": False,
@@ -2025,8 +2040,8 @@ def _prepare_task_for_explicit_resume(
     receipt = {
         "schema": "zyra.explicit-resume-recovery/v1",
         "plan_id": plan_id,
-        "failure_signal_id": str(plan.get("failure_signal_id") or ""),
-        "action": selected_action,
+        "failure_signal_id": failure_signal_id,
+        "action": selected_action or "reacquire",
         "reopened_node_ids": [node.node_id for node in recoverable_nodes],
         "changed": changed,
         "resume_invocation_id": resume_invocation_id,

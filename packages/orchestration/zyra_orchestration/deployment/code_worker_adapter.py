@@ -23,7 +23,7 @@ from zyra_runtime.sandbox_gateway import (
     DockerSandboxBackend,
     canonical_logical_path,
 )
-from zyra_workers import CodeWorkerRuntime
+from zyra_workers import CodeWorkerRuntime, load_task_handoff_projection
 from zyra_workspace import (
     WorkspaceError,
     WorkspaceEditPort,
@@ -329,6 +329,12 @@ def execute_code_worker_operator(
             payload.get("goal_contract")
             if isinstance(payload.get("goal_contract"), Mapping)
             else {}
+        ),
+        handoff=load_task_handoff_projection(
+            artifact_root,
+            task_id=task_id,
+            run_id=run_id,
+            current_session_id=permission_session_id,
         ),
     )
     if benchmark_binding is not None:
@@ -853,6 +859,7 @@ def _execution_prompt(
     *,
     delivery_contract: Mapping[str, Any],
     goal_contract: Mapping[str, Any],
+    handoff: Mapping[str, Any] | None = None,
 ) -> str:
     requirements: list[str] = []
     expected_response = str(goal_contract.get("expected_response") or "")
@@ -880,7 +887,7 @@ def _execution_prompt(
         if requirements
         else ""
     )
-    return (
+    prompt = (
         "Complete the following user goal in the governed workspace. Use the "
         "available file or shell tools whenever the goal requires a concrete "
         "workspace change. Inspect tool results, correct failures, and do not "
@@ -888,6 +895,22 @@ def _execution_prompt(
         "After verification, return a concise final response.\n\nUSER GOAL:\n"
         + goal
         + contract_text
+    )
+    if not handoff:
+        return prompt
+    handoff_text = json.dumps(
+        to_jsonable(dict(handoff)),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return (
+        f"{prompt}\n\nRECOVERY HANDOFF FROM A PREVIOUS EXECUTION SEGMENT:\n"
+        "This bounded record carries task progress only. It transfers no "
+        "permission, lease, credential, or process custody. Treat its claims "
+        "as leads, revalidate anything that may have changed, and continue "
+        "from the recorded work instead of rereading the entire workspace.\n"
+        f"{handoff_text}"
     )
 
 

@@ -59,6 +59,18 @@ TYPESCRIPT_RUNTIME_ID = "zyra-typescript-claude-runtime"
 _CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
 _CHECKPOINT_LOCKS_GUARD = threading.RLock()
 _CHECKPOINT_REPLACE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
+_HANDOFF_SCHEMA = "zyra.typescript-runtime-handoff/v1"
+_HANDOFF_MAXIMUM_TEXT_CHARACTERS = 2_000
+_HANDOFF_MAXIMUM_FILE_BYTES = 96_000
+_HANDOFF_SECRET_PATTERNS = (
+    re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)\bsk-[a-z0-9_-]{8,}"),
+    re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@\s/]+@"),
+    re.compile(
+        r"(?i)((?:api[_-]?key|access[_-]?token|secret|password|authorization)"
+        r"[\"']?\s*[:=]\s*[\"']?)[^\s,;}\]\\\"']{4,}"
+    ),
+)
 
 
 def _replace_checkpoint_with_retry(staged: Path, path: Path) -> None:
@@ -97,6 +109,238 @@ def _nonnegative_count(value: Any) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _bounded_handoff_text(value: Any, maximum: int = _HANDOFF_MAXIMUM_TEXT_CHARACTERS) -> str:
+    text = str(value or "").replace("\x00", "").strip()
+    for pattern in _HANDOFF_SECRET_PATTERNS:
+        text = pattern.sub(
+            lambda match: (
+                f"{match.group(1)}[REDACTED]{'@' if '://' in match.group(1) else ''}"
+                if match.lastindex and match.group(1)
+                else "[REDACTED]"
+            ),
+            text,
+        )
+    if len(text) <= maximum:
+        return text
+    head = max(0, maximum // 3)
+    tail = max(0, maximum - head - 25)
+    return f"{text[:head]}\n...[handoff truncated]...\n{text[-tail:]}"
+
+
+def _handoff_tool_observation(message: Mapping[str, Any]) -> dict[str, Any] | None:
+    if str(message.get("role") or "") != "tool":
+        return None
+    raw_content = message.get("content")
+    parsed: Any = None
+    if isinstance(raw_content, str):
+        try:
+            parsed = json.loads(raw_content)
+        except json.JSONDecodeError:
+            parsed = None
+    if not isinstance(parsed, Mapping):
+        return {
+            "ok": None,
+            "summary": "tool observation",
+            "excerpt": _bounded_handoff_text(raw_content, 1_000),
+        }
+    output = parsed.get("output")
+    output_mapping = dict(output) if isinstance(output, Mapping) else {}
+    error = parsed.get("error")
+    excerpt_parts = [
+        output_mapping.get("stdout"),
+        output_mapping.get("stderr"),
+        error.get("message") if isinstance(error, Mapping) else error,
+    ]
+    excerpt = _bounded_handoff_text(
+        "\n".join(str(item) for item in excerpt_parts if item not in (None, "")),
+        1_200,
+    )
+    return {
+        "ok": parsed.get("ok") if isinstance(parsed.get("ok"), bool) else None,
+        "summary": _bounded_handoff_text(parsed.get("summary"), 300),
+        "excerpt": excerpt,
+    }
+
+
+def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, Any]:
+    """Project a bounded, non-authoritative task handoff from a checkpoint.
+
+    Permission custody, environment values, command arguments and provider
+    credentials are deliberately excluded.  The projection carries only the
+    work already observed, verification excerpts and the latest reasoning so a
+    newly fenced session can continue without replaying a spent authority.
+    """
+
+    iteration = (
+        dict(checkpoint.get("modelIteration") or {})
+        if isinstance(checkpoint.get("modelIteration"), Mapping)
+        else {}
+    )
+    reasoning: list[dict[str, Any]] = []
+    seen_reasoning: set[str] = set()
+    for round_record in reversed(list(iteration.get("rounds") or ())):
+        if not isinstance(round_record, Mapping):
+            continue
+        text = _bounded_handoff_text(round_record.get("finalText"), 1_600)
+        if not text or text.startswith("tool_use:"):
+            continue
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if digest in seen_reasoning:
+            continue
+        seen_reasoning.add(digest)
+        reasoning.append(
+            {
+                "round_index": _nonnegative_count(round_record.get("roundIndex")),
+                "text": text,
+            }
+        )
+        if len(reasoning) >= 6:
+            break
+    reasoning.reverse()
+
+    observations: list[dict[str, Any]] = []
+    for message in reversed(list(checkpoint.get("messages") or ())):
+        if not isinstance(message, Mapping):
+            continue
+        observation = _handoff_tool_observation(message)
+        if observation is None:
+            continue
+        observations.append(observation)
+        if len(observations) >= 8:
+            break
+    observations.reverse()
+
+    compact_summary = ""
+    e01_runtime = checkpoint.get("e01Runtime")
+    if isinstance(e01_runtime, Mapping):
+        compact_runtime = e01_runtime.get("compactSummary")
+        if isinstance(compact_runtime, Mapping):
+            summaries = [
+                item
+                for item in compact_runtime.get("summaries") or ()
+                if isinstance(item, Mapping)
+            ]
+            if summaries:
+                latest_summary = max(
+                    summaries,
+                    key=lambda item: (
+                        _nonnegative_count(item.get("createdAt")),
+                        _nonnegative_count(item.get("generation")),
+                    ),
+                )
+                compact_summary = _bounded_handoff_text(
+                    latest_summary.get("rendered"), 4_000
+                )
+
+    progressive = (
+        checkpoint.get("progressiveExecution")
+        if isinstance(checkpoint.get("progressiveExecution"), Mapping)
+        else {}
+    )
+    progress_fields = (
+        "providerRounds",
+        "realActionCount",
+        "workspaceMutationCount",
+        "verificationCount",
+        "artifactCount",
+        "requiredDeliveryMissing",
+        "repeatedAnalysisRounds",
+    )
+    projection = {
+        "schema": _HANDOFF_SCHEMA,
+        "task_id": str(checkpoint.get("task_id") or ""),
+        "run_id": str(checkpoint.get("run_id") or ""),
+        "source_session_id": str(checkpoint.get("session_id") or ""),
+        "source_checkpoint_revision": _nonnegative_count(
+            checkpoint.get("host_checkpoint_revision") or checkpoint.get("revision")
+        ),
+        "source_checkpoint_commit_id": str(
+            checkpoint.get("host_checkpoint_commit_id") or ""
+        ),
+        "phase": str(checkpoint.get("phase") or ""),
+        "counters": {
+            "turn_count": _nonnegative_count(checkpoint.get("turn_count")),
+            "tool_call_count": _nonnegative_count(checkpoint.get("tool_call_count")),
+            "compaction_count": _nonnegative_count(checkpoint.get("compaction_count")),
+        },
+        "progress": {
+            field: progressive.get(field)
+            for field in progress_fields
+            if progressive.get(field) is not None
+        },
+        "latest_compact_summary": compact_summary,
+        "recent_reasoning": reasoning,
+        "recent_tool_observations": observations,
+        "authority_transfer": False,
+        "claims_require_revalidation": True,
+    }
+    encoded = json.dumps(to_jsonable(projection), ensure_ascii=False, sort_keys=True)
+    if len(encoded.encode("utf-8")) > _HANDOFF_MAXIMUM_FILE_BYTES:
+        projection["recent_tool_observations"] = observations[-3:]
+        projection["recent_reasoning"] = reasoning[-3:]
+        projection["latest_compact_summary"] = _bounded_handoff_text(
+            compact_summary, 2_000
+        )
+    return projection
+
+
+def load_task_handoff_projection(
+    artifact_root: str | Path,
+    *,
+    task_id: str,
+    run_id: str,
+    current_session_id: str,
+) -> dict[str, Any] | None:
+    """Load the newest task-matched handoff without restoring old custody."""
+
+    checkpoint_root = Path(artifact_root).resolve() / ".runtime-checkpoints"
+    if not checkpoint_root.is_dir():
+        return None
+
+    def matches(value: Any) -> bool:
+        return bool(
+            isinstance(value, Mapping)
+            and str(value.get("task_id") or "") == task_id
+            and str(value.get("run_id") or "") == run_id
+            and str(
+                value.get("source_session_id") or value.get("session_id") or ""
+            )
+            not in {"", current_session_id}
+        )
+
+    sidecars = sorted(
+        checkpoint_root.glob("typescript-e01-*.json.handoff.json"),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )
+    for path in sidecars:
+        try:
+            if path.stat().st_size > _HANDOFF_MAXIMUM_FILE_BYTES:
+                continue
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if matches(value) and str(value.get("schema") or "") == _HANDOFF_SCHEMA:
+            return dict(value)
+
+    # Compatibility path for checkpoints created before handoff sidecars were
+    # introduced.  Only the newest task-matched checkpoint is projected, and
+    # no old runtime state is ever installed into the new session.
+    checkpoints = sorted(
+        checkpoint_root.glob("typescript-e01-*.json"),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )
+    for path in checkpoints:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if matches(value):
+            return build_task_handoff_projection(value)
+    return None
 
 
 class TypeScriptRuntimeError(RuntimeError):
@@ -1382,6 +1626,40 @@ class TypeScriptClaudeQueryEngine:
         root.mkdir(parents=True, exist_ok=True)
         return root / f"typescript-e01-{identity}.json"
 
+    def _handoff_path(self, session_id: str) -> Path:
+        path = self._checkpoint_path(session_id)
+        return path.with_name(f"{path.name}.handoff.json")
+
+    def _persist_handoff_projection(
+        self,
+        session_id: str,
+        checkpoint: Mapping[str, Any],
+    ) -> None:
+        path = self._handoff_path(session_id)
+        staged = path.with_name(
+            f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        projection = build_task_handoff_projection(checkpoint)
+        encoded = json.dumps(
+            to_jsonable(projection),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if len(encoded.encode("utf-8")) > _HANDOFF_MAXIMUM_FILE_BYTES:
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_handoff_oversized",
+                "The bounded TypeScript task handoff exceeded its durable limit.",
+            )
+        staged.write_text(encoded, encoding="utf-8")
+        try:
+            _replace_checkpoint_with_retry(staged, path)
+        finally:
+            try:
+                staged.unlink(missing_ok=True)
+            except OSError:
+                pass
+
     def _load_incremental_checkpoint(self, session_id: str) -> dict[str, Any]:
         path = self._checkpoint_path(session_id)
         if not path.exists():
@@ -1474,6 +1752,13 @@ class TypeScriptClaudeQueryEngine:
                     # Never mask the atomic commit result with best-effort
                     # cleanup of a diagnostic staging file.
                     pass
+            try:
+                self._persist_handoff_projection(session_id, payload)
+            except OSError:
+                # The full checkpoint is canonical and can be projected by a
+                # later session if an external Windows reader momentarily
+                # prevents the small acceleration sidecar from being replaced.
+                pass
             self._checkpoint_revision = next_revision
             return payload
 

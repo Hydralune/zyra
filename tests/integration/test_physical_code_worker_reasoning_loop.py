@@ -11,6 +11,7 @@ import pytest
 
 from zyra_orchestration.deployment.code_worker_adapter import (
     _WorkspaceLeaseHeartbeat,
+    _execution_prompt,
     _governed_final_response,
     _physical_permission_session_id,
     _provider_failure_summary,
@@ -130,6 +131,28 @@ def test_physical_permission_session_prefers_unique_resume_session() -> None:
     assert replay == first
     assert second != first
     assert "explicit-resume" not in first
+
+
+def test_execution_prompt_carries_progress_without_transferring_authority() -> None:
+    rendered = _execution_prompt(
+        "Finish the governed release workflow.",
+        delivery_contract={},
+        goal_contract={},
+        handoff={
+            "schema": "zyra.typescript-runtime-handoff/v1",
+            "source_session_id": "spent-session",
+            "recent_reasoning": [
+                {"round_index": 18, "text": "Public tests pass; start the stack."}
+            ],
+            "authority_transfer": False,
+            "claims_require_revalidation": True,
+        },
+    )
+
+    assert "RECOVERY HANDOFF" in rendered
+    assert "Public tests pass; start the stack." in rendered
+    assert "transfers no permission, lease, credential, or process custody" in rendered
+    assert "continue from the recorded work" in rendered
 
 
 def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:

@@ -1519,30 +1519,75 @@ export class E01RuntimeCoordinator {
       }
       this.telemetry.notifyCompaction(this.sessionId);
       const summarySequence = this.journal.revision + 1;
+      const compactSummary = asRuntimeString(
+        (payload as unknown as JsonObject).compact_summary,
+        "",
+      ).trim();
+      const compactObjective = (
+        compactSummary.split("## Durable progress and decisions", 1)[0]
+          || compactSummary
+      ).slice(0, 6_000);
+      const citation = {
+        eventId: `${this.sessionId}:compact:${summarySequence}`,
+        transitionId: null,
+        messageId: null,
+        artifactId: null,
+        occurredAt: Date.now(),
+        digest: digest(payload),
+      };
       this.compactSummary.build({
         sessionId: this.sessionId,
         runId: this.runId,
         coveredSequenceStart: 0,
         coveredSequenceEnd: summarySequence,
         sourceDigest: digest(payload),
-        candidates: [{
-          kind: "fact",
-          subject: "context",
-          predicate: "was compacted",
-          value: `revision ${summarySequence}`,
-          confidence: "observed",
-          importance: 0.7,
-          citations: [{
-            eventId: `${this.sessionId}:compact:${summarySequence}`,
-            transitionId: null,
-            messageId: null,
-            artifactId: null,
-            occurredAt: Date.now(),
-            digest: digest(payload),
+        candidates: compactSummary
+          ? [
+            {
+              kind: "objective",
+              subject: "governed task",
+              predicate: "continues from compacted execution record",
+              value: compactObjective,
+              confidence: "observed",
+              importance: 1,
+              citations: [citation],
+              tags: ["compact", "task-continuity"],
+              metadata: { canonical_owner: "typescript" },
+            },
+            {
+              kind: "fact",
+              subject: "durable execution handoff",
+              predicate: "records completed work and verification",
+              value: compactSummary,
+              confidence: "observed",
+              importance: 0.99,
+              citations: [citation],
+              tags: ["compact", "task-continuity", "verification"],
+              metadata: { canonical_owner: "typescript" },
+            },
+            {
+              kind: "open_loop",
+              subject: "remaining delivery requirements",
+              predicate: "must be completed and revalidated",
+              value: "Continue from the durable progress; inspect persisted effects before repeating work.",
+              confidence: "observed",
+              importance: 0.95,
+              citations: [citation],
+              tags: ["compact", "continuation"],
+              metadata: { canonical_owner: "typescript" },
+            },
+          ]
+          : [{
+            kind: "fact",
+            subject: "context",
+            predicate: "was compacted",
+            value: `revision ${summarySequence}`,
+            confidence: "observed",
+            importance: 0.7,
+            citations: [citation],
+            tags: ["compact", "default-path"],
+            metadata: { canonical_owner: "typescript" },
           }],
-          tags: ["compact", "default-path"],
-          metadata: { canonical_owner: "typescript" },
-        }],
         maximumCharacters: 24_000,
         preserveOpenLoops: true,
         preserveErrors: true,

@@ -534,6 +534,70 @@ def test_explicit_resume_reopens_recoverable_failed_execution() -> None:
     }
 
 
+def test_explicit_resume_rotates_custody_for_active_execution() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Resume an in-flight physical execution after its owner process exited."
+    )
+    ensure_default_graph(state)
+    state.status = PlanNodeStatus.RUNNING
+    state.metadata["execution_in_flight"] = {
+        "schema": "zyra.task-execution-in-flight/v1",
+        "receipt_id": "receipt-from-lost-owner",
+    }
+    state.metadata["runtime_hints"] = {"session_id": "spent-session"}
+    before = {
+        node.node_id: (node.status, node.assigned_worker_id)
+        for node in state.plan_nodes.values()
+    }
+
+    first = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-active-1"},
+    )
+    repeated = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-active-1"},
+    )
+    second = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-active-2"},
+    )
+
+    assert first is not None
+    assert repeated is not None
+    assert second is not None
+    assert first["action"] == "reacquire"
+    assert first["reopened_node_ids"] == []
+    assert first["changed"] is False
+    assert repeated["recovery_session_id"] == first["recovery_session_id"]
+    assert second["recovery_session_id"] != first["recovery_session_id"]
+    assert state.metadata["runtime_hints"]["session_id"] == second[
+        "recovery_session_id"
+    ]
+    assert state.metadata["recovery_continuation_session"][
+        "persisted_custody_token"
+    ] is False
+    assert {
+        node.node_id: (node.status, node.assigned_worker_id)
+        for node in state.plan_nodes.values()
+    } == before
+
+
+def test_first_pending_task_run_does_not_create_recovery_session() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Run a newly created task for the first time."
+    )
+    ensure_default_graph(state)
+
+    receipt = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "first-run"},
+    )
+
+    assert receipt is None
+    assert "recovery_continuation_session" not in state.metadata
+
+
 def test_normal_task_finalize_replays_lease_and_graph_success(
     tmp_path: Path,
 ) -> None:
