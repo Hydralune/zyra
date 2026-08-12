@@ -81,17 +81,15 @@ try {
       content: "Reply with exactly ZYRA_DEEPSEEK_OK and nothing else.",
     }],
     tools: [],
-    maximumOutputTokens: 32,
-    temperature: 0,
+    maximumOutputTokens: 512,
+    temperature: null,
     stream: true,
     timeoutMilliseconds: 90_000,
     chunkTimeoutMilliseconds: 45_000,
     idempotencyKey: `deepseek-smoke-${stamp}`,
-    extraBody: {
-      thinking: { type: "disabled" },
-    },
+    extraBody: {},
     metadata: {
-      purpose: "low-cost-connectivity-smoke",
+      purpose: "thinking-high-connectivity-smoke",
     },
   };
   const result = await controlPlane.dispatch(dispatchRequest);
@@ -108,6 +106,8 @@ try {
     provider_id: result.providerId,
     model_id: result.modelId,
     configured_model_version: installed.model.metadata.model_version,
+    thinking: installed.model.requestDefaults.thinking,
+    reasoning_effort: installed.model.requestDefaults.reasoning_effort,
     protocol: result.protocol,
     endpoint_host: new URL(route.baseUrl).hostname,
     endpoint_path: route.endpointPath,

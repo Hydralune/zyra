@@ -666,16 +666,22 @@ class LiveProviderDispatchRuntime:
                         "reasoning_effort": "max",
                     }
                     if profile.provider_id == ZHIPU_PROVIDER_ID
-                    else {
-                        "thinking": {
-                            "type": (
-                                "enabled"
-                                if profile.provider_id
-                                in {KIMI_PROVIDER_ID, DEEPSEEK_PROVIDER_ID}
-                                else "disabled"
-                            )
+                    else (
+                        {
+                            "thinking": {"type": "enabled"},
+                            "reasoning_effort": "high",
                         }
-                    }
+                        if profile.provider_id == DEEPSEEK_PROVIDER_ID
+                        else {
+                            "thinking": {
+                                "type": (
+                                    "enabled"
+                                    if profile.provider_id == KIMI_PROVIDER_ID
+                                    else "disabled"
+                                )
+                            }
+                        }
+                    )
                 ),
                 tags=("physical-dispatch",),
                 metadata={

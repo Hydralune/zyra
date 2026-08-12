@@ -81,6 +81,7 @@ export function deepSeekV4ProProfile(): DeepSeekV4ProProfile {
     protocol: "openai_chat",
     requestDefaults: {
       thinking: { type: "enabled" },
+      reasoning_effort: "high",
     },
     tags: ["agent-test", "thinking-default", "tool-capable"],
     metadata: {

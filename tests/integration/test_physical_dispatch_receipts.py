@@ -13,17 +13,19 @@ from zyra_orchestration.deployment.provider_dispatch import (
     KIMI_MODEL_ID,
     KIMI_PROVIDER_ID,
     PROVIDER_PRIORITY,
+    LiveProviderDispatchRuntime,
     ZHIPU_PROVIDER_ID,
     _LIVE_PROFILES,
     _marker_dispatch_request,
 )
+from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
 from zyra_scheduler.dispatch_evidence import (
     PhysicalDispatchReceiptValidator,
     PhysicalDispatchTask,
 )
 from zyra_scheduler.worker_pool.models import AttemptState, LeaseState, parse_utc
 
-from tests.integration.physical_dispatch_harness import build_physical_harness
+from tests.integration.physical_dispatch_harness import ROOT, build_physical_harness
 
 
 def test_deployment_redaction_preserves_usage_but_removes_credentials() -> None:
@@ -71,6 +73,25 @@ def test_deepseek_profile_uses_current_pro_version_and_pricing() -> None:
     assert profile.input_per_million == 0.435
     assert profile.cached_input_per_million == 0.003625
     assert profile.output_per_million == 0.87
+
+
+def test_deepseek_physical_catalog_explicitly_sets_high_effort(tmp_path) -> None:
+    profile = _LIVE_PROFILES[(DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID)]
+    with ProviderControlPlaneClient(
+        project_root=ROOT,
+        database_path=tmp_path / "provider.sqlite3",
+    ) as client:
+        LiveProviderDispatchRuntime._install_profile(
+            client,
+            profile,
+            "profile-test-secret",
+        )
+        model = client.catalog.model(DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID)
+
+    assert model["requestDefaults"] == {
+        "thinking": {"type": "enabled"},
+        "reasoning_effort": "high",
+    }
 
 
 def test_physical_marker_dispatch_pins_its_initial_provider_route() -> None:

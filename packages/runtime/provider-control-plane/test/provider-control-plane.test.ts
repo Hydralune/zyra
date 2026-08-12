@@ -134,6 +134,7 @@ test("DeepSeek V4 Pro profile binds an environment reference without persisting 
   assert.equal(profile.model.endpointPath, "/chat/completions");
   assert.equal(profile.provider.requestDefaults.thinking, undefined);
   assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
+  assert.equal(profile.model.requestDefaults.reasoning_effort, "high");
   assert.equal(installed.credential.credentialId, DEEPSEEK_CREDENTIAL_ID);
   assert.equal(installed.credential.secretRef, `env://${DEEPSEEK_API_KEY_ENV}`);
   assert.notEqual(installed.credential.fingerprint, secret);

@@ -100,7 +100,7 @@ try {
       modelId: DEEPSEEK_V4_PRO_MODEL_ID,
       credential: deepseek.credential,
       maximumOutputTokens: 96,
-      temperature: 0,
+      temperature: null,
       extraBody: {},
       forceToolChoice: true,
     }],
