@@ -1997,6 +1997,31 @@ def _prepare_task_for_explicit_resume(
         selected_action,
         plan_id=plan_id,
     )
+    history = list(state.metadata.get("explicit_resume_recovery_history") or ())
+    resume_invocation_id = str(payload.get("resume_invocation_id") or "")
+    # A permission-session custody token is intentionally never persisted.  An
+    # explicit resume must consequently own a new session even when it consumes
+    # the same recovery plan as an earlier invocation.  Use the caller's durable
+    # invocation id when available; the sequence fallback keeps older clients
+    # progressing without putting timestamps or random state into the graph.
+    session_discriminator = resume_invocation_id or (
+        f"legacy:{plan_id}:{len(history) + 1}"
+    )
+    recovery_session_id = (
+        f"query:{state.run_id}:{state.task_id}:explicit-resume:"
+        f"{hashlib.sha256(session_discriminator.encode('utf-8')).hexdigest()[:24]}"
+    )
+    runtime_hints = dict(state.metadata.get("runtime_hints") or {})
+    runtime_hints["session_id"] = recovery_session_id
+    state.metadata["runtime_hints"] = runtime_hints
+    state.metadata["recovery_continuation_session"] = {
+        "session_id": recovery_session_id,
+        "plan_id": plan_id,
+        "action": selected_action,
+        "resume_invocation_id": resume_invocation_id,
+        "custody_mode": "new_fenced_session",
+        "persisted_custody_token": False,
+    }
     receipt = {
         "schema": "zyra.explicit-resume-recovery/v1",
         "plan_id": plan_id,
@@ -2004,11 +2029,11 @@ def _prepare_task_for_explicit_resume(
         "action": selected_action,
         "reopened_node_ids": [node.node_id for node in recoverable_nodes],
         "changed": changed,
-        "resume_invocation_id": str(payload.get("resume_invocation_id") or ""),
+        "resume_invocation_id": resume_invocation_id,
+        "recovery_session_id": recovery_session_id,
         "prepared_at": now_iso(),
     }
     state.metadata["last_explicit_resume_recovery"] = receipt
-    history = list(state.metadata.get("explicit_resume_recovery_history") or ())
     history.append(receipt)
     state.metadata["explicit_resume_recovery_history"] = history[-64:]
     return receipt

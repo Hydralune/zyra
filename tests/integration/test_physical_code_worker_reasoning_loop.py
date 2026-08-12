@@ -105,6 +105,33 @@ def test_physical_permission_session_isolated_by_recovery_continuation() -> None
     ) == f"{first_session}:recovery:1"
 
 
+def test_physical_permission_session_prefers_unique_resume_session() -> None:
+    common = {
+        "operator_ref": "provider-code-worker",
+        "recovery_plan_id": "repeated-recovery-plan",
+        "physical_recovery_pass": 0,
+    }
+    first = _physical_permission_session_id(
+        {**common, "recovery_session_id": "explicit-resume-1"},
+        "task-1",
+        1,
+    )
+    replay = _physical_permission_session_id(
+        {**common, "recovery_session_id": "explicit-resume-1"},
+        "task-1",
+        1,
+    )
+    second = _physical_permission_session_id(
+        {**common, "recovery_session_id": "explicit-resume-2"},
+        "task-1",
+        1,
+    )
+
+    assert replay == first
+    assert second != first
+    assert "explicit-resume" not in first
+
+
 def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:
     summary = _provider_failure_summary(
         {

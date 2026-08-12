@@ -137,12 +137,15 @@ def _physical_permission_session_id(
         f"physical:{task_id}:layer:{layer_index}:"
         f"{str(payload.get('operator_ref') or '')}"
     )
-    recovery_plan_id = str(payload.get("recovery_plan_id") or "")
-    if recovery_plan_id:
-        recovery_plan_digest = hashlib.sha256(
-            recovery_plan_id.encode("utf-8")
+    recovery_session_id = str(payload.get("recovery_session_id") or "")
+    recovery_identity = recovery_session_id or str(
+        payload.get("recovery_plan_id") or ""
+    )
+    if recovery_identity:
+        recovery_identity_digest = hashlib.sha256(
+            recovery_identity.encode("utf-8")
         ).hexdigest()[:16]
-        base = f"{base}:continuation:{recovery_plan_digest}"
+        base = f"{base}:continuation:{recovery_identity_digest}"
     recovery_pass = int(payload.get("physical_recovery_pass") or 0)
     if not recovery_pass:
         return base

@@ -514,6 +514,13 @@ def test_explicit_resume_reopens_recoverable_failed_execution() -> None:
     assert "physical_execution_failure_receipt" not in state.metadata
     assert "worker_error" not in execute.metadata
     assert execute.assigned_worker_id is None
+    recovery_session = state.metadata["recovery_continuation_session"]
+    assert recovery_session["session_id"] == receipt["recovery_session_id"]
+    assert recovery_session["resume_invocation_id"] == "resume-invocation-1"
+    assert recovery_session["persisted_custody_token"] is False
+    assert state.metadata["runtime_hints"]["session_id"] == receipt[
+        "recovery_session_id"
+    ]
     assert {
         str(node.metadata.get("stage") or ""): node.status
         for node in state.plan_nodes.values()

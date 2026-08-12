@@ -1878,6 +1878,11 @@ class Phase2StrongestProductionBridge:
             if isinstance(recovery_execution, Mapping)
             else ""
         )
+        recovery_session_id = (
+            str(recovery_execution.get("session_id") or "")
+            if isinstance(recovery_execution, Mapping)
+            else ""
+        )
         # A replan after a lost deployment node re-proposes the identical
         # topology and keeps the same requirement revision, so every term below
         # would repeat while the dispatched payload carries a new attempt,
@@ -1890,7 +1895,7 @@ class Phase2StrongestProductionBridge:
         )
         operator_idempotency_key = (
             f"production-physical:{state.task_id}:"
-            f"{canonical_digest((policy_input.requirement_revision, recovery_plan_id, physical_recovery_pass))[:16]}:"
+            f"{canonical_digest((policy_input.requirement_revision, recovery_plan_id, recovery_session_id, physical_recovery_pass))[:16]}:"
             f"{selected_ref}:{layer_index}"
         )
         started_attempt = self.worker_pool_api.pool.leases.start_attempt(
@@ -1961,6 +1966,7 @@ class Phase2StrongestProductionBridge:
             # within-plan retry increments the pass.  Carry both identities so
             # every continuation owns a fresh permission session.
             "recovery_plan_id": recovery_plan_id,
+            "recovery_session_id": recovery_session_id,
             "physical_recovery_pass": physical_recovery_pass,
             "operator_adapter_enabled": str(
                 os.environ.get("ZYRA_DISABLE_PHASE2_OPERATOR_ADAPTER") or ""
