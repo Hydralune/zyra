@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -25,6 +26,7 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     SandboxGatewayConfig,
     SandboxGatewayRuntime,
 )
+from zyra_runtime.sandbox_gateway.models import ProcessOutput, ProcessResult  # noqa: E402
 from zyra_orchestration.deployment import code_worker_adapter  # noqa: E402
 from zyra_workers.typescript_claude_runtime import (  # noqa: E402
     _typescript_runtime_timeout_seconds,
@@ -32,6 +34,124 @@ from zyra_workers.typescript_claude_runtime import (  # noqa: E402
 
 
 class DockerCliSandboxConnectorTests(unittest.TestCase):
+    def test_git_workspace_state_detects_changes_to_an_already_dirty_file(self) -> None:
+        git = shutil.which("git")
+        if git is None:
+            self.skipTest("git is unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            target = workspace / "tracked.txt"
+            target.write_text("base", encoding="utf-8")
+            commands = (
+                ("init",),
+                ("add", "tracked.txt"),
+                ("-c", "user.name=Zyra Test", "-c", "user.email=test@zyra.local", "commit", "-m", "base"),
+            )
+            for arguments in commands:
+                completed = subprocess.run(
+                    [git, *arguments],
+                    cwd=workspace,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+            target.write_text("first dirty value", encoding="utf-8")
+            before = code_worker_adapter._workspace_state_snapshot(workspace)
+            target.write_text("second dirty value", encoding="utf-8")
+            after = code_worker_adapter._workspace_state_snapshot(workspace)
+
+            self.assertEqual(before["mode"], "git-head-diff")
+            self.assertNotEqual(before["digest"], after["digest"])
+
+    def test_delivery_driving_benchmark_shell_records_real_host_workspace_change(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            target = workspace / "tracked.txt"
+            target.write_text("before", encoding="utf-8")
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+                "canonical_host_workspace": workspace,
+            }
+            mirror = code_worker_adapter._BenchmarkWorkspaceMirror(
+                binding,
+                workspace,
+                synced_manifest=code_worker_adapter._workspace_manifest(workspace),
+            )
+            connector = code_worker_adapter._BenchmarkDockerCliSandboxConnector(
+                container="task-main-1",
+                workdir="/app",
+                docker_executable="docker-test",
+                benchmark_mirror=mirror,
+            )
+            envelope = GatewayCommandEnvelope.build(
+                session_id="session-1",
+                run_id="run-1",
+                task_id="task-1",
+                worker_id="worker-1",
+                executable="python",
+                argv=("-c", "write"),
+                metadata={"progressive_delivery_driving_shell": True},
+            )
+            session = BackendSession(
+                session_id="session-1",
+                backend_id=connector.backend_id,
+                execution_root=root,
+                generation=1,
+                prepared_at=0.0,
+            )
+
+            def fake_execute(*_args, **_kwargs):
+                target.write_text("after", encoding="utf-8")
+                return ProcessResult(
+                    command_id=envelope.command_id,
+                    termination=ProcessTermination.EXITED,
+                    return_code=0,
+                    started_at=1.0,
+                    finished_at=2.0,
+                    output=ProcessOutput(stdout=b"changed"),
+                    backend_id=connector.backend_id,
+                    metadata={"connector": "docker-cli"},
+                )
+
+            with (
+                patch.object(
+                    code_worker_adapter,
+                    "_push_benchmark_workspace_delta",
+                    return_value={
+                        "written_count": 0,
+                        "deleted_count": 0,
+                        "written_path_digests": [],
+                        "deleted_path_digests": [],
+                    },
+                ),
+                patch.object(
+                    DockerCliSandboxConnector,
+                    "execute",
+                    side_effect=fake_execute,
+                ),
+            ):
+                result = connector.execute(session, envelope, CancellationToken())
+
+            self.assertTrue(result.metadata["workspace_mutation_committed"])
+            self.assertEqual(result.metadata["workspace_state_mode"], "bounded-manifest")
+            self.assertNotEqual(
+                result.metadata["workspace_state_before_digest"],
+                result.metadata["workspace_state_after_digest"],
+            )
+
     def test_worker_failure_with_workspace_effects_requires_verification(self) -> None:
         self.assertEqual(
             code_worker_adapter._workspace_execution_outcome(

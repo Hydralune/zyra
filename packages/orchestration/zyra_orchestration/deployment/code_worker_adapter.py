@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
@@ -1399,6 +1400,105 @@ def _workspace_delta(
     }
 
 
+def _workspace_state_snapshot(
+    root: Path,
+    *,
+    excluded_prefixes: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Commit to deliverable workspace bytes without copying the workspace.
+
+    Benchmark shells operate on the harness-owned bind mount, while file tools
+    use a managed mirror.  For shell commands explicitly classified as
+    delivery-driving, hash the Git worktree delta plus untracked file bytes so
+    a successful command can prove that canonical workspace state changed.
+    Ignored dependency/cache trees are intentionally outside this signal.
+    """
+
+    resolved = root.resolve()
+    if not resolved.is_dir():
+        raise ValueError("workspace state snapshot requires an existing directory")
+    null_path = "NUL" if os.name == "nt" else "/dev/null"
+    git_prefix = ("git", "-c", f"core.excludesFile={null_path}")
+    if (resolved.joinpath(".git").exists()):
+        diff = subprocess.run(
+            [*git_prefix, "diff", "--binary", "--no-ext-diff", "HEAD", "--"],
+            cwd=resolved,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=60.0,
+            shell=False,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+        )
+        untracked = subprocess.run(
+            [*git_prefix, "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=resolved,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=60.0,
+            shell=False,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+        )
+        if diff.returncode == 0 and untracked.returncode == 0:
+            untracked_records: list[dict[str, Any]] = []
+            total_bytes = 0
+            for raw_path in sorted(
+                item for item in untracked.stdout.split(b"\0") if item
+            ):
+                relative = raw_path.decode("utf-8", errors="strict").replace(
+                    "\\", "/"
+                )
+                canonical = canonical_logical_path(relative, allow_root=False)
+                if _benchmark_path_excluded(canonical, excluded_prefixes):
+                    continue
+                path = (resolved / Path(*canonical.split("/"))).resolve()
+                path.relative_to(resolved)
+                if path.is_symlink() or not path.is_file():
+                    continue
+                size = path.stat().st_size
+                total_bytes += size
+                if len(untracked_records) >= 100_000 or total_bytes > 8 * 1024**3:
+                    raise ValueError(
+                        "workspace state snapshot exceeds its evidence budget"
+                    )
+                file_digest = hashlib.sha256()
+                with path.open("rb") as handle:
+                    while chunk := handle.read(1024 * 1024):
+                        file_digest.update(chunk)
+                untracked_records.append(
+                    {
+                        "path_digest": _digest(canonical),
+                        "sha256": file_digest.hexdigest(),
+                        "size": size,
+                    }
+                )
+            payload = {
+                "mode": "git-head-diff",
+                "tracked_diff_sha256": hashlib.sha256(diff.stdout).hexdigest(),
+                "untracked": untracked_records,
+            }
+            return {
+                "mode": payload["mode"],
+                "digest": _digest(payload),
+                "untracked_count": len(untracked_records),
+            }
+
+    manifest = _workspace_manifest(
+        resolved,
+        excluded_prefixes=tuple(
+            dict.fromkeys((*excluded_prefixes, ".git"))
+        ),
+    )
+    return {
+        "mode": "bounded-manifest",
+        "digest": _digest(manifest),
+        "file_count": len(manifest),
+    }
+
+
 class _BenchmarkWorkspaceMirror:
     """Keep WorkspaceEditPort and an external benchmark container coherent.
 
@@ -1543,9 +1643,57 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
         self._benchmark_mirror = benchmark_mirror
 
     def execute(self, *args: Any, **kwargs: Any) -> Any:
+        envelope = args[1] if len(args) > 1 else kwargs.get("envelope")
+        track_delivery = bool(
+            envelope is not None
+            and bool(
+                dict(getattr(envelope, "metadata", {}) or {}).get(
+                    "progressive_delivery_driving_shell"
+                )
+            )
+        )
+        host_workspace = self._benchmark_mirror.binding.get(
+            "canonical_host_workspace"
+        )
         with self._benchmark_mirror.guard:
             self._benchmark_mirror.push_to_container()
-        return super().execute(*args, **kwargs)
+            before = (
+                _workspace_state_snapshot(
+                    _required_path(
+                        host_workspace,
+                        "benchmark canonical host workspace",
+                    ),
+                    excluded_prefixes=_benchmark_mirror_excludes(
+                        self._benchmark_mirror.binding
+                    ),
+                )
+                if track_delivery and host_workspace
+                else None
+            )
+        result = super().execute(*args, **kwargs)
+        if before is None:
+            return result
+        with self._benchmark_mirror.guard:
+            after = _workspace_state_snapshot(
+                _required_path(
+                    host_workspace,
+                    "benchmark canonical host workspace",
+                ),
+                excluded_prefixes=_benchmark_mirror_excludes(
+                    self._benchmark_mirror.binding
+                ),
+            )
+        mutated = bool(result.ok and before["digest"] != after["digest"])
+        return replace(
+            result,
+            metadata={
+                **dict(result.metadata),
+                "workspace_mutation_committed": mutated,
+                "workspace_state_mode": str(after["mode"]),
+                "workspace_state_before_digest": str(before["digest"]),
+                "workspace_state_after_digest": str(after["digest"]),
+            },
+        )
 
 
 def _benchmark_docker_binding(
@@ -1558,6 +1706,9 @@ def _benchmark_docker_binding(
 
     container = str(os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or "").strip()
     workdir = str(os.environ.get("ZYRA_BENCHMARK_DOCKER_WORKDIR") or "").strip()
+    host_workspace = str(
+        os.environ.get("ZYRA_BENCHMARK_HOST_WORKSPACE") or ""
+    ).strip()
     if not container and not workdir:
         return None
     if not container or not workdir:
@@ -1577,6 +1728,13 @@ def _benchmark_docker_binding(
     sync_root = (node_data_root.resolve() / "benchmark-workspace-sync").resolve()
     sync_root.relative_to(node_data_root.resolve())
     sync_root.mkdir(parents=True, exist_ok=True)
+    canonical_host_workspace: Path | None = None
+    if host_workspace:
+        canonical_host_workspace = Path(host_workspace).resolve()
+        if not canonical_host_workspace.is_dir():
+            raise ValueError(
+                "ZYRA_BENCHMARK_HOST_WORKSPACE must identify an existing directory"
+            )
     return {
         "container": container,
         "container_ref_digest": connector.container_ref_digest,
@@ -1585,6 +1743,7 @@ def _benchmark_docker_binding(
         "workspace_data_root": resolved_data_root,
         "sync_root": sync_root,
         "mirror_excluded_prefixes": _BENCHMARK_MIRROR_EXCLUDED_PREFIXES,
+        "canonical_host_workspace": canonical_host_workspace,
     }
 
 

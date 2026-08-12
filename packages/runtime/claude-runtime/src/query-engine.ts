@@ -1121,6 +1121,8 @@ export class ClaudeRuntimeCore {
                 schema_validated: true,
                 conflict_protected: conflictProtected,
                 ...asObject(step.metadata),
+                progressive_delivery_driving_shell: step.tool_name === "shell"
+                  && !isClearlyPreDeliveryInspection(step, false),
               },
             });
           }

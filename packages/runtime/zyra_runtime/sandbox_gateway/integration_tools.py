@@ -610,6 +610,9 @@ class GatewayToolExecutionRouter:
                 "gateway_surface": GatewaySurface.CODE_WORKER.value,
                 "structured_argv": True,
                 "legacy_command_normalized": bool(call.arguments.get("command")),
+                "progressive_delivery_driving_shell": _metadata_flag(
+                    call.metadata.get("progressive_delivery_driving_shell")
+                ),
             },
         )
         policy = self.bundle.policy_runtime.evaluate_command(envelope)
@@ -727,6 +730,12 @@ class GatewayToolExecutionRouter:
                     "return_code": process.return_code,
                     "stdout_digest": gateway_content_digest(process.output.stdout),
                     "stderr_digest": gateway_content_digest(process.output.stderr),
+                    "workspace_state_before_digest": process.metadata.get(
+                        "workspace_state_before_digest", ""
+                    ),
+                    "workspace_state_after_digest": process.metadata.get(
+                        "workspace_state_after_digest", ""
+                    ),
                 }
             ),
             permission_consumption_id=execution.receipt.permission_consumption_id,
@@ -753,6 +762,18 @@ class GatewayToolExecutionRouter:
                 "recovery_required": execution.recovery_required,
                 "output_spilled": spill_receipt is not None,
                 "output_spill_receipt_id": spill_receipt.receipt_id if spill_receipt else "",
+                "workspace_mutation_committed": _metadata_flag(
+                    process.metadata.get("workspace_mutation_committed")
+                ),
+                "workspace_state_mode": str(
+                    process.metadata.get("workspace_state_mode") or ""
+                ),
+                "workspace_state_before_digest": str(
+                    process.metadata.get("workspace_state_before_digest") or ""
+                ),
+                "workspace_state_after_digest": str(
+                    process.metadata.get("workspace_state_after_digest") or ""
+                ),
             },
         )
         self.bundle.receipt_journal.append(
@@ -793,8 +814,15 @@ class GatewayToolExecutionRouter:
                 "process_tree_controlled": str(process_tree_controlled).lower(),
                 "workspace_mutation_committed": str(
                     succeeded
-                    and execution.patch_receipt is not None
-                    and execution.patch_receipt.committed
+                    and (
+                        (
+                            execution.patch_receipt is not None
+                            and execution.patch_receipt.committed
+                        )
+                        or _metadata_flag(
+                            process.metadata.get("workspace_mutation_committed")
+                        )
+                    )
                 ).lower(),
                 # A gateway timeout has a synchronously committed process and
                 # workspace receipt.  The child session remains quarantined,
@@ -1695,6 +1723,10 @@ def _failure_class(error: Exception) -> FailureClass:
     if "provenance" in name or "quarantine" in message:
         return FailureClass.PROVENANCE
     return FailureClass.BACKEND
+
+
+def _metadata_flag(value: Any) -> bool:
+    return value is True or str(value or "").strip().lower() == "true"
 
 
 def _retryable(error: Exception) -> bool:
