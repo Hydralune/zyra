@@ -14,6 +14,8 @@ from urllib.error import HTTPError
 import pytest
 
 from apps.api.zyra_api import main as api_main
+from zyra_core import PlanNodeStatus
+from zyra_orchestration import ensure_default_graph
 from zyra_scheduler.worker_pool import ExecutionOutcome
 
 
@@ -385,6 +387,64 @@ def test_task_resume_recovers_graph_successor_missing_from_task_checkpoint(
         )
         assert rebound.worker_lease_ref == successor.lease.lease_id
         assert rebound.state.value == "cancelled"
+
+
+def test_explicit_resume_reopens_recoverable_failed_execution() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Resume a failed physical execution from its durable recovery plan."
+    )
+    ensure_default_graph(state)
+    state.status = PlanNodeStatus.RUNNING
+    execute = next(
+        node
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage") == "execute"
+    )
+    for node in state.plan_nodes.values():
+        stage = str(node.metadata.get("stage") or "")
+        if stage in {"plan", "route"} or node.node_id == state.root_node_id:
+            node.status = PlanNodeStatus.COMPLETED
+        elif stage == "execute":
+            node.status = PlanNodeStatus.BLOCKED
+        else:
+            node.status = PlanNodeStatus.BLOCKED
+    execute.metadata["worker_error"] = "Provider route renewal forked."
+    execute.metadata["recovery_plan"] = {"plan_id": "recovery-resume-1"}
+    state.metadata["last_recovery_plan"] = {
+        "plan_id": "recovery-resume-1",
+        "failure_signal_id": "failure-resume-1",
+        "actions": ["local_replan", "explain_failure"],
+        "affected_node_ids": [execute.node_id],
+        "node_id": execute.node_id,
+        "can_continue": True,
+    }
+    state.metadata["physical_execution_recovery_passes"] = 2
+    state.metadata["physical_execution_failure_receipt"] = {"outcome": "rejected"}
+
+    receipt = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-invocation-1"},
+    )
+
+    assert receipt is not None
+    assert receipt["action"] == "replan"
+    assert receipt["reopened_node_ids"] == [execute.node_id]
+    assert state.status == PlanNodeStatus.PENDING
+    assert "physical_execution_recovery_passes" not in state.metadata
+    assert "physical_execution_failure_receipt" not in state.metadata
+    assert "worker_error" not in execute.metadata
+    assert execute.assigned_worker_id is None
+    assert {
+        str(node.metadata.get("stage") or ""): node.status
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage")
+    } == {
+        "plan": PlanNodeStatus.COMPLETED,
+        "route": PlanNodeStatus.PENDING,
+        "execute": PlanNodeStatus.PENDING,
+        "verify": PlanNodeStatus.PENDING,
+        "finalize": PlanNodeStatus.PENDING,
+    }
 
 
 def test_normal_task_finalize_replays_lease_and_graph_success(

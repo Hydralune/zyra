@@ -88,6 +88,34 @@ def _formal_route_context():
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_failed_stage_start_constraint_blocks_canonical_task(self) -> None:
+        state = create_task_state("Keep task status aligned with a blocked graph.")
+        ensure_default_graph(state)
+        state.status = PlanNodeStatus.RUNNING
+        for node in state.plan_nodes.values():
+            stage = str(node.metadata.get("stage") or "")
+            if stage in {"plan", "route"} or node.node_id == state.root_node_id:
+                node.status = PlanNodeStatus.COMPLETED
+            elif stage == "execute":
+                node.status = PlanNodeStatus.FAILED
+
+        events = run_task_graph(state)
+
+        execute = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "execute"
+        )
+        self.assertEqual(execute.status, PlanNodeStatus.BLOCKED)
+        self.assertEqual(state.status, PlanNodeStatus.BLOCKED)
+        self.assertTrue(
+            any(
+                event.node_id == execute.node_id
+                and event.payload.get("transition") == "blocked"
+                for event in events
+            )
+        )
+
     def test_canonical_task_outcome_is_immutable_and_diagnostics_are_supplemental(
         self,
     ) -> None:

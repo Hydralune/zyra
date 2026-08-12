@@ -375,6 +375,9 @@ def run_task_graph(
         if keeper.has_blocking_failure(start_checks):
             node.status = PlanNodeStatus.BLOCKED
             node.updated_at = now_iso()
+            state.status = PlanNodeStatus.BLOCKED
+            state.updated_at = node.updated_at
+            node.metadata["result_summary"] = "ConstraintKeeper blocked node start."
             events.append(_node_event(state, node, "blocked", "ConstraintKeeper blocked node start."))
             break
         events.append(_structured_message_event(state, node, stage))

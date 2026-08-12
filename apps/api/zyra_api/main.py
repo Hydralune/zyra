@@ -1850,6 +1850,14 @@ _RECOVERY_EXECUTION_CONTINUATION_ACTIONS = frozenset({
     "resume_checkpoint",
 })
 
+_EXPLICIT_RESUME_ACTIONS = {
+    "retry_same_worker": "retry",
+    "reroute_worker": "reroute",
+    "fallback_model": "degrade_model",
+    "checkpoint_resume": "resume_checkpoint",
+    "local_replan": "replan",
+}
+
 
 def _recovery_continuation_request_digest(request: Mapping[str, Any]) -> str:
     payload = {
@@ -1913,6 +1921,9 @@ def _reopen_task_for_recovery_continuation(
         "operator_placement_binding",
         "worker_pool_receipt",
         "physical_execution_failure_receipt",
+        "physical_execution_recovery_passes",
+        "physical_execution_retry_requested",
+        "physical_execution_recovery_active",
     ):
         state.metadata.pop(key, None)
     changed = state.status != PlanNodeStatus.PENDING
@@ -1924,9 +1935,83 @@ def _reopen_task_for_recovery_continuation(
             continue
         changed = changed or node.status != PlanNodeStatus.PENDING
         node.status = PlanNodeStatus.PENDING
+        node.assigned_worker_id = None
         node.updated_at = now_iso()
+        node.metadata.pop("result_summary", None)
+        node.metadata.pop("worker_error", None)
+        node.metadata.pop("worker_result", None)
     state.updated_at = now_iso()
     return changed
+
+
+def _prepare_task_for_explicit_resume(
+    state: Any,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Consume a durable recovery plan before re-entering a failed graph.
+
+    The task-run endpoint is the execution owner for an explicit CLI resume.
+    Merely changing the task status to ``running`` leaves a failed execute node
+    outside ConstraintKeeper's admissible start states, so the graph settles as
+    a false running task without dispatching a worker.  A resumable recovery
+    plan instead reopens route and execution through the same fenced
+    continuation primitive used by RecoveryRuntime.
+    """
+
+    plan = state.metadata.get("last_recovery_plan")
+    if not isinstance(plan, Mapping) or plan.get("can_continue") is not True:
+        return None
+    affected_ids = {
+        str(item)
+        for item in (
+            *(plan.get("affected_node_ids") or ()),
+            plan.get("node_id"),
+        )
+        if str(item or "")
+    }
+    recoverable_nodes = [
+        node
+        for node in state.plan_nodes.values()
+        if node.node_id in affected_ids
+        and node.status in {PlanNodeStatus.FAILED, PlanNodeStatus.BLOCKED}
+        and (
+            bool(node.metadata.get("worker_error"))
+            or isinstance(node.metadata.get("recovery_plan"), Mapping)
+        )
+    ]
+    if not recoverable_nodes:
+        return None
+    selected_action = next(
+        (
+            _EXPLICIT_RESUME_ACTIONS[str(item)]
+            for item in plan.get("actions") or ()
+            if str(item) in _EXPLICIT_RESUME_ACTIONS
+        ),
+        "",
+    )
+    if not selected_action:
+        return None
+    plan_id = str(plan.get("plan_id") or "")
+    changed = _reopen_task_for_recovery_continuation(
+        state,
+        selected_action,
+        plan_id=plan_id,
+    )
+    receipt = {
+        "schema": "zyra.explicit-resume-recovery/v1",
+        "plan_id": plan_id,
+        "failure_signal_id": str(plan.get("failure_signal_id") or ""),
+        "action": selected_action,
+        "reopened_node_ids": [node.node_id for node in recoverable_nodes],
+        "changed": changed,
+        "resume_invocation_id": str(payload.get("resume_invocation_id") or ""),
+        "prepared_at": now_iso(),
+    }
+    state.metadata["last_explicit_resume_recovery"] = receipt
+    history = list(state.metadata.get("explicit_resume_recovery_history") or ())
+    history.append(receipt)
+    state.metadata["explicit_resume_recovery_history"] = history[-64:]
+    return receipt
 
 
 def _observe_delivery_contract_paths(
@@ -11587,6 +11672,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     state,
                     reason="superseded by task resume physical dispatch",
                 )
+                resume_recovery = _prepare_task_for_explicit_resume(
+                    state,
+                    payload,
+                )
+                if resume_recovery is not None:
+                    events.append(
+                        EventRecord(
+                            run_id=state.run_id,
+                            task_id=state.task_id,
+                            node_id=str(
+                                (resume_recovery.get("reopened_node_ids") or [
+                                    state.root_node_id
+                                ])[0]
+                            ),
+                            event_type=EventType.RECOVERY_PLANNED,
+                            payload=dict(resume_recovery),
+                        )
+                    )
                 started_event = _task_execution_started_event(
                     state,
                     (
@@ -11599,7 +11702,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 # GET /tasks and event ingress must be able to prove that the
                 # mutation owner is still working even if the response socket
                 # detaches before this long call completes.
-                persist_events(store, [started_event])
+                persist_events(store, events)
                 store.save_checkpoint(state)
                 if _task_is_sealed_control(state, payload):
                     prepare_phase2_loopx_pre_control(
