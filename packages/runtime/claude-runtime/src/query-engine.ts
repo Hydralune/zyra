@@ -464,10 +464,10 @@ export class ClaudeRuntimeCore {
           && model.turns.flat().length === 0
           && !providerOutputWasLengthTruncated(model)
           && continuationTools.length > 0
-          && progressiveActionNudges < 2
           && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit)
         ) {
           progressiveActionNudges += 1;
+          const nudgedProgress = progressive.recordActionNudge();
           iteration.rejectProviderRoundForRetry(round.roundId, "progressive_action_required");
           providerMessages = [
             ...iteration.currentMessages(),
@@ -486,7 +486,7 @@ export class ClaudeRuntimeCore {
           await emit("progressive_action_requested", {
             reason: progressDecision.reason,
             execution_phase: progress.phase,
-            action_nudge: progressiveActionNudges,
+            action_nudge: nudgedProgress.actionNudgeCount,
             analysis_only_rounds: progress.analysisOnlyRounds,
             repeated_analysis_rounds: progress.repeatedAnalysisRounds,
             required_delivery_missing: progress.requiredDeliveryMissing,
@@ -2001,25 +2001,25 @@ export class ClaudeRuntimeCore {
         );
         if (
           postToolProgressDecision.action === "nudge_action"
-          && progressiveActionNudges < 2
         ) {
           progressiveActionNudges += 1;
+          const nudgedProgress = progressive.recordActionNudge();
           providerMessages = [
             ...providerMessages,
             {
               role: "user",
               content: [
                 "The task still requires a concrete delivery, and enough orientation evidence has been gathered.",
-                "Stop broad repository inspection.",
-                "Run the relevant build or tests now and use failures to drive targeted changes, or make a concrete proportionate workspace change.",
-                "Do not restart general inspection unless new evidence invalidates the current understanding.",
+                "Stop broad repository inspection and use the latest gathered evidence to choose and execute the next concrete edit now.",
+                "Run the relevant build or tests when they directly drive that edit.",
+                "Make another read-only call only when a specific pending edit is blocked by a named missing fact or changed state.",
               ].join(" "),
             },
           ];
           await emit("progressive_action_requested", {
             reason: postToolProgressDecision.reason,
             execution_phase: postToolProgressDecision.snapshot.phase,
-            action_nudge: progressiveActionNudges,
+            action_nudge: nudgedProgress.actionNudgeCount,
             analysis_only_rounds: postToolProgressDecision.snapshot.analysisOnlyRounds,
             repeated_analysis_rounds: postToolProgressDecision.snapshot.repeatedAnalysisRounds,
             pre_delivery_observations: postToolProgressDecision.snapshot.preDeliveryObservationCount,

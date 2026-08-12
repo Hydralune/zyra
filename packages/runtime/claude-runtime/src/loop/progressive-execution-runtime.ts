@@ -27,6 +27,9 @@ export interface ProgressiveExecutionSnapshot {
   verificationCount: number;
   preDeliveryObservationCount: number;
   consecutivePreDeliveryObservations: number;
+  actionNudgeCount: number;
+  lastActionNudgeObservationCount: number;
+  lastActionNudgeProviderRound: number;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -76,6 +79,9 @@ export class ProgressiveExecutionRuntime {
         verificationCount: 0,
         preDeliveryObservationCount: 0,
         consecutivePreDeliveryObservations: 0,
+        actionNudgeCount: 0,
+        lastActionNudgeObservationCount: 0,
+        lastActionNudgeProviderRound: 0,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -90,6 +96,13 @@ export class ProgressiveExecutionRuntime {
         ),
         consecutivePreDeliveryObservations: nonnegativeInteger(
           restored.consecutivePreDeliveryObservations,
+        ),
+        actionNudgeCount: nonnegativeInteger(restored.actionNudgeCount),
+        lastActionNudgeObservationCount: nonnegativeInteger(
+          restored.lastActionNudgeObservationCount,
+        ),
+        lastActionNudgeProviderRound: nonnegativeInteger(
+          restored.lastActionNudgeProviderRound,
         ),
         // Gateway jobs are scoped to the runtime session that created them.
         // A resumed model session cannot safely infer that a persisted count
@@ -247,14 +260,25 @@ export class ProgressiveExecutionRuntime {
         pressure,
       );
     }
+    const observationNudgeDue = this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
+      && this.state.consecutivePreDeliveryObservations - this.state.lastActionNudgeObservationCount
+        >= observationNudgeAfter;
+    const providerNudgeDue = this.state.actionNudgeCount === 0
+      ? this.state.providerRounds >= 1
+      : this.state.providerRounds - this.state.lastActionNudgeProviderRound >= 2;
     if (
       this.state.requiredDeliveryMissing
       && (
-        this.state.analysisOnlyRounds >= 1
-        || this.state.repeatedAnalysisRounds >= 1
-        || this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
-        || progressAge >= adaptiveProgressWindow
-        || timePressure >= 0.5
+        observationNudgeDue
+        || (
+          providerNudgeDue
+          && (
+            this.state.analysisOnlyRounds >= 1
+            || this.state.repeatedAnalysisRounds >= 1
+            || progressAge >= adaptiveProgressWindow
+            || timePressure >= 0.5
+          )
+        )
       )
     ) {
       return this.decision(
@@ -278,6 +302,14 @@ export class ProgressiveExecutionRuntime {
 
   snapshot(): ProgressiveExecutionSnapshot {
     return structuredClone(this.state);
+  }
+
+  recordActionNudge(): ProgressiveExecutionSnapshot {
+    this.state.actionNudgeCount += 1;
+    this.state.lastActionNudgeObservationCount = this.state.consecutivePreDeliveryObservations;
+    this.state.lastActionNudgeProviderRound = this.state.providerRounds;
+    this.record("progressive_action_requested");
+    return this.snapshot();
   }
 
   private progress(reason: string): void {

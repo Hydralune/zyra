@@ -1884,6 +1884,56 @@ test("progressive execution nudges after sustained pre-delivery inspection", () 
   assert.equal(stalled.snapshot.consecutivePreDeliveryObservations, 3);
   assert.equal(stalled.snapshot.verificationCount, 0);
   assert.equal(stalled.snapshot.requiredDeliveryMissing, true);
+
+  const nudged = progressive.recordActionNudge();
+  assert.equal(nudged.actionNudgeCount, 1);
+  assert.equal(nudged.lastActionNudgeObservationCount, 3);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  readResult(4);
+  readResult(5);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  readResult(6);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
+});
+
+test("progressive action nudge cadence survives checkpoint restore", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_observation_nudge_after: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    restored: {
+      version: "zyra.progressive-execution/v1",
+      providerRounds: 8,
+      preDeliveryObservationCount: 5,
+      consecutivePreDeliveryObservations: 5,
+      actionNudgeCount: 1,
+      lastActionNudgeObservationCount: 3,
+      lastActionNudgeProviderRound: 6,
+      workspaceMutationCount: 0,
+      artifactCount: 0,
+    },
+  });
+
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  progressive.observeToolResult({
+    toolCallId: "read-restored",
+    toolName: "read",
+    arguments: { path: "restored.ts" },
+    turnIndex: 9,
+    stepIndex: 0,
+    batchId: "batch-restored",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "concurrent_read_only",
+    metadata: {},
+  }, {
+    tool_call_id: "read-restored",
+    ok: true,
+    summary: "source inspected",
+    output: {},
+    artifacts: [],
+    metadata: {},
+  }, true);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {
