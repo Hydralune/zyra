@@ -188,7 +188,8 @@ export async function durableCompactionSummary(request: SummaryRequest): Promise
     "## Active objective",
     boundedCompactionText(objective, 2_500),
     "",
-    "## Durable progress and decisions",
+    "## Historical reasoning and durable progress",
+    "Reasoning snippets may include superseded plans or inspections completed by later tool outcomes; they are not an implicit to-do list.",
     ...(previous ? [previous] : []),
     ...(assistantNotes.length > 0 ? assistantNotes.map((item) => `- ${item}`) : ["- No separate assistant note was retained."]),
     "",
@@ -196,7 +197,7 @@ export async function durableCompactionSummary(request: SummaryRequest): Promise
     ...(toolOutcomes.length > 0 ? toolOutcomes.map((item) => `- ${item}`) : ["- No completed tool observation was retained."]),
     "",
     "## Open work",
-    "Continue from the durable progress above, inspect the persisted workspace diff, revalidate externally mutable claims, and finish every unverified delivery requirement.",
+    "Continue from the newest concrete conclusions and verified outcomes. Inspect the persisted diff only when its current state is not already recorded, revalidate externally mutable claims, and finish every unverified delivery requirement without repeating completed inspection.",
   ];
   const maximum = Math.max(4_000, Math.min(16_000, request.tokenBudget * 4));
   return boundedCompactionText(sections.join("\n"), maximum);

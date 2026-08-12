@@ -919,7 +919,12 @@ def _execution_prompt(
         "This bounded record carries task progress only. It transfers no "
         "permission, lease, credential, or process custody. Treat its claims "
         "as leads, revalidate anything that may have changed, and continue "
-        "from the recorded work instead of rereading the entire workspace.\n"
+        "from the recorded work instead of rereading the entire workspace. "
+        "Historical reasoning may contain planned inspections that later tool "
+        "observations already completed; it is not an implicit to-do list. "
+        "Do not repeat a recorded inspection unless changed state or missing "
+        "evidence specifically requires it. Prefer the newest concrete "
+        "conclusions and verified tool outcomes.\n"
         f"{handoff_text}"
     )
 

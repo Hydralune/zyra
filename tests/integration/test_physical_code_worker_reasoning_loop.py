@@ -153,6 +153,8 @@ def test_execution_prompt_carries_progress_without_transferring_authority() -> N
     assert "Public tests pass; start the stack." in rendered
     assert "transfers no permission, lease, credential, or process custody" in rendered
     assert "continue from the recorded work" in rendered
+    assert "it is not an implicit to-do list" in rendered
+    assert "Do not repeat a recorded inspection" in rendered
 
 
 def test_provider_failure_summary_is_bounded_and_drops_detail_values() -> None:

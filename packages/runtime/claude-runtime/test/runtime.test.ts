@@ -459,6 +459,8 @@ test("durable compaction summary keeps objective progress verification and open 
   assert.match(summary, /migrations are complete/);
   assert.match(summary, /138 passed/);
   assert.match(summary, /Open work/);
+  assert.match(summary, /not an implicit to-do list/);
+  assert.match(summary, /without repeating completed inspection/);
   assert.doesNotMatch(summary, /must-not-survive/);
   assert.doesNotMatch(summary, /db-password/);
   assert.match(summary, /\[REDACTED\]/);
