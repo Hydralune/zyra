@@ -142,6 +142,64 @@ test("DeepSeek V4 Pro profile binds an environment reference without persisting 
   assert.equal(JSON.stringify(controlPlane.credentials.list()).includes(secret), false);
 });
 
+test("configured profile reconciles a persisted credential after its model changes", (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const secret = "deepseek-test-secret";
+  const profile = deepSeekV4ProProfile();
+  controlPlane.upsertIntegration(profile.integration);
+  controlPlane.upsertProvider(profile.provider);
+  controlPlane.upsertModel(profile.model);
+  const legacy = controlPlane.registerCredential({
+    credentialId: DEEPSEEK_CREDENTIAL_ID,
+    integrationId: profile.integration.integrationId,
+    providerId: profile.provider.providerId,
+    accountId: "deepseek-local-test",
+    secretRef: `env://${DEEPSEEK_API_KEY_ENV}`,
+    fingerprint: fingerprintSecret(secret),
+    priority: 20,
+    allowedModels: ["deepseek-v4-flash"],
+    scopes: ["chat.completions"],
+    expiresAt: 9_999_999,
+    refreshAfter: 8_888_888,
+    metadata: {
+      purpose: "legacy-live-provider",
+      secret_material_persisted: false,
+    },
+  });
+
+  const migrated = installDeepSeekV4ProProfile(controlPlane, {
+    [DEEPSEEK_API_KEY_ENV]: secret,
+  }).credential;
+  assert.equal(migrated.version, legacy.version + 1);
+  assert.equal(migrated.priority, 100);
+  assert.deepEqual(migrated.allowedModels, [DEEPSEEK_V4_PRO_MODEL_ID]);
+  assert.deepEqual(migrated.scopes, ["chat.completions"]);
+  assert.equal(migrated.expiresAt, null);
+  assert.equal(migrated.refreshAfter, null);
+  assert.equal(migrated.metadata.purpose, "live-provider-smoke");
+  assert.equal(
+    controlPlane.credentials.select({
+      providerId: DEEPSEEK_PROVIDER_ID,
+      modelId: DEEPSEEK_V4_PRO_MODEL_ID,
+      requiredScopes: ["chat.completions"],
+    }).credentialId,
+    DEEPSEEK_CREDENTIAL_ID,
+  );
+  assert.throws(
+    () => controlPlane.credentials.select({
+      providerId: DEEPSEEK_PROVIDER_ID,
+      modelId: "deepseek-v4-flash",
+      requiredScopes: ["chat.completions"],
+    }),
+    (error: unknown) => error instanceof ProviderControlPlaneError && error.kind === "credential_missing",
+  );
+
+  const repeated = installDeepSeekV4ProProfile(controlPlane, {
+    [DEEPSEEK_API_KEY_ENV]: secret,
+  }).credential;
+  assert.equal(repeated.version, migrated.version);
+});
+
 test("DeepSeek V4 Pro profile fails closed when its environment secret is absent", (t) => {
   const { controlPlane } = makeControlPlane(t);
   assert.throws(

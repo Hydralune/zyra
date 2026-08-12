@@ -6,6 +6,7 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
+import { installProfileCredential } from "./credential-profile.ts";
 
 export const ZHIPU_PROVIDER_ID = "zhipu";
 export const GLM_52_MODEL_ID = "glm-5.2";
@@ -123,40 +124,24 @@ export function installGlm52Profile(
 
   const fingerprint = fingerprintSecret(apiKey);
   const secretRef = `env://${ZAI_API_KEY_ENV}`;
-  const existing = controlPlane.credentials
-    .list(ZHIPU_PROVIDER_ID)
-    .find((item) => item.credentialId === ZHIPU_CREDENTIAL_ID);
-  const credential = existing === undefined
-    ? controlPlane.registerCredential({
-        credentialId: ZHIPU_CREDENTIAL_ID,
-        integrationId: ZHIPU_INTEGRATION_ID,
-        providerId: ZHIPU_PROVIDER_ID,
-        accountId: "zhipu-local",
-        secretRef,
-        fingerprint,
-        priority: 100,
-        allowedModels: [GLM_52_MODEL_ID],
-        scopes: ["chat.completions"],
-        metadata: {
-          purpose: "glm-5.2-live-provider",
-          secret_material_persisted: false,
-          billing_mode: "pay-as-you-go",
-        },
-      })
-    : existing.fingerprint === fingerprint && existing.secretRef === secretRef
-      ? existing
-      : controlPlane.credentials.rotate(existing.credentialId, existing.version, {
-          secretRef,
-          fingerprint,
-          expiresAt: null,
-          refreshAfter: null,
-          scopes: ["chat.completions"],
-          metadata: {
-            purpose: "glm-5.2-live-provider",
-            secret_material_persisted: false,
-            billing_mode: "pay-as-you-go",
-          },
-        });
+  const credential = installProfileCredential(controlPlane, {
+    credentialId: ZHIPU_CREDENTIAL_ID,
+    integrationId: ZHIPU_INTEGRATION_ID,
+    providerId: ZHIPU_PROVIDER_ID,
+    accountId: "zhipu-local",
+    secretRef,
+    fingerprint,
+    priority: 100,
+    allowedModels: [GLM_52_MODEL_ID],
+    scopes: ["chat.completions"],
+    expiresAt: null,
+    refreshAfter: null,
+    metadata: {
+      purpose: "glm-5.2-live-provider",
+      secret_material_persisted: false,
+      billing_mode: "pay-as-you-go",
+    },
+  });
 
   return { ...profile, credential };
 }

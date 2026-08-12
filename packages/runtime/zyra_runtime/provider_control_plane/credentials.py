@@ -13,6 +13,25 @@ class ProviderCredentialPort:
     def register(self, credential: CredentialRegistration) -> dict[str, Any]:
         return dict(self.process.request("credential.register", {"credential": credential.to_wire()}) or {})
 
+    def rotate(
+        self,
+        credential_id: str,
+        *,
+        expected_version: int,
+        update: CredentialRegistration,
+    ) -> dict[str, Any]:
+        return dict(
+            self.process.request(
+                "credential.rotate",
+                {
+                    "credentialId": credential_id,
+                    "expectedVersion": expected_version,
+                    "update": update.to_wire(),
+                },
+            )
+            or {}
+        )
+
     def get(self, credential_id: str) -> dict[str, Any]:
         return dict(self.process.request("credential.get", {"credentialId": credential_id}) or {})
 

@@ -155,7 +155,17 @@ export class CredentialManager {
   rotate(
     credentialId: string,
     expectedVersion: number,
-    update: Pick<CredentialRegistration, "secretRef" | "fingerprint" | "expiresAt" | "refreshAfter" | "scopes" | "metadata">,
+    update: Pick<
+      CredentialRegistration,
+      | "secretRef"
+      | "fingerprint"
+      | "priority"
+      | "allowedModels"
+      | "expiresAt"
+      | "refreshAfter"
+      | "scopes"
+      | "metadata"
+    >,
   ): CredentialRecord {
     const current = this.require(credentialId);
     if (current.version !== expectedVersion) this.versionConflict(current, expectedVersion);
@@ -164,8 +174,12 @@ export class CredentialManager {
     return this.update(current, {
       secretRef: update.secretRef,
       fingerprint: update.fingerprint,
-      expiresAt: update.expiresAt ?? current.expiresAt,
-      refreshAfter: update.refreshAfter ?? current.refreshAfter,
+      priority: update.priority === undefined ? current.priority : update.priority,
+      allowedModels: update.allowedModels === undefined
+        ? current.allowedModels
+        : uniqueSorted(update.allowedModels),
+      expiresAt: update.expiresAt === undefined ? current.expiresAt : update.expiresAt,
+      refreshAfter: update.refreshAfter === undefined ? current.refreshAfter : update.refreshAfter,
       scopes: update.scopes === undefined ? current.scopes : uniqueSorted(update.scopes),
       metadata: update.metadata === undefined ? current.metadata : deepClone(update.metadata),
       status: "active",

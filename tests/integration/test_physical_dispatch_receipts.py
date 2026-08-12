@@ -18,7 +18,10 @@ from zyra_orchestration.deployment.provider_dispatch import (
     _LIVE_PROFILES,
     _marker_dispatch_request,
 )
-from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
+from zyra_runtime.provider_control_plane import (
+    CredentialRegistration,
+    ProviderControlPlaneClient,
+)
 from zyra_scheduler.dispatch_evidence import (
     PhysicalDispatchReceiptValidator,
     PhysicalDispatchTask,
@@ -92,6 +95,55 @@ def test_deepseek_physical_catalog_explicitly_sets_high_effort(tmp_path) -> None
         "thinking": {"type": "enabled"},
         "reasoning_effort": "high",
     }
+
+
+def test_physical_profile_rebinds_persisted_credential_after_model_change(
+    tmp_path,
+) -> None:
+    profile = _LIVE_PROFILES[(DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID)]
+    with ProviderControlPlaneClient(
+        project_root=ROOT,
+        database_path=tmp_path / "provider.sqlite3",
+    ) as client:
+        first = LiveProviderDispatchRuntime._install_profile(
+            client,
+            profile,
+            "profile-test-secret",
+        )
+        legacy = client.credentials.rotate(
+            profile.credential_id,
+            expected_version=int(first["version"]),
+            update=CredentialRegistration(
+                credential_id=profile.credential_id,
+                integration_id=profile.integration_id,
+                provider_id=profile.provider_id,
+                account_id="physical-dispatch",
+                secret_ref=f"env://{profile.api_key_env}",
+                fingerprint=str(first["fingerprint"]),
+                priority=100,
+                allowed_models=("deepseek-v4-flash",),
+                scopes=("chat.completions",),
+                metadata={
+                    "purpose": "legacy-physical-dispatch",
+                    "secret_material_persisted": False,
+                },
+            ),
+        )
+        migrated = LiveProviderDispatchRuntime._install_profile(
+            client,
+            profile,
+            "profile-test-secret",
+        )
+        repeated = LiveProviderDispatchRuntime._install_profile(
+            client,
+            profile,
+            "profile-test-secret",
+        )
+
+    assert migrated["version"] == legacy["version"] + 1
+    assert migrated["allowedModels"] == [DEEPSEEK_MODEL_ID]
+    assert migrated["scopes"] == ["chat.completions"]
+    assert repeated["version"] == migrated["version"]
 
 
 def test_physical_marker_dispatch_pins_its_initial_provider_route() -> None:

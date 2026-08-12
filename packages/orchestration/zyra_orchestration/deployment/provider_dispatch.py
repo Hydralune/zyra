@@ -700,6 +700,21 @@ class LiveProviderDispatchRuntime:
             )
         )
         fingerprint = "sha256:" + hashlib.sha256(secret.encode()).hexdigest()[:16]
+        registration = CredentialRegistration(
+            credential_id=profile.credential_id,
+            integration_id=profile.integration_id,
+            provider_id=profile.provider_id,
+            account_id="physical-dispatch",
+            secret_ref=f"env://{profile.api_key_env}",
+            fingerprint=fingerprint,
+            priority=100,
+            allowed_models=(profile.model_id,),
+            scopes=("chat.completions",),
+            metadata={
+                "purpose": "p2-physical-dispatch",
+                "secret_material_persisted": False,
+            },
+        )
         existing = next(
             (
                 item
@@ -710,7 +725,7 @@ class LiveProviderDispatchRuntime:
         )
         if existing is not None:
             if (
-                existing.get("secretRef") != f"env://{profile.api_key_env}"
+                existing.get("secretRef") != registration.secret_ref
                 or existing.get("fingerprint") != fingerprint
             ):
                 raise DispatchRejected(
@@ -719,24 +734,19 @@ class LiveProviderDispatchRuntime:
                     operation="provider_dispatch",
                     profile="cloud",
                 )
+            if (
+                tuple(existing.get("allowedModels") or ())
+                != tuple(registration.allowed_models)
+                or tuple(existing.get("scopes") or ())
+                != tuple(registration.scopes)
+            ):
+                return client.credentials.rotate(
+                    profile.credential_id,
+                    expected_version=int(existing.get("version") or 0),
+                    update=registration,
+                )
             return dict(existing)
-        return client.credentials.register(
-            CredentialRegistration(
-                credential_id=profile.credential_id,
-                integration_id=profile.integration_id,
-                provider_id=profile.provider_id,
-                account_id="physical-dispatch",
-                secret_ref=f"env://{profile.api_key_env}",
-                fingerprint=fingerprint,
-                priority=100,
-                allowed_models=(profile.model_id,),
-                scopes=("chat.completions",),
-                metadata={
-                    "purpose": "p2-physical-dispatch",
-                    "secret_material_persisted": False,
-                },
-            )
-        )
+        return client.credentials.register(registration)
 
 
 __all__ = [

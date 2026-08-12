@@ -6,6 +6,7 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
+import { installProfileCredential } from "./credential-profile.ts";
 
 export const KIMI_PLATFORM_PROVIDER_ID = "kimi-platform";
 export const KIMI_K27_CODE_MODEL_ID = "kimi-k2.7-code";
@@ -118,40 +119,24 @@ export function installKimiK27CodeProfile(
 
   const fingerprint = fingerprintSecret(apiKey);
   const secretRef = `env://${KIMI_API_KEY_ENV}`;
-  const existing = controlPlane.credentials
-    .list(KIMI_PLATFORM_PROVIDER_ID)
-    .find((item) => item.credentialId === KIMI_PLATFORM_CREDENTIAL_ID);
-  const credential = existing === undefined
-    ? controlPlane.registerCredential({
-        credentialId: KIMI_PLATFORM_CREDENTIAL_ID,
-        integrationId: KIMI_PLATFORM_INTEGRATION_ID,
-        providerId: KIMI_PLATFORM_PROVIDER_ID,
-        accountId: "kimi-platform-local",
-        secretRef,
-        fingerprint,
-        priority: 100,
-        allowedModels: [KIMI_K27_CODE_MODEL_ID],
-        scopes: ["chat.completions"],
-        metadata: {
-          purpose: "kimi-k2.7-code-live-provider",
-          secret_material_persisted: false,
-          billing_mode: "pay-as-you-go",
-        },
-      })
-    : existing.fingerprint === fingerprint && existing.secretRef === secretRef
-      ? existing
-      : controlPlane.credentials.rotate(existing.credentialId, existing.version, {
-          secretRef,
-          fingerprint,
-          expiresAt: null,
-          refreshAfter: null,
-          scopes: ["chat.completions"],
-          metadata: {
-            purpose: "kimi-k2.7-code-live-provider",
-            secret_material_persisted: false,
-            billing_mode: "pay-as-you-go",
-          },
-        });
+  const credential = installProfileCredential(controlPlane, {
+    credentialId: KIMI_PLATFORM_CREDENTIAL_ID,
+    integrationId: KIMI_PLATFORM_INTEGRATION_ID,
+    providerId: KIMI_PLATFORM_PROVIDER_ID,
+    accountId: "kimi-platform-local",
+    secretRef,
+    fingerprint,
+    priority: 100,
+    allowedModels: [KIMI_K27_CODE_MODEL_ID],
+    scopes: ["chat.completions"],
+    expiresAt: null,
+    refreshAfter: null,
+    metadata: {
+      purpose: "kimi-k2.7-code-live-provider",
+      secret_material_persisted: false,
+      billing_mode: "pay-as-you-go",
+    },
+  });
 
   return { ...profile, credential };
 }

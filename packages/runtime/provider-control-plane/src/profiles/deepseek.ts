@@ -6,6 +6,7 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
+import { installProfileCredential } from "./credential-profile.ts";
 
 export const DEEPSEEK_PROVIDER_ID = "deepseek";
 export const DEEPSEEK_V4_PRO_MODEL_ID = "deepseek-v4-pro";
@@ -108,38 +109,23 @@ export function installDeepSeekV4ProProfile(
 
   const fingerprint = fingerprintSecret(apiKey);
   const secretRef = `env://${DEEPSEEK_API_KEY_ENV}`;
-  const existing = controlPlane.credentials
-    .list(DEEPSEEK_PROVIDER_ID)
-    .find((item) => item.credentialId === DEEPSEEK_CREDENTIAL_ID);
-  const credential = existing === undefined
-    ? controlPlane.registerCredential({
-        credentialId: DEEPSEEK_CREDENTIAL_ID,
-        integrationId: DEEPSEEK_INTEGRATION_ID,
-        providerId: DEEPSEEK_PROVIDER_ID,
-        accountId: "deepseek-local-test",
-        secretRef,
-        fingerprint,
-        priority: 100,
-        allowedModels: [DEEPSEEK_V4_PRO_MODEL_ID],
-        scopes: ["chat.completions"],
-        metadata: {
-          purpose: "live-provider-smoke",
-          secret_material_persisted: false,
-        },
-      })
-    : existing.fingerprint === fingerprint && existing.secretRef === secretRef
-      ? existing
-      : controlPlane.credentials.rotate(existing.credentialId, existing.version, {
-          secretRef,
-          fingerprint,
-          expiresAt: null,
-          refreshAfter: null,
-          scopes: ["chat.completions"],
-          metadata: {
-            purpose: "live-provider-smoke",
-            secret_material_persisted: false,
-          },
-        });
+  const credential = installProfileCredential(controlPlane, {
+    credentialId: DEEPSEEK_CREDENTIAL_ID,
+    integrationId: DEEPSEEK_INTEGRATION_ID,
+    providerId: DEEPSEEK_PROVIDER_ID,
+    accountId: "deepseek-local-test",
+    secretRef,
+    fingerprint,
+    priority: 100,
+    allowedModels: [DEEPSEEK_V4_PRO_MODEL_ID],
+    scopes: ["chat.completions"],
+    expiresAt: null,
+    refreshAfter: null,
+    metadata: {
+      purpose: "live-provider-smoke",
+      secret_material_persisted: false,
+    },
+  });
 
   return { ...profile, credential };
 }

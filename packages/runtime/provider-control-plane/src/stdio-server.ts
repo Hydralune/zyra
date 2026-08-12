@@ -183,6 +183,13 @@ export class ProviderControlPlaneRpcServer {
       case "credential.register":
         rejectSecretBytes(payload);
         return this.controlPlane.registerCredential(payload.credential as unknown as CredentialRegistration);
+      case "credential.rotate":
+        rejectSecretBytes(payload);
+        return this.controlPlane.credentials.rotate(
+          String(payload.credentialId ?? ""),
+          requiredInteger(payload.expectedVersion, "expectedVersion"),
+          payload.update as unknown as CredentialRegistration,
+        );
       case "credential.get":
         return this.controlPlane.credentials.get(String(payload.credentialId ?? ""));
       case "credential.list":
