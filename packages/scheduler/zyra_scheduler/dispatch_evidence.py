@@ -62,6 +62,26 @@ _PRIVACY_TO_SENSITIVITY = {
 }
 
 
+def _physical_dispatch_idempotency_key(
+    context: OperatorLeaseExecutionContext,
+    location: str,
+) -> str:
+    """Bind node replay to one fenced physical attempt.
+
+    The operator key identifies the logical work and deliberately survives
+    recovery.  A deployment-node result, however, belongs to one WorkerPool
+    attempt.  Reusing only the logical key after a terminal retry-safe failure
+    makes a successor replay its predecessor's cached failure instead of
+    executing.  The attempt id preserves exact-attempt replay while giving a
+    fenced successor a fresh node dispatch identity.
+    """
+
+    return (
+        f"physical:{context.operator_idempotency_key}:"
+        f"{context.attempt_id}:{location}"
+    )
+
+
 def _observed_process_snapshot(
     manager: DeploymentProcessManager,
     profile: DeploymentProfile,
@@ -1059,7 +1079,7 @@ class PhysicalDispatchCallPort:
             preferred_provider=(self.task.provider_id if provider_required else ""),
             preferred_model=(self.task.model_id if provider_required else ""),
             idempotency_key=(
-                f"physical:{context.operator_idempotency_key}:{location}"
+                _physical_dispatch_idempotency_key(context, location)
             ),
         )
         alternatives = tuple(

@@ -15,6 +15,7 @@ from zyra_orchestration.topology_policy.production import (
     _PhysicalLeaseHeartbeat,
     _physical_dispatch_payload_binding,
 )
+from zyra_scheduler.dispatch_evidence import _physical_dispatch_idempotency_key
 
 
 class _HeartbeatStore:
@@ -144,6 +145,25 @@ def test_physical_payload_binding_rejects_wrong_origin_commitment() -> None:
     _, origin_bound = _physical_dispatch_payload_binding(port, operator_task)
 
     assert origin_bound is False
+
+
+def test_physical_dispatch_idempotency_is_stable_only_within_one_attempt() -> None:
+    first = SimpleNamespace(
+        operator_idempotency_key="logical-operator-key",
+        attempt_id="attempt-1",
+    )
+    successor = SimpleNamespace(
+        operator_idempotency_key="logical-operator-key",
+        attempt_id="attempt-2",
+    )
+
+    first_key = _physical_dispatch_idempotency_key(first, "cloud")
+
+    assert first_key == _physical_dispatch_idempotency_key(first, "cloud")
+    assert first_key != _physical_dispatch_idempotency_key(successor, "cloud")
+    assert first_key != _physical_dispatch_idempotency_key(first, "edge")
+    assert "logical-operator-key" in first_key
+    assert "attempt-1" in first_key
 
 
 def test_immutable_json_array_is_valid_delivery_evidence() -> None:
