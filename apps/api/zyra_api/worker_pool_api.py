@@ -1072,13 +1072,15 @@ class WorkerPoolApiService:
         if lease.lease_id == str(before.get("lease_id") or ""):
             return None
         attempt = self.pool.store.require_attempt(lease.attempt_id)
+        projected_attempt_id = str(before.get("attempt_id") or "")
         if (
             attempt.task_id != state.task_id
             or attempt.run_id != state.run_id
-            or (
-                attempt.parent_attempt_id
-                and attempt.parent_attempt_id
-                != str(before.get("attempt_id") or "")
+            or not self._attempt_descends_from(
+                attempt_id=attempt.attempt_id,
+                ancestor_attempt_id=projected_attempt_id,
+                task_id=state.task_id,
+                run_id=state.run_id,
             )
         ):
             raise RuntimeError(
@@ -1208,6 +1210,56 @@ class WorkerPoolApiService:
             "terminal": lease.terminal,
             "projection_applied": projection_applied,
         }
+
+    def _attempt_descends_from(
+        self,
+        *,
+        attempt_id: str,
+        ancestor_attempt_id: str,
+        task_id: str,
+        run_id: str,
+    ) -> bool:
+        """Prove that one physical attempt is a later member of a known lineage.
+
+        GraphStateCustody can durably advance through several recovery attempts
+        before the older TaskState projection is checkpointed.  Recovery must
+        therefore accept any verified descendant, not only a direct child.  A
+        decreasing attempt number bounds the walk and rejects cycles, siblings,
+        missing ancestors, and cross-task/run references without trusting the
+        graph binding alone.
+        """
+
+        if not attempt_id or not ancestor_attempt_id:
+            return False
+        current = self.pool.store.get_attempt(attempt_id)
+        if current is None:
+            return False
+        seen: set[str] = set()
+        remaining = max(1, int(current.attempt_number))
+        while remaining > 0:
+            if (
+                current.attempt_id in seen
+                or current.task_id != task_id
+                or current.run_id != run_id
+            ):
+                return False
+            seen.add(current.attempt_id)
+            parent_id = str(current.parent_attempt_id or "")
+            if not parent_id or parent_id in seen:
+                return False
+            parent = self.pool.store.get_attempt(parent_id)
+            if (
+                parent is None
+                or parent.task_id != task_id
+                or parent.run_id != run_id
+                or parent.attempt_number >= current.attempt_number
+            ):
+                return False
+            if parent.attempt_id == ancestor_attempt_id:
+                return True
+            current = parent
+            remaining -= 1
+        return False
 
     def recover_task_acquisition_from_graph(
         self,

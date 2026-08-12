@@ -389,6 +389,86 @@ def test_task_resume_recovers_graph_successor_missing_from_task_checkpoint(
         assert rebound.state.value == "cancelled"
 
 
+def test_task_resume_recovers_multi_hop_graph_successor(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Recover several durable successors.", "auto_run": False},
+        )["task"]
+        state = api_main.get_store().load_task(task["task_id"])
+        assert state is not None
+        pool_api = api_main.get_worker_pool_api()
+        original = dict(state.metadata["worker_pool"])
+
+        for index in range(2):
+            current = dict(state.metadata["worker_pool"])
+            pool_api.pool.leases.expire(
+                current["lease_id"],
+                reason=f"controlled reservation expiry {index}",
+            )
+            pool_api.reconcile_task_graph_binding(
+                state,
+                reason=f"controlled reservation expiry {index}",
+                actor_id="test-worker-pool",
+                causation_id=f"test-multi-hop-expiry-{index}",
+            )
+            successor = pool_api.ensure_task_lease(
+                state,
+                payload={
+                    "idempotency_key": f"multi-hop-successor-{index}",
+                },
+            )
+            assert successor is not None
+
+        newest = dict(state.metadata["worker_pool"])
+        assert newest["attempt_number"] == original["attempt_number"] + 2
+        assert pool_api._attempt_descends_from(
+            attempt_id=newest["attempt_id"],
+            ancestor_attempt_id=original["attempt_id"],
+            task_id=state.task_id,
+            run_id=state.run_id,
+        )
+        assert not pool_api._attempt_descends_from(
+            attempt_id=newest["attempt_id"],
+            ancestor_attempt_id="attempt_unrelated_sibling",
+            task_id=state.task_id,
+            run_id=state.run_id,
+        )
+        assert not pool_api._attempt_descends_from(
+            attempt_id=newest["attempt_id"],
+            ancestor_attempt_id=original["attempt_id"],
+            task_id="task_from_another_lineage",
+            run_id=state.run_id,
+        )
+
+        # Model two WorkerPool + GraphStateCustody commits followed by process
+        # loss before either newer attempt reached the TaskState checkpoint.
+        state.metadata["worker_pool"] = original
+
+        fenced_lease_id = api_main._fence_pending_task_reservation(
+            pool_api,
+            state,
+            reason="resume after multi-hop process loss",
+        )
+
+        assert fenced_lease_id == newest["lease_id"]
+        assert state.metadata["worker_pool"]["attempt_id"] == newest["attempt_id"]
+        assert state.metadata["worker_pool"]["lease_id"] == newest["lease_id"]
+        current_graph = pool_api.graph_custody.current(
+            state.metadata["dynamic_graph_id"]
+        )
+        rebound = next(
+            node
+            for node in current_graph.nodes
+            if node.physical_attempt_ref == newest["attempt_id"]
+        )
+        assert rebound.worker_lease_ref == newest["lease_id"]
+        assert rebound.state.value == "cancelled"
+
+
 def test_explicit_resume_reopens_recoverable_failed_execution() -> None:
     state, _created = api_main.make_task_created_event(
         "Resume a failed physical execution from its durable recovery plan."
