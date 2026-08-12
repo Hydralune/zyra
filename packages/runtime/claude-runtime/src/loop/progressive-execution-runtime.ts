@@ -304,6 +304,17 @@ export class ProgressiveExecutionRuntime {
     return structuredClone(this.state);
   }
 
+  inspectionCircuitOpen(): boolean {
+    const maximumNudges = boundedInteger(
+      this.constraints.pre_delivery_inspection_block_after_nudges,
+      4,
+      2,
+      16,
+    );
+    return this.state.requiredDeliveryMissing
+      && this.state.actionNudgeCount >= maximumNudges;
+  }
+
   recordActionNudge(): ProgressiveExecutionSnapshot {
     this.state.actionNudgeCount += 1;
     this.state.lastActionNudgeObservationCount = this.state.consecutivePreDeliveryObservations;

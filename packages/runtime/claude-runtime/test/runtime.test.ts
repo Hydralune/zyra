@@ -21,7 +21,7 @@ import {
 } from "../src/provider-control-plane-runtime.ts";
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
 import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
-import { durableCompactionSummary } from "../src/query-engine.ts";
+import { durableCompactionSummary, isClearlyPreDeliveryInspection } from "../src/query-engine.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -1710,6 +1710,76 @@ test("required delivery redirects repeated read-only inspection into execution",
   }
 });
 
+test("required delivery circuit declines further inspection and accepts the next edit", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount <= 5
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `circuit-read-${requestCount}`,
+            type: "function",
+            function: { name: "read", arguments: JSON.stringify({ path: `source-${requestCount}.ts` }) },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 6
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "circuit-write",
+              type: "function",
+              function: { name: "write", arguments: '{"path":"result.txt","content":"delivered"}' },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : { index: 0, delta: { content: "Implemented and verified." }, finish_reason: "stop" };
+    return new Response(`data: ${JSON.stringify({
+      id: `inspection-circuit-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          pre_delivery_observation_nudge_after: 2,
+          pre_delivery_inspection_block_after_nudges: 2,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 7);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["read", "read", "read", "read", "write"],
+    );
+    assert.ok(host.events.some((event) => event.phase === "pre_delivery_inspection_blocked"));
+    assert.equal(result.metadata.progressive_action_nudges, "2");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("progressive execution requests action after analysis-only loops and records delivery", () => {
   let clock = 1_000;
   const progressive = new ProgressiveExecutionRuntime({
@@ -1934,6 +2004,31 @@ test("progressive action nudge cadence survives checkpoint restore", () => {
     metadata: {},
   }, true);
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
+});
+
+test("pre-delivery inspection circuit opens after repeated durable nudges", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+  progressive.recordActionNudge();
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+});
+
+test("pre-delivery inspection classifier blocks reads but permits delivery and verification", () => {
+  const shell = (command: string) => ({ tool_name: "shell", arguments: { command } });
+  assert.equal(isClearlyPreDeliveryInspection(shell("cat src/app.ts && git diff --stat"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("find src -type f | xargs grep -n TODO 2>/dev/null | head"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker compose ps && docker compose config --services"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("cat > src/app.ts <<'EOF'\nchanged\nEOF"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python -m pytest tests"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
+  assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {

@@ -368,7 +368,6 @@ export class ClaudeRuntimeCore {
     let repeatedToolFailureCount = 0;
     let consecutiveInvalidArgumentFailures = 0;
     let invalidArgumentRetryTrips = 0;
-    let progressiveActionNudges = 0;
     let ok = true;
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
@@ -466,7 +465,6 @@ export class ClaudeRuntimeCore {
           && continuationTools.length > 0
           && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit)
         ) {
-          progressiveActionNudges += 1;
           const nudgedProgress = progressive.recordActionNudge();
           iteration.rejectProviderRoundForRetry(round.roundId, "progressive_action_required");
           providerMessages = [
@@ -1079,6 +1077,32 @@ export class ClaudeRuntimeCore {
                 conflict_protected: String(conflictProtected),
               },
             });
+          } else if (
+            progressive.inspectionCircuitOpen()
+            && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Pre-delivery inspection circuit is open; this read-only action was not executed.",
+              output: {
+                guidance: [
+                  "Use the concrete evidence already gathered and make the next workspace edit.",
+                  "A build, test, or real service command is also allowed when it directly drives that edit.",
+                  "Further broad inspection becomes available after a committed delivery or in a fresh task phase.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "pre_delivery_inspection_budget_exhausted",
+              metadata: {
+                canonical_owner: "typescript",
+                pre_delivery_inspection_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
           } else {
             hostRequests.push({
               toolCallId,
@@ -1183,6 +1207,17 @@ export class ClaudeRuntimeCore {
           result = budgeted.result;
           const invalidArguments = result.error === "schema_error"
             || result.error === "tool_schema_validation_failed";
+          if (result.error === "pre_delivery_inspection_budget_exhausted") {
+            await emit("pre_delivery_inspection_blocked", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              tool_name: step.tool_name,
+              action_nudges: progressive.snapshot().actionNudgeCount,
+              consecutive_pre_delivery_observations:
+                progressive.snapshot().consecutivePreDeliveryObservations,
+            });
+          }
           if (invalidArguments) toolSchemaErrors += 1;
           consecutiveInvalidArgumentFailures = invalidArguments
             ? consecutiveInvalidArgumentFailures + 1
@@ -1396,6 +1431,8 @@ export class ClaudeRuntimeCore {
               : result.error || "tool_error";
             const failureRoute = failureKind === "permission_denied"
               ? "permission_runtime"
+              : failureKind === "pre_delivery_inspection_budget_exhausted"
+                ? "progressive_execution"
               : failureKind === "tool_schema_validation_failed" || failureKind === "schema_error"
                 ? "repair_tool_arguments"
                 : "recovery_planner";
@@ -2002,7 +2039,6 @@ export class ClaudeRuntimeCore {
         if (
           postToolProgressDecision.action === "nudge_action"
         ) {
-          progressiveActionNudges += 1;
           const nudgedProgress = progressive.recordActionNudge();
           providerMessages = [
             ...providerMessages,
@@ -2264,7 +2300,7 @@ export class ClaudeRuntimeCore {
         progressive_last_progress_age_ms: String(
           Math.max(0, Date.now() - progressiveState.lastEffectiveProgressAt),
         ),
-        progressive_action_nudges: String(progressiveActionNudges),
+        progressive_action_nudges: String(progressiveState.actionNudgeCount),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -2303,6 +2339,51 @@ function mutationTarget(step: { tool_name: string; arguments: JsonObject }): str
     return "workspace_path:" + path.replaceAll("\\", "/").toLowerCase();
   }
   return step.tool_name + ":" + JSON.stringify(step.arguments);
+}
+
+export function isClearlyPreDeliveryInspection(
+  step: { tool_name: string; arguments: JsonObject },
+  readOnly: boolean,
+): boolean {
+  if (step.tool_name === "shell_wait") return false;
+  if (readOnly) return true;
+  if (step.tool_name !== "shell") return false;
+  return isClearlyReadOnlyShellCommand(asString(step.arguments.command));
+}
+
+function isClearlyReadOnlyShellCommand(value: string): boolean {
+  let command = value.trim();
+  if (!command) return false;
+  command = command
+    .replace(/\b(?:\d?>|&>)\s*(?:\/dev\/null|nul)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Any remaining output redirection or an interpreter can create arbitrary
+  // state, so let the governed shell and its normal permission policy decide.
+  if (/(?:^|\s)(?:>>|>|<<)(?!\s*(?:\/dev\/null|nul)\b)/i.test(command)) return false;
+  if (/\b(?:python(?:3)?|node|bun|deno|ruby|perl|pwsh|powershell|cmd(?:\.exe)?)\b/i.test(command)) return false;
+  if (/\b(?:apply_patch|patch|tee|touch|mkdir|rmdir|rm|mv|cp|install|chmod|chown)\b/i.test(command)) return false;
+  if (/\b(?:pytest|unittest|npm|npx|pnpm|yarn|cargo|go|gradle|mvn|make|cmake)\b/i.test(command)) return false;
+  if (/\bgit\s+(?:add|commit|checkout|switch|restore|reset|merge|rebase|apply|am|clean|push|pull|fetch)\b/i.test(command)) return false;
+  if (/\bdocker(?:\.exe)?\s+(?:run|exec|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(command)) return false;
+  if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bexec\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(command)) return false;
+  if (/\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b/i.test(command)) return false;
+
+  const segments = command
+    .split(/(?:&&|\|\||[;|\n])/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return false;
+  return segments.every((segment) => {
+    const normalized = segment
+      .replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*/, "")
+      .replace(/^sudo\s+/, "")
+      .trim();
+    return /^(?:cd|pwd|ls|dir|cat|head|tail|less|more|grep|egrep|fgrep|rg|find|fd|stat|file|wc|which|where|type|echo|printf|sort|uniq|cut|awk|jq|xargs\s+(?:cat|head|tail|grep|egrep|fgrep|rg)|test|true|false|get-content|get-childitem|select-string|resolve-path|test-path)\b/i.test(normalized)
+      || /^git\s+(?:status|diff|log|show|branch|rev-parse|ls-files|grep)\b/i.test(normalized)
+      || /^docker(?:\.exe)?\s+(?:ps|inspect|logs|images|info|version|stats|top)\b/i.test(normalized)
+      || /^docker(?:\.exe)?\s+compose\b[^;&|]*\b(?:ps|config|logs|images|top)\b/i.test(normalized);
+  });
 }
 
 function providerOutputWasLengthTruncated(model: ModelStreamResolution): boolean {
