@@ -15,12 +15,12 @@ import { TerminalPrompt } from "../input/terminal-prompt.ts"
 import { LineTranscriptRenderer } from "../render/line-renderer.ts"
 import { SessionProjection } from "../session/projection.ts"
 import type { TerminalNodeStatus } from "../terminal/server.ts"
-import type { CommandOutcome } from "../runner.ts"
+import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 
 const LOCAL_COMMANDS = ["/help", "/exit", "/edit", "/restore", "/cancel-draft", ...ACTIVE_CONTROL_COMMANDS] as const
 
 function terminalTask(task: TaskProjection): boolean {
-  return task.terminal || ["completed", "failed", "cancelled", "killed"].includes(task.status)
+  return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
 }
 
 function recoveryNeedsSnapshot(error: unknown): boolean {
@@ -174,14 +174,29 @@ export async function observeTask(input: {
     input.stderr.write("active controls · /help lists queue, control, recovery, and permission actions\n")
   }
   let runSettled = false
-  let runResult: Promise<unknown> | undefined
+  type RunOutcome =
+    | { ok: true; value: Awaited<ReturnType<CliApi["runTask"]>> }
+    | { ok: false; error: unknown }
+  let runOutcome: RunOutcome | undefined
+  let runResult: Promise<RunOutcome> | undefined
+  let mutationDetachReported = false
+  let detachedSettlement: TaskProjection | undefined
   // `zyra resume` is an explicit request to reacquire task execution, not
   // merely to attach to the event stream.  A daemon/process loss can leave
   // the durable task projection at `running` even though its in-process
   // execution owner no longer exists.  The task-run endpoint owns fencing
   // the stale reservation and restoring the physical continuation.
   if (input.resume || ["pending", "paused", "interrupted"].includes(input.task.status)) {
-    runResult = input.api.runTask(input.task, input.signal).finally(() => { runSettled = true })
+    runResult = input.api.runTask(input.task, input.signal)
+      .then(
+        (value): RunOutcome => ({ ok: true, value }),
+        (error: unknown): RunOutcome => ({ ok: false, error }),
+      )
+      .then((outcome) => {
+        runOutcome = outcome
+        return outcome
+      })
+      .finally(() => { runSettled = true })
   }
   if (terminal && controls && permissions && input.stderr) {
     controlsPromise = runActiveControlLoop({ terminal, controls, permissions, stderr: input.stderr, signal: input.signal })
@@ -225,7 +240,31 @@ export async function observeTask(input: {
         // A completed mutation response is canonical server state. One SSE
         // window that closes after it settles is the bounded final drain; the
         // final task read below validates terminal state without polling.
-        if (runSettled && closedCursor) break
+        if (runSettled && closedCursor) {
+          const detached = runOutcome?.ok === false
+            && mutationTransportDetached(runOutcome.error)
+          if (!detached) break
+          if (!mutationDetachReported) {
+            mutationDetachReported = true
+            projection.recovering("mutation_transport_detached")
+            renderer.recovery({
+              reason: "mutation transport detached; observing canonical task state without replay",
+              cursor,
+              generation: capabilities.generation,
+              snapshot: false,
+            })
+            projection.connected()
+          }
+          // The POST may still own a live physical dispatch. Never replay it:
+          // retain SSE as the progress channel and use the canonical task read
+          // only to recognize settlement when a failure path has no dedicated
+          // runtime.task.* terminal frame.
+          const observed = await input.api.task(input.task.taskId)
+          if (terminalTask(observed)) {
+            detachedSettlement = observed
+            break
+          }
+        }
         if (windows > 10_000) throw new CliTaskError("Interactive stream exceeded its bounded reconnect window.", "event_stream_budget")
       } catch (error) {
         if (input.signal.aborted) throw input.signal.reason
@@ -277,8 +316,11 @@ export async function observeTask(input: {
       }
     }
     if (input.signal.aborted) throw input.signal.reason
-    await runResult
-    const finalTask = await input.api.task(input.task.taskId)
+    const settledRun = await runResult
+    if (settledRun?.ok === false && !mutationTransportDetached(settledRun.error)) {
+      throw settledRun.error
+    }
+    const finalTask = detachedSettlement ?? await input.api.task(input.task.taskId)
     if (!terminalTask(finalTask)) {
       throw new CliTaskError("Task mutation settled without a canonical terminal state.", "task_terminal_state_missing")
     }

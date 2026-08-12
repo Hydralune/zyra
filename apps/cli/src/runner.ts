@@ -48,7 +48,7 @@ interface EventAccumulator {
 
 const SETTLEMENT_PROBE_INTERVAL_MS = 250
 
-function mutationTransportDetached(error: unknown): boolean {
+export function mutationTransportDetached(error: unknown): boolean {
   return error instanceof RequestCancelledError || (
     error instanceof ZyraApiError
     && (error.category === "disconnect" || error.category === "timeout")

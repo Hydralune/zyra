@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
-import { ServerSentEventDecoder } from "@zyra/typed-api-client"
+import { ServerSentEventDecoder, TransportDisconnectedError } from "@zyra/typed-api-client"
 import type { TaskProjection } from "@zyra/typed-api-client"
 import { parseCliArgs } from "../src/args.ts"
 import { CliApi, type IngressFrame } from "../src/api.ts"
@@ -283,6 +283,59 @@ describe("FE-S02 bounded canonical observation", () => {
     expect(runCalls).toBe(1)
     expect(result.exitCode).toBe(0)
     expect(output.text).toContain("000002")
+  })
+
+  test("explicit resume observes canonical settlement after mutation headers detach", async () => {
+    const output = new Capture(120, false)
+    let runCalls = 0
+    let streamCalls = 0
+    const running = {
+      taskId: "task_test",
+      runId: "run_test",
+      status: "running",
+      terminal: false,
+    } as TaskProjection
+    const completed = {
+      ...running,
+      status: "completed",
+      terminal: true,
+    } as TaskProjection
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: "task_test", generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        runCalls += 1
+        throw new TransportDisconnectedError("fetch failed: headers timeout")
+      },
+      async *streamIngress() {
+        streamCalls += 1
+        if (streamCalls === 1) {
+          yield { kind: "close", taskId: "task_test", generation: 1, sequence: 0, cursor: "cursor_0" }
+          return
+        }
+        yield { kind: "event", taskId: "task_test", generation: 1, sequence: 1, frame: frame(1, "runtime.task.completed") }
+        yield { kind: "close", taskId: "task_test", generation: 1, sequence: 1, cursor: "cursor_1" }
+      },
+      async task() { return streamCalls >= 2 ? completed : running },
+    } as unknown as CliApi
+
+    const result = await observeTask({
+      api,
+      task: running,
+      cwd: "G:\\agent-zoo",
+      output,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(runCalls).toBe(1)
+    expect(streamCalls).toBe(2)
+    expect(output.text).toContain("mutation transport detached")
   })
 
   test("rejects a missing stream cursor before transport access", async () => {
