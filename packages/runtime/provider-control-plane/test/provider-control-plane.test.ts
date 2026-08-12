@@ -22,9 +22,9 @@ import {
   DEEPSEEK_API_KEY_ENV,
   DEEPSEEK_CREDENTIAL_ID,
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_FLASH_MODEL_ID,
-  deepSeekV4FlashProfile,
-  installDeepSeekV4FlashProfile,
+  DEEPSEEK_V4_PRO_MODEL_ID,
+  deepSeekV4ProProfile,
+  installDeepSeekV4ProProfile,
 } from "../src/profiles/deepseek.ts";
 import {
   KIMI_API_KEY_ENV,
@@ -109,31 +109,31 @@ function makeControlPlane(
   return { controlPlane, secrets };
 }
 
-test("DeepSeek V4 Flash profile binds an environment reference without persisting secret bytes", (t) => {
+test("DeepSeek V4 Pro profile binds an environment reference without persisting secret bytes", (t) => {
   const { controlPlane } = makeControlPlane(t);
   const secret = "deepseek-test-secret";
-  const installed = installDeepSeekV4FlashProfile(controlPlane, {
+  const installed = installDeepSeekV4ProProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: secret,
   });
-  const profile = deepSeekV4FlashProfile();
+  const profile = deepSeekV4ProProfile();
 
   assert.equal(profile.provider.baseUrl, "https://api.deepseek.com");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
   assert.equal(profile.provider.metadata.routing_priority, 300);
-  assert.equal(profile.model.modelId, "deepseek-v4-flash");
-  assert.equal(profile.model.displayName, "DeepSeek V4 Flash 0731");
-  assert.equal(profile.model.releasedAt, Date.UTC(2026, 6, 31));
-  assert.equal(profile.model.metadata.model_version, "DeepSeek-V4-Flash-0731");
+  assert.equal(profile.model.modelId, "deepseek-v4-pro");
+  assert.equal(profile.model.displayName, "DeepSeek V4 Pro 0813");
+  assert.equal(profile.model.releasedAt, Date.UTC(2026, 7, 13));
+  assert.equal(profile.model.metadata.model_version, "DeepSeek-V4-Pro-0813");
   assert.deepEqual(profile.model.pricing, [{
-    inputPerMillion: 0.14,
-    outputPerMillion: 0.28,
-    cachedInputPerMillion: 0.0028,
+    inputPerMillion: 0.435,
+    outputPerMillion: 0.87,
+    cachedInputPerMillion: 0.003625,
     currency: "USD",
   }]);
   assert.equal(profile.model.endpointPath, "/chat/completions");
   assert.equal(profile.provider.requestDefaults.thinking, undefined);
-  assert.deepEqual(profile.model.requestDefaults.thinking, { type: "disabled" });
+  assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
   assert.equal(installed.credential.credentialId, DEEPSEEK_CREDENTIAL_ID);
   assert.equal(installed.credential.secretRef, `env://${DEEPSEEK_API_KEY_ENV}`);
   assert.notEqual(installed.credential.fingerprint, secret);
@@ -141,10 +141,10 @@ test("DeepSeek V4 Flash profile binds an environment reference without persistin
   assert.equal(JSON.stringify(controlPlane.credentials.list()).includes(secret), false);
 });
 
-test("DeepSeek V4 Flash profile fails closed when its environment secret is absent", (t) => {
+test("DeepSeek V4 Pro profile fails closed when its environment secret is absent", (t) => {
   const { controlPlane } = makeControlPlane(t);
   assert.throws(
-    () => installDeepSeekV4FlashProfile(controlPlane, {}),
+    () => installDeepSeekV4ProProfile(controlPlane, {}),
     new RegExp(`${DEEPSEEK_API_KEY_ENV} is required`),
   );
   assert.deepEqual(controlPlane.catalog.providers(), []);
@@ -223,7 +223,7 @@ test("default provider routing prefers DeepSeek, then GLM, with Kimi last", (t) 
   const { controlPlane } = makeControlPlane(t);
   installGlm52Profile(controlPlane, { [ZAI_API_KEY_ENV]: "zhipu-secret" });
   installKimiK27CodeProfile(controlPlane, { [KIMI_API_KEY_ENV]: "kimi-secret" });
-  installDeepSeekV4FlashProfile(controlPlane, {
+  installDeepSeekV4ProProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: "deepseek-secret",
   });
 
@@ -235,7 +235,7 @@ test("default provider routing prefers DeepSeek, then GLM, with Kimi last", (t) 
   };
   const first = controlPlane.acquireRoute(unconstrained);
   assert.equal(first.providerId, DEEPSEEK_PROVIDER_ID);
-  assert.equal(first.modelId, DEEPSEEK_V4_FLASH_MODEL_ID);
+  assert.equal(first.modelId, DEEPSEEK_V4_PRO_MODEL_ID);
 
   const withoutDeepSeek: RouteRequest = {
     ...unconstrained,
@@ -306,13 +306,13 @@ test("RPC installs configured live profiles in the fixed preference order withou
   assert.deepEqual(
     result.installed.map((item) => `${item.providerId}/${item.modelId}`),
     [
-      `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_PRO_MODEL_ID}`,
       `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
       `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
     ],
   );
   assert.deepEqual(result.preferenceOrder, [
-    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_PRO_MODEL_ID}`,
     `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
     `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
   ]);

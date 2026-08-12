@@ -294,7 +294,7 @@ test("provider route renewal accepts a verified multi-hop pinned lineage", () =>
     purpose: "reason",
     catalogRevision: 7,
     providerId: "deepseek",
-    modelId: "deepseek-v4-flash",
+    modelId: "deepseek-v4-pro",
     credentialId: "credential-route",
     credentialVersion: 3,
     credentialFingerprint: "sha256:credential",

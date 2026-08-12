@@ -15,6 +15,7 @@ from zyra_orchestration.deployment.provider_dispatch import (
     PROVIDER_PRIORITY,
     ZHIPU_PROVIDER_ID,
     _LIVE_PROFILES,
+    _marker_dispatch_request,
 )
 from zyra_scheduler.dispatch_evidence import (
     PhysicalDispatchReceiptValidator,
@@ -58,6 +59,33 @@ def test_kimi_pricing_has_conservative_nonzero_usd_budget_normalization() -> Non
     assert profile.normalized_pricing_source == (
         "zyra://pricing/conservative-cny-as-usd-upper-bound"
     )
+
+
+def test_deepseek_profile_uses_current_pro_version_and_pricing() -> None:
+    profile = _LIVE_PROFILES[(DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID)]
+
+    assert profile.model_display_name == "DeepSeek V4 Pro 0813"
+    assert profile.model_version == "DeepSeek-V4-Pro-0813"
+    assert profile.context_window == 1_000_000
+    assert profile.maximum_output_tokens == 384_000
+    assert profile.input_per_million == 0.435
+    assert profile.cached_input_per_million == 0.003625
+    assert profile.output_per_million == 0.87
+
+
+def test_physical_marker_dispatch_pins_its_initial_provider_route() -> None:
+    request = _marker_dispatch_request(
+        request_id="request",
+        route_id="route",
+        run_id="run",
+        task_id="task",
+        node_id="node",
+        marker="MARKER",
+        idempotency_key="idempotency",
+        payload_digest="sha256:payload",
+    )
+
+    assert request.to_wire()["routeFallbackPolicy"] == "pin_initial_route"
 
 
 @pytest.mark.parametrize("location", ("local", "edge"))
@@ -242,11 +270,11 @@ def test_physical_dispatch_defaults_to_deepseek() -> None:
     )
 
     assert task.provider_id == "deepseek"
-    assert task.model_id == "deepseek-v4-flash"
+    assert task.model_id == "deepseek-v4-pro"
 
 
-def test_physical_dispatch_priority_uses_deepseek_flash_before_kimi() -> None:
-    assert DEEPSEEK_MODEL_ID == "deepseek-v4-flash"
+def test_physical_dispatch_priority_uses_deepseek_pro_before_kimi() -> None:
+    assert DEEPSEEK_MODEL_ID == "deepseek-v4-pro"
     assert PROVIDER_PRIORITY == (
         (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
         (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),

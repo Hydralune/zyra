@@ -947,7 +947,7 @@ class SealedLongRunValidator:
             for item in external
         ) != (
             ("zhipu", "glm-5.2"),
-            ("deepseek", "deepseek-v4-flash"),
+            ("deepseek", "deepseek-v4-pro"),
             ("kimi-platform", "kimi-k2.7-code"),
         ) or any(
             item.get("authenticated") is not True
@@ -1461,7 +1461,7 @@ class SealedLongRunValidator:
         )
         if model_order != (
             ("zhipu", "glm-5.2"),
-            ("deepseek", "deepseek-v4-flash"),
+            ("deepseek", "deepseek-v4-pro"),
             ("kimi-platform", "kimi-k2.7-code"),
         ) or any(
             item.get("authenticated") is not True

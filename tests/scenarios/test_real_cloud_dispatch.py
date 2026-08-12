@@ -96,7 +96,7 @@ def test_cloud_fallback_prefers_deepseek_before_kimi(tmp_path) -> None:
         provider = dict(harness.physical_port.receipts[0].provider_evidence)
 
         assert provider["provider_id"] == "deepseek"
-        assert provider["model_id"] == "deepseek-v4-flash"
+        assert provider["model_id"] == "deepseek-v4-pro"
         assert provider["credential_ref"] == "env://DEEPSEEK_API_KEY"
         assert provider["credential_material_persisted"] is False
         assert provider["marker_verified"] is True

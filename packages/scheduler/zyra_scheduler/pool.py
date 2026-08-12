@@ -43,7 +43,7 @@ def default_worker_manifests() -> list[WorkerManifest]:
             tools=["file_read", "file_write", "shell", "trace", "checkpoint", "artifact_write", "web_search"],
             models=[
                 "zhipu/glm-5.2",
-                "deepseek/deepseek-v4-flash",
+                "deepseek/deepseek-v4-pro",
                 "kimi-platform/kimi-k2.7-code",
             ],
             sandbox="deployment-node-plus-workspace-permission-gateway",

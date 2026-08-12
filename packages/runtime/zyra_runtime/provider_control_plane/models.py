@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 
 class ProviderProtocol(StrEnum):
@@ -264,6 +264,9 @@ class ProviderDispatchRequest:
     task_id: str
     session_id: str
     turn_id: str
+    route_fallback_policy: Literal[
+        "allow_route_change", "pin_initial_route"
+    ]
     messages: Sequence[DispatchMessage]
     node_id: str | None = None
     tools: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
@@ -286,6 +289,7 @@ class ProviderDispatchRequest:
             "sessionId": self.session_id,
             "turnId": self.turn_id,
             "messages": [item.to_wire() for item in self.messages],
+            "routeFallbackPolicy": self.route_fallback_policy,
             "tools": [dict(item) for item in self.tools],
             "maximumOutputTokens": self.maximum_output_tokens,
             "temperature": self.temperature,

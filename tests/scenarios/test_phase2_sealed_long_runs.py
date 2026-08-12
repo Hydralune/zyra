@@ -970,7 +970,7 @@ def test_marker_request_external_http_body_excludes_control_plane_metadata(
             ),
         }
     ]
-    assert body["max_completion_tokens"] == MARKER_MAXIMUM_OUTPUT_TOKENS
+    assert body["max_tokens"] == MARKER_MAXIMUM_OUTPUT_TOKENS
     assert "metadata" not in body
     assert payload_digest not in json.dumps(body, sort_keys=True)
 
