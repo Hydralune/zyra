@@ -25,6 +25,8 @@ export interface ProgressiveExecutionSnapshot {
   artifactCount: number;
   workspaceMutationCount: number;
   verificationCount: number;
+  preDeliveryObservationCount: number;
+  consecutivePreDeliveryObservations: number;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -60,9 +62,7 @@ export class ProgressiveExecutionRuntime {
     const startedAt = this.now();
     const requiresDelivery = asBoolean(asObject(options.deliveryContract).workspace_mutation_required)
       || asBoolean(this.constraints.requires_delivery_artifact);
-    this.state = restored.version === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION
-      ? restored as unknown as ProgressiveExecutionSnapshot
-      : {
+    const initial: ProgressiveExecutionSnapshot = {
         version: PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
         phase: "exploration",
         startedAt,
@@ -74,11 +74,34 @@ export class ProgressiveExecutionRuntime {
         artifactCount: 0,
         workspaceMutationCount: 0,
         verificationCount: 0,
+        preDeliveryObservationCount: 0,
+        consecutivePreDeliveryObservations: 0,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
         progressReasons: [],
       };
+    this.state = restored.version === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION
+      ? {
+        ...initial,
+        ...restored as unknown as ProgressiveExecutionSnapshot,
+        preDeliveryObservationCount: nonnegativeInteger(
+          restored.preDeliveryObservationCount,
+        ),
+        consecutivePreDeliveryObservations: nonnegativeInteger(
+          restored.consecutivePreDeliveryObservations,
+        ),
+        progressReasons: Array.isArray(restored.progressReasons)
+          ? restored.progressReasons.map(String).slice(-64)
+          : [],
+      }
+      : initial;
+    // The current task contract is authoritative after a checkpoint restore.
+    // A stale or formerly unbound snapshot must not erase an outstanding
+    // delivery obligation merely because it persisted `false`.
+    this.state.requiredDeliveryMissing = requiresDelivery
+      && this.state.workspaceMutationCount === 0
+      && this.state.artifactCount === 0;
   }
 
   observeProviderRound(text: string, proposedToolCalls: number): ProgressiveExecutionSnapshot {
@@ -87,7 +110,7 @@ export class ProgressiveExecutionRuntime {
     if (proposedToolCalls > 0) {
       this.state.phase = this.state.realActionCount > 0 ? this.state.phase : "solution_formed";
       this.state.analysisOnlyRounds = 0;
-      this.progress("provider_proposed_real_action");
+      this.record("provider_proposed_tool_action");
     } else {
       this.state.analysisOnlyRounds += 1;
       this.state.repeatedAnalysisRounds = digest && digest === this.state.lastAnalysisDigest
@@ -108,6 +131,14 @@ export class ProgressiveExecutionRuntime {
     ).toLowerCase() === "true";
     const mutated = response.ok && mutationCommitted;
     const artifacts = response.artifacts.length;
+    const background = String(
+      response.metadata.background_status
+      ?? response.output.background_status
+      ?? response.output.status
+      ?? "",
+    ).toLowerCase();
+    const backgroundCoordination = request.toolName === "shell_wait"
+      || ["running", "pending", "queued"].includes(background);
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
@@ -116,18 +147,22 @@ export class ProgressiveExecutionRuntime {
         ? "first_real_action"
         : "incremental_delivery";
       this.state.requiredDeliveryMissing = false;
+      this.state.consecutivePreDeliveryObservations = 0;
       this.progress(mutated ? "workspace_mutation_committed" : "artifact_receipt_committed");
-    } else if (readOnly && response.ok && this.state.realActionCount > 0) {
+    } else if (
+      readOnly
+      && response.ok
+      && this.state.requiredDeliveryMissing
+      && !backgroundCoordination
+    ) {
+      this.state.preDeliveryObservationCount += 1;
+      this.state.consecutivePreDeliveryObservations += 1;
+      this.record("pre_delivery_read_only_observation");
+    } else if (readOnly && response.ok && !this.state.requiredDeliveryMissing) {
       this.state.verificationCount += 1;
       this.state.phase = "validation";
       this.progress("post_action_validation_passed");
     }
-    const background = String(
-      response.metadata.background_status
-      ?? response.output.background_status
-      ?? response.output.status
-      ?? "",
-    ).toLowerCase();
     if (["running", "pending", "queued"].includes(background)) {
       this.state.activeBackgroundCount += 1;
     } else if (["completed", "failed", "cancelled", "stopped"].includes(background)) {
@@ -171,8 +206,18 @@ export class ProgressiveExecutionRuntime {
       5_000,
       Math.min(120_000, availableWorkWindow * 0.2),
     );
+    const observationNudgeAfter = boundedInteger(
+      this.constraints.pre_delivery_observation_nudge_after,
+      8,
+      2,
+      64,
+    );
     const noProgressPressure = Math.min(1, this.state.analysisOnlyRounds / 4)
       + Math.min(1, this.state.repeatedAnalysisRounds / 2)
+      + Math.min(
+        1,
+        this.state.consecutivePreDeliveryObservations / observationNudgeAfter,
+      )
       + Math.min(1, progressAge / adaptiveProgressWindow);
     const deliveryPressure = this.state.requiredDeliveryMissing ? 0.35 : 0;
     const backgroundRelief = this.state.activeBackgroundCount > 0 ? 0.3 : 0;
@@ -202,13 +247,16 @@ export class ProgressiveExecutionRuntime {
       && (
         this.state.analysisOnlyRounds >= 1
         || this.state.repeatedAnalysisRounds >= 1
+        || this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
         || progressAge >= adaptiveProgressWindow
         || timePressure >= 0.5
       )
     ) {
       return this.decision(
         "nudge_action",
-        "analysis is no longer producing enough new information before the first required delivery",
+        this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
+          ? "broad read-only inspection has continued without advancing the required delivery"
+          : "analysis is no longer producing enough new information before the first required delivery",
         remainingMilliseconds,
         contextRemainingCharacters,
         pressure,
@@ -229,6 +277,10 @@ export class ProgressiveExecutionRuntime {
 
   private progress(reason: string): void {
     this.state.lastEffectiveProgressAt = this.now();
+    this.record(reason);
+  }
+
+  private record(reason: string): void {
     this.state.progressReasons.push(reason);
     this.state.progressReasons = this.state.progressReasons.slice(-64);
   }
@@ -255,6 +307,23 @@ export class ProgressiveExecutionRuntime {
 function finitePositive(value: unknown): number | null {
   const selected = Number(value);
   return Number.isFinite(selected) && selected > 0 ? selected : null;
+}
+
+function nonnegativeInteger(value: unknown): number {
+  const selected = Number(value);
+  return Number.isFinite(selected) ? Math.max(0, Math.floor(selected)) : 0;
+}
+
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const selected = Number(value);
+  return Number.isFinite(selected)
+    ? Math.max(minimum, Math.min(maximum, Math.floor(selected)))
+    : fallback;
 }
 
 function normalizeAnalysis(value: string): string {

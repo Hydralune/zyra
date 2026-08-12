@@ -477,8 +477,8 @@ export class ClaudeRuntimeCore {
               role: "user",
               content: [
                 "The required delivery is still missing and further explanation is not effective progress.",
-                "Perform the smallest reversible, low-risk tool action that creates a durable intermediate result.",
-                "Then validate and improve that result incrementally.",
+                "Perform a concrete, proportionate tool action that advances the requested result.",
+                "Then validate it and continue from the evidence.",
               ].join(" "),
             },
           ];
@@ -1993,6 +1993,39 @@ export class ClaudeRuntimeCore {
         if (pendingRestoreProviderMessage) {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
           pendingRestoreProviderMessage = null;
+        }
+        const postToolProgressDecision = progressive.decide(
+          session.contextChars(),
+          config.maxQueryContextChars,
+        );
+        if (
+          postToolProgressDecision.action === "nudge_action"
+          && progressiveActionNudges < 2
+        ) {
+          progressiveActionNudges += 1;
+          providerMessages = [
+            ...providerMessages,
+            {
+              role: "user",
+              content: [
+                "The task still requires a concrete delivery, and enough orientation evidence has been gathered.",
+                "Stop broad repository inspection.",
+                "Run the relevant build or tests now and use failures to drive targeted changes, or make a concrete proportionate workspace change.",
+                "Do not restart general inspection unless new evidence invalidates the current understanding.",
+              ].join(" "),
+            },
+          ];
+          await emit("progressive_action_requested", {
+            reason: postToolProgressDecision.reason,
+            execution_phase: postToolProgressDecision.snapshot.phase,
+            action_nudge: progressiveActionNudges,
+            analysis_only_rounds: postToolProgressDecision.snapshot.analysisOnlyRounds,
+            repeated_analysis_rounds: postToolProgressDecision.snapshot.repeatedAnalysisRounds,
+            pre_delivery_observations: postToolProgressDecision.snapshot.preDeliveryObservationCount,
+            consecutive_pre_delivery_observations:
+              postToolProgressDecision.snapshot.consecutivePreDeliveryObservations,
+            required_delivery_missing: postToolProgressDecision.snapshot.requiredDeliveryMissing,
+          });
         }
         if (
           resourceBudget !== null

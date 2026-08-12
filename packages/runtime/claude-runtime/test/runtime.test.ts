@@ -1621,6 +1621,93 @@ test("required delivery turns an analysis-only final into an incremental tool ac
   }
 });
 
+test("required delivery redirects repeated read-only inspection into execution", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: string[] = [];
+  let requestCount = 0;
+  globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+    requestCount += 1;
+    requestBodies.push(String(init?.body ?? ""));
+    const choice = requestCount <= 2
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `inspection-${requestCount}`,
+            type: "function",
+            function: {
+              name: "read",
+              arguments: JSON.stringify({ path: `source-${requestCount}.ts` }),
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 3
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "delivery-write",
+              type: "function",
+              function: {
+                name: "write",
+                arguments: '{"path":"result.txt","content":"delivered"}',
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : {
+          index: 0,
+          delta: { content: "The requested result was implemented and verified." },
+          finish_reason: "stop",
+        };
+    return new Response(`data: ${JSON.stringify({
+      id: `inspection-progress-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          pre_delivery_observation_nudge_after: 2,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 4);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["read", "read", "write"],
+    );
+    assert.match(requestBodies[2] ?? "", /Stop broad repository inspection/);
+    assert.ok(
+      host.events.some((event) => (
+        event.phase === "progressive_action_requested"
+        && event.consecutive_pre_delivery_observations === 2
+      )),
+    );
+    assert.equal(result.metadata.progressive_action_nudges, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("progressive execution requests action after analysis-only loops and records delivery", () => {
   let clock = 1_000;
   const progressive = new ProgressiveExecutionRuntime({
@@ -1697,6 +1784,65 @@ test("progressive execution does not treat command execution as a workspace muta
   assert.equal(observed.workspaceMutationCount, 0);
   assert.equal(observed.requiredDeliveryMissing, true);
   assert.doesNotMatch(observed.progressReasons.join("\n"), /workspace_mutation_committed/);
+});
+
+test("progressive execution nudges after sustained pre-delivery inspection", () => {
+  let clock = 1_000;
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => clock,
+    constraints: { pre_delivery_observation_nudge_after: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  const readResult = (index: number) => {
+    progressive.observeProviderRound(`Inspect source area ${index}.`, 1);
+    progressive.observeToolResult({
+      toolCallId: `read-${index}`,
+      toolName: "read",
+      arguments: { path: `source-${index}.ts` },
+      turnIndex: index,
+      stepIndex: 0,
+      batchId: `batch-${index}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "concurrent_read_only",
+      metadata: {},
+    }, {
+      tool_call_id: `read-${index}`,
+      ok: true,
+      summary: "source inspected",
+      output: {},
+      artifacts: [],
+      metadata: {},
+    }, true);
+    clock += 1_000;
+  };
+
+  readResult(1);
+  readResult(2);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  readResult(3);
+  const stalled = progressive.decide(1_000, 10_000);
+
+  assert.equal(stalled.action, "nudge_action");
+  assert.match(stalled.reason, /read-only inspection/);
+  assert.equal(stalled.snapshot.preDeliveryObservationCount, 3);
+  assert.equal(stalled.snapshot.consecutivePreDeliveryObservations, 3);
+  assert.equal(stalled.snapshot.verificationCount, 0);
+  assert.equal(stalled.snapshot.requiredDeliveryMissing, true);
+});
+
+test("progressive execution reapplies the current delivery contract after restore", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: {
+      version: "zyra.progressive-execution/v1",
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 0,
+      artifactCount: 0,
+    },
+  });
+
+  assert.equal(progressive.snapshot().requiredDeliveryMissing, true);
 });
 
 test("progressive closeout accounts for artifacts, verification, background work, and context", () => {

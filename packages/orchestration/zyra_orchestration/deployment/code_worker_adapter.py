@@ -318,18 +318,26 @@ def execute_code_worker_operator(
             workspace_root=workspace_root,
             container_ref_digest=str(benchmark_binding["container_ref_digest"]),
         )
+    delivery_contract = (
+        dict(payload.get("delivery_contract"))
+        if isinstance(payload.get("delivery_contract"), Mapping)
+        else {}
+    )
+    goal_contract = (
+        dict(payload.get("goal_contract"))
+        if isinstance(payload.get("goal_contract"), Mapping)
+        else {}
+    )
+    if delivery_contract.get("workspace_mutation_required") is True:
+        # Keep the obligation available through both runtime input channels.
+        # The TypeScript progress controller consumes request metadata, while
+        # constraints remain the fail-closed signal if an intermediate input
+        # projector drops optional metadata.
+        constraints["requires_delivery_artifact"] = True
     execution_prompt = _execution_prompt(
         goal,
-        delivery_contract=(
-            payload.get("delivery_contract")
-            if isinstance(payload.get("delivery_contract"), Mapping)
-            else {}
-        ),
-        goal_contract=(
-            payload.get("goal_contract")
-            if isinstance(payload.get("goal_contract"), Mapping)
-            else {}
-        ),
+        delivery_contract=delivery_contract,
+        goal_contract=goal_contract,
         handoff=load_task_handoff_projection(
             artifact_root,
             task_id=task_id,
@@ -392,6 +400,8 @@ def execute_code_worker_operator(
             "provider_route_id": str(
                 provider_constraints.get("provider_route_id") or ""
             ),
+            "delivery_contract": delivery_contract,
+            "goal_contract": goal_contract,
         },
     )
     sandbox_gateway_state_root = (
