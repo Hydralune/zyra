@@ -21,7 +21,11 @@ import {
 } from "../src/provider-control-plane-runtime.ts";
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
 import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
-import { durableCompactionSummary, isClearlyPreDeliveryInspection } from "../src/query-engine.ts";
+import {
+  durableCompactionSummary,
+  isClearlyPreDeliveryInspection,
+  isClearlyVerificationDrivingTool,
+} from "../src/query-engine.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -1599,7 +1603,12 @@ test("required delivery turns an analysis-only final into an incremental tool ac
     const host = new MemoryHost();
     const result = await new ClaudeRuntimeCore().run(input({
       turns: [],
-      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+        },
+      },
       config: {
         runtimeConstraints: {
           model_transport: "http_sse",
@@ -1618,6 +1627,112 @@ test("required delivery turns an analysis-only final into an incremental tool ac
     );
     assert.equal(result.metadata.progressive_real_actions, "1");
     assert.equal(result.metadata.progressive_action_nudges, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("delivered workspace state requests behavioral verification before final response", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "verified-write",
+            type: "function",
+            function: {
+              name: "write",
+              arguments: '{"path":"result.txt","content":"delivered"}',
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 2
+        ? {
+          index: 0,
+          delta: { content: "The requested result is complete." },
+          finish_reason: "stop",
+        }
+        : requestCount === 3
+          ? {
+            index: 0,
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: "behavioral-test",
+                type: "function",
+                function: {
+                  name: "shell",
+                  arguments: '{"command":"python -m pytest tests -q"}',
+                },
+              }],
+            },
+            finish_reason: "tool_calls",
+          }
+          : {
+            index: 0,
+            delta: { content: "The requested result is complete and the tests passed." },
+            finish_reason: "stop",
+          };
+    return new Response(`data: ${JSON.stringify({
+      id: `verification-progress-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+        },
+      },
+      tools: [
+        ...(input().tools ?? []),
+        {
+          name: "shell",
+          purpose: "execute a shell command",
+          source: "test",
+          input_schema: {
+            type: "object",
+            required: ["command"],
+            properties: { command: { type: "string" } },
+          },
+          output_schema: {},
+          metadata: { read_only: "false", concurrency_safe: "false" },
+        },
+      ],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 4);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["write", "shell"],
+    );
+    assert.ok(
+      host.events.some((event) => event.phase === "progressive_verification_requested"),
+      JSON.stringify(host.events.map((event) => event.phase)),
+    );
+    assert.equal(result.metadata.progressive_verifications, "1");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1681,7 +1796,12 @@ test("required delivery redirects repeated read-only inspection into execution",
     const host = new MemoryHost();
     const result = await new ClaudeRuntimeCore().run(input({
       turns: [],
-      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+        },
+      },
       config: {
         runtimeConstraints: {
           model_transport: "http_sse",
@@ -1756,7 +1876,12 @@ test("required delivery circuit declines further inspection and accepts the next
     const host = new MemoryHost();
     const result = await new ClaudeRuntimeCore().run(input({
       turns: [],
-      metadata: { delivery_contract: { workspace_mutation_required: true } },
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+        },
+      },
       config: {
         runtimeConstraints: {
           model_transport: "http_sse",
@@ -1827,7 +1952,10 @@ test("required delivery circuit applies cross-session handoff progress before to
     const result = await new ClaudeRuntimeCore().run(input({
       turns: [],
       metadata: {
-        delivery_contract: { workspace_mutation_required: true },
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+        },
         task_handoff_progress: {
           requiredDeliveryMissing: true,
           providerRounds: 9,
@@ -1901,7 +2029,10 @@ test("failed delivery attempt permits one recovery inspection before the circuit
     const result = await new ClaudeRuntimeCore().run(input({
       turns: [],
       metadata: {
-        delivery_contract: { workspace_mutation_required: true },
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+        },
         task_handoff_progress: {
           requiredDeliveryMissing: true,
           providerRounds: 9,
@@ -1938,7 +2069,10 @@ test("progressive execution requests action after analysis-only loops and record
   const progressive = new ProgressiveExecutionRuntime({
     now: () => clock,
     constraints: {},
-    deliveryContract: { workspace_mutation_required: true },
+    deliveryContract: {
+      workspace_mutation_required: true,
+      verification_required: false,
+    },
   });
   progressive.observeProviderRound("Inspect the repository and consider options.", 0);
   clock += 1_000;
@@ -1977,6 +2111,73 @@ test("progressive execution requests action after analysis-only loops and record
   assert.equal(delivered.snapshot.requiredDeliveryMissing, false);
   assert.equal(delivered.snapshot.workspaceMutationCount, 1);
   assert.equal(delivered.snapshot.artifactCount, 1);
+});
+
+test("progressive execution keeps verification debt until a behavioral command passes", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  const response = (
+    toolCallId: string,
+    workspaceMutationCommitted = false,
+  ): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {},
+    artifacts: [],
+    metadata: {
+      workspace_mutation_committed: String(workspaceMutationCommitted),
+    },
+  });
+  const request = (
+    toolCallId: string,
+    metadata: JsonObject = {},
+  ): ToolExecutionRequest => ({
+    toolCallId,
+    toolName: "shell",
+    arguments: { command: "command" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "batch-verification",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata,
+  });
+
+  progressive.observeToolResult(
+    request("delivery"),
+    response("delivery", true),
+    false,
+  );
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+
+  progressive.observeToolResult(
+    request("format-check"),
+    response("format-check"),
+    true,
+  );
+  assert.equal(progressive.snapshot().verificationCount, 0);
+  const nudged = progressive.recordVerificationNudge();
+  assert.equal(nudged.verificationNudgeCount, 1);
+
+  progressive.observeToolResult(
+    request("tests", { progressive_verification_driving: true }),
+    response("tests"),
+    false,
+  );
+  assert.equal(progressive.snapshot().verificationCount, 1);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+
+  progressive.observeToolResult(
+    request("later-delivery"),
+    response("later-delivery", true),
+    false,
+  );
+  assert.equal(progressive.snapshot().verificationCount, 0);
+  assert.equal(progressive.snapshot().verificationNudgeCount, 0);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
 });
 
 test("progressive execution does not treat command execution as a workspace mutation", () => {
@@ -2256,6 +2457,14 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("cat submission/manifest.json")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("git status --short && sha256sum submission/*")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python -c \"import json; json.load(open('submission/manifest.json'))\"")), false);
+  assert.equal(isClearlyVerificationDrivingTool({ tool_name: "read", arguments: { path: "test.log" } }), false);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {

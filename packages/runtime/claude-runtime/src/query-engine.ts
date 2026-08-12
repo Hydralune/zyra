@@ -511,6 +511,59 @@ export class ClaudeRuntimeCore {
           providerRoundIndex += 1;
           continue;
         }
+        if (
+          progressDecision.action === "nudge_verification"
+          && model.turns.flat().length === 0
+          && !providerOutputWasLengthTruncated(model)
+          && continuationTools.length > 0
+          && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit)
+        ) {
+          const nudgedProgress = progressive.recordVerificationNudge();
+          iteration.rejectProviderRoundForRetry(round.roundId, "progressive_verification_required");
+          providerMessages = [
+            ...iteration.currentMessages(),
+            ...(model.finalText.trim()
+              ? [{ role: "assistant", content: model.finalText }]
+              : []),
+            {
+              role: "user",
+              content: [
+                "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
+                "Before finalizing, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "File existence, JSON parsing, hashes, git status, and report text are not behavioral verification.",
+                "If verification fails, fix the cause and rerun it; if it cannot run, gather the concrete failure evidence and report that honestly.",
+              ].join(" "),
+            },
+          ];
+          await emit("progressive_verification_requested", {
+            reason: progressDecision.reason,
+            execution_phase: progress.phase,
+            verification_nudge: nudgedProgress.verificationNudgeCount,
+            verification_count: nudgedProgress.verificationCount,
+            workspace_mutations: nudgedProgress.workspaceMutationCount,
+            artifacts: nudgedProgress.artifactCount,
+          });
+          round = iteration.beginProviderRound({
+            requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+            model: config.modelName,
+            messages: providerMessages,
+          });
+          model = await resolveModelTurns(
+            input,
+            config,
+            [],
+            continuationTools,
+            emit,
+            (observation) => e01.decideProviderRecovery(observation),
+            e01.journal.restartEpoch,
+            (observation) => e01.completeProviderRecovery(observation),
+            (requestId) => e01.executePreparedProvider(requestId),
+            providerRoundIndex,
+            providerMessages,
+          );
+          providerRoundIndex += 1;
+          continue;
+        }
         iteration.acceptProviderResult({
           roundId: round.roundId,
           providerRequestId: model.providerRequestId,
@@ -1123,6 +1176,8 @@ export class ClaudeRuntimeCore {
                 ...asObject(step.metadata),
                 progressive_delivery_driving_shell: step.tool_name === "shell"
                   && !isClearlyPreDeliveryInspection(step, false),
+                progressive_verification_driving:
+                  isClearlyVerificationDrivingTool(step),
               },
             });
           }
@@ -2305,6 +2360,10 @@ export class ClaudeRuntimeCore {
           Math.max(0, Date.now() - progressiveState.lastEffectiveProgressAt),
         ),
         progressive_action_nudges: String(progressiveState.actionNudgeCount),
+        progressive_verifications: String(progressiveState.verificationCount),
+        progressive_verification_nudges: String(
+          progressiveState.verificationNudgeCount,
+        ),
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -2358,6 +2417,40 @@ export function isClearlyPreDeliveryInspection(
   // drive an edit, build, test, migration, service, or external state change
   // cross this boundary.  This also closes interpreter-wrapped read bypasses.
   return !isClearlyDeliveryDrivingShellCommand(asString(step.arguments.command));
+}
+
+export function isClearlyVerificationDrivingTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (step.tool_name !== "shell") return false;
+  return isClearlyVerificationDrivingShellCommand(
+    asString(step.arguments.command),
+  );
+}
+
+function isClearlyVerificationDrivingShellCommand(value: string): boolean {
+  const segments = value
+    .split(/&&|\|\||;|\r?\n/)
+    .map((segment) => segment.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+  return segments.some((segment) => {
+    if (/\bpython(?:3)?\b[^;&|]*\s-(?:c|e)\b/i.test(segment)) return false;
+    if (/\bpython(?:3)?\s+-m\s+(?:pytest|unittest|compileall)\b/i.test(segment)) return true;
+    if (/\b(?:pytest|py\.test)\b/i.test(segment)) return true;
+    if (/\b(?:npm|pnpm|yarn|bun)\s+(?:test|check|lint|build|typecheck)\b/i.test(segment)) return true;
+    if (/\b(?:npm|pnpm|yarn|bun)\s+run\s+(?:test|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)\b/i.test(segment)) return true;
+    if (/\bnpx\s+(?:tsc|eslint|jest|vitest|playwright|mocha|ava)\b/i.test(segment)) return true;
+    if (/\btsc\b(?:\s|$)/i.test(segment)) return true;
+    if (/\bcargo\s+(?:test|check|clippy|build)\b/i.test(segment)) return true;
+    if (/\bgo\s+test\b/i.test(segment)) return true;
+    if (/\b(?:gradle|gradlew|mvn|mvnw)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
+    if (/\b(?:make|cmake|ctest)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
+    if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|build)[^;&|]*\.sh\b/i.test(segment)) return true;
+    if (/\bpython(?:3)?\b[^;&|]*\b(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)\b/i.test(segment)) return true;
+    if (/\/(?:[^\s/]+\/)*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)[^\s/]*(?:\.sh|\.py)?\b/i.test(segment)) return true;
+    if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*\brun\b[^;&|]*(?:test|pytest|check|verify|smoke|e2e|integration)\b/i.test(segment)) return true;
+    return false;
+  });
 }
 
 function isClearlyDeliveryDrivingShellCommand(value: string): boolean {

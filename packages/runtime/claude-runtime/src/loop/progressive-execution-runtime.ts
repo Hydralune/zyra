@@ -25,6 +25,8 @@ export interface ProgressiveExecutionSnapshot {
   artifactCount: number;
   workspaceMutationCount: number;
   verificationCount: number;
+  verificationNudgeCount: number;
+  lastVerificationNudgeProviderRound: number;
   preDeliveryObservationCount: number;
   consecutivePreDeliveryObservations: number;
   actionNudgeCount: number;
@@ -38,7 +40,7 @@ export interface ProgressiveExecutionSnapshot {
 }
 
 export interface ProgressiveDecision {
-  action: "continue" | "nudge_action" | "closeout";
+  action: "continue" | "nudge_action" | "nudge_verification" | "closeout";
   reason: string;
   remainingMilliseconds: number | null;
   contextRemainingCharacters: number | null;
@@ -58,6 +60,7 @@ interface ProgressiveOptions {
 export class ProgressiveExecutionRuntime {
   private readonly now: () => number;
   private readonly constraints: JsonObject;
+  private readonly requiresVerification: boolean;
   private state: ProgressiveExecutionSnapshot;
 
   constructor(options: ProgressiveOptions = {}) {
@@ -65,8 +68,15 @@ export class ProgressiveExecutionRuntime {
     this.constraints = options.constraints ?? {};
     const restored = asObject(options.restored as unknown);
     const startedAt = this.now();
-    const requiresDelivery = asBoolean(asObject(options.deliveryContract).workspace_mutation_required)
+    const deliveryContract = asObject(options.deliveryContract);
+    const requiresDelivery = asBoolean(deliveryContract.workspace_mutation_required)
       || asBoolean(this.constraints.requires_delivery_artifact);
+    this.requiresVerification = Object.prototype.hasOwnProperty.call(
+      deliveryContract,
+      "verification_required",
+    )
+      ? asBoolean(deliveryContract.verification_required)
+      : requiresDelivery;
     const initial: ProgressiveExecutionSnapshot = {
         version: PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
         phase: "exploration",
@@ -79,6 +89,8 @@ export class ProgressiveExecutionRuntime {
         artifactCount: 0,
         workspaceMutationCount: 0,
         verificationCount: 0,
+        verificationNudgeCount: 0,
+        lastVerificationNudgeProviderRound: 0,
         preDeliveryObservationCount: 0,
         consecutivePreDeliveryObservations: 0,
         actionNudgeCount: 0,
@@ -109,6 +121,12 @@ export class ProgressiveExecutionRuntime {
         ),
         recoveryInspectionAllowance: nonnegativeInteger(
           restored.recoveryInspectionAllowance,
+        ),
+        verificationNudgeCount: nonnegativeInteger(
+          restored.verificationNudgeCount,
+        ),
+        lastVerificationNudgeProviderRound: nonnegativeInteger(
+          restored.lastVerificationNudgeProviderRound,
         ),
         // Gateway jobs are scoped to the runtime session that created them.
         // A resumed model session cannot safely infer that a persisted count
@@ -173,6 +191,9 @@ export class ProgressiveExecutionRuntime {
       response.metadata.workspace_mutation_committed ?? "false",
     ).toLowerCase() === "true";
     const mutated = response.ok && mutationCommitted;
+    const verificationDriving = asBoolean(
+      request.metadata.progressive_verification_driving,
+    );
     const artifacts = response.artifacts.length;
     const background = String(
       response.metadata.background_status
@@ -186,6 +207,12 @@ export class ProgressiveExecutionRuntime {
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
     if (mutated || artifacts > 0) {
+      // Every new delivery invalidates verification of the previous bytes.
+      // A build/test command that also produces outputs can discharge the new
+      // debt below, but an earlier read or test cannot.
+      this.state.verificationCount = 0;
+      this.state.verificationNudgeCount = 0;
+      this.state.lastVerificationNudgeProviderRound = 0;
       this.state.phase = this.state.realActionCount === 1
         ? "first_real_action"
         : "incremental_delivery";
@@ -203,10 +230,15 @@ export class ProgressiveExecutionRuntime {
       this.record(readOnly
         ? "pre_delivery_read_only_observation"
         : "pre_delivery_non_delivery_action");
-    } else if (readOnly && response.ok && !this.state.requiredDeliveryMissing) {
+    }
+    if (
+      verificationDriving
+      && response.ok
+      && !this.state.requiredDeliveryMissing
+    ) {
       this.state.verificationCount += 1;
       this.state.phase = "validation";
-      this.progress("post_action_validation_passed");
+      this.progress("post_delivery_verification_passed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {
       this.state.activeBackgroundCount += 1;
@@ -301,6 +333,28 @@ export class ProgressiveExecutionRuntime {
         pressure,
       );
     }
+    const verificationDebt = this.requiresVerification
+      && !this.state.requiredDeliveryMissing
+      && (this.state.workspaceMutationCount > 0 || this.state.artifactCount > 0)
+      && this.state.verificationCount === 0;
+    const maximumVerificationNudges = boundedInteger(
+      this.constraints.post_delivery_verification_nudge_limit,
+      3,
+      1,
+      8,
+    );
+    if (
+      verificationDebt
+      && this.state.verificationNudgeCount < maximumVerificationNudges
+    ) {
+      return this.decision(
+        "nudge_verification",
+        "the latest delivered workspace state has no successful behavioral verification evidence",
+        remainingMilliseconds,
+        contextRemainingCharacters,
+        pressure,
+      );
+    }
     const observationNudgeDue = this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
       && this.state.consecutivePreDeliveryObservations - this.state.lastActionNudgeObservationCount
         >= observationNudgeAfter;
@@ -370,6 +424,13 @@ export class ProgressiveExecutionRuntime {
     this.state.lastActionNudgeObservationCount = this.state.consecutivePreDeliveryObservations;
     this.state.lastActionNudgeProviderRound = this.state.providerRounds;
     this.record("progressive_action_requested");
+    return this.snapshot();
+  }
+
+  recordVerificationNudge(): ProgressiveExecutionSnapshot {
+    this.state.verificationNudgeCount += 1;
+    this.state.lastVerificationNudgeProviderRound = this.state.providerRounds;
+    this.record("progressive_verification_requested");
     return this.snapshot();
   }
 
