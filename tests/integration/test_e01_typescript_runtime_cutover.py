@@ -306,7 +306,11 @@ def test_default_path_persists_incremental_typescript_checkpoint(tmp_path: Path)
 
     assert run.worker_result.ok is True
     checkpoint_dir = tmp_path / "artifacts" / ".runtime-checkpoints"
-    checkpoint_files = list(checkpoint_dir.glob("typescript-e01-*.json"))
+    checkpoint_files = [
+        path
+        for path in checkpoint_dir.glob("typescript-e01-*.json")
+        if not path.name.endswith(".handoff.json")
+    ]
     assert len(checkpoint_files) == 1
     checkpoint = json.loads(checkpoint_files[0].read_text(encoding="utf-8"))
     assert checkpoint["session_id"] == "e01-incremental-session"
@@ -322,11 +326,13 @@ def test_terminal_result_is_durable_before_host_ack(tmp_path: Path) -> None:
 
     def observe_terminal_ack(*args: object, **kwargs: object) -> object:
         if kwargs.get("kind") == "run.result.ack":
-            checkpoint_files = list(
-                (tmp_path / "artifacts" / ".runtime-checkpoints").glob(
-                    "typescript-e01-*.json"
-                )
-            )
+            checkpoint_files = [
+                path
+                for path in (
+                    tmp_path / "artifacts" / ".runtime-checkpoints"
+                ).glob("typescript-e01-*.json")
+                if not path.name.endswith(".handoff.json")
+            ]
             assert len(checkpoint_files) == 1
             checkpoint = json.loads(
                 checkpoint_files[0].read_text(encoding="utf-8")
@@ -919,6 +925,109 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
         )
         is None
     )
+
+
+def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    checkpoint_root = (
+        Path(runtime.execution_context.artifact_store.root) / ".runtime-checkpoints"
+    )
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+    rich_path = checkpoint_root / "typescript-e01-rich.json.handoff.json"
+    sparse_path = checkpoint_root / "typescript-e01-sparse.json.handoff.json"
+    common = {
+        "schema": "zyra.typescript-runtime-handoff/v1",
+        "task_id": "e01-task",
+        "run_id": "run-handoff-chain",
+        "authority_transfer": False,
+        "claims_require_revalidation": True,
+    }
+    rich_path.write_text(
+        json.dumps(
+            {
+                **common,
+                "source_session_id": "rich-session",
+                "source_checkpoint_revision": 220,
+                "source_checkpoint_commit_id": "rich-commit",
+                "phase": "tool_call_completed",
+                "counters": {
+                    "turn_count": 18,
+                    "tool_call_count": 16,
+                    "compaction_count": 1,
+                },
+                "progress": {
+                    "providerRounds": 18,
+                    "workspaceMutationCount": 4,
+                    "verificationCount": 8,
+                },
+                "latest_compact_summary": "Public tests pass; start the full stack.",
+                "recent_reasoning": [
+                    {"round_index": 17, "text": "Continue with dynamic events."}
+                ],
+                "recent_tool_observations": [
+                    {"ok": True, "summary": "138 tests passed", "excerpt": ""}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    sparse_path.write_text(
+        json.dumps(
+            {
+                **common,
+                "source_session_id": "newest-sparse-session",
+                "source_checkpoint_revision": 42,
+                "source_checkpoint_commit_id": "sparse-commit",
+                "phase": "tool_call_started",
+                "counters": {
+                    "turn_count": 2,
+                    "tool_call_count": 2,
+                    "compaction_count": 0,
+                },
+                "progress": {
+                    "providerRounds": 2,
+                    "workspaceMutationCount": 0,
+                    "verificationCount": 0,
+                },
+                "latest_compact_summary": "",
+                "recent_reasoning": [
+                    {"round_index": 1, "text": "A recovery probe was interrupted."}
+                ],
+                "recent_tool_observations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(rich_path, ns=(1_000_000_000, 1_000_000_000))
+    os.utime(sparse_path, ns=(2_000_000_000, 2_000_000_000))
+
+    handoff = load_task_handoff_projection(
+        runtime.execution_context.artifact_store.root,
+        task_id="e01-task",
+        run_id="run-handoff-chain",
+        current_session_id="fresh-session",
+    )
+
+    assert handoff is not None
+    assert handoff["source_session_id"] == "newest-sparse-session"
+    assert handoff["source_checkpoint_commit_id"] == "sparse-commit"
+    assert handoff["continuity_segments_merged"] == 2
+    assert handoff["counters"] == {
+        "turn_count": 18,
+        "tool_call_count": 16,
+        "compaction_count": 1,
+    }
+    assert handoff["progress"]["workspaceMutationCount"] == 4
+    assert handoff["progress"]["verificationCount"] == 8
+    assert handoff["latest_compact_summary"].startswith("Public tests pass")
+    assert [item["text"] for item in handoff["recent_reasoning"]] == [
+        "Continue with dynamic events.",
+        "A recovery probe was interrupted.",
+    ]
+    assert handoff["recent_tool_observations"][0]["summary"] == "138 tests passed"
+    assert handoff["authority_transfer"] is False
 
 
 def test_host_checkpoint_retries_transient_windows_replace_denial(

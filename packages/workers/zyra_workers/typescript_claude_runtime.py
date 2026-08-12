@@ -293,7 +293,14 @@ def load_task_handoff_projection(
     run_id: str,
     current_session_id: str,
 ) -> dict[str, Any] | None:
-    """Load the newest task-matched handoff without restoring old custody."""
+    """Load task continuity across fenced sessions without restoring custody.
+
+    A short failed recovery segment may be newer than a much richer preceding
+    segment.  Treating file modification time as the whole continuity policy
+    makes that sparse segment erase useful task progress.  Keep the newest
+    segment as the provenance source, while merging bounded observations and
+    monotonic progress counters from older task-matched sidecars.
+    """
 
     checkpoint_root = Path(artifact_root).resolve() / ".runtime-checkpoints"
     if not checkpoint_root.is_dir():
@@ -315,6 +322,7 @@ def load_task_handoff_projection(
         key=lambda path: path.stat().st_mtime_ns,
         reverse=True,
     )
+    matched_sidecars: list[dict[str, Any]] = []
     for path in sidecars:
         try:
             if path.stat().st_size > _HANDOFF_MAXIMUM_FILE_BYTES:
@@ -323,7 +331,72 @@ def load_task_handoff_projection(
         except (OSError, json.JSONDecodeError):
             continue
         if matches(value) and str(value.get("schema") or "") == _HANDOFF_SCHEMA:
-            return dict(value)
+            matched_sidecars.append(dict(value))
+    if matched_sidecars:
+        newest = dict(matched_sidecars[0])
+
+        def merged_tail(field: str, limit: int) -> list[dict[str, Any]]:
+            merged: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for projection in reversed(matched_sidecars):
+                for item in projection.get(field) or ():
+                    if not isinstance(item, Mapping):
+                        continue
+                    encoded = json.dumps(
+                        to_jsonable(dict(item)),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+                    if digest in seen:
+                        continue
+                    seen.add(digest)
+                    merged.append(dict(item))
+            return merged[-limit:]
+
+        counter_fields = ("turn_count", "tool_call_count", "compaction_count")
+        newest["counters"] = {
+            field: max(
+                _nonnegative_count(dict(item.get("counters") or {}).get(field))
+                for item in matched_sidecars
+            )
+            for field in counter_fields
+        }
+        numeric_progress_fields = (
+            "providerRounds",
+            "realActionCount",
+            "workspaceMutationCount",
+            "verificationCount",
+            "artifactCount",
+            "repeatedAnalysisRounds",
+        )
+        newest_progress = dict(newest.get("progress") or {})
+        for field in numeric_progress_fields:
+            values = [
+                dict(item.get("progress") or {}).get(field)
+                for item in matched_sidecars
+                if dict(item.get("progress") or {}).get(field) is not None
+            ]
+            if values:
+                newest_progress[field] = max(_nonnegative_count(value) for value in values)
+        newest["progress"] = newest_progress
+        newest["latest_compact_summary"] = next(
+            (
+                _bounded_handoff_text(item.get("latest_compact_summary"), 4_000)
+                for item in matched_sidecars
+                if str(item.get("latest_compact_summary") or "").strip()
+            ),
+            "",
+        )
+        newest["recent_reasoning"] = merged_tail("recent_reasoning", 6)
+        newest["recent_tool_observations"] = merged_tail(
+            "recent_tool_observations", 8
+        )
+        newest["continuity_segments_merged"] = len(matched_sidecars)
+        newest["authority_transfer"] = False
+        newest["claims_require_revalidation"] = True
+        return newest
 
     # Compatibility path for checkpoints created before handoff sidecars were
     # introduced.  Only the newest task-matched checkpoint is projected, and
