@@ -110,15 +110,22 @@ export async function resolveProviderControlPlaneTurns(
     if (route.routeId === persistedRoute.routeId) {
       assertRouteRef(route, routeRef, input);
     } else {
-      assertRenewedRoute(route, persistedRoute, input);
+      const renewalDepth = assertProviderRouteRenewalLineage(
+        route,
+        persistedRoute,
+        input,
+        (routeId) => controlPlane.routes.requirePersisted(routeId),
+      );
       await emit("provider_route_renewed", {
         provider_route: {
-          previous_route_id: persistedRoute.routeId,
+          previous_route_id: route.previousRouteId,
+          original_route_id: persistedRoute.routeId,
           route_id: route.routeId,
           route_checksum: route.checksum,
           expires_at: route.expiresAt,
           provider: route.providerId,
           model: route.modelId,
+          renewal_depth: renewalDepth,
         },
       });
     }
@@ -387,7 +394,7 @@ function assertRouteRef(
 function assertRenewedRoute(
   route: ProviderRouteLease,
   previous: ProviderRouteLease,
-  input: RuntimeRunInput,
+  input: Pick<RuntimeRunInput, "runId" | "taskId">,
 ): void {
   const checks: Array<[string, unknown, unknown]> = [
     ["previousRouteId", previous.routeId, route.previousRouteId],
@@ -407,6 +414,39 @@ function assertRenewedRoute(
   if (mismatches.length > 0) {
     throw new Error(`renewed provider route mismatch: ${mismatches.map(([name]) => name).join(", ")}`);
   }
+}
+
+export function assertProviderRouteRenewalLineage(
+  route: ProviderRouteLease,
+  ancestor: ProviderRouteLease,
+  input: Pick<RuntimeRunInput, "runId" | "taskId">,
+  requirePersisted: (routeId: string) => ProviderRouteLease,
+): number {
+  if (route.routeId === ancestor.routeId) return 0;
+  const seen = new Set<string>();
+  let current = route;
+  // Route ids are immutable and every hop must move to an earlier creation
+  // time.  The bound protects recovery from corrupted or cyclic stores even
+  // when a provider session has renewed many times during a long execution.
+  const maximumDepth = 1_024;
+  for (let depth = 1; depth <= maximumDepth; depth += 1) {
+    if (seen.has(current.routeId)) {
+      throw new Error("renewed provider route lineage contains a cycle");
+    }
+    seen.add(current.routeId);
+    const parentId = current.previousRouteId;
+    if (parentId === null || parentId.length === 0) {
+      throw new Error("renewed provider route lineage does not reach the pinned route");
+    }
+    const parent = requirePersisted(parentId);
+    if (parent.createdAt >= current.createdAt) {
+      throw new Error("renewed provider route lineage is not monotonic");
+    }
+    assertRenewedRoute(current, parent, input);
+    if (parent.routeId === ancestor.routeId) return depth;
+    current = parent;
+  }
+  throw new Error("renewed provider route lineage exceeds the recovery bound");
 }
 
 function initialUserMessageDigest(messages: readonly JsonObject[]): string {

@@ -15,9 +15,11 @@ import {
   type ToolExecutionResponse,
 } from "../src/index.ts";
 import {
+  assertProviderRouteRenewalLineage,
   providerControlPlaneEvidenceFrames,
   providerControlPlaneToolSteps,
 } from "../src/provider-control-plane-runtime.ts";
+import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
 import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
 
 class MemoryHost implements RuntimeHost {
@@ -267,6 +269,81 @@ test("provider evidence keeps structural frames without replaying content tokens
     "usage",
     "response_end",
   ]);
+});
+
+test("provider route renewal accepts a verified multi-hop pinned lineage", () => {
+  const route = (
+    routeId: string,
+    previousRouteId: string | null,
+    createdAt: number,
+  ): ProviderRouteLease => ({
+    routeId,
+    previousRouteId,
+    createdAt,
+    expiresAt: createdAt + 1_000,
+    runId: "run-route",
+    taskId: "task-route",
+    nodeId: "node-route",
+    sessionId: "session-route",
+    turnId: "turn-route",
+    purpose: "reason",
+    catalogRevision: 7,
+    providerId: "deepseek",
+    modelId: "deepseek-v4-flash",
+    credentialId: "credential-route",
+    credentialVersion: 3,
+    credentialFingerprint: "sha256:credential",
+    integrationId: "deepseek-bearer",
+    transportId: "openai_chat",
+    protocol: "openai_chat",
+    baseUrl: "https://api.deepseek.com",
+    allowedHosts: ["api.deepseek.com"],
+    endpointPath: "/chat/completions",
+    requestHeaders: {},
+    requestDefaults: {},
+    retryPolicy: {
+      maximumAttempts: 3,
+      baseDelayMilliseconds: 1,
+      maximumDelayMilliseconds: 10,
+      retryStatuses: [503],
+      rotateCredentialOnAuthenticationFailure: true,
+      rotateRouteOnProviderUnavailable: true,
+    },
+    reason: "provider routing; renewed expired route",
+    checksum: `sha256:${routeId}`,
+  });
+  const original = route("route-1", null, 1);
+  const child = route("route-2", original.routeId, 2);
+  const leaf = route("route-3", child.routeId, 3);
+  const routes = new Map([original, child, leaf].map((item) => [item.routeId, item]));
+
+  assert.equal(
+    assertProviderRouteRenewalLineage(
+      leaf,
+      original,
+      { runId: original.runId, taskId: original.taskId },
+      (routeId) => {
+        const selected = routes.get(routeId);
+        assert.ok(selected);
+        return selected;
+      },
+    ),
+    2,
+  );
+
+  const fork = route("route-fork", "route-unrelated", 4);
+  assert.throws(
+    () => assertProviderRouteRenewalLineage(
+      fork,
+      original,
+      { runId: original.runId, taskId: original.taskId },
+      (routeId) => {
+        const selected = routes.get(routeId);
+        assert.ok(selected);
+        return selected;
+      },
+    ),
+  );
 });
 
 test("provider control plane rejoins fragmented OpenAI tool arguments by provider index", () => {
