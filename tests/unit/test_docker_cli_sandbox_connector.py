@@ -590,7 +590,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 code_worker_adapter._pull_benchmark_workspace(binding, workspace)
             self.assertFalse((workspace / "stale.txt").exists())
             self.assertEqual((workspace / "site.txt").read_text(encoding="utf-8"), "live")
-            self.assertTrue((workspace / ".git" / "HEAD").is_file())
+            self.assertFalse((workspace / ".git").exists())
 
     def test_container_pull_streams_a_dereferenced_tar_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -622,9 +622,33 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "-C",
                 "/app",
                 "--exclude=./.runtime/docker-config",
+                "--exclude=./.runtime/cache",
                 "--exclude=./.runtime/temp",
                 "--exclude=./.runtime/tmp",
                 "--exclude=./.runtime/venv",
+                "--exclude=./.git",
+                "--exclude=./.cache",
+                "--exclude=*/.cache",
+                "--exclude=./.mypy_cache",
+                "--exclude=*/.mypy_cache",
+                "--exclude=./.nox",
+                "--exclude=*/.nox",
+                "--exclude=./.pytest_cache",
+                "--exclude=*/.pytest_cache",
+                "--exclude=./.ruff_cache",
+                "--exclude=*/.ruff_cache",
+                "--exclude=./.tox",
+                "--exclude=*/.tox",
+                "--exclude=./.venv",
+                "--exclude=*/.venv",
+                "--exclude=./__pycache__",
+                "--exclude=*/__pycache__",
+                "--exclude=./node_modules",
+                "--exclude=*/node_modules",
+                "--exclude=./venv",
+                "--exclude=*/venv",
+                "--exclude=./*.egg-info",
+                "--exclude=*/*.egg-info",
                 ".",
             ],
         )
@@ -651,6 +675,10 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 source = root / "archive-source"
                 source.joinpath(".runtime", "venv").mkdir(parents=True)
                 source.joinpath(".runtime", "venv", "large.bin").write_bytes(b"x")
+                source.joinpath("node_modules", "package").mkdir(parents=True)
+                source.joinpath("node_modules", "package", "large.bin").write_bytes(b"x")
+                source.joinpath(".git").mkdir()
+                source.joinpath(".git", "index").write_bytes(b"git")
                 source.joinpath(".runtime", "simulation-result.json").write_text(
                     "{}", encoding="utf-8"
                 )
@@ -665,6 +693,8 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 code_worker_adapter._pull_benchmark_workspace(binding, workspace)
 
             self.assertFalse(workspace.joinpath(".runtime", "venv").exists())
+            self.assertFalse(workspace.joinpath("node_modules").exists())
+            self.assertFalse(workspace.joinpath(".git").exists())
             self.assertTrue(
                 workspace.joinpath(
                     ".runtime", "simulation-result.json"

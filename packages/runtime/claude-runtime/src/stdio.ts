@@ -54,12 +54,17 @@ export function toolBatchDeadlineMs(requests: readonly ToolExecutionRequest[]): 
       ? Math.min(60_000, requested)
       : requested;
   });
+  const executionWindow = requests.some(
+    (request) => request.executionMode !== "concurrent_read_only",
+  )
+    ? declared.reduce((total, timeout) => total + timeout, 0)
+    : Math.max(...declared, 1_000);
   // The gateway result traverses sandbox teardown, receipt persistence,
   // permission settlement and the Python/TypeScript stdio bridge after the
   // command or wait ends. Real Docker workloads have shown that phase taking
   // well over five seconds. This allowance is only result-settlement time; it
   // cannot extend the physical command budget enforced by Python.
-  return Math.max(...declared, 1_000) + 60_000;
+  return Math.min(executionWindow, 2_146_940_000) + 60_000;
 }
 
 const LEGACY_CANDIDATE_METADATA_PATH =

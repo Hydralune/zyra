@@ -1316,10 +1316,29 @@ def _normalized_usd_cost(
 
 _BENCHMARK_MIRROR_EXCLUDED_PREFIXES = (
     ".runtime/docker-config",
+    ".runtime/cache",
     ".runtime/temp",
     ".runtime/tmp",
     ".runtime/venv",
+    ".git",
 )
+
+_BENCHMARK_MIRROR_EXCLUDED_SEGMENTS = frozenset(
+    {
+        ".cache",
+        ".mypy_cache",
+        ".nox",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
+)
+
+_BENCHMARK_MIRROR_EXCLUDED_SUFFIXES = (".egg-info",)
 
 _WORKSPACE_STATE_EPHEMERAL_PREFIXES = (
     ".runtime/cache",
@@ -1346,9 +1365,15 @@ def _benchmark_path_excluded(
     excluded_prefixes: tuple[str, ...],
 ) -> bool:
     canonical = str(relative).replace("\\", "/").strip("/")
-    return any(
+    if any(
         canonical == prefix or canonical.startswith(f"{prefix}/")
         for prefix in excluded_prefixes
+    ):
+        return True
+    return any(
+        segment in _BENCHMARK_MIRROR_EXCLUDED_SEGMENTS
+        or segment.endswith(_BENCHMARK_MIRROR_EXCLUDED_SUFFIXES)
+        for segment in canonical.split("/")
     )
 
 
@@ -2183,6 +2208,14 @@ def _run_benchmark_docker_archive(
         f"--exclude=./{prefix}"
         for prefix in _benchmark_mirror_excludes(binding)
     ]
+    for segment in sorted(_BENCHMARK_MIRROR_EXCLUDED_SEGMENTS):
+        excluded_arguments.extend(
+            (f"--exclude=./{segment}", f"--exclude=*/{segment}")
+        )
+    for suffix in _BENCHMARK_MIRROR_EXCLUDED_SUFFIXES:
+        excluded_arguments.extend(
+            (f"--exclude=./*{suffix}", f"--exclude=*/*{suffix}")
+        )
     command = [
         str(binding["docker_executable"]),
         "exec",
