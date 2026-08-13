@@ -1515,7 +1515,7 @@ class SealedLongRunRunner:
             cloud_models
             != (
                 ("zhipu", "glm-5.2"),
-                ("deepseek", "deepseek-v4-pro"),
+                ("deepseek", "deepseek-v4-flash"),
                 ("kimi-platform", "kimi-k2.7-code"),
             )
             or int(

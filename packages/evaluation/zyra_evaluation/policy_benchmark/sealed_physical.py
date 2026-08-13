@@ -62,7 +62,7 @@ _BACKEND = {
 }
 _DEFAULT_CLOUD_MODELS = (
     ("zhipu", "glm-5.2"),
-    ("deepseek", "deepseek-v4-pro"),
+    ("deepseek", "deepseek-v4-flash"),
     ("kimi-platform", "kimi-k2.7-code"),
 )
 _PROVIDER_CREDENTIAL = {

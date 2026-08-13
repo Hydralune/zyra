@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_PRO_MODEL_ID,
+  DEEPSEEK_V4_FLASH_MODEL_ID,
   ProviderControlPlane,
-  installDeepSeekV4ProProfile,
+  installDeepSeekV4FlashProfile,
 } from "../packages/runtime/provider-control-plane/src/index.ts";
 import type {
   ProviderDispatchRequest,
@@ -37,7 +37,7 @@ const controlPlane = new ProviderControlPlane({
 });
 
 try {
-  const installed = installDeepSeekV4ProProfile(controlPlane);
+  const installed = installDeepSeekV4FlashProfile(controlPlane);
   const routeRequest: RouteRequest = {
     runId: `deepseek-smoke-${stamp}`,
     taskId: "provider-connectivity",
@@ -46,11 +46,11 @@ try {
     turnId: "turn-1",
     purpose: "verify",
     preferredProviderId: DEEPSEEK_PROVIDER_ID,
-    preferredModelId: DEEPSEEK_V4_PRO_MODEL_ID,
-    routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_PRO_MODEL_ID}`,
+    preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+    routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
     constraints: {
       providerIds: [DEEPSEEK_PROVIDER_ID],
-      modelIds: [DEEPSEEK_V4_PRO_MODEL_ID],
+      modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
       requiredInput: ["text"],
       requiredOutput: ["text"],
       requireTools: false,

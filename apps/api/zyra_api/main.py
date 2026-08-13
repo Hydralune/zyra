@@ -7047,7 +7047,7 @@ def _production_physical_dispatch_port(
         permission_ref=str(permission.get("decision_id") or ""),
         operation="phase2-operator-execution",
         provider_id=provider_id or "deepseek",
-        model_id=model_id or "deepseek-v4-pro",
+        model_id=model_id or "deepseek-v4-flash",
         execution_budget_ms=execution_budget_ms,
     )
     return PhysicalDispatchCallPort(
@@ -7200,7 +7200,7 @@ _PROVIDER_ENV_FILES = (
         "DEEPSEEK_API_KEY",
         ".env.deepseek.local",
         "deepseek",
-        "deepseek-v4-pro",
+        "deepseek-v4-flash",
     ),
     ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
     (

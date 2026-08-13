@@ -64,7 +64,7 @@ KIMI_PROVIDER_ID = "kimi-platform"
 KIMI_MODEL_ID = "kimi-k2.7-code"
 KIMI_API_KEY_ENV = "KIMI_API_KEY"
 DEEPSEEK_PROVIDER_ID = "deepseek"
-DEEPSEEK_MODEL_ID = "deepseek-v4-pro"
+DEEPSEEK_MODEL_ID = "deepseek-v4-flash"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 
 PROVIDER_PRIORITY = (
@@ -138,28 +138,30 @@ _LIVE_PROFILES = {
         credential_id="deepseek-physical-dispatch",
         api_key_env=DEEPSEEK_API_KEY_ENV,
         provider_display_name="DeepSeek",
-        model_display_name="DeepSeek V4 Pro 0813",
+        model_display_name="DeepSeek V4 Flash 0731",
         family="deepseek-v4",
         base_url="https://api.deepseek.com",
         endpoint_host="api.deepseek.com",
         endpoint_path="/chat/completions",
-        released_at_ms=1_786_579_200_000,
+        released_at_ms=1_785_456_000_000,
         context_window=1_000_000,
         maximum_output_tokens=384_000,
-        input_per_million=0.435,
-        cached_input_per_million=0.003625,
-        output_per_million=0.87,
+        input_per_million=0.14,
+        cached_input_per_million=0.0028,
+        output_per_million=0.28,
         pricing_currency="USD",
         pricing_source=(
-            "https://api-docs.deepseek.com/quick_start/pricing"
+            "https://api-docs.deepseek.com/quick_start/pricing/"
+            "?article_id=article_1779470751466_8"
         ),
-        normalized_input_usd_per_million=0.435,
-        normalized_cached_input_usd_per_million=0.003625,
-        normalized_output_usd_per_million=0.87,
+        normalized_input_usd_per_million=0.14,
+        normalized_cached_input_usd_per_million=0.0028,
+        normalized_output_usd_per_million=0.28,
         normalized_pricing_source=(
-            "https://api-docs.deepseek.com/quick_start/pricing"
+            "https://api-docs.deepseek.com/quick_start/pricing/"
+            "?article_id=article_1779470751466_8"
         ),
-        model_version="DeepSeek-V4-Pro-0813",
+        model_version="DeepSeek-V4-Flash-0731",
     ),
 }
 
@@ -618,11 +620,7 @@ class LiveProviderDispatchRuntime:
                     "physical-dispatch",
                 ),
                 metadata={
-                    "profile_revision": (
-                        "2026-08-13"
-                        if profile.provider_id == DEEPSEEK_PROVIDER_ID
-                        else "2026-07-31"
-                    ),
+                    "profile_revision": "2026-07-31",
                     "routing_priority": (
                         len(PROVIDER_PRIORITY)
                         - PROVIDER_PRIORITY.index(
@@ -685,11 +683,7 @@ class LiveProviderDispatchRuntime:
                 ),
                 tags=("physical-dispatch",),
                 metadata={
-                    "pricing_checked_at": (
-                        "2026-08-13"
-                        if profile.provider_id == DEEPSEEK_PROVIDER_ID
-                        else "2026-07-31"
-                    ),
+                    "pricing_checked_at": "2026-07-31",
                     "pricing_reference": profile.pricing_source,
                     **(
                         {"model_version": profile.model_version}

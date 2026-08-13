@@ -66,16 +66,16 @@ def test_kimi_pricing_has_conservative_nonzero_usd_budget_normalization() -> Non
     )
 
 
-def test_deepseek_profile_uses_current_pro_version_and_pricing() -> None:
+def test_deepseek_profile_uses_current_flash_version_and_pricing() -> None:
     profile = _LIVE_PROFILES[(DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID)]
 
-    assert profile.model_display_name == "DeepSeek V4 Pro 0813"
-    assert profile.model_version == "DeepSeek-V4-Pro-0813"
+    assert profile.model_display_name == "DeepSeek V4 Flash 0731"
+    assert profile.model_version == "DeepSeek-V4-Flash-0731"
     assert profile.context_window == 1_000_000
     assert profile.maximum_output_tokens == 384_000
-    assert profile.input_per_million == 0.435
-    assert profile.cached_input_per_million == 0.003625
-    assert profile.output_per_million == 0.87
+    assert profile.input_per_million == 0.14
+    assert profile.cached_input_per_million == 0.0028
+    assert profile.output_per_million == 0.28
 
 
 def test_deepseek_physical_catalog_explicitly_sets_high_effort(tmp_path) -> None:
@@ -121,7 +121,7 @@ def test_physical_profile_rebinds_persisted_credential_after_model_change(
                 secret_ref=f"env://{profile.api_key_env}",
                 fingerprint=str(first["fingerprint"]),
                 priority=100,
-                allowed_models=("deepseek-v4-flash",),
+                allowed_models=("deepseek-v4-pro",),
                 scopes=("chat.completions",),
                 metadata={
                     "purpose": "legacy-physical-dispatch",
@@ -343,11 +343,11 @@ def test_physical_dispatch_defaults_to_deepseek() -> None:
     )
 
     assert task.provider_id == "deepseek"
-    assert task.model_id == "deepseek-v4-pro"
+    assert task.model_id == "deepseek-v4-flash"
 
 
-def test_physical_dispatch_priority_uses_deepseek_pro_before_kimi() -> None:
-    assert DEEPSEEK_MODEL_ID == "deepseek-v4-pro"
+def test_physical_dispatch_priority_uses_deepseek_flash_before_kimi() -> None:
+    assert DEEPSEEK_MODEL_ID == "deepseek-v4-flash"
     assert PROVIDER_PRIORITY == (
         (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
         (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
