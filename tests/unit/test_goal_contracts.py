@@ -193,6 +193,23 @@ def test_delivery_contract_recognizes_plain_chinese_create_file_wording() -> Non
     assert contract.expected_file_contents == (("smoke.txt", "指定文字"),)
 
 
+def test_delivery_contract_preserves_declared_directory_scope_for_file_list() -> None:
+    contract = goal_delivery_contract(
+        "工作区根目录的 task-contract.json 给出约束。\n"
+        "请在 `submission/` 中交付：\n"
+        "- manifest.json\n"
+        "- architecture.md\n"
+        "- release-notes.md"
+    )
+
+    assert contract.required_paths == (
+        "task-contract.json",
+        "submission/manifest.json",
+        "submission/architecture.md",
+        "submission/release-notes.md",
+    )
+
+
 def test_delivery_contract_maps_known_app_workspace_paths_without_inventing_other_paths() -> None:
     contract = goal_delivery_contract(
         "Create `/app/meeting_scheduled.ics` for alice@example.com with VERSION:2.0."

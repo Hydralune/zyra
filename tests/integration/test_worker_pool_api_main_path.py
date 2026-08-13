@@ -701,6 +701,78 @@ def test_explicit_resume_reopens_verifier_rejected_completed_graph() -> None:
     }
 
 
+def test_explicit_resume_refreshes_stale_delivery_contract_projection() -> None:
+    goal = (
+        "请在 `submission/` 中交付 manifest.json 和 architecture.md。"
+    )
+    state, _created = api_main.make_task_created_event(goal)
+    ensure_default_graph(state)
+    state.status = PlanNodeStatus.BLOCKED
+    state.metadata["delivery_contract"] = {
+        **state.metadata["delivery_contract"],
+        "required_paths": ["manifest.json", "architecture.md"],
+    }
+    for node in state.plan_nodes.values():
+        if node.metadata.get("stage") == "route":
+            node.status = PlanNodeStatus.BLOCKED
+
+    receipt = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "refresh-delivery-contract"},
+    )
+
+    assert receipt is not None
+    assert state.metadata["delivery_contract"]["required_paths"] == [
+        "submission/manifest.json",
+        "submission/architecture.md",
+    ]
+
+
+def test_cumulative_delivery_workspace_delta_spans_recovery_sessions() -> None:
+    def receipt(delta: dict[str, list[str]]) -> dict[str, object]:
+        return {
+            "payload": {
+                "input_signals": {
+                    "operator_adapter_id": (
+                        "worker.code-worker.typescript-provider-tool-loop"
+                    ),
+                    "domain_result": {"workspace_delta": delta},
+                }
+            }
+        }
+
+    merged = api_main._cumulative_delivery_workspace_delta(
+        [
+            receipt(
+                {
+                    "created": ["submission/manifest.json"],
+                    "modified": ["services/api.py"],
+                    "deleted": [],
+                    "changed": [
+                        "submission/manifest.json",
+                        "services/api.py",
+                    ],
+                }
+            ),
+            receipt(
+                {
+                    "created": [],
+                    "modified": ["services/api.py"],
+                    "deleted": [],
+                    "changed": ["services/api.py"],
+                }
+            ),
+        ]
+    )
+
+    assert merged == {
+        "created": ["submission/manifest.json"],
+        "modified": ["services/api.py"],
+        "deleted": [],
+        "changed": ["submission/manifest.json", "services/api.py"],
+    }
+
+
 def test_first_pending_task_run_does_not_create_recovery_session() -> None:
     state, _created = api_main.make_task_created_event(
         "Run a newly created task for the first time."

@@ -1972,6 +1972,14 @@ def _prepare_task_for_explicit_resume(
     """
 
     status_before_prepare = state.status
+    # Delivery contracts are deterministic projections of the durable goal.
+    # Recompile them when a newer runtime fixes projection semantics so a
+    # resumed task is not permanently fenced by a stale derived contract.
+    current_delivery_contract = goal_delivery_contract(
+        state.user_goal
+    ).to_dict()
+    if state.metadata.get("delivery_contract") != current_delivery_contract:
+        state.metadata["delivery_contract"] = current_delivery_contract
     plan = state.metadata.get("last_recovery_plan")
     recoverable_nodes: list[Any] = []
     selected_action = ""
@@ -2175,6 +2183,58 @@ def _observe_delivery_contract_paths(
             str(body.get("content") or "").encode("utf-8")
         ).hexdigest()
     return observed
+
+
+def _cumulative_delivery_workspace_delta(
+    physical_receipts: Sequence[Mapping[str, Any]],
+) -> dict[str, list[str]]:
+    """Merge durable CodeWorker mutations across recovery continuations.
+
+    A recovery session can legitimately finish with no new file writes after
+    inspecting a delivery produced by an earlier physical session.  The final
+    verifier therefore evaluates the complete task-scoped receipt history,
+    rather than mistaking the last continuation's empty delta for an absence
+    of work across the task.
+    """
+
+    merged = {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "changed": [],
+    }
+    seen = {name: set() for name in merged}
+    for receipt in physical_receipts:
+        payload = receipt.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        signals = payload.get("input_signals")
+        if not isinstance(signals, Mapping):
+            continue
+        if (
+            signals.get("operator_adapter_id")
+            != "worker.code-worker.typescript-provider-tool-loop"
+        ):
+            continue
+        domain_result = signals.get("domain_result")
+        delta = signals.get("workspace_delta")
+        if not isinstance(delta, Mapping) and isinstance(domain_result, Mapping):
+            delta = domain_result.get("workspace_delta")
+        if not isinstance(delta, Mapping):
+            continue
+        for name in merged:
+            values = delta.get(name)
+            if not isinstance(values, Sequence) or isinstance(
+                values,
+                (str, bytes, bytearray),
+            ):
+                continue
+            for value in values:
+                path = str(value or "").strip().replace("\\", "/")
+                if path and path not in seen[name]:
+                    seen[name].add(path)
+                    merged[name].append(path)
+    return merged
 
 
 def _fence_pending_task_reservation(
@@ -6109,6 +6169,11 @@ class _CanonicalFinalVerifierOwner:
         delivery_operator_domain_result = dict(
             delivery_physical_signals.get("domain_result") or {}
         )
+        cumulative_delivery_workspace_delta = (
+            _cumulative_delivery_workspace_delta(
+                historical_physical_receipts
+            )
+        )
         operator_execution_body = dict(
             physical_signals.get("operator_execution_body") or {}
         )
@@ -6200,16 +6265,7 @@ class _CanonicalFinalVerifierOwner:
             ),
             workspace_root=workspace_root,
             workspace_delta=(
-                delivery_physical_signals.get("workspace_delta")
-                if isinstance(
-                    delivery_physical_signals.get("workspace_delta"), Mapping
-                )
-                else delivery_operator_domain_result.get("workspace_delta")
-                if isinstance(
-                    delivery_operator_domain_result.get("workspace_delta"),
-                    Mapping,
-                )
-                else None
+                cumulative_delivery_workspace_delta
             ),
             final_response=final_answer,
             provider_evidence=(

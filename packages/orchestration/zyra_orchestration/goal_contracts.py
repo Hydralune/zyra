@@ -51,7 +51,7 @@ _NON_LITERAL_BARE_PREFIXES = (
 
 _WORKSPACE_CHANGE = re.compile(
     r"(?:创建|新建|建立|建一个|建一份|制作|添加|编辑|写入|生成|保存|修改|更新|删除|移除|修复|实现|开发|重构|替换|"
-    r"安装|配置|构建|搭建|补充|create|write|generate|save|modify|update|delete|"
+    r"安装|配置|构建|搭建|补充|交付|提交|提供|放置|create|write|generate|save|deliver|place|modify|update|delete|"
     r"remove|fix|implement|develop|refactor|replace|install|configure|build|make|patch|add)",
     re.IGNORECASE,
 )
@@ -67,6 +67,21 @@ _FILE_PATH_PATTERNS = (
     re.compile(
         r"(?<![\w./\\@-])((?:[A-Za-z0-9_.-]+[\\/])*"
         r"[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,12})(?![\w.])"
+    ),
+)
+_DIRECTORY_SCOPE_PATTERNS = (
+    re.compile(
+        r"(?:在|于|至|到)\s*[`\"'“‘]?"
+        r"((?:[A-Za-z0-9_.-]+[\\/])+)"
+        r"[`\"'”’]?\s*(?:目录|文件夹)?\s*(?:中|内|下)\s*"
+        r"(?:交付|提交|提供|保存|生成|放置|写入)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:deliver|place|write|save|create)\b[^\r\n]{0,80}?"
+        r"\b(?:in|into|under)\s+[`\"']?"
+        r"((?:[A-Za-z0-9_.-]+[\\/])+)[`\"']?",
+        re.IGNORECASE,
     ),
 )
 _FILE_CONTENT_PATTERNS = (
@@ -188,11 +203,38 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
     workspace_mutation_required = bool(_WORKSPACE_CHANGE.search(goal))
     paths: list[str] = []
     if workspace_mutation_required:
+        directory_scopes: list[tuple[int, str]] = []
+        for pattern in _DIRECTORY_SCOPE_PATTERNS:
+            for match in pattern.finditer(goal):
+                normalized_directory = _safe_relative_path(match.group(1))
+                if normalized_directory:
+                    directory_scopes.append((match.start(), normalized_directory))
+        directory_scopes.sort(key=lambda item: item[0])
+        path_candidates: list[tuple[int, str]] = []
         for pattern in _FILE_PATH_PATTERNS:
             for match in pattern.finditer(goal):
                 normalized_path = _safe_relative_path(match.group(1))
-                if normalized_path and normalized_path not in paths:
-                    paths.append(normalized_path)
+                if normalized_path:
+                    path_candidates.append((match.start(), normalized_path))
+        for position, normalized_path in sorted(
+            path_candidates,
+            key=lambda item: item[0],
+        ):
+            if "/" not in normalized_path:
+                active_scope = next(
+                    (
+                        directory
+                        for scope_position, directory in reversed(directory_scopes)
+                        if scope_position < position
+                    ),
+                    "",
+                )
+                if active_scope:
+                    normalized_path = str(
+                        PurePosixPath(active_scope) / normalized_path
+                    )
+            if normalized_path not in paths:
+                paths.append(normalized_path)
     expected_content = ""
     for pattern in _FILE_CONTENT_PATTERNS:
         match = pattern.search(goal)
