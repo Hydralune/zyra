@@ -2237,6 +2237,106 @@ test("required delivery redirects repeated read-only inspection into execution",
   }
 });
 
+test("unverified restored delivery requests verification after a tool observation", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: string[] = [];
+  let requestCount = 0;
+  globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+    requestCount += 1;
+    requestBodies.push(String(init?.body ?? ""));
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "post-restore-read",
+            type: "function",
+            function: { name: "read", arguments: '{"path":"tests/public/test_metrics.py"}' },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 2
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "post-restore-tests",
+              type: "function",
+              function: { name: "shell", arguments: '{"command":"python -m pytest tests -q"}' },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : {
+          index: 0,
+          delta: { content: "The restored delivery is now behaviorally verified." },
+          finish_reason: "stop",
+        };
+    return new Response(`data: ${JSON.stringify({
+      id: `post-tool-verification-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: { workspace_mutation_required: true },
+        task_handoff_progress: {
+          requiredDeliveryMissing: false,
+          workspaceMutationCount: 3,
+          verificationCount: 0,
+        },
+      },
+      tools: [
+        ...(input().tools ?? []),
+        {
+          name: "shell",
+          purpose: "execute a shell command",
+          source: "test",
+          input_schema: {
+            type: "object",
+            required: ["command"],
+            properties: { command: { type: "string" } },
+          },
+          output_schema: {},
+          metadata: { read_only: "false", concurrency_safe: "false" },
+        },
+      ],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.deepEqual(
+      host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+      ["read", "shell"],
+    );
+    assert.match(requestBodies[1] ?? "", /Before continuing broad inspection/);
+    assert.ok(host.events.some((event) => (
+      event.phase === "progressive_verification_requested"
+      && event.post_tool === true
+    )));
+    assert.equal(result.metadata.progressive_verifications, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("required delivery circuit declines further inspection and accepts the next edit", async () => {
   const originalFetch = globalThis.fetch;
   let requestCount = 0;

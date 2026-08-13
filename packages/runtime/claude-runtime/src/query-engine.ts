@@ -2329,6 +2329,29 @@ export class ClaudeRuntimeCore {
               postToolProgressDecision.snapshot.consecutiveNoDeliveryObservations,
             required_delivery_missing: postToolProgressDecision.snapshot.requiredDeliveryMissing,
           });
+        } else if (postToolProgressDecision.action === "nudge_verification") {
+          const nudgedProgress = progressive.recordVerificationNudge();
+          providerMessages = [
+            ...providerMessages,
+            {
+              role: "user",
+              content: [
+                "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
+                "Before continuing broad inspection, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "File existence, JSON parsing, hashes, git status, report text, and merely reading test source are not behavioral verification.",
+                "If verification fails, use its concrete evidence to fix the cause and rerun it.",
+              ].join(" "),
+            },
+          ];
+          await emit("progressive_verification_requested", {
+            reason: postToolProgressDecision.reason,
+            execution_phase: postToolProgressDecision.snapshot.phase,
+            verification_nudge: nudgedProgress.verificationNudgeCount,
+            verification_count: nudgedProgress.verificationCount,
+            workspace_mutations: nudgedProgress.workspaceMutationCount,
+            artifacts: nudgedProgress.artifactCount,
+            post_tool: true,
+          });
         }
         if (
           resourceBudget !== null
