@@ -503,6 +503,55 @@ describe("model iteration recovery", () => {
     expect(runtime.snapshot().phase).toBe("completed");
   });
 
+  test("e01.mutation.compaction-replaces-the-live-provider-transcript", () => {
+    const runtime = new ModelIterationRuntime({
+      sessionId: "compact-session",
+      runId: "compact-run",
+      taskId: "compact-task",
+      workerRequestId: "compact-request",
+    });
+    const original = "Inspect and repair the repository. ".repeat(500);
+    runtime.start([{ role: "user", content: original }]);
+    const first = runtime.beginProviderRound({
+      requestKey: "compact-round-zero",
+      model: "provider-model",
+      messages: [{ role: "user", content: original }],
+    });
+    runtime.acceptProviderResult({
+      roundId: first.roundId,
+      providerRequestId: "compact-provider-one",
+      model: "provider-model",
+      stopReason: "tool_use",
+      finalText: "",
+      steps: [{ step_id: "compact-call", tool_name: "read", arguments: { path: "package.json" } }],
+    });
+    runtime.recordToolObservation({
+      callId: "compact-call",
+      turnId: "compact-turn",
+      ok: true,
+      summary: "package metadata read",
+      output: { text: "{}" },
+      error: null,
+    });
+    const before = runtime.buildRevisionMessages(first.roundId);
+    const compacted = runtime.compactTranscript([
+      { role: "system", content: "Compaction boundary: continue the repository repair." },
+      ...before.slice(-2),
+    ], "compact-boundary-one");
+
+    expect(JSON.stringify(compacted).length).toBeLessThan(JSON.stringify(before).length);
+    expect(compacted.some((message) => JSON.stringify(message).includes(original))).toBe(false);
+    expect(runtime.snapshot().transitions.at(-1)?.operation).toBe("iteration.transcript.compacted");
+    expect(runtime.audit().ok).toBe(true);
+
+    const second = runtime.beginProviderRound({
+      requestKey: "compact-round-one",
+      model: "provider-model",
+      messages: compacted,
+    });
+    expect(second.messageCountBefore).toBe(compacted.length);
+  });
+
   test("e01.mutation.iteration-resume-does-not-replay-transition-ids", () => {
     const first = new ModelIterationRuntime({
       sessionId: "resume-session",

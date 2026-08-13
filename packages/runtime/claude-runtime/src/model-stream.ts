@@ -434,14 +434,17 @@ export async function resolveModelTurns(
           finalText: owned.finalText,
           stopReason: owned.stopReason,
           providerRequestId: owned.providerRequestId,
-          metadata: modelMetadata({
-            ok: true,
-            status,
-            finalModel: model,
-            fallbackUsed,
-            recovered: true,
-            retryCount: index,
-          }),
+          metadata: {
+            ...modelMetadata({
+              ok: true,
+              status,
+              finalModel: model,
+              fallbackUsed,
+              recovered: true,
+              retryCount: index,
+            }),
+            ...providerUsageMetadata(owned.usage),
+          },
         };
       }
       const requestBody: JsonObject = {
@@ -565,14 +568,17 @@ export async function resolveModelTurns(
         finalText: "",
         stopReason: parsed.steps.length > 0 ? "tool_use" : "end_turn",
         providerRequestId: null,
-        metadata: modelMetadata({
-          ok: true,
-          status,
-          finalModel: model,
-          fallbackUsed,
-          recovered: true,
-          retryCount: index,
-        }),
+        metadata: {
+          ...modelMetadata({
+            ok: true,
+            status,
+            finalModel: model,
+            fallbackUsed,
+            recovered: true,
+            retryCount: index,
+          }),
+          ...providerUsageMetadata(parsed.usage),
+        },
       };
     } catch (error) {
       finalError = error instanceof Error ? error.message : String(error);
@@ -956,4 +962,20 @@ function modelMetadata(value: {
     runtime_budget_state_retry_count: String(value.retryCount),
     runtime_budget_replay_ok: String(value.ok),
   };
+}
+
+function providerUsageMetadata(usage: JsonObject): Record<string, string> {
+  const input = nonnegativeUsage(usage.input_tokens ?? usage.prompt_tokens);
+  const output = nonnegativeUsage(usage.output_tokens ?? usage.completion_tokens);
+  const total = nonnegativeUsage(usage.total_tokens) || input + output;
+  return {
+    provider_input_tokens: String(input),
+    provider_output_tokens: String(output),
+    provider_total_tokens: String(total),
+  };
+}
+
+function nonnegativeUsage(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
 }

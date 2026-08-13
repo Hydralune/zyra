@@ -603,6 +603,37 @@ export class ModelIterationRuntime {
     return clone(this.transcript);
   }
 
+  compactTranscript(
+    messages: readonly JsonObject[],
+    boundaryId: string,
+  ): JsonObject[] {
+    this.assertOperational("compact model transcript");
+    if (this.phase !== "ready" || this.activeRoundId !== null) {
+      throw new Error(`model transcript cannot compact from ${this.phase}`);
+    }
+    const normalized = normalizeTranscript(messages);
+    if (normalized.length === 0) throw new Error("compacted model transcript cannot be empty");
+    validateTranscriptToolPairs(normalized);
+    const previousCount = this.transcript.length;
+    const previousChars = JSON.stringify(this.transcript).length;
+    const nextChars = JSON.stringify(normalized).length;
+    if (nextChars >= previousChars) {
+      throw new Error("model transcript compaction did not reduce provider context");
+    }
+    const previousDigest = digest(this.transcript);
+    this.transcript.splice(0, this.transcript.length, ...normalized);
+    this.commit("iteration.transcript.compacted", required(boundaryId, "compact boundary id"), {
+      boundary_id: boundaryId,
+      previous_message_count: previousCount,
+      message_count: this.transcript.length,
+      previous_chars: previousChars,
+      context_chars: nextChars,
+      previous_digest: previousDigest,
+      transcript_digest: digest(this.transcript),
+    });
+    return clone(this.transcript);
+  }
+
   currentRound(): ModelRoundRecord | null {
     return this.activeRoundId ? clone(this.requireRound(this.activeRoundId)) : null;
   }
@@ -921,6 +952,31 @@ function normalizeTranscript(values: readonly JsonObject[]): JsonObject[] {
     output.push(message);
   }
   return output;
+}
+
+function validateTranscriptToolPairs(messages: readonly JsonObject[]): void {
+  const toolUses = new Set<string>();
+  const toolResults = new Set<string>();
+  for (const message of messages) {
+    const content = Array.isArray(message.content) ? message.content : [];
+    for (const candidate of content) {
+      const block = asObject(candidate);
+      if (asString(block.type) === "tool_use") {
+        const id = required(asString(block.id), "compacted tool use id");
+        if (toolUses.has(id)) throw new Error(`compacted transcript repeats tool use ${id}`);
+        toolUses.add(id);
+      }
+      if (asString(block.type) === "tool_result") {
+        const id = required(
+          asString(block.tool_use_id || block.toolUseId || block.toolCallId),
+          "compacted tool result id",
+        );
+        if (!toolUses.has(id)) throw new Error(`compacted transcript has orphan tool result ${id}`);
+        if (toolResults.has(id)) throw new Error(`compacted transcript repeats tool result ${id}`);
+        toolResults.add(id);
+      }
+    }
+  }
 }
 
 function normalizeMessageContent(value: JsonValue | undefined): JsonValue {

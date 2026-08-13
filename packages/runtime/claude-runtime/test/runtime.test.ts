@@ -23,6 +23,7 @@ import type { ProviderRouteLease } from "../../provider-control-plane/src/contra
 import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
 import {
   durableCompactionSummary,
+  e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
   isClearlyVerificationDrivingTool,
 } from "../src/query-engine.ts";
@@ -517,6 +518,33 @@ test("durable compaction summary keeps objective progress verification and open 
   assert.match(summary, /\[REDACTED\]/);
 });
 
+test("provider control checkpoints externalize cumulative prompt content", () => {
+  const marker = "large-provider-prompt-marker-".repeat(2_000);
+  const projected = e01RuntimeEventPayload("model_request_prepared", {
+    provider_request: {
+      request_id: "provider-request-one",
+      messages_digest: "sha256:prompt",
+      tools_digest: "sha256:tools",
+      messages: [{ role: "user", content: marker }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "shell",
+          description: marker,
+          parameters: { type: "object", properties: { command: { type: "string" } } },
+        },
+      }],
+      system: [],
+    },
+  });
+  const serialized = JSON.stringify(projected);
+
+  assert.equal(serialized.includes(marker), false);
+  assert.match(serialized, /sha256:prompt/);
+  assert.match(serialized, /provider_control_plane/);
+  assert.ok(serialized.length < 2_000);
+});
+
 test("runtime rejects invalid tool arguments before the Python host", async () => {
   const host = new MemoryHost();
   const selected = input({
@@ -731,6 +759,89 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.deepEqual(failureState.providerRateLimits.reservations.map((item) => item.status), ["released"]);
   assert.ok((failureState.journal.state.provider?.revision ?? 0) > 0);
   assert.ok(failureHost.events.some((event) => event.phase === "api_retry_report"));
+});
+
+test("auto compaction replaces the next provider request transcript", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: JsonObject[] = [];
+  let requestCount = 0;
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    if (requestCount <= 2) {
+      const event = {
+        id: `compact-tool-response-${requestCount}`,
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: `compact-tool-${requestCount}`,
+              type: "function",
+              function: {
+                name: "read",
+                arguments: JSON.stringify({ path: requestCount === 1 ? "a" : "b" }),
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 1_000, completion_tokens: 10, total_tokens: 1_010 },
+      };
+      return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+    const event = {
+      id: "compact-final-response",
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [{ index: 0, delta: { content: "done" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 200, completion_tokens: 5, total_tokens: 205 },
+    };
+    return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  const marker = "original-provider-context-marker-".repeat(1_000);
+  let result: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>;
+  try {
+    result = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-compact-run",
+      sessionId: "provider-compact-session",
+      workerRequestId: "provider-compact-request",
+      messages: [{ role: "user", content: marker }],
+      turns: [],
+      config: {
+        maxTurns: 2,
+        maxQueryContextChars: 500,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), new MemoryHost());
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(result.ok, true);
+  assert.equal(requestCount, 3);
+  assert.ok(result.contextCompactionCount >= 2);
+  assert.equal(JSON.stringify(requestBodies[0]).includes(marker), true);
+  assert.equal(JSON.stringify(requestBodies[1]).includes(marker), true);
+  assert.equal(JSON.stringify(requestBodies[2]).includes(marker), false);
+  assert.match(JSON.stringify(requestBodies[2]), /Compaction boundary/);
+  const modelIteration = result.sessionSnapshot.modelIteration as JsonObject;
+  assert.equal(JSON.stringify(modelIteration.transcript ?? []).includes(marker), false);
 });
 
 test("runtime continues a length-truncated provider turn before accepting completion", async () => {

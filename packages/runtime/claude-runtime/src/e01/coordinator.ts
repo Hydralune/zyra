@@ -566,10 +566,10 @@ export class E01RuntimeCoordinator {
     const activeModel = this.provider.snapshot().activeModel;
     const effectiveWindow = this.compact.getEffectiveContextWindowSize(activeModel, configuredWindow);
     const warning = this.compact.calculateTokenWarningState([], effectiveWindow, 8_192);
-    const accepted = compactionCount === 0 && (forceCompact || contextChars > maxContextChars || warning.shouldAutoCompact);
+    const accepted = forceCompact || contextChars > maxContextChars || warning.shouldAutoCompact;
     const reason = accepted
       ? forceCompact ? "forced_compact" : contextChars > maxContextChars ? "context_threshold_exceeded" : "token_threshold_exceeded"
-      : compactionCount > 0 ? "already_compacted" : "within_context_budget";
+      : "within_context_budget";
     if (accepted) this.query.requestCompaction(`context:${this.journal.revision + 1}`);
     const receipt = this.record("context", "compact_decision", {
       accepted,

@@ -280,14 +280,14 @@ describe("E01 coordinator default TypeScript cutover", () => {
     expect(decision.receipt.domain).toBe("context");
   });
 
-  test("does not compact the same turn twice", async () => {
+  test("permits a later compaction after a previous compact boundary", async () => {
     const { coordinator } = await boot();
     const decision = coordinator.decideContext(150_000, 100_000, true, 1);
 
-    expect(decision.accepted).toBe(false);
-    expect(decision.reason).toBe("already_compacted");
+    expect(decision.accepted).toBe(true);
+    expect(decision.reason).toBe("forced_compact");
     expect((coordinator.query.project().control as Record<string, unknown>).pending_compact).toBe(
-      false,
+      true,
     );
   });
 

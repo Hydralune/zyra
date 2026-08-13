@@ -7,7 +7,11 @@ import type {
   ProviderStreamFrame,
 } from "../../provider-control-plane/src/contracts.ts";
 import { ProviderControlPlaneError } from "../../provider-control-plane/src/errors.ts";
-import { digestJson, digestText } from "../../provider-control-plane/src/canonical.ts";
+import {
+  digestJson,
+  digestText,
+  type JsonRecord,
+} from "../../provider-control-plane/src/canonical.ts";
 import {
   asBoolean,
   asObject,
@@ -310,6 +314,9 @@ export async function resolveProviderControlPlaneTurns(
         provider_credential_fingerprint: route.credentialFingerprint,
         provider_transport_id: route.transportId,
         provider_attempt_count: String(result.attempts.length),
+        provider_input_tokens: String(nonnegativeUsage(result.usage.input_tokens ?? result.usage.prompt_tokens)),
+        provider_output_tokens: String(nonnegativeUsage(result.usage.output_tokens ?? result.usage.completion_tokens)),
+        provider_total_tokens: String(providerTotalUsage(result.usage)),
       },
       error: null,
       finalText: result.text,
@@ -346,6 +353,17 @@ export async function resolveProviderControlPlaneTurns(
   } finally {
     controlPlane.close();
   }
+}
+
+function nonnegativeUsage(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+}
+
+function providerTotalUsage(usage: JsonRecord): number {
+  const input = nonnegativeUsage(usage.input_tokens ?? usage.prompt_tokens);
+  const output = nonnegativeUsage(usage.output_tokens ?? usage.completion_tokens);
+  return nonnegativeUsage(usage.total_tokens) || input + output;
 }
 
 export function providerControlPlaneEvidenceFrames(

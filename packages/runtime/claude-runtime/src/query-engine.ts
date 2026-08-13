@@ -155,6 +155,40 @@ function modelTranscriptForCompaction(
   });
 }
 
+function compactMessagesForProvider(messages: readonly CompactMessage[]): JsonObject[] {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.content.map((block): JsonObject => {
+      if (block.type === "text") return { type: "text", text: block.text };
+      if (block.type === "tool_use") {
+        return { type: "tool_use", id: block.id, name: block.name, input: block.input };
+      }
+      if (block.type === "tool_result") {
+        return {
+          type: "tool_result",
+          tool_use_id: block.toolUseId,
+          content: block.content as never,
+          is_error: block.isError,
+        };
+      }
+      if (block.type === "thinking") return { type: "text", text: block.thinking };
+      if (block.type === "attachment") {
+        return { type: "text", text: `${block.name}: ${block.content}` };
+      }
+      if (block.type === "image") {
+        return { type: "text", text: `[Compacted image ${block.mediaType}]` };
+      }
+      return { type: "text", text: `[Compacted document ${block.mediaType}]` };
+    }),
+    metadata: {
+      ...message.metadata,
+      compact_message_id: message.id,
+      compact_api_round: message.apiRound,
+      synthetic: message.synthetic,
+    },
+  }));
+}
+
 function blockSummaryText(block: CompactContentBlock): string {
   if (block.type === "text") return block.text;
   if (block.type === "tool_use") return `requested ${block.name}`;
@@ -375,6 +409,10 @@ export class ClaudeRuntimeCore {
     let providerRoundIndex = 0;
     let activeIterationRoundId: string | null = null;
     let pendingRestoreProviderMessage: JsonObject | null = null;
+    let pendingProviderCompaction: {
+      boundaryId: string;
+      messages: JsonObject[];
+    } | null = null;
     // Restored workspace bytes are fenced as untrusted and stripped of secrets
     // by the projector.  Count both so a trace can show the defense ran on this
     // run rather than only that the code exists.
@@ -420,7 +458,12 @@ export class ClaudeRuntimeCore {
           provider_base_url: config.runtimeConstraints.model_api_base_url ?? null,
         });
       }
-      e01.recordRuntimeEvent(phase, payload);
+      e01.recordRuntimeEvent(
+        phase,
+        providerControlPlaneRequired
+          ? e01RuntimeEventPayload(phase, payload)
+          : payload,
+      );
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
       if (!TRANSIENT_CHECKPOINT_PHASES.has(phase)) {
         await host.checkpointState?.({
@@ -1591,12 +1634,20 @@ export class ClaudeRuntimeCore {
         8_192,
         Math.ceil(config.maxQueryContextChars / 4) + 5_000,
       );
+      const providerInputTokens = Math.max(
+        0,
+        Math.floor(Number(modelMetadata.provider_input_tokens) || 0),
+      );
+      const measuredContextChars = Math.max(
+        session.contextChars(),
+        providerInputTokens * 4,
+      );
       const autoCompactCharacterThreshold = e01.compact.getAutoCompactThreshold(
         configuredContextWindow,
         8_192,
       ) * 4;
       const contextDecision = e01.decideContext(
-        session.contextChars(),
+        measuredContextChars,
         Math.min(config.maxQueryContextChars, autoCompactCharacterThreshold),
         asBoolean(config.runtimeConstraints.force_compact_restore),
         session.compactionCount,
@@ -1675,17 +1726,11 @@ export class ClaudeRuntimeCore {
           sessionId: input.sessionId,
         };
         const matureCompact = compactSource.length >= 3
-          ? asBoolean(config.runtimeConstraints.force_compact_restore)
-            ? await e01.compact.compactConversation(
-              compactSource,
-              compactOptions,
-              durableCompactionSummary,
-            )
-            : await e01.compact.autoCompactIfNeeded(
-              compactSource,
-              compactOptions,
-              durableCompactionSummary,
-            )
+          ? await e01.compact.compactConversation(
+            compactSource,
+            compactOptions,
+            durableCompactionSummary,
+          )
           : null;
         if (compactSource.length >= 3 && matureCompact === null) {
           await emit("context_compaction_skipped", {
@@ -1755,6 +1800,16 @@ export class ClaudeRuntimeCore {
           compact.preserved,
           postCompactMessages,
         );
+        if (
+          matureCompact !== null
+          && modelTransport === "http_sse"
+          && modelCompactSource.length >= 3
+        ) {
+          pendingProviderCompaction = {
+            boundaryId: matureCompact.boundary.boundaryId,
+            messages: compactMessagesForProvider(matureCompact.messages),
+          };
+        }
         if (safeCut?.valid && safeCut.summarizedTokens > 0) {
           const boundaryId = matureCompact?.boundary.boundaryId
             ?? `compact-boundary-${skillMemoryDigest({
@@ -2087,6 +2142,17 @@ export class ClaudeRuntimeCore {
         && (turnLimit === null || turnIndex + 1 <= turnLimit)
       ) {
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
+        if (pendingProviderCompaction !== null) {
+          const currentToolResult = providerMessages.at(-1);
+          if (!currentToolResult || asString(currentToolResult.role) !== "user") {
+            throw new Error("provider compaction requires the settled tool observation");
+          }
+          providerMessages = iteration.compactTranscript(
+            [...pendingProviderCompaction.messages, currentToolResult],
+            pendingProviderCompaction.boundaryId,
+          );
+          pendingProviderCompaction = null;
+        }
         if (pendingRestoreProviderMessage) {
           providerMessages = [...providerMessages, pendingRestoreProviderMessage];
           pendingRestoreProviderMessage = null;
@@ -2673,6 +2739,51 @@ function publicRuntimeEventPayload(phase: string, payload: JsonObject): JsonObje
     provider_request: {
       ...commitment,
       prompt_content_persisted: false,
+    },
+  };
+}
+
+export function e01RuntimeEventPayload(phase: string, payload: JsonObject): JsonObject {
+  if (phase !== "model_request_prepared") return payload;
+  const request = asObject(payload.provider_request);
+  if (Object.keys(request).length === 0) return payload;
+  const messages = Array.isArray(request.messages) ? request.messages : [];
+  const tools = Array.isArray(request.tools) ? request.tools : [];
+  const messagesDigest = asString(request.messages_digest, "unavailable");
+  const toolsDigest = asString(request.tools_digest, "unavailable");
+  const compactTools = tools.map((candidate) => {
+    const tool = asObject(candidate);
+    const definition = asObject(tool.function);
+    return {
+      type: "function",
+      function: {
+        name: asString(definition.name, "unknown_tool"),
+        description: `Provider-owned tool schema; canonical set ${toolsDigest}.`,
+        parameters: { type: "object", additionalProperties: true },
+      },
+    };
+  });
+  return {
+    ...payload,
+    provider_request: {
+      ...request,
+      messages: [{
+        role: "user",
+        content: [{
+          type: "text",
+          text: [
+            "Provider prompt content is held by the durable provider control plane.",
+            `Canonical digest: ${messagesDigest}.`,
+            `Message count: ${messages.length}.`,
+          ].join(" "),
+        }],
+      }],
+      tools: compactTools,
+      system: [],
+      prompt_content_externalized: true,
+      prompt_content_owner: "provider_control_plane",
+      prompt_message_count: messages.length,
+      prompt_tool_count: tools.length,
     },
   };
 }
