@@ -68,7 +68,11 @@ _HANDOFF_INSPECTION_PROGRESS_FIELDS = (
     "preDeliveryObservationCount",
     "consecutivePreDeliveryObservations",
     "actionNudgeCount",
+    "postDeliveryActionNudgeCount",
     "lastActionNudgeObservationCount",
+    "noDeliveryObservationCount",
+    "consecutiveNoDeliveryObservations",
+    "lastActionNudgeNoDeliveryObservationCount",
     "lastActionNudgeProviderRound",
 )
 _HANDOFF_SECRET_PATTERNS = (
@@ -261,7 +265,11 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "preDeliveryObservationCount",
         "consecutivePreDeliveryObservations",
         "actionNudgeCount",
+        "postDeliveryActionNudgeCount",
         "lastActionNudgeObservationCount",
+        "noDeliveryObservationCount",
+        "consecutiveNoDeliveryObservations",
+        "lastActionNudgeNoDeliveryObservationCount",
         "lastActionNudgeProviderRound",
     )
     projection = {
@@ -344,6 +352,16 @@ def _enrich_legacy_handoff_inspection_progress(
     for field in missing:
         if progressive.get(field) is not None:
             progress[field] = _nonnegative_count(progressive.get(field))
+    if (
+        progress.get("postDeliveryActionNudgeCount") is None
+        and progressive.get("requiredDeliveryMissing") is False
+        and _nonnegative_count(progressive.get("consecutiveNoDeliveryObservations")) > 0
+    ):
+        # Checkpoints written before this counter existed still contain enough
+        # bounded evidence to preserve the current post-delivery stall debt.
+        progress["postDeliveryActionNudgeCount"] = _nonnegative_count(
+            progressive.get("actionNudgeCount")
+        )
     enriched["progress"] = progress
     return enriched
 
@@ -411,6 +429,10 @@ def _execution_continuity_progress(
             "verificationNudgeCount",
             "lastVerificationNudgeProviderRound",
             "artifactCount",
+            "noDeliveryObservationCount",
+            "consecutiveNoDeliveryObservations",
+            "postDeliveryActionNudgeCount",
+            "lastActionNudgeNoDeliveryObservationCount",
         ):
             if progress.get(field) is not None:
                 continuity[field] = _nonnegative_count(progress.get(field))
@@ -509,7 +531,11 @@ def load_task_handoff_projection(
             "preDeliveryObservationCount",
             "consecutivePreDeliveryObservations",
             "actionNudgeCount",
+            "postDeliveryActionNudgeCount",
             "lastActionNudgeObservationCount",
+            "noDeliveryObservationCount",
+            "consecutiveNoDeliveryObservations",
+            "lastActionNudgeNoDeliveryObservationCount",
             "lastActionNudgeProviderRound",
         )
         newest_progress = dict(newest.get("progress") or {})

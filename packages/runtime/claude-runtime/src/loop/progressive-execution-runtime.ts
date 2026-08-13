@@ -32,6 +32,7 @@ export interface ProgressiveExecutionSnapshot {
   noDeliveryObservationCount: number;
   consecutiveNoDeliveryObservations: number;
   actionNudgeCount: number;
+  postDeliveryActionNudgeCount: number;
   lastActionNudgeObservationCount: number;
   lastActionNudgeNoDeliveryObservationCount: number;
   lastActionNudgeProviderRound: number;
@@ -105,6 +106,7 @@ export class ProgressiveExecutionRuntime {
         noDeliveryObservationCount: 0,
         consecutiveNoDeliveryObservations: 0,
         actionNudgeCount: 0,
+        postDeliveryActionNudgeCount: 0,
         lastActionNudgeObservationCount: 0,
         lastActionNudgeNoDeliveryObservationCount: 0,
         lastActionNudgeProviderRound: 0,
@@ -131,6 +133,9 @@ export class ProgressiveExecutionRuntime {
           restored.consecutiveNoDeliveryObservations,
         ),
         actionNudgeCount: nonnegativeInteger(restored.actionNudgeCount),
+        postDeliveryActionNudgeCount: nonnegativeInteger(
+          restored.postDeliveryActionNudgeCount,
+        ),
         lastActionNudgeObservationCount: nonnegativeInteger(
           restored.lastActionNudgeObservationCount,
         ),
@@ -192,6 +197,11 @@ export class ProgressiveExecutionRuntime {
         "verificationNudgeCount",
         "lastVerificationNudgeProviderRound",
         "artifactCount",
+        "noDeliveryObservationCount",
+        "consecutiveNoDeliveryObservations",
+        "actionNudgeCount",
+        "postDeliveryActionNudgeCount",
+        "lastActionNudgeNoDeliveryObservationCount",
       ] as const) {
         this.state[field] = Math.max(
           this.state[field],
@@ -261,6 +271,7 @@ export class ProgressiveExecutionRuntime {
       this.state.consecutivePreDeliveryObservations = 0;
       this.state.consecutiveNoDeliveryObservations = 0;
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
+      this.state.postDeliveryActionNudgeCount = 0;
       this.state.recoveryInspectionAllowance = 0;
       this.progress("workspace_mutation_committed");
     } else if (response.ok && !backgroundRunning) {
@@ -309,6 +320,7 @@ export class ProgressiveExecutionRuntime {
       this.state.phase = "validation";
       this.state.consecutiveNoDeliveryObservations = 0;
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
+      this.state.postDeliveryActionNudgeCount = 0;
       this.progress("post_delivery_verification_passed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {
@@ -319,12 +331,11 @@ export class ProgressiveExecutionRuntime {
     if (!response.ok) {
       this.state.progressReasons.push(`tool_failed:${request.toolName}`);
       if (
-        this.state.requiredDeliveryMissing
-        && !readOnly
+        !readOnly
         && String(response.metadata.pre_delivery_inspection_blocked ?? "false").toLowerCase() !== "true"
       ) {
         // A concrete edit/build/service attempt can fail because the target
-        // changed or a path was wrong.  Permit one bounded observation to
+        // changed or a path was wrong. Permit one bounded observation to
         // re-anchor the next attempt; successful delivery or consumption
         // closes the allowance again.
         this.state.recoveryInspectionAllowance = 1;
@@ -484,7 +495,8 @@ export class ProgressiveExecutionRuntime {
       16,
     );
     return this.state.requiredDeliveryMissing
-      && this.state.actionNudgeCount >= maximumNudges;
+      ? this.state.actionNudgeCount >= maximumNudges
+      : this.state.postDeliveryActionNudgeCount >= maximumNudges;
   }
 
   consumeRecoveryInspectionAllowance(): boolean {
@@ -498,6 +510,9 @@ export class ProgressiveExecutionRuntime {
 
   recordActionNudge(): ProgressiveExecutionSnapshot {
     this.state.actionNudgeCount += 1;
+    if (!this.state.requiredDeliveryMissing) {
+      this.state.postDeliveryActionNudgeCount += 1;
+    }
     this.state.lastActionNudgeObservationCount = this.state.consecutivePreDeliveryObservations;
     this.state.lastActionNudgeNoDeliveryObservationCount =
       this.state.consecutiveNoDeliveryObservations;

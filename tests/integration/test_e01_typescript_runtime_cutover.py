@@ -977,6 +977,10 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
                     "verificationCount": 8,
                     "requiredDeliveryMissing": False,
                     "actionNudgeCount": 9,
+                    "postDeliveryActionNudgeCount": 3,
+                    "noDeliveryObservationCount": 24,
+                    "consecutiveNoDeliveryObservations": 24,
+                    "lastActionNudgeNoDeliveryObservationCount": 24,
                 },
                 "latest_compact_summary": "Public tests pass; start the full stack.",
                 "recent_reasoning": [
@@ -1046,6 +1050,10 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
         "providerRounds": 18,
         "workspaceMutationCount": 4,
         "verificationCount": 8,
+        "noDeliveryObservationCount": 24,
+        "consecutiveNoDeliveryObservations": 24,
+        "postDeliveryActionNudgeCount": 3,
+        "lastActionNudgeNoDeliveryObservationCount": 24,
     }
     assert handoff["latest_compact_summary"].startswith("Public tests pass")
     assert [item["text"] for item in handoff["recent_reasoning"]] == [

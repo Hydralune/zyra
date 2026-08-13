@@ -3073,6 +3073,52 @@ test("pre-delivery inspection circuit carries bounded debt across fenced session
   assert.equal(delivered.snapshot().actionNudgeCount, 0);
 });
 
+test("post-delivery inspection circuit carries stall debt and resets on progress", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      providerRounds: 14,
+      workspaceMutationCount: 3,
+      verificationCount: 1,
+      noDeliveryObservationCount: 24,
+      consecutiveNoDeliveryObservations: 24,
+      actionNudgeCount: 5,
+      postDeliveryActionNudgeCount: 3,
+      lastActionNudgeNoDeliveryObservationCount: 24,
+      lastActionNudgeProviderRound: 14,
+    },
+  });
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+
+  progressive.observeToolResult(
+    {
+      toolCallId: "post-delivery-edit",
+      toolName: "write",
+      arguments: { path: "result.txt", content: "progress" },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: "post-delivery",
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: {},
+    },
+    {
+      tool_call_id: "post-delivery-edit",
+      ok: true,
+      summary: "updated",
+      output: {},
+      artifacts: [],
+      metadata: { workspace_mutation_committed: "true" },
+    },
+    false,
+  );
+  assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 0);
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+});
+
 test("failed delivery grants exactly one bounded recovery inspection", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_inspection_block_after_nudges: 3 },
