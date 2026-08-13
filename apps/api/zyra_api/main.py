@@ -1965,7 +1965,10 @@ def _prepare_task_for_explicit_resume(
     so every explicit invocation must use a newly fenced logical session even
     when the graph was still running at the last durable checkpoint.  A failed
     graph additionally consumes its recovery plan and reopens route/execution
-    through the same continuation primitive used by RecoveryRuntime.
+    through the same continuation primitive used by RecoveryRuntime.  A
+    durable ``running`` or ``blocked`` graph has no live execution owner once
+    this endpoint has reacquired the mutation, so its unfinished stages must
+    be reopened instead of being mistaken for work that is still in flight.
     """
 
     status_before_prepare = state.status
@@ -2054,6 +2057,33 @@ def _prepare_task_for_explicit_resume(
             selected_action = "replan"
             plan_id = f"verification-retry:{decision_id or 'blocked'}"
             failure_signal_id = f"verification:{decision_id or 'blocked'}"
+            changed = _reopen_task_for_recovery_continuation(
+                state,
+                selected_action,
+                plan_id=plan_id,
+            )
+
+    if (
+        not recoverable_nodes
+        and status_before_prepare
+        in {PlanNodeStatus.RUNNING, PlanNodeStatus.BLOCKED}
+    ):
+        recoverable_nodes = [
+            node
+            for node in state.plan_nodes.values()
+            if str(node.metadata.get("stage") or "")
+            in {"route", "execute", "verify", "finalize"}
+            and node.status
+            not in {
+                PlanNodeStatus.CANCELLED,
+                PlanNodeStatus.SUPERSEDED,
+                PlanNodeStatus.COMPLETED,
+            }
+        ]
+        if recoverable_nodes:
+            selected_action = "resume_checkpoint"
+            plan_id = "explicit-resume:interrupted-execution-owner"
+            failure_signal_id = "execution-owner:process-boundary"
             changed = _reopen_task_for_recovery_continuation(
                 state,
                 selected_action,

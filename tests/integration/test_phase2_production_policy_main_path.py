@@ -1152,6 +1152,17 @@ def test_api_composition_root_runs_strongest_and_binds_scheduler_lease(
     assert generation_replay["physical_dispatch_policy_artifact_ref"] == (
         physical_receipt["physical_dispatch_policy_artifact_ref"]
     )
+    state.metadata.pop("worker_pool_receipt", None)
+    state.metadata.pop("operator_placement_binding", None)
+    historical_replay = pool_api.finalize_task(
+        state,
+        success=False,
+        summary="replay spent receipt after recovery cleared its placement binding",
+    )
+    assert historical_replay is not None
+    assert historical_replay["receipt_id"] == canonical_base["receipt_id"]
+    assert "physical_dispatch_receipt" not in historical_replay
+    assert "physical_dispatch_validation" not in historical_replay
     assert str(state.status) == "completed", {
         "nodes": {
             item.metadata.get("stage"): {

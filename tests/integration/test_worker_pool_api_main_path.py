@@ -545,16 +545,17 @@ def test_explicit_resume_rotates_custody_for_active_execution() -> None:
     )
     ensure_default_graph(state)
     state.status = PlanNodeStatus.RUNNING
+    for node in state.plan_nodes.values():
+        stage = str(node.metadata.get("stage") or "")
+        if stage == "plan" or node.node_id == state.root_node_id:
+            node.status = PlanNodeStatus.COMPLETED
+        elif stage == "route":
+            node.status = PlanNodeStatus.RUNNING
     state.metadata["execution_in_flight"] = {
         "schema": "zyra.task-execution-in-flight/v1",
         "receipt_id": "receipt-from-lost-owner",
     }
     state.metadata["runtime_hints"] = {"session_id": "spent-session"}
-    before = {
-        node.node_id: (node.status, node.assigned_worker_id)
-        for node in state.plan_nodes.values()
-    }
-
     first = api_main._prepare_task_for_explicit_resume(
         state,
         {"resume_invocation_id": "resume-active-1"},
@@ -571,9 +572,14 @@ def test_explicit_resume_rotates_custody_for_active_execution() -> None:
     assert first is not None
     assert repeated is not None
     assert second is not None
-    assert first["action"] == "reacquire"
-    assert first["reopened_node_ids"] == []
-    assert first["changed"] is False
+    assert first["action"] == "resume_checkpoint"
+    assert set(first["reopened_node_ids"]) == {
+        node.node_id
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage")
+        in {"route", "execute", "verify", "finalize"}
+    }
+    assert first["changed"] is True
     assert repeated["recovery_session_id"] == first["recovery_session_id"]
     assert second["recovery_session_id"] != first["recovery_session_id"]
     assert state.metadata["runtime_hints"]["session_id"] == second[
@@ -582,10 +588,64 @@ def test_explicit_resume_rotates_custody_for_active_execution() -> None:
     assert state.metadata["recovery_continuation_session"][
         "persisted_custody_token"
     ] is False
+    assert state.status == PlanNodeStatus.PENDING
     assert {
-        node.node_id: (node.status, node.assigned_worker_id)
+        str(node.metadata.get("stage") or ""): node.status
         for node in state.plan_nodes.values()
-    } == before
+        if node.metadata.get("stage")
+    } == {
+        "plan": PlanNodeStatus.COMPLETED,
+        "route": PlanNodeStatus.PENDING,
+        "execute": PlanNodeStatus.PENDING,
+        "verify": PlanNodeStatus.PENDING,
+        "finalize": PlanNodeStatus.PENDING,
+    }
+
+
+def test_explicit_resume_reopens_blocked_stage_without_recovery_plan() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Resume a graph blocked after its execution owner exited."
+    )
+    ensure_default_graph(state)
+    state.status = PlanNodeStatus.BLOCKED
+    for node in state.plan_nodes.values():
+        stage = str(node.metadata.get("stage") or "")
+        if stage == "plan" or node.node_id == state.root_node_id:
+            node.status = PlanNodeStatus.COMPLETED
+        elif stage == "route":
+            node.status = PlanNodeStatus.BLOCKED
+        else:
+            node.status = PlanNodeStatus.PENDING
+    state.metadata["operator_placement_binding"] = {
+        "lease_id": "spent-lease",
+        "attempt_id": "spent-attempt",
+    }
+    state.metadata["worker_pool_receipt"] = {
+        "receipt_id": "spent-receipt"
+    }
+
+    receipt = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-blocked-owner-1"},
+    )
+
+    assert receipt is not None
+    assert receipt["action"] == "resume_checkpoint"
+    assert receipt["changed"] is True
+    assert state.status == PlanNodeStatus.PENDING
+    assert "operator_placement_binding" not in state.metadata
+    assert "worker_pool_receipt" not in state.metadata
+    assert {
+        str(node.metadata.get("stage") or ""): node.status
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage")
+    } == {
+        "plan": PlanNodeStatus.COMPLETED,
+        "route": PlanNodeStatus.PENDING,
+        "execute": PlanNodeStatus.PENDING,
+        "verify": PlanNodeStatus.PENDING,
+        "finalize": PlanNodeStatus.PENDING,
+    }
 
 
 def test_explicit_resume_reopens_verifier_rejected_completed_graph() -> None:

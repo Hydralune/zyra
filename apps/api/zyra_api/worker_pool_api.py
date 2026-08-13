@@ -1648,20 +1648,44 @@ class WorkerPoolApiService:
                 persisted = existing.to_dict()
                 current = state.metadata.get("worker_pool_receipt")
                 enrichment_source: Mapping[str, Any] = persisted
-                if (
+                current_matches = (
                     isinstance(current, Mapping)
                     and str(current.get("receipt_id") or "")
                     == str(persisted.get("receipt_id") or "")
-                ):
+                )
+                if current_matches:
                     enrichment_source = current
-                persisted.update(
-                    self._verified_terminal_receipt_enrichment(
-                        state,
-                        lease=lease,
-                        execution_receipt=existing,
-                        current=enrichment_source,
+                placement_binding = state.metadata.get(
+                    "operator_placement_binding"
+                )
+                claimed_enrichment = current_matches and any(
+                    key in enrichment_source
+                    for key in (
+                        "physical_dispatch_receipt",
+                        "physical_dispatch_validation",
+                        "physical_dispatch_policy_artifact_ref",
+                        "memory_mutation_receipt",
                     )
                 )
+                # A recovery continuation deliberately clears the spent
+                # placement binding before rerouting.  Its historical
+                # terminal WorkerPool receipt remains canonical, but it must
+                # not be promoted to the current generation's physical
+                # dispatch receipt.  Validate strictly whenever TaskState
+                # still claims enrichment or retains the exact binding;
+                # otherwise replay only the un-enriched historical receipt.
+                if claimed_enrichment or (
+                    isinstance(placement_binding, Mapping)
+                    and bool(placement_binding)
+                ):
+                    persisted.update(
+                        self._verified_terminal_receipt_enrichment(
+                            state,
+                            lease=lease,
+                            execution_receipt=existing,
+                            current=enrichment_source,
+                        )
+                    )
                 state.metadata["worker_pool_receipt"] = persisted
                 return persisted
             return None
