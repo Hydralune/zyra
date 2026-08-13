@@ -48,6 +48,29 @@ interface EventAccumulator {
 
 const SETTLEMENT_PROBE_INTERVAL_MS = 250
 
+function persistedVerifierEvidence(task: TaskProjection): VerifierEvidence {
+  const outcome = record(task.metadata.canonical_task_outcome)
+  if (outcome.schema !== "zyra.task-outcome/v1") return {}
+  const verification = record(outcome.verification)
+  const final = record(verification.final_verifier)
+  const gate = record(verification.completion_gate)
+  return {
+    final: typeof final.passed === "boolean" ? final : undefined,
+    gate: typeof gate.hard_conditions_passed === "boolean" ? gate : undefined,
+  }
+}
+
+function mergedVerifierEvidence(
+  task: TaskProjection,
+  evidence: VerifierEvidence,
+): VerifierEvidence {
+  const persisted = persistedVerifierEvidence(task)
+  return {
+    final: evidence.final ?? persisted.final,
+    gate: evidence.gate ?? persisted.gate,
+  }
+}
+
 export function mutationTransportDetached(error: unknown): boolean {
   return error instanceof RequestCancelledError || (
     error instanceof ZyraApiError
@@ -59,9 +82,18 @@ export function taskHasSettledRunResult(
   task: TaskProjection,
   evidence: { finalPassed?: boolean; completionGatePresent?: boolean },
 ): boolean {
+  const persisted = persistedVerifierEvidence(task)
+  const finalPassed = evidence.finalPassed
+    ?? (persisted.final?.passed === true
+      ? true
+      : persisted.final?.passed === false
+        ? false
+        : undefined)
+  const completionGatePresent = evidence.completionGatePresent === true
+    || persisted.gate !== undefined
   return task.terminal || (
     task.status === "blocked"
-    && (evidence.finalPassed === false || evidence.completionGatePresent === true)
+    && (finalPassed === false || completionGatePresent)
   )
 }
 
@@ -204,6 +236,7 @@ export function classifyTaskOutcome(
   evidence: VerifierEvidence,
   diagnostics: readonly OutcomeDiagnostic[] = [],
 ): CommandOutcome {
+  evidence = mergedVerifierEvidence(task, evidence)
   const delivery = record(task.metadata.delivery)
   const verifier = {
     schema: "zyra.cli-verifier-summary.v1",
@@ -496,7 +529,7 @@ export async function executeRun(input: {
     } else {
       ingressError = next.error
       while (!settled && !input.signal.aborted) {
-        if (accumulator.verifier.final !== undefined && await probeSettlement()) break
+        if (await probeSettlement()) break
         await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
       }
       break
@@ -504,7 +537,6 @@ export async function executeRun(input: {
     const now = Date.now()
     if (
       !settled
-      && accumulator.verifier.final !== undefined
       && now - lastSettlementProbeAt >= SETTLEMENT_PROBE_INTERVAL_MS
     ) {
       lastSettlementProbeAt = now

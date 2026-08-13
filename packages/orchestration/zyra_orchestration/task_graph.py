@@ -602,9 +602,11 @@ def _commit_canonical_task_outcome(
         PlanNodeStatus.CANCELLED,
         PlanNodeStatus.FAILED,
     }
+    prior_outcomes = state.metadata.get("canonical_task_outcome_history")
+    revision = len(prior_outcomes) + 1 if isinstance(prior_outcomes, list) else 1
     outcome = {
         "schema": "zyra.task-outcome/v1",
-        "revision": 1,
+        "revision": revision,
         "task_id": state.task_id,
         "run_id": state.run_id,
         "task_status": status,

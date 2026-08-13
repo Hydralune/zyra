@@ -588,6 +588,59 @@ def test_explicit_resume_rotates_custody_for_active_execution() -> None:
     } == before
 
 
+def test_explicit_resume_reopens_verifier_rejected_completed_graph() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Continue a completed physical pass whose independent verifier rejected delivery."
+    )
+    ensure_default_graph(state)
+    state.status = PlanNodeStatus.BLOCKED
+    for node in state.plan_nodes.values():
+        node.status = PlanNodeStatus.COMPLETED
+    state.metadata["canonical_task_outcome"] = {
+        "schema": "zyra.task-outcome/v1",
+        "revision": 1,
+        "task_status": "blocked",
+        "verification": {
+            "final_verifier": {
+                "passed": False,
+                "decision_id": "decision-verifier-retry-1",
+            },
+            "completion_gate": {
+                "hard_conditions_passed": False,
+                "decision": "continue",
+            },
+        },
+    }
+
+    receipt = api_main._prepare_task_for_explicit_resume(
+        state,
+        {"resume_invocation_id": "resume-verifier-retry-1"},
+    )
+
+    assert receipt is not None
+    assert receipt["action"] == "replan"
+    assert receipt["changed"] is True
+    assert set(receipt["reopened_node_ids"]) == {
+        node.node_id
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage") in {"route", "execute", "verify", "finalize"}
+    }
+    assert state.status == PlanNodeStatus.PENDING
+    assert "canonical_task_outcome" not in state.metadata
+    assert state.metadata["canonical_task_outcome_history"][0]["revision"] == 1
+    assert {
+        str(node.metadata.get("stage") or ""): node.status
+        for node in state.plan_nodes.values()
+        if node.metadata.get("stage")
+    } == {
+        "plan": PlanNodeStatus.COMPLETED,
+        "route": PlanNodeStatus.PENDING,
+        "execute": PlanNodeStatus.PENDING,
+        "verify": PlanNodeStatus.PENDING,
+        "finalize": PlanNodeStatus.PENDING,
+    }
+
+
 def test_first_pending_task_run_does_not_create_recovery_session() -> None:
     state, _created = api_main.make_task_created_event(
         "Run a newly created task for the first time."

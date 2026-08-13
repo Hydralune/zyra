@@ -93,6 +93,78 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     })).toBe(true)
     expect(taskHasSettledRunResult(task("running"), { finalPassed: false })).toBe(false)
     expect(taskHasSettledRunResult(task("completed"), {})).toBe(true)
+    const persisted = task("blocked")
+    persisted.metadata.canonical_task_outcome = {
+      schema: "zyra.task-outcome/v1",
+      verification: {
+        final_verifier: { passed: false },
+        completion_gate: { hard_conditions_passed: false },
+      },
+    }
+    expect(taskHasSettledRunResult(persisted, {})).toBe(true)
+  })
+
+  test("settles a resumed blocked task from its persisted verifier outcome", async () => {
+    const pending = task("pending")
+    const blocked = task("blocked")
+    blocked.metadata.canonical_task_outcome = {
+      schema: "zyra.task-outcome/v1",
+      verification: {
+        final_verifier: {
+          schema: "zyra.production-independent-final-verifier/v2",
+          passed: false,
+        },
+        completion_gate: {
+          schema: "zyra.production-adaptive-depth-completion-gate/v1",
+          hard_conditions_passed: false,
+        },
+      },
+    }
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async openIngress() {
+        return { cursor: "opaque.resume", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<TaskMutationProjection>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new RequestCancelledError("persisted outcome settled")),
+            { once: true },
+          )
+        })
+      },
+      async nextIngress() {
+        return { cursor: "opaque.resume", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return blocked },
+      async events() { return [] },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+
+    const outcome = await executeRun({
+      command: {
+        kind: "run",
+        goal: "Settle a resumed verifier failure.",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+        sealed: true,
+      },
+      api: fake,
+      output: new CliOutput({
+        stdout: new Capture(),
+        stderr: new Capture(),
+        requestId: "request_persisted_blocked_settlement",
+        command: "run",
+      }),
+      stdin: Readable.from([]),
+      signal: new AbortController().signal,
+    })
+
+    expect(outcome.exitCode).toBe(CliExitCode.VERIFIER_FAILED)
+    expect(outcome.status).toBe("verifier_failed")
   })
 
   test("returns a verifier-backed blocked result without waiting for stuck mutation transport", async () => {

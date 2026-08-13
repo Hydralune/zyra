@@ -1912,6 +1912,16 @@ def _reopen_task_for_recovery_continuation(
         )
         history.append(prior_execution)
         state.metadata["phase2_recovery_execution_history"] = history[-16:]
+    prior_outcome = state.metadata.pop("canonical_task_outcome", None)
+    if (
+        isinstance(prior_outcome, Mapping)
+        and prior_outcome.get("schema") == "zyra.task-outcome/v1"
+    ):
+        outcome_history = list(
+            state.metadata.get("canonical_task_outcome_history") or ()
+        )
+        outcome_history.append(dict(prior_outcome))
+        state.metadata["canonical_task_outcome_history"] = outcome_history[-16:]
     for key in (
         "phase2_executed_operator_refs",
         "phase2_operator_execution_layers",
@@ -2003,6 +2013,52 @@ def _prepare_task_for_explicit_resume(
         else:
             recoverable_nodes = []
             selected_action = ""
+
+    if not recoverable_nodes and state.status == PlanNodeStatus.BLOCKED:
+        outcome = state.metadata.get("canonical_task_outcome")
+        verification = (
+            outcome.get("verification")
+            if isinstance(outcome, Mapping)
+            else None
+        )
+        final_verifier = (
+            verification.get("final_verifier")
+            if isinstance(verification, Mapping)
+            else None
+        )
+        completion_gate = (
+            verification.get("completion_gate")
+            if isinstance(verification, Mapping)
+            else None
+        )
+        verifier_rejected = (
+            isinstance(final_verifier, Mapping)
+            and final_verifier.get("passed") is False
+        )
+        gate_rejected = (
+            isinstance(completion_gate, Mapping)
+            and completion_gate.get("hard_conditions_passed") is False
+        )
+        if verifier_rejected or gate_rejected:
+            recoverable_nodes = [
+                node
+                for node in state.plan_nodes.values()
+                if str(node.metadata.get("stage") or "")
+                in {"route", "execute", "verify", "finalize"}
+                and node.status
+                not in {PlanNodeStatus.CANCELLED, PlanNodeStatus.SUPERSEDED}
+            ]
+            decision_id = ""
+            if isinstance(final_verifier, Mapping):
+                decision_id = str(final_verifier.get("decision_id") or "")
+            selected_action = "replan"
+            plan_id = f"verification-retry:{decision_id or 'blocked'}"
+            failure_signal_id = f"verification:{decision_id or 'blocked'}"
+            changed = _reopen_task_for_recovery_continuation(
+                state,
+                selected_action,
+                plan_id=plan_id,
+            )
 
     owns_prior_execution = bool(
         isinstance(state.metadata.get("execution_in_flight"), Mapping)
