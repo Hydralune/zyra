@@ -2666,7 +2666,11 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     if (/\b(?:make|cmake|ctest)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|build)[^;&|]*\.sh\b/i.test(segment)) return true;
     if (/\bpython(?:3)?\b[^;&|]*\b(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)\b/i.test(segment)) return true;
-    if (/\/(?:[^\s/]+\/)*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)[^\s/]*(?:\.sh|\.py)?\b/i.test(segment)) return true;
+    // A script whose executable path is itself a verification entry point is
+    // evidence-driving.  Do not scan arbitrary later path arguments: commands
+    // such as `cat tests/public/test_metrics.py` only inspect test source and
+    // must not discharge verification debt or reset no-progress detection.
+    if (/^(?:env\s+(?:[^\s=]+=[^\s]+\s+)+)?(?:\.\/|\/)[^\s]*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)[^\s]*(?:\.sh|\.py)?(?:\s|$)/i.test(segment)) return true;
     if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*\brun\b[^;&|]*(?:test|pytest|check|verify|smoke|e2e|integration)\b/i.test(segment)) return true;
     return false;
   });

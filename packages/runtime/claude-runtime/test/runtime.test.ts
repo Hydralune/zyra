@@ -3046,6 +3046,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("cat submission/manifest.json")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("git status --short && sha256sum submission/*")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -c \"import json; json.load(open('submission/manifest.json'))\"")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("cat tests/public/test_metrics.py")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("sed -n '1,200p' /workspace/tests/integration/test_release.py")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("./scripts/verify-release.sh --all")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("/workspace/tools/integration-check.py --live")), true);
   assert.equal(isClearlyVerificationDrivingTool({ tool_name: "read", arguments: { path: "test.log" } }), false);
 });
 
