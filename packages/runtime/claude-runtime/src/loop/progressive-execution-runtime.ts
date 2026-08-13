@@ -254,6 +254,29 @@ export class ProgressiveExecutionRuntime {
     }
     if (
       verificationDriving
+      && this.state.requiredDeliveryMissing
+      && !backgroundRunning
+    ) {
+      // A concrete build, test, simulation, or acceptance run commonly
+      // discovers the exact evidence needed for the next edit.  Keep the
+      // anti-wandering circuit, but open a bounded diagnostic window so the
+      // model can inspect the reported files and symbols instead of being
+      // forced to edit blindly.  This also covers shell pipelines whose final
+      // formatter exits successfully while the underlying test output reports
+      // failures.
+      this.state.recoveryInspectionAllowance = Math.max(
+        this.state.recoveryInspectionAllowance,
+        boundedInteger(
+          this.constraints.post_verification_diagnostic_inspection_limit,
+          8,
+          2,
+          32,
+        ),
+      );
+      this.record("pre_delivery_verification_diagnostic_window_opened");
+    }
+    if (
+      verificationDriving
       && response.ok
       && !this.state.requiredDeliveryMissing
     ) {

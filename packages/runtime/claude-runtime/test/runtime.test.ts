@@ -2621,6 +2621,45 @@ test("failed delivery grants exactly one bounded recovery inspection", () => {
   assert.equal(progressive.inspectionCircuitOpen(), true);
 });
 
+test("pre-delivery verification opens a bounded diagnostic inspection window", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: {
+      pre_delivery_inspection_block_after_nudges: 3,
+      post_verification_diagnostic_inspection_limit: 5,
+    },
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  progressive.observeToolResult({
+    toolCallId: "public-tests",
+    toolName: "shell",
+    arguments: { command: "python -m pytest -q" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "public-test-batch",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  }, {
+    tool_call_id: "public-tests",
+    ok: true,
+    summary: "command completed with failure details in piped output",
+    output: { stdout: "4 failed, 134 passed" },
+    artifacts: [],
+    metadata: { return_code: "0" },
+  }, false);
+
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 5);
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
+});
+
 test("pre-delivery inspection classifier blocks reads but permits delivery and verification", () => {
   const shell = (command: string) => ({ tool_name: "shell", arguments: { command } });
   assert.equal(isClearlyPreDeliveryInspection(shell("cat src/app.ts && git diff --stat"), false), true);
