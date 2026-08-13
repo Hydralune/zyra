@@ -24,6 +24,8 @@ _PRIVATE_KEY = re.compile(
 )
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
 _LONG_TOKEN = re.compile(r"\b(?:sk|ghp|github_pat|xox[baprs])[-_A-Za-z0-9]{16,}\b")
+_ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9_+/-]{16,}={0,2}")
+_SOURCE_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,11 +278,29 @@ class SecretRedactor:
         return any(fragment in normalized for fragment in SENSITIVE_KEY_FRAGMENTS)
 
     def _entropy_candidates(self, value: str) -> Iterable[tuple[int, int, str]]:
-        for match in re.finditer(r"[A-Za-z0-9_+/=-]{16,}", value):
+        for match in _ENTROPY_TOKEN.finditer(value):
             token = match.group(0)
             if len(token) < self.minimum_entropy_token_length:
                 continue
             if token.isdigit() or token.isalpha() and token.islower():
+                continue
+            unpadded = token.rstrip("=")
+            if (
+                "_" in unpadded
+                and _SOURCE_IDENTIFIER.fullmatch(unpadded) is not None
+            ):
+                continue
+            if "/" in unpadded:
+                continue
+            character_classes = sum(
+                (
+                    any(character.islower() for character in unpadded),
+                    any(character.isupper() for character in unpadded),
+                    any(character.isdigit() for character in unpadded),
+                    any(character in "+_-" for character in unpadded),
+                )
+            )
+            if character_classes < 3:
                 continue
             if self._entropy(token) >= self.entropy_threshold:
                 yield match.start(), match.end(), token

@@ -299,6 +299,30 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
         self.assertNotIn(secret, serialized)
         self.assertIn("[REDACTED]", serialized)
 
+    def test_entropy_redaction_preserves_source_identifiers_and_paths(self) -> None:
+        redactor = SecretRedactor()
+        source = (
+            "    observation_window_virtual_seconds=180,\n"
+            "packages/runtime/zyra_runtime/sandbox_gateway/redaction.py\n"
+        )
+
+        report = redactor.redact_text(source, source="stdout")
+
+        self.assertFalse(report.changed)
+        self.assertEqual(report.value, source)
+
+    def test_entropy_redaction_still_blocks_unlabelled_base64_secret(self) -> None:
+        secret = "QWxhZGRpbjpPcGVuU2VzYW1lMTIzNDU2Nzg5MA=="
+
+        report = SecretRedactor().redact_text(
+            f"opaque payload {secret}",
+            source="stdout",
+        )
+
+        self.assertTrue(report.changed)
+        self.assertNotIn(secret, str(report.value))
+        self.assertIn("[REDACTED]", str(report.value))
+
     def test_mutating_approved_envelope_changes_command_identity(self) -> None:
         original = command("rg", ("needle", "."))
         mutated = replace(original, argv=("different", "."))
