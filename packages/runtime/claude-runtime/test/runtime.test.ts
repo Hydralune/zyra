@@ -274,6 +274,53 @@ test("provider evidence keeps structural frames without replaying content tokens
     "usage",
     "response_end",
   ]);
+  assert.equal(evidence[0]?.jsonDelta, null);
+});
+
+test("provider evidence bounds fragmented tool arguments to one structural frame per call", () => {
+  type Frame = Parameters<typeof providerControlPlaneEvidenceFrames>[0][number];
+  const frames: Frame[] = [{
+    frameId: "tool-start",
+    dispatchId: "dispatch-large-tool",
+    routeId: "route-large-tool",
+    sequence: 1,
+    kind: "tool_call_delta",
+    text: null,
+    toolCallId: "call-large-tool",
+    toolName: "shell",
+    jsonDelta: "",
+    usage: {},
+    providerEvent: "chat.completion.chunk",
+    createdAt: 1,
+    metadata: { providerIndex: 0 },
+  }];
+  for (let sequence = 2; sequence <= 602; sequence += 1) {
+    frames.push({
+      ...frames[0]!,
+      frameId: `tool-argument-${sequence}`,
+      sequence,
+      toolCallId: null,
+      toolName: null,
+      jsonDelta: "x",
+      createdAt: sequence,
+    });
+  }
+  frames.push({
+    ...frames[0]!,
+    frameId: "usage",
+    sequence: 603,
+    kind: "usage",
+    toolCallId: null,
+    toolName: null,
+    jsonDelta: null,
+    createdAt: 603,
+  });
+
+  const evidence = providerControlPlaneEvidenceFrames(frames);
+  assert.equal(evidence.length, 2);
+  assert.deepEqual(evidence.map((frame) => frame.kind), ["tool_call_delta", "usage"]);
+  assert.equal(evidence[0]?.toolCallId, "call-large-tool");
+  assert.equal(evidence[0]?.jsonDelta, null);
 });
 
 test("provider route renewal accepts a verified multi-hop pinned lineage", () => {

@@ -235,6 +235,9 @@ export async function resolveProviderControlPlaneTurns(
     const compactedContentFrames = result.frames.filter(
       (frame) => HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind),
     );
+    const compactedToolArgumentFrames = result.frames.filter(
+      (frame) => frame.kind === "tool_call_delta",
+    );
     for (const frame of evidenceFrames) {
       await emit("model_stream_frame", {
         model_stream_frame: safeFrame(frame),
@@ -265,6 +268,14 @@ export async function resolveProviderControlPlaneTurns(
           sequence: frame.sequence,
           kind: frame.kind,
           text: frame.text,
+        }))),
+        compacted_tool_argument_frame_count: compactedToolArgumentFrames.length,
+        compacted_tool_argument_digest: digestJson(compactedToolArgumentFrames.map((frame) => ({
+          sequence: frame.sequence,
+          tool_call_id: frame.toolCallId,
+          tool_name: frame.toolName,
+          json_delta: frame.jsonDelta,
+          provider_index: frame.metadata.providerIndex ?? null,
         }))),
         stream_evidence_compacted: evidenceFrames.length !== result.frames.length,
         tool_call_count: steps.length,
@@ -343,9 +354,28 @@ export function providerControlPlaneEvidenceFrames(
   // The provider control plane already durably owns the complete raw stream.
   // Replaying every text/reasoning token through E01 duplicates that evidence
   // across the process protocol, journal, telemetry and every later snapshot.
-  // Preserve structural frames needed to audit tool calls, usage and terminal
-  // delivery; the report carries a count and digest for compacted content.
-  return frames.filter((frame) => !HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind));
+  // Tool arguments have the same amplification problem: a single file write
+  // can arrive as hundreds of one-character deltas. Preserve one sanitized
+  // structural frame per tool call while the report carries counts and digests
+  // for the compacted content and argument streams.
+  const toolFrames = new Map<string, ProviderStreamFrame>();
+  for (const frame of frames) {
+    if (frame.kind !== "tool_call_delta") continue;
+    const providerIndex = providerToolIndex(frame);
+    const key = providerIndex ?? (frame.toolCallId?.trim() ? `id:${frame.toolCallId.trim()}` : "");
+    if (!key) continue;
+    const current = toolFrames.get(key);
+    if (!current || (!current.toolCallId && frame.toolCallId) || (!current.toolName && frame.toolName)) {
+      toolFrames.set(key, { ...frame, jsonDelta: null });
+    }
+  }
+  const structuralToolFrames = new Set([...toolFrames.values()].map((frame) => frame.frameId));
+  return frames
+    .filter((frame) => (
+      !HIGH_VOLUME_CONTENT_FRAME_KINDS.has(frame.kind)
+      && (frame.kind !== "tool_call_delta" || structuralToolFrames.has(frame.frameId))
+    ))
+    .map((frame) => frame.kind === "tool_call_delta" ? { ...frame, jsonDelta: null } : frame);
 }
 
 function routeRefFromConstraints(constraints: JsonObject): ProviderRouteRefProjection {
