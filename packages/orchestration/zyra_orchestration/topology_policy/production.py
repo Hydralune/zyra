@@ -439,6 +439,9 @@ class Phase2StrongestProductionBridge:
             Callable[[TaskState, Mapping[str, Any], Mapping[str, Any]], Any]
             | None
         ) = None,
+        worker_pool_refresher: (
+            Callable[[], Mapping[str, Any] | None] | None
+        ) = None,
         early_exit_enabled: Callable[[], bool] | None = None,
         # Reads the delivery-contract paths so an unknown dispatch outcome can
         # be resolved against observable state.  The workspace owner supplies
@@ -472,6 +475,7 @@ class Phase2StrongestProductionBridge:
         self.recovery_store = recovery_store
         self.final_verifier_owner = final_verifier_owner
         self.physical_dispatch_factory = physical_dispatch_factory
+        self.worker_pool_refresher = worker_pool_refresher
         self.early_exit_enabled = early_exit_enabled or (lambda: True)
         self.fail_closed = True
         self._route_contexts: dict[tuple[str, str], dict[str, Any]] = {}
@@ -519,6 +523,21 @@ class Phase2StrongestProductionBridge:
         node: PlanNode | None,
         cause_event: EventRecord | None,
     ) -> Mapping[str, Any]:
+        # A route can be evaluated more than once inside one task-graph pass
+        # (for example after AgentPrune records the first communication
+        # window).  Production worker health has a deliberately short
+        # freshness window, so a second evaluation must probe the physical
+        # owners again instead of inheriting the heartbeat captured when the
+        # GraphExecutionContext was constructed.
+        if self.worker_pool_refresher is not None:
+            refresh_receipt = self.worker_pool_refresher() or {}
+            if not isinstance(refresh_receipt, Mapping):
+                raise Phase2ProductionPolicyError(
+                    "worker-pool refresher returned a non-mapping receipt"
+                )
+            state.metadata["phase2_topology_worker_refresh"] = dict(
+                refresh_receipt
+            )
         self.worker_pool_api.ensure_default_local_worker()
         loopx_pre_control = self._loopx_pre_control_input(state)
         graph_id = self.worker_pool_api.ensure_task_graph(state)

@@ -318,6 +318,39 @@ def test_partial_communication_outcome_coverage_requires_new_window() -> None:
     ) is False
 
 
+def test_topology_refreshes_physical_workers_before_each_projection() -> None:
+    state, _ = api.make_task_created_event(
+        "Revalidate topology after a communication outcome window."
+    )
+    receipts = []
+
+    def refresh():
+        receipt = {
+            "schema": "zyra.production-worker-reconciliation/v1",
+            "sequence": len(receipts) + 1,
+        }
+        receipts.append(receipt)
+        return receipt
+
+    def stop_after_refresh() -> None:
+        raise RuntimeError("projection-probe")
+
+    bridge = object.__new__(Phase2StrongestProductionBridge)
+    bridge.worker_pool_refresher = refresh
+    bridge.worker_pool_api = SimpleNamespace(
+        ensure_default_local_worker=stop_after_refresh
+    )
+
+    for expected_sequence in (1, 2):
+        with pytest.raises(RuntimeError, match="projection-probe"):
+            bridge(state, None, None)
+        assert state.metadata["phase2_topology_worker_refresh"][
+            "sequence"
+        ] == expected_sequence
+
+    assert len(receipts) == 2
+
+
 def test_completion_failures_exclude_adaptive_depth_only_diagnostics() -> None:
     conditions = {
         "final_verifier_passed": True,

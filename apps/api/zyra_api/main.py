@@ -6658,6 +6658,9 @@ def graph_execution_context() -> GraphExecutionContext:
         recovery_store=get_recovery_runtime_api().application.store,
         final_verifier_owner=final_verifier,
         physical_dispatch_factory=_production_physical_dispatch_port,
+        worker_pool_refresher=(
+            lambda: _ensure_phase2_production_workers(pool_api)
+        ),
         early_exit_enabled=lambda: not _truthy(
             os.environ.get("ZYRA_DISABLE_PHASE2_EARLY_EXIT"),
             default=False,
