@@ -2614,7 +2614,7 @@ export function isClearlyPreDeliveryInspection(
   // shell tool itself as mutating.  Only commands whose arguments clearly
   // drive an edit, build, test, migration, service, or external state change
   // cross this boundary.  This also closes interpreter-wrapped read bypasses.
-  return !isClearlyDeliveryDrivingShellCommand(asString(step.arguments.command));
+  return !isClearlyDeliveryDrivingShellCommand(shellInvocationText(step.arguments));
 }
 
 export function isClearlyVerificationDrivingTool(
@@ -2622,8 +2622,20 @@ export function isClearlyVerificationDrivingTool(
 ): boolean {
   if (step.tool_name !== "shell") return false;
   return isClearlyVerificationDrivingShellCommand(
-    asString(step.arguments.command),
+    shellInvocationText(step.arguments),
   );
+}
+
+function shellInvocationText(arguments_: JsonObject): string {
+  const command = asString(arguments_.command).trim();
+  if (command) return command;
+  const executable = asString(arguments_.executable).trim();
+  const argv = Array.isArray(arguments_.argv)
+    ? arguments_.argv
+      .filter((item): item is string => typeof item === "string")
+      .join(" ")
+    : "";
+  return [executable, argv].filter(Boolean).join(" ").trim();
 }
 
 function isClearlyVerificationDrivingShellCommand(value: string): boolean {

@@ -2745,6 +2745,10 @@ test("pre-delivery verification opens a bounded diagnostic inspection window", (
 
 test("pre-delivery inspection classifier blocks reads but permits delivery and verification", () => {
   const shell = (command: string) => ({ tool_name: "shell", arguments: { command } });
+  const structuredShell = (executable: string, argv: string[]) => ({
+    tool_name: "shell",
+    arguments: { executable, argv },
+  });
   assert.equal(isClearlyPreDeliveryInspection(shell("cat src/app.ts && git diff --stat"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("find src -type f | xargs grep -n TODO 2>/dev/null | head"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose ps && docker compose config --services"), false), true);
@@ -2758,12 +2762,18 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl https://service.invalid/status"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; print(Path('src/app.ts').read_text())"]), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "import json; print(json.load(open('submission/manifest.json')))"])), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("cat submission/manifest.json")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("git status --short && sha256sum submission/*")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -c \"import json; json.load(open('submission/manifest.json'))\"")), false);
