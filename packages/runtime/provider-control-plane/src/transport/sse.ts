@@ -9,7 +9,11 @@ export interface RawSseEvent {
 
 export async function* readSse(
   response: Response,
-  options: { readonly chunkTimeoutMilliseconds: number; readonly signal?: AbortSignal },
+  options: {
+    readonly chunkTimeoutMilliseconds: number;
+    readonly signal?: AbortSignal;
+    readonly onChunk?: () => void;
+  },
 ): AsyncGenerator<RawSseEvent> {
   if (response.body === null) throw protocolError("SSE response has no body");
   const reader = response.body.getReader();
@@ -20,6 +24,11 @@ export async function* readSse(
       const part = await readWithTimeout(reader, options.chunkTimeoutMilliseconds, options.signal);
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true }).replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+      // Transport keepalives prove only that the socket is live.  Let the
+      // semantic stream supervisor enforce its independent first-frame and
+      // inter-frame deadlines on every received chunk so comments or other
+      // non-events cannot keep a zero-output request alive forever.
+      options.onChunk?.();
       let boundary = buffer.indexOf("\n\n");
       while (boundary >= 0) {
         const block = buffer.slice(0, boundary);

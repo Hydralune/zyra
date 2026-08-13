@@ -278,6 +278,7 @@ export class ProviderTransportRuntime {
         for await (const event of readSse(response, {
           chunkTimeoutMilliseconds: request.chunkTimeoutMilliseconds,
           signal: combinedSignal,
+          onChunk: () => streamSupervisor.checkWatchdog(),
         })) {
           responseBytes += Buffer.byteLength(event.data);
           const decodedFrames = decodeProviderEvent(lease, event.data, event.event, frameState);

@@ -1349,3 +1349,48 @@ test("zero-output SSE stall changes provider route and performs one bounded reco
   assert.equal(stalled.requests.length, 1);
   assert.equal(fallback.requests.length, 1);
 });
+
+test("SSE transport keepalives cannot mask a zero-output semantic stall", async (t) => {
+  const stalled = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.flushHeaders();
+    const keepalive = setInterval(() => response.write(": keepalive\n\n"), 5);
+    response.on("close", () => clearInterval(keepalive));
+    setTimeout(() => response.end(), 150);
+  });
+  const fallback = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"keepalive-recovered"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(async () => { await stalled.close(); await fallback.close(); });
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "keepalive-primary",
+    modelId: "keepalive-model",
+    baseUrl: stalled.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 30,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "keepalive-fallback",
+    modelId: "keepalive-fallback-model",
+    baseUrl: fallback.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 20,
+  });
+  const original = controlPlane.acquireRoute(routeRequest("keepalive-primary", "keepalive-model"));
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(original.routeId),
+    timeoutMilliseconds: 500,
+    chunkTimeoutMilliseconds: 25,
+  });
+
+  assert.equal(result.text, "keepalive-recovered");
+  assert.notEqual(result.routeId, original.routeId);
+  assert.equal(result.providerId, "keepalive-fallback");
+  assert.equal(result.attempts.length, 2);
+  assert.equal(result.attempts[0]?.failureKind, "stream_timeout");
+  assert.equal(result.attempts[0]?.outputObserved, false);
+  assert.equal(stalled.requests.length, 1);
+  assert.equal(fallback.requests.length, 1);
+});
