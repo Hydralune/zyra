@@ -293,6 +293,9 @@ class SandboxGatewayRuntime:
             cancellation: CancellationToken | None = None
             isolation: IsolationWorkspace | None = None
             baseline = None
+            lease_heartbeat_stop: threading.Event | None = None
+            lease_heartbeat_thread: threading.Thread | None = None
+            lease_heartbeat_errors: list[Exception] = []
             event_ids = [proposed.event_id, policy_event.event_id]
             try:
                 consumed = self.permission_relay.consume(ticket, envelope)
@@ -335,6 +338,23 @@ class SandboxGatewayRuntime:
                 )
                 event_ids.append(started.event_id)
                 cancellation = self.budget_registry.register(envelope.command_id)
+                lease_heartbeat_stop = threading.Event()
+                lease_heartbeat_thread = threading.Thread(
+                    target=self._renew_command_lease_until_stopped,
+                    kwargs={
+                        "session_id": record.session_id,
+                        "lease_id": lease.lease_id,
+                        "owner_id": record.worker_id,
+                        "fence_token": fence_token,
+                        "stop": lease_heartbeat_stop,
+                        "errors": lease_heartbeat_errors,
+                        "cancellation": cancellation,
+                    },
+                    name=f"gateway-lease-heartbeat-{envelope.command_id[-12:]}",
+                    daemon=True,
+                )
+                lease_heartbeat_thread.start()
+
                 def on_chunk(chunk: StreamChunk) -> None:
                     output_event = self.event_port.emit(
                         busy,
@@ -373,6 +393,12 @@ class SandboxGatewayRuntime:
                         else bool(commit_outputs)
                     ),
                 )
+                lease_heartbeat_stop.set()
+                lease_heartbeat_thread.join(
+                    timeout=max(1.0, min(5.0, self.lifecycle.lease_seconds))
+                )
+                if lease_heartbeat_errors:
+                    raise lease_heartbeat_errors[-1]
                 outcome_requires_recovery = (
                     result.termination is not ProcessTermination.EXITED
                 )
@@ -470,8 +496,43 @@ class SandboxGatewayRuntime:
                 )
                 raise
             finally:
+                if lease_heartbeat_stop is not None:
+                    lease_heartbeat_stop.set()
+                if (
+                    lease_heartbeat_thread is not None
+                    and lease_heartbeat_thread.is_alive()
+                ):
+                    lease_heartbeat_thread.join(
+                        timeout=max(1.0, min(5.0, self.lifecycle.lease_seconds))
+                    )
                 if cancellation is not None:
                     self.budget_registry.release(envelope.command_id)
+
+    def _renew_command_lease_until_stopped(
+        self,
+        *,
+        session_id: str,
+        lease_id: str,
+        owner_id: str,
+        fence_token: str,
+        stop: threading.Event,
+        errors: list[Exception],
+        cancellation: CancellationToken,
+    ) -> None:
+        interval = max(0.01, min(60.0, self.lifecycle.lease_seconds / 3.0))
+        while not stop.wait(interval):
+            try:
+                self.lifecycle.renew_command(
+                    session_id,
+                    lease_id,
+                    owner_id=owner_id,
+                    fence_token=fence_token,
+                )
+            except Exception as error:
+                errors.append(error)
+                cancellation.cancel("gateway command lease renewal failed")
+                stop.set()
+                return
 
     def cancel(
         self,

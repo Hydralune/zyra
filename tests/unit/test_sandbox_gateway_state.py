@@ -134,6 +134,41 @@ class SandboxGatewayStateTests(unittest.TestCase):
             )
             self.assertEqual(finished.state, GatewayLifecycleState.READY)
 
+    def test_command_lease_renewal_preserves_fence_and_extends_expiry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = GatewayStateStore(tmpdir)
+            lifecycle = SandboxLifecycle(store, lease_seconds=30)
+            created = lifecycle.create(
+                session_id="session-renew",
+                run_id="run-renew",
+                task_id="task-renew",
+                workspace_id="workspace-renew",
+                worker_id="CodeWorkerRuntime",
+                backend_id="test-backend",
+            )
+            lifecycle.prepare(created.session_id)
+            ready = lifecycle.ready(created.session_id)
+            _, lease = lifecycle.begin_command(
+                ready.session_id,
+                "command-renew",
+                owner_id=ready.worker_id,
+                fence_token="fence-renew",
+            )
+
+            renewed = lifecycle.renew_command(
+                ready.session_id,
+                lease.lease_id,
+                owner_id=ready.worker_id,
+                fence_token="fence-renew",
+            )
+
+            self.assertEqual(renewed.lease_id, lease.lease_id)
+            self.assertEqual(renewed.owner_epoch, lease.owner_epoch)
+            self.assertGreaterEqual(renewed.expires_at, lease.expires_at)
+            persisted = store.require_session(ready.session_id)
+            self.assertEqual(persisted.lease, renewed)
+            self.assertEqual(persisted.metadata["lease_renewal_count"], 1)
+
     def test_permission_binding_is_exact_single_use_and_durable(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = GatewayStateStore(tmpdir)

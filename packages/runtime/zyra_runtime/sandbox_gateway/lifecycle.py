@@ -288,6 +288,71 @@ class SandboxLifecycle:
             )
         return lease
 
+    def renew_command(
+        self,
+        session_id: str,
+        lease_id: str,
+        *,
+        owner_id: str,
+        fence_token: str,
+    ) -> GatewayLease:
+        """Extend a live command lease without changing its fencing identity."""
+
+        now = self.clock()
+        with self.store.transaction() as state:
+            session_value = state["sessions"].get(session_id)
+            lease_value = state["leases"].get(lease_id)
+            if session_value is None or lease_value is None:
+                raise SandboxGatewayError(
+                    GatewayErrorCode.LEASE_EXPIRED,
+                    "gateway lease not found",
+                    operation="renew_command",
+                )
+            record = GatewaySessionRecord.from_dict(session_value)
+            lease = GatewayLease.from_dict(lease_value)
+            if (
+                record.state is not GatewayLifecycleState.BUSY
+                or record.lease is None
+                or record.lease.lease_id != lease_id
+            ):
+                raise SandboxGatewayError(
+                    GatewayErrorCode.SESSION_FENCED,
+                    "gateway lease no longer owns the active command",
+                    operation="renew_command",
+                )
+            if lease.released_at is not None or now >= lease.expires_at:
+                raise SandboxGatewayError(
+                    GatewayErrorCode.LEASE_EXPIRED,
+                    "gateway lease expired",
+                    operation="renew_command",
+                )
+            if (
+                lease.owner_id != owner_id
+                or lease.fence_token_digest != token_digest(fence_token)
+                or lease.owner_epoch != record.owner_epoch
+            ):
+                raise SandboxGatewayError(
+                    GatewayErrorCode.SESSION_FENCED,
+                    "gateway lease fencing identity changed",
+                    operation="renew_command",
+                )
+            renewed = replace(lease, expires_at=now + self.lease_seconds)
+            renewal_count = int(record.metadata.get("lease_renewal_count", 0)) + 1
+            updated = replace(
+                record,
+                generation=record.generation + 1,
+                updated_at=now,
+                lease=renewed,
+                metadata={
+                    **dict(record.metadata),
+                    "last_lease_renewed_at": now,
+                    "lease_renewal_count": renewal_count,
+                },
+            )
+            state["leases"][lease_id] = renewed.to_dict()
+            state["sessions"][session_id] = updated.to_dict()
+            return renewed
+
     def finish_command(
         self,
         session_id: str,

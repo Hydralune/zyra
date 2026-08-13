@@ -598,6 +598,58 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(completed.output["status"], "completed")
 
+    def test_shell_command_lease_is_renewed_while_process_is_live(self) -> None:
+        state = create_task_state("A live long command renews its gateway lease")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={
+                "sandbox_gateway_required": True,
+                "sandbox_gateway_lease_seconds": 0.75,
+                "sandbox_gateway_default_command_timeout_seconds": 4.0,
+            },
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        result = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-long-lease",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": [
+                        "-c",
+                        "import time; time.sleep(2.0); print('lease survived')",
+                    ],
+                    "timeout_seconds": 3.0,
+                    "foreground_wait_seconds": 3.0,
+                },
+                metadata={"session_id": f"long-lease-{state.task_id}"},
+            ),
+            permission_grant={"grant_id": "long-lease-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+
+        self.assertTrue(result.ok, result)
+        self.assertEqual(result.output["status"], "completed")
+        self.assertEqual(result.output["termination"], "exited")
+        self.assertIn("lease survived", result.output["stdout"])
+        command_session_id = next(iter(router._jobs.values())).session_id  # noqa: SLF001
+        command_record = bundle.state_store.require_session(command_session_id)
+        self.assertGreaterEqual(command_record.metadata["lease_renewal_count"], 2)
+
     def test_failed_shell_session_does_not_poison_the_next_command(self) -> None:
         state = create_task_state("A failed command is isolated from later shell calls")
         port, workspace = self._port(state, "CodeWorkerRuntime")
