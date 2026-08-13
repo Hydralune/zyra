@@ -240,7 +240,7 @@ function compactSummarySection(value: string, names: readonly string[]): string 
   return "";
 }
 
-function modelCompactionPrompt(request: SummaryRequest): string {
+export function modelCompactionPrompt(request: SummaryRequest): string {
   return [
     "Create a replacement handoff summary for the autonomous coding task represented by the conversation above.",
     "Respond with text only and do not call tools. The summary replaces older compact summaries: do not quote, recursively embed, or merely append the previous summary.",
@@ -248,10 +248,11 @@ function modelCompactionPrompt(request: SummaryRequest): string {
     "- the current objective and binding user constraints;",
     "- decisions already made and why;",
     "- files created, changed, or inspected and the relevant findings;",
+    "- for inspected source files that still affect the work, retain concrete symbols, responsibilities, defects, and cross-file relationships—not merely that the file was read;",
     "- commands/tests run and their exact outcomes;",
     "- failures, diagnoses, and fixes already attempted;",
     "- the work in progress, pending requirements, and the immediate next action.",
-    "Distinguish verified facts from tentative conclusions. Omit obsolete exploration and repeated listings. Never invent completion.",
+    "Distinguish verified facts from tentative conclusions. A successful source read must not be summarized as unavailable or unknown. Omit obsolete exploration and repeated listings. Never invent completion.",
     "Use these headings: Active objective; Completed work and decisions; Files and tool effects; Verification and failures; Current work; Pending work and next action.",
     request.customInstructions.trim() ? `Additional instruction: ${request.customInstructions.trim()}` : "",
   ].filter(Boolean).join("\n");

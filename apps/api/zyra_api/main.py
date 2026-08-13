@@ -4692,6 +4692,13 @@ def _authorize_typescript_agent_physical_execution(
     )
 
 
+# A long-running Agent request uses the same phase-sized context budget as the
+# CodeWorker runtime default.  The previous 32k-character cap is only about
+# eight thousand tokens; provider input and tool evidence forced a full
+# compaction every few calls even when the selected model had ample context.
+TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS = 400_000
+
+
 def _run_typescript_agent_request(
     state: Any,
     *,
@@ -4738,7 +4745,7 @@ def _run_typescript_agent_request(
             "arguments": bounded_arguments,
         }]],
         "typescriptAgentStatePath": str(subagent_state_path()),
-        "query_context_budget_chars": 32000,
+        "query_context_budget_chars": TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS,
         "tool_result_budget_chars": 120000,
         "session_id": parent_session_id,
         "workspace_ref": workspace_access.to_public_dict(),

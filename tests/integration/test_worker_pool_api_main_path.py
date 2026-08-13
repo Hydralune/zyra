@@ -136,6 +136,11 @@ def test_api_owned_successor_refreshes_immediately_before_e03_gate(
         authorize.assert_called_once()
 
 
+def test_typescript_agent_context_budget_preserves_a_real_work_phase() -> None:
+    assert api_main.TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS == 400_000
+    assert api_main.TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS >= 10 * 32_000
+
+
 def test_api_owned_edge_worker_heartbeat_refresh_is_monotonic(
     tmp_path: Path,
 ) -> None:

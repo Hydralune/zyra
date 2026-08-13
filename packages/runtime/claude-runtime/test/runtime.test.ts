@@ -27,6 +27,7 @@ import {
   e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
   isClearlyVerificationDrivingTool,
+  modelCompactionPrompt,
 } from "../src/query-engine.ts";
 
 class MemoryHost implements RuntimeHost {
@@ -597,6 +598,19 @@ test("durable compaction summary keeps objective progress verification and open 
   assert.doesNotMatch(summary, /must-not-survive/);
   assert.doesNotMatch(summary, /db-password/);
   assert.match(summary, /\[REDACTED\]/);
+});
+
+test("model compaction instructions require concrete source findings", async () => {
+  const prompt = modelCompactionPrompt({
+    trigger: "auto_threshold",
+    previousSummary: "",
+    systemPrompt: "runtime",
+    customInstructions: "preserve source work",
+    tokenBudget: 4_096,
+    messages: [],
+  });
+  assert.match(prompt, /retain concrete symbols, responsibilities, defects, and cross-file relationships/);
+  assert.match(prompt, /successful source read must not be summarized as unavailable or unknown/);
 });
 
 test("durable compaction carries verified failures across consecutive summary generations", async () => {
