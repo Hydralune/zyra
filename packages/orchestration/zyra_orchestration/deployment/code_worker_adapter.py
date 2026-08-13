@@ -1391,6 +1391,28 @@ def _workspace_manifest(
     return output
 
 
+def _regular_file_bytes_equal(left: Path, right: Path) -> bool:
+    """Compare two regular files without replacing either file identity."""
+
+    if (
+        left.is_symlink()
+        or right.is_symlink()
+        or not left.is_file()
+        or not right.is_file()
+    ):
+        return False
+    if left.stat().st_size != right.stat().st_size:
+        return False
+    left_digest = hashlib.sha256()
+    right_digest = hashlib.sha256()
+    with left.open("rb") as left_handle, right.open("rb") as right_handle:
+        while left_chunk := left_handle.read(1024 * 1024):
+            left_digest.update(left_chunk)
+        while right_chunk := right_handle.read(1024 * 1024):
+            right_digest.update(right_chunk)
+    return left_digest.digest() == right_digest.digest()
+
+
 def _is_external_provider_endpoint(value: str) -> bool:
     parsed = urlparse(value)
     if parsed.scheme.casefold() != "https" or not parsed.hostname:
@@ -2004,6 +2026,15 @@ def _pull_benchmark_workspace_paths(
                 raise RuntimeError(
                     "benchmark workspace path pull did not produce a regular file"
                 )
+            # WorkspaceEditPort binds stale-write evidence to both content and
+            # file identity.  A targeted refresh occurs once for the read and
+            # again immediately before apply; replacing identical bytes here
+            # would manufacture an inode change and reject every valid edit.
+            # Preserve the managed file when the canonical container bytes are
+            # unchanged.  A real container-side change still replaces it and
+            # therefore keeps the stale-write guard fail-closed.
+            if _regular_file_bytes_equal(target, staged):
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.is_symlink() or target.is_file():
                 target.unlink()

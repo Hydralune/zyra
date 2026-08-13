@@ -702,6 +702,49 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             self.assertEqual(calls[1][0], "cp")
             self.assertEqual(calls[1][1], "task-main-1:/app/services/api.py")
 
+    def test_targeted_pull_preserves_identity_when_container_bytes_are_unchanged(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            target = workspace / "services" / "api.py"
+            target.parent.mkdir(parents=True)
+            sync_root.mkdir()
+            target.write_text("unchanged", encoding="utf-8")
+            before = target.stat()
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+
+            def fake_docker(_binding, argv, **_kwargs):
+                if argv[0] == "cp":
+                    Path(argv[-1]).write_text("unchanged", encoding="utf-8")
+                return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+            with patch.object(
+                code_worker_adapter,
+                "_run_benchmark_docker",
+                side_effect=fake_docker,
+            ):
+                code_worker_adapter._pull_benchmark_workspace_paths(
+                    binding,
+                    workspace,
+                    ("services/api.py",),
+                )
+
+            after = target.stat()
+            self.assertEqual(target.read_text(encoding="utf-8"), "unchanged")
+            self.assertEqual(after.st_ino, before.st_ino)
+            self.assertEqual(after.st_mtime_ns, before.st_mtime_ns)
+
     def test_container_pull_rejects_an_unresolved_symlink_before_replacing_mirror(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
