@@ -36,6 +36,9 @@ from ..goal_contracts import direct_response_contract
 from .errors import DispatchRejected
 
 
+DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS = 400_000
+
+
 class _WorkspaceLeaseHeartbeat:
     """Keep the active CodeWorker lease alive for the lifetime of its loop."""
 
@@ -295,7 +298,9 @@ def execute_code_worker_operator(
         "typescript_runtime_timeout_seconds": runtime_timeout_seconds,
         "external_deadline_epoch_ms": context.get("external_deadline_epoch_ms"),
         "tool_result_budget_chars": 120_000,
-        "query_context_budget_chars": 128_000,
+        "query_context_budget_chars": _code_worker_query_context_budget_chars(
+            context
+        ),
         "model_output_token_limit": max(
             512, int(context.get("model_output_token_limit") or 16_384)
         ),
@@ -639,6 +644,23 @@ def _code_worker_reasoning_budget(
     raw_turns = context.get("max_turns")
     turns = None if raw_turns in (None, "", 0) else max(1, int(raw_turns))
     return turns, timeout
+
+
+def _code_worker_query_context_budget_chars(
+    context: Mapping[str, Any],
+) -> int:
+    """Keep physical workers' useful work phase large unless explicitly set.
+
+    QueryEngine converts this character budget to an approximate token window
+    by dividing by four.  The former 128,000-character default therefore
+    compacted a physical worker at only 32,000 tokens, long before the bound
+    model's context window and before long-horizon work could converge.
+    """
+
+    raw_budget = context.get("query_context_budget_chars")
+    if raw_budget in (None, "", 0):
+        return DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS
+    return max(32_000, int(raw_budget))
 
 
 def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]:

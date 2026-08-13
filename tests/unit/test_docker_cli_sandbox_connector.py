@@ -241,6 +241,18 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             {"benchmark_physical_dispatch": True},
         )
 
+    def test_physical_worker_preserves_a_full_agent_work_phase(self) -> None:
+        self.assertEqual(
+            code_worker_adapter._code_worker_query_context_budget_chars({}),
+            400_000,
+        )
+        self.assertEqual(
+            code_worker_adapter._code_worker_query_context_budget_chars(
+                {"query_context_budget_chars": 720_000}
+            ),
+            720_000,
+        )
+
     def test_explicit_long_horizon_budget_uses_the_authoritative_deadline(self) -> None:
         context = {
             "benchmark_long_horizon": True,

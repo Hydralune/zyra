@@ -6955,6 +6955,9 @@ def _production_physical_dispatch_port(
             ),
             "model_id": route_ref.model_id,
             "max_turns": reasoning_max_turns,
+            "query_context_budget_chars": (
+                TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS
+            ),
             "model_output_token_limit": output_token_budget["requested"],
             "model_output_token_budget": output_token_budget,
             # This is absent for an open run. When an external harness provides
