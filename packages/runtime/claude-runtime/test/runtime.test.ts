@@ -518,6 +518,59 @@ test("durable compaction summary keeps objective progress verification and open 
   assert.match(summary, /\[REDACTED\]/);
 });
 
+test("durable compaction summary replaces recursive handoffs and retains concrete actions", async () => {
+  const prior = [
+    "## Active objective",
+    "Repair the release workflow.",
+    "",
+    "## Current work",
+    "The failing migration is isolated in services/api/migrations.py.",
+    "",
+    "## Open work",
+    "Patch the migration and rerun pytest.",
+  ].join("\n");
+  const summary = await durableCompactionSummary({
+    trigger: "auto_threshold",
+    previousSummary: prior,
+    systemPrompt: "runtime",
+    customInstructions: "preserve work",
+    tokenBudget: 4_096,
+    messages: [
+      {
+        id: "old-handoff",
+        role: "user",
+        content: [{ type: "text", text: `## Active objective\n${prior}` }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: null,
+        apiRound: 0,
+        synthetic: true,
+        metadata: { compact_summary: true },
+      },
+      {
+        id: "edit",
+        role: "assistant",
+        content: [{
+          type: "tool_use",
+          id: "edit-call",
+          name: "file_write",
+          input: { path: "services/api/migrations.py", content: "fixed" },
+        }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: 19,
+        apiRound: 19,
+        synthetic: false,
+        metadata: {},
+      },
+    ],
+  });
+
+  assert.match(summary, /Repair the release workflow/);
+  assert.match(summary, /services\/api\/migrations\.py/);
+  assert.match(summary, /Patch the migration and rerun pytest/);
+  assert.equal((summary.match(/## Active objective/g) ?? []).length, 1);
+  assert.doesNotMatch(summary, /## Active objective\n## Active objective/);
+});
+
 test("provider control checkpoints externalize cumulative prompt content", () => {
   const marker = "large-provider-prompt-marker-".repeat(2_000);
   const projected = e01RuntimeEventPayload("model_request_prepared", {
@@ -765,15 +818,39 @@ test("auto compaction replaces the next provider request transcript", async () =
   const originalFetch = globalThis.fetch;
   const requestBodies: JsonObject[] = [];
   let requestCount = 0;
+  let agentRequestCount = 0;
   globalThis.fetch = (async (
     _resource: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
   ) => {
     requestCount += 1;
-    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
-    if (requestCount <= 2) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as JsonObject;
+    requestBodies.push(body);
+    const messages = body.messages as JsonObject[];
+    const isCompactionSummary = messages.some((message) =>
+      JSON.stringify(message.content ?? "").includes("Create a replacement handoff summary")
+    );
+    if (isCompactionSummary) {
       const event = {
-        id: `compact-tool-response-${requestCount}`,
+        id: `compact-summary-response-${requestCount}`,
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{
+          index: 0,
+          delta: { content: "## Active objective\nContinue the repair.\n\n## Current work\nThe latest read completed.\n\n## Pending work and next action\nContinue with the next tool." },
+          finish_reason: "stop",
+        }],
+        usage: { prompt_tokens: 600, completion_tokens: 40, total_tokens: 640 },
+      };
+      return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+    agentRequestCount += 1;
+    if (agentRequestCount <= 2) {
+      const event = {
+        id: `compact-tool-response-${agentRequestCount}`,
         object: "chat.completion.chunk",
         model: "zyra-local-code-model",
         choices: [{
@@ -781,11 +858,11 @@ test("auto compaction replaces the next provider request transcript", async () =
           delta: {
             tool_calls: [{
               index: 0,
-              id: `compact-tool-${requestCount}`,
+                id: `compact-tool-${agentRequestCount}`,
               type: "function",
               function: {
                 name: "read",
-                arguments: JSON.stringify({ path: requestCount === 1 ? "a" : "b" }),
+                arguments: JSON.stringify({ path: agentRequestCount === 1 ? "a" : "b" }),
               },
             }],
           },
@@ -834,12 +911,18 @@ test("auto compaction replaces the next provider request transcript", async () =
   }
 
   assert.equal(result.ok, true);
-  assert.equal(requestCount, 3);
+  assert.equal(agentRequestCount, 3);
+  assert.equal(requestCount, 5);
   assert.ok(result.contextCompactionCount >= 2);
-  assert.equal(JSON.stringify(requestBodies[0]).includes(marker), true);
-  assert.equal(JSON.stringify(requestBodies[1]).includes(marker), true);
-  assert.equal(JSON.stringify(requestBodies[2]).includes(marker), false);
-  assert.match(JSON.stringify(requestBodies[2]), /Compaction boundary/);
+  const agentRequestBodies = requestBodies.filter((body) =>
+    !(body.messages as JsonObject[]).some((message) =>
+      JSON.stringify(message.content ?? "").includes("Create a replacement handoff summary")
+    )
+  );
+  assert.equal(JSON.stringify(agentRequestBodies[0]).includes(marker), true);
+  assert.equal(JSON.stringify(agentRequestBodies[1]).includes(marker), true);
+  assert.equal(JSON.stringify(agentRequestBodies[2]).includes(marker), false);
+  assert.match(JSON.stringify(agentRequestBodies[2]), /Compaction boundary/);
   const modelIteration = result.sessionSnapshot.modelIteration as JsonObject;
   assert.equal(JSON.stringify(modelIteration.transcript ?? []).includes(marker), false);
 });

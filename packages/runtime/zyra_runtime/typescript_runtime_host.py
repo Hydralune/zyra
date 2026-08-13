@@ -13,7 +13,7 @@ class ClaudeQueryEngineConfig:
 
     max_turns: int | None = None
     max_tool_result_chars: int = 8000
-    max_query_context_chars: int = 32000
+    max_query_context_chars: int = 400_000
     continue_on_error: bool = False
     max_read_only_concurrency: int = 10
     emit_tool_use_summaries: bool = True

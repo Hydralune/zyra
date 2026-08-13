@@ -1524,9 +1524,10 @@ export class E01RuntimeCoordinator {
         "",
       ).trim();
       const compactObjective = (
-        compactSummary.split("## Durable progress and decisions", 1)[0]
+        compactSummary.match(/## Active objective\s*\n([\s\S]*?)(?=\n## |$)/u)?.[1]
+          || compactSummary.match(/1\. Primary Request and Intent:?\s*\n([\s\S]*?)(?=\n\d+\. |$)/u)?.[1]
           || compactSummary
-      ).slice(0, 6_000);
+      ).trim().slice(0, 6_000);
       const citation = {
         eventId: `${this.sessionId}:compact:${summarySequence}`,
         transitionId: null,

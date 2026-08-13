@@ -510,7 +510,7 @@ export class ContextCompactionRuntime {
       role: "system",
       content: [{
         type: "text",
-        text: `Compaction boundary ${result.boundary.boundaryId}\n${result.boundary.summary}`,
+        text: `Compaction boundary ${result.boundary.boundaryId}. Earlier context is represented by the following handoff summary.`,
       }],
       createdAt: result.boundary.createdAt,
       turnIndex: null,
@@ -667,7 +667,15 @@ export class ContextCompactionRuntime {
     const summaryMessage: CompactMessage = {
       id: randomUUID(),
       role: "user",
-      content: [{ type: "text", text: summary }],
+      content: [{
+        type: "text",
+        text: [
+          "This session continues from an earlier context window. The handoff summary below replaces the earlier transcript.",
+          "Continue directly from its current work and next action. Do not restart completed inspection or merely recap the summary.",
+          "",
+          summary,
+        ].join("\n"),
+      }],
       createdAt: now,
       turnIndex: null,
       apiRound: 0,

@@ -117,7 +117,7 @@ class ToolLoopBatchPolicy:
     write_serial: bool = True
     allow_mixed_batches: bool = False
     result_budget_chars: int = 8000
-    query_context_budget_chars: int = 32000
+    query_context_budget_chars: int = 400_000
 
     def to_dict(self) -> dict[str, Any]:
         return to_jsonable(self)

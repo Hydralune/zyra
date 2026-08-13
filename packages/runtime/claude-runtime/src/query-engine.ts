@@ -56,7 +56,10 @@ const DEFAULT_CONFIG: RuntimeConfig = {
   maxTurns: null,
   maxToolResultChars: 8000,
   maxTurnToolResultChars: null,
-  maxQueryContextChars: 32000,
+  // Keep enough of modern coding-model context to preserve an actual work
+  // phase.  32k characters is only about 8k tokens and caused long-running
+  // sessions to compact every few tool calls.
+  maxQueryContextChars: 400_000,
   continueOnError: false,
   maxReadOnlyConcurrency: 10,
   emitToolUseSummaries: true,
@@ -191,7 +194,9 @@ function compactMessagesForProvider(messages: readonly CompactMessage[]): JsonOb
 
 function blockSummaryText(block: CompactContentBlock): string {
   if (block.type === "text") return block.text;
-  if (block.type === "tool_use") return `requested ${block.name}`;
+  if (block.type === "tool_use") {
+    return `requested ${block.name} with ${boundedCompactionText(JSON.stringify(block.input), 1_200)}`;
+  }
   if (block.type === "tool_result") {
     return `${block.isError ? "failed" : "completed"} tool ${block.toolUseId}: ${
       typeof block.content === "string" ? block.content : JSON.stringify(block.content)
@@ -202,35 +207,117 @@ function blockSummaryText(block: CompactContentBlock): string {
   return "";
 }
 
+function compactSummarySections(value: string): Map<string, string> {
+  const sections = new Map<string, string>();
+  let heading = "";
+  let body: string[] = [];
+  const flush = (): void => {
+    if (!heading) return;
+    sections.set(heading.toLowerCase(), body.join("\n").trim());
+  };
+  for (const line of value.split(/\r?\n/u)) {
+    const match = line.match(/^\s*(?:#{1,4}\s+|\d+\.\s+)([^:\n]+?):?\s*$/u);
+    if (match) {
+      flush();
+      heading = match[1].trim();
+      body = [];
+      continue;
+    }
+    if (heading) body.push(line);
+  }
+  flush();
+  return sections;
+}
+
+function compactSummarySection(value: string, names: readonly string[]): string {
+  const sections = compactSummarySections(value);
+  for (const name of names) {
+    const exact = sections.get(name.toLowerCase());
+    if (exact) return exact;
+    const fuzzy = [...sections.entries()].find(([heading]) => heading.includes(name.toLowerCase()));
+    if (fuzzy?.[1]) return fuzzy[1];
+  }
+  return "";
+}
+
+function modelCompactionPrompt(request: SummaryRequest): string {
+  return [
+    "Create a replacement handoff summary for the autonomous coding task represented by the conversation above.",
+    "Respond with text only and do not call tools. The summary replaces older compact summaries: do not quote, recursively embed, or merely append the previous summary.",
+    "Preserve concrete continuation state, especially:",
+    "- the current objective and binding user constraints;",
+    "- decisions already made and why;",
+    "- files created, changed, or inspected and the relevant findings;",
+    "- commands/tests run and their exact outcomes;",
+    "- failures, diagnoses, and fixes already attempted;",
+    "- the work in progress, pending requirements, and the immediate next action.",
+    "Distinguish verified facts from tentative conclusions. Omit obsolete exploration and repeated listings. Never invent completion.",
+    "Use these headings: Active objective; Completed work and decisions; Files and tool effects; Verification and failures; Current work; Pending work and next action.",
+    request.customInstructions.trim() ? `Additional instruction: ${request.customInstructions.trim()}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function formatModelCompactionSummary(value: string, tokenBudget: number): string {
+  let formatted = value.trim();
+  const summary = formatted.match(/<summary>\s*([\s\S]*?)\s*<\/summary>/iu);
+  if (summary?.[1]) formatted = summary[1].trim();
+  formatted = formatted.replace(/<analysis>[\s\S]*?<\/analysis>/giu, "").trim();
+  return boundedCompactionText(formatted, Math.max(4_000, Math.min(16_000, tokenBudget * 4)));
+}
+
 export async function durableCompactionSummary(request: SummaryRequest): Promise<string> {
   const objective = request.messages
-    .filter((message) => message.role === "user")
+    .filter((message) =>
+      message.role === "user"
+      && !message.synthetic
+      && message.metadata.compact_summary !== true
+    )
     .map((message) => message.content.filter((block) => block.type === "text").map(blockSummaryText).join("\n"))
-    .find((value) => value.trim().length > 0) ?? "Continue the current governed task.";
+    .find((value) => value.trim().length > 0)
+    || compactSummarySection(request.previousSummary, ["Active objective", "Primary Request and Intent"])
+    || "Continue the current governed task.";
   const assistantNotes = request.messages
     .filter((message) => message.role === "assistant")
-    .map((message) => message.content.filter((block) => block.type === "text").map(blockSummaryText).join("\n"))
+    .map((message) => message.content
+      .filter((block) => block.type === "text" || block.type === "thinking")
+      .map(blockSummaryText)
+      .join("\n"))
     .filter((value) => value.trim().length > 0)
     .slice(-5)
     .map((value) => boundedCompactionText(value, 1_600));
+  const toolActions = request.messages
+    .flatMap((message) => message.content.filter((block) => block.type === "tool_use"))
+    .slice(-16)
+    .map((block) => boundedCompactionText(blockSummaryText(block), 1_200));
   const toolOutcomes = request.messages
     .flatMap((message) => message.content.filter((block) => block.type === "tool_result"))
-    .slice(-10)
+    .slice(-12)
     .map((block) => boundedCompactionText(blockSummaryText(block), 1_200));
-  const previous = boundedCompactionText(request.previousSummary, 3_000);
+  const previousProgress = boundedCompactionText(compactSummarySection(
+    request.previousSummary,
+    ["Current work", "Completed work and decisions", "Problem Solving", "Historical reasoning and durable progress"],
+  ), 1_800);
+  const previousOpenWork = boundedCompactionText(compactSummarySection(
+    request.previousSummary,
+    ["Pending work and next action", "Pending Tasks", "Open work", "Optional Next Step"],
+  ), 1_500);
   const sections = [
     "## Active objective",
     boundedCompactionText(objective, 2_500),
     "",
     "## Historical reasoning and durable progress",
     "Reasoning snippets may include superseded plans or inspections completed by later tool outcomes; they are not an implicit to-do list.",
-    ...(previous ? [previous] : []),
+    ...(previousProgress ? [`- Previous handoff progress: ${previousProgress}`] : []),
     ...(assistantNotes.length > 0 ? assistantNotes.map((item) => `- ${item}`) : ["- No separate assistant note was retained."]),
+    "",
+    "## Files and tool actions",
+    ...(toolActions.length > 0 ? toolActions.map((item) => `- ${item}`) : ["- No concrete tool action was retained."]),
     "",
     "## Verified tool observations",
     ...(toolOutcomes.length > 0 ? toolOutcomes.map((item) => `- ${item}`) : ["- No completed tool observation was retained."]),
     "",
     "## Open work",
+    ...(previousOpenWork ? [`- ${previousOpenWork}`] : []),
     "Continue from the newest concrete conclusions and verified outcomes. Inspect the persisted diff only when its current state is not already recorded, revalidate externally mutable claims, and finish every unverified delivery requirement without repeating completed inspection.",
   ];
   const maximum = Math.max(4_000, Math.min(16_000, request.tokenBudget * 4));
@@ -1725,11 +1812,56 @@ export class ClaudeRuntimeCore {
           querySource: "ClaudeRuntimeCore.run",
           sessionId: input.sessionId,
         };
+        const compactSummaryProvider = modelTransport === "http_sse"
+          ? async (request: SummaryRequest): Promise<string> => {
+            const summaryRoundIndex = providerRoundIndex;
+            providerRoundIndex += 1;
+            try {
+              const summaryModel = await resolveModelTurns(
+                input,
+                config,
+                [],
+                [],
+                emit,
+                (observation) => e01.decideProviderRecovery(observation),
+                e01.journal.restartEpoch,
+                (observation) => e01.completeProviderRecovery(observation),
+                (requestId) => e01.executePreparedProvider(requestId),
+                summaryRoundIndex,
+                [
+                  ...compactMessagesForProvider(request.messages),
+                  { role: "user", content: modelCompactionPrompt(request) },
+                ],
+              );
+              const formatted = formatModelCompactionSummary(summaryModel.finalText, request.tokenBudget);
+              if (summaryModel.ok && summaryModel.turns.flat().length === 0 && formatted) {
+                await emit("context_compaction_summary_generated", {
+                  owner: "provider_model",
+                  provider_request_id: summaryModel.providerRequestId,
+                  source_message_count: request.messages.length,
+                  summary_chars: formatted.length,
+                });
+                return formatted;
+              }
+              await emit("context_compaction_summary_fallback", {
+                owner: "deterministic_fallback",
+                provider_request_id: summaryModel.providerRequestId,
+                reason: summaryModel.ok ? "provider_summary_not_text_only" : summaryModel.error ?? "provider_summary_failed",
+              });
+            } catch (error) {
+              await emit("context_compaction_summary_fallback", {
+                owner: "deterministic_fallback",
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
+            return durableCompactionSummary(request);
+          }
+          : durableCompactionSummary;
         const matureCompact = compactSource.length >= 3
           ? await e01.compact.compactConversation(
             compactSource,
             compactOptions,
-            durableCompactionSummary,
+            compactSummaryProvider,
           )
           : null;
         if (compactSource.length >= 3 && matureCompact === null) {

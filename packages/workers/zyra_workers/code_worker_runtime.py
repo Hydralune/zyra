@@ -262,7 +262,7 @@ class CodeWorkerRuntime:
                         constraints.get("tool_result_budget_chars"), 8000
                     ),
                     max_query_context_chars=_positive_int(
-                        constraints.get("query_context_budget_chars"), 32000
+                        constraints.get("query_context_budget_chars"), 400_000
                     ),
                     continue_on_error=constraints.get("continue_on_error") is True,
                     max_read_only_concurrency=_positive_int(
