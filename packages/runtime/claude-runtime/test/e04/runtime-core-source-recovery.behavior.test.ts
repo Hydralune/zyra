@@ -331,9 +331,13 @@ test("e04-tool-resume", async () => {
     tool_call_id: "e04-budget-call",
     ok: true,
     summary: "large result",
-    output: { text: "x".repeat(2_000) },
+    output: {
+      text: "x".repeat(2_000),
+      status: "completed",
+      return_code: 0,
+    },
     artifacts: [],
-    metadata: {},
+    metadata: { termination: "exited" },
   };
   const runtime = new ToolResultRuntime();
   const [first, concurrentDuplicate] = await Promise.all([
@@ -342,6 +346,14 @@ test("e04-tool-resume", async () => {
   ]);
   expect(externalizeCount).toBe(1);
   expect(first.applied).toBeTrue();
+  expect(first.result.output.terminal_facts).toEqual({
+    ok: true,
+    summary: "large result",
+    error: null,
+    status: "completed",
+    return_code: 0,
+    termination: "exited",
+  });
   expect(concurrentDuplicate.result).toEqual(first.result);
 
   const restored = new ToolResultRuntime();

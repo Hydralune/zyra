@@ -87,6 +87,35 @@ export interface ToolResultAccumulator {
   metadata: JsonRecord;
 }
 
+function terminalToolResultFacts(result: ToolExecutionResponse): JsonRecord {
+  const facts: JsonRecord = {
+    ok: result.ok,
+    summary: result.summary ?? null,
+    error: result.error ?? null,
+  };
+  const keys = [
+    "status",
+    "return_code",
+    "exit_code",
+    "termination",
+    "background_status",
+  ] as const;
+  for (const key of keys) {
+    const outputValue = result.output[key];
+    const metadataValue = result.metadata[key];
+    const value = outputValue ?? metadataValue;
+    if (
+      value === null
+      || typeof value === "string"
+      || typeof value === "number"
+      || typeof value === "boolean"
+    ) {
+      facts[key] = value;
+    }
+  }
+  return facts;
+}
+
 export interface ToolResultDelivery {
   deliveryId: string;
   resultId: string;
@@ -266,6 +295,7 @@ export class ToolResultRuntime {
     const replacement: ToolExecutionResponse = {
       ...result,
       output: {
+        terminal_facts: terminalToolResultFacts(result),
         content_preview: serialized.slice(0, previewChars),
         truncated: true,
         original_chars: originalChars,
