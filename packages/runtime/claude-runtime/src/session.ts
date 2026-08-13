@@ -10,6 +10,7 @@ import {
   type JsonValue,
   type ToolExecutionResponse,
 } from "./contracts.ts";
+import { projectToolOutputForRuntime } from "./tools/model-result-projection.ts";
 
 export const SESSION_SNAPSHOT_VERSION = "zyra.typescript-query-session.v1";
 
@@ -238,7 +239,7 @@ export class RuntimeSession {
       content: JSON.stringify({
         ok: result.ok,
         summary: result.summary,
-        output: result.output,
+        output: projectToolOutputForRuntime(result.output),
         error: result.error ?? null,
       }),
       turn_index: turnIndex,

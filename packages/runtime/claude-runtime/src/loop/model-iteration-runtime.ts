@@ -5,6 +5,7 @@ import {
   ToolObservationBudgetRuntime,
   type ToolObservationBudgetSnapshot,
 } from "./tool-observation-budget-runtime.ts";
+import { projectToolOutputForRuntime } from "../tools/model-result-projection.ts";
 
 export const MODEL_ITERATION_SNAPSHOT_VERSION = "zyra.model-iteration/v1";
 
@@ -389,7 +390,7 @@ export class ModelIterationRuntime {
     const permissionEffect = input.permissionEffect ?? inferPermissionEffect(input.error);
     tool.turnId = nullable(input.turnId) ?? tool.turnId;
     tool.summary = input.summary.trim() || (input.ok ? `${tool.toolName} completed` : `${tool.toolName} failed`);
-    tool.output = cloneObject(input.output);
+    tool.output = projectToolOutputForRuntime(input.output);
     tool.error = input.ok ? null : required(input.error ?? "tool_error", "tool error");
     tool.permissionEffect = permissionEffect;
     tool.state = input.ok ? "succeeded" : permissionEffect === "deny" || permissionEffect === "ask" ? "denied" : "failed";
@@ -1030,7 +1031,7 @@ function normalizeSteps(values: readonly ToolStep[]): ToolStep[] {
 function toolResultContent(tool: IterationToolRecord): JsonValue {
   const payload: JsonObject = {
     summary: tool.summary,
-    output: tool.output,
+    output: projectToolOutputForRuntime(tool.output),
     error: tool.error,
     state: tool.state,
     result_digest: tool.resultDigest,

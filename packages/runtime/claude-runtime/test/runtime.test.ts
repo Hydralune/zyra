@@ -14,6 +14,7 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../src/index.ts";
+import { projectToolOutputForRuntime } from "../src/tools/model-result-projection.ts";
 import {
   assertProviderRouteRenewalLineage,
   providerControlPlaneEvidenceFrames,
@@ -459,6 +460,86 @@ test("session restore preserves the unique active turn boundary", () => {
   assert.doesNotThrow(() => restored.beginTurn(1, "continue after deterministic settlement"));
 });
 
+test("runtime tool projection keeps gateway evidence identity without copying its audit envelope", () => {
+  const eventRefs = Array.from({ length: 200 }, (_, index) => `gateway-event-${index}-${"x".repeat(80)}`);
+  const output = {
+    stdout: "verified output",
+    return_code: 0,
+    gateway_receipt: {
+      schema: "zyra.gateway-execution-receipt.v1",
+      receipt_id: "gateway-execution:test",
+      receipt_digest: "sha256:receipt",
+      outcome: "committed",
+      result_digest: "sha256:result",
+      invocation: {
+        invocation_id: "gateway-invocation:test",
+        tool_call_id: "call-projection",
+        arguments_digest: "sha256:arguments",
+        policy_digest: "sha256:policy",
+        binding_digest: "sha256:binding",
+        identity: { worker_id: "worker", payload: "y".repeat(10_000) },
+      },
+      event_refs: eventRefs,
+      metadata: {
+        return_code: 0,
+        termination: "exited",
+        workspace_mutation_committed: false,
+        unbounded_diagnostics: "z".repeat(10_000),
+      },
+    },
+  } satisfies JsonObject;
+
+  const projected = projectToolOutputForRuntime(output);
+  const encoded = JSON.stringify(projected);
+  assert.ok(encoded.length < 2_000);
+  assert.equal(projected.stdout, "verified output");
+  assert.deepEqual(projected.gateway_receipt, {
+    schema: "zyra.gateway-execution-receipt.v1",
+    receipt_id: "gateway-execution:test",
+    receipt_digest: "sha256:receipt",
+    outcome: "committed",
+    result_digest: "sha256:result",
+    compacted_for_runtime: true,
+    invocation_ref: {
+      invocation_id: "gateway-invocation:test",
+      tool_call_id: "call-projection",
+      arguments_digest: "sha256:arguments",
+      policy_digest: "sha256:policy",
+      binding_digest: "sha256:binding",
+    },
+    metadata: {
+      return_code: 0,
+      termination: "exited",
+      workspace_mutation_committed: false,
+    },
+    event_ref_count: 200,
+  });
+
+  const session = RuntimeSession.create(
+    "projection-session",
+    "projection-run",
+    "projection-task",
+    "projection-request",
+    [{ role: "user", content: "Run the command" }],
+  );
+  session.beginTurn(0, "Run the command");
+  session.recordToolCall("call-projection", "shell");
+  session.recordToolResult("shell", {
+    tool_call_id: "call-projection",
+    ok: true,
+    summary: "Sandbox command completed",
+    output,
+    artifacts: [],
+    error: null,
+    metadata: {},
+  });
+  const recorded = JSON.parse(session.messages.at(-1)?.content ?? "{}") as {
+    output?: JsonObject;
+  };
+  assert.deepEqual(recorded.output, projected);
+  assert.ok(!session.messages.at(-1)?.content.includes("gateway-event-199"));
+});
+
 test("durable compaction summary keeps objective progress verification and open work", async () => {
   const summary = await durableCompactionSummary({
     trigger: "auto_threshold",
@@ -516,6 +597,77 @@ test("durable compaction summary keeps objective progress verification and open 
   assert.doesNotMatch(summary, /must-not-survive/);
   assert.doesNotMatch(summary, /db-password/);
   assert.match(summary, /\[REDACTED\]/);
+});
+
+test("durable compaction carries verified failures across consecutive summary generations", async () => {
+  const first = await durableCompactionSummary({
+    trigger: "auto_threshold",
+    previousSummary: "",
+    systemPrompt: "runtime",
+    customInstructions: "preserve verified outcomes",
+    tokenBudget: 4_096,
+    messages: [
+      {
+        id: "goal",
+        role: "user",
+        content: [{ type: "text", text: "Build and verify the release." }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: null,
+        apiRound: 0,
+        synthetic: false,
+        metadata: {},
+      },
+      {
+        id: "build-result",
+        role: "user",
+        content: [{
+          type: "tool_result",
+          toolUseId: "build-call",
+          content: JSON.stringify({
+            summary: "Sandbox command completed",
+            output: {
+              terminal_facts: { status: "completed", return_code: 0 },
+              content_preview: "Docker Hub authorization failed; BUILD_STATUS=17",
+              truncated: true,
+            },
+            error: null,
+            state: "succeeded",
+          }),
+          isError: false,
+          createdAt: new Date(0).toISOString(),
+          compacted: false,
+        }],
+        createdAt: new Date(0).toISOString(),
+        turnIndex: 1,
+        apiRound: 1,
+        synthetic: false,
+        metadata: {},
+      },
+    ],
+  });
+  assert.match(first, /BUILD_STATUS=17/);
+  assert.match(first, /return_code.{0,20}0/);
+
+  const second = await durableCompactionSummary({
+    trigger: "auto_threshold",
+    previousSummary: first,
+    systemPrompt: "runtime",
+    customInstructions: "preserve verified outcomes",
+    tokenBudget: 4_096,
+    messages: [{
+      id: "follow-up",
+      role: "assistant",
+      content: [{ type: "text", text: "Check whether the external registry recovered." }],
+      createdAt: new Date(1).toISOString(),
+      turnIndex: 2,
+      apiRound: 2,
+      synthetic: false,
+      metadata: {},
+    }],
+  });
+  assert.match(second, /Previous verified observations/);
+  assert.match(second, /BUILD_STATUS=17/);
+  assert.match(second, /Docker Hub authorization failed/);
 });
 
 test("durable compaction summary replaces recursive handoffs and retains concrete actions", async () => {

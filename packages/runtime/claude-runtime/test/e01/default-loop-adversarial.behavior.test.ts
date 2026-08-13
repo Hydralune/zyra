@@ -622,6 +622,63 @@ describe("model iteration recovery", () => {
     })).toThrow("repeated tool call id");
   });
 
+  test("model iteration projects gateway audit envelopes out of provider tool results", () => {
+    const runtime = new ModelIterationRuntime({
+      sessionId: "projection-session",
+      runId: "projection-run",
+      taskId: "projection-task",
+      workerRequestId: "projection-request",
+    });
+    runtime.start([{ role: "user", content: "Run one command" }]);
+    const round = runtime.beginProviderRound({
+      requestKey: "projection-round",
+      model: "provider-model",
+      messages: [{ role: "user", content: "Run one command" }],
+    });
+    runtime.acceptProviderResult({
+      roundId: round.roundId,
+      providerRequestId: "projection-provider",
+      model: "provider-model",
+      stopReason: "tool_use",
+      finalText: "",
+      steps: [{ step_id: "projection-call", tool_name: "shell", arguments: { command: "true" } }],
+    });
+    runtime.recordToolObservation({
+      callId: "projection-call",
+      turnId: "projection-turn",
+      ok: true,
+      summary: "command completed",
+      output: {
+        return_code: 0,
+        gateway_receipt: {
+          receipt_id: "gateway-execution:projection",
+          receipt_digest: "sha256:projection",
+          outcome: "committed",
+          invocation: {
+            invocation_id: "gateway-invocation:projection",
+            identity: { oversized: "x".repeat(20_000) },
+          },
+          event_refs: Array.from({ length: 100 }, (_, index) => `event-${index}`),
+          metadata: { return_code: 0, termination: "exited" },
+        },
+      },
+      error: null,
+    });
+    const messages = runtime.buildRevisionMessages(round.roundId);
+    const content = messages.at(-1)?.content as Array<{ content?: string }>;
+    const payload = JSON.parse(content[0]?.content ?? "{}") as {
+      output?: { gateway_receipt?: JsonObject };
+    };
+    expect(payload.output?.gateway_receipt?.receipt_id).toBe("gateway-execution:projection");
+    expect(payload.output?.gateway_receipt?.event_ref_count).toBe(100);
+    expect(payload.output?.gateway_receipt?.compacted_for_runtime).toBe(true);
+    expect(content[0]?.content?.includes("oversized")).toBe(false);
+    expect(content[0]?.content?.length).toBeLessThan(2_000);
+    const snapshot = runtime.snapshot();
+    const toolOutput = snapshot.tools[0]?.output as JsonObject;
+    expect(JSON.stringify(toolOutput).includes("oversized")).toBe(false);
+  });
+
   test("e01.mutation.iteration-snapshot-checksum-rejects-tampering", () => {
     const runtime = new ModelIterationRuntime({
       sessionId: "checksum-session",

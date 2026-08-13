@@ -297,6 +297,10 @@ export async function durableCompactionSummary(request: SummaryRequest): Promise
     request.previousSummary,
     ["Current work", "Completed work and decisions", "Problem Solving", "Historical reasoning and durable progress"],
   ), 1_800);
+  const previousVerification = boundedCompactionText(compactSummarySection(
+    request.previousSummary,
+    ["Verified tool observations", "Verification and failures"],
+  ), 2_400);
   const previousOpenWork = boundedCompactionText(compactSummarySection(
     request.previousSummary,
     ["Pending work and next action", "Pending Tasks", "Open work", "Optional Next Step"],
@@ -314,6 +318,7 @@ export async function durableCompactionSummary(request: SummaryRequest): Promise
     ...(toolActions.length > 0 ? toolActions.map((item) => `- ${item}`) : ["- No concrete tool action was retained."]),
     "",
     "## Verified tool observations",
+    ...(previousVerification ? [`- Previous verified observations: ${previousVerification}`] : []),
     ...(toolOutcomes.length > 0 ? toolOutcomes.map((item) => `- ${item}`) : ["- No completed tool observation was retained."]),
     "",
     "## Open work",

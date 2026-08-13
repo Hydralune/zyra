@@ -22,6 +22,7 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "./contracts.ts";
+import { projectToolOutputForRuntime } from "./tools/model-result-projection.ts";
 import type { PermissionApprovalResponse } from "./e02/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
@@ -856,7 +857,7 @@ function normalizeToolResult(value: JsonObject): ToolExecutionResponse {
     tool_call_id: asString(value.tool_call_id),
     ok: value.ok === true,
     summary: asString(value.summary),
-    output: asObject(value.output),
+    output: projectToolOutputForRuntime(asObject(value.output)),
     artifacts,
     error: asString(value.error) || null,
     completed_at: asString(value.completed_at),
