@@ -63,6 +63,7 @@ interface ProgressiveOptions {
 export class ProgressiveExecutionRuntime {
   private readonly now: () => number;
   private readonly constraints: JsonObject;
+  private readonly requiresWorkspaceMutation: boolean;
   private readonly requiresVerification: boolean;
   private state: ProgressiveExecutionSnapshot;
 
@@ -72,8 +73,13 @@ export class ProgressiveExecutionRuntime {
     const restored = asObject(options.restored as unknown);
     const startedAt = this.now();
     const deliveryContract = asObject(options.deliveryContract);
-    const requiresDelivery = asBoolean(deliveryContract.workspace_mutation_required)
+    // `requires_delivery_artifact` is the adapter's fail-closed duplicate of
+    // the workspace-mutation contract when optional metadata is lost.  It is
+    // not permission for diagnostic attachments (browser snapshots, spilled
+    // command output, screenshots) to masquerade as task delivery.
+    this.requiresWorkspaceMutation = asBoolean(deliveryContract.workspace_mutation_required)
       || asBoolean(this.constraints.requires_delivery_artifact);
+    const requiresDelivery = this.requiresWorkspaceMutation;
     this.requiresVerification = Object.prototype.hasOwnProperty.call(
       deliveryContract,
       "verification_required",
@@ -197,8 +203,7 @@ export class ProgressiveExecutionRuntime {
     // A stale or formerly unbound snapshot must not erase an outstanding
     // delivery obligation merely because it persisted `false`.
     this.state.requiredDeliveryMissing = requiresDelivery
-      && this.state.workspaceMutationCount === 0
-      && this.state.artifactCount === 0;
+      && this.state.workspaceMutationCount === 0;
   }
 
   observeProviderRound(text: string, proposedToolCalls: number): ProgressiveExecutionSnapshot {
@@ -242,7 +247,7 @@ export class ProgressiveExecutionRuntime {
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
-    if (mutated || artifacts > 0) {
+    if (mutated) {
       // Every new delivery invalidates verification of the previous bytes.
       // A build/test command that also produces outputs can discharge the new
       // debt below, but an earlier read or test cannot.
@@ -257,7 +262,7 @@ export class ProgressiveExecutionRuntime {
       this.state.consecutiveNoDeliveryObservations = 0;
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.recoveryInspectionAllowance = 0;
-      this.progress(mutated ? "workspace_mutation_committed" : "artifact_receipt_committed");
+      this.progress("workspace_mutation_committed");
     } else if (response.ok && !backgroundRunning) {
       this.state.noDeliveryObservationCount += 1;
       this.state.consecutiveNoDeliveryObservations += 1;
@@ -401,7 +406,7 @@ export class ProgressiveExecutionRuntime {
     }
     const verificationDebt = this.requiresVerification
       && !this.state.requiredDeliveryMissing
-      && (this.state.workspaceMutationCount > 0 || this.state.artifactCount > 0)
+      && this.state.workspaceMutationCount > 0
       && this.state.verificationCount === 0;
     const maximumVerificationNudges = boundedInteger(
       this.constraints.post_delivery_verification_nudge_limit,

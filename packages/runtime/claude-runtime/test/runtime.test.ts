@@ -2695,6 +2695,42 @@ test("progressive execution counts each background job once and observes its ter
   assert.equal(progressive.snapshot().preDeliveryObservationCount, 1);
 });
 
+test("progressive execution does not treat read-only diagnostic artifacts as delivery", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+
+  progressive.observeToolResult({
+    toolCallId: "browser-state",
+    toolName: "browser",
+    arguments: { action: "open_url", url: "http://127.0.0.1/events" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "browser-observation",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "concurrent_read_only",
+    metadata: {},
+  }, {
+    tool_call_id: "browser-state",
+    ok: true,
+    summary: "captured browser state",
+    output: {},
+    artifacts: [
+      { artifact_id: "html", kind: "file", uri: "artifact:state.html", title: "browser raw HTML" },
+      { artifact_id: "json", kind: "structured_data", uri: "artifact:state.json", title: "browser state snapshot" },
+    ],
+    metadata: {},
+  }, true);
+
+  const observed = progressive.snapshot();
+  assert.equal(observed.artifactCount, 2);
+  assert.equal(observed.workspaceMutationCount, 0);
+  assert.equal(observed.requiredDeliveryMissing, true);
+  assert.equal(observed.consecutiveNoDeliveryObservations, 1);
+  assert.doesNotMatch(observed.progressReasons.join("\n"), /artifact_receipt_committed/);
+});
+
 test("progressive execution nudges after sustained pre-delivery inspection", () => {
   let clock = 1_000;
   const progressive = new ProgressiveExecutionRuntime({
@@ -3060,7 +3096,7 @@ test("progressive execution reapplies the current delivery contract after restor
       version: "zyra.progressive-execution/v1",
       requiredDeliveryMissing: false,
       workspaceMutationCount: 0,
-      artifactCount: 0,
+      artifactCount: 2,
     },
   });
 
