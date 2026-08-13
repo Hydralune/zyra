@@ -2324,6 +2324,9 @@ export class ClaudeRuntimeCore {
             pre_delivery_observations: postToolProgressDecision.snapshot.preDeliveryObservationCount,
             consecutive_pre_delivery_observations:
               postToolProgressDecision.snapshot.consecutivePreDeliveryObservations,
+            no_delivery_observations: postToolProgressDecision.snapshot.noDeliveryObservationCount,
+            consecutive_no_delivery_observations:
+              postToolProgressDecision.snapshot.consecutiveNoDeliveryObservations,
             required_delivery_missing: postToolProgressDecision.snapshot.requiredDeliveryMissing,
           });
         }

@@ -2790,6 +2790,109 @@ test("progressive action nudge cadence survives checkpoint restore", () => {
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
 });
 
+test("progressive execution nudges sustained inspection after a restored delivery", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_observation_nudge_after: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      providerRounds: 40,
+      realActionCount: 20,
+      workspaceMutationCount: 8,
+      verificationCount: 8,
+      artifactCount: 2,
+    },
+  });
+  const inspect = (index: number) => {
+    progressive.observeToolResult({
+      toolCallId: `post-delivery-read-${index}`,
+      toolName: "read",
+      arguments: { path: `source-${index}.ts` },
+      turnIndex: index,
+      stepIndex: 0,
+      batchId: `post-delivery-batch-${index}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "concurrent_read_only",
+      metadata: {},
+    }, {
+      tool_call_id: `post-delivery-read-${index}`,
+      ok: true,
+      summary: "source inspected",
+      output: {},
+      artifacts: [],
+      metadata: {},
+    }, true);
+  };
+
+  inspect(1);
+  inspect(2);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  inspect(3);
+  const stalled = progressive.decide(1_000, 10_000);
+
+  assert.equal(stalled.action, "nudge_action");
+  assert.match(stalled.reason, /last durable delivery/);
+  assert.equal(stalled.snapshot.requiredDeliveryMissing, false);
+  assert.equal(stalled.snapshot.workspaceMutationCount, 8);
+  assert.equal(stalled.snapshot.preDeliveryObservationCount, 0);
+  assert.equal(stalled.snapshot.noDeliveryObservationCount, 3);
+  assert.equal(stalled.snapshot.consecutiveNoDeliveryObservations, 3);
+
+  progressive.recordActionNudge();
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+  inspect(4);
+  inspect(5);
+  inspect(6);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
+});
+
+test("progressive execution resets post-delivery inspection streak on new progress", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_observation_nudge_after: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      verificationCount: 1,
+    },
+  });
+  const request = (toolCallId: string, metadata: JsonObject = {}): ToolExecutionRequest => ({
+    toolCallId,
+    toolName: "shell",
+    arguments: { command: "command" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "post-delivery-progress",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata,
+  });
+  const response = (toolCallId: string, mutated = false): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {},
+    artifacts: [],
+    metadata: { workspace_mutation_committed: String(mutated) },
+  });
+
+  progressive.observeToolResult(request("inspect-1"), response("inspect-1"), true);
+  progressive.observeToolResult(request("inspect-2"), response("inspect-2"), true);
+  progressive.observeToolResult(request("edit"), response("edit", true), false);
+  assert.equal(progressive.snapshot().consecutiveNoDeliveryObservations, 0);
+
+  progressive.observeToolResult(request("inspect-3"), response("inspect-3"), true);
+  progressive.observeToolResult(
+    request("tests", { progressive_verification_driving: true }),
+    response("tests"),
+    false,
+  );
+  assert.equal(progressive.snapshot().consecutiveNoDeliveryObservations, 0);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+});
+
 test("pre-delivery inspection circuit opens after repeated durable nudges", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_inspection_block_after_nudges: 3 },

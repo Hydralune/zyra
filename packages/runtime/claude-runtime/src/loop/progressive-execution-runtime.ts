@@ -29,8 +29,11 @@ export interface ProgressiveExecutionSnapshot {
   lastVerificationNudgeProviderRound: number;
   preDeliveryObservationCount: number;
   consecutivePreDeliveryObservations: number;
+  noDeliveryObservationCount: number;
+  consecutiveNoDeliveryObservations: number;
   actionNudgeCount: number;
   lastActionNudgeObservationCount: number;
+  lastActionNudgeNoDeliveryObservationCount: number;
   lastActionNudgeProviderRound: number;
   recoveryInspectionAllowance: number;
   activeBackgroundCount: number;
@@ -93,8 +96,11 @@ export class ProgressiveExecutionRuntime {
         lastVerificationNudgeProviderRound: 0,
         preDeliveryObservationCount: 0,
         consecutivePreDeliveryObservations: 0,
+        noDeliveryObservationCount: 0,
+        consecutiveNoDeliveryObservations: 0,
         actionNudgeCount: 0,
         lastActionNudgeObservationCount: 0,
+        lastActionNudgeNoDeliveryObservationCount: 0,
         lastActionNudgeProviderRound: 0,
         recoveryInspectionAllowance: 0,
         activeBackgroundCount: 0,
@@ -112,9 +118,18 @@ export class ProgressiveExecutionRuntime {
         consecutivePreDeliveryObservations: nonnegativeInteger(
           restored.consecutivePreDeliveryObservations,
         ),
+        noDeliveryObservationCount: nonnegativeInteger(
+          restored.noDeliveryObservationCount,
+        ),
+        consecutiveNoDeliveryObservations: nonnegativeInteger(
+          restored.consecutiveNoDeliveryObservations,
+        ),
         actionNudgeCount: nonnegativeInteger(restored.actionNudgeCount),
         lastActionNudgeObservationCount: nonnegativeInteger(
           restored.lastActionNudgeObservationCount,
+        ),
+        lastActionNudgeNoDeliveryObservationCount: nonnegativeInteger(
+          restored.lastActionNudgeNoDeliveryObservationCount,
         ),
         lastActionNudgeProviderRound: nonnegativeInteger(
           restored.lastActionNudgeProviderRound,
@@ -239,18 +254,23 @@ export class ProgressiveExecutionRuntime {
         : "incremental_delivery";
       this.state.requiredDeliveryMissing = false;
       this.state.consecutivePreDeliveryObservations = 0;
+      this.state.consecutiveNoDeliveryObservations = 0;
+      this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.recoveryInspectionAllowance = 0;
       this.progress(mutated ? "workspace_mutation_committed" : "artifact_receipt_committed");
-    } else if (
-      response.ok
-      && this.state.requiredDeliveryMissing
-      && !backgroundRunning
-    ) {
-      this.state.preDeliveryObservationCount += 1;
-      this.state.consecutivePreDeliveryObservations += 1;
+    } else if (response.ok && !backgroundRunning) {
+      this.state.noDeliveryObservationCount += 1;
+      this.state.consecutiveNoDeliveryObservations += 1;
       this.record(readOnly
-        ? "pre_delivery_read_only_observation"
-        : "pre_delivery_non_delivery_action");
+        ? "read_only_observation_without_new_delivery"
+        : "non_delivery_action");
+      if (this.state.requiredDeliveryMissing) {
+        this.state.preDeliveryObservationCount += 1;
+        this.state.consecutivePreDeliveryObservations += 1;
+        this.record(readOnly
+          ? "pre_delivery_read_only_observation"
+          : "pre_delivery_non_delivery_action");
+      }
     }
     if (
       verificationDriving
@@ -282,6 +302,8 @@ export class ProgressiveExecutionRuntime {
     ) {
       this.state.verificationCount += 1;
       this.state.phase = "validation";
+      this.state.consecutiveNoDeliveryObservations = 0;
+      this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.progress("post_delivery_verification_passed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {
@@ -402,11 +424,15 @@ export class ProgressiveExecutionRuntime {
     const observationNudgeDue = this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
       && this.state.consecutivePreDeliveryObservations - this.state.lastActionNudgeObservationCount
         >= observationNudgeAfter;
+    const noDeliveryObservationNudgeDue = this.state.consecutiveNoDeliveryObservations
+      >= observationNudgeAfter
+      && this.state.consecutiveNoDeliveryObservations
+        - this.state.lastActionNudgeNoDeliveryObservationCount
+        >= observationNudgeAfter;
     const providerNudgeDue = this.state.actionNudgeCount === 0
       ? this.state.providerRounds >= 1
       : this.state.providerRounds - this.state.lastActionNudgeProviderRound >= 2;
-    if (
-      this.state.requiredDeliveryMissing
+    const preDeliveryNudgeDue = this.state.requiredDeliveryMissing
       && (
         observationNudgeDue
         || (
@@ -418,12 +444,14 @@ export class ProgressiveExecutionRuntime {
             || timePressure >= 0.5
           )
         )
-      )
-    ) {
+      );
+    if (noDeliveryObservationNudgeDue || preDeliveryNudgeDue) {
       return this.decision(
         "nudge_action",
-        this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
-          ? "broad read-only inspection has continued without advancing the required delivery"
+        noDeliveryObservationNudgeDue
+          ? this.state.requiredDeliveryMissing
+            ? "broad read-only inspection has continued without advancing the required delivery"
+            : "broad inspection has continued without advancing beyond the last durable delivery"
           : "analysis is no longer producing enough new information before the first required delivery",
         remainingMilliseconds,
         contextRemainingCharacters,
@@ -466,6 +494,8 @@ export class ProgressiveExecutionRuntime {
   recordActionNudge(): ProgressiveExecutionSnapshot {
     this.state.actionNudgeCount += 1;
     this.state.lastActionNudgeObservationCount = this.state.consecutivePreDeliveryObservations;
+    this.state.lastActionNudgeNoDeliveryObservationCount =
+      this.state.consecutiveNoDeliveryObservations;
     this.state.lastActionNudgeProviderRound = this.state.providerRounds;
     this.record("progressive_action_requested");
     return this.snapshot();
