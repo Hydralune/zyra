@@ -554,6 +554,64 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         self.assertIn(b"evidence", result.output.stderr)
         self.assertEqual(result.metadata["connector"], "docker-cli")
 
+    def test_deadline_race_accepts_a_naturally_reaped_docker_command(self) -> None:
+        connector = DockerCliSandboxConnector(
+            container="task-main-1",
+            workdir="/app",
+            docker_executable="docker-test",
+        )
+
+        class ReapedProcess:
+            @staticmethod
+            def poll() -> int:
+                return 0
+
+        self.assertTrue(
+            connector._settled_during_deadline_race(
+                ReapedProcess(),  # type: ignore[arg-type]
+                tree_result={
+                    "stopped": True,
+                    "graceful_requested": False,
+                    "forced": False,
+                    "return_code": 0,
+                },
+                container_termination={
+                    "stopped": False,
+                    "pid_observed": False,
+                    "read_error": "",
+                },
+            )
+        )
+
+    def test_deadline_race_keeps_unverified_terminated_command_fail_closed(self) -> None:
+        connector = DockerCliSandboxConnector(
+            container="task-main-1",
+            workdir="/app",
+            docker_executable="docker-test",
+        )
+
+        class TerminatedProcess:
+            @staticmethod
+            def poll() -> int:
+                return -15
+
+        self.assertFalse(
+            connector._settled_during_deadline_race(
+                TerminatedProcess(),  # type: ignore[arg-type]
+                tree_result={
+                    "stopped": True,
+                    "graceful_requested": True,
+                    "forced": False,
+                    "return_code": -15,
+                },
+                container_termination={
+                    "stopped": False,
+                    "pid_observed": False,
+                    "read_error": "",
+                },
+            )
+        )
+
     def test_container_pull_replaces_stale_managed_mirror(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

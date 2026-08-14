@@ -265,7 +265,15 @@ class DockerCliSandboxConnector:
                         grace_seconds=envelope.budget.cancel_grace_seconds,
                         reason=cancellation_reason,
                     ).to_dict()
-                    if not bool(container_termination.get("stopped")):
+                    settled_naturally = self._settled_during_deadline_race(
+                        process,
+                        tree_result=tree_result,
+                        container_termination=container_termination,
+                    )
+                    if (
+                        not bool(container_termination.get("stopped"))
+                        and not settled_naturally
+                    ):
                         retry = self._terminate_container_command(
                             envelope.command_id,
                             grace_seconds=envelope.budget.cancel_grace_seconds,
@@ -275,7 +283,26 @@ class DockerCliSandboxConnector:
                             "retry": dict(retry),
                             "stopped": bool(retry.get("stopped")),
                         }
-                    if not bool(container_termination.get("stopped")):
+                        settled_naturally = self._settled_during_deadline_race(
+                            process,
+                            tree_result=tree_result,
+                            container_termination=retry,
+                        )
+                    if settled_naturally:
+                        # The command crossed the deadline between poll() and
+                        # cleanup.  Its wrapper removed the PID file and the
+                        # host-side Docker process was already reaped without
+                        # receiving a termination signal.  Treat that as the
+                        # same clean exit observed by the normal poll path,
+                        # rather than escalating an absent PID file into a
+                        # false process-tree leak.
+                        termination = ProcessTermination.EXITED
+                        cancellation_reason = ""
+                        container_termination = {
+                            **dict(container_termination),
+                            "settled_by_natural_exit": True,
+                        }
+                    elif not bool(container_termination.get("stopped")):
                         termination = ProcessTermination.TREE_LEAK
                         cancellation_reason = (
                             "container command process group could not be verified stopped"
@@ -510,6 +537,32 @@ class DockerCliSandboxConnector:
             "pid": pid,
             "control_return_code": stopped.returncode,
         }
+
+    @staticmethod
+    def _settled_during_deadline_race(
+        process: subprocess.Popen[bytes],
+        *,
+        tree_result: Mapping[str, Any],
+        container_termination: Mapping[str, Any],
+    ) -> bool:
+        """Recognize a command that exited naturally while timeout cleanup began.
+
+        A missing container PID file is ambiguous while the host-side
+        ``docker exec`` process is alive.  Once that process has exited and the
+        process-tree controller reports that it did not send a graceful or
+        forced termination, however, the wrapper necessarily completed its
+        normal wait-and-remove path.  This is the deadline race equivalent of
+        observing ``poll()`` complete in the main loop.
+        """
+
+        return (
+            process.poll() is not None
+            and tree_result.get("stopped") is True
+            and tree_result.get("graceful_requested") is False
+            and tree_result.get("forced") is False
+            and container_termination.get("pid_observed") is False
+            and not container_termination.get("read_error")
+        )
 
     @staticmethod
     def _command_pid_file(command_id: str) -> str:
