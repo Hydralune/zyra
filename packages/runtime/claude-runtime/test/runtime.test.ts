@@ -3178,6 +3178,65 @@ test("progressive execution rejects an explicit command error hidden by zero exi
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
 });
 
+test("progressive execution rejects a compound verification that crashes after tests pass", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "compound-check",
+    toolName: "shell",
+    arguments: { command: "pytest && python verify_wiring.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "compound-check",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: [
+        "138 passed in 12.45s",
+        "Traceback (most recent call last):",
+        "  File '<stdin>', line 3, in <module>",
+        "ModuleNotFoundError: No module named 'psycopg'",
+      ].join("\n"),
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().verificationCount, 0);
+
+  progressive.observeToolResult({ ...request, toolCallId: "expected-error-tests" }, {
+    tool_call_id: "expected-error-tests",
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: [
+        "Traceback (most recent call last):",
+        "ValueError: expected fixture error",
+        "5 passed in 0.10s",
+      ].join("\n"),
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(progressive.snapshot().verificationCount, 1);
+});
+
 test("repeated successful verification does not reopen stalled inspection", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

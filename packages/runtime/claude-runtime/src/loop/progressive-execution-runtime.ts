@@ -653,20 +653,30 @@ function verificationResultPassed(
     || /\b(?:failures?|errors?)\s*[:=]\s*[1-9]\d*\b/i.test(text)
     || /\b(?:build|test(?:s| suite)?)\s+failed\b/i.test(text);
   if (conventionalFailures) return false;
-  if (/\b\d+\s+passed\b/i.test(text)) return true;
 
   // Shell wrappers commonly preserve diagnostic output but deliberately
   // return zero so the model can inspect it (`|| true`, `tee`, `tail`).  An
-  // unhandled runtime traceback or transport failure is still a failed
-  // verification unless a conventional passing test summary above proves
-  // otherwise.
-  const unhandledRuntimeFailure = /\bTraceback \(most recent call last\):/i.test(text)
-    && /\b(?:[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)|Exception):\s*[^\r\n]+/i.test(text);
-  if (unhandledRuntimeFailure) return false;
-  if (/^\s*(?:ERROR|FATAL):\s+\S/im.test(text)) return false;
-  if (/\b(?:connection refused|no route to host|name or service not known|temporary failure in name resolution)\b/i.test(text)) {
-    return false;
+  // unhandled runtime traceback, explicit command error, or transport failure
+  // is still a failed verification. For compound commands, honor ordering:
+  // an expected diagnostic followed by a final passing test summary can pass,
+  // while a traceback after `138 passed` must not inherit that earlier green.
+  const passMatches = [...text.matchAll(/\b\d+\s+passed\b/gi)];
+  const lastPassIndex = passMatches.at(-1)?.index ?? -1;
+  const failureIndexes: number[] = [];
+  const tracebackIndex = text.search(/\bTraceback \(most recent call last\):/i);
+  if (tracebackIndex >= 0 && /\b(?:[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)|Exception):\s*[^\r\n]+/i.test(text.slice(tracebackIndex))) {
+    failureIndexes.push(tracebackIndex);
   }
+  for (const pattern of [
+    /^\s*(?:ERROR|FATAL):\s+\S/im,
+    /^\s*(?:[^\s:]+:\s+)?syntax error:\s+\S/im,
+    /\b(?:connection refused|no route to host|name or service not known|temporary failure in name resolution)\b/i,
+  ]) {
+    const index = text.search(pattern);
+    if (index >= 0) failureIndexes.push(index);
+  }
+  if (failureIndexes.some((index) => index > lastPassIndex)) return false;
+  if (lastPassIndex >= 0) return true;
 
   return !(
     /["']?status["']?\s*:\s*["']?(?:failed|error|cancelled|stopped)["']?/i.test(text)
