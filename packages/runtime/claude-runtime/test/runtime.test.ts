@@ -3091,6 +3091,50 @@ test("progressive execution does not accept a zero-exit failed verification repo
   assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 0);
 });
 
+test("progressive execution rejects a zero-exit verification traceback", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "wrapped-worker-check",
+    toolName: "shell",
+    arguments: { command: "python verify_worker.py || true" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "wrapped-worker-check",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: [
+        "Traceback (most recent call last):",
+        "  File 'verify_worker.py', line 10, in <module>",
+        "urllib.error.URLError: <urlopen error [Errno 111] Connection refused>",
+        "RC=0",
+      ].join("\n"),
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.verificationCount, 0);
+  assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+});
+
 test("repeated successful verification does not reopen stalled inspection", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

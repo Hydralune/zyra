@@ -655,6 +655,18 @@ function verificationResultPassed(
   if (conventionalFailures) return false;
   if (/\b\d+\s+passed\b/i.test(text)) return true;
 
+  // Shell wrappers commonly preserve diagnostic output but deliberately
+  // return zero so the model can inspect it (`|| true`, `tee`, `tail`).  An
+  // unhandled runtime traceback or transport failure is still a failed
+  // verification unless a conventional passing test summary above proves
+  // otherwise.
+  const unhandledRuntimeFailure = /\bTraceback \(most recent call last\):/i.test(text)
+    && /\b(?:[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)|Exception):\s*[^\r\n]+/i.test(text);
+  if (unhandledRuntimeFailure) return false;
+  if (/\b(?:connection refused|no route to host|name or service not known|temporary failure in name resolution)\b/i.test(text)) {
+    return false;
+  }
+
   return !(
     /["']?status["']?\s*:\s*["']?(?:failed|error|cancelled|stopped)["']?/i.test(text)
     || /["']?failed["']?\s*:\s*[1-9]\d*\b/i.test(text)
