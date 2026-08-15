@@ -614,6 +614,7 @@ export class ClaudeRuntimeCore {
               content: [
                 "The required delivery is still missing and further explanation is not effective progress.",
                 "Perform a concrete, proportionate tool action that advances the requested result.",
+                "If an opaque validation has failed repeatedly and no permitted diagnostic gives more detail, stop probing private or inaccessible feedback; instead map every public requirement and acceptance condition to its boundary cases, persistent schema, and cross-language consumers, audit that checklist, and edit the uncovered gaps.",
                 "Then validate it and continue from the evidence.",
               ].join(" "),
             },
@@ -2310,6 +2311,7 @@ export class ClaudeRuntimeCore {
               content: [
                 "The task still requires a concrete delivery, and enough orientation evidence has been gathered.",
                 "Stop broad repository inspection and use the latest gathered evidence to choose and execute the next concrete edit now.",
+                "If an opaque validation has failed repeatedly and no permitted diagnostic gives more detail, stop probing private or inaccessible feedback; instead map every public requirement and acceptance condition to its boundary cases, persistent schema, and cross-language consumers, audit that checklist, and edit the uncovered gaps.",
                 "Run the relevant build or tests when they directly drive that edit.",
                 "Make another read-only call only when a specific pending edit is blocked by a named missing fact or changed state.",
               ].join(" "),

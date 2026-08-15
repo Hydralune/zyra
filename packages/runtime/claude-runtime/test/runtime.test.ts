@@ -2225,6 +2225,7 @@ test("required delivery redirects repeated read-only inspection into execution",
       ["read", "read", "write"],
     );
     assert.match(requestBodies[2] ?? "", /Stop broad repository inspection/);
+    assert.match(requestBodies[2] ?? "", /map every public requirement and acceptance condition/);
     assert.ok(
       host.events.some((event) => (
         event.phase === "progressive_action_requested"
