@@ -572,10 +572,14 @@ class GatewayPolicyRuntime:
                 findings.append(_deny("network_host_not_requested", "network host is outside the task allowlist"))
             address = _literal_address(host)
             if address is not None:
-                if (address.is_private or address.is_link_local) and not self.config.allow_private_network:
+                # ``ipaddress`` classifies loopback as private too.  Preserve
+                # independent, least-authority grants instead of making a
+                # narrow loopback grant depend on broad private-network access.
+                if address.is_loopback:
+                    if not self.config.allow_loopback_network:
+                        findings.append(_deny("loopback_network_denied", "loopback targets are denied"))
+                elif (address.is_private or address.is_link_local) and not self.config.allow_private_network:
                     findings.append(_deny("private_network_denied", "private and link-local targets are denied"))
-                if address.is_loopback and not self.config.allow_loopback_network:
-                    findings.append(_deny("loopback_network_denied", "loopback targets are denied"))
             if parsed.username or parsed.password:
                 findings.append(_deny("url_credentials_denied", "credentials cannot be embedded in URLs"))
         outcome = GatewayOutcome.DENIED if any(item.hard_deny for item in findings) else GatewayOutcome.ALLOWED

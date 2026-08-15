@@ -226,6 +226,41 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
                     {item.code for item in decision.evidence},
                 )
 
+    def test_loopback_grant_does_not_open_private_networks(self) -> None:
+        network = NetworkPolicy(
+            [
+                NetworkProfile(
+                    profile_id="isolated-task",
+                    allowed_schemes=frozenset({"http"}),
+                    allow_private=False,
+                    allow_loopback=True,
+                    require_approval=False,
+                )
+            ]
+        )
+
+        loopback = network.evaluate(
+            command(
+                "curl",
+                ("http://127.0.0.1:8080/health",),
+                network_profile="isolated-task",
+            )
+        )
+        private = network.evaluate(
+            command(
+                "curl",
+                ("http://10.0.0.8:8080/health",),
+                network_profile="isolated-task",
+            )
+        )
+
+        self.assertEqual(loopback.effect, CommandEffect.ALLOW)
+        self.assertEqual(private.effect, CommandEffect.DENY)
+        self.assertIn(
+            "network.private_denied",
+            {item.code for item in private.evidence},
+        )
+
     def test_paths_reject_traversal_unc_drive_and_reserved_devices(self) -> None:
         for value in (
             "../outside.txt",

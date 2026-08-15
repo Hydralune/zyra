@@ -189,6 +189,7 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
                 "sandbox_gateway_required": True,
                 "sandbox_gateway_allow_shell_composition": True,
                 "sandbox_gateway_allow_public_http": True,
+                "sandbox_gateway_allow_loopback_network": True,
                 "sandbox_gateway_default_command_network_profile": "public",
             },
         )
@@ -223,6 +224,49 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
             "shell_composition_requires_exact_approval",
             {item.code for item in decision.findings},
         )
+        loopback = bundle.policy_runtime.evaluate_command(
+            GatewayCommandEnvelope(
+                command_id="benchmark-loopback-command",
+                session_id="benchmark-composition-session",
+                run_id="benchmark-composition-run",
+                task_id="benchmark-composition-task",
+                worker_id="BenchmarkCodeWorkerRuntime",
+                executable="curl",
+                argv=("http://127.0.0.1:8080/health",),
+                cwd=cwd,
+                environment={},
+                operation=OperationKind.COMMAND,
+                tool_use_id="benchmark-loopback-tool",
+                network_profile=bundle.policy_runtime.config.default_command_network_profile,
+            )
+        )
+        private = bundle.policy_runtime.evaluate_command(
+            GatewayCommandEnvelope(
+                command_id="benchmark-private-command",
+                session_id="benchmark-composition-session",
+                run_id="benchmark-composition-run",
+                task_id="benchmark-composition-task",
+                worker_id="BenchmarkCodeWorkerRuntime",
+                executable="curl",
+                argv=("http://10.0.0.8:8080/health",),
+                cwd=cwd,
+                environment={},
+                operation=OperationKind.COMMAND,
+                tool_use_id="benchmark-private-tool",
+                network_profile=bundle.policy_runtime.config.default_command_network_profile,
+            )
+        )
+        self.assertFalse(loopback.hard_denied, loopback.findings)
+        self.assertTrue(loopback.requires_permission)
+        self.assertTrue(private.hard_denied)
+        self.assertIn(
+            "network.private_denied",
+            {item.code for item in private.findings},
+        )
+        browser_loopback = bundle.policy_runtime.evaluate_url(
+            "http://127.0.0.1:8080/health"
+        )
+        self.assertTrue(browser_loopback.allowed, browser_loopback.findings)
 
     def test_interactive_host_uses_single_use_scoped_credential_relay(self) -> None:
         relay = CredentialRelay(

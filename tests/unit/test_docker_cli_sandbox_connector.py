@@ -241,6 +241,19 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             {"benchmark_physical_dispatch": True},
         )
 
+    def test_benchmark_network_grant_is_scoped_to_container_loopback(self) -> None:
+        services = code_worker_adapter._benchmark_network_gateway_services()
+
+        self.assertEqual(
+            services,
+            {
+                "sandbox_gateway_allow_public_http": True,
+                "sandbox_gateway_allow_loopback_network": True,
+                "sandbox_gateway_default_command_network_profile": "public",
+            },
+        )
+        self.assertNotIn("sandbox_gateway_allow_private_network", services)
+
     def test_physical_worker_preserves_a_full_agent_work_phase(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_query_context_budget_chars({}),

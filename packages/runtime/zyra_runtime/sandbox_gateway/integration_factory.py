@@ -169,6 +169,12 @@ def build_gateway_runtime_bundle(
     default_command_network_profile = str(
         services.get("sandbox_gateway_default_command_network_profile") or "offline"
     ).strip()
+    allow_private_network = bool(
+        services.get("sandbox_gateway_allow_private_network", False)
+    )
+    allow_loopback_network = bool(
+        services.get("sandbox_gateway_allow_loopback_network", False)
+    )
     state_root = Path(
         services.get("sandbox_gateway_state_root")
         or artifacts / ".sandbox-gateway" / _safe_segment(worker_id)
@@ -201,8 +207,8 @@ def build_gateway_runtime_bundle(
                     for item in services.get("sandbox_gateway_denied_hosts", ())
                     if str(item)
                 ),
-                allow_private=False,
-                allow_loopback=False,
+                allow_private=allow_private_network,
+                allow_loopback=allow_loopback_network,
                 allow_link_local=False,
                 require_approval=True,
             ),
@@ -223,8 +229,8 @@ def build_gateway_runtime_bundle(
                     for item in services.get("sandbox_gateway_denied_hosts", ())
                     if str(item)
                 ),
-                allow_private=False,
-                allow_loopback=False,
+                allow_private=allow_private_network,
+                allow_loopback=allow_loopback_network,
                 allow_link_local=False,
                 require_approval=True,
             ),
@@ -286,8 +292,8 @@ def build_gateway_runtime_bundle(
         maximum_command_timeout_seconds=float(
             services.get("sandbox_gateway_maximum_command_timeout_seconds", 43_200.0)
         ),
-        allow_private_network=bool(services.get("sandbox_gateway_allow_private_network", False)),
-        allow_loopback_network=bool(services.get("sandbox_gateway_allow_loopback_network", False)),
+        allow_private_network=allow_private_network,
+        allow_loopback_network=allow_loopback_network,
         allow_file_urls=False,
         allowed_network_hosts=frozenset(
             str(item)

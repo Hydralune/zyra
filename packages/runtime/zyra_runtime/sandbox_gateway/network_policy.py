@@ -280,11 +280,17 @@ class NetworkPolicy:
             item.casefold() for item in profile.allowed_schemes
         }:
             return CommandEffect.DENY, "network.scheme_denied", "network scheme is not allowlisted"
-        if target.loopback and not profile.allow_loopback:
-            return CommandEffect.DENY, "network.loopback_denied", "loopback network access is denied"
-        if target.link_local and not profile.allow_link_local:
-            return CommandEffect.DENY, "network.link_local_denied", "link-local network access is denied"
-        if target.private and not profile.allow_private:
+        # Address classes overlap: every loopback address is also reported as
+        # private by ``ipaddress``.  Treat the most specific class as the
+        # authority so an explicit loopback grant does not accidentally also
+        # require the much broader RFC1918/private-network grant.
+        if target.loopback:
+            if not profile.allow_loopback:
+                return CommandEffect.DENY, "network.loopback_denied", "loopback network access is denied"
+        elif target.link_local:
+            if not profile.allow_link_local:
+                return CommandEffect.DENY, "network.link_local_denied", "link-local network access is denied"
+        elif target.private and not profile.allow_private:
             return CommandEffect.DENY, "network.private_denied", "private network access is denied"
         if profile.allowed_hosts and not self._host_allowed(profile, target.host):
             return CommandEffect.DENY, "network.host_not_allowed", "network host is not allowlisted"

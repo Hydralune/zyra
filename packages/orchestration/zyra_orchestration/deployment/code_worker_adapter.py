@@ -444,8 +444,7 @@ def execute_code_worker_operator(
             "PYTHONPATH",
         )
         runtime_services["sandbox_gateway_allow_shell_composition"] = True
-        runtime_services["sandbox_gateway_allow_public_http"] = True
-        runtime_services["sandbox_gateway_default_command_network_profile"] = "public"
+        runtime_services.update(_benchmark_network_gateway_services())
         runtime_services["sandbox_gateway_default_command_timeout_seconds"] = (
             default_command_timeout_seconds
         )
@@ -689,6 +688,21 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
             }
         )
     return constraints
+
+
+def _benchmark_network_gateway_services() -> dict[str, Any]:
+    """Grant network capabilities inside the externally isolated task container.
+
+    Loopback here is the disposable benchmark container's own namespace.  The
+    ordinary host-process gateway remains deny-by-default, and private/link-
+    local networks are not opened by this grant.
+    """
+
+    return {
+        "sandbox_gateway_allow_public_http": True,
+        "sandbox_gateway_allow_loopback_network": True,
+        "sandbox_gateway_default_command_network_profile": "public",
+    }
 
 
 def _benchmark_agent_closeout_reserve_seconds(context: Mapping[str, Any]) -> float:
