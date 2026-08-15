@@ -341,6 +341,21 @@ export class ProgressiveExecutionRuntime {
       // underlying job has settled so callers can always read its structured
       // report.  Transport success is not behavioral verification when that
       // report explicitly records a failed status or non-zero failure count.
+      // A later failed suite also invalidates an earlier green suite for the
+      // same delivered bytes: verification is a fail-closed obligation, not a
+      // sticky bit that the first successful check can discharge forever.
+      this.state.verificationCount = 0;
+      this.state.verificationNudgeCount = 0;
+      this.state.lastVerificationNudgeProviderRound = 0;
+      this.state.recoveryInspectionAllowance = Math.max(
+        this.state.recoveryInspectionAllowance,
+        boundedInteger(
+          this.constraints.post_verification_diagnostic_inspection_limit,
+          8,
+          2,
+          32,
+        ),
+      );
       this.record("post_delivery_verification_failed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {

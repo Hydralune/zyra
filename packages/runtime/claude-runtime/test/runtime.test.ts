@@ -3037,7 +3037,8 @@ test("progressive execution does not accept a zero-exit failed verification repo
     continuityProgress: {
       requiredDeliveryMissing: false,
       workspaceMutationCount: 1,
-      verificationCount: 0,
+      verificationCount: 1,
+      verificationNudgeCount: 3,
     },
   });
   const request: ToolExecutionRequest = {
@@ -3071,6 +3072,8 @@ test("progressive execution does not accept a zero-exit failed verification repo
 
   const failed = progressive.snapshot();
   assert.equal(failed.verificationCount, 0);
+  assert.equal(failed.verificationNudgeCount, 0);
+  assert.equal(failed.recoveryInspectionAllowance, 8);
   assert.equal(failed.postDeliveryActionNudgeCount, 1);
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
