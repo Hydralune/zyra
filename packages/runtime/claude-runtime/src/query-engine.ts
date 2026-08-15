@@ -1485,8 +1485,23 @@ export class ClaudeRuntimeCore {
             (request) => request.toolCallId === result.tool_call_id,
           );
           if (observedRequest) {
+            const verificationDriving = isVerificationDrivingToolResult(
+              step,
+              result,
+              step.tool_name === "shell_wait"
+                ? e01.snapshot().query.toolCalls
+                : [],
+            );
             progressive.observeToolResult(
-              observedRequest,
+              verificationDriving
+                ? {
+                    ...observedRequest,
+                    metadata: {
+                      ...observedRequest.metadata,
+                      progressive_verification_driving: true,
+                    },
+                  }
+                : observedRequest,
               result,
               registry.readOnly(step.tool_name),
             );
@@ -2658,6 +2673,36 @@ export function isClearlyVerificationDrivingTool(
   return isClearlyVerificationDrivingShellCommand(
     shellInvocationText(step.arguments),
   );
+}
+
+export function isVerificationDrivingToolResult(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[] = [],
+): boolean {
+  if (isClearlyVerificationDrivingTool(step)) return true;
+  if (step.tool_name !== "shell_wait") return false;
+
+  // Long commands cross a provider-turn boundary: `shell` starts the
+  // verification job and `shell_wait` receives its terminal report. The
+  // gateway receipt durably points back to the originating tool call, so use
+  // that lineage instead of treating the wait as an unrelated read.
+  const receipt = asObject(response.output.gateway_receipt);
+  const invocationRef = asObject(receipt.invocation_ref);
+  const originToolCallId = asString(invocationRef.tool_call_id).trim();
+  if (!originToolCallId) return false;
+  const origin = historicalCalls.find(
+    (call) => call.toolCallId === originToolCallId,
+  );
+  if (!origin) return false;
+  return isClearlyVerificationDrivingTool({
+    tool_name: origin.name,
+    arguments: origin.arguments,
+  });
 }
 
 function shellInvocationText(arguments_: JsonObject): string {

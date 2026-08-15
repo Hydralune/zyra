@@ -27,6 +27,7 @@ import {
   e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
   isClearlyVerificationDrivingTool,
+  isVerificationDrivingToolResult,
   modelCompactionPrompt,
 } from "../src/query-engine.ts";
 
@@ -3364,6 +3365,45 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("./scripts/verify-release.sh --all")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("/workspace/tools/integration-check.py --live")), true);
   assert.equal(isClearlyVerificationDrivingTool({ tool_name: "read", arguments: { path: "test.log" } }), false);
+});
+
+test("query engine propagates background verification lineage to shell_wait", () => {
+  const origin = {
+    toolCallId: "call-integration",
+    name: "shell",
+    arguments: {
+      command: "python tools/afctl.py test integration",
+    },
+  };
+  const response: ToolExecutionResponse = {
+    tool_call_id: "call-wait",
+    ok: true,
+    summary: "Sandbox command completed",
+    output: {
+      stdout: JSON.stringify({
+        schema: "example.test-job-summary/v1",
+        status: "failed",
+        counts: { passed: 8, failed: 2 },
+      }),
+      return_code: 0,
+      gateway_receipt: {
+        invocation_ref: {
+          tool_call_id: origin.toolCallId,
+        },
+      },
+    },
+    artifacts: [],
+    metadata: {},
+  };
+
+  assert.equal(isVerificationDrivingToolResult({
+    tool_name: "shell_wait",
+    arguments: { job_id: "job-integration" },
+  }, response, [origin]), true);
+  assert.equal(isVerificationDrivingToolResult({
+    tool_name: "shell_wait",
+    arguments: { job_id: "job-unrelated" },
+  }, response, [{ ...origin, name: "read" }]), false);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {
