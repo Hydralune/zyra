@@ -29,6 +29,8 @@ import {
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   modelCompactionPrompt,
+  verificationScopeForTool,
+  verificationScopeForToolResult,
 } from "../src/query-engine.ts";
 
 class MemoryHost implements RuntimeHost {
@@ -3091,6 +3093,66 @@ test("progressive execution does not accept a zero-exit failed verification repo
   assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 0);
 });
 
+test("a passing verification cannot erase debt from a different failed scope", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const scopedRequest = (toolCallId: string, scope: string): ToolExecutionRequest => ({
+    toolCallId,
+    toolName: "shell",
+    arguments: { command: scope },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: toolCallId,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  });
+  const observe = (request: ToolExecutionRequest, stdout: string, ok = true) => {
+    progressive.observeToolResult(request, {
+      tool_call_id: request.toolCallId,
+      ok,
+      summary: "command completed",
+      output: { stdout, return_code: 0 },
+      artifacts: [],
+      metadata: { workspace_mutation_committed: "false" },
+    }, false);
+  };
+
+  observe(
+    scopedRequest("integration-failed", "integration-suite"),
+    '{"status":"failed","failed_shards":["opaque-a"]}',
+  );
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, ["integration-suite"]);
+
+  observe(scopedRequest("public-passed", "public-suite"), "140 passed in 12.0s");
+  const stillFailed = progressive.snapshot();
+  assert.equal(stillFailed.verificationCount, 0);
+  assert.deepEqual(stillFailed.unresolvedVerificationScopes, ["integration-suite"]);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+
+  observe(scopedRequest("integration-passed", "integration-suite"), "10 passed in 20.0s");
+  const settled = progressive.snapshot();
+  assert.equal(settled.verificationCount, 1);
+  assert.deepEqual(settled.unresolvedVerificationScopes, []);
+
+  observe(
+    scopedRequest("integration-physical-failure", "integration-suite"),
+    "2 failed in 3.0s",
+    false,
+  );
+  assert.equal(progressive.snapshot().verificationCount, 0);
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, ["integration-suite"]);
+});
+
 test("progressive execution rejects a zero-exit verification traceback", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -3538,7 +3600,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
-  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "import json; print(json.load(open('submission/manifest.json')))"])), false);
@@ -3585,6 +3647,20 @@ test("query engine propagates background verification lineage to shell_wait", ()
     tool_name: "shell_wait",
     arguments: { job_id: "job-integration" },
   }, response, [origin]), true);
+  assert.equal(
+    verificationScopeForToolResult({
+      tool_name: "shell_wait",
+      arguments: { job_id: "job-integration" },
+    }, response, [origin]),
+    verificationScopeForTool({ tool_name: origin.name, arguments: origin.arguments }),
+  );
+  assert.notEqual(
+    verificationScopeForTool({ tool_name: origin.name, arguments: origin.arguments }),
+    verificationScopeForTool({
+      tool_name: "shell",
+      arguments: { command: "python tools/afctl.py test public" },
+    }),
+  );
   assert.equal(isVerificationDrivingToolResult({
     tool_name: "shell_wait",
     arguments: { job_id: "job-unrelated" },

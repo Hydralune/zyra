@@ -15,6 +15,7 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "./contracts.ts";
+import { createHash } from "node:crypto";
 import {
   normalizeMessages,
   resolveModelTurns,
@@ -1315,6 +1316,8 @@ export class ClaudeRuntimeCore {
                   && !isClearlyPreDeliveryInspection(step, false),
                 progressive_verification_driving:
                   isClearlyVerificationDrivingTool(step),
+                progressive_verification_scope:
+                  verificationScopeForTool(step),
               },
             });
           }
@@ -1492,6 +1495,13 @@ export class ClaudeRuntimeCore {
                 ? e01.snapshot().query.toolCalls
                 : [],
             );
+            const verificationScope = verificationScopeForToolResult(
+              step,
+              result,
+              step.tool_name === "shell_wait"
+                ? e01.snapshot().query.toolCalls
+                : [],
+            );
             progressive.observeToolResult(
               verificationDriving
                 ? {
@@ -1499,6 +1509,7 @@ export class ClaudeRuntimeCore {
                     metadata: {
                       ...observedRequest.metadata,
                       progressive_verification_driving: true,
+                      progressive_verification_scope: verificationScope,
                     },
                   }
                 : observedRequest,
@@ -2675,6 +2686,13 @@ export function isClearlyVerificationDrivingTool(
   );
 }
 
+export function verificationScopeForTool(
+  step: { tool_name: string; arguments: JsonObject },
+): string {
+  if (!isClearlyVerificationDrivingTool(step)) return "";
+  return verificationScope(shellInvocationText(step.arguments));
+}
+
 export function isVerificationDrivingToolResult(
   step: { tool_name: string; arguments: JsonObject },
   response: ToolExecutionResponse,
@@ -2714,6 +2732,40 @@ export function isVerificationDrivingToolResult(
   });
 }
 
+export function verificationScopeForToolResult(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[] = [],
+): string {
+  const direct = verificationScopeForTool(step);
+  if (direct) return direct;
+  if (step.tool_name !== "shell_wait") return "";
+
+  const receipt = asObject(response.output.gateway_receipt);
+  const invocationRef = asObject(receipt.invocation_ref);
+  const invocation = asObject(receipt.invocation);
+  const originToolCallId = [
+    response.metadata.originating_tool_call_id,
+    response.output.originating_tool_call_id,
+    invocationRef.tool_call_id,
+    invocation.tool_call_id,
+    invocation.causation_id,
+  ]
+    .map((value) => asString(value).trim())
+    .find(Boolean) ?? "";
+  if (!originToolCallId) return "";
+  const origin = historicalCalls.find(
+    (call) => call.toolCallId === originToolCallId,
+  );
+  return origin
+    ? verificationScopeForTool({ tool_name: origin.name, arguments: origin.arguments })
+    : "";
+}
+
 function shellInvocationText(arguments_: JsonObject): string {
   const command = asString(arguments_.command).trim();
   if (command) return command;
@@ -2724,6 +2776,18 @@ function shellInvocationText(arguments_: JsonObject): string {
       .join(" ")
     : "";
   return [executable, argv].filter(Boolean).join(" ").trim();
+}
+
+function verificationScope(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replaceAll("\\", "/")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/giu, "<uuid>")
+    .replace(/\b(?:job|run|task|attempt|request)_[a-z0-9_-]{8,}\b/giu, "<identity>")
+    .replace(/\b[0-9a-f]{16,}\b/giu, "<digest>")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized ? `shell:${createHash("sha256").update(normalized).digest("hex").slice(0, 24)}` : "";
 }
 
 function isClearlyVerificationDrivingShellCommand(value: string): boolean {
@@ -2744,12 +2808,12 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     if (/\b(?:gradle|gradlew|mvn|mvnw)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:make|cmake|ctest)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|build)[^;&|]*\.sh\b/i.test(segment)) return true;
-    if (/\bpython(?:3)?\b[^;&|]*\b(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)\b/i.test(segment)) return true;
+    if (/\bpython(?:3)?\b[^;&|]*\b(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)\b/i.test(segment)) return true;
     // A script whose executable path is itself a verification entry point is
     // evidence-driving.  Do not scan arbitrary later path arguments: commands
     // such as `cat tests/public/test_metrics.py` only inspect test source and
     // must not discharge verification debt or reset no-progress detection.
-    if (/^(?:env\s+(?:[^\s=]+=[^\s]+\s+)+)?(?:\.\/|\/)[^\s]*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate|request-acceptance)[^\s]*(?:\.sh|\.py)?(?:\s|$)/i.test(segment)) return true;
+    if (/^(?:env\s+(?:[^\s=]+=[^\s]+\s+)+)?(?:\.\/|\/)[^\s]*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)[^\s]*(?:\.sh|\.py)?(?:\s|$)/i.test(segment)) return true;
     if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*\brun\b[^;&|]*(?:test|pytest|check|verify|smoke|e2e|integration)\b/i.test(segment)) return true;
     return false;
   });

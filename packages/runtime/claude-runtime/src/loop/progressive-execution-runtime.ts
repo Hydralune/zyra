@@ -25,6 +25,7 @@ export interface ProgressiveExecutionSnapshot {
   artifactCount: number;
   workspaceMutationCount: number;
   verificationCount: number;
+  unresolvedVerificationScopes: string[];
   verificationNudgeCount: number;
   lastVerificationNudgeProviderRound: number;
   preDeliveryObservationCount: number;
@@ -99,6 +100,7 @@ export class ProgressiveExecutionRuntime {
         artifactCount: 0,
         workspaceMutationCount: 0,
         verificationCount: 0,
+        unresolvedVerificationScopes: [],
         verificationNudgeCount: 0,
         lastVerificationNudgeProviderRound: 0,
         preDeliveryObservationCount: 0,
@@ -151,6 +153,9 @@ export class ProgressiveExecutionRuntime {
         verificationNudgeCount: nonnegativeInteger(
           restored.verificationNudgeCount,
         ),
+        unresolvedVerificationScopes: Array.isArray(restored.unresolvedVerificationScopes)
+          ? [...new Set(restored.unresolvedVerificationScopes.map(String).filter(Boolean))].slice(-32)
+          : [],
         lastVerificationNudgeProviderRound: nonnegativeInteger(
           restored.lastVerificationNudgeProviderRound,
         ),
@@ -256,6 +261,9 @@ export class ProgressiveExecutionRuntime {
     const backgroundTerminal = ["completed", "failed", "cancelled", "stopped"].includes(background);
     const verificationPassed = verificationDriving
       && verificationResultPassed(response, background);
+    const verificationScope = String(
+      request.metadata.progressive_verification_scope ?? "",
+    ).trim();
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
@@ -318,7 +326,14 @@ export class ProgressiveExecutionRuntime {
       && !this.state.requiredDeliveryMissing
     ) {
       this.state.phase = "validation";
-      if (this.state.verificationCount === 0) {
+      if (verificationScope) {
+        this.state.unresolvedVerificationScopes = this.state.unresolvedVerificationScopes
+          .filter((scope) => scope !== verificationScope);
+      }
+      if (this.state.unresolvedVerificationScopes.length > 0) {
+        this.state.verificationCount = 0;
+        this.record("post_delivery_verification_other_scope_still_failed");
+      } else if (this.state.verificationCount === 0) {
         this.state.verificationCount = 1;
         this.state.consecutiveNoDeliveryObservations = 0;
         this.state.lastActionNudgeNoDeliveryObservationCount = 0;
@@ -333,7 +348,6 @@ export class ProgressiveExecutionRuntime {
       }
     } else if (
       verificationDriving
-      && response.ok
       && !backgroundRunning
       && !this.state.requiredDeliveryMissing
     ) {
@@ -345,6 +359,13 @@ export class ProgressiveExecutionRuntime {
       // same delivered bytes: verification is a fail-closed obligation, not a
       // sticky bit that the first successful check can discharge forever.
       this.state.verificationCount = 0;
+      if (
+        verificationScope
+        && !this.state.unresolvedVerificationScopes.includes(verificationScope)
+      ) {
+        this.state.unresolvedVerificationScopes.push(verificationScope);
+        this.state.unresolvedVerificationScopes = this.state.unresolvedVerificationScopes.slice(-32);
+      }
       this.state.verificationNudgeCount = 0;
       this.state.lastVerificationNudgeProviderRound = 0;
       this.state.recoveryInspectionAllowance = Math.max(
@@ -453,7 +474,10 @@ export class ProgressiveExecutionRuntime {
     const verificationDebt = this.requiresVerification
       && !this.state.requiredDeliveryMissing
       && this.state.workspaceMutationCount > 0
-      && this.state.verificationCount === 0;
+      && (
+        this.state.verificationCount === 0
+        || this.state.unresolvedVerificationScopes.length > 0
+      );
     const maximumVerificationNudges = boundedInteger(
       this.constraints.post_delivery_verification_nudge_limit,
       3,
@@ -466,7 +490,9 @@ export class ProgressiveExecutionRuntime {
     ) {
       return this.decision(
         "nudge_verification",
-        "the latest delivered workspace state has no successful behavioral verification evidence",
+        this.state.unresolvedVerificationScopes.length > 0
+          ? `${this.state.unresolvedVerificationScopes.length} earlier failed verification scope(s) remain unresolved; rerun and pass the same failed suites`
+          : "the latest delivered workspace state has no successful behavioral verification evidence",
         remainingMilliseconds,
         contextRemainingCharacters,
         pressure,
