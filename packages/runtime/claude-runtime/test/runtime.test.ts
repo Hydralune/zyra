@@ -3030,6 +3030,63 @@ test("progressive execution resets post-delivery inspection streak on new progre
   assert.equal(progressive.decide(1_000, 10_000).action, "continue");
 });
 
+test("progressive execution does not accept a zero-exit failed verification report", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { pre_delivery_observation_nudge_after: 1 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      verificationCount: 0,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "opaque-validation",
+    toolName: "shell",
+    arguments: { command: "./run-integration.sh" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "opaque-validation",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+  progressive.recordActionNudge();
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: JSON.stringify({
+        status: "failed",
+        counts: { passed: 8, failed: 2 },
+        failed_shards: ["security", "cross-language"],
+      }),
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.verificationCount, 0);
+  assert.equal(failed.postDeliveryActionNudgeCount, 1);
+  assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+
+  progressive.observeToolResult({ ...request, toolCallId: "passing-tests" }, {
+    tool_call_id: "passing-tests",
+    ok: true,
+    summary: "command completed",
+    output: { stdout: "138 passed in 4.56s", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(progressive.snapshot().verificationCount, 1);
+  assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 0);
+});
+
 test("pre-delivery inspection circuit opens after repeated durable nudges", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_inspection_block_after_nudges: 3 },

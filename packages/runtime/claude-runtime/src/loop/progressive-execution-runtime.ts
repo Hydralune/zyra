@@ -254,6 +254,8 @@ export class ProgressiveExecutionRuntime {
     ).toLowerCase();
     const backgroundRunning = ["running", "pending", "queued"].includes(background);
     const backgroundTerminal = ["completed", "failed", "cancelled", "stopped"].includes(background);
+    const verificationPassed = verificationDriving
+      && verificationResultPassed(response, background);
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
@@ -312,8 +314,7 @@ export class ProgressiveExecutionRuntime {
       this.record("pre_delivery_verification_diagnostic_window_opened");
     }
     if (
-      verificationDriving
-      && response.ok
+      verificationPassed
       && !this.state.requiredDeliveryMissing
     ) {
       this.state.verificationCount += 1;
@@ -322,6 +323,17 @@ export class ProgressiveExecutionRuntime {
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.postDeliveryActionNudgeCount = 0;
       this.progress("post_delivery_verification_passed");
+    } else if (
+      verificationDriving
+      && response.ok
+      && !backgroundRunning
+      && !this.state.requiredDeliveryMissing
+    ) {
+      // Some verification wrappers intentionally return zero after the
+      // underlying job has settled so callers can always read its structured
+      // report.  Transport success is not behavioral verification when that
+      // report explicitly records a failed status or non-zero failure count.
+      this.record("post_delivery_verification_failed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {
       this.state.activeBackgroundCount += 1;
@@ -585,4 +597,41 @@ function normalizeAnalysis(value: string): string {
 
 function hash(value: string): string {
   return value ? createHash("sha256").update(value).digest("hex") : "";
+}
+
+function verificationResultPassed(
+  response: ToolExecutionResponse,
+  backgroundStatus: string,
+): boolean {
+  if (!response.ok) return false;
+  if (["failed", "cancelled", "stopped", "error"].includes(backgroundStatus)) {
+    return false;
+  }
+  for (const key of ["return_code", "exit_code"] as const) {
+    const raw = response.output[key] ?? response.metadata[key];
+    if (raw !== undefined && raw !== null && Number(raw) !== 0) return false;
+  }
+
+  const text = [
+    response.output.stdout,
+    response.output.stderr,
+    response.summary,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  if (!text) return true;
+
+  // A conventional successful test summary takes precedence over incidental
+  // domain values such as an asserted object whose own status is `failed`.
+  const conventionalFailures = /\b[1-9]\d*\s+failed\b/i.test(text)
+    || /\b(?:failures?|errors?)\s*[:=]\s*[1-9]\d*\b/i.test(text)
+    || /\b(?:build|test(?:s| suite)?)\s+failed\b/i.test(text);
+  if (conventionalFailures) return false;
+  if (/\b\d+\s+passed\b/i.test(text)) return true;
+
+  return !(
+    /["']?status["']?\s*:\s*["']?(?:failed|error|cancelled|stopped)["']?/i.test(text)
+    || /["']?failed["']?\s*:\s*[1-9]\d*\b/i.test(text)
+    || /["']?failed_(?:shards|tests|checks)["']?\s*:\s*\[\s*["']/i.test(text)
+  );
 }
