@@ -3135,6 +3135,49 @@ test("progressive execution rejects a zero-exit verification traceback", () => {
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
 });
 
+test("progressive execution rejects an explicit command error hidden by zero exit", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "wrapped-database-check",
+    toolName: "shell",
+    arguments: { command: "database-client --query verify; echo RC=$?" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "wrapped-database-check",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: [
+        "ERROR:  column released_at does not exist",
+        "LINE 1: SELECT count(*) FROM worker_leases WHERE released_at IS NULL",
+        "RC=0",
+      ].join("\n"),
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.verificationCount, 0);
+  assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+});
+
 test("repeated successful verification does not reopen stalled inspection", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

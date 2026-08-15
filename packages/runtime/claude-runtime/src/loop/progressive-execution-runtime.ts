@@ -663,6 +663,7 @@ function verificationResultPassed(
   const unhandledRuntimeFailure = /\bTraceback \(most recent call last\):/i.test(text)
     && /\b(?:[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)|Exception):\s*[^\r\n]+/i.test(text);
   if (unhandledRuntimeFailure) return false;
+  if (/^\s*(?:ERROR|FATAL):\s+\S/im.test(text)) return false;
   if (/\b(?:connection refused|no route to host|name or service not known|temporary failure in name resolution)\b/i.test(text)) {
     return false;
   }
