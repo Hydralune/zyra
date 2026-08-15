@@ -317,12 +317,20 @@ export class ProgressiveExecutionRuntime {
       verificationPassed
       && !this.state.requiredDeliveryMissing
     ) {
-      this.state.verificationCount += 1;
       this.state.phase = "validation";
-      this.state.consecutiveNoDeliveryObservations = 0;
-      this.state.lastActionNudgeNoDeliveryObservationCount = 0;
-      this.state.postDeliveryActionNudgeCount = 0;
-      this.progress("post_delivery_verification_passed");
+      if (this.state.verificationCount === 0) {
+        this.state.verificationCount = 1;
+        this.state.consecutiveNoDeliveryObservations = 0;
+        this.state.lastActionNudgeNoDeliveryObservationCount = 0;
+        this.state.postDeliveryActionNudgeCount = 0;
+        this.progress("post_delivery_verification_passed");
+      } else {
+        // A successful check only creates effective progress when it settles
+        // verification debt for bytes delivered since the last check.  Reusing
+        // an already-green build or test must not reopen a stalled inspection
+        // loop without another workspace mutation.
+        this.record("post_delivery_verification_repeated_without_delivery");
+      }
     } else if (
       verificationDriving
       && response.ok

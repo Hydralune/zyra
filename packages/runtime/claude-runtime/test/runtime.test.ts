@@ -3087,6 +3087,46 @@ test("progressive execution does not accept a zero-exit failed verification repo
   assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 0);
 });
 
+test("repeated successful verification does not reopen stalled inspection", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      verificationCount: 1,
+      consecutiveNoDeliveryObservations: 8,
+      postDeliveryActionNudgeCount: 2,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "repeated-typecheck",
+    toolName: "shell",
+    arguments: { command: "npm run typecheck" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "repeated-typecheck",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: { stdout: "typecheck passed", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const repeated = progressive.snapshot();
+  assert.equal(repeated.verificationCount, 1);
+  assert.equal(repeated.postDeliveryActionNudgeCount, 2);
+  assert.equal(repeated.consecutiveNoDeliveryObservations, 9);
+  assert.ok(repeated.progressReasons.includes("post_delivery_verification_repeated_without_delivery"));
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+});
+
 test("pre-delivery inspection circuit opens after repeated durable nudges", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_inspection_block_after_nudges: 3 },
