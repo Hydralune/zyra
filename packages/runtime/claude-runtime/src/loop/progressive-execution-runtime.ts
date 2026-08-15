@@ -670,7 +670,8 @@ function verificationResultPassed(
   for (const pattern of [
     /^\s*(?:ERROR|FATAL):\s+\S/im,
     /^\s*(?:[^\s:]+:\s+)?syntax error:\s+\S/im,
-    /\b(?:connection refused|no route to host|name or service not known|temporary failure in name resolution)\b/i,
+    /^\s*(?:request|operation|command)\s+failed:\s+\S/im,
+    /\b(?:connection refused|network (?:is )?unreachable|no route to host|name or service not known|temporary failure in name resolution)\b/i,
   ]) {
     const index = text.search(pattern);
     if (index >= 0) failureIndexes.push(index);

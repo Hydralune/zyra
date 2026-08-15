@@ -3178,6 +3178,45 @@ test("progressive execution rejects an explicit command error hidden by zero exi
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
 });
 
+test("progressive execution rejects a zero-exit transport failure", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "device-simulation",
+    toolName: "shell",
+    arguments: { command: "python scripts/run_device_simulation.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "device-simulation",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_verification_driving: true },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: "request failed: <urlopen error [Errno 101] Network unreachable>",
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.verificationCount, 0);
+  assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+});
+
 test("progressive execution rejects a compound verification that crashes after tests pass", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
