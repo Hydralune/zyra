@@ -3100,6 +3100,36 @@ test("pre-delivery inspection circuit opens after repeated durable nudges", () =
   assert.equal(progressive.inspectionCircuitOpen(), true);
 });
 
+test("post-delivery inspection circuit uses a tighter independent default", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      verificationCount: 1,
+    },
+  });
+  progressive.recordActionNudge();
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+  progressive.recordActionNudge();
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+
+  const configured = new ProgressiveExecutionRuntime({
+    constraints: { post_delivery_inspection_block_after_nudges: 3 },
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      verificationCount: 1,
+    },
+  });
+  configured.recordActionNudge();
+  configured.recordActionNudge();
+  assert.equal(configured.inspectionCircuitOpen(), false);
+  configured.recordActionNudge();
+  assert.equal(configured.inspectionCircuitOpen(), true);
+});
+
 test("pre-delivery inspection circuit carries bounded debt across fenced sessions", () => {
   const carried = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_inspection_block_after_nudges: 3 },

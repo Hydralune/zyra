@@ -500,13 +500,16 @@ export class ProgressiveExecutionRuntime {
   }
 
   inspectionCircuitOpen(): boolean {
+    const preDelivery = this.state.requiredDeliveryMissing;
     const maximumNudges = boundedInteger(
-      this.constraints.pre_delivery_inspection_block_after_nudges,
-      4,
-      2,
+      preDelivery
+        ? this.constraints.pre_delivery_inspection_block_after_nudges
+        : this.constraints.post_delivery_inspection_block_after_nudges,
+      preDelivery ? 4 : 2,
+      preDelivery ? 2 : 1,
       16,
     );
-    return this.state.requiredDeliveryMissing
+    return preDelivery
       ? this.state.actionNudgeCount >= maximumNudges
       : this.state.postDeliveryActionNudgeCount >= maximumNudges;
   }
