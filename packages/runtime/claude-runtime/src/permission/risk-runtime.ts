@@ -73,11 +73,13 @@ const NETWORK_EXFILTRATION = [
   /https?:\/\/(?!localhost\b|127\.0\.0\.1\b|\[::1\])/i,
 ];
 
-const SECRET_PATTERNS = [
-  /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)/i,
+const HIGH_CONFIDENCE_SECRET_PATTERNS = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\b(?:ghp|github_pat|sk-[A-Za-z0-9])[-_A-Za-z0-9]{16,}\b/,
 ];
+
+const LABELED_SECRET_VALUE_PATTERN = /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)\s*(?:=|:)\s*["']?(?!\[?redacted\]?|<[^>]+>)[^\s"',}\\]{8,}/i;
+const SOURCE_EDIT_TOOLS = new Set(["file_write", "file_edit"]);
 
 const EXECUTABLE_EXTENSIONS = new Set([
   ".exe",
@@ -189,8 +191,22 @@ export class PermissionRiskRuntime {
         add(15, "shell:dynamic-expansion", "shell command contains dynamic expansion");
       }
     }
-    if (SECRET_PATTERNS.some((pattern) => pattern.test(argumentsText))) {
+    if (HIGH_CONFIDENCE_SECRET_PATTERNS.some((pattern) => pattern.test(argumentsText))) {
       add(50, "arguments:secret-material", "arguments appear to contain secret material");
+    } else if (LABELED_SECRET_VALUE_PATTERN.test(argumentsText)) {
+      // Source edits routinely implement credential handling and therefore
+      // contain identifiers such as `secret`, `password`, or `api_key`.
+      // Treat those ambiguous literals as reviewable context, not as leaked
+      // credentials. High-confidence token/private-key formats above still
+      // fail closed for every tool.
+      const sourceEdit = SOURCE_EDIT_TOOLS.has(context.toolName);
+      add(
+        sourceEdit ? 15 : 50,
+        sourceEdit ? "arguments:secret-reference" : "arguments:secret-material",
+        sourceEdit
+          ? "source edit references a secret-bearing field without high-confidence secret material"
+          : "arguments appear to contain secret material",
+      );
     }
     const paths = extractPaths(context.arguments);
     for (const path of paths) {
