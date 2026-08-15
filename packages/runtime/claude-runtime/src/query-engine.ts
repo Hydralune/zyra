@@ -2693,7 +2693,16 @@ export function isVerificationDrivingToolResult(
   // that lineage instead of treating the wait as an unrelated read.
   const receipt = asObject(response.output.gateway_receipt);
   const invocationRef = asObject(receipt.invocation_ref);
-  const originToolCallId = asString(invocationRef.tool_call_id).trim();
+  const invocation = asObject(receipt.invocation);
+  const originToolCallId = [
+    response.metadata.originating_tool_call_id,
+    response.output.originating_tool_call_id,
+    invocationRef.tool_call_id,
+    invocation.tool_call_id,
+    invocation.causation_id,
+  ]
+    .map((value) => asString(value).trim())
+    .find(Boolean) ?? "";
   if (!originToolCallId) return false;
   const origin = historicalCalls.find(
     (call) => call.toolCallId === originToolCallId,

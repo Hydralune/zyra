@@ -3491,6 +3491,31 @@ test("query engine propagates background verification lineage to shell_wait", ()
     tool_name: "shell_wait",
     arguments: { job_id: "job-unrelated" },
   }, response, [{ ...origin, name: "read" }]), false);
+
+  const physicalResponse: ToolExecutionResponse = {
+    ...response,
+    ok: false,
+    error: "sandbox_command_failed",
+    output: {
+      stdout: "138 passed\n",
+      stderr: "sh: syntax error: bad substitution\n",
+      return_code: 2,
+      gateway_receipt: {
+        invocation: {
+          tool_call_id: origin.toolCallId,
+          causation_id: origin.toolCallId,
+        },
+      },
+    },
+    metadata: {
+      originating_tool_call_id: origin.toolCallId,
+      return_code: "2",
+    },
+  };
+  assert.equal(isVerificationDrivingToolResult({
+    tool_name: "shell_wait",
+    arguments: { job_id: "gateway-command-job:integration" },
+  }, physicalResponse, [origin]), true);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {
