@@ -239,6 +239,56 @@ describe("FE-S02 bounded canonical observation", () => {
     expect(result.result).toMatchObject({ resumed: true })
   })
 
+  test("explicit resume exits from canonical terminal state when mutation response stays open", async () => {
+    const output = new Capture(120, false)
+    const running = {
+      taskId: "task_test",
+      runId: "run_test",
+      status: "running",
+      terminal: false,
+    } as TaskProjection
+    const completed = {
+      ...running,
+      status: "completed",
+      terminal: true,
+      active: false,
+    } as TaskProjection
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: "task_test", generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        return await new Promise<never>(() => undefined)
+      },
+      async *streamIngress() {
+        yield { kind: "event", taskId: "task_test", generation: 1, sequence: 1, frame: frame(1, "runtime.task.completed") }
+        yield { kind: "close", taskId: "task_test", generation: 1, sequence: 1, cursor: "cursor_1" }
+      },
+      async task() { return completed },
+    } as unknown as CliApi
+
+    const result = await Promise.race([
+      observeTask({
+        api,
+        task: running,
+        cwd: "G:\\agent-zoo",
+        output,
+        signal: new AbortController().signal,
+        resume: true,
+      }),
+      new Promise<never>((_resolve, reject) => setTimeout(
+        () => reject(new Error("observer waited for the open mutation response")),
+        1_000,
+      )),
+    ])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.status).toBe("completed")
+  })
+
   test("explicit resume reopens a failed projection without reviving cancelled intent", async () => {
     const output = new Capture(120, false)
     let runCalls = 0

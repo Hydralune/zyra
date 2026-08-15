@@ -316,11 +316,23 @@ export async function observeTask(input: {
       }
     }
     if (input.signal.aborted) throw input.signal.reason
-    const settledRun = await runResult
-    if (settledRun?.ok === false && !mutationTransportDetached(settledRun.error)) {
-      throw settledRun.error
+    if (runSettled && runOutcome?.ok === false && !mutationTransportDetached(runOutcome.error)) {
+      throw runOutcome.error
     }
-    const finalTask = detachedSettlement ?? await input.api.task(input.task.taskId)
+    // A terminal SSE projection plus a terminal canonical read is sufficient
+    // to close the observer even when the mutation response transport remains
+    // open. Awaiting that response here can keep `zyra resume` alive for the
+    // full HTTP socket timeout after the task and all physical dispatches have
+    // already committed. The pending request is fenced by task identity and is
+    // cancelled when the CLI closes its typed client.
+    let finalTask = detachedSettlement ?? await input.api.task(input.task.taskId)
+    if (!terminalTask(finalTask) && !runSettled) {
+      const settledRun = await runResult
+      if (settledRun?.ok === false && !mutationTransportDetached(settledRun.error)) {
+        throw settledRun.error
+      }
+      finalTask = await input.api.task(input.task.taskId)
+    }
     if (!terminalTask(finalTask)) {
       throw new CliTaskError("Task mutation settled without a canonical terminal state.", "task_terminal_state_missing")
     }
