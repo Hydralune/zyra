@@ -71,15 +71,33 @@ const DEFAULT_CONFIG: RuntimeConfig = {
   controlCommands: [],
 };
 
-// These events are intentionally high-frequency observations. They remain in
-// the runtime event/journal evidence, but persisting the complete session for
-// every streamed provider chunk turns one model response into hundreds of
-// multi-megabyte atomic writes. Recovery only needs the surrounding semantic
-// boundaries (request prepared/report, tool and turn transitions).
-const TRANSIENT_CHECKPOINT_PHASES = new Set([
-  "message_delta",
-  "model_stream_frame",
+// Runtime events remain in the event/journal evidence, but only semantic
+// recovery boundaries warrant serializing the complete durable session. A
+// long-running session can grow to tens of megabytes; checkpointing every
+// observational event makes persistence dominate the provider and tool work.
+const DURABLE_CHECKPOINT_PHASES = new Set([
+  "session_started",
+  "context_restored",
+  "control_command",
+  "model_request_prepared",
+  "model_stream_report",
+  "tool_batch_completed",
+  "tool_batch_suspended",
+  "turn_end",
+  "turn_suspended",
+  "context_compacted",
+  "next_turn_restore_contract",
+  "execution_closeout_completed",
+  "error",
+  "session_suspended",
+  "session_completed",
+  "session_failed",
+  "query_session_snapshot",
 ]);
+
+export function shouldCheckpointRuntimePhase(phase: string): boolean {
+  return DURABLE_CHECKPOINT_PHASES.has(phase);
+}
 const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
 const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
 
@@ -559,7 +577,7 @@ export class ClaudeRuntimeCore {
           : payload,
       );
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
-      if (!TRANSIENT_CHECKPOINT_PHASES.has(phase)) {
+      if (shouldCheckpointRuntimePhase(phase)) {
         await host.checkpointState?.({
           ...session.snapshot(),
           e01Runtime: e01.snapshot() as unknown as JsonObject,

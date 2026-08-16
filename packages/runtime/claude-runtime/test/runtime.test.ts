@@ -29,6 +29,7 @@ import {
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   modelCompactionPrompt,
+  shouldCheckpointRuntimePhase,
   verificationScopeForTool,
   verificationScopeForToolResult,
 } from "../src/query-engine.ts";
@@ -249,6 +250,35 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.e01Runtime !== undefined));
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "model_stream_frame"));
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "message_delta"));
+});
+
+test("runtime checkpoints durable recovery boundaries instead of observations", () => {
+  for (const phase of [
+    "session_started",
+    "model_request_prepared",
+    "model_stream_report",
+    "tool_batch_completed",
+    "turn_end",
+    "context_compacted",
+    "session_suspended",
+    "query_session_snapshot",
+  ]) {
+    assert.equal(shouldCheckpointRuntimePhase(phase), true, phase);
+  }
+  for (const phase of [
+    "message_delta",
+    "model_stream_frame",
+    "turn_started",
+    "stream_request_start",
+    "tool_loop_plan",
+    "tool_call_started",
+    "tool_call_completed",
+    "tool_use_summary",
+    "upstream_query_continuation",
+    "progressive_verification_requested",
+  ]) {
+    assert.equal(shouldCheckpointRuntimePhase(phase), false, phase);
+  }
 });
 
 test("provider evidence keeps structural frames without replaying content tokens", () => {

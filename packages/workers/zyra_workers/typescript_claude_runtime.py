@@ -696,6 +696,7 @@ class TypeScriptClaudeQueryEngine:
         self._tool_effect_receipts_lock = threading.RLock()
         self._last_tool_batch_evidence: dict[str, Any] = {}
         self._checkpoint_revision = 0
+        self._checkpoint_file_signature: tuple[int, int] | None = None
         self._runtime_process_epoch = 0
         self._protocol_frame_trace: list[dict[str, Any]] = []
         self._checkpoint_writer_id = hashlib.sha256(
@@ -1910,6 +1911,7 @@ class TypeScriptClaudeQueryEngine:
         path = self._checkpoint_path(session_id)
         if not path.exists():
             self._checkpoint_revision = 0
+            self._checkpoint_file_signature = None
             return {}
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -1926,6 +1928,8 @@ class TypeScriptClaudeQueryEngine:
         self._checkpoint_revision = int(
             value.get("host_checkpoint_revision") or value.get("revision") or 0
         )
+        stat = path.stat()
+        self._checkpoint_file_signature = (stat.st_size, stat.st_mtime_ns)
         return value
 
     def _persist_incremental_checkpoint(
@@ -1944,28 +1948,39 @@ class TypeScriptClaudeQueryEngine:
         with checkpoint_lock:
             current_revision = 0
             if path.exists():
-                try:
-                    current = json.loads(path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError) as error:
-                    raise TypeScriptRuntimeError(
-                        "typescript_runtime_checkpoint_corrupt",
-                        f"Cannot compare-and-swap the durable TypeScript checkpoint: {error}",
-                    ) from error
-                if not isinstance(current, dict) or str(current.get("session_id") or "") != session_id:
-                    raise TypeScriptRuntimeError(
-                        "typescript_runtime_checkpoint_identity",
-                        "Durable TypeScript checkpoint changed logical session during compare-and-swap.",
+                stat = path.stat()
+                observed_signature = (stat.st_size, stat.st_mtime_ns)
+                if observed_signature == self._checkpoint_file_signature:
+                    current_revision = self._checkpoint_revision
+                else:
+                    try:
+                        current = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as error:
+                        raise TypeScriptRuntimeError(
+                            "typescript_runtime_checkpoint_corrupt",
+                            f"Cannot compare-and-swap the durable TypeScript checkpoint: {error}",
+                        ) from error
+                    if not isinstance(current, dict) or str(current.get("session_id") or "") != session_id:
+                        raise TypeScriptRuntimeError(
+                            "typescript_runtime_checkpoint_identity",
+                            "Durable TypeScript checkpoint changed logical session during compare-and-swap.",
+                        )
+                    current_revision = int(
+                        current.get("host_checkpoint_revision") or current.get("revision") or 0
                     )
-                current_revision = int(
-                    current.get("host_checkpoint_revision") or current.get("revision") or 0
-                )
             if current_revision != self._checkpoint_revision:
                 raise TypeScriptRuntimeError(
                     "typescript_runtime_checkpoint_stale_writer",
                     "Durable TypeScript checkpoint compare-and-swap rejected a stale writer: "
                     f"expected {self._checkpoint_revision}, observed {current_revision}.",
                 )
-            payload = dict(checkpoint)
+            jsonable_checkpoint = to_jsonable(dict(checkpoint))
+            if not isinstance(jsonable_checkpoint, dict):
+                raise TypeScriptRuntimeError(
+                    "typescript_runtime_checkpoint_invalid",
+                    "Durable TypeScript checkpoint must serialize to an object.",
+                )
+            payload = jsonable_checkpoint
             next_revision = current_revision + 1
             payload["session_id"] = session_id
             payload["protocol_frame_trace"] = to_jsonable(
@@ -1981,13 +1996,18 @@ class TypeScriptClaudeQueryEngine:
             }
             payload["host_checkpoint_commit_id"] = hashlib.sha256(
                 json.dumps(
-                    to_jsonable(commit_material),
+                    commit_material,
                     ensure_ascii=False,
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode("utf-8")
             ).hexdigest()
-            encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
+            encoded = json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
             staged.write_text(encoded, encoding="utf-8")
             try:
                 _replace_checkpoint_with_retry(staged, path)
@@ -2006,6 +2026,8 @@ class TypeScriptClaudeQueryEngine:
                 # prevents the small acceleration sidecar from being replaced.
                 pass
             self._checkpoint_revision = next_revision
+            stat = path.stat()
+            self._checkpoint_file_signature = (stat.st_size, stat.st_mtime_ns)
             return payload
 
     def _persist_terminal_receipt(

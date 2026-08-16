@@ -847,6 +847,30 @@ def test_host_checkpoint_compare_and_swap_rejects_stale_writer(tmp_path: Path) -
     assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
 
 
+def test_host_checkpoint_same_writer_skips_reparsing_unchanged_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    session_id = "e04-host-checkpoint-fast-cas"
+    first = engine._persist_incremental_checkpoint(session_id, {"value": 1})
+    checkpoint_path = engine._checkpoint_path(session_id)
+    real_read_text = Path.read_text
+
+    def reject_checkpoint_reparse(path: Path, *args: object, **kwargs: object) -> str:
+        if path == checkpoint_path:
+            raise AssertionError("unchanged checkpoint should not be reparsed")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", reject_checkpoint_reparse)
+    second = engine._persist_incremental_checkpoint(session_id, {"value": 2})
+
+    assert first["host_checkpoint_revision"] == 1
+    assert second["host_checkpoint_parent_revision"] == 1
+    assert second["host_checkpoint_revision"] == 2
+
+
 def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
     tmp_path: Path,
 ) -> None:
