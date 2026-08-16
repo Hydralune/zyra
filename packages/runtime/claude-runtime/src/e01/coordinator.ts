@@ -2017,7 +2017,16 @@ export class E01RuntimeCoordinator {
       1,
       Math.ceil((builtPrompt.systemChars + builtPrompt.messagesChars + builtPrompt.toolsChars) / 4),
     );
-    const deadlineAt = Date.now() + 120_000;
+    // The provider-control-plane call may legitimately stream until the
+    // configured request timeout.  Keep the E01 route and rate-limit custody
+    // alive for that same interval plus settlement headroom; fixed short
+    // leases otherwise turn a successful long stream into a terminal
+    // unknown_provider_route_lease during recordSuccess.
+    const providerLifecycleValidityMilliseconds = Math.max(
+      120_000,
+      this.providerTimeoutMs + 60_000,
+    );
+    const deadlineAt = Date.now() + providerLifecycleValidityMilliseconds;
     const route = this.providerRouting.decide({
       requestId,
       sessionId: this.sessionId,
@@ -2033,7 +2042,7 @@ export class E01RuntimeCoordinator {
       allowDegraded: true,
       metadata: { model_id: modelId, canonical_owner: "typescript" },
     });
-    this.providerRouting.acquire(route);
+    this.providerRouting.acquire(route, providerLifecycleValidityMilliseconds);
     let reservationId = "";
     try {
       const reservation = this.providerRateLimits.reserve({
@@ -2048,7 +2057,7 @@ export class E01RuntimeCoordinator {
         estimatedCost: route.estimatedCost,
         priority: 100,
         deadlineAt,
-      });
+      }, providerLifecycleValidityMilliseconds);
       reservationId = reservation.reservationId;
       const request = this.providerRequests.create({
         requestId,

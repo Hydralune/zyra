@@ -630,6 +630,20 @@ describe("provider routing policy", () => {
     ).toBe("route-primary");
   });
 
+  test("extends a live lease to the request-scoped provider timeout", () => {
+    const clock = new ManualClock(1_000);
+    const runtime = new ProviderRoutingRuntime({
+      clock,
+      leaseMilliseconds: 10,
+    });
+    runtime.register(routeDefinition({ concurrencyLimit: 1 }));
+    runtime.acquire(runtime.decide(routeRequest()), 50);
+    clock.advance(10);
+    expect(runtime.getState("route-primary").inFlight).toBe(1);
+    clock.advance(39);
+    expect(runtime.recordSuccess("request-1", 49).successes).toBe(1);
+  });
+
   test("restores routes leases and affinity with checksum validation", () => {
     const runtime = new ProviderRoutingRuntime();
     runtime.register(routeDefinition());

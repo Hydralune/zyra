@@ -228,7 +228,14 @@ export class ProviderRateLimitRuntime {
     return { ...body, decisionDigest: digestJson(body) };
   }
 
-  reserve(demand: RateLimitDemand): RateLimitReservation {
+  reserve(
+    demand: RateLimitDemand,
+    minimumValidityMilliseconds = 0,
+  ): RateLimitReservation {
+    assertNonNegativeInteger(
+      minimumValidityMilliseconds,
+      "minimumValidityMilliseconds",
+    );
     const existingId = this.requestIndex.get(demand.requestId);
     if (existingId !== undefined) {
       const existing = this.requireReservation(existingId);
@@ -287,6 +294,10 @@ export class ProviderRateLimitRuntime {
       throw error;
     }
     const acquiredAt = this.clock.now();
+    const validityMilliseconds = Math.max(
+      this.reservationTtlMilliseconds,
+      minimumValidityMilliseconds,
+    );
     const reservation: RateLimitReservation = {
       reservationId: this.ids.next("rate-limit-reservation"),
       requestId: demand.requestId,
@@ -295,7 +306,7 @@ export class ProviderRateLimitRuntime {
       allocations: applied,
       acquiredAt,
       expiresAt: Math.min(
-        acquiredAt + this.reservationTtlMilliseconds,
+        acquiredAt + validityMilliseconds,
         demand.deadlineAt,
       ),
       finishedAt: null,

@@ -223,6 +223,48 @@ test("E01 provider events enter prompt usage and recovery state owners", async (
   expect(snapshot.recovery.contexts[0].attempt).toBe(1);
 });
 
+test("E01 provider custody follows the configured long-stream timeout", async () => {
+  const runtime = new E01RuntimeCoordinator(
+    "provider-long-run",
+    "provider-long-session",
+    "provider-long-task",
+    "provider-long-worker",
+  );
+  await runtime.configureProviderRuntime({
+    providerId: "compatible",
+    modelId: "provider-long-model",
+    baseUrl: "https://provider.example/v1",
+    apiKey: "test-provider-key",
+    timeoutMs: 3_600_000,
+  });
+  await runtime.bootstrap();
+  runtime.recordRuntimeEvent("model_request_prepared", {
+    provider_request: {
+      request_id: "provider-long-request",
+      provider: "compatible",
+      model: "provider-long-model",
+      system: [],
+      tools: [],
+      messages: [{ role: "user", content: "long work" }],
+    },
+  });
+  const snapshot = runtime.snapshot();
+  const routeLease = snapshot.providerRouting.leases.find(
+    (item) => item.requestId === "provider-long-request",
+  );
+  const reservation = snapshot.providerRateLimits.reservations.find(
+    (item) => item.requestId === "provider-long-request",
+  );
+  expect(routeLease).toBeDefined();
+  expect(reservation).toBeDefined();
+  expect(routeLease!.expiresAt - routeLease!.acquiredAt).toBeGreaterThanOrEqual(
+    3_660_000,
+  );
+  expect(reservation!.expiresAt - reservation!.acquiredAt).toBeGreaterThanOrEqual(
+    3_660_000,
+  );
+});
+
 test("e01.mutation.corrupt-snapshot", () => {
   const runtime = new Journal("run-checksum", "session-checksum");
   const corrupted = runtime.snapshot();

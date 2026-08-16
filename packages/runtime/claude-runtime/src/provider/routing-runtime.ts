@@ -391,7 +391,14 @@ export class ProviderRoutingRuntime {
     return { ...body, decisionDigest: digestJson(body) };
   }
 
-  acquire(decision: ProviderRouteDecision): ProviderRouteLease {
+  acquire(
+    decision: ProviderRouteDecision,
+    minimumValidityMilliseconds = 0,
+  ): ProviderRouteLease {
+    assertNonNegativeInteger(
+      minimumValidityMilliseconds,
+      "minimumValidityMilliseconds",
+    );
     if (this.leases.has(decision.requestId)) {
       const existing = this.leases.get(decision.requestId);
       if (existing?.routeId !== decision.routeId) {
@@ -417,11 +424,15 @@ export class ProviderRoutingRuntime {
       });
     }
     const acquiredAt = this.clock.now();
+    const validityMilliseconds = Math.max(
+      this.leaseMilliseconds,
+      minimumValidityMilliseconds,
+    );
     const lease: ProviderRouteLease = {
       requestId: decision.requestId,
       routeId: decision.routeId,
       acquiredAt,
-      expiresAt: acquiredAt + this.leaseMilliseconds,
+      expiresAt: acquiredAt + validityMilliseconds,
       releasedAt: null,
     };
     this.leases.set(decision.requestId, lease);
