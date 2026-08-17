@@ -3178,7 +3178,7 @@ test("progressive execution does not accept a zero-exit failed verification repo
   const failed = progressive.snapshot();
   assert.equal(failed.verificationCount, 0);
   assert.equal(failed.verificationNudgeCount, 0);
-  assert.equal(failed.recoveryInspectionAllowance, 4);
+  assert.equal(failed.recoveryInspectionAllowance, 8);
   assert.equal(failed.postDeliveryActionNudgeCount, 1);
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
@@ -3302,8 +3302,8 @@ test("repeating the same failed verification without an edit does not refill dia
   progressive.recordActionNudge();
   progressive.recordActionNudge();
   progressive.observeToolResult(verification, failedResponse, false);
-  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 4);
-  for (let index = 0; index < 4; index += 1) {
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 8);
+  for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
   progressive.observeToolResult(
@@ -3334,7 +3334,7 @@ test("repeating the same failed verification without an edit does not refill dia
     false,
   );
   const afterEdit = progressive.snapshot();
-  assert.equal(afterEdit.recoveryInspectionAllowance, 4);
+  assert.equal(afterEdit.recoveryInspectionAllowance, 8);
   assert.equal(afterEdit.unresolvedVerificationFailures[0].attemptCount, 3);
   assert.equal(afterEdit.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 2);
 });
@@ -3377,14 +3377,14 @@ test("failed verification meters diagnostic inspection immediately", () => {
 
   assert.equal(progressive.snapshot().actionNudgeCount, 0);
   assert.equal(progressive.inspectionCircuitOpen(), true);
-  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 4);
-  for (let index = 0; index < 4; index += 1) {
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 8);
+  for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
 });
 
-test("failed verification preserves two named source reads after broad diagnostics", () => {
+test("failed verification preserves six named source reads after broad diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {
@@ -3419,12 +3419,13 @@ test("failed verification preserves two named source reads after broad diagnosti
     metadata: { workspace_mutation_committed: "false" },
   }, false);
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
-  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
-  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  for (let index = 0; index < 6; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  }
   assert.equal(progressive.consumeRecoveryInspectionAllowance(true), false);
 });
 
@@ -3461,11 +3462,12 @@ test("verification-generated files do not impersonate a repair mutation", () => 
   });
 
   progressive.observeToolResult(verification("first-failure"), failedResponse("first-failure"), false);
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
-  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
-  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  for (let index = 0; index < 6; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  }
 
   progressive.observeToolResult(
     verification("same-code-generated-report"),
@@ -3531,7 +3533,7 @@ test("generated reports preserve the remaining named-source repair reserve", () 
         lastObservedWorkspaceMutationCount: 4,
       }],
       targetedRepairInspectionAllowance: 2,
-      targetedRepairReserveVersion: 3,
+      targetedRepairReserveVersion: 4,
     },
   });
   progressive.observeToolResult({
@@ -3580,15 +3582,15 @@ test("legacy verification debt receives the named-source reserve only once", () 
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: legacyContinuity,
   }).snapshot();
-  assert.equal(migrated.targetedRepairInspectionAllowance, 2);
-  assert.equal(migrated.targetedRepairReserveVersion, 3);
+  assert.equal(migrated.targetedRepairInspectionAllowance, 6);
+  assert.equal(migrated.targetedRepairReserveVersion, 4);
 
   const exhausted = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {
       ...legacyContinuity,
       targetedRepairInspectionAllowance: 0,
-      targetedRepairReserveVersion: 3,
+      targetedRepairReserveVersion: 4,
     },
   }).snapshot();
   assert.equal(exhausted.targetedRepairInspectionAllowance, 0);
@@ -3633,7 +3635,7 @@ test("unscoped failed continuation cannot refill existing verification diagnosti
 
   const scoped = failed("scoped-failure", "shell:afctl:test:integration");
   progressive.observeToolResult(scoped, response(scoped.toolCallId), false);
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
 
