@@ -3447,6 +3447,47 @@ test("failed verification meters diagnostic inspection immediately", () => {
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
 });
 
+test("nonzero verification preserves its diagnostic window", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "integration-nonzero",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-nonzero",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:test:integration",
+    },
+  };
+
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: false,
+    summary: "command failed",
+    output: {
+      stderr: "2 failed, 8 passed",
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "shell_exit_1",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 8);
+  assert.equal(progressive.snapshot().unresolvedVerificationFailures[0]?.attemptCount, 1);
+});
+
 test("failed verification preserves six named source reads after broad diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

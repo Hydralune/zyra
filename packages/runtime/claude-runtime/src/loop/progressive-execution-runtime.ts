@@ -595,7 +595,14 @@ export class ProgressiveExecutionRuntime {
         // changed or a path was wrong. Permit one bounded observation to
         // re-anchor the next attempt; successful delivery or consumption
         // closes the allowance again.
-        this.state.recoveryInspectionAllowance = 1;
+        // Do not collapse a wider diagnostic window opened by a failed
+        // verification above.  The generic delivery fallback is a floor for
+        // ordinary failed edits/builds, not a replacement for verification's
+        // evidence-driven repair budget.
+        this.state.recoveryInspectionAllowance = Math.max(
+          this.state.recoveryInspectionAllowance,
+          1,
+        );
         this.record("failed_delivery_attempt_recovery_inspection_granted");
       }
     }
