@@ -618,6 +618,16 @@ export class ProgressiveExecutionRuntime {
       : this.state.postDeliveryActionNudgeCount >= maximumNudges;
   }
 
+  backgroundShellSlotsRemaining(): number {
+    const maximum = boundedInteger(
+      this.constraints.maximum_active_background_shells,
+      2,
+      1,
+      8,
+    );
+    return Math.max(0, maximum - this.state.activeBackgroundCount);
+  }
+
   consumeRecoveryInspectionAllowance(): boolean {
     if (!this.inspectionCircuitOpen() || this.state.recoveryInspectionAllowance < 1) {
       return false;

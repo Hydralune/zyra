@@ -2807,17 +2807,26 @@ test("progressive execution counts each background job once and observes its ter
     metadata: {},
   });
 
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 2);
   progressive.observeToolResult(
     request("shell-start", "shell"),
     response("shell-start", "running"),
     false,
   );
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 1);
+  progressive.observeToolResult(
+    request("shell-start-second", "shell"),
+    response("shell-start-second", "running"),
+    false,
+  );
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 0);
   progressive.observeToolResult(
     request("shell-poll", "shell_wait"),
     response("shell-poll", "running"),
     true,
   );
-  assert.equal(progressive.snapshot().activeBackgroundCount, 1);
+  assert.equal(progressive.snapshot().activeBackgroundCount, 2);
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 0);
   assert.equal(progressive.snapshot().preDeliveryObservationCount, 0);
 
   progressive.observeToolResult(
@@ -2825,8 +2834,68 @@ test("progressive execution counts each background job once and observes its ter
     response("shell-complete", "completed"),
     true,
   );
-  assert.equal(progressive.snapshot().activeBackgroundCount, 0);
+  assert.equal(progressive.snapshot().activeBackgroundCount, 1);
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 1);
   assert.equal(progressive.snapshot().preDeliveryObservationCount, 1);
+  progressive.observeToolResult(
+    request("shell-complete-second", "shell_wait"),
+    response("shell-complete-second", "completed"),
+    true,
+  );
+  assert.equal(progressive.snapshot().activeBackgroundCount, 0);
+  assert.equal(progressive.backgroundShellSlotsRemaining(), 2);
+});
+
+test("runtime stops admitting shell commands until active background jobs are reconciled", async () => {
+  class BackgroundHost extends MemoryHost {
+    readonly shellRequests: ToolExecutionRequest[] = [];
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.batches.push(batch);
+      this.shellRequests.push(...requests);
+      return requests.map((request) => ({
+        tool_call_id: request.toolCallId,
+        ok: true,
+        summary: "Sandbox command is still running in the background.",
+        output: { status: "running", job_id: `job-${request.toolCallId}` },
+        artifacts: [],
+        metadata: { background_status: "running" },
+      }));
+    }
+  }
+
+  const host = new BackgroundHost();
+  await new ClaudeRuntimeCore().run(input({
+    turns: [
+      [{ tool_name: "shell", arguments: { command: "echo first" } }],
+      [{ tool_name: "shell", arguments: { command: "echo second" } }],
+      [{ tool_name: "shell", arguments: { command: "echo third" } }],
+    ],
+    tools: [{
+      name: "shell",
+      purpose: "shell",
+      source: "test",
+      input_schema: {
+        type: "object",
+        required: ["command"],
+        properties: { command: { type: "string" } },
+      },
+      output_schema: {},
+      metadata: { read_only: "false", concurrency_safe: "false" },
+    }],
+  }), host);
+
+  assert.equal(host.shellRequests.length, 2);
+  assert.deepEqual(
+    host.shellRequests.map((request) => request.arguments.command),
+    ["echo first", "echo second"],
+  );
+  assert.ok(host.checkpoints.some((checkpoint) =>
+    JSON.stringify(checkpoint).includes("active_background_shell_limit_reached")
+  ));
 });
 
 test("progressive execution does not treat read-only diagnostic artifacts as delivery", () => {

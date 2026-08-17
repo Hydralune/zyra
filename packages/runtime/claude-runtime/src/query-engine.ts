@@ -1258,6 +1258,8 @@ export class ClaudeRuntimeCore {
         const hostRequests: ToolExecutionRequest[] = [];
         const immediateResults = new Map<string, ToolExecutionResponse>();
         const callIds = new Map<(typeof batch.steps)[number], string>();
+        const availableBackgroundShellSlots = progressive.backgroundShellSlotsRemaining();
+        let admittedShellStarts = 0;
         batch.steps.forEach((step, batchIndex) => {
           const toolCallId = step.step_id || runtimeId("toolcall");
           callIds.set(step, toolCallId);
@@ -1289,6 +1291,33 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            step.tool_name === "shell"
+            && admittedShellStarts >= availableBackgroundShellSlots
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Active background shell commands must be reconciled before another shell command can start.",
+              output: {
+                guidance: [
+                  "Use shell_wait with a previously returned job_id until a job reaches a terminal state.",
+                  "Inspect that terminal result before choosing the next command.",
+                  "Do not start replacement diagnostics while earlier commands are still running.",
+                ],
+                active_background_count: progressive.snapshot().activeBackgroundCount,
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "active_background_shell_limit_reached",
+              metadata: {
+                canonical_owner: "typescript",
+                background_reconciliation_required: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.inspectionCircuitOpen()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
             && !progressive.consumeRecoveryInspectionAllowance()
@@ -1316,6 +1345,7 @@ export class ClaudeRuntimeCore {
               },
             });
           } else {
+            if (step.tool_name === "shell") admittedShellStarts += 1;
             hostRequests.push({
               toolCallId,
               toolName: step.tool_name,
