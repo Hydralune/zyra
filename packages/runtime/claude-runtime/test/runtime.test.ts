@@ -3316,6 +3316,83 @@ test("a passing verification cannot erase debt from a different failed scope", (
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, ["integration-suite"]);
 });
 
+test("a newly observed regression takes priority over older verification debt", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 8,
+      repairMutationCount: 8,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["opaque-contract"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 4,
+        lastObservedWorkspaceMutationCount: 7,
+      }],
+    },
+  });
+  const edit: ToolExecutionRequest = {
+    toolCallId: "repair-edit",
+    toolName: "file_edit",
+    arguments: { path: "service.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "repair-edit",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_repair_driving: true },
+  };
+  progressive.observeToolResult(edit, {
+    tool_call_id: edit.toolCallId,
+    ok: true,
+    summary: "updated service",
+    output: {},
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+  const publicFailure: ToolExecutionRequest = {
+    toolCallId: "public-failed",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test public" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "public-failed",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "public-suite",
+    },
+  };
+  progressive.observeToolResult(publicFailure, {
+    tool_call_id: publicFailure.toolCallId,
+    ok: false,
+    summary: "1 failed in 2.0s",
+    output: { stderr: "TypeError: changed public signature", return_code: 1 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const snapshot = progressive.snapshot();
+  assert.deepEqual(snapshot.unresolvedVerificationScopes, [
+    "public-suite",
+    "integration-suite",
+  ]);
+  assert.deepEqual(
+    snapshot.unresolvedVerificationFailures.map((failure) => failure.scope),
+    ["public-suite", "integration-suite"],
+  );
+  const decision = progressive.decide(1_000, 10_000);
+  assert.equal(decision.action, "nudge_verification");
+  assert.match(decision.reason, /Priority failure: public-suite/);
+  assert.match(decision.reason, /before returning to older/);
+});
+
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

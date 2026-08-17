@@ -355,6 +355,14 @@ export class ProgressiveExecutionRuntime {
     } else if (repairContextId) {
       this.state.repairContextId = repairContextId;
     }
+    this.state.unresolvedVerificationFailures = mergeVerificationFailures(
+      [],
+      this.state.unresolvedVerificationFailures,
+    );
+    this.state.unresolvedVerificationScopes = prioritizeVerificationScopes(
+      this.state.unresolvedVerificationScopes,
+      this.state.unresolvedVerificationFailures,
+    );
     this.state.targetedRepairReserveVersion = 4;
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
@@ -550,6 +558,10 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationFailures = mergeVerificationFailures(
           this.state.unresolvedVerificationFailures,
           [observedFailure],
+        );
+        this.state.unresolvedVerificationScopes = prioritizeVerificationScopes(
+          this.state.unresolvedVerificationScopes,
+          this.state.unresolvedVerificationFailures,
         );
       }
       this.state.verificationNudgeCount = 0;
@@ -914,7 +926,25 @@ function mergeVerificationFailures(
     merged.delete(failure.scope);
     merged.set(failure.scope, structuredClone(failure));
   }
-  return [...merged.values()].slice(-32);
+  return [...merged.values()]
+    .map((failure, observationOrder) => ({ failure, observationOrder }))
+    .sort((left, right) => (
+      right.failure.lastObservedWorkspaceMutationCount
+        - left.failure.lastObservedWorkspaceMutationCount
+      || right.observationOrder - left.observationOrder
+    ))
+    .map(({ failure }) => failure)
+    .slice(0, 32);
+}
+
+function prioritizeVerificationScopes(
+  scopes: readonly string[],
+  failures: readonly UnresolvedVerificationFailure[],
+): string[] {
+  return [...new Set([
+    ...failures.map((failure) => failure.scope),
+    ...scopes,
+  ].map(String).filter(Boolean))].slice(0, 32);
 }
 
 function verificationFailure(
@@ -967,7 +997,7 @@ function safeCheckName(value: string): string {
 
 function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
   const details = state.unresolvedVerificationFailures
-    .slice(-4)
+    .slice(0, 4)
     .map((failure) => {
       const checks = failure.failedChecks.length > 0
         ? ` failed checks=${failure.failedChecks.join(",")}`
@@ -976,8 +1006,13 @@ function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
           : ` failure=${failure.failureKind}`;
       return `${failure.scope}${checks}`;
     });
-  const suffix = details.length > 0 ? `: ${details.join("; ")}` : "";
-  return `${state.unresolvedVerificationScopes.length} earlier failed verification scope(s) remain unresolved${suffix}; make a targeted fix, then rerun the same semantic suites`;
+  const priority = details.length > 0
+    ? ` Priority failure: ${details[0]}.`
+    : "";
+  const remaining = details.length > 1
+    ? ` Older unresolved failures: ${details.slice(1).join("; ")}.`
+    : "";
+  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining} Repair and rerun the priority scope before returning to older or less concrete failures`;
 }
 
 function finitePositive(value: unknown): number | null {
