@@ -3935,12 +3935,17 @@ test("verification scopes remain stable across diagnostic wrappers", () => {
     "python tools/afctl.py test integration",
     "timeout 400 python tools/afctl.py test integration 2>&1 | tail -40",
     "cd /workspace && .runtime/venv/bin/python tools/afctl.py test integration > /tmp/integration-9.log; grep failed /tmp/integration-9.log",
+    "timeout 240 python tools/afctl.py test integration; echo EXIT_CODE=0",
   ];
   assert.deepEqual(
     integrationCommands.map(scope),
     integrationCommands.map(() => "shell:afctl:test:integration"),
   );
   assert.equal(scope("python tools/afctl.py test public"), "shell:afctl:test:public");
+  assert.equal(
+    scope("cd /workspace && timeout 240 python tools/afctl.py test public; echo EXIT_CODE=0"),
+    "shell:afctl:test:public",
+  );
   assert.equal(scope("timeout 300 python tools/afctl.py build 2>&1 | tail -5"), "shell:afctl:build");
   assert.equal(scope("python tools/afctl.py simulate > /tmp/sim.log"), "shell:afctl:simulate");
   assert.equal(scope("npm run test -- --runInBand"), "shell:npm:test");

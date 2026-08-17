@@ -2850,7 +2850,7 @@ function semanticVerificationScope(value: string): string {
   // identity and retain the hash fallback for commands we cannot classify.
   const afctlScopes = new Set<string>();
   for (const match of value.matchAll(
-    /(?:^|\s)(?:\S*\/)?afctl\.py\s+(test\s+[a-z0-9_-]+|build|simulate)(?=\s|$)/giu,
+    /(?:^|\s)(?:\S*\/)?afctl\.py\s+(test\s+[a-z0-9_-]+|build|simulate)(?=\s|[;&|]|$)/giu,
   )) {
     afctlScopes.add(match[1].trim().replace(/\s+/g, ":"));
   }
