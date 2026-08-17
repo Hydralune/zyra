@@ -1442,12 +1442,11 @@ export class ClaudeRuntimeCore {
               ok: false,
               summary: "Pre-delivery inspection circuit is open; this action did not demonstrate delivery and was not executed.",
               output: {
-                guidance: [
-                  "Use the concrete evidence already gathered and make the next workspace edit.",
-                  "A build, test, or real service command is also allowed when it directly drives that edit.",
-                  "Opaque test labels are not a reason to search private test infrastructure; inspect the public contract and a concrete implementation file instead.",
-                  "Further broad inspection becomes available after a committed delivery or in a fresh task phase.",
-                ],
+                guidance: preDeliveryInspectionGuidance(
+                  progressive.snapshot().targetedRepairInspectionAllowance,
+                ),
+                targeted_repair_inspections_remaining:
+                  progressive.snapshot().targetedRepairInspectionAllowance,
                 side_effect_executed: false,
               },
               artifacts: [],
@@ -2864,6 +2863,25 @@ export function isTargetedRepairInspection(
   // This reserve exists for a named implementation or contract file, not a
   // directory walk or another repository-wide search disguised as a read.
   return /\.[a-z0-9][a-z0-9._-]{0,15}$/iu.test(basename);
+}
+
+export function preDeliveryInspectionGuidance(
+  targetedRepairInspectionsRemaining: number,
+): string[] {
+  const guidance = [
+    "Use the concrete evidence already gathered and make the next workspace edit.",
+    "A build, test, or real service command is also allowed when it directly drives that edit.",
+    "Opaque test labels are not a reason to search private test infrastructure; inspect the public contract and a concrete implementation file instead.",
+  ];
+  if (targetedRepairInspectionsRemaining > 0) {
+    guidance.push(
+      `${targetedRepairInspectionsRemaining} named source reads remain: use read or file_read with an exact implementation or contract file path; shell cat, type, or Get-Content remains broad inspection and will be blocked.`,
+    );
+  }
+  guidance.push(
+    "Further broad inspection becomes available after a committed delivery or in a fresh task phase.",
+  );
+  return guidance;
 }
 
 export function isClearlyRepairDrivingTool(

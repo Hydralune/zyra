@@ -34,6 +34,7 @@ import {
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   modelCompactionPrompt,
+  preDeliveryInspectionGuidance,
   shouldCheckpointRuntimePhase,
   verificationScopeForTool,
   verificationScopeForToolResult,
@@ -4333,6 +4334,14 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "evidence/test-farm/latest.json" } }, true), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "read", arguments: { path: ".runtime/venv/lib/source.py" } }, true), false);
   assert.equal(isTargetedRepairInspection(shell("cat services/worker/state_machine.py"), false), false);
+  assert.match(
+    preDeliveryInspectionGuidance(6).join(" "),
+    /6 named source reads remain: use read or file_read/,
+  );
+  assert.doesNotMatch(
+    preDeliveryInspectionGuidance(0).join(" "),
+    /named source reads remain/,
+  );
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), false);
   assert.equal(isClearlyRepairDrivingTool(shell("python tools/afctl.py test integration")), false);
