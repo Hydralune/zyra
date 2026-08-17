@@ -3530,7 +3530,7 @@ test("generated reports preserve the remaining named-source repair reserve", () 
         lastObservedWorkspaceMutationCount: 4,
       }],
       targetedRepairInspectionAllowance: 2,
-      targetedRepairReserveVersion: 2,
+      targetedRepairReserveVersion: 3,
     },
   });
   progressive.observeToolResult({
@@ -3580,14 +3580,14 @@ test("legacy verification debt receives the named-source reserve only once", () 
     continuityProgress: legacyContinuity,
   }).snapshot();
   assert.equal(migrated.targetedRepairInspectionAllowance, 2);
-  assert.equal(migrated.targetedRepairReserveVersion, 2);
+  assert.equal(migrated.targetedRepairReserveVersion, 3);
 
   const exhausted = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {
       ...legacyContinuity,
       targetedRepairInspectionAllowance: 0,
-      targetedRepairReserveVersion: 2,
+      targetedRepairReserveVersion: 3,
     },
   }).snapshot();
   assert.equal(exhausted.targetedRepairInspectionAllowance, 0);
@@ -4133,6 +4133,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyRepairDrivingTool(shell("cat result.json > evidence/test-farm/latest.json")), false);
   assert.equal(isClearlyRepairDrivingTool(shell("apply_patch <<'PATCH'\n*** Update File: services/worker/state.py\nPATCH")), true);
   assert.equal(isClearlyRepairDrivingTool(shell("sed -i 's/a/b/' services/worker/state.py")), true);
+  assert.equal(isClearlyRepairDrivingTool(shell("docker compose up -d --build")), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("npm run build")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);

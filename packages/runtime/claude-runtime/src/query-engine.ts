@@ -2765,13 +2765,12 @@ export function isClearlyRepairDrivingTool(
   if (explicitTargets.length > 0) {
     return explicitTargets.some((target) => !isGeneratedDeliveryPath(target));
   }
-  // Inline report writers often contain their destination as a literal even
-  // when the exact write primitive is difficult to parse. Fail closed only
-  // for the bounded generated-delivery roots; ordinary scripts remain repair
-  // candidates so the runtime does not erase real source progress.
-  const mentionsGeneratedDelivery = /(?:^|[\s'"`(=])(?:\.\/)?(?:submission|evidence|\.runtime)(?:\/|\\)/iu
-    .test(command);
-  return !mentionsGeneratedDelivery;
+  // Builds, dependency installation and service lifecycle commands are real
+  // execution, but their generated files are not evidence that source bytes
+  // were repaired. Shell repair progress therefore requires a concrete write
+  // target; opaque commands remain delivery-driving without refilling the
+  // failed-verification diagnostic circuit.
+  return false;
 }
 
 function shellMutationTargets(command: string): string[] {
@@ -2781,6 +2780,7 @@ function shellMutationTargets(command: string): string[] {
     /\btee(?:\s+-a)?\s+["']?([^\s"';&|]+)/giu,
     /\bPath\(\s*["']([^"']+)["']\s*\)\.(?:write_text|write_bytes)\b/giu,
     /\bopen\(\s*["']([^"']+)["']\s*,\s*["'][wax+][^"']*["']/giu,
+    /\bsed\b[^;&|\n]*\s-i\S*\s+(?:["'][^"']*["']\s+)?["']?([^\s"';&|]+)["']?(?=\s*(?:$|[;&|]))/gimu,
     /^\*{3}\s+(?:Add|Update|Delete) File:\s*(\S+)\s*$/gimu,
   ];
   for (const pattern of patterns) {
