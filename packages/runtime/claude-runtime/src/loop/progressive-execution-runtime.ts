@@ -965,6 +965,11 @@ function verificationResultPassed(
   backgroundStatus: string,
 ): boolean {
   if (!response.ok) return false;
+  // A background command being accepted by the gateway is not evidence that
+  // its build or test passed. Only the terminal shell_wait result may settle
+  // semantic verification debt; otherwise each launch briefly erases the
+  // prior failure and makes the same failed bytes look like a fresh attempt.
+  if (["running", "pending", "queued"].includes(backgroundStatus)) return false;
   if (["failed", "cancelled", "stopped", "error"].includes(backgroundStatus)) {
     return false;
   }

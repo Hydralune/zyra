@@ -2850,6 +2850,55 @@ test("progressive execution counts each background job once and observes its ter
   assert.equal(progressive.backgroundShellSlotsRemaining(), 2);
 });
 
+test("background verification launch cannot clear an earlier failed semantic scope", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      repairMutationCount: 2,
+      unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:test:integration",
+        failedChecks: ["opaque-state"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 2,
+      }],
+      targetedRepairReserveVersion: 4,
+    },
+  });
+  progressive.observeToolResult({
+    toolCallId: "integration-background-start",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-background-start",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:test:integration",
+    },
+  }, {
+    tool_call_id: "integration-background-start",
+    ok: true,
+    summary: "Sandbox command is still running in the background.",
+    output: { status: "running", job_id: "job-integration" },
+    artifacts: [],
+    metadata: { background_status: "running" },
+  }, false);
+
+  const snapshot = progressive.snapshot();
+  assert.equal(snapshot.verificationCount, 0);
+  assert.deepEqual(snapshot.unresolvedVerificationScopes, ["shell:afctl:test:integration"]);
+  assert.equal(snapshot.unresolvedVerificationFailures[0].attemptCount, 2);
+  assert.doesNotMatch(snapshot.progressReasons.join("\n"), /post_delivery_verification_passed/);
+});
+
 test("runtime stops admitting shell commands until active background jobs are reconciled", async () => {
   class BackgroundHost extends MemoryHost {
     readonly shellRequests: ToolExecutionRequest[] = [];
