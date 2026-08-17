@@ -50,6 +50,7 @@ export interface ProgressiveExecutionSnapshot {
   lastActionNudgeProviderRound: number;
   recoveryInspectionAllowance: number;
   targetedRepairInspectionAllowance: number;
+  targetedRepairReserveVersion: number;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -85,6 +86,16 @@ export class ProgressiveExecutionRuntime {
     this.now = options.now ?? Date.now;
     this.constraints = options.constraints ?? {};
     const restored = asObject(options.restored as unknown);
+    const restoredTargetedReserveVersion = nonnegativeInteger(
+      restored.targetedRepairReserveVersion,
+    );
+    const restoredHasVerificationDebt = (
+      Array.isArray(restored.unresolvedVerificationScopes)
+      && restored.unresolvedVerificationScopes.length > 0
+    ) || (
+      Array.isArray(restored.unresolvedVerificationFailures)
+      && restored.unresolvedVerificationFailures.length > 0
+    );
     const startedAt = this.now();
     const deliveryContract = asObject(options.deliveryContract);
     // `requires_delivery_artifact` is the adapter's fail-closed duplicate of
@@ -128,6 +139,7 @@ export class ProgressiveExecutionRuntime {
         lastActionNudgeProviderRound: 0,
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
+        targetedRepairReserveVersion: 1,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -166,8 +178,18 @@ export class ProgressiveExecutionRuntime {
           restored.recoveryInspectionAllowance,
         ),
         targetedRepairInspectionAllowance: nonnegativeInteger(
-          restored.targetedRepairInspectionAllowance,
+          restoredTargetedReserveVersion >= 1
+            ? restored.targetedRepairInspectionAllowance
+            : restoredHasVerificationDebt
+              ? boundedInteger(
+                this.constraints.targeted_repair_inspection_limit,
+                2,
+                1,
+                8,
+              )
+              : 0,
         ),
+        targetedRepairReserveVersion: 1,
         // Snapshots written before repair-specific accounting used the total
         // workspace mutation count. Preserve their monotonic lineage once,
         // then stop verification-generated files from impersonating a fix.
@@ -264,7 +286,22 @@ export class ProgressiveExecutionRuntime {
         continuityFailures,
       );
       this.state.verificationCount = 0;
+      const continuityTargetedReserveVersion = nonnegativeInteger(
+        continuity.targetedRepairReserveVersion,
+      );
+      this.state.targetedRepairInspectionAllowance = Math.max(
+        this.state.targetedRepairInspectionAllowance,
+        continuityTargetedReserveVersion >= 1
+          ? nonnegativeInteger(continuity.targetedRepairInspectionAllowance)
+          : boundedInteger(
+            this.constraints.targeted_repair_inspection_limit,
+            2,
+            1,
+            8,
+          ),
+      );
     }
+    this.state.targetedRepairReserveVersion = 1;
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
     // delivery obligation merely because it persisted `false`.
@@ -342,7 +379,7 @@ export class ProgressiveExecutionRuntime {
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.postDeliveryActionNudgeCount = 0;
       this.state.recoveryInspectionAllowance = 0;
-      this.state.targetedRepairInspectionAllowance = 0;
+      if (repairMutated) this.state.targetedRepairInspectionAllowance = 0;
       this.progress("workspace_mutation_committed");
     } else if (response.ok && !backgroundRunning) {
       this.state.noDeliveryObservationCount += 1;

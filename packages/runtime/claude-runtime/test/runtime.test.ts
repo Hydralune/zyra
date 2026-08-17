@@ -3513,6 +3513,86 @@ test("submission report updates do not impersonate a repair mutation", () => {
   assert.equal(snapshot.repairMutationCount, 4);
 });
 
+test("generated reports preserve the remaining named-source repair reserve", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 9,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:test:integration",
+        failedChecks: ["opaque-state"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+      }],
+      targetedRepairInspectionAllowance: 2,
+      targetedRepairReserveVersion: 1,
+    },
+  });
+  progressive.observeToolResult({
+    toolCallId: "update-recovery-report",
+    toolName: "shell",
+    arguments: { command: "python update_report.py submission/recovery-report.json" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "update-recovery-report",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_repair_driving: false },
+  }, {
+    tool_call_id: "update-recovery-report",
+    ok: true,
+    summary: "report updated",
+    output: {},
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+
+  const snapshot = progressive.snapshot();
+  assert.equal(snapshot.workspaceMutationCount, 10);
+  assert.equal(snapshot.repairMutationCount, 4);
+  assert.equal(snapshot.recoveryInspectionAllowance, 0);
+  assert.equal(snapshot.targetedRepairInspectionAllowance, 2);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+});
+
+test("legacy verification debt receives the named-source reserve only once", () => {
+  const legacyContinuity: JsonObject = {
+    requiredDeliveryMissing: false,
+    workspaceMutationCount: 7,
+    unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+    unresolvedVerificationFailures: [{
+      scope: "shell:afctl:test:integration",
+      failedChecks: ["opaque-state"],
+      failedCount: 1,
+      failureKind: "reported_checks",
+      attemptCount: 1,
+      lastObservedWorkspaceMutationCount: 7,
+    }],
+  };
+  const migrated = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: legacyContinuity,
+  }).snapshot();
+  assert.equal(migrated.targetedRepairInspectionAllowance, 2);
+  assert.equal(migrated.targetedRepairReserveVersion, 1);
+
+  const exhausted = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      ...legacyContinuity,
+      targetedRepairInspectionAllowance: 0,
+      targetedRepairReserveVersion: 1,
+    },
+  }).snapshot();
+  assert.equal(exhausted.targetedRepairInspectionAllowance, 0);
+});
+
 test("unscoped failed continuation cannot refill existing verification diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

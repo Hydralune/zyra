@@ -274,6 +274,8 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "consecutiveNoDeliveryObservations",
         "lastActionNudgeNoDeliveryObservationCount",
         "lastActionNudgeProviderRound",
+        "targetedRepairInspectionAllowance",
+        "targetedRepairReserveVersion",
     )
     projection = {
         "schema": _HANDOFF_SCHEMA,
@@ -446,6 +448,8 @@ def _execution_continuity_progress(
             "consecutiveNoDeliveryObservations",
             "postDeliveryActionNudgeCount",
             "lastActionNudgeNoDeliveryObservationCount",
+            "targetedRepairInspectionAllowance",
+            "targetedRepairReserveVersion",
         ):
             if progress.get(field) is not None:
                 continuity[field] = _nonnegative_count(progress.get(field))
