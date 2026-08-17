@@ -401,13 +401,28 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationScopes.push(verificationScope);
         this.state.unresolvedVerificationScopes = this.state.unresolvedVerificationScopes.slice(-32);
       }
+      // A terminal shell_wait can occasionally lose its originating command
+      // scope across a fenced continuation even though structured failure
+      // debt survived.  When there is exactly one outstanding scope, bind an
+      // unscoped failed result to it.  With multiple debts, stay conservative:
+      // never treat missing lineage as a new failure that earns another
+      // diagnostic window on unchanged bytes.
+      const failedVerificationScope = verificationScope
+        || (this.state.unresolvedVerificationScopes.length === 1
+          ? this.state.unresolvedVerificationScopes[0]
+          : "");
       const existingFailure = this.state.unresolvedVerificationFailures
-        .find((failure) => failure.scope === verificationScope);
-      const workspaceChangedSinceFailure = existingFailure === undefined
-        || existingFailure.lastObservedWorkspaceMutationCount !== this.state.workspaceMutationCount;
-      if (verificationScope) {
+        .find((failure) => failure.scope === failedVerificationScope);
+      const failureAlreadyObservedOnCurrentWorkspace = this.state.unresolvedVerificationFailures
+        .some((failure) => (
+          failure.lastObservedWorkspaceMutationCount === this.state.workspaceMutationCount
+        ));
+      const workspaceChangedSinceFailure = existingFailure !== undefined
+        ? existingFailure.lastObservedWorkspaceMutationCount !== this.state.workspaceMutationCount
+        : !failureAlreadyObservedOnCurrentWorkspace;
+      if (failedVerificationScope) {
         const observedFailure = verificationFailure(
-          verificationScope,
+          failedVerificationScope,
           response,
           this.state.workspaceMutationCount,
           existingFailure,

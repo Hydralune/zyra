@@ -3381,6 +3381,58 @@ test("failed verification meters diagnostic inspection immediately", () => {
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
 });
 
+test("unscoped failed continuation cannot refill existing verification diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 5,
+    },
+  });
+  const failed = (toolCallId: string, scope = ""): ToolExecutionRequest => ({
+    toolCallId,
+    toolName: scope ? "shell" : "shell_wait",
+    arguments: scope
+      ? { command: "python tools/afctl.py test integration" }
+      : { job_id: "restored-job" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: toolCallId,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  });
+  const response = (toolCallId: string): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '{"status":"failed","failed_shards":["opaque-state"]}',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  });
+
+  const scoped = failed("scoped-failure", "shell:afctl:test:integration");
+  progressive.observeToolResult(scoped, response(scoped.toolCallId), false);
+  for (let index = 0; index < 4; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+
+  const unscoped = failed("unscoped-restored-failure");
+  progressive.observeToolResult(unscoped, response(unscoped.toolCallId), false);
+  const snapshot = progressive.snapshot();
+  assert.equal(snapshot.recoveryInspectionAllowance, 0);
+  assert.deepEqual(snapshot.unresolvedVerificationScopes, ["shell:afctl:test:integration"]);
+  assert.equal(snapshot.unresolvedVerificationFailures[0].attemptCount, 2);
+  assert.equal(snapshot.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 5);
+});
+
 test("structured verification debt survives a fenced execution continuation", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
