@@ -226,9 +226,24 @@ export async function observeTask(input: {
             }
             cursor = message.cursor
             if (message.kind === "close") closedCursor = message.cursor
+            // A worker can commit the canonical terminal task state after its
+            // physical session has already disappeared, before the event
+            // projector emits a matching runtime.task.* frame.  A resume
+            // observer must not wait forever for that missing frame while the
+            // mutation response and SSE connection remain open.  Reconcile on
+            // the server-owned heartbeat boundary; this preserves SSE as the
+            // progress channel without introducing a separate polling loop.
+            if (message.kind === "heartbeat" && input.resume) {
+              const observed = await input.api.task(input.task.taskId)
+              if (terminalTask(observed)) {
+                detachedSettlement = observed
+                break
+              }
+            }
             renderer.status(projection.snapshot())
           }
         }
+        if (detachedSettlement) break
         if (!closedCursor && !projection.terminal) {
           throw new CliTaskError("SSE disconnected without a close frame; retaining the last server cursor.", "event_stream_disconnected", {
             revision: projection.snapshot().revision,

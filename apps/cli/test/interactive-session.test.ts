@@ -5,6 +5,7 @@ import type { TaskProjection } from "@zyra/typed-api-client"
 import { parseCliArgs } from "../src/args.ts"
 import { CliApi, type IngressFrame } from "../src/api.ts"
 import { observeTask } from "../src/commands/interactive.ts"
+import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft, PromptHistory } from "../src/input/draft.ts"
 import { TerminalPrompt } from "../src/input/terminal-prompt.ts"
 import { LineTranscriptRenderer } from "../src/render/line-renderer.ts"
@@ -287,6 +288,56 @@ describe("FE-S02 bounded canonical observation", () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.status).toBe("completed")
+  })
+
+  test("explicit resume reconciles a terminal task on heartbeat when its terminal event is missing", async () => {
+    const output = new Capture(120, false)
+    const running = {
+      taskId: "task_test",
+      runId: "run_test",
+      status: "running",
+      terminal: false,
+    } as TaskProjection
+    const failed = {
+      ...running,
+      status: "failed",
+      terminal: true,
+      active: false,
+    } as TaskProjection
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: "task_test", generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        return await new Promise<never>(() => undefined)
+      },
+      async *streamIngress() {
+        yield { kind: "heartbeat", taskId: "task_test", generation: 1, sequence: 0, cursor: "cursor_0" }
+        return await new Promise<never>(() => undefined)
+      },
+      async task() { return failed },
+    } as unknown as CliApi
+
+    const result = await Promise.race([
+      observeTask({
+        api,
+        task: running,
+        cwd: "G:\\agent-zoo",
+        output,
+        signal: new AbortController().signal,
+        resume: true,
+      }),
+      new Promise<never>((_resolve, reject) => setTimeout(
+        () => reject(new Error("observer ignored canonical terminal state on heartbeat")),
+        1_000,
+      )),
+    ])
+
+    expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
+    expect(result.status).toBe("failed")
   })
 
   test("explicit resume reopens a failed projection without reviving cancelled intent", async () => {
