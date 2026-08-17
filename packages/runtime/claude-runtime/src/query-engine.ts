@@ -2741,6 +2741,7 @@ export function isTargetedRepairInspection(
     .trim()
     .replaceAll("\\", "/");
   if (!path || /[*?\[\]]/u.test(path) || path.endsWith("/")) return false;
+  if (isGeneratedDeliveryPath(path)) return false;
   if (/(?:^|\/)(?:node_modules|\.git|\.runtime|\.venv|venv|dist|coverage)(?:\/|$)/iu.test(path)) {
     return false;
   }

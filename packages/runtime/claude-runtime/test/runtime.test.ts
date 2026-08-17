@@ -3530,7 +3530,7 @@ test("generated reports preserve the remaining named-source repair reserve", () 
         lastObservedWorkspaceMutationCount: 4,
       }],
       targetedRepairInspectionAllowance: 2,
-      targetedRepairReserveVersion: 1,
+      targetedRepairReserveVersion: 2,
     },
   });
   progressive.observeToolResult({
@@ -3580,14 +3580,14 @@ test("legacy verification debt receives the named-source reserve only once", () 
     continuityProgress: legacyContinuity,
   }).snapshot();
   assert.equal(migrated.targetedRepairInspectionAllowance, 2);
-  assert.equal(migrated.targetedRepairReserveVersion, 1);
+  assert.equal(migrated.targetedRepairReserveVersion, 2);
 
   const exhausted = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {
       ...legacyContinuity,
       targetedRepairInspectionAllowance: 0,
-      targetedRepairReserveVersion: 1,
+      targetedRepairReserveVersion: 2,
     },
   }).snapshot();
   assert.equal(exhausted.targetedRepairInspectionAllowance, 0);
@@ -4122,6 +4122,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/state_machine.py" } }, true), true);
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/src" } }, true), false);
+  assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "submission/test-report.json" } }, true), false);
+  assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "evidence/test-farm/latest.json" } }, true), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "read", arguments: { path: ".runtime/venv/lib/source.py" } }, true), false);
   assert.equal(isTargetedRepairInspection(shell("cat services/worker/state_machine.py"), false), false);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);

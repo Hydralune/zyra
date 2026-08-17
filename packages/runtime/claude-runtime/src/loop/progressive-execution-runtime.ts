@@ -139,7 +139,7 @@ export class ProgressiveExecutionRuntime {
         lastActionNudgeProviderRound: 0,
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
-        targetedRepairReserveVersion: 1,
+        targetedRepairReserveVersion: 2,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -178,7 +178,7 @@ export class ProgressiveExecutionRuntime {
           restored.recoveryInspectionAllowance,
         ),
         targetedRepairInspectionAllowance: nonnegativeInteger(
-          restoredTargetedReserveVersion >= 1
+          restoredTargetedReserveVersion >= 2
             ? restored.targetedRepairInspectionAllowance
             : restoredHasVerificationDebt
               ? boundedInteger(
@@ -189,7 +189,7 @@ export class ProgressiveExecutionRuntime {
               )
               : 0,
         ),
-        targetedRepairReserveVersion: 1,
+        targetedRepairReserveVersion: 2,
         // Snapshots written before repair-specific accounting used the total
         // workspace mutation count. Preserve their monotonic lineage once,
         // then stop verification-generated files from impersonating a fix.
@@ -291,7 +291,7 @@ export class ProgressiveExecutionRuntime {
       );
       this.state.targetedRepairInspectionAllowance = Math.max(
         this.state.targetedRepairInspectionAllowance,
-        continuityTargetedReserveVersion >= 1
+        continuityTargetedReserveVersion >= 2
           ? nonnegativeInteger(continuity.targetedRepairInspectionAllowance)
           : boundedInteger(
             this.constraints.targeted_repair_inspection_limit,
@@ -301,7 +301,7 @@ export class ProgressiveExecutionRuntime {
           ),
       );
     }
-    this.state.targetedRepairReserveVersion = 1;
+    this.state.targetedRepairReserveVersion = 2;
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
     // delivery obligation merely because it persisted `false`.
