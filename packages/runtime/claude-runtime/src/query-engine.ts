@@ -71,6 +71,9 @@ const DEFAULT_CONFIG: RuntimeConfig = {
   controlCommands: [],
 };
 
+const CONTRACT_PARITY_REPAIR_GUIDANCE =
+  "For contract, security, or cross-language failures, map each public contract clause to every enforcement path and compare actual predicates clause-by-clause; verify every qualifier (such as tenant, operation kind, approval, role, and state) is enforced, because matching comments or constants do not prove semantic parity.";
+
 // Runtime events remain in the event/journal evidence, but only semantic
 // recovery boundaries warrant serializing the complete durable session. A
 // long-running session can grow to tens of megabytes; checkpointing every
@@ -1384,6 +1387,7 @@ export class ClaudeRuntimeCore {
               output: {
                 guidance: [
                   "Make a targeted source or configuration repair before rerunning this same failed scope.",
+                  CONTRACT_PARITY_REPAIR_GUIDANCE,
                   "Build and service lifecycle commands remain available when needed to deploy that repair.",
                   "A repeated run on unchanged implementation bytes cannot provide new evidence or reopen diagnostics.",
                 ],
@@ -1414,6 +1418,7 @@ export class ClaudeRuntimeCore {
               output: {
                 guidance: [
                   "Use the source and contract evidence already gathered to make the next business-implementation repair.",
+                  CONTRACT_PARITY_REPAIR_GUIDANCE,
                   "Do not replace the named failing suite with more self-authored smoke, E2E, simulation, or unrelated green checks.",
                   "Build and service lifecycle commands remain available; after the repair, rerun the original failing verification scope.",
                 ],
@@ -2536,6 +2541,7 @@ export class ClaudeRuntimeCore {
                 "When the debt names an earlier failed semantic scope, rerun that same scope; passing unrelated suites cannot settle it.",
                 "File existence, JSON parsing, hashes, git status, report text, and merely reading test source are not behavioral verification.",
                 "While behavioral verification remains failed, do not regenerate submission/evidence/reports or edit their generators as a substitute for repairing the public-contract or business implementation.",
+                CONTRACT_PARITY_REPAIR_GUIDANCE,
                 "If verification fails, use its concrete evidence to fix the cause and rerun it.",
               ].join(" "),
             },
@@ -2872,6 +2878,7 @@ export function preDeliveryInspectionGuidance(
     "Use the concrete evidence already gathered and make the next workspace edit.",
     "A build, test, or real service command is also allowed when it directly drives that edit.",
     "Opaque test labels are not a reason to search private test infrastructure; inspect the public contract and a concrete implementation file instead.",
+    CONTRACT_PARITY_REPAIR_GUIDANCE,
   ];
   if (targetedRepairInspectionsRemaining > 0) {
     guidance.push(

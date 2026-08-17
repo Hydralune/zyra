@@ -4342,6 +4342,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
     preDeliveryInspectionGuidance(6).join(" "),
     /6 named source reads remain: use read or file_read/,
   );
+  assert.match(
+    preDeliveryInspectionGuidance(6).join(" "),
+    /compare actual predicates clause-by-clause; verify every qualifier/,
+  );
   assert.doesNotMatch(
     preDeliveryInspectionGuidance(0).join(" "),
     /named source reads remain/,
