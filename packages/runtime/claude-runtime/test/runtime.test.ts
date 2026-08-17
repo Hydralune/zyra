@@ -4415,9 +4415,15 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "evidence/test-farm/latest.json" } }, true), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "read", arguments: { path: ".runtime/venv/lib/source.py" } }, true), false);
   assert.equal(isTargetedRepairInspection(shell("cat services/worker/state_machine.py"), false), false);
+  assert.equal(isTargetedRepairInspection(shell("docker compose exec -T postgres psql -U app -d aurorafleet -c '\\d outbox_events'"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("docker exec postgres psql -Atc 'SELECT column_name FROM information_schema.columns WHERE table_name = ''outbox_events'''"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("docker compose logs --tail=120 control-api"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("docker compose logs --tail=120 control-api | grep ERROR"), false), false);
+  assert.equal(isTargetedRepairInspection(shell("docker exec postgres psql -c 'ALTER TABLE outbox_events ADD COLUMN tenant_id text'"), false), false);
+  assert.equal(isTargetedRepairInspection(shell("docker exec postgres psql --file migrations/003.sql"), false), false);
   assert.match(
     preDeliveryInspectionGuidance(6).join(" "),
-    /6 named source reads remain: use read or file_read/,
+    /6 targeted diagnostics remain: use read or file_read/,
   );
   assert.match(
     preDeliveryInspectionGuidance(6).join(" "),
@@ -4425,7 +4431,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   );
   assert.doesNotMatch(
     preDeliveryInspectionGuidance(0).join(" "),
-    /named source reads remain/,
+    /targeted diagnostics remain/,
   );
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), false);

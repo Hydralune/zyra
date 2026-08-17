@@ -2856,6 +2856,9 @@ export function isTargetedRepairInspection(
   step: { tool_name: string; arguments: JsonObject },
   readOnly: boolean,
 ): boolean {
+  if (step.tool_name === "shell") {
+    return isBoundedTargetedShellInspection(shellInvocationText(step.arguments));
+  }
   if (!readOnly || !["read", "file_read"].includes(step.tool_name)) return false;
   const path = asString(step.arguments.path || step.arguments.file_path)
     .trim()
@@ -2871,6 +2874,35 @@ export function isTargetedRepairInspection(
   return /\.[a-z0-9][a-z0-9._-]{0,15}$/iu.test(basename);
 }
 
+function isBoundedTargetedShellInspection(command: string): boolean {
+  const normalized = command.trim().replace(/\s+/gu, " ");
+  if (!normalized || normalized.length > 2_000) return false;
+  if (isClearlyDeliveryDrivingShellCommand(normalized)) return false;
+  if (shellMutationTargets(normalized).length > 0) return false;
+
+  // A database exception often names the failing column but not the actual
+  // deployed schema. Let a bounded psql description or SELECT consume the
+  // same repair reserve as a named source read. State-changing SQL, SQL files,
+  // and unbounded interactive clients remain outside this path.
+  if (/\bpsql\b/iu.test(normalized)) {
+    if (!/(?:\s-[a-z]*c(?:=|\s)|\s--command(?:=|\s))/iu.test(normalized)) return false;
+    if (/\\(?:i|include|ir|include_relative|copy|gexec|watch)\b/iu.test(normalized)) {
+      return false;
+    }
+    return /(?:\\d(?:[a-z+stvx]*)?\b|\bselect\b|\bshow\b|\binformation_schema\b|\bpg_catalog\b)/iu.test(normalized);
+  }
+
+  // Exact, bounded service logs are useful immediately after a concrete
+  // runtime failure. Repository-wide searches and pipelines still use the
+  // ordinary diagnostic allowance.
+  if (/\bdocker(?:\.exe)?\s+(?:compose\s+)?logs\b/iu.test(normalized)) {
+    return /(?:--tail(?:=|\s+)\d+|\s-tail\s+\d+)\b/iu.test(normalized)
+      && !/[|;&]/u.test(normalized);
+  }
+
+  return false;
+}
+
 export function preDeliveryInspectionGuidance(
   targetedRepairInspectionsRemaining: number,
 ): string[] {
@@ -2882,7 +2914,7 @@ export function preDeliveryInspectionGuidance(
   ];
   if (targetedRepairInspectionsRemaining > 0) {
     guidance.push(
-      `${targetedRepairInspectionsRemaining} named source reads remain: use read or file_read with an exact implementation or contract file path; shell cat, type, or Get-Content remains broad inspection and will be blocked.`,
+      `${targetedRepairInspectionsRemaining} targeted diagnostics remain: use read or file_read with an exact implementation or contract file path; after a concrete database or service failure, a bounded read-only psql schema query or exact tailed service log is also allowed. Broad searches and shell cat, type, or Get-Content remain blocked.`,
     );
   }
   guidance.push(
