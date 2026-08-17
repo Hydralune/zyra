@@ -257,6 +257,8 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "realActionCount",
         "workspaceMutationCount",
         "verificationCount",
+        "unresolvedVerificationScopes",
+        "unresolvedVerificationFailures",
         "verificationNudgeCount",
         "lastVerificationNudgeProviderRound",
         "artifactCount",
@@ -411,8 +413,17 @@ def _execution_continuity_progress(
     excluded by the bounded handoff projection.
     """
 
+    verification_debt: tuple[list[Any], list[Any]] | None = None
     for projection in projections:
         progress = dict(projection.get("progress") or {})
+        if verification_debt is None and (
+            isinstance(progress.get("unresolvedVerificationScopes"), list)
+            or isinstance(progress.get("unresolvedVerificationFailures"), list)
+        ):
+            verification_debt = (
+                list(progress.get("unresolvedVerificationScopes") or ())[:32],
+                list(progress.get("unresolvedVerificationFailures") or ())[:32],
+            )
         delivered = (
             _nonnegative_count(progress.get("workspaceMutationCount")) > 0
             or _nonnegative_count(progress.get("artifactCount")) > 0
@@ -436,6 +447,12 @@ def _execution_continuity_progress(
         ):
             if progress.get(field) is not None:
                 continuity[field] = _nonnegative_count(progress.get(field))
+        if verification_debt is not None:
+            scopes, failures = verification_debt
+            continuity["unresolvedVerificationScopes"] = scopes
+            continuity["unresolvedVerificationFailures"] = failures
+            if scopes or failures:
+                continuity["verificationCount"] = 0
         return continuity
     return {}
 
@@ -547,6 +564,32 @@ def load_task_handoff_projection(
             ]
             if values:
                 newest_progress[field] = max(_nonnegative_count(value) for value in values)
+        debt_progress = next(
+            (
+                dict(item.get("progress") or {})
+                for item in matched_sidecars
+                if isinstance(
+                    dict(item.get("progress") or {}).get(
+                        "unresolvedVerificationScopes"
+                    ),
+                    list,
+                )
+                or isinstance(
+                    dict(item.get("progress") or {}).get(
+                        "unresolvedVerificationFailures"
+                    ),
+                    list,
+                )
+            ),
+            None,
+        )
+        if debt_progress is not None:
+            scopes = list(debt_progress.get("unresolvedVerificationScopes") or ())[:32]
+            failures = list(debt_progress.get("unresolvedVerificationFailures") or ())[:32]
+            newest_progress["unresolvedVerificationScopes"] = scopes
+            newest_progress["unresolvedVerificationFailures"] = failures
+            if scopes or failures:
+                newest_progress["verificationCount"] = 0
         newest["progress"] = newest_progress
         newest["latest_compact_summary"] = next(
             (

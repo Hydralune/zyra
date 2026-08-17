@@ -889,7 +889,18 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
             "progressiveExecution": {
                 "providerRounds": 19,
                 "workspaceMutationCount": 4,
-                "verificationCount": 2,
+                "verificationCount": 0,
+                "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+                "unresolvedVerificationFailures": [
+                    {
+                        "scope": "shell:afctl:test:integration",
+                        "failedChecks": ["security", "state", "cross-language"],
+                        "failedCount": 3,
+                        "failureKind": "reported_checks",
+                        "attemptCount": 2,
+                        "lastObservedWorkspaceMutationCount": 4,
+                    }
+                ],
                 "preDeliveryObservationCount": 13,
                 "consecutivePreDeliveryObservations": 7,
                 "actionNudgeCount": 3,
@@ -943,6 +954,9 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
         "host_checkpoint_commit_id"
     ]
     assert handoff["progress"]["workspaceMutationCount"] == 4
+    assert handoff["progress"]["unresolvedVerificationScopes"] == [
+        "shell:afctl:test:integration"
+    ]
     assert handoff["progress"]["actionNudgeCount"] == 3
     assert handoff["progress"]["lastActionNudgeProviderRound"] == 18
     assert handoff["inspection_continuity"] == {}
@@ -950,7 +964,18 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
         "requiredDeliveryMissing": False,
         "providerRounds": 19,
         "workspaceMutationCount": 4,
-        "verificationCount": 2,
+        "verificationCount": 0,
+        "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+        "unresolvedVerificationFailures": [
+            {
+                "scope": "shell:afctl:test:integration",
+                "failedChecks": ["security", "state", "cross-language"],
+                "failedCount": 3,
+                "failureKind": "reported_checks",
+                "attemptCount": 2,
+                "lastObservedWorkspaceMutationCount": 4,
+            }
+        ],
     }
     assert handoff["recent_reasoning"][-1]["text"].endswith("full stack.")
     assert handoff["authority_transfer"] is False
@@ -1034,6 +1059,17 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
                     "providerRounds": 2,
                     "workspaceMutationCount": 0,
                     "verificationCount": 0,
+                    "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+                    "unresolvedVerificationFailures": [
+                        {
+                            "scope": "shell:afctl:test:integration",
+                            "failedChecks": ["security"],
+                            "failedCount": 1,
+                            "failureKind": "reported_checks",
+                            "attemptCount": 1,
+                            "lastObservedWorkspaceMutationCount": 3,
+                        }
+                    ],
                     "requiredDeliveryMissing": True,
                     "actionNudgeCount": 1,
                 },
@@ -1066,14 +1102,28 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
         "compaction_count": 1,
     }
     assert handoff["progress"]["workspaceMutationCount"] == 4
-    assert handoff["progress"]["verificationCount"] == 8
+    assert handoff["progress"]["verificationCount"] == 0
+    assert handoff["progress"]["unresolvedVerificationScopes"] == [
+        "shell:afctl:test:integration"
+    ]
     assert handoff["inspection_continuity"]["requiredDeliveryMissing"] is True
     assert handoff["inspection_continuity"]["actionNudgeCount"] == 1
     assert handoff["execution_continuity"] == {
         "requiredDeliveryMissing": False,
         "providerRounds": 18,
         "workspaceMutationCount": 4,
-        "verificationCount": 8,
+        "verificationCount": 0,
+        "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+        "unresolvedVerificationFailures": [
+            {
+                "scope": "shell:afctl:test:integration",
+                "failedChecks": ["security"],
+                "failedCount": 1,
+                "failureKind": "reported_checks",
+                "attemptCount": 1,
+                "lastObservedWorkspaceMutationCount": 3,
+            }
+        ],
         "noDeliveryObservationCount": 24,
         "consecutiveNoDeliveryObservations": 24,
         "postDeliveryActionNudgeCount": 3,
@@ -1190,6 +1240,17 @@ def test_cross_session_handoff_preserves_unverified_delivery_debt(
                     "realActionCount": 9,
                     "workspaceMutationCount": 3,
                     "verificationCount": 0,
+                    "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+                    "unresolvedVerificationFailures": [
+                        {
+                            "scope": "shell:afctl:test:integration",
+                            "failedChecks": ["security"],
+                            "failedCount": 1,
+                            "failureKind": "reported_checks",
+                            "attemptCount": 1,
+                            "lastObservedWorkspaceMutationCount": 3,
+                        }
+                    ],
                     "verificationNudgeCount": 1,
                     "lastVerificationNudgeProviderRound": 12,
                     "artifactCount": 0,
@@ -1232,6 +1293,17 @@ def test_cross_session_handoff_preserves_unverified_delivery_debt(
         "realActionCount": 9,
         "workspaceMutationCount": 3,
         "verificationCount": 0,
+        "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
+        "unresolvedVerificationFailures": [
+            {
+                "scope": "shell:afctl:test:integration",
+                "failedChecks": ["security"],
+                "failedCount": 1,
+                "failureKind": "reported_checks",
+                "attemptCount": 1,
+                "lastObservedWorkspaceMutationCount": 3,
+            }
+        ],
         "verificationNudgeCount": 1,
         "lastVerificationNudgeProviderRound": 12,
         "artifactCount": 0,

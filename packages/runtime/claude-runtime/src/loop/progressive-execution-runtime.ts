@@ -13,6 +13,15 @@ export type ExecutionPhase =
   | "validation"
   | "closeout";
 
+export interface UnresolvedVerificationFailure {
+  scope: string;
+  failedChecks: string[];
+  failedCount: number | null;
+  failureKind: "reported_checks" | "reported_failure" | "nonzero_exit" | "transport_failure";
+  attemptCount: number;
+  lastObservedWorkspaceMutationCount: number;
+}
+
 export interface ProgressiveExecutionSnapshot {
   version: typeof PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION;
   phase: ExecutionPhase;
@@ -26,6 +35,7 @@ export interface ProgressiveExecutionSnapshot {
   workspaceMutationCount: number;
   verificationCount: number;
   unresolvedVerificationScopes: string[];
+  unresolvedVerificationFailures: UnresolvedVerificationFailure[];
   verificationNudgeCount: number;
   lastVerificationNudgeProviderRound: number;
   preDeliveryObservationCount: number;
@@ -101,6 +111,7 @@ export class ProgressiveExecutionRuntime {
         workspaceMutationCount: 0,
         verificationCount: 0,
         unresolvedVerificationScopes: [],
+        unresolvedVerificationFailures: [],
         verificationNudgeCount: 0,
         lastVerificationNudgeProviderRound: 0,
         preDeliveryObservationCount: 0,
@@ -156,6 +167,9 @@ export class ProgressiveExecutionRuntime {
         unresolvedVerificationScopes: Array.isArray(restored.unresolvedVerificationScopes)
           ? [...new Set(restored.unresolvedVerificationScopes.map(String).filter(Boolean))].slice(-32)
           : [],
+        unresolvedVerificationFailures: restoreVerificationFailures(
+          restored.unresolvedVerificationFailures,
+        ),
         lastVerificationNudgeProviderRound: nonnegativeInteger(
           restored.lastVerificationNudgeProviderRound,
         ),
@@ -213,6 +227,24 @@ export class ProgressiveExecutionRuntime {
           nonnegativeInteger(continuity[field]),
         );
       }
+    }
+    const continuityScopes = Array.isArray(continuity.unresolvedVerificationScopes)
+      ? continuity.unresolvedVerificationScopes.map(String).filter(Boolean)
+      : [];
+    const continuityFailures = restoreVerificationFailures(
+      continuity.unresolvedVerificationFailures,
+    );
+    if (continuityScopes.length > 0 || continuityFailures.length > 0) {
+      this.state.unresolvedVerificationScopes = [...new Set([
+        ...this.state.unresolvedVerificationScopes,
+        ...continuityScopes,
+        ...continuityFailures.map((failure) => failure.scope),
+      ])].slice(-32);
+      this.state.unresolvedVerificationFailures = mergeVerificationFailures(
+        this.state.unresolvedVerificationFailures,
+        continuityFailures,
+      );
+      this.state.verificationCount = 0;
     }
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
@@ -329,6 +361,8 @@ export class ProgressiveExecutionRuntime {
       if (verificationScope) {
         this.state.unresolvedVerificationScopes = this.state.unresolvedVerificationScopes
           .filter((scope) => scope !== verificationScope);
+        this.state.unresolvedVerificationFailures = this.state.unresolvedVerificationFailures
+          .filter((failure) => failure.scope !== verificationScope);
       }
       if (this.state.unresolvedVerificationScopes.length > 0) {
         this.state.verificationCount = 0;
@@ -338,6 +372,7 @@ export class ProgressiveExecutionRuntime {
         this.state.consecutiveNoDeliveryObservations = 0;
         this.state.lastActionNudgeNoDeliveryObservationCount = 0;
         this.state.postDeliveryActionNudgeCount = 0;
+        this.state.recoveryInspectionAllowance = 0;
         this.progress("post_delivery_verification_passed");
       } else {
         // A successful check only creates effective progress when it settles
@@ -366,17 +401,37 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationScopes.push(verificationScope);
         this.state.unresolvedVerificationScopes = this.state.unresolvedVerificationScopes.slice(-32);
       }
+      const existingFailure = this.state.unresolvedVerificationFailures
+        .find((failure) => failure.scope === verificationScope);
+      const workspaceChangedSinceFailure = existingFailure === undefined
+        || existingFailure.lastObservedWorkspaceMutationCount !== this.state.workspaceMutationCount;
+      if (verificationScope) {
+        const observedFailure = verificationFailure(
+          verificationScope,
+          response,
+          this.state.workspaceMutationCount,
+          existingFailure,
+        );
+        this.state.unresolvedVerificationFailures = mergeVerificationFailures(
+          this.state.unresolvedVerificationFailures,
+          [observedFailure],
+        );
+      }
       this.state.verificationNudgeCount = 0;
       this.state.lastVerificationNudgeProviderRound = 0;
-      this.state.recoveryInspectionAllowance = Math.max(
-        this.state.recoveryInspectionAllowance,
-        boundedInteger(
-          this.constraints.post_verification_diagnostic_inspection_limit,
-          8,
-          2,
-          32,
-        ),
-      );
+      if (workspaceChangedSinceFailure) {
+        this.state.recoveryInspectionAllowance = Math.max(
+          this.state.recoveryInspectionAllowance,
+          boundedInteger(
+            this.constraints.post_verification_diagnostic_inspection_limit,
+            4,
+            2,
+            32,
+          ),
+        );
+      } else {
+        this.record("post_delivery_verification_repeated_without_workspace_change");
+      }
       this.record("post_delivery_verification_failed");
     }
     if (backgroundRunning && request.toolName !== "shell_wait") {
@@ -491,7 +546,7 @@ export class ProgressiveExecutionRuntime {
       return this.decision(
         "nudge_verification",
         this.state.unresolvedVerificationScopes.length > 0
-          ? `${this.state.unresolvedVerificationScopes.length} earlier failed verification scope(s) remain unresolved; rerun and pass the same failed suites`
+          ? verificationDebtReason(this.state)
           : "the latest delivered workspace state has no successful behavioral verification evidence",
         remainingMilliseconds,
         contextRemainingCharacters,
@@ -619,6 +674,114 @@ export class ProgressiveExecutionRuntime {
       snapshot: this.snapshot(),
     };
   }
+}
+
+function restoreVerificationFailures(value: unknown): UnresolvedVerificationFailure[] {
+  if (!Array.isArray(value)) return [];
+  const restored: UnresolvedVerificationFailure[] = [];
+  for (const item of value) {
+    const failure = asObject(item);
+    const scope = String(failure.scope ?? "").trim();
+    if (!scope) continue;
+    const kind = String(failure.failureKind ?? "reported_failure");
+    restored.push({
+      scope,
+      failedChecks: Array.isArray(failure.failedChecks)
+        ? [...new Set(failure.failedChecks.map(String).map(safeCheckName).filter(Boolean))].slice(0, 12)
+        : [],
+      failedCount: failure.failedCount === null || failure.failedCount === undefined
+        ? null
+        : nonnegativeInteger(failure.failedCount),
+      failureKind: [
+        "reported_checks",
+        "reported_failure",
+        "nonzero_exit",
+        "transport_failure",
+      ].includes(kind)
+        ? kind as UnresolvedVerificationFailure["failureKind"]
+        : "reported_failure",
+      attemptCount: Math.max(1, nonnegativeInteger(failure.attemptCount)),
+      lastObservedWorkspaceMutationCount: nonnegativeInteger(
+        failure.lastObservedWorkspaceMutationCount,
+      ),
+    });
+  }
+  return mergeVerificationFailures([], restored);
+}
+
+function mergeVerificationFailures(
+  current: readonly UnresolvedVerificationFailure[],
+  incoming: readonly UnresolvedVerificationFailure[],
+): UnresolvedVerificationFailure[] {
+  const merged = new Map<string, UnresolvedVerificationFailure>();
+  for (const failure of [...current, ...incoming]) {
+    merged.delete(failure.scope);
+    merged.set(failure.scope, structuredClone(failure));
+  }
+  return [...merged.values()].slice(-32);
+}
+
+function verificationFailure(
+  scope: string,
+  response: ToolExecutionResponse,
+  workspaceMutationCount: number,
+  existing?: UnresolvedVerificationFailure,
+): UnresolvedVerificationFailure {
+  const text = [response.output.stdout, response.output.stderr, response.summary]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  const failedChecks = new Set<string>();
+  for (const match of text.matchAll(
+    /["']?failed_(?:shards|tests|checks)["']?\s*:\s*\[([^\]]*)\]/giu,
+  )) {
+    for (const item of match[1].matchAll(/["']([^"']+)["']/gu)) {
+      const selected = safeCheckName(item[1]);
+      if (selected) failedChecks.add(selected);
+    }
+  }
+  const countMatch = text.match(/["']?failed["']?\s*:\s*([1-9]\d*)/iu)
+    ?? text.match(/\b([1-9]\d*)\s+failed\b/iu);
+  const rawReturnCode = response.output.return_code
+    ?? response.output.exit_code
+    ?? response.metadata.return_code
+    ?? response.metadata.exit_code;
+  const returnCode = rawReturnCode === undefined || rawReturnCode === null
+    ? 0
+    : Number(rawReturnCode);
+  const failureKind: UnresolvedVerificationFailure["failureKind"] = !response.ok
+    ? "transport_failure"
+    : Number.isFinite(returnCode) && returnCode !== 0
+      ? "nonzero_exit"
+      : failedChecks.size > 0
+        ? "reported_checks"
+        : "reported_failure";
+  return {
+    scope,
+    failedChecks: [...failedChecks].slice(0, 12),
+    failedCount: countMatch ? Number(countMatch[1]) : null,
+    failureKind,
+    attemptCount: (existing?.attemptCount ?? 0) + 1,
+    lastObservedWorkspaceMutationCount: workspaceMutationCount,
+  };
+}
+
+function safeCheckName(value: string): string {
+  return value.trim().replace(/[^a-z0-9._:/-]+/giu, "-").replace(/^-+|-+$/gu, "").slice(0, 120);
+}
+
+function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
+  const details = state.unresolvedVerificationFailures
+    .slice(-4)
+    .map((failure) => {
+      const checks = failure.failedChecks.length > 0
+        ? ` failed checks=${failure.failedChecks.join(",")}`
+        : failure.failedCount !== null
+          ? ` failed count=${failure.failedCount}`
+          : ` failure=${failure.failureKind}`;
+      return `${failure.scope}${checks}`;
+    });
+  const suffix = details.length > 0 ? `: ${details.join("; ")}` : "";
+  return `${state.unresolvedVerificationScopes.length} earlier failed verification scope(s) remain unresolved${suffix}; make a targeted fix, then rerun the same semantic suites`;
 }
 
 function finitePositive(value: unknown): number | null {

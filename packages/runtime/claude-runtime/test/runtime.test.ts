@@ -3106,7 +3106,7 @@ test("progressive execution does not accept a zero-exit failed verification repo
   const failed = progressive.snapshot();
   assert.equal(failed.verificationCount, 0);
   assert.equal(failed.verificationNudgeCount, 0);
-  assert.equal(failed.recoveryInspectionAllowance, 8);
+  assert.equal(failed.recoveryInspectionAllowance, 4);
   assert.equal(failed.postDeliveryActionNudgeCount, 1);
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
@@ -3162,6 +3162,14 @@ test("a passing verification cannot erase debt from a different failed scope", (
     '{"status":"failed","failed_shards":["opaque-a"]}',
   );
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, ["integration-suite"]);
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationFailures, [{
+    scope: "integration-suite",
+    failedChecks: ["opaque-a"],
+    failedCount: null,
+    failureKind: "reported_checks",
+    attemptCount: 1,
+    lastObservedWorkspaceMutationCount: 1,
+  }]);
 
   observe(scopedRequest("public-passed", "public-suite"), "140 passed in 12.0s");
   const stillFailed = progressive.snapshot();
@@ -3173,6 +3181,7 @@ test("a passing verification cannot erase debt from a different failed scope", (
   const settled = progressive.snapshot();
   assert.equal(settled.verificationCount, 1);
   assert.deepEqual(settled.unresolvedVerificationScopes, []);
+  assert.deepEqual(settled.unresolvedVerificationFailures, []);
 
   observe(
     scopedRequest("integration-physical-failure", "integration-suite"),
@@ -3181,6 +3190,112 @@ test("a passing verification cannot erase debt from a different failed scope", (
   );
   assert.equal(progressive.snapshot().verificationCount, 0);
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, ["integration-suite"]);
+});
+
+test("repeating the same failed verification without an edit does not refill diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "integration-failed",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-failed",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:test:integration",
+    },
+  };
+  const failedResponse: ToolExecutionResponse = {
+    tool_call_id: verification.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '{"status":"failed","counts":{"passed":7,"failed":3},"failed_shards":["security","state","cross-language"]}',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  };
+
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  progressive.observeToolResult(verification, failedResponse, false);
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 4);
+  for (let index = 0; index < 4; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+  progressive.observeToolResult(
+    { ...verification, toolCallId: "integration-same-bytes" },
+    { ...failedResponse, tool_call_id: "integration-same-bytes" },
+    false,
+  );
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 0);
+  assert.equal(progressive.snapshot().unresolvedVerificationFailures[0].attemptCount, 2);
+
+  progressive.observeToolResult({
+    ...verification,
+    toolCallId: "targeted-edit",
+    toolName: "write",
+    arguments: { path: "src/fix.ts", content: "fixed" },
+    metadata: {},
+  }, {
+    tool_call_id: "targeted-edit",
+    ok: true,
+    summary: "updated",
+    output: {},
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+  progressive.observeToolResult(
+    { ...verification, toolCallId: "integration-after-edit" },
+    { ...failedResponse, tool_call_id: "integration-after-edit" },
+    false,
+  );
+  const afterEdit = progressive.snapshot();
+  assert.equal(afterEdit.recoveryInspectionAllowance, 4);
+  assert.equal(afterEdit.unresolvedVerificationFailures[0].attemptCount, 3);
+  assert.equal(afterEdit.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 2);
+});
+
+test("structured verification debt survives a fenced execution continuation", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 7,
+      verificationCount: 4,
+      unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:test:integration",
+        failedChecks: ["security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 3,
+        lastObservedWorkspaceMutationCount: 7,
+      }],
+    },
+  });
+
+  const restored = progressive.snapshot();
+  assert.equal(restored.verificationCount, 0);
+  assert.deepEqual(restored.unresolvedVerificationScopes, ["shell:afctl:test:integration"]);
+  assert.deepEqual(restored.unresolvedVerificationFailures[0].failedChecks, [
+    "security",
+    "cross-language",
+  ]);
+  const decision = progressive.decide(1_000, 10_000);
+  assert.equal(decision.action, "nudge_verification");
+  assert.match(decision.reason, /security,cross-language/);
 });
 
 test("progressive execution rejects a zero-exit verification traceback", () => {
@@ -3639,9 +3754,31 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python -c \"import json; json.load(open('submission/manifest.json'))\"")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("cat tests/public/test_metrics.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("sed -n '1,200p' /workspace/tests/integration/test_release.py")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("grep -n 'pytest|failed_shards|test integration' tools/afctl.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("./scripts/verify-release.sh --all")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("/workspace/tools/integration-check.py --live")), true);
   assert.equal(isClearlyVerificationDrivingTool({ tool_name: "read", arguments: { path: "test.log" } }), false);
+});
+
+test("verification scopes remain stable across diagnostic wrappers", () => {
+  const scope = (command: string) => verificationScopeForTool({
+    tool_name: "shell",
+    arguments: { command },
+  });
+  const integrationCommands = [
+    "python tools/afctl.py test integration",
+    "timeout 400 python tools/afctl.py test integration 2>&1 | tail -40",
+    "cd /workspace && .runtime/venv/bin/python tools/afctl.py test integration > /tmp/integration-9.log; grep failed /tmp/integration-9.log",
+  ];
+  assert.deepEqual(
+    integrationCommands.map(scope),
+    integrationCommands.map(() => "shell:afctl:test:integration"),
+  );
+  assert.equal(scope("python tools/afctl.py test public"), "shell:afctl:test:public");
+  assert.equal(scope("timeout 300 python tools/afctl.py build 2>&1 | tail -5"), "shell:afctl:build");
+  assert.equal(scope("python tools/afctl.py simulate > /tmp/sim.log"), "shell:afctl:simulate");
+  assert.equal(scope("npm run test -- --runInBand"), "shell:npm:test");
+  assert.notEqual(scope("python tools/afctl.py test public"), scope(integrationCommands[0]));
 });
 
 test("query engine propagates background verification lineage to shell_wait", () => {

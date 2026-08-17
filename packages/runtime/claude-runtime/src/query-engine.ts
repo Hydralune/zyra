@@ -685,6 +685,7 @@ export class ClaudeRuntimeCore {
               role: "user",
               content: [
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
+                `Outstanding verification debt: ${progressDecision.reason}.`,
                 "Before finalizing, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
                 "File existence, JSON parsing, hashes, git status, and report text are not behavioral verification.",
                 "If verification fails, fix the cause and rerun it; if it cannot run, gather the concrete failure evidence and report that honestly.",
@@ -2383,6 +2384,7 @@ export class ClaudeRuntimeCore {
               role: "user",
               content: [
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
+                `Outstanding verification debt: ${postToolProgressDecision.reason}.`,
                 "Before continuing broad inspection, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
                 "File existence, JSON parsing, hashes, git status, report text, and merely reading test source are not behavioral verification.",
                 "If verification fails, use its concrete evidence to fix the cause and rerun it.",
@@ -2805,7 +2807,48 @@ function verificationScope(value: string): string {
     .replace(/\b[0-9a-f]{16,}\b/giu, "<digest>")
     .replace(/\s+/g, " ")
     .trim();
+  const semanticScope = semanticVerificationScope(normalized);
+  if (semanticScope) return semanticScope;
   return normalized ? `shell:${createHash("sha256").update(normalized).digest("hex").slice(0, 24)}` : "";
+}
+
+function semanticVerificationScope(value: string): string {
+  // Test runners are frequently wrapped in timeouts, log redirections, tail,
+  // grep, and changing temporary filenames.  Hashing the whole command makes
+  // every such rerun look like an independent obligation, so a green rerun
+  // can never settle the earlier failed suite.  Prefer a stable entry-point
+  // identity and retain the hash fallback for commands we cannot classify.
+  const afctlScopes = new Set<string>();
+  for (const match of value.matchAll(
+    /(?:^|\s)(?:\S*\/)?afctl\.py\s+(test\s+[a-z0-9_-]+|build|simulate)(?=\s|$)/giu,
+  )) {
+    afctlScopes.add(match[1].trim().replace(/\s+/g, ":"));
+  }
+  if (afctlScopes.size > 0) {
+    return `shell:afctl:${[...afctlScopes].sort().join("+")}`;
+  }
+
+  const pytestTargets = new Set<string>();
+  for (const match of value.matchAll(
+    /(?:^|\s)(?:python(?:3)?\s+-m\s+)?(?:pytest|py\.test)\b([^;&|\r\n]*)/giu,
+  )) {
+    const target = match[1]
+      .trim()
+      .split(/\s+/)
+      .find((item) => !item.startsWith("-") && /(?:^|\/)tests?(?:\/|$)/u.test(item));
+    pytestTargets.add(target?.replace(/["']/g, "") ?? "all");
+  }
+  if (pytestTargets.size > 0) {
+    return `shell:pytest:${[...pytestTargets].sort().join("+")}`;
+  }
+
+  const packageScript = value.match(
+    /(?:^|\s)(npm|pnpm|yarn|bun)\s+(?:run\s+)?(test(?::[a-z0-9_-]+)?|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)(?=\s|$)/iu,
+  );
+  if (packageScript) {
+    return `shell:${packageScript[1]}:${packageScript[2]}`;
+  }
+  return "";
 }
 
 function isClearlyVerificationDrivingShellCommand(value: string): boolean {
@@ -2814,6 +2857,7 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     .map((segment) => segment.trim().replace(/\s+/g, " "))
     .filter(Boolean);
   return segments.some((segment) => {
+    if (/^(?:cat|grep|rg|sed\s+-n|head|tail|find|ls|tree|type|select-string)\b/i.test(segment)) return false;
     if (/\bpython(?:3)?\b[^;&|]*\s-(?:c|e)\b/i.test(segment)) return false;
     if (/\bpython(?:3)?\s+-m\s+(?:pytest|unittest|compileall)\b/i.test(segment)) return true;
     if (/\b(?:pytest|py\.test)\b/i.test(segment)) return true;
