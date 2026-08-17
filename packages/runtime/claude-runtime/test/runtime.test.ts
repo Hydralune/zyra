@@ -4267,6 +4267,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("cat src/app.ts && git diff --stat"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("find src -type f | xargs grep -n TODO 2>/dev/null | head"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose ps && docker compose config --services"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker compose logs --tail=120 worker 2>&1 | tail -120"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker logs worker --tail 100 2>&1"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("python -c \"from pathlib import Path; print(Path('src/app.ts').read_text())\""), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("python - <<'PY'\nfrom pathlib import Path\nprint(Path('src/app.ts').read_text())\nPY"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("some-opaque-command --inspect src"), false), true);
@@ -4279,6 +4281,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; print(Path('src/app.ts').read_text())"]), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "cat /app/dist/worker.js"]), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "sed -i 's/a/b/' /app/config"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);

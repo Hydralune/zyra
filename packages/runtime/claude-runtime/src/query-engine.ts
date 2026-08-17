@@ -2919,7 +2919,7 @@ export function isGeneratedDeliveryInspection(
 function shellMutationTargets(command: string): string[] {
   const targets: string[] = [];
   const patterns = [
-    /(?:^|\s)(?:\d?>>|\d?>|&>)\s*["']?([^\s"';&|]+)/giu,
+    /(?:^|\s)(?:\d?>>|\d?>(?!&)|&>)\s*["']?([^\s"';&|]+)/giu,
     /\btee(?:\s+-a)?\s+["']?([^\s"';&|]+)/giu,
     /\bPath\(\s*["']([^"']+)["']\s*\)\.(?:write_text|write_bytes)\b/giu,
     /\bopen\(\s*["']([^"']+)["']\s*,\s*["'][wax+][^"']*["']/giu,
@@ -3160,7 +3160,7 @@ function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
   const normalized = command.replace(/\s+/g, " ");
 
   // Direct filesystem and source mutations.
-  if (/(?:^|\s)(?:\d?>>|\d?>|&>)(?!\s*(?:\/dev\/null|nul)\b)/i.test(normalized)) return true;
+  if (/(?:^|\s)(?:\d?>>|\d?>(?!&)|&>)(?!\s*(?:\/dev\/null|nul)\b)/i.test(normalized)) return true;
   if (/\b(?:apply_patch|patch|tee|touch|mkdir|rmdir|rm|mv|cp|install|chmod|chown)\b/i.test(normalized)) return true;
   if (/\b(?:sed|perl)\b[^;&|]*\s-i(?:\s|$)/i.test(normalized)) return true;
 
@@ -3182,7 +3182,10 @@ function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
 
   // VCS delivery, real services and explicit state-changing HTTP calls.
   if (/\bgit\s+(?:add|commit|checkout|switch|restore|reset|merge|rebase|apply|am|clean|push|pull|fetch)\b/i.test(normalized)) return true;
-  if (/\bdocker(?:\.exe)?\s+(?:run|exec|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(normalized)) return true;
+  // `docker exec` is only a transport wrapper. Its inner command is already
+  // classified by the mutation/build/test rules above; treating every exec
+  // as delivery lets `docker exec ... cat` bypass bounded inspection forever.
+  if (/\bdocker(?:\.exe)?\s+(?:run|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(normalized)) return true;
   if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bexec\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(normalized)) return true;
   if (/\b(?:systemctl|service)\s+(?:start|stop|restart|reload|enable|disable)\b/i.test(normalized)) return true;
   if (/\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b[^;&|]*(?:\s-X\s*(?:POST|PUT|PATCH|DELETE)\b|--request\s+(?:POST|PUT|PATCH|DELETE)\b|--data(?:-binary|-raw|-urlencode)?\b|-d\s)/i.test(normalized)) return true;
