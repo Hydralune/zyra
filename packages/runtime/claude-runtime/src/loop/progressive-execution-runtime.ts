@@ -715,6 +715,10 @@ export class ProgressiveExecutionRuntime {
       : this.state.postDeliveryActionNudgeCount >= maximumNudges;
   }
 
+  hasUnresolvedVerificationFailures(): boolean {
+    return this.state.unresolvedVerificationScopes.length > 0;
+  }
+
   backgroundShellSlotsRemaining(): number {
     const maximum = boundedInteger(
       this.constraints.maximum_active_background_shells,

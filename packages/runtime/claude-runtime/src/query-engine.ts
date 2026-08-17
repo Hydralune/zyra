@@ -687,7 +687,9 @@ export class ClaudeRuntimeCore {
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
                 `Outstanding verification debt: ${progressDecision.reason}.`,
                 "Before finalizing, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "When the debt names an earlier failed semantic scope, rerun that same scope; passing unrelated suites cannot settle it.",
                 "File existence, JSON parsing, hashes, git status, and report text are not behavioral verification.",
+                "While behavioral verification remains failed, do not regenerate submission/evidence/reports or edit their generators as a substitute for repairing the public-contract or business implementation.",
                 "If verification fails, fix the cause and rerun it; if it cannot run, gather the concrete failure evidence and report that honestly.",
               ].join(" "),
             },
@@ -1312,6 +1314,32 @@ export class ClaudeRuntimeCore {
               metadata: {
                 canonical_owner: "typescript",
                 background_reconciliation_required: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
+            progressive.hasUnresolvedVerificationFailures()
+            && isGeneratedDeliveryMutation(step)
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Behavioral verification is still failing; generated delivery evidence was not rewritten.",
+              output: {
+                guidance: [
+                  "Repair the public-contract or business implementation that can cause the outstanding semantic verification failure.",
+                  "Rerun the same failed verification scope after the repair; an unrelated green suite cannot settle this debt.",
+                  "Regenerate submission, evidence, manifests, and reports only after the behavioral failure is resolved.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "unresolved_verification_evidence_write_blocked",
+              metadata: {
+                canonical_owner: "typescript",
+                unresolved_verification_evidence_write_blocked: "true",
                 physical_effect_executed: "false",
                 model_recovery_allowed: "true",
                 termination: "exited",
@@ -2421,7 +2449,9 @@ export class ClaudeRuntimeCore {
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
                 `Outstanding verification debt: ${postToolProgressDecision.reason}.`,
                 "Before continuing broad inspection, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "When the debt names an earlier failed semantic scope, rerun that same scope; passing unrelated suites cannot settle it.",
                 "File existence, JSON parsing, hashes, git status, report text, and merely reading test source are not behavioral verification.",
+                "While behavioral verification remains failed, do not regenerate submission/evidence/reports or edit their generators as a substitute for repairing the public-contract or business implementation.",
                 "If verification fails, use its concrete evidence to fix the cause and rerun it.",
               ].join(" "),
             },
@@ -2771,6 +2801,19 @@ export function isClearlyRepairDrivingTool(
   // target; opaque commands remain delivery-driving without refilling the
   // failed-verification diagnostic circuit.
   return false;
+}
+
+export function isGeneratedDeliveryMutation(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  if (path) {
+    return ["write", "file_write", "edit", "file_edit"].includes(step.tool_name)
+      && isGeneratedDeliveryPath(path);
+  }
+  if (step.tool_name !== "shell") return false;
+  const targets = shellMutationTargets(shellInvocationText(step.arguments));
+  return targets.length > 0 && targets.every((target) => isGeneratedDeliveryPath(target));
 }
 
 function shellMutationTargets(command: string): string[] {

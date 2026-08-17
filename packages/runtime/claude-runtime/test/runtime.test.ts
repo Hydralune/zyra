@@ -27,6 +27,7 @@ import {
   e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
   isClearlyRepairDrivingTool,
+  isGeneratedDeliveryMutation,
   isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
@@ -4135,6 +4136,11 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyRepairDrivingTool(shell("sed -i 's/a/b/' services/worker/state.py")), true);
   assert.equal(isClearlyRepairDrivingTool(shell("docker compose up -d --build")), false);
   assert.equal(isClearlyRepairDrivingTool(shell("npm run build")), false);
+  assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), true);
+  assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_edit", arguments: { path: "evidence/test-farm/latest.json" } }), true);
+  assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), false);
+  assert.equal(isGeneratedDeliveryMutation(shell("cat result.json > evidence/test-farm/latest.json")), true);
+  assert.equal(isGeneratedDeliveryMutation(shell("cat result.json > submission/result.json && sed -i 's/a/b/' services/worker/state.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
