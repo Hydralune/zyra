@@ -3353,6 +3353,10 @@ test("repeating the same failed verification without an edit does not refill dia
   progressive.recordActionNudge();
   progressive.recordActionNudge();
   progressive.observeToolResult(verification, failedResponse, false);
+  assert.equal(
+    progressive.failedVerificationScopeAwaitingRepair("shell:afctl:test:integration"),
+    true,
+  );
   assert.equal(progressive.snapshot().recoveryInspectionAllowance, 8);
   for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
@@ -3379,6 +3383,10 @@ test("repeating the same failed verification without an edit does not refill dia
     artifacts: [],
     metadata: { workspace_mutation_committed: "true" },
   }, false);
+  assert.equal(
+    progressive.failedVerificationScopeAwaitingRepair("shell:afctl:test:integration"),
+    false,
+  );
   progressive.observeToolResult(
     { ...verification, toolCallId: "integration-after-edit" },
     { ...failedResponse, tool_call_id: "integration-after-edit" },
@@ -3388,6 +3396,10 @@ test("repeating the same failed verification without an edit does not refill dia
   assert.equal(afterEdit.recoveryInspectionAllowance, 8);
   assert.equal(afterEdit.unresolvedVerificationFailures[0].attemptCount, 3);
   assert.equal(afterEdit.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 2);
+  assert.equal(
+    progressive.failedVerificationScopeAwaitingRepair("shell:afctl:test:integration"),
+    true,
+  );
 });
 
 test("failed verification meters diagnostic inspection immediately", () => {

@@ -558,6 +558,7 @@ export class ProgressiveExecutionRuntime {
         !readOnly
         && String(response.metadata.pre_delivery_inspection_blocked ?? "false").toLowerCase() !== "true"
         && String(response.metadata.alternate_verification_blocked ?? "false").toLowerCase() !== "true"
+        && String(response.metadata.repeated_failed_verification_blocked ?? "false").toLowerCase() !== "true"
       ) {
         // A concrete edit/build/service attempt can fail because the target
         // changed or a path was wrong. Permit one bounded observation to
@@ -741,6 +742,16 @@ export class ProgressiveExecutionRuntime {
 
   hasUnresolvedVerificationFailures(): boolean {
     return this.state.unresolvedVerificationScopes.length > 0;
+  }
+
+  failedVerificationScopeAwaitingRepair(scope: string): boolean {
+    const normalized = scope.trim();
+    if (!normalized) return false;
+    const failure = this.state.unresolvedVerificationFailures.find(
+      (candidate) => candidate.scope === normalized,
+    );
+    return failure !== undefined
+      && failure.lastObservedWorkspaceMutationCount >= this.state.repairMutationCount;
   }
 
   backgroundShellSlotsRemaining(): number {

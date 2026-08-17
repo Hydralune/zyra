@@ -1372,6 +1372,33 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            progressive.failedVerificationScopeAwaitingRepair(
+              verificationScopeForTool(step),
+            )
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "This verification scope already failed on the current business implementation; it was not rerun without a repair.",
+              output: {
+                guidance: [
+                  "Make a targeted source or configuration repair before rerunning this same failed scope.",
+                  "Build and service lifecycle commands remain available when needed to deploy that repair.",
+                  "A repeated run on unchanged implementation bytes cannot provide new evidence or reopen diagnostics.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "repeated_failed_verification_without_repair",
+              metadata: {
+                canonical_owner: "typescript",
+                repeated_failed_verification_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.hasUnresolvedVerificationFailures()
             && isAlternativeVerificationInspection(
               step,
