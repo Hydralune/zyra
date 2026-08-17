@@ -4147,9 +4147,11 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "submission/test-report.json" } }, true), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat evidence/test-farm/latest.json"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat .runtime/simulation-result.json && docker ps"), false), true);
+  assert.equal(isGeneratedDeliveryInspection(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat tools/regenerate_submission.py"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat task-contract.json"), false), false);
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "services/worker/state.py" } }, true), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);

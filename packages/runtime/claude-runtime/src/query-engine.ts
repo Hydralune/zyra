@@ -2869,10 +2869,15 @@ function shellMutationTargets(command: string): string[] {
   ];
   for (const pattern of patterns) {
     for (const match of command.matchAll(pattern)) {
-      if (match[1]) targets.push(match[1]);
+      if (match[1] && !isNullDevicePath(match[1])) targets.push(match[1]);
     }
   }
   return targets;
+}
+
+function isNullDevicePath(value: string): boolean {
+  const normalized = value.trim().replace(/^['"]|['"]$/gu, "").replaceAll("\\", "/").toLowerCase();
+  return normalized === "/dev/null" || normalized === "nul" || normalized === "nul:";
 }
 
 function isGeneratedDeliveryPath(value: string): boolean {
