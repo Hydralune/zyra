@@ -3194,7 +3194,12 @@ function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
   }
 
   // Builds, tests, dependency changes and schema migrations.
-  if (/\b(?:pytest|unittest|npm|npx|pnpm|yarn|cargo|go|gradle|mvn|make|cmake|pip|uv|poetry|alembic|flyway|prisma|psql)\b/i.test(normalized)) return true;
+  if (/\b(?:pytest|unittest|npm|npx|pnpm|yarn|cargo|go|gradle|mvn|make|cmake|pip|uv|poetry|alembic|flyway|prisma)\b/i.test(normalized)) return true;
+  // `psql` is both an inspection client and a migration tool. Schema/listing
+  // commands and SELECT queries must stay within the bounded inspection
+  // budget, including when transported through docker exec. Admit only an
+  // explicit SQL file or a recognisable state-changing statement.
+  if (/\bpsql\b[^;&|]*(?:\s(?:-f|--file)(?:=|\s)|\b(?:insert|update|delete|merge|create|alter|drop|truncate|grant|revoke|comment|vacuum|reindex|refresh)\b)/i.test(normalized)) return true;
   if (/\b(?:sh|bash)\b[^;&|]*(?:build|test|install|migrate|deploy|bootstrap|simulate)[^;&|]*\.sh\b/i.test(normalized)) return true;
   if (/\/(?:[^\s/]+\/)*(?:build|test|install|migrate|deploy|bootstrap|simulate)[^\s/]*(?:\.sh)?\b/i.test(normalized)) return true;
 
@@ -3204,7 +3209,9 @@ function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
   // classified by the mutation/build/test rules above; treating every exec
   // as delivery lets `docker exec ... cat` bypass bounded inspection forever.
   if (/\bdocker(?:\.exe)?\s+(?:run|start|stop|restart|kill|rm|rmi|build|pull|push)\b/i.test(normalized)) return true;
-  if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bexec\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(normalized)) return true;
+  // `docker compose exec`, like `docker exec`, is only a transport wrapper;
+  // its inner command must independently demonstrate delivery.
+  if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*(?:\bup\b|\bdown\b|\bbuild\b|\brun\b|\bstart\b|\bstop\b|\brestart\b|\bpull\b|\bkill\b|\brm\b)/i.test(normalized)) return true;
   if (/\b(?:systemctl|service)\s+(?:start|stop|restart|reload|enable|disable)\b/i.test(normalized)) return true;
   if (/\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b[^;&|]*(?:\s-X\s*(?:POST|PUT|PATCH|DELETE)\b|--request\s+(?:POST|PUT|PATCH|DELETE)\b|--data(?:-binary|-raw|-urlencode)?\b|-d\s)/i.test(normalized)) return true;
 

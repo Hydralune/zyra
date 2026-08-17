@@ -4325,6 +4325,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; print(Path('src/app.ts').read_text())"]), false), true);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "cat /app/dist/worker.js"]), false), true);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "sed -i 's/a/b/' /app/config"]), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker compose exec -T postgres psql -c '\\d audit_events'"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker exec postgres psql -Atc 'SELECT tenant_id FROM campaigns'"), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(shell("docker compose exec -T postgres psql -c 'ALTER TABLE campaigns ADD COLUMN note text'"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("psql --file migrations/003_security.sql"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
