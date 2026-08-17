@@ -33,6 +33,7 @@ export interface ProgressiveExecutionSnapshot {
   realActionCount: number;
   artifactCount: number;
   workspaceMutationCount: number;
+  repairMutationCount: number;
   verificationCount: number;
   unresolvedVerificationScopes: string[];
   unresolvedVerificationFailures: UnresolvedVerificationFailure[];
@@ -48,6 +49,7 @@ export interface ProgressiveExecutionSnapshot {
   lastActionNudgeNoDeliveryObservationCount: number;
   lastActionNudgeProviderRound: number;
   recoveryInspectionAllowance: number;
+  targetedRepairInspectionAllowance: number;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -109,6 +111,7 @@ export class ProgressiveExecutionRuntime {
         realActionCount: 0,
         artifactCount: 0,
         workspaceMutationCount: 0,
+        repairMutationCount: 0,
         verificationCount: 0,
         unresolvedVerificationScopes: [],
         unresolvedVerificationFailures: [],
@@ -124,6 +127,7 @@ export class ProgressiveExecutionRuntime {
         lastActionNudgeNoDeliveryObservationCount: 0,
         lastActionNudgeProviderRound: 0,
         recoveryInspectionAllowance: 0,
+        targetedRepairInspectionAllowance: 0,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -161,6 +165,15 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: nonnegativeInteger(
           restored.recoveryInspectionAllowance,
         ),
+        targetedRepairInspectionAllowance: nonnegativeInteger(
+          restored.targetedRepairInspectionAllowance,
+        ),
+        // Snapshots written before repair-specific accounting used the total
+        // workspace mutation count. Preserve their monotonic lineage once,
+        // then stop verification-generated files from impersonating a fix.
+        repairMutationCount: restored.repairMutationCount === undefined
+          ? nonnegativeInteger(restored.workspaceMutationCount)
+          : nonnegativeInteger(restored.repairMutationCount),
         verificationNudgeCount: nonnegativeInteger(
           restored.verificationNudgeCount,
         ),
@@ -183,6 +196,12 @@ export class ProgressiveExecutionRuntime {
       }
       : initial;
     const continuity = asObject(options.continuityProgress);
+    this.state.repairMutationCount = Math.max(
+      this.state.repairMutationCount,
+      continuity.repairMutationCount === undefined
+        ? nonnegativeInteger(continuity.workspaceMutationCount)
+        : nonnegativeInteger(continuity.repairMutationCount),
+    );
     if (
       asBoolean(continuity.requiredDeliveryMissing)
       && this.state.workspaceMutationCount === 0
@@ -282,6 +301,7 @@ export class ProgressiveExecutionRuntime {
     const verificationDriving = asBoolean(
       request.metadata.progressive_verification_driving,
     );
+    const repairMutated = mutated && !verificationDriving;
     const artifacts = response.artifacts.length;
     const background = String(
       response.metadata.background_status
@@ -298,6 +318,7 @@ export class ProgressiveExecutionRuntime {
     ).trim();
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
+    if (repairMutated) this.state.repairMutationCount += 1;
     if (artifacts > 0) this.state.artifactCount += artifacts;
     if (mutated) {
       // Every new delivery invalidates verification of the previous bytes.
@@ -315,6 +336,7 @@ export class ProgressiveExecutionRuntime {
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.postDeliveryActionNudgeCount = 0;
       this.state.recoveryInspectionAllowance = 0;
+      this.state.targetedRepairInspectionAllowance = 0;
       this.progress("workspace_mutation_committed");
     } else if (response.ok && !backgroundRunning) {
       this.state.noDeliveryObservationCount += 1;
@@ -373,6 +395,7 @@ export class ProgressiveExecutionRuntime {
         this.state.lastActionNudgeNoDeliveryObservationCount = 0;
         this.state.postDeliveryActionNudgeCount = 0;
         this.state.recoveryInspectionAllowance = 0;
+        this.state.targetedRepairInspectionAllowance = 0;
         this.progress("post_delivery_verification_passed");
       } else {
         // A successful check only creates effective progress when it settles
@@ -415,16 +438,16 @@ export class ProgressiveExecutionRuntime {
         .find((failure) => failure.scope === failedVerificationScope);
       const failureAlreadyObservedOnCurrentWorkspace = this.state.unresolvedVerificationFailures
         .some((failure) => (
-          failure.lastObservedWorkspaceMutationCount === this.state.workspaceMutationCount
+          failure.lastObservedWorkspaceMutationCount === this.state.repairMutationCount
         ));
       const workspaceChangedSinceFailure = existingFailure !== undefined
-        ? existingFailure.lastObservedWorkspaceMutationCount !== this.state.workspaceMutationCount
+        ? existingFailure.lastObservedWorkspaceMutationCount !== this.state.repairMutationCount
         : !failureAlreadyObservedOnCurrentWorkspace;
       if (failedVerificationScope) {
         const observedFailure = verificationFailure(
           failedVerificationScope,
           response,
-          this.state.workspaceMutationCount,
+          this.state.repairMutationCount,
           existingFailure,
         );
         this.state.unresolvedVerificationFailures = mergeVerificationFailures(
@@ -442,6 +465,15 @@ export class ProgressiveExecutionRuntime {
             4,
             2,
             32,
+          ),
+        );
+        this.state.targetedRepairInspectionAllowance = Math.max(
+          this.state.targetedRepairInspectionAllowance,
+          boundedInteger(
+            this.constraints.targeted_repair_inspection_limit,
+            2,
+            1,
+            8,
           ),
         );
       } else {
@@ -650,13 +682,25 @@ export class ProgressiveExecutionRuntime {
     return Math.max(0, maximum - this.state.activeBackgroundCount);
   }
 
-  consumeRecoveryInspectionAllowance(): boolean {
-    if (!this.inspectionCircuitOpen() || this.state.recoveryInspectionAllowance < 1) {
+  consumeRecoveryInspectionAllowance(targetedRepair = false): boolean {
+    if (!this.inspectionCircuitOpen()) {
       return false;
     }
-    this.state.recoveryInspectionAllowance -= 1;
-    this.record("failed_delivery_attempt_recovery_inspection_consumed");
-    return true;
+    if (this.state.recoveryInspectionAllowance > 0) {
+      this.state.recoveryInspectionAllowance -= 1;
+      this.record("failed_delivery_attempt_recovery_inspection_consumed");
+      return true;
+    }
+    if (
+      targetedRepair
+      && this.state.unresolvedVerificationScopes.length > 0
+      && this.state.targetedRepairInspectionAllowance > 0
+    ) {
+      this.state.targetedRepairInspectionAllowance -= 1;
+      this.record("targeted_repair_inspection_consumed");
+      return true;
+    }
+    return false;
   }
 
   recordActionNudge(): ProgressiveExecutionSnapshot {

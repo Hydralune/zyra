@@ -26,6 +26,7 @@ import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
+  isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   modelCompactionPrompt,
@@ -3381,6 +3382,102 @@ test("failed verification meters diagnostic inspection immediately", () => {
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
 });
 
+test("failed verification preserves two named source reads after broad diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "integration-failed-targeted-reserve",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-failed-targeted-reserve",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:test:integration",
+    },
+  };
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '{"status":"failed","failed_shards":["opaque-state"]}',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  for (let index = 0; index < 4; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), false);
+});
+
+test("verification-generated files do not impersonate a repair mutation", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const verification = (toolCallId: string): ToolExecutionRequest => ({
+    toolCallId,
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py simulate" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: toolCallId,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:simulate",
+    },
+  });
+  const failedResponse = (toolCallId: string, mutated = false): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "simulation failed",
+    output: { stdout: '{"status":"failed","failed_shards":["state"]}', return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: String(mutated) },
+  });
+
+  progressive.observeToolResult(verification("first-failure"), failedResponse("first-failure"), false);
+  for (let index = 0; index < 4; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+
+  progressive.observeToolResult(
+    verification("same-code-generated-report"),
+    failedResponse("same-code-generated-report", true),
+    false,
+  );
+  const snapshot = progressive.snapshot();
+  assert.equal(snapshot.workspaceMutationCount, 2);
+  assert.equal(snapshot.repairMutationCount, 1);
+  assert.equal(snapshot.recoveryInspectionAllowance, 0);
+  assert.equal(snapshot.targetedRepairInspectionAllowance, 0);
+  assert.equal(snapshot.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 1);
+});
+
 test("unscoped failed continuation cannot refill existing verification diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -3908,6 +4005,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
+  assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/state_machine.py" } }, true), true);
+  assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/src" } }, true), false);
+  assert.equal(isTargetedRepairInspection({ tool_name: "read", arguments: { path: ".runtime/venv/lib/source.py" } }, true), false);
+  assert.equal(isTargetedRepairInspection(shell("cat services/worker/state_machine.py"), false), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);

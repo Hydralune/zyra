@@ -1320,7 +1320,9 @@ export class ClaudeRuntimeCore {
           } else if (
             progressive.inspectionCircuitOpen()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
-            && !progressive.consumeRecoveryInspectionAllowance()
+            && !progressive.consumeRecoveryInspectionAllowance(
+              isTargetedRepairInspection(step, registry.readOnly(step.tool_name)),
+            )
           ) {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,
@@ -1330,6 +1332,7 @@ export class ClaudeRuntimeCore {
                 guidance: [
                   "Use the concrete evidence already gathered and make the next workspace edit.",
                   "A build, test, or real service command is also allowed when it directly drives that edit.",
+                  "Opaque test labels are not a reason to search private test infrastructure; inspect the public contract and a concrete implementation file instead.",
                   "Further broad inspection becomes available after a committed delivery or in a fresh task phase.",
                 ],
                 side_effect_executed: false,
@@ -2725,6 +2728,24 @@ export function isClearlyPreDeliveryInspection(
   // drive an edit, build, test, migration, service, or external state change
   // cross this boundary.  This also closes interpreter-wrapped read bypasses.
   return !isClearlyDeliveryDrivingShellCommand(shellInvocationText(step.arguments));
+}
+
+export function isTargetedRepairInspection(
+  step: { tool_name: string; arguments: JsonObject },
+  readOnly: boolean,
+): boolean {
+  if (!readOnly || !["read", "file_read"].includes(step.tool_name)) return false;
+  const path = asString(step.arguments.path || step.arguments.file_path)
+    .trim()
+    .replaceAll("\\", "/");
+  if (!path || /[*?\[\]]/u.test(path) || path.endsWith("/")) return false;
+  if (/(?:^|\/)(?:node_modules|\.git|\.runtime|\.venv|venv|dist|coverage)(?:\/|$)/iu.test(path)) {
+    return false;
+  }
+  const basename = path.slice(path.lastIndexOf("/") + 1);
+  // This reserve exists for a named implementation or contract file, not a
+  // directory walk or another repository-wide search disguised as a read.
+  return /\.[a-z0-9][a-z0-9._-]{0,15}$/iu.test(basename);
 }
 
 export function isClearlyVerificationDrivingTool(
