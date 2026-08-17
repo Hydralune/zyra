@@ -557,6 +557,7 @@ export class ProgressiveExecutionRuntime {
       if (
         !readOnly
         && String(response.metadata.pre_delivery_inspection_blocked ?? "false").toLowerCase() !== "true"
+        && String(response.metadata.alternate_verification_blocked ?? "false").toLowerCase() !== "true"
       ) {
         // A concrete edit/build/service attempt can fail because the target
         // changed or a path was wrong. Permit one bounded observation to

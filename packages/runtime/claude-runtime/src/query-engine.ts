@@ -1372,6 +1372,37 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            progressive.hasUnresolvedVerificationFailures()
+            && isAlternativeVerificationInspection(
+              step,
+              progressive.snapshot().unresolvedVerificationScopes,
+            )
+            && !progressive.consumeRecoveryInspectionAllowance()
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "The outstanding semantic verification still fails; the bounded alternate-verification window is exhausted.",
+              output: {
+                guidance: [
+                  "Use the source and contract evidence already gathered to make the next business-implementation repair.",
+                  "Do not replace the named failing suite with more self-authored smoke, E2E, simulation, or unrelated green checks.",
+                  "Build and service lifecycle commands remain available; after the repair, rerun the original failing verification scope.",
+                ],
+                unresolved_verification_scopes: progressive.snapshot().unresolvedVerificationScopes,
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "alternate_verification_budget_exhausted",
+              metadata: {
+                canonical_owner: "typescript",
+                alternate_verification_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.inspectionCircuitOpen()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
             && !progressive.consumeRecoveryInspectionAllowance(
@@ -2900,6 +2931,26 @@ export function isClearlyVerificationDrivingTool(
   );
 }
 
+export function isAlternativeVerificationInspection(
+  step: { tool_name: string; arguments: JsonObject },
+  unresolvedScopes: readonly string[],
+): boolean {
+  if (!isClearlyVerificationDrivingTool(step)) return false;
+  const scope = verificationScopeForTool(step);
+  if (!scope || unresolvedScopes.includes(scope)) return false;
+
+  // Compilation and build commands are frequently required to make a source
+  // repair observable by the original suite.  They are repair preparation,
+  // not an attempt to substitute a different green score for the failed one.
+  const command = shellInvocationText(step.arguments).replaceAll("\\", "/");
+  if (/(?:^|\s)(?:\S*\/)?afctl\.py\s+build(?=\s|[;&|]|$)/iu.test(command)) return false;
+  if (/\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|typecheck|lint)(?=\s|$)/iu.test(command)) return false;
+  if (/\bnpx\s+(?:tsc|eslint)\b/iu.test(command)) return false;
+  if (/\bpython(?:3)?\s+-m\s+(?:py_compile|compileall)\b/iu.test(command)) return false;
+  if (/\b(?:cargo\s+(?:check|build)|go\s+build)\b/iu.test(command)) return false;
+  return true;
+}
+
 export function verificationScopeForTool(
   step: { tool_name: string; arguments: JsonObject },
 ): string {
@@ -3064,7 +3115,7 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     if (/\b(?:gradle|gradlew|mvn|mvnw)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:make|cmake|ctest)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|build)[^;&|]*\.sh\b/i.test(segment)) return true;
-    if (/\bpython(?:3)?\b[^;&|]*\b(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)\b/i.test(segment)) return true;
+    if (/\bpython(?:3)?\b[^;&|]*(?:^|[^a-z0-9])(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)(?=[^a-z0-9]|$)/i.test(segment)) return true;
     // A script whose executable path is itself a verification entry point is
     // evidence-driving.  Do not scan arbitrary later path arguments: commands
     // such as `cat tests/public/test_metrics.py` only inspect test source and

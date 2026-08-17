@@ -25,6 +25,7 @@ import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-r
 import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
+  isAlternativeVerificationInspection,
   isClearlyPreDeliveryInspection,
   isClearlyRepairDrivingTool,
   isGeneratedDeliveryInspection,
@@ -4110,6 +4111,56 @@ test("failed delivery grants exactly one bounded recovery inspection", () => {
   assert.equal(progressive.inspectionCircuitOpen(), true);
 });
 
+test("blocked alternate verification cannot reopen its own diagnostic allowance", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:test:integration",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 1,
+        failedChecks: ["hidden-state"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+      }],
+      recoveryInspectionAllowance: 0,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "blocked-smoke",
+    toolName: "shell",
+    arguments: { command: "python tools/smoke_closure.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "blocked-smoke",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  };
+  while (progressive.consumeRecoveryInspectionAllowance()) {
+    // Exhaust the restored failed-verification diagnostic window first.
+  }
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: false,
+    summary: "alternate verification blocked",
+    output: {},
+    artifacts: [],
+    error: "alternate_verification_budget_exhausted",
+    metadata: { alternate_verification_blocked: "true" },
+  }, false);
+
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 0);
+  assert.deepEqual(
+    progressive.snapshot().unresolvedVerificationScopes,
+    ["shell:afctl:test:integration"],
+  );
+});
+
 test("pre-delivery verification opens a bounded diagnostic inspection window", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: {
@@ -4204,6 +4255,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/smoke_closure.py")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/e2e_full_lifecycle.py")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
@@ -4243,6 +4296,40 @@ test("verification scopes remain stable across diagnostic wrappers", () => {
   assert.equal(scope("python tools/afctl.py simulate > /tmp/sim.log"), "shell:afctl:simulate");
   assert.equal(scope("npm run test -- --runInBand"), "shell:npm:test");
   assert.notEqual(scope("python tools/afctl.py test public"), scope(integrationCommands[0]));
+});
+
+test("alternate verification cannot substitute for an unresolved semantic scope", () => {
+  const shell = (command: string) => ({ tool_name: "shell", arguments: { command } });
+  const unresolved = ["shell:afctl:test:integration"];
+
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/afctl.py test integration"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/smoke_closure.py"), unresolved),
+    true,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/e2e_full_lifecycle.py"), unresolved),
+    true,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/afctl.py simulate"), unresolved),
+    true,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/afctl.py test public"), unresolved),
+    true,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python tools/afctl.py build"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("npm run typecheck"), unresolved),
+    false,
+  );
 });
 
 test("query engine propagates background verification lineage to shell_wait", () => {
