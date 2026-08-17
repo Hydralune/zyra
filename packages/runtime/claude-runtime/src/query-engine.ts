@@ -1321,6 +1321,32 @@ export class ClaudeRuntimeCore {
             });
           } else if (
             progressive.hasUnresolvedVerificationFailures()
+            && isGeneratedDeliveryInspection(step, registry.readOnly(step.tool_name))
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Behavioral verification is still failing; stale delivery evidence was not inspected again.",
+              output: {
+                guidance: [
+                  "Use the public contract and concrete business implementation files to diagnose the outstanding failure.",
+                  "Do not spend the bounded repair window rereading submission, evidence, manifests, simulations, or their generators.",
+                  "Return to delivery evidence only after the failed semantic verification scope passes.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "unresolved_verification_evidence_inspection_blocked",
+              metadata: {
+                canonical_owner: "typescript",
+                unresolved_verification_evidence_inspection_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
+            progressive.hasUnresolvedVerificationFailures()
             && isGeneratedDeliveryMutation(step)
           ) {
             immediateResults.set(toolCallId, {
@@ -2816,6 +2842,21 @@ export function isGeneratedDeliveryMutation(
   return targets.length > 0 && targets.every((target) => isGeneratedDeliveryPath(target));
 }
 
+export function isGeneratedDeliveryInspection(
+  step: { tool_name: string; arguments: JsonObject },
+  readOnly: boolean,
+): boolean {
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  if (path) {
+    return readOnly && (isGeneratedDeliveryPath(path) || isDeliveryEvidenceGeneratorPath(path));
+  }
+  if (step.tool_name !== "shell") return false;
+  const command = shellInvocationText(step.arguments).replaceAll("\\", "/");
+  if (isClearlyVerificationDrivingTool(step) || shellMutationTargets(command).length > 0) return false;
+  return /(?:^|[\s"'=])(?:\.\/)?(?:submission|evidence|\.runtime)\//iu.test(command)
+    || /(?:^|\/)\b(?:regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(command);
+}
+
 function shellMutationTargets(command: string): string[] {
   const targets: string[] = [];
   const patterns = [
@@ -2837,6 +2878,12 @@ function shellMutationTargets(command: string): string[] {
 function isGeneratedDeliveryPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
   return /(?:^|\/)(?:submission|evidence|\.runtime)(?:\/|$)/iu.test(normalized);
+}
+
+function isDeliveryEvidenceGeneratorPath(value: string): boolean {
+  const normalized = value.trim().replaceAll("\\", "/");
+  const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
+  return /^(?:regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(basename);
 }
 
 export function isClearlyVerificationDrivingTool(
