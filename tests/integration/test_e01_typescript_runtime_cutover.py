@@ -906,6 +906,7 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
                 "actionNudgeCount": 3,
                 "lastActionNudgeObservationCount": 7,
                 "lastActionNudgeProviderRound": 18,
+                "repairContextId": "spent-permission-session",
             },
             "modelIteration": {
                 "rounds": [
@@ -959,6 +960,7 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
     ]
     assert handoff["progress"]["actionNudgeCount"] == 3
     assert handoff["progress"]["lastActionNudgeProviderRound"] == 18
+    assert handoff["progress"]["repairContextId"] == "spent-permission-session"
     assert handoff["inspection_continuity"] == {}
     assert handoff["execution_continuity"] == {
         "requiredDeliveryMissing": False,
@@ -976,6 +978,7 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
                 "lastObservedWorkspaceMutationCount": 4,
             }
         ],
+        "repairContextId": "spent-permission-session",
     }
     assert handoff["recent_reasoning"][-1]["text"].endswith("full stack.")
     assert handoff["authority_transfer"] is False

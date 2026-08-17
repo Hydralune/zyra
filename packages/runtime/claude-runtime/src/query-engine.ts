@@ -548,6 +548,7 @@ export class ClaudeRuntimeCore {
       deliveryContract: asObject(asObject(input.metadata).delivery_contract),
       restored: selectRestoredProgressiveExecutionSnapshot(input.restoredState) ?? undefined,
       continuityProgress: asObject(asObject(input.metadata).task_handoff_progress),
+      repairContextId: input.sessionId,
     });
 
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {

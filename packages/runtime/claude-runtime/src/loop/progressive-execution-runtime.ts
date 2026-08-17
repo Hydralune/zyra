@@ -51,6 +51,7 @@ export interface ProgressiveExecutionSnapshot {
   recoveryInspectionAllowance: number;
   targetedRepairInspectionAllowance: number;
   targetedRepairReserveVersion: number;
+  repairContextId: string;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
   lastAnalysisDigest: string;
@@ -73,6 +74,7 @@ interface ProgressiveOptions {
   deliveryContract?: JsonObject;
   restored?: JsonObject | ProgressiveExecutionSnapshot;
   continuityProgress?: JsonObject;
+  repairContextId?: string;
 }
 
 export class ProgressiveExecutionRuntime {
@@ -96,6 +98,7 @@ export class ProgressiveExecutionRuntime {
       Array.isArray(restored.unresolvedVerificationFailures)
       && restored.unresolvedVerificationFailures.length > 0
     );
+    const repairContextId = String(options.repairContextId ?? "").trim();
     const startedAt = this.now();
     const deliveryContract = asObject(options.deliveryContract);
     // `requires_delivery_artifact` is the adapter's fail-closed duplicate of
@@ -140,6 +143,7 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
         targetedRepairReserveVersion: 4,
+        repairContextId,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
         lastAnalysisDigest: "",
@@ -323,6 +327,33 @@ export class ProgressiveExecutionRuntime {
           ),
         );
       }
+    }
+    const previousRepairContextId = String(
+      restored.repairContextId ?? continuity.repairContextId ?? "",
+    ).trim();
+    if (
+      repairContextId
+      && repairContextId !== previousRepairContextId
+      && this.state.unresolvedVerificationScopes.length > 0
+    ) {
+      // A resumed provider context does not contain the complete source bytes
+      // inspected by the previous process. Rehydrate only the named-source
+      // reserve once for this new context; broad searches and alternate tests
+      // remain exhausted, and checkpoint restores inside the same context do
+      // not refill it again.
+      this.state.targetedRepairInspectionAllowance = Math.max(
+        this.state.targetedRepairInspectionAllowance,
+        boundedInteger(
+          this.constraints.targeted_repair_inspection_limit,
+          6,
+          2,
+          12,
+        ),
+      );
+      this.state.repairContextId = repairContextId;
+      this.record("resumed_repair_context_rehydrated");
+    } else if (repairContextId) {
+      this.state.repairContextId = repairContextId;
     }
     this.state.targetedRepairReserveVersion = 4;
     // The current task contract is authoritative after a checkpoint restore.

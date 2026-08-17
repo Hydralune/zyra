@@ -276,6 +276,7 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "lastActionNudgeProviderRound",
         "targetedRepairInspectionAllowance",
         "targetedRepairReserveVersion",
+        "repairContextId",
     )
     projection = {
         "schema": _HANDOFF_SCHEMA,
@@ -453,6 +454,8 @@ def _execution_continuity_progress(
         ):
             if progress.get(field) is not None:
                 continuity[field] = _nonnegative_count(progress.get(field))
+        if progress.get("repairContextId"):
+            continuity["repairContextId"] = str(progress["repairContextId"])
         if verification_debt is not None:
             scopes, failures = verification_debt
             continuity["unresolvedVerificationScopes"] = scopes

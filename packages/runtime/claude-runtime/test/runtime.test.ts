@@ -3659,6 +3659,52 @@ test("legacy verification debt receives the named-source reserve only once", () 
   assert.equal(exhausted.targetedRepairInspectionAllowance, 0);
 });
 
+test("a new resumed model context rehydrates named source reads exactly once", () => {
+  const debt: JsonObject = {
+    requiredDeliveryMissing: false,
+    workspaceMutationCount: 7,
+    repairMutationCount: 7,
+    unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+    unresolvedVerificationFailures: [{
+      scope: "shell:afctl:test:integration",
+      failedChecks: ["hidden-state"],
+      failedCount: 1,
+      failureKind: "reported_checks",
+      attemptCount: 2,
+      lastObservedWorkspaceMutationCount: 7,
+    }],
+    targetedRepairInspectionAllowance: 0,
+    targetedRepairReserveVersion: 4,
+    repairContextId: "context-a",
+  };
+
+  const sameContext = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: debt,
+    repairContextId: "context-a",
+  }).snapshot();
+  assert.equal(sameContext.targetedRepairInspectionAllowance, 0);
+
+  const resumed = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: debt,
+    repairContextId: "context-b",
+  }).snapshot();
+  assert.equal(resumed.targetedRepairInspectionAllowance, 6);
+  assert.equal(resumed.repairContextId, "context-b");
+
+  const restoredSameContext = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      ...debt,
+      repairContextId: resumed.repairContextId,
+      targetedRepairInspectionAllowance: 0,
+    },
+    repairContextId: "context-b",
+  }).snapshot();
+  assert.equal(restoredSameContext.targetedRepairInspectionAllowance, 0);
+});
+
 test("unscoped failed continuation cannot refill existing verification diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
