@@ -3336,6 +3336,51 @@ test("repeating the same failed verification without an edit does not refill dia
   assert.equal(afterEdit.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 2);
 });
 
+test("failed verification meters diagnostic inspection immediately", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "integration-failed-before-nudge",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-failed-before-nudge",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:test:integration",
+    },
+  };
+
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '{"status":"failed","failed_shards":["opaque-state"]}',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().actionNudgeCount, 0);
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 4);
+  for (let index = 0; index < 4; index += 1) {
+    assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
+  }
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
+});
+
 test("structured verification debt survives a fenced execution continuation", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

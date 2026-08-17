@@ -604,6 +604,13 @@ export class ProgressiveExecutionRuntime {
   }
 
   inspectionCircuitOpen(): boolean {
+    // A concrete failed verification is already the signal that broad
+    // orientation has ended.  Start charging its bounded diagnostic window
+    // immediately instead of waiting for later no-progress nudges; otherwise
+    // several unmetered read-only rounds can slip between the failure and the
+    // circuit opening.  The failure remains scoped to the current delivered
+    // bytes and is cleared only by a passing rerun of that semantic suite.
+    if (this.state.unresolvedVerificationScopes.length > 0) return true;
     const preDelivery = this.state.requiredDeliveryMissing;
     const maximumNudges = boundedInteger(
       preDelivery
