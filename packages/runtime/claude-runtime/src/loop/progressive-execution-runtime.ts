@@ -301,7 +301,13 @@ export class ProgressiveExecutionRuntime {
     const verificationDriving = asBoolean(
       request.metadata.progressive_verification_driving,
     );
-    const repairMutated = mutated && !verificationDriving;
+    const repairDriving = Object.prototype.hasOwnProperty.call(
+      request.metadata,
+      "progressive_repair_driving",
+    )
+      ? asBoolean(request.metadata.progressive_repair_driving)
+      : !verificationDriving;
+    const repairMutated = mutated && repairDriving;
     const artifacts = response.artifacts.length;
     const background = String(
       response.metadata.background_status

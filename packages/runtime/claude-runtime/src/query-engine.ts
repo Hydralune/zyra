@@ -1370,6 +1370,8 @@ export class ClaudeRuntimeCore {
                   isClearlyVerificationDrivingTool(step),
                 progressive_verification_scope:
                   verificationScopeForTool(step),
+                progressive_repair_driving:
+                  isClearlyRepairDrivingTool(step),
               },
             });
           }
@@ -2746,6 +2748,51 @@ export function isTargetedRepairInspection(
   // This reserve exists for a named implementation or contract file, not a
   // directory walk or another repository-wide search disguised as a read.
   return /\.[a-z0-9][a-z0-9._-]{0,15}$/iu.test(basename);
+}
+
+export function isClearlyRepairDrivingTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (isClearlyVerificationDrivingTool(step)) return false;
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  if (path) return !isGeneratedDeliveryPath(path);
+  if (step.tool_name !== "shell") return true;
+
+  const command = shellInvocationText(step.arguments);
+  if (!isClearlyDeliveryDrivingShellCommand(command)) return false;
+  const explicitTargets = shellMutationTargets(command);
+  if (explicitTargets.length > 0) {
+    return explicitTargets.some((target) => !isGeneratedDeliveryPath(target));
+  }
+  // Inline report writers often contain their destination as a literal even
+  // when the exact write primitive is difficult to parse. Fail closed only
+  // for the bounded generated-delivery roots; ordinary scripts remain repair
+  // candidates so the runtime does not erase real source progress.
+  const mentionsGeneratedDelivery = /(?:^|[\s'"`(=])(?:\.\/)?(?:submission|evidence|\.runtime)(?:\/|\\)/iu
+    .test(command);
+  return !mentionsGeneratedDelivery;
+}
+
+function shellMutationTargets(command: string): string[] {
+  const targets: string[] = [];
+  const patterns = [
+    /(?:^|\s)(?:\d?>>|\d?>|&>)\s*["']?([^\s"';&|]+)/giu,
+    /\btee(?:\s+-a)?\s+["']?([^\s"';&|]+)/giu,
+    /\bPath\(\s*["']([^"']+)["']\s*\)\.(?:write_text|write_bytes)\b/giu,
+    /\bopen\(\s*["']([^"']+)["']\s*,\s*["'][wax+][^"']*["']/giu,
+    /^\*{3}\s+(?:Add|Update|Delete) File:\s*(\S+)\s*$/gimu,
+  ];
+  for (const pattern of patterns) {
+    for (const match of command.matchAll(pattern)) {
+      if (match[1]) targets.push(match[1]);
+    }
+  }
+  return targets;
+}
+
+function isGeneratedDeliveryPath(value: string): boolean {
+  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
+  return /(?:^|\/)(?:submission|evidence|\.runtime)(?:\/|$)/iu.test(normalized);
 }
 
 export function isClearlyVerificationDrivingTool(

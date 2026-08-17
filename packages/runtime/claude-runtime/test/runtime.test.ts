@@ -26,6 +26,7 @@ import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
   isClearlyPreDeliveryInspection,
+  isClearlyRepairDrivingTool,
   isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
@@ -3478,6 +3479,40 @@ test("verification-generated files do not impersonate a repair mutation", () => 
   assert.equal(snapshot.unresolvedVerificationFailures[0].lastObservedWorkspaceMutationCount, 1);
 });
 
+test("submission report updates do not impersonate a repair mutation", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 9,
+      repairMutationCount: 4,
+    },
+  });
+  progressive.observeToolResult({
+    toolCallId: "update-report",
+    toolName: "shell",
+    arguments: { command: "python update_report.py submission/test-report.json" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "update-report",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_repair_driving: false },
+  }, {
+    tool_call_id: "update-report",
+    ok: true,
+    summary: "report updated",
+    output: {},
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+
+  const snapshot = progressive.snapshot();
+  assert.equal(snapshot.workspaceMutationCount, 10);
+  assert.equal(snapshot.repairMutationCount, 4);
+});
+
 test("unscoped failed continuation cannot refill existing verification diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -4009,6 +4044,13 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/src" } }, true), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "read", arguments: { path: ".runtime/venv/lib/source.py" } }, true), false);
   assert.equal(isTargetedRepairInspection(shell("cat services/worker/state_machine.py"), false), false);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("python tools/afctl.py test integration")), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("python -c \"from pathlib import Path; Path('submission/test-report.json').write_text('x')\"")), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("cat result.json > evidence/test-farm/latest.json")), false);
+  assert.equal(isClearlyRepairDrivingTool(shell("apply_patch <<'PATCH'\n*** Update File: services/worker/state.py\nPATCH")), true);
+  assert.equal(isClearlyRepairDrivingTool(shell("sed -i 's/a/b/' services/worker/state.py")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
