@@ -172,6 +172,17 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertIn("shell operators", result.output["reason"])
         self.assertIn("do not repeat", result.output["recovery_hint"])
 
+        guided = GatewayToolExecutionRouter._error(  # noqa: SLF001
+            call,
+            "file_not_found",
+            "workspace file does not exist",
+            recovery=("Inspect services/control-api/campaigns.py.",),
+        )
+        self.assertEqual(
+            guided.output["recovery_hint"],
+            "Inspect services/control-api/campaigns.py.",
+        )
+
     def test_browser_workspace_load_uses_shared_file_artifact_port(self) -> None:
         state = create_task_state("Browser uses the shared gateway")
         port, workspace = self._port(state, "BrowserWorker")

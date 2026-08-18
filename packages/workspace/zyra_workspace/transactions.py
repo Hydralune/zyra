@@ -29,7 +29,7 @@ from .integration_models import (
     WorkspaceTransactionRecord,
 )
 from .integration_store import WorkspaceIntegrationStore
-from .local_backend import WorkspaceAccessHandle
+from .local_backend import WorkspaceAccessHandle, WorkspaceDirectoryEntry
 from .models import (
     WorkspaceKind,
     WorkspaceLifecycleState,
@@ -1224,6 +1224,37 @@ class WorkspaceEditPort:
         result = self.read_bytes(logical_path, mode=WorkspaceReadMode.FULL)
         result.content.decode(encoding)
         return result
+
+    def list_directory(
+        self,
+        logical_path: str = ".",
+        *,
+        mount_kind: WorkspaceKind = WorkspaceKind.TASK,
+        maximum_entries: int = 256,
+    ) -> tuple[WorkspaceDirectoryEntry, ...]:
+        """Return a bounded, capability-checked view of one workspace directory."""
+
+        self._require_enabled()
+        with self._guard, self.manager.integration_store.workspace_locks.acquire_many((self.workspace_id,)):
+            binding = self.manager.store.require_binding(self.workspace_id)
+            self._assert_current(binding)
+            entries = self.manager.backend.list_directory(
+                self._access,
+                mount_kind=mount_kind,
+                path=logical_path,
+                maximum_entries=max(1, min(10_000, int(maximum_entries))),
+            )
+            self.manager.emit_integration_event(
+                "workspace.directory.listed",
+                self.workspace_id,
+                metadata={
+                    "worker_id": self.worker_id,
+                    "logical_path": logical_path,
+                    "entry_count": len(entries),
+                    "physical_location_redacted": True,
+                },
+            )
+            return entries
 
     def write_text(
         self,

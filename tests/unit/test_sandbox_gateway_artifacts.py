@@ -222,11 +222,21 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
         self.assertEqual(len(receipt.transaction_ids), 2)
 
     def test_missing_artifact_read_reports_not_found_instead_of_empty_content(self) -> None:
+        self.port.write_text(
+            "missing/campaigns.py",
+            "# existing implementation\n",
+            idempotency_key="missing-candidate",
+        )
         with self.assertRaises(SandboxGatewayError) as raised:
-            self.artifact_port.read("missing/source.py")
+            self.artifact_port.read("missing/campaign_service.py")
 
         self.assertEqual(raised.exception.code, GatewayErrorCode.FILE_NOT_FOUND)
         self.assertIn("workspace file does not exist", str(raised.exception))
+        self.assertIn("missing/campaigns.py", str(raised.exception))
+        self.assertEqual(
+            raised.exception.detail.metadata["suggested_paths"],
+            ["missing/campaigns.py"],
+        )
 
     def test_stale_patch_epoch_and_disabled_ports_fail_without_raw_fallback(self) -> None:
         current = self.port.current_access()

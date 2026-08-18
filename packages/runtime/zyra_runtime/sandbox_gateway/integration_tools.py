@@ -250,6 +250,11 @@ class GatewayToolExecutionRouter:
                 call,
                 code,
                 str(error) or type(error).__name__,
+                recovery=tuple(
+                    str(item)
+                    for item in getattr(getattr(error, "detail", None), "recovery", ())
+                    if str(item).strip()
+                ),
                 metadata={
                     "sandbox_gateway_failure_signal_id": signal.signal_id,
                     "sandbox_gateway_failure_signal_digest": signal.signal_digest,
@@ -1643,6 +1648,7 @@ class GatewayToolExecutionRouter:
         code: str,
         reason: str,
         *,
+        recovery: Sequence[str] = (),
         metadata: Mapping[str, Any] | None = None,
     ) -> ToolResult:
         public_reason = str(reason or code or "sandbox gateway rejected the tool call")[:2_000]
@@ -1658,7 +1664,8 @@ class GatewayToolExecutionRouter:
             output={
                 "code": str(code),
                 "reason": public_reason,
-                "recovery_hint": "Change the tool arguments before retrying; do not repeat an identical rejected call.",
+                "recovery_hint": " ".join(str(item) for item in recovery if str(item).strip())
+                or "Change the tool arguments before retrying; do not repeat an identical rejected call.",
             },
             error=code,
             metadata={

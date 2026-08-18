@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from difflib import get_close_matches
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Protocol
 
@@ -34,6 +35,15 @@ class WorkspaceEditPortLike(Protocol):
         ...
 
     def read_bytes(self, path: str, *, mount_kind: WorkspaceKind = WorkspaceKind.TASK) -> Any:
+        ...
+
+    def list_directory(
+        self,
+        path: str = ".",
+        *,
+        mount_kind: WorkspaceKind = WorkspaceKind.TASK,
+        maximum_entries: int = 256,
+    ) -> Any:
         ...
 
     def write_bytes(
@@ -368,13 +378,64 @@ class GatewayFileArtifactPort:
             mount_kind=self._mount(mount_kind),
         )
         if not bool(getattr(result, "exists", True)):
+            suggestions = self._missing_path_suggestions(logical_path, mount_kind=mount_kind)
+            candidate_text = (
+                f" Nearby existing file candidates: {', '.join(suggestions)}."
+                if suggestions
+                else ""
+            )
             raise SandboxGatewayError(
                 GatewayErrorCode.FILE_NOT_FOUND,
-                f"workspace file does not exist: {logical_path}",
+                (
+                    f"workspace file does not exist: {logical_path}.{candidate_text} "
+                    "Inspect an existing implementation or list the parent directory before "
+                    "creating a new source path solely from this failed read."
+                ),
                 operation="file_read",
-                metadata={"logical_path": logical_path},
+                recovery=tuple(
+                    [f"Inspect the existing candidate {item}." for item in suggestions]
+                    + ["List the missing path's parent directory with a bounded directory read."]
+                ),
+                metadata={
+                    "logical_path": logical_path,
+                    "suggested_paths": list(suggestions),
+                },
             )
         return bytes(result.content)
+
+    def _missing_path_suggestions(
+        self,
+        logical_path: str,
+        *,
+        mount_kind: str,
+    ) -> tuple[str, ...]:
+        list_directory = getattr(self.workspace_edit_port, "list_directory", None)
+        if not callable(list_directory):
+            return ()
+        normalized = str(logical_path).replace("\\", "/").strip("/")
+        target = PurePosixPath(normalized)
+        parent = str(target.parent) if str(target.parent) not in {"", "/"} else "."
+        try:
+            entries = tuple(
+                list_directory(
+                    parent,
+                    mount_kind=self._mount(mount_kind),
+                    maximum_entries=128,
+                )
+            )
+        except Exception:  # noqa: BLE001 - a suggestion must never mask the primary read error.
+            return ()
+        file_entries = [item for item in entries if str(getattr(item, "kind", "")) == "file"]
+        by_name = {str(getattr(item, "name", "")): str(getattr(item, "path", "")) for item in file_entries}
+        names = tuple(name for name in by_name if name)
+        close = get_close_matches(target.name, names, n=5, cutoff=0.35)
+        if len(close) < 5 and target.suffix:
+            close.extend(
+                name
+                for name in names
+                if name not in close and PurePosixPath(name).suffix == target.suffix
+            )
+        return tuple(by_name[name] for name in close[:5] if by_name.get(name))
 
     def export(
         self,

@@ -2991,6 +2991,13 @@ function isBoundedTargetedShellInspection(command: string): boolean {
   if (isClearlyDeliveryDrivingShellCommand(normalized)) return false;
   if (shellMutationTargets(normalized).length > 0) return false;
 
+  // Mature coding agents expose a bounded directory-read primitive.  The
+  // governed shell is Zyra's equivalent recovery path when an exact file read
+  // reports ENOENT: permit one non-recursive listing of a concrete subtree so
+  // the model can re-anchor to real source names instead of inventing a file.
+  const directoryListingPath = boundedDirectoryListingPath(normalized);
+  if (directoryListingPath && isExactTargetedDirectoryPath(directoryListingPath)) return true;
+
   // A large implementation file can exceed the per-observation budget. Allow
   // one exact source file to be searched or sliced with an explicit line cap,
   // so a named symbol remains inspectable without reopening recursive scans.
@@ -3042,6 +3049,27 @@ function isBoundedTargetedShellInspection(command: string): boolean {
   return false;
 }
 
+function boundedDirectoryListingPath(command: string): string {
+  const bareList = command.match(
+    /^ls\s+(?:-[a-z]*[1al][a-z]*\s+)?(?:--\s+)?(["']?[^\s"'|;&*?\[\]{}]+["']?)$/iu,
+  );
+  if (bareList) return bareList[1].replace(/^['"]|['"]$/gu, "");
+  const find = command.match(
+    /^find\s+(["']?[^\s"'|;&*?\[\]{}]+["']?)\s+-maxdepth\s+1\s+-type\s+[fd](?:\s+-print)?(?:\s+\|\s+head\s+(?:-n\s+)?\d+)?$/iu,
+  );
+  return find ? find[1].replace(/^['"]|['"]$/gu, "") : "";
+}
+
+function isExactTargetedDirectoryPath(value: string): boolean {
+  const path = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/$/u, "");
+  if (!path || path === "." || path.startsWith("-") || /[*?\[\]{}]/u.test(path)) return false;
+  if (isGeneratedDeliveryPath(path)) return false;
+  if (/(?:^|\/)(?:node_modules|\.git|\.runtime|\.venv|venv|dist|coverage)(?:\/|$)/iu.test(path)) {
+    return false;
+  }
+  return path.split("/").filter(Boolean).length >= 2;
+}
+
 function isExactTargetedSourcePath(value: string): boolean {
   const path = value.trim().replaceAll("\\", "/");
   if (!path || /[*?\[\]{}]/u.test(path) || path.endsWith("/")) return false;
@@ -3065,6 +3093,7 @@ export function preDeliveryInspectionGuidance(
   if (targetedRepairInspectionsRemaining > 0) {
     guidance.push(
       `${targetedRepairInspectionsRemaining} targeted diagnostics remain: use read or file_read with an exact implementation or contract file path; when a large file exceeds the observation limit, use grep or rg against one exact file piped to a numeric head/tail limit, or sed -n with a bounded numeric line range. After a concrete database or service failure, a bounded read-only psql schema query or exact tailed service log is also allowed. Broad or recursive searches and shell cat, type, or Get-Content remain blocked.`,
+      "If an exact path is missing, use ls on its concrete parent directory or find with -maxdepth 1 before deciding that a new source file is required.",
     );
   }
   guidance.push(

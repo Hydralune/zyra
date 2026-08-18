@@ -4907,6 +4907,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection(shell("sed -n '120,260p' services/release-worker/src/worker.ts"), false), true);
   assert.equal(isTargetedRepairInspection(shell("cd /workspace && sed -n '120,260p' services/release-worker/src/worker.ts"), false), true);
   assert.equal(isTargetedRepairInspection(shell("cd '/workspace'; grep -n 'WindowMetrics' services/release-worker/src/worker.ts | head -60"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("ls -la services/control-api/aurorafleet_api/services"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("find services/control-api/aurorafleet_api/services -maxdepth 1 -type f"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("find services -maxdepth 5 -type f"), false), false);
+  assert.equal(isTargetedRepairInspection(shell("ls -la ."), false), false);
   assert.equal(isTargetedRepairInspection(shell("grep -rn tenant_id services | head -60"), false), false);
   assert.equal(isTargetedRepairInspection(shell("cd /workspace && grep -rn tenant_id services | head -60"), false), false);
   assert.equal(isTargetedRepairInspection(shell("grep -n tenant_id services/release-worker/src/*.ts | head -60"), false), false);
@@ -4921,6 +4925,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.match(
     preDeliveryInspectionGuidance(12).join(" "),
     /compare actual predicates clause-by-clause; verify every qualifier/,
+  );
+  assert.match(
+    preDeliveryInspectionGuidance(12).join(" "),
+    /find with -maxdepth 1/,
   );
   assert.doesNotMatch(
     preDeliveryInspectionGuidance(0).join(" "),
