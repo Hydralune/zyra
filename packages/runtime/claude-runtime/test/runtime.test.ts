@@ -29,6 +29,7 @@ import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
   isAlternativeVerificationInspection,
+  isClearlyEnvironmentRecoveryTool,
   isClearlyPreDeliveryInspection,
   isClearlyRepairDrivingTool,
   isGeneratedDeliveryInspection,
@@ -36,6 +37,7 @@ import {
   isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
+  isEnvironmentRecoveryToolResult,
   modelCompactionPrompt,
   preDeliveryInspectionGuidance,
   shouldCheckpointRuntimePhase,
@@ -3499,6 +3501,55 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   );
 });
 
+test("a successful environment recovery permits the failed scope to rerun", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 3,
+      repairMutationCount: 3,
+      unresolvedVerificationScopes: ["simulation-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "simulation-suite",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "transport_failure",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 3,
+        diagnosticSummary: "Network unreachable",
+      }],
+    },
+  });
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair("simulation-suite"), true);
+  const recovered: ToolExecutionRequest = {
+    toolCallId: "services-up",
+    toolName: "shell_wait",
+    arguments: { job_id: "services-up-job" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "services-up",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_environment_recovery_driving: true },
+  };
+  progressive.observeToolResult(recovered, {
+    tool_call_id: recovered.toolCallId,
+    ok: true,
+    summary: "services healthy",
+    output: { return_code: 0, termination: "exited" },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().repairMutationCount, 4);
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair("simulation-suite"), false);
+  assert.match(
+    progressive.snapshot().progressReasons.join(" "),
+    /verification_environment_recovery_committed/,
+  );
+});
+
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -4502,6 +4553,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("python tools/afctl.py simulate"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python -m pytest tests"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose up -d --build --wait")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose ps")), false);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py bootstrap")), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl https://service.invalid/status"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);
@@ -4717,6 +4772,26 @@ test("query engine propagates background verification lineage to shell_wait", ()
     tool_name: "shell_wait",
     arguments: { job_id: "gateway-command-job:integration" },
   }, physicalResponse, [origin]), true);
+
+  const recoveryOrigin = {
+    toolCallId: "call-services-up",
+    name: "shell",
+    arguments: { command: "docker compose up -d --build --wait" },
+  };
+  const recoveryResponse: ToolExecutionResponse = {
+    ...response,
+    output: {
+      stdout: "all services healthy",
+      return_code: 0,
+      gateway_receipt: {
+        invocation_ref: { tool_call_id: recoveryOrigin.toolCallId },
+      },
+    },
+  };
+  assert.equal(isEnvironmentRecoveryToolResult({
+    tool_name: "shell_wait",
+    arguments: { job_id: "gateway-command-job:services-up" },
+  }, recoveryResponse, [recoveryOrigin]), true);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {

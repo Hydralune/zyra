@@ -407,6 +407,9 @@ export class ProgressiveExecutionRuntime {
     )
       ? asBoolean(request.metadata.progressive_repair_driving)
       : !verificationDriving;
+    const environmentRecoveryDriving = asBoolean(
+      request.metadata.progressive_environment_recovery_driving,
+    );
     const repairMutated = mutated && repairDriving;
     const artifacts = response.artifacts.length;
     const background = String(
@@ -425,6 +428,17 @@ export class ProgressiveExecutionRuntime {
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (repairMutated) this.state.repairMutationCount += 1;
+    if (
+      response.ok
+      && environmentRecoveryDriving
+      && !backgroundRunning
+      && !repairMutated
+    ) {
+      this.state.repairMutationCount += 1;
+      this.state.verificationNudgeCount = 0;
+      this.state.lastVerificationNudgeProviderRound = 0;
+      this.progress("verification_environment_recovery_committed");
+    }
     if (artifacts > 0) this.state.artifactCount += artifacts;
     if (mutated) {
       // Every new delivery invalidates verification of the previous bytes.

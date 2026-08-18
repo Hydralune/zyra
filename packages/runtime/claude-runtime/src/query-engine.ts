@@ -1503,6 +1503,8 @@ export class ClaudeRuntimeCore {
                   verificationScopeForTool(step),
                 progressive_repair_driving:
                   isClearlyRepairDrivingTool(step),
+                progressive_environment_recovery_driving:
+                  isClearlyEnvironmentRecoveryTool(step),
               },
             });
           }
@@ -1687,17 +1689,29 @@ export class ClaudeRuntimeCore {
                 ? e01.snapshot().query.toolCalls
                 : [],
             );
+            const environmentRecoveryDriving = isEnvironmentRecoveryToolResult(
+              step,
+              result,
+              step.tool_name === "shell_wait"
+                ? e01.snapshot().query.toolCalls
+                : [],
+            );
             progressive.observeToolResult(
-              verificationDriving
-                ? {
-                    ...observedRequest,
-                    metadata: {
-                      ...observedRequest.metadata,
-                      progressive_verification_driving: true,
-                      progressive_verification_scope: verificationScope,
-                    },
-                  }
-                : observedRequest,
+              {
+                ...observedRequest,
+                metadata: {
+                  ...observedRequest.metadata,
+                  ...(verificationDriving
+                    ? {
+                        progressive_verification_driving: true,
+                        progressive_verification_scope: verificationScope,
+                      }
+                    : {}),
+                  ...(environmentRecoveryDriving
+                    ? { progressive_environment_recovery_driving: true }
+                    : {}),
+                },
+              },
               result,
               registry.readOnly(step.tool_name),
             );
@@ -3057,6 +3071,36 @@ export function verificationScopeForTool(
   return verificationScope(shellInvocationText(step.arguments));
 }
 
+export function isClearlyEnvironmentRecoveryTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (step.tool_name !== "shell") return false;
+  const command = shellInvocationText(step.arguments).replace(/\s+/gu, " ").trim();
+  return /\bdocker(?:\.exe)?\s+compose\b[^;&|]*\b(?:up|start|restart)\b/iu.test(command)
+    || /\bdocker(?:\.exe)?\s+(?:start|restart)\b/iu.test(command)
+    || /\bsystemctl\s+(?:start|restart|reload)\s+\S+/iu.test(command)
+    || /\bservice\s+\S+\s+(?:start|restart|reload)\b/iu.test(command)
+    || /\b(?:python(?:3)?\s+)?\S*afctl\.py\s+bootstrap\b/iu.test(command);
+}
+
+export function isEnvironmentRecoveryToolResult(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[] = [],
+): boolean {
+  if (isClearlyEnvironmentRecoveryTool(step)) return true;
+  if (step.tool_name !== "shell_wait") return false;
+  const origin = originatingToolCall(response, historicalCalls);
+  return origin !== undefined && isClearlyEnvironmentRecoveryTool({
+    tool_name: origin.name,
+    arguments: origin.arguments,
+  });
+}
+
 export function isVerificationDrivingToolResult(
   step: { tool_name: string; arguments: JsonObject },
   response: ToolExecutionResponse,
@@ -3073,22 +3117,7 @@ export function isVerificationDrivingToolResult(
   // verification job and `shell_wait` receives its terminal report. The
   // gateway receipt durably points back to the originating tool call, so use
   // that lineage instead of treating the wait as an unrelated read.
-  const receipt = asObject(response.output.gateway_receipt);
-  const invocationRef = asObject(receipt.invocation_ref);
-  const invocation = asObject(receipt.invocation);
-  const originToolCallId = [
-    response.metadata.originating_tool_call_id,
-    response.output.originating_tool_call_id,
-    invocationRef.tool_call_id,
-    invocation.tool_call_id,
-    invocation.causation_id,
-  ]
-    .map((value) => asString(value).trim())
-    .find(Boolean) ?? "";
-  if (!originToolCallId) return false;
-  const origin = historicalCalls.find(
-    (call) => call.toolCallId === originToolCallId,
-  );
+  const origin = originatingToolCall(response, historicalCalls);
   if (!origin) return false;
   return isClearlyVerificationDrivingTool({
     tool_name: origin.name,
@@ -3109,6 +3138,20 @@ export function verificationScopeForToolResult(
   if (direct) return direct;
   if (step.tool_name !== "shell_wait") return "";
 
+  const origin = originatingToolCall(response, historicalCalls);
+  return origin
+    ? verificationScopeForTool({ tool_name: origin.name, arguments: origin.arguments })
+    : "";
+}
+
+function originatingToolCall(
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[],
+): { toolCallId: string; name: string; arguments: JsonObject } | undefined {
   const receipt = asObject(response.output.gateway_receipt);
   const invocationRef = asObject(receipt.invocation_ref);
   const invocation = asObject(receipt.invocation);
@@ -3121,13 +3164,9 @@ export function verificationScopeForToolResult(
   ]
     .map((value) => asString(value).trim())
     .find(Boolean) ?? "";
-  if (!originToolCallId) return "";
-  const origin = historicalCalls.find(
-    (call) => call.toolCallId === originToolCallId,
-  );
-  return origin
-    ? verificationScopeForTool({ tool_name: origin.name, arguments: origin.arguments })
-    : "";
+  return originToolCallId
+    ? historicalCalls.find((call) => call.toolCallId === originToolCallId)
+    : undefined;
 }
 
 function shellInvocationText(arguments_: JsonObject): string {
