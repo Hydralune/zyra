@@ -3561,6 +3561,129 @@ test("a new verification result supersedes stale environment diagnostics", () =>
   assert.equal(progressive.verificationEnvironmentRecoveryRequired(), false);
 });
 
+test("an aggregate rerun retains prior failed-check context without claiming current check names", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 6,
+      repairMutationCount: 6,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["contract-security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 3,
+        lastObservedWorkspaceMutationCount: 5,
+      }],
+    },
+  });
+  const rerun: ToolExecutionRequest = {
+    toolCallId: "aggregate-integration-rerun",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "aggregate-integration-rerun",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "integration-suite",
+    },
+  };
+  progressive.observeToolResult(rerun, {
+    tool_call_id: rerun.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: { stdout: '{"status":"failed","failed":1}', return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failure = progressive.snapshot().unresolvedVerificationFailures[0];
+  assert.deepEqual(failure.failedChecks, []);
+  assert.equal(failure.failedCount, 1);
+  assert.match(
+    failure.diagnosticSummary ?? "",
+    /Previous verification attempt reported failed checks=contract-security,cross-language/,
+  );
+});
+
+test("contract prose does not pollute retained verification diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: [],
+        failedCount: 1,
+        failureKind: "reported_failure",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: "ValueError: tenant predicate mismatch",
+      }],
+    },
+  });
+  const contractRead: ToolExecutionRequest = {
+    toolCallId: "contract-read",
+    toolName: "shell",
+    arguments: { command: "cat task-contract.json" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "contract-read",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  };
+  progressive.observeToolResult(contractRead, {
+    tool_call_id: contractRead.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '"health_rate_formula": "missing or stale observations count as unhealthy"',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(
+    progressive.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
+    "ValueError: tenant predicate mismatch",
+  );
+
+  const restored = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: [],
+        failedCount: 1,
+        failureKind: "reported_failure",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: '"health_rate_formula": "missing or stale observations count as unhealthy"',
+      }],
+    },
+  });
+  assert.equal(
+    restored.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
+    undefined,
+  );
+});
+
 test("a successful environment recovery permits the failed scope to rerun", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

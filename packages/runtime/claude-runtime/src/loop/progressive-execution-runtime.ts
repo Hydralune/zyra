@@ -986,7 +986,7 @@ function restoreVerificationFailures(value: unknown): UnresolvedVerificationFail
     const scope = String(failure.scope ?? "").trim();
     if (!scope) continue;
     const kind = String(failure.failureKind ?? "reported_failure");
-    const diagnosticSummary = safeDiagnosticSummary(failure.diagnosticSummary);
+    const diagnosticSummary = retainedVerificationDiagnosticSummary(failure.diagnosticSummary);
     restored.push({
       scope,
       failedChecks: Array.isArray(failure.failedChecks)
@@ -1090,7 +1090,14 @@ function verificationFailure(
   // still appended by observeToolResult, but stale transport failures must not
   // keep routing the repair strategy after the service has recovered.
   const observedDiagnostic = verificationDiagnosticSummary(response);
-  const diagnosticSummary = observedDiagnostic || safeDiagnosticSummary(existing?.diagnosticSummary);
+  let diagnosticSummary = observedDiagnostic
+    || retainedVerificationDiagnosticSummary(existing?.diagnosticSummary);
+  if (failedChecks.size === 0 && (existing?.failedChecks.length ?? 0) > 0) {
+    diagnosticSummary = mergeDiagnosticSummaries(
+      diagnosticSummary,
+      `Previous verification attempt reported failed checks=${existing!.failedChecks.join(",")}`,
+    );
+  }
   return {
     scope,
     failedChecks: [...failedChecks].slice(0, 12),
@@ -1108,11 +1115,24 @@ function verificationDiagnosticSummary(response: ToolExecutionResponse): string 
     .join("\n")
     .split(/\r?\n/gu)
     .map((line) => line.replace(/\x1b\[[0-9;]*m/gu, "").trim())
-    .filter((line) => (
-      line.length > 0
-      && /(?:\b(?:error|exception|traceback|undefined|invalid|mismatch|denied|missing)\b|does not exist|timed? out|HTTP(?: Error)?\s+[45]\d\d)/iu.test(line)
-    ));
+    .filter((line) => line.length > 0 && isVerificationDiagnosticFragment(line));
   return safeDiagnosticSummary([...new Set(lines)].slice(-10).join(" | "));
+}
+
+function retainedVerificationDiagnosticSummary(value: unknown): string {
+  const selected = safeDiagnosticSummary(value);
+  if (!selected) return "";
+  return safeDiagnosticSummary(
+    selected
+      .split(" | ")
+      .map((fragment) => fragment.trim())
+      .filter((fragment) => isVerificationDiagnosticFragment(fragment))
+      .join(" | "),
+  );
+}
+
+function isVerificationDiagnosticFragment(value: string): boolean {
+  return /(?:\b(?:error|exception|traceback|undefined|invalid|mismatch|denied)\b|does not exist|no such (?:file|column|table)|timed? out|HTTP(?: Error)?\s+[45]\d\d|network (?:is )?unreachable|connection (?:refused|reset)|no route to host|name or service not known|temporary failure in name resolution|ECONNREFUSED|ENETUNREACH|\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|previous verification attempt reported failed checks=)/iu.test(value);
 }
 
 function mergeDiagnosticSummaries(current: string | undefined, incoming: string): string {
