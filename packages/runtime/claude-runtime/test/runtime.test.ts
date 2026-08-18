@@ -3396,22 +3396,22 @@ test("a newly observed regression takes priority over older verification debt", 
   assert.match(decision.reason, /before returning to older/);
 });
 
-test("restoring verification failures preserves priority when mutation counts tie", () => {
+test("a fresh failure outranks repeated debt when restored mutation counts tie", () => {
   const prioritizedFailures = [
-    {
-      scope: "simulation-suite",
-      failedChecks: [],
-      failedCount: null,
-      failureKind: "reported_failure" as const,
-      attemptCount: 1,
-      lastObservedWorkspaceMutationCount: 9,
-    },
     {
       scope: "integration-suite",
       failedChecks: ["opaque-contract"],
       failedCount: 1,
       failureKind: "reported_checks" as const,
       attemptCount: 12,
+      lastObservedWorkspaceMutationCount: 9,
+    },
+    {
+      scope: "simulation-suite",
+      failedChecks: [],
+      failedCount: null,
+      failureKind: "reported_failure" as const,
+      attemptCount: 1,
       lastObservedWorkspaceMutationCount: 9,
     },
   ];

@@ -924,9 +924,10 @@ function mergeVerificationFailures(
   const incomingScopes = new Set(incoming.map((failure) => failure.scope));
   const merged = new Map<string, UnresolvedVerificationFailure>();
   // Incoming observations outrank retained debt when both were observed on
-  // the same workspace bytes. An already-prioritized restored array is also
-  // incoming, so preserve its order instead of reversing ties on every
-  // process restart.
+  // the same workspace bytes. For legacy checkpoints without an observation
+  // sequence, a first-seen failure is more likely to be the fresh regression
+  // than a scope already retried many times; the stable input order settles
+  // the remaining ties without flipping them on every process restart.
   for (const failure of [
     ...incoming,
     ...current.filter((failure) => !incomingScopes.has(failure.scope)),
@@ -939,6 +940,7 @@ function mergeVerificationFailures(
     .sort((left, right) => (
       right.lastObservedWorkspaceMutationCount
         - left.lastObservedWorkspaceMutationCount
+      || left.attemptCount - right.attemptCount
     ))
     .slice(0, 32);
 }
