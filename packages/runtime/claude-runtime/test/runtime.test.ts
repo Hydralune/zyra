@@ -3949,7 +3949,7 @@ test("nonzero verification preserves its diagnostic window", () => {
   assert.equal(progressive.snapshot().unresolvedVerificationFailures[0]?.attemptCount, 1);
 });
 
-test("failed verification preserves six named source reads after broad diagnostics", () => {
+test("failed verification preserves twelve named source reads after broad diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {
@@ -3988,7 +3988,7 @@ test("failed verification preserves six named source reads after broad diagnosti
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
   assert.equal(progressive.consumeRecoveryInspectionAllowance(), false);
-  for (let index = 0; index < 6; index += 1) {
+  for (let index = 0; index < 12; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
   }
   assert.equal(progressive.consumeRecoveryInspectionAllowance(true), false);
@@ -4030,7 +4030,7 @@ test("verification-generated files do not impersonate a repair mutation", () => 
   for (let index = 0; index < 8; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(), true);
   }
-  for (let index = 0; index < 6; index += 1) {
+  for (let index = 0; index < 12; index += 1) {
     assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
   }
 
@@ -4147,7 +4147,7 @@ test("legacy verification debt receives the named-source reserve only once", () 
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: legacyContinuity,
   }).snapshot();
-  assert.equal(migrated.targetedRepairInspectionAllowance, 6);
+  assert.equal(migrated.targetedRepairInspectionAllowance, 12);
   assert.equal(migrated.targetedRepairReserveVersion, 4);
 
   const exhausted = new ProgressiveExecutionRuntime({
@@ -4192,7 +4192,7 @@ test("a new resumed model context rehydrates named source reads exactly once", (
     continuityProgress: debt,
     repairContextId: "context-b",
   }).snapshot();
-  assert.equal(resumed.targetedRepairInspectionAllowance, 6);
+  assert.equal(resumed.targetedRepairInspectionAllowance, 12);
   assert.equal(resumed.repairContextId, "context-b");
 
   const restoredSameContext = new ProgressiveExecutionRuntime({
@@ -4915,11 +4915,11 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection(shell("docker exec postgres psql -c 'ALTER TABLE outbox_events ADD COLUMN tenant_id text'"), false), false);
   assert.equal(isTargetedRepairInspection(shell("docker exec postgres psql --file migrations/003.sql"), false), false);
   assert.match(
-    preDeliveryInspectionGuidance(6).join(" "),
-    /6 targeted diagnostics remain: use read or file_read/,
+    preDeliveryInspectionGuidance(12).join(" "),
+    /12 targeted diagnostics remain: use read or file_read/,
   );
   assert.match(
-    preDeliveryInspectionGuidance(6).join(" "),
+    preDeliveryInspectionGuidance(12).join(" "),
     /compare actual predicates clause-by-clause; verify every qualifier/,
   );
   assert.doesNotMatch(

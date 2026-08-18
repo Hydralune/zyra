@@ -202,9 +202,9 @@ export class ProgressiveExecutionRuntime {
             : restoredHasVerificationDebt
               ? boundedInteger(
                 this.constraints.targeted_repair_inspection_limit,
-                6,
-                2,
                 12,
+                4,
+                24,
               )
               : 0,
         ),
@@ -317,9 +317,9 @@ export class ProgressiveExecutionRuntime {
           ? nonnegativeInteger(continuity.targetedRepairInspectionAllowance)
           : boundedInteger(
             this.constraints.targeted_repair_inspection_limit,
-            6,
-            2,
             12,
+            4,
+            24,
           ),
       );
       if (continuityTargetedReserveVersion < 4) {
@@ -351,9 +351,9 @@ export class ProgressiveExecutionRuntime {
         this.state.targetedRepairInspectionAllowance,
         boundedInteger(
           this.constraints.targeted_repair_inspection_limit,
-          6,
-          2,
           12,
+          4,
+          24,
         ),
       );
       this.state.repairContextId = repairContextId;
@@ -668,9 +668,9 @@ export class ProgressiveExecutionRuntime {
           this.state.targetedRepairInspectionAllowance,
           boundedInteger(
             this.constraints.targeted_repair_inspection_limit,
-            6,
-            2,
             12,
+            4,
+            24,
           ),
         );
       } else {
