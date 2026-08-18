@@ -1159,8 +1159,12 @@ function verificationFailure(
   // still appended by observeToolResult, but stale transport failures must not
   // keep routing the repair strategy after the service has recovered.
   const observedDiagnostic = verificationDiagnosticSummary(response);
+  const existingDiagnosticIsCurrent = existing?.lastObservedWorkspaceMutationCount
+    === workspaceMutationCount;
   let diagnosticSummary = observedDiagnostic
-    || retainedVerificationDiagnosticSummary(existing?.diagnosticSummary);
+    || (existingDiagnosticIsCurrent
+      ? retainedVerificationDiagnosticSummary(existing?.diagnosticSummary)
+      : "");
   if (failedChecks.size === 0 && (existing?.failedChecks.length ?? 0) > 0) {
     diagnosticSummary = mergeDiagnosticSummaries(
       diagnosticSummary,

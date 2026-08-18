@@ -3539,6 +3539,58 @@ test("stale actionable fragments do not collapse a later opaque repair context",
   );
 });
 
+test("a verification on repaired bytes drops stale source diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 6,
+      repairMutationCount: 6,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["contract-security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 4,
+        lastObservedWorkspaceMutationCount: 5,
+        diagnosticSummary: "existing.error = redact_log_line(str(error))",
+      }],
+    },
+  });
+  const rerun: ToolExecutionRequest = {
+    toolCallId: "integration-after-repair",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "integration-after-repair",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "integration-suite",
+    },
+  };
+  progressive.observeToolResult(rerun, {
+    tool_call_id: rerun.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: '{"status":"failed","failed":2,"failed_shards":["contract-security","cross-language"]}',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failure = progressive.snapshot().unresolvedVerificationFailures[0];
+  assert.deepEqual(failure.failedChecks, ["contract-security", "cross-language"]);
+  assert.equal(failure.lastObservedWorkspaceMutationCount, 6);
+  assert.equal(failure.diagnosticSummary, undefined);
+});
+
 test("a new verification result supersedes stale environment diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
