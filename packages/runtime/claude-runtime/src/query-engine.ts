@@ -1339,6 +1339,36 @@ export class ClaudeRuntimeCore {
             });
           } else if (
             progressive.hasUnresolvedVerificationFailures()
+            && isPrivateVerificationInfrastructureInspection(
+              step,
+              registry.readOnly(step.tool_name),
+            )
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "The failing verifier is opaque; private verification infrastructure was not inspected.",
+              output: {
+                guidance: [
+                  "Treat opaque check names as symptoms, not source locations or an invitation to inspect the evaluator.",
+                  "Map the public contract to concrete business implementation paths and compare every enforcement predicate across layers.",
+                  "Use public tests only as executable contract examples; do not probe test farms, hidden tests, held-out data, evaluator services, or their APIs.",
+                  "After a business-implementation repair, rerun the original named verification scope.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "private_verification_infrastructure_inspection_blocked",
+              metadata: {
+                canonical_owner: "typescript",
+                private_verification_infrastructure_inspection_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
+            progressive.hasUnresolvedVerificationFailures()
             && isGeneratedDeliveryInspection(step, registry.readOnly(step.tool_name))
           ) {
             immediateResults.set(toolCallId, {
@@ -2961,6 +2991,27 @@ export function isClearlyPreDeliveryInspection(
   // drive an edit, build, test, migration, service, or external state change
   // cross this boundary.  This also closes interpreter-wrapped read bypasses.
   return !isClearlyDeliveryDrivingShellCommand(shellInvocationText(step.arguments));
+}
+
+export function isPrivateVerificationInfrastructureInspection(
+  step: { tool_name: string; arguments: JsonObject },
+  readOnly: boolean,
+): boolean {
+  if (!isClearlyPreDeliveryInspection(step, readOnly)) return false;
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  const subject = (path || shellInvocationText(step.arguments))
+    .trim()
+    .replaceAll("\\", "/");
+  if (!subject) return false;
+
+  // Public tests are part of the task's executable contract.  The forbidden
+  // boundary is private/held-out evaluator infrastructure: probing it turns
+  // an opaque failure label into a source-discovery strategy and consumes the
+  // repair window without improving the submitted implementation.
+  if (/^(?:\.\/)?tests\/public(?:\/|$)/iu.test(subject)) return false;
+  return /(?:^|[^a-z0-9])(?:test[-_]?farm|hidden[-_]?(?:tests?|checks?|contract|cross[-_]?language)|held[-_]?(?:out|tests?|checks?)|private[-_]?(?:tests?|checks?|evaluator)|evaluator)(?:$|[^a-z0-9])/iu.test(
+    subject,
+  );
 }
 
 export function isTargetedRepairInspection(

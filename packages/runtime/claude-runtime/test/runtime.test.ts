@@ -34,6 +34,7 @@ import {
   isClearlyRepairDrivingTool,
   isGeneratedDeliveryInspection,
   isGeneratedDeliveryMutation,
+  isPrivateVerificationInfrastructureInspection,
   isValidationOnlyMutation,
   isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
@@ -4940,6 +4941,41 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
+  assert.equal(
+    isPrivateVerificationInfrastructureInspection(
+      shell('grep -rln "test_farm\\|hidden-contract" tools/ tests/ | head -40'),
+      false,
+    ),
+    true,
+  );
+  assert.equal(
+    isPrivateVerificationInfrastructureInspection(
+      shell('grep -n "hidden\\|shard\\|test-farm" tools/afctl.py | head -60'),
+      false,
+    ),
+    true,
+  );
+  assert.equal(
+    isPrivateVerificationInfrastructureInspection(
+      { tool_name: "file_read", arguments: { path: "evaluator/hidden-tests/security.py" } },
+      true,
+    ),
+    true,
+  );
+  assert.equal(
+    isPrivateVerificationInfrastructureInspection(
+      { tool_name: "file_read", arguments: { path: "tests/public/test_authorization.py" } },
+      true,
+    ),
+    false,
+  );
+  assert.equal(
+    isPrivateVerificationInfrastructureInspection(
+      shell('rg -n "tenant_id" services/control-api/auth.py | head -80'),
+      false,
+    ),
+    false,
+  );
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/state_machine.py" } }, true), true);
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "services/worker/src" } }, true), false);
   assert.equal(isTargetedRepairInspection({ tool_name: "file_read", arguments: { path: "submission/test-report.json" } }, true), false);
