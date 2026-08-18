@@ -5473,7 +5473,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
   const repairGuidance = preDeliveryInspectionGuidance(2).join(" ");
   assert.match(repairGuidance, /empty\/zero\/null\/default/);
+  assert.match(repairGuidance, /normative operators/);
+  assert.match(repairGuidance, /trace every externally supplied field/);
   assert.match(repairGuidance, /do not use unrelated dependency-download/);
+  assert.match(repairGuidance, /build-freshness hypothesis already disproved/);
   assert.equal(
     isFailedVerificationHarnessMutation(
       { tool_name: "file_edit", arguments: { path: "tools/afctl.py" } },
