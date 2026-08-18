@@ -52,6 +52,7 @@ export interface ProgressiveExecutionSnapshot {
   recoveryInspectionAllowance: number;
   targetedRepairInspectionAllowance: number;
   targetedRepairReserveVersion: number;
+  environmentRecoveryAwaitingVerification: boolean;
   repairContextId: string;
   activeBackgroundCount: number;
   requiredDeliveryMissing: boolean;
@@ -144,6 +145,7 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
         targetedRepairReserveVersion: 4,
+        environmentRecoveryAwaitingVerification: false,
         repairContextId,
         activeBackgroundCount: 0,
         requiredDeliveryMissing: requiresDelivery,
@@ -207,6 +209,9 @@ export class ProgressiveExecutionRuntime {
               : 0,
         ),
         targetedRepairReserveVersion: 4,
+        environmentRecoveryAwaitingVerification: asBoolean(
+          restored.environmentRecoveryAwaitingVerification,
+        ),
         // Snapshots written before repair-specific accounting used the total
         // workspace mutation count. Preserve their monotonic lineage once,
         // then stop verification-generated files from impersonating a fix.
@@ -364,6 +369,17 @@ export class ProgressiveExecutionRuntime {
       this.state.unresolvedVerificationScopes,
       this.state.unresolvedVerificationFailures,
     );
+    const priorityFailure = this.state.unresolvedVerificationFailures[0];
+    if (
+      !this.state.environmentRecoveryAwaitingVerification
+      && priorityFailure
+      && priorityFailure.lastObservedWorkspaceMutationCount < this.state.repairMutationCount
+      && this.state.progressReasons.includes("verification_environment_recovery_committed")
+    ) {
+      // Snapshots written before this field existed still carry the monotonic
+      // recovery mutation and reason. Recover the pending-rerun state once.
+      this.state.environmentRecoveryAwaitingVerification = true;
+    }
     this.constrainActionableDiagnosticInspection();
     this.state.targetedRepairReserveVersion = 4;
     // The current task contract is authoritative after a checkpoint restore.
@@ -461,7 +477,11 @@ export class ProgressiveExecutionRuntime {
       this.state.repairMutationCount += 1;
       this.state.verificationNudgeCount = 0;
       this.state.lastVerificationNudgeProviderRound = 0;
+      this.state.environmentRecoveryAwaitingVerification = true;
       this.progress("verification_environment_recovery_committed");
+    }
+    if (verificationDriving && !backgroundRunning) {
+      this.state.environmentRecoveryAwaitingVerification = false;
     }
     if (artifacts > 0) this.state.artifactCount += artifacts;
     if (mutated) {
@@ -860,6 +880,11 @@ export class ProgressiveExecutionRuntime {
     const diagnostic = this.state.unresolvedVerificationFailures[0]?.diagnosticSummary ?? "";
     const latestDiagnostic = diagnostic.split(" | ").at(-1) ?? diagnostic;
     return /(?:network (?:is )?unreachable|connection (?:refused|reset)|name or service not known|temporary failure in name resolution|no route to host|service unavailable|ECONNREFUSED|ENETUNREACH)/iu.test(latestDiagnostic);
+  }
+
+  verificationEnvironmentRecoveryAwaitingVerification(): boolean {
+    return this.state.environmentRecoveryAwaitingVerification
+      && this.state.unresolvedVerificationFailures.length > 0;
   }
 
   failedVerificationScopeAwaitingRepair(scope: string): boolean {

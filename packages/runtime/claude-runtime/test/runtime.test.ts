@@ -3605,10 +3605,48 @@ test("a successful environment recovery permits the failed scope to rerun", () =
 
   assert.equal(progressive.snapshot().repairMutationCount, 4);
   assert.equal(progressive.failedVerificationScopeAwaitingRepair("simulation-suite"), false);
+  assert.equal(progressive.verificationEnvironmentRecoveryAwaitingVerification(), true);
+  const {
+    environmentRecoveryAwaitingVerification: _legacyFieldOmitted,
+    ...legacyRecoverySnapshot
+  } = progressive.snapshot();
+  const restoredLegacyRecovery = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: legacyRecoverySnapshot as unknown as JsonObject,
+  });
+  assert.equal(
+    restoredLegacyRecovery.verificationEnvironmentRecoveryAwaitingVerification(),
+    true,
+  );
   assert.match(
     progressive.snapshot().progressReasons.join(" "),
     /verification_environment_recovery_committed/,
   );
+
+  const rerun: ToolExecutionRequest = {
+    toolCallId: "simulation-rerun",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py simulate" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "simulation-rerun",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "simulation-suite",
+    },
+  };
+  progressive.observeToolResult(rerun, {
+    tool_call_id: rerun.toolCallId,
+    ok: false,
+    summary: "request failed: HTTP Error 500: Internal Server Error",
+    output: { stderr: "HTTP Error 500: Internal Server Error", return_code: 1 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(progressive.verificationEnvironmentRecoveryAwaitingVerification(), false);
 });
 
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {

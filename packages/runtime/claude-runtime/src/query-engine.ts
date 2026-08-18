@@ -1390,6 +1390,34 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            progressive.verificationEnvironmentRecoveryAwaitingVerification()
+            && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "The task environment recovered successfully; further inspection was deferred until the priority verification is rerun.",
+              output: {
+                guidance: [
+                  "Rerun the same priority verification scope now so the repaired environment produces current behavioral evidence.",
+                  "Do not inspect more source, status, logs, or generated reports before that rerun.",
+                  "If the rerun fails, use its new diagnostic to choose the next bounded repair.",
+                ],
+                priority_verification_failure: progressive.verificationDebtSummary(),
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "verification_required_after_environment_recovery",
+              metadata: {
+                canonical_owner: "typescript",
+                pre_delivery_inspection_blocked: "true",
+                verification_required_after_environment_recovery: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.verificationEnvironmentRecoveryRequired()
             && registry.readOnly(step.tool_name)
             && ["read", "file_read"].includes(step.tool_name)
