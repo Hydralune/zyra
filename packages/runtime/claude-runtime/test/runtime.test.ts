@@ -5477,6 +5477,9 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.match(repairGuidance, /Do not invent an exception/);
   assert.match(repairGuidance, /free-form reason, message, error, and payload/);
   assert.match(repairGuidance, /trace every externally supplied field/);
+  assert.match(repairGuidance, /record that hypothesis and its repair files as rejected/);
+  assert.match(repairGuidance, /revert the just-falsified changes/);
+  assert.match(repairGuidance, /do not spend more reads revalidating a rejected hypothesis/);
   assert.match(repairGuidance, /do not use unrelated dependency-download/);
   assert.match(repairGuidance, /build-freshness hypothesis already disproved/);
   assert.equal(
