@@ -52,6 +52,7 @@ export interface ProgressiveExecutionSnapshot {
   recoveryInspectionAllowance: number;
   targetedRepairInspectionAllowance: number;
   targetedRepairReserveVersion: number;
+  verificationDiagnosticVersion: number;
   environmentRecoveryAwaitingVerification: boolean;
   repairContextId: string;
   activeBackgroundCount: number;
@@ -93,6 +94,12 @@ export class ProgressiveExecutionRuntime {
     const restoredTargetedReserveVersion = nonnegativeInteger(
       restored.targetedRepairReserveVersion,
     );
+    const restoredVerificationDiagnosticVersion = nonnegativeInteger(
+      restored.verificationDiagnosticVersion,
+    );
+    const legacyDiagnosticMigrationRequired = restored.version
+      === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION
+      && restoredVerificationDiagnosticVersion < 1;
     const restoredHasVerificationDebt = (
       Array.isArray(restored.unresolvedVerificationScopes)
       && restored.unresolvedVerificationScopes.length > 0
@@ -145,6 +152,7 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
         targetedRepairReserveVersion: 4,
+        verificationDiagnosticVersion: 1,
         environmentRecoveryAwaitingVerification: false,
         repairContextId,
         activeBackgroundCount: 0,
@@ -209,6 +217,7 @@ export class ProgressiveExecutionRuntime {
               : 0,
         ),
         targetedRepairReserveVersion: 4,
+        verificationDiagnosticVersion: 1,
         environmentRecoveryAwaitingVerification: asBoolean(
           restored.environmentRecoveryAwaitingVerification,
         ),
@@ -226,6 +235,7 @@ export class ProgressiveExecutionRuntime {
           : [],
         unresolvedVerificationFailures: restoreVerificationFailures(
           restored.unresolvedVerificationFailures,
+          !legacyDiagnosticMigrationRequired,
         ),
         lastVerificationNudgeProviderRound: nonnegativeInteger(
           restored.lastVerificationNudgeProviderRound,
@@ -296,6 +306,7 @@ export class ProgressiveExecutionRuntime {
       : [];
     const continuityFailures = restoreVerificationFailures(
       continuity.unresolvedVerificationFailures,
+      !legacyDiagnosticMigrationRequired,
     );
     if (continuityScopes.length > 0 || continuityFailures.length > 0) {
       this.state.unresolvedVerificationScopes = [...new Set([
@@ -1009,7 +1020,10 @@ export class ProgressiveExecutionRuntime {
   }
 }
 
-function restoreVerificationFailures(value: unknown): UnresolvedVerificationFailure[] {
+function restoreVerificationFailures(
+  value: unknown,
+  retainDiagnostics = true,
+): UnresolvedVerificationFailure[] {
   if (!Array.isArray(value)) return [];
   const restored: UnresolvedVerificationFailure[] = [];
   for (const item of value) {
@@ -1017,7 +1031,13 @@ function restoreVerificationFailures(value: unknown): UnresolvedVerificationFail
     const scope = String(failure.scope ?? "").trim();
     if (!scope) continue;
     const kind = String(failure.failureKind ?? "reported_failure");
-    const diagnosticSummary = retainedVerificationDiagnosticSummary(failure.diagnosticSummary);
+    const retainedDiagnostic = retainedVerificationDiagnosticSummary(
+      failure.diagnosticSummary,
+    );
+    const diagnosticSummary = retainDiagnostics
+      || isRetryableVerificationInvocationDiagnostic(retainedDiagnostic)
+      ? retainedDiagnostic
+      : "";
     restored.push({
       scope,
       failedChecks: Array.isArray(failure.failedChecks)

@@ -906,6 +906,7 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
                 "actionNudgeCount": 3,
                 "lastActionNudgeObservationCount": 7,
                 "lastActionNudgeProviderRound": 18,
+                "verificationDiagnosticVersion": 1,
                 "repairContextId": "spent-permission-session",
             },
             "modelIteration": {
@@ -967,6 +968,7 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
         "providerRounds": 19,
         "workspaceMutationCount": 4,
         "verificationCount": 0,
+        "verificationDiagnosticVersion": 1,
         "unresolvedVerificationScopes": ["shell:afctl:test:integration"],
         "unresolvedVerificationFailures": [
             {
