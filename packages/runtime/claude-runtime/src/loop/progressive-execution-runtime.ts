@@ -683,6 +683,7 @@ export class ProgressiveExecutionRuntime {
       && response.ok
       && ["shell", "shell_wait"].includes(request.toolName)
       && this.state.unresolvedVerificationFailures.length > 0
+      && !isSourceInspectionRequest(request)
     ) {
       const diagnostic = verificationDiagnosticSummary(response);
       if (diagnostic) {
@@ -1216,7 +1217,17 @@ function safeDiagnosticSummary(value: unknown): string {
 
 function isActionableVerificationDiagnostic(value: string): boolean {
   const diagnostic = safeDiagnosticSummary(value);
-  return /(?:\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:undefined column|unknown column|does not exist|no such (?:file|column|table)|cannot find module|module not found|constraint\s+\S+\s+violated)\b|\b[^\s:]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs):\d+(?::\d+)?\b)/u.test(diagnostic);
+  const latest = diagnostic.split(" | ").at(-1)?.trim() ?? diagnostic;
+  return /(?:\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:undefined column|unknown column|does not exist|no such (?:file|column|table)|cannot find module|module not found|constraint\s+\S+\s+violated)\b|\b[^\s:]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs):\d+(?::\d+)?\b)/u.test(latest);
+}
+
+function isSourceInspectionRequest(request: ToolExecutionRequest): boolean {
+  if (request.toolName !== "shell") return false;
+  const command = String(request.arguments.command ?? "")
+    .trim()
+    .replace(/^cd\s+(?:["']\/workspace["']|\/workspace)\s*(?:&&|;)\s*/iu, "")
+    .trim();
+  return /^(?:cat|type|Get-Content|sed\s+-n|grep|rg|ls|find)\b/iu.test(command);
 }
 
 function safeCheckName(value: string): string {

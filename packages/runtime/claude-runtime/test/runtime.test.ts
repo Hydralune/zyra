@@ -3510,6 +3510,33 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   assert.equal(restored.snapshot().targetedRepairInspectionAllowance, 2);
 });
 
+test("stale actionable fragments do not collapse a later opaque repair context", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["contract-security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 4,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: "grep: old_guess.py: No such file or directory | throw new Error(`metadata request failed`)",
+      }],
+    },
+  });
+
+  assert.equal(progressive.snapshot().targetedRepairInspectionAllowance, 12);
+  assert.doesNotMatch(
+    progressive.snapshot().progressReasons.join(" "),
+    /actionable_verification_diagnostic_bounded/,
+  );
+});
+
 test("a new verification result supersedes stale environment diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -3656,6 +3683,27 @@ test("contract prose does not pollute retained verification diagnostics", () => 
     metadata: { workspace_mutation_committed: "false" },
   }, false);
 
+  assert.equal(
+    progressive.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
+    "ValueError: tenant predicate mismatch",
+  );
+
+  const sourceRead: ToolExecutionRequest = {
+    ...contractRead,
+    toolCallId: "source-read",
+    arguments: { command: "sed -n '1,220p' services/control-api/auth.py" },
+  };
+  progressive.observeToolResult(sourceRead, {
+    tool_call_id: sourceRead.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: 'raise CrossTenantAccessError("cross-tenant access denied")',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
   assert.equal(
     progressive.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
     "ValueError: tenant predicate mismatch",
