@@ -3319,7 +3319,17 @@ function originatingToolCall(
 
 function shellInvocationText(arguments_: JsonObject): string {
   const command = asString(arguments_.command).trim();
-  if (command) return command;
+  if (command) {
+    // The governed container already starts every shell in /workspace, but
+    // coding models often repeat that fact in the command.  Ignore this
+    // no-op prefix for policy classification so an exact bounded source read
+    // keeps its intended diagnostic cost and cannot change categories merely
+    // because the model restated the working directory.
+    return command.replace(
+      /^\s*cd\s+(?:["']\/workspace["']|\/workspace)\s*(?:&&|;)\s*/iu,
+      "",
+    ).trim();
+  }
   const executable = asString(arguments_.executable).trim();
   const argv = Array.isArray(arguments_.argv)
     ? arguments_.argv

@@ -4810,7 +4810,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isTargetedRepairInspection(shell('grep -n "WindowMetrics\\|healthRate" services/release-worker/src/worker.ts | head -60'), false), true);
   assert.equal(isTargetedRepairInspection(shell("rg -n 'tenant_id|campaign_id' services/control-api/aurorafleet_api/repositories/campaigns.py | head -n 120"), false), true);
   assert.equal(isTargetedRepairInspection(shell("sed -n '120,260p' services/release-worker/src/worker.ts"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("cd /workspace && sed -n '120,260p' services/release-worker/src/worker.ts"), false), true);
+  assert.equal(isTargetedRepairInspection(shell("cd '/workspace'; grep -n 'WindowMetrics' services/release-worker/src/worker.ts | head -60"), false), true);
   assert.equal(isTargetedRepairInspection(shell("grep -rn tenant_id services | head -60"), false), false);
+  assert.equal(isTargetedRepairInspection(shell("cd /workspace && grep -rn tenant_id services | head -60"), false), false);
   assert.equal(isTargetedRepairInspection(shell("grep -n tenant_id services/release-worker/src/*.ts | head -60"), false), false);
   assert.equal(isTargetedRepairInspection(shell("sed -n '1,1000p' services/release-worker/src/worker.ts"), false), false);
   assert.equal(isTargetedRepairInspection(shell("sed -n '1,100p' submission/security-report.md"), false), false);
