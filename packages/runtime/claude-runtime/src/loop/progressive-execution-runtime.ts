@@ -1162,7 +1162,7 @@ function verificationFailure(
   const existingDiagnosticIsCurrent = existing?.lastObservedWorkspaceMutationCount
     === workspaceMutationCount;
   let diagnosticSummary = observedDiagnostic
-    || (existingDiagnosticIsCurrent
+    || (existingDiagnosticIsCurrent && failedChecks.size === 0
       ? retainedVerificationDiagnosticSummary(existing?.diagnosticSummary)
       : "");
   if (failedChecks.size === 0 && (existing?.failedChecks.length ?? 0) > 0) {
