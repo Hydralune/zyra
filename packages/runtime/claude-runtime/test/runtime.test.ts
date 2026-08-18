@@ -4913,6 +4913,47 @@ test("shell wrapper failures do not replace semantic verification debt", () => {
     progressive.failedVerificationScopeAwaitingRepair("shell:npm:typecheck"),
     false,
   );
+
+  progressive.observeToolResult({
+    toolCallId: "dependency-download-timeout",
+    toolName: "shell_wait",
+    arguments: { job_id: "job-build-timeout" },
+    turnIndex: 2,
+    stepIndex: 0,
+    batchId: "dependency-download-timeout",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:build",
+    },
+  }, {
+    tool_call_id: "dependency-download-timeout",
+    ok: false,
+    summary: "Sandbox command failed",
+    output: {
+      stderr: [
+        "pip._vendor.urllib3.exceptions.ReadTimeoutError:",
+        "HTTPSConnectionPool(host='files.pythonhosted.org', port=443): Read timed out.",
+      ].join(" "),
+      return_code: 17,
+    },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const afterDependencyTimeout = progressive.snapshot();
+  assert.deepEqual(afterDependencyTimeout.unresolvedVerificationScopes, [integrationScope]);
+  assert.deepEqual(
+    afterDependencyTimeout.unresolvedVerificationFailures.map((failure) => failure.scope),
+    [integrationScope],
+  );
+  assert.equal(
+    progressive.failedVerificationScopeAwaitingRepair("shell:afctl:build"),
+    false,
+  );
 });
 
 test("restore drops invocation-only verification debt", () => {
@@ -4943,6 +4984,14 @@ test("restore drops invocation-only verification debt", () => {
         failureKind: "transport_failure",
         attemptCount: 1,
         lastObservedWorkspaceMutationCount: 4,
+      }, {
+        scope: "shell:afctl:build-network",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "transport_failure",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: "pip ReadTimeoutError from files.pythonhosted.org: Read timed out",
       }, {
         scope: "shell:afctl:test:integration",
         failedChecks: ["hidden-cross-language"],
@@ -5315,7 +5364,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose ps")), false);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py bootstrap")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py build")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py up 2>&1 | tail -60")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("npm run build")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("npm run typecheck")), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl https://service.invalid/status"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);

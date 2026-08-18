@@ -3377,7 +3377,13 @@ export function isClearlyEnvironmentRecoveryTool(
     || /\bdocker(?:\.exe)?\s+(?:start|restart)\b/iu.test(command)
     || /\bsystemctl\s+(?:start|restart|reload)\s+\S+/iu.test(command)
     || /\bservice\s+\S+\s+(?:start|restart|reload)\b/iu.test(command)
-    || /\b(?:python(?:3)?\s+)?\S*afctl\.py\s+(?:bootstrap|up|start|restart)\b/iu.test(command);
+    || /\b(?:python(?:3)?\s+)?\S*afctl\.py\s+(?:bootstrap|build|up|start|restart)\b/iu.test(command)
+    // Compiled/generated artifacts are often ignored by source-control based
+    // mutation detection. A successful build is nevertheless the operation
+    // that makes a source repair observable to the original verifier, so it
+    // must advance the recovery generation and permit that verifier to rerun.
+    || /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?build(?=\s|$)/iu.test(command)
+    || /\b(?:cargo|go)\s+build(?=\s|$)/iu.test(command);
 }
 
 export function isEnvironmentRecoveryToolResult(

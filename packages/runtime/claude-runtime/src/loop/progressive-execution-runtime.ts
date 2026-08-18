@@ -1119,7 +1119,16 @@ function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
   return /(?:^|\n)(?:sh|dash|ash|bash):[^\n]*\bbad substitution\b/iu.test(value)
     || /\bPIPESTATUS(?:\[[^\]]+\])?:\s*(?:parameter not set|unbound variable)\b/iu.test(value)
     || /\b(?:shell|command) was blocked by SandboxGateway\b/iu.test(value)
-    || /\b(?:absolute, drive and UNC paths are denied|tool[_ -]?schema[_ -]?validation[_ -]?failed|schema[_ -]?error)\b/iu.test(value);
+    || /\b(?:absolute, drive and UNC paths are denied|tool[_ -]?schema[_ -]?validation[_ -]?failed|schema[_ -]?error)\b/iu.test(value)
+    // Dependency downloads happen before a build can produce trustworthy
+    // behavioral evidence. Treat transient registry/network failures like a
+    // failed invocation so the agent can retry or switch mirrors instead of
+    // being forced to change unrelated business code. Keep this deliberately
+    // narrower than generic application connectivity failures (for example a
+    // test receiving HTTP 500), which still require environment recovery.
+    || /\b(?:ReadTimeoutError|ConnectTimeoutError|ConnectionResetError|Temporary failure in name resolution)\b/iu.test(value)
+    || /\b(?:files\.pythonhosted\.org|pypi\.org|registry\.npmjs\.org|registry-1\.docker\.io)\b[^\n]*(?:timed?\s*out|timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN)/iu.test(value)
+    || /\b(?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b[^\n]*(?:npm|pnpm|yarn|registry|package|download|fetch)/iu.test(value);
 }
 
 function mergeVerificationFailures(
