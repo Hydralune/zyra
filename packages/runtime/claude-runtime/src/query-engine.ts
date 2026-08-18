@@ -2965,6 +2965,34 @@ function isBoundedTargetedShellInspection(command: string): boolean {
   if (isClearlyDeliveryDrivingShellCommand(normalized)) return false;
   if (shellMutationTargets(normalized).length > 0) return false;
 
+  // A large implementation file can exceed the per-observation budget. Allow
+  // one exact source file to be searched or sliced with an explicit line cap,
+  // so a named symbol remains inspectable without reopening recursive scans.
+  const pipeline = normalized.split(/\s+\|\s+/u).map((part) => part.trim());
+  if (
+    pipeline.length === 2
+    && /^(?:grep|rg)(?:\.exe)?\b/iu.test(pipeline[0])
+    && !/(?:^|\s)(?:-[^\s]*r[^\s]*|--recursive)(?:\s|$)/iu.test(pipeline[0])
+    && /^(?:head|tail)\s+(?:-n\s+)?-?(\d+)$/iu.test(pipeline[1])
+  ) {
+    const limit = Number(pipeline[1].match(/(\d+)$/u)?.[1] ?? 0);
+    const tokens = pipeline[0].match(/(?:"[^"]*"|'[^']*'|\S+)/gu) ?? [];
+    const path = (tokens.at(-1) ?? "").replace(/^["']|["']$/gu, "");
+    if (limit > 0 && limit <= 400 && isExactTargetedSourcePath(path)) return true;
+  }
+
+  const sedRange = normalized.match(
+    /^sed\s+-n\s+["']?(\d+),(\d+)p["']?\s+(["']?[^\s"']+["']?)$/iu,
+  );
+  if (sedRange) {
+    const start = Number(sedRange[1]);
+    const end = Number(sedRange[2]);
+    const path = sedRange[3].replace(/^["']|["']$/gu, "");
+    if (start > 0 && end >= start && end - start < 400 && isExactTargetedSourcePath(path)) {
+      return true;
+    }
+  }
+
   // A database exception often names the failing column but not the actual
   // deployed schema. Let a bounded psql description or SELECT consume the
   // same repair reserve as a named source read. State-changing SQL, SQL files,
@@ -2988,6 +3016,17 @@ function isBoundedTargetedShellInspection(command: string): boolean {
   return false;
 }
 
+function isExactTargetedSourcePath(value: string): boolean {
+  const path = value.trim().replaceAll("\\", "/");
+  if (!path || /[*?\[\]{}]/u.test(path) || path.endsWith("/")) return false;
+  if (path.startsWith("-") || isGeneratedDeliveryPath(path)) return false;
+  if (/(?:^|\/)(?:node_modules|\.git|\.runtime|\.venv|venv|dist|coverage)(?:\/|$)/iu.test(path)) {
+    return false;
+  }
+  const basename = path.slice(path.lastIndexOf("/") + 1);
+  return /\.[a-z0-9][a-z0-9._-]{0,15}$/iu.test(basename);
+}
+
 export function preDeliveryInspectionGuidance(
   targetedRepairInspectionsRemaining: number,
 ): string[] {
@@ -2999,7 +3038,7 @@ export function preDeliveryInspectionGuidance(
   ];
   if (targetedRepairInspectionsRemaining > 0) {
     guidance.push(
-      `${targetedRepairInspectionsRemaining} targeted diagnostics remain: use read or file_read with an exact implementation or contract file path; after a concrete database or service failure, a bounded read-only psql schema query or exact tailed service log is also allowed. Broad searches and shell cat, type, or Get-Content remain blocked.`,
+      `${targetedRepairInspectionsRemaining} targeted diagnostics remain: use read or file_read with an exact implementation or contract file path; when a large file exceeds the observation limit, use grep or rg against one exact file piped to a numeric head/tail limit, or sed -n with a bounded numeric line range. After a concrete database or service failure, a bounded read-only psql schema query or exact tailed service log is also allowed. Broad or recursive searches and shell cat, type, or Get-Content remain blocked.`,
     );
   }
   guidance.push(
