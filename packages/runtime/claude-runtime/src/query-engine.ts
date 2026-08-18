@@ -1339,6 +1339,37 @@ export class ClaudeRuntimeCore {
             });
           } else if (
             progressive.hasUnresolvedVerificationFailures()
+            && isFailedVerificationHarnessMutation(
+              step,
+              progressive.snapshot().unresolvedVerificationScopes,
+            )
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Behavioral verification is still failing; its runner was not accepted as the business repair target.",
+              output: {
+                guidance: [
+                  "Do not edit the command, runner, or package script that reports the outstanding failure.",
+                  "Repair the public contract, configuration, or business implementation exercised by that runner.",
+                  "If an earlier diagnostic attempt changed the runner, restore that harness change before final verification.",
+                  "Rerun the same original verification scope only after the business implementation changes.",
+                ],
+                unresolved_verification_scopes: progressive.snapshot().unresolvedVerificationScopes,
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "unresolved_verification_harness_write_blocked",
+              metadata: {
+                canonical_owner: "typescript",
+                unresolved_verification_harness_write_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
+            progressive.hasUnresolvedVerificationFailures()
             && isPrivateVerificationInfrastructureInspection(
               step,
               registry.readOnly(step.tool_name),
@@ -3012,6 +3043,37 @@ export function isPrivateVerificationInfrastructureInspection(
   return /(?:^|[^a-z0-9])(?:test[-_]?farm|hidden[-_]?(?:tests?|checks?|contract|cross[-_]?language)|held[-_]?(?:out|tests?|checks?)|private[-_]?(?:tests?|checks?|evaluator)|evaluator)(?:$|[^a-z0-9])/iu.test(
     subject,
   );
+}
+
+export function isFailedVerificationHarnessMutation(
+  step: { tool_name: string; arguments: JsonObject },
+  unresolvedScopes: readonly string[],
+): boolean {
+  if (!["write", "file_write", "edit", "file_edit", "shell"].includes(step.tool_name)) {
+    return false;
+  }
+  const directPath = asString(step.arguments.path || step.arguments.file_path).trim();
+  const targets = directPath
+    ? [directPath]
+    : step.tool_name === "shell"
+      ? shellMutationTargets(shellInvocationText(step.arguments))
+      : [];
+  if (targets.length === 0) return false;
+
+  const runners = new Set(
+    unresolvedScopes
+      .map((scope) => scope.match(/^shell:([^:]+):/iu)?.[1]?.toLowerCase() ?? "")
+      .filter(Boolean),
+  );
+  if (runners.size === 0) return false;
+  return targets.some((target) => {
+    const normalized = target.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
+    const basename = normalized.slice(normalized.lastIndexOf("/") + 1).toLowerCase();
+    const stem = basename.replace(/\.[^.]+$/u, "");
+    if (runners.has(stem)) return true;
+    return basename === "package.json"
+      && ["bun", "npm", "pnpm", "yarn"].some((runner) => runners.has(runner));
+  });
 }
 
 export function isTargetedRepairInspection(

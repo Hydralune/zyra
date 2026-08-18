@@ -708,6 +708,8 @@ export class ProgressiveExecutionRuntime {
         && String(response.metadata.pre_delivery_inspection_blocked ?? "false").toLowerCase() !== "true"
         && String(response.metadata.alternate_verification_blocked ?? "false").toLowerCase() !== "true"
         && String(response.metadata.repeated_failed_verification_blocked ?? "false").toLowerCase() !== "true"
+        && String(response.metadata.unresolved_verification_validation_only_write_blocked ?? "false").toLowerCase() !== "true"
+        && String(response.metadata.unresolved_verification_harness_write_blocked ?? "false").toLowerCase() !== "true"
       ) {
         // A concrete edit/build/service attempt can fail because the target
         // changed or a path was wrong. Permit one bounded observation to

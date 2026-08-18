@@ -34,6 +34,7 @@ import {
   isClearlyRepairDrivingTool,
   isGeneratedDeliveryInspection,
   isGeneratedDeliveryMutation,
+  isFailedVerificationHarnessMutation,
   isPrivateVerificationInfrastructureInspection,
   isValidationOnlyMutation,
   isTargetedRepairInspection,
@@ -4865,6 +4866,52 @@ test("blocked alternate verification cannot reopen its own diagnostic allowance"
   );
 });
 
+test("blocked validation and verifier-runner edits do not reopen inspection", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      unresolvedVerificationScopes: ["shell:afctl:test:integration"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:test:integration",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 1,
+        failedChecks: ["opaque-state"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+      }],
+      recoveryInspectionAllowance: 0,
+    },
+  });
+  while (progressive.consumeRecoveryInspectionAllowance()) {
+    // Exhaust the restored failed-verification diagnostic window first.
+  }
+  const request: ToolExecutionRequest = {
+    toolCallId: "blocked-runner-edit",
+    toolName: "file_edit",
+    arguments: { path: "tools/afctl.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "blocked-runner-edit",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  };
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: false,
+    summary: "verification harness edit blocked",
+    output: {},
+    artifacts: [],
+    error: "unresolved_verification_harness_write_blocked",
+    metadata: { unresolved_verification_harness_write_blocked: "true" },
+  }, false);
+
+  assert.equal(progressive.snapshot().recoveryInspectionAllowance, 0);
+});
+
 test("pre-delivery verification opens a bounded diagnostic inspection window", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: {
@@ -4941,6 +4988,27 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
+  assert.equal(
+    isFailedVerificationHarnessMutation(
+      { tool_name: "file_edit", arguments: { path: "tools/afctl.py" } },
+      ["shell:afctl:test:integration"],
+    ),
+    true,
+  );
+  assert.equal(
+    isFailedVerificationHarnessMutation(
+      shell("sed -i 's/a/b/' package.json"),
+      ["shell:bun:test"],
+    ),
+    true,
+  );
+  assert.equal(
+    isFailedVerificationHarnessMutation(
+      { tool_name: "file_edit", arguments: { path: "services/release-worker/src/worker.ts" } },
+      ["shell:afctl:test:integration"],
+    ),
+    false,
+  );
   assert.equal(
     isPrivateVerificationInfrastructureInspection(
       shell('grep -rln "test_farm\\|hidden-contract" tools/ tests/ | head -40'),
