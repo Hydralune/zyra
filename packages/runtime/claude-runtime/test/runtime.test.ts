@@ -34,6 +34,7 @@ import {
   isClearlyRepairDrivingTool,
   isGeneratedDeliveryInspection,
   isGeneratedDeliveryMutation,
+  isValidationOnlyMutation,
   isTargetedRepairInspection,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
@@ -4827,8 +4828,15 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
     preDeliveryInspectionGuidance(0).join(" "),
     /targeted diagnostics remain/,
   );
+  assert.match(
+    preDeliveryInspectionGuidance(0).join(" "),
+    /tests and documentation alone do not reopen it/,
+  );
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), false);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "tests/public/test_release_policy_parity.py" } }), false);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_edit", arguments: { path: "services/worker/state.test.ts" } }), false);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "docs/security.md" } }), false);
   assert.equal(isClearlyRepairDrivingTool(shell("python tools/afctl.py test integration")), false);
   assert.equal(isClearlyRepairDrivingTool(shell("python -c \"from pathlib import Path; Path('submission/test-report.json').write_text('x')\"")), false);
   assert.equal(isClearlyRepairDrivingTool(shell("cat result.json > evidence/test-farm/latest.json")), false);
@@ -4841,6 +4849,12 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), false);
   assert.equal(isGeneratedDeliveryMutation(shell("cat result.json > evidence/test-farm/latest.json")), true);
   assert.equal(isGeneratedDeliveryMutation(shell("cat result.json > submission/result.json && sed -i 's/a/b/' services/worker/state.py")), false);
+  assert.equal(isValidationOnlyMutation({ tool_name: "file_write", arguments: { path: "tests/public/test_release_policy_parity.py" } }), true);
+  assert.equal(isValidationOnlyMutation({ tool_name: "file_edit", arguments: { path: "services/worker/state.spec.ts" } }), true);
+  assert.equal(isValidationOnlyMutation({ tool_name: "file_write", arguments: { path: "docs/security.md" } }), true);
+  assert.equal(isValidationOnlyMutation({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), false);
+  assert.equal(isValidationOnlyMutation(shell("sed -i 's/a/b/' tests/public/test_policy.py")), true);
+  assert.equal(isValidationOnlyMutation(shell("sed -i 's/a/b/' tests/public/test_policy.py && sed -i 's/a/b/' services/worker/state.py")), false);
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "submission/test-report.json" } }, true), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat evidence/test-farm/latest.json"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat .runtime/simulation-result.json && docker ps"), false), true);

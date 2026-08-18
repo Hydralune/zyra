@@ -1390,6 +1390,32 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            progressive.hasUnresolvedVerificationFailures()
+            && isValidationOnlyMutation(step)
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Behavioral verification is still failing; a validation-only edit was not accepted as the required business repair.",
+              output: {
+                guidance: [
+                  "Repair the public-contract, configuration, or business implementation that can change the failing behavior.",
+                  "Do not add or rewrite tests, snapshots, or documentation merely to reopen the diagnostic circuit.",
+                  "After the implementation repair, rerun the same failed verification scope; add regression tests once the behavior is fixed.",
+                ],
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "unresolved_verification_validation_only_write_blocked",
+              metadata: {
+                canonical_owner: "typescript",
+                unresolved_verification_validation_only_write_blocked: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.verificationEnvironmentRecoveryAwaitingVerification()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
           ) {
@@ -3042,7 +3068,7 @@ export function preDeliveryInspectionGuidance(
     );
   }
   guidance.push(
-    "Further broad inspection becomes available after a committed delivery or in a fresh task phase.",
+    "Further broad inspection becomes available after a committed business-implementation delivery or in a fresh task phase; tests and documentation alone do not reopen it while behavioral verification is failing.",
   );
   return guidance;
 }
@@ -3052,14 +3078,18 @@ export function isClearlyRepairDrivingTool(
 ): boolean {
   if (isClearlyVerificationDrivingTool(step)) return false;
   const path = asString(step.arguments.path || step.arguments.file_path).trim();
-  if (path) return !isGeneratedDeliveryPath(path);
+  if (path) {
+    return !isGeneratedDeliveryPath(path) && !isValidationOnlyDeliveryPath(path);
+  }
   if (step.tool_name !== "shell") return true;
 
   const command = shellInvocationText(step.arguments);
   if (!isClearlyDeliveryDrivingShellCommand(command)) return false;
   const explicitTargets = shellMutationTargets(command);
   if (explicitTargets.length > 0) {
-    return explicitTargets.some((target) => !isGeneratedDeliveryPath(target));
+    return explicitTargets.some(
+      (target) => !isGeneratedDeliveryPath(target) && !isValidationOnlyDeliveryPath(target),
+    );
   }
   // Builds, dependency installation and service lifecycle commands are real
   // execution, but their generated files are not evidence that source bytes
@@ -3067,6 +3097,19 @@ export function isClearlyRepairDrivingTool(
   // target; opaque commands remain delivery-driving without refilling the
   // failed-verification diagnostic circuit.
   return false;
+}
+
+export function isValidationOnlyMutation(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  if (path) {
+    return ["write", "file_write", "edit", "file_edit"].includes(step.tool_name)
+      && isValidationOnlyDeliveryPath(path);
+  }
+  if (step.tool_name !== "shell") return false;
+  const targets = shellMutationTargets(shellInvocationText(step.arguments));
+  return targets.length > 0 && targets.every((target) => isValidationOnlyDeliveryPath(target));
 }
 
 export function isGeneratedDeliveryMutation(
@@ -3123,6 +3166,15 @@ function isNullDevicePath(value: string): boolean {
 function isGeneratedDeliveryPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
   return /(?:^|\/)(?:submission|evidence|\.runtime)(?:\/|$)/iu.test(normalized);
+}
+
+function isValidationOnlyDeliveryPath(value: string): boolean {
+  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
+  const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
+  return /(?:^|\/)(?:tests?|__tests__|snapshots?|docs?)(?:\/|$)/iu.test(normalized)
+    || /(?:^|[._-])(?:test|spec|snapshot)(?:[._-]|$)/iu.test(basename)
+    || /^(?:readme|changelog|contributing|architecture)(?:\.[^.]+)?$/iu.test(basename)
+    || /\.(?:md|mdx|rst|adoc)$/iu.test(basename);
 }
 
 function isDeliveryEvidenceGeneratorPath(value: string): boolean {
