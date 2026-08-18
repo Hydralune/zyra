@@ -3708,7 +3708,7 @@ test("legacy checkpoints migrate failed checks without polluted diagnostics", ()
     },
   }).snapshot();
 
-  assert.equal(migrated.verificationDiagnosticVersion, 2);
+  assert.equal(migrated.verificationDiagnosticVersion, 3);
   assert.deepEqual(
     migrated.unresolvedVerificationFailures[0].failedChecks,
     ["contract-security", "cross-language"],
@@ -3722,7 +3722,7 @@ test("legacy checkpoints migrate failed checks without polluted diagnostics", ()
       workspaceMutationCount: 6,
       repairMutationCount: 6,
       targetedRepairReserveVersion: 4,
-      verificationDiagnosticVersion: 1,
+      verificationDiagnosticVersion: 2,
       unresolvedVerificationScopes: ["integration-suite"],
       unresolvedVerificationFailures: [{
         scope: "integration-suite",
@@ -3896,6 +3896,49 @@ test("contract prose does not pollute retained verification diagnostics", () => 
     "ValueError: tenant predicate mismatch",
   );
 
+  const inspectThroughInterpreter: ToolExecutionRequest = {
+    ...contractRead,
+    toolCallId: "inspect-through-interpreter",
+    arguments: { command: "python -c \"import inspect, auth; print(inspect.getsource(auth.authorize))\"" },
+  };
+  progressive.observeToolResult(inspectThroughInterpreter, {
+    tool_call_id: inspectThroughInterpreter.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: 'def authorize():\n    raise CrossTenantAccessError("denied")',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(
+    progressive.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
+    "ValueError: tenant predicate mismatch",
+  );
+
+  const backgroundSourceResult: ToolExecutionRequest = {
+    ...contractRead,
+    toolCallId: "background-source-result",
+    toolName: "shell_wait",
+    arguments: { job_id: "source-read" },
+  };
+  progressive.observeToolResult(backgroundSourceResult, {
+    tool_call_id: backgroundSourceResult.toolCallId,
+    ok: true,
+    summary: "background command completed",
+    output: {
+      stdout: 'def redact_error(error):\n    raise CrossTenantAccessError("denied")',
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(
+    progressive.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
+    "ValueError: tenant predicate mismatch",
+  );
+
   const sourceRead: ToolExecutionRequest = {
     ...contractRead,
     toolCallId: "source-read",
@@ -3939,6 +3982,52 @@ test("contract prose does not pollute retained verification diagnostics", () => 
     restored.snapshot().unresolvedVerificationFailures[0].diagnosticSummary,
     undefined,
   );
+});
+
+test("structured failed checks outrank transport wrappers and use the final failure count", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      repairMutationCount: 2,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "structured-failed-checks",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py test integration" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "structured-failed-checks",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "integration-suite",
+    },
+  };
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: false,
+    summary: "sandbox_command_failed",
+    output: {
+      stdout: [
+        '{"counts":{"failed":1},"failed_shards":["contract-security"]}',
+        '{"counts":{"failed":2},"failed_shards":["contract-security","cross-language"]}',
+      ].join("\n"),
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failure = progressive.snapshot().unresolvedVerificationFailures[0];
+  assert.equal(failure.failureKind, "reported_checks");
+  assert.equal(failure.failedCount, 2);
+  assert.deepEqual(failure.failedChecks, ["contract-security", "cross-language"]);
 });
 
 test("a successful environment recovery permits the failed scope to rerun", () => {

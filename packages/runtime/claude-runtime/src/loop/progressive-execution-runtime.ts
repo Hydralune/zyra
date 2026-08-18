@@ -99,7 +99,7 @@ export class ProgressiveExecutionRuntime {
     );
     const legacyDiagnosticMigrationRequired = restored.version
       === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION
-      && restoredVerificationDiagnosticVersion < 2;
+      && restoredVerificationDiagnosticVersion < 3;
     const restoredHasVerificationDebt = (
       Array.isArray(restored.unresolvedVerificationScopes)
       && restored.unresolvedVerificationScopes.length > 0
@@ -152,7 +152,7 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
         targetedRepairReserveVersion: 4,
-        verificationDiagnosticVersion: 2,
+        verificationDiagnosticVersion: 3,
         environmentRecoveryAwaitingVerification: false,
         repairContextId,
         activeBackgroundCount: 0,
@@ -217,7 +217,7 @@ export class ProgressiveExecutionRuntime {
               : 0,
         ),
         targetedRepairReserveVersion: 4,
-        verificationDiagnosticVersion: 2,
+        verificationDiagnosticVersion: 3,
         environmentRecoveryAwaitingVerification: asBoolean(
           restored.environmentRecoveryAwaitingVerification,
         ),
@@ -252,7 +252,7 @@ export class ProgressiveExecutionRuntime {
     const continuity = asObject(options.continuityProgress);
     const continuityDiagnosticMigrationRequired = nonnegativeInteger(
       continuity.targetedRepairReserveVersion,
-    ) >= 4 && nonnegativeInteger(continuity.verificationDiagnosticVersion) < 2;
+    ) >= 4 && nonnegativeInteger(continuity.verificationDiagnosticVersion) < 3;
     this.state.repairMutationCount = Math.max(
       this.state.repairMutationCount,
       continuity.repairMutationCount === undefined
@@ -695,9 +695,8 @@ export class ProgressiveExecutionRuntime {
     if (
       !verificationDriving
       && response.ok
-      && ["shell", "shell_wait"].includes(request.toolName)
+      && isVerificationDiagnosticInspectionRequest(request)
       && this.state.unresolvedVerificationFailures.length > 0
-      && !isSourceInspectionRequest(request)
     ) {
       const diagnostic = verificationDiagnosticSummary(response);
       if (diagnostic) {
@@ -1161,8 +1160,12 @@ function verificationFailure(
       if (selected) failedChecks.add(selected);
     }
   }
-  const countMatch = text.match(/["']?failed["']?\s*:\s*([1-9]\d*)/iu)
-    ?? text.match(/\b([1-9]\d*)\s+failed\b/iu);
+  const reportedFailureCounts = [
+    ...[...text.matchAll(/["']?failed["']?\s*:\s*([1-9]\d*)/giu)]
+      .map((match) => Number(match[1])),
+    ...[...text.matchAll(/\b([1-9]\d*)\s+failed\b/giu)]
+      .map((match) => Number(match[1])),
+  ].filter((value) => Number.isFinite(value));
   const rawReturnCode = response.output.return_code
     ?? response.output.exit_code
     ?? response.metadata.return_code
@@ -1170,12 +1173,12 @@ function verificationFailure(
   const returnCode = rawReturnCode === undefined || rawReturnCode === null
     ? 0
     : Number(rawReturnCode);
-  const failureKind: UnresolvedVerificationFailure["failureKind"] = !response.ok
-    ? "transport_failure"
-    : Number.isFinite(returnCode) && returnCode !== 0
-      ? "nonzero_exit"
-      : failedChecks.size > 0
-        ? "reported_checks"
+  const failureKind: UnresolvedVerificationFailure["failureKind"] = failedChecks.size > 0
+    ? "reported_checks"
+    : !response.ok
+      ? "transport_failure"
+      : Number.isFinite(returnCode) && returnCode !== 0
+        ? "nonzero_exit"
         : "reported_failure";
   // A concrete result from a new verification attempt supersedes diagnostics
   // from the previous attempt. Follow-up inspection output for this attempt is
@@ -1197,7 +1200,9 @@ function verificationFailure(
   return {
     scope,
     failedChecks: [...failedChecks].slice(0, 12),
-    failedCount: countMatch ? Number(countMatch[1]) : null,
+    failedCount: reportedFailureCounts.length > 0
+      ? Math.max(...reportedFailureCounts)
+      : null,
     failureKind,
     attemptCount: (existing?.attemptCount ?? 0) + 1,
     lastObservedWorkspaceMutationCount: workspaceMutationCount,
@@ -1257,6 +1262,26 @@ function isSourceInspectionRequest(request: ToolExecutionRequest): boolean {
     .replace(/^cd\s+(?:["']\/workspace["']|\/workspace)\s*(?:&&|;)\s*/iu, "")
     .trim();
   return /^(?:cat|type|Get-Content|sed\s+-n|grep|rg|ls|find)\b/iu.test(command);
+}
+
+function isVerificationDiagnosticInspectionRequest(
+  request: ToolExecutionRequest,
+): boolean {
+  // Background shell_wait results no longer carry the originating command.
+  // Treating every successful wait output as diagnostic let background source
+  // reads persist code fragments as verifier evidence. Only an explicit,
+  // bounded runtime/schema diagnostic command may enrich verification debt.
+  if (request.toolName !== "shell" || isSourceInspectionRequest(request)) return false;
+  const command = String(request.arguments.command ?? "")
+    .trim()
+    .replace(/\s+/gu, " ");
+  if (!command) return false;
+  if (/\bdocker(?:\.exe)?\s+(?:compose\s+)?logs\b/iu.test(command)) return true;
+  if (/\bjournalctl\b/iu.test(command)) return true;
+  if (/\bpsql\b/iu.test(command)) {
+    return /(?:\\d(?:[a-z+stvx]*)?\b|\bselect\b|\bshow\b|\binformation_schema\b|\bpg_catalog\b)/iu.test(command);
+  }
+  return /^(?:tail\s+(?:-n\s+)?\d+\s+|Get-Content\s+-Tail\s+\d+\s+)[^|;&]*\.log\b/iu.test(command);
 }
 
 function safeCheckName(value: string): string {
