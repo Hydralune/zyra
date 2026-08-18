@@ -21,7 +21,10 @@ import {
   providerControlPlaneToolSteps,
 } from "../src/provider-control-plane-runtime.ts";
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
-import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
+import {
+  PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
+  ProgressiveExecutionRuntime,
+} from "../src/loop/progressive-execution-runtime.ts";
 import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
@@ -3391,6 +3394,47 @@ test("a newly observed regression takes priority over older verification debt", 
   assert.equal(decision.action, "nudge_verification");
   assert.match(decision.reason, /Priority failure: public-suite/);
   assert.match(decision.reason, /before returning to older/);
+});
+
+test("restoring verification failures preserves priority when mutation counts tie", () => {
+  const prioritizedFailures = [
+    {
+      scope: "simulation-suite",
+      failedChecks: [],
+      failedCount: null,
+      failureKind: "reported_failure" as const,
+      attemptCount: 1,
+      lastObservedWorkspaceMutationCount: 9,
+    },
+    {
+      scope: "integration-suite",
+      failedChecks: ["opaque-contract"],
+      failedCount: 1,
+      failureKind: "reported_checks" as const,
+      attemptCount: 12,
+      lastObservedWorkspaceMutationCount: 9,
+    },
+  ];
+  const restored = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: {
+      version: PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
+      workspaceMutationCount: 9,
+      repairMutationCount: 9,
+      requiredDeliveryMissing: false,
+      unresolvedVerificationScopes: prioritizedFailures.map((failure) => failure.scope),
+      unresolvedVerificationFailures: prioritizedFailures,
+    },
+  }).snapshot();
+
+  assert.deepEqual(
+    restored.unresolvedVerificationFailures.map((failure) => failure.scope),
+    ["simulation-suite", "integration-suite"],
+  );
+  assert.deepEqual(restored.unresolvedVerificationScopes, [
+    "simulation-suite",
+    "integration-suite",
+  ]);
 });
 
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {

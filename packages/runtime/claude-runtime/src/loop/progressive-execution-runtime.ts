@@ -921,19 +921,25 @@ function mergeVerificationFailures(
   current: readonly UnresolvedVerificationFailure[],
   incoming: readonly UnresolvedVerificationFailure[],
 ): UnresolvedVerificationFailure[] {
+  const incomingScopes = new Set(incoming.map((failure) => failure.scope));
   const merged = new Map<string, UnresolvedVerificationFailure>();
-  for (const failure of [...current, ...incoming]) {
-    merged.delete(failure.scope);
-    merged.set(failure.scope, structuredClone(failure));
+  // Incoming observations outrank retained debt when both were observed on
+  // the same workspace bytes. An already-prioritized restored array is also
+  // incoming, so preserve its order instead of reversing ties on every
+  // process restart.
+  for (const failure of [
+    ...incoming,
+    ...current.filter((failure) => !incomingScopes.has(failure.scope)),
+  ]) {
+    if (!merged.has(failure.scope)) {
+      merged.set(failure.scope, structuredClone(failure));
+    }
   }
   return [...merged.values()]
-    .map((failure, observationOrder) => ({ failure, observationOrder }))
     .sort((left, right) => (
-      right.failure.lastObservedWorkspaceMutationCount
-        - left.failure.lastObservedWorkspaceMutationCount
-      || right.observationOrder - left.observationOrder
+      right.lastObservedWorkspaceMutationCount
+        - left.lastObservedWorkspaceMutationCount
     ))
-    .map(({ failure }) => failure)
     .slice(0, 32);
 }
 
