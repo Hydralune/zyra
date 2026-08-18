@@ -20,6 +20,7 @@ export interface UnresolvedVerificationFailure {
   failureKind: "reported_checks" | "reported_failure" | "nonzero_exit" | "transport_failure";
   attemptCount: number;
   lastObservedWorkspaceMutationCount: number;
+  diagnosticSummary?: string;
 }
 
 export interface ProgressiveExecutionSnapshot {
@@ -590,6 +591,22 @@ export class ProgressiveExecutionRuntime {
       }
       this.record("post_delivery_verification_failed");
     }
+    if (
+      !verificationDriving
+      && response.ok
+      && ["shell", "shell_wait"].includes(request.toolName)
+      && this.state.unresolvedVerificationFailures.length > 0
+    ) {
+      const diagnostic = verificationDiagnosticSummary(response);
+      if (diagnostic) {
+        const priorityFailure = this.state.unresolvedVerificationFailures[0];
+        priorityFailure.diagnosticSummary = mergeDiagnosticSummaries(
+          priorityFailure.diagnosticSummary,
+          diagnostic,
+        );
+        this.record("verification_diagnostic_summary_retained");
+      }
+    }
     if (backgroundRunning && request.toolName !== "shell_wait") {
       this.state.activeBackgroundCount += 1;
     } else if (backgroundTerminal) {
@@ -892,6 +909,7 @@ function restoreVerificationFailures(value: unknown): UnresolvedVerificationFail
     const scope = String(failure.scope ?? "").trim();
     if (!scope) continue;
     const kind = String(failure.failureKind ?? "reported_failure");
+    const diagnosticSummary = safeDiagnosticSummary(failure.diagnosticSummary);
     restored.push({
       scope,
       failedChecks: Array.isArray(failure.failedChecks)
@@ -912,6 +930,7 @@ function restoreVerificationFailures(value: unknown): UnresolvedVerificationFail
       lastObservedWorkspaceMutationCount: nonnegativeInteger(
         failure.lastObservedWorkspaceMutationCount,
       ),
+      ...(diagnosticSummary ? { diagnosticSummary } : {}),
     });
   }
   return mergeVerificationFailures([], restored);
@@ -989,6 +1008,10 @@ function verificationFailure(
       : failedChecks.size > 0
         ? "reported_checks"
         : "reported_failure";
+  const diagnosticSummary = mergeDiagnosticSummaries(
+    existing?.diagnosticSummary,
+    verificationDiagnosticSummary(response),
+  );
   return {
     scope,
     failedChecks: [...failedChecks].slice(0, 12),
@@ -996,7 +1019,34 @@ function verificationFailure(
     failureKind,
     attemptCount: (existing?.attemptCount ?? 0) + 1,
     lastObservedWorkspaceMutationCount: workspaceMutationCount,
+    ...(diagnosticSummary ? { diagnosticSummary } : {}),
   };
+}
+
+function verificationDiagnosticSummary(response: ToolExecutionResponse): string {
+  const lines = [response.output.stdout, response.output.stderr, response.summary]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n")
+    .split(/\r?\n/gu)
+    .map((line) => line.replace(/\x1b\[[0-9;]*m/gu, "").trim())
+    .filter((line) => (
+      line.length > 0
+      && /(?:\b(?:error|exception|traceback|undefined|invalid|mismatch|denied|missing)\b|does not exist|timed? out|HTTP(?: Error)?\s+[45]\d\d)/iu.test(line)
+    ));
+  return safeDiagnosticSummary([...new Set(lines)].slice(-10).join(" | "));
+}
+
+function mergeDiagnosticSummaries(current: string | undefined, incoming: string): string {
+  if (!incoming) return safeDiagnosticSummary(current);
+  const existing = safeDiagnosticSummary(current);
+  if (!existing) return incoming;
+  if (existing.includes(incoming)) return existing;
+  return safeDiagnosticSummary(`${existing} | ${incoming}`);
+}
+
+function safeDiagnosticSummary(value: unknown): string {
+  const selected = String(value ?? "").replace(/\s+/gu, " ").trim();
+  return selected.slice(Math.max(0, selected.length - 1_600));
 }
 
 function safeCheckName(value: string): string {
@@ -1012,7 +1062,10 @@ function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
         : failure.failedCount !== null
           ? ` failed count=${failure.failedCount}`
           : ` failure=${failure.failureKind}`;
-      return `${failure.scope}${checks}`;
+      const diagnostic = failure.diagnosticSummary
+        ? ` diagnostic=${failure.diagnosticSummary.slice(-400)}`
+        : "";
+      return `${failure.scope}${checks}${diagnostic}`;
     });
   const priority = details.length > 0
     ? ` Priority failure: ${details[0]}.`
@@ -1020,7 +1073,12 @@ function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
   const remaining = details.length > 1
     ? ` Older unresolved failures: ${details.slice(1).join("; ")}.`
     : "";
-  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining} Repair and rerun the priority scope before returning to older or less concrete failures`;
+  const priorityFailure = state.unresolvedVerificationFailures[0];
+  const freshFailureGuidance = priorityFailure?.attemptCount === 1
+    && !priorityFailure.diagnosticSummary
+    ? " This first-seen regression has no retained root-cause detail yet; reproduce or inspect this priority failure before auditing older scopes."
+    : "";
+  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining}${freshFailureGuidance} Repair and rerun the priority scope before returning to older or less concrete failures`;
 }
 
 function finitePositive(value: unknown): number | null {

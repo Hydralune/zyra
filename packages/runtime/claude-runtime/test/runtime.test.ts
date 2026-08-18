@@ -3437,6 +3437,63 @@ test("a fresh failure outranks repeated debt when restored mutation counts tie",
   ]);
 });
 
+test("runtime diagnostics enrich and preserve the priority verification failure", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: ["simulation-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "simulation-suite",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "reported_failure",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 4,
+      }],
+    },
+  });
+  const logs: ToolExecutionRequest = {
+    toolCallId: "runtime-logs",
+    toolName: "shell",
+    arguments: { command: "docker compose logs --tail=80 control-api" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "runtime-logs",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  };
+  progressive.observeToolResult(logs, {
+    tool_call_id: logs.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: "Traceback (most recent call last):\npsycopg.errors.UndefinedColumn: column tenant_id of relation outbox_events does not exist",
+      return_code: 0,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.match(
+    observed.unresolvedVerificationFailures[0].diagnosticSummary ?? "",
+    /UndefinedColumn.*tenant_id.*outbox_events/,
+  );
+  const restored = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: observed,
+  });
+  assert.match(
+    restored.decide(1_000, 10_000).reason,
+    /diagnostic=.*UndefinedColumn.*tenant_id.*outbox_events/,
+  );
+});
+
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
