@@ -3501,6 +3501,58 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   );
 });
 
+test("a new verification result supersedes stale environment diagnostics", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 5,
+      repairMutationCount: 5,
+      unresolvedVerificationScopes: ["simulation-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "simulation-suite",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "transport_failure",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: "Network unreachable",
+      }],
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "simulation-http-500",
+    toolName: "shell",
+    arguments: { command: "python tools/afctl.py simulate" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "simulation-http-500",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "simulation-suite",
+    },
+  };
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: false,
+    summary: "request failed: HTTP Error 500: Internal Server Error",
+    output: {
+      stderr: "request failed: HTTP Error 500: Internal Server Error",
+      return_code: 1,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failure = progressive.snapshot().unresolvedVerificationFailures[0];
+  assert.doesNotMatch(failure.diagnosticSummary ?? "", /Network unreachable/);
+  assert.match(failure.diagnosticSummary ?? "", /HTTP Error 500/);
+  assert.equal(progressive.verificationEnvironmentRecoveryRequired(), false);
+});
+
 test("a successful environment recovery permits the failed scope to rerun", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

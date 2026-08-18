@@ -833,7 +833,8 @@ export class ProgressiveExecutionRuntime {
 
   verificationEnvironmentRecoveryRequired(): boolean {
     const diagnostic = this.state.unresolvedVerificationFailures[0]?.diagnosticSummary ?? "";
-    return /(?:network (?:is )?unreachable|connection (?:refused|reset)|name or service not known|temporary failure in name resolution|no route to host|service unavailable|ECONNREFUSED|ENETUNREACH)/iu.test(diagnostic);
+    const latestDiagnostic = diagnostic.split(" | ").at(-1) ?? diagnostic;
+    return /(?:network (?:is )?unreachable|connection (?:refused|reset)|name or service not known|temporary failure in name resolution|no route to host|service unavailable|ECONNREFUSED|ENETUNREACH)/iu.test(latestDiagnostic);
   }
 
   failedVerificationScopeAwaitingRepair(scope: string): boolean {
@@ -1033,10 +1034,12 @@ function verificationFailure(
       : failedChecks.size > 0
         ? "reported_checks"
         : "reported_failure";
-  const diagnosticSummary = mergeDiagnosticSummaries(
-    existing?.diagnosticSummary,
-    verificationDiagnosticSummary(response),
-  );
+  // A concrete result from a new verification attempt supersedes diagnostics
+  // from the previous attempt. Follow-up inspection output for this attempt is
+  // still appended by observeToolResult, but stale transport failures must not
+  // keep routing the repair strategy after the service has recovered.
+  const observedDiagnostic = verificationDiagnosticSummary(response);
+  const diagnosticSummary = observedDiagnostic || safeDiagnosticSummary(existing?.diagnosticSummary);
   return {
     scope,
     failedChecks: [...failedChecks].slice(0, 12),
