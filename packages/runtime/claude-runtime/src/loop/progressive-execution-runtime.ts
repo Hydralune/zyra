@@ -1072,8 +1072,15 @@ function retryableVerificationInvocationFailureScopes(value: unknown): string[] 
     .map((item) => asObject(item))
     .filter((failure) => (
       String(failure.failureKind ?? "") === "transport_failure"
-      && isRetryableVerificationInvocationDiagnostic(
-        String(failure.diagnosticSummary ?? ""),
+      && (
+        isRetryableVerificationInvocationDiagnostic(
+          String(failure.diagnosticSummary ?? ""),
+        )
+        || (
+          (!Array.isArray(failure.failedChecks) || failure.failedChecks.length === 0)
+          && (failure.failedCount === null || failure.failedCount === undefined)
+          && !String(failure.diagnosticSummary ?? "").trim()
+        )
       )
     ))
     .map((failure) => String(failure.scope ?? "").trim())
@@ -1084,7 +1091,14 @@ function isRetryableStoredVerificationInvocationFailure(
   failure: UnresolvedVerificationFailure,
 ): boolean {
   return failure.failureKind === "transport_failure"
-    && isRetryableVerificationInvocationDiagnostic(failure.diagnosticSummary ?? "");
+    && (
+      isRetryableVerificationInvocationDiagnostic(failure.diagnosticSummary ?? "")
+      || (
+        failure.failedChecks.length === 0
+        && failure.failedCount === null
+        && !String(failure.diagnosticSummary ?? "").trim()
+      )
+    );
 }
 
 function isRetryableVerificationInvocationFailure(
@@ -1093,6 +1107,8 @@ function isRetryableVerificationInvocationFailure(
   const text = [
     response.output.stderr,
     response.output.stdout,
+    response.output.code,
+    response.output.reason,
     response.summary,
     response.error,
   ].filter((value): value is string => typeof value === "string").join("\n");
@@ -1101,7 +1117,9 @@ function isRetryableVerificationInvocationFailure(
 
 function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
   return /(?:^|\n)(?:sh|dash|ash|bash):[^\n]*\bbad substitution\b/iu.test(value)
-    || /\bPIPESTATUS(?:\[[^\]]+\])?:\s*(?:parameter not set|unbound variable)\b/iu.test(value);
+    || /\bPIPESTATUS(?:\[[^\]]+\])?:\s*(?:parameter not set|unbound variable)\b/iu.test(value)
+    || /\b(?:shell|command) was blocked by SandboxGateway\b/iu.test(value)
+    || /\b(?:absolute, drive and UNC paths are denied|tool[_ -]?schema[_ -]?validation[_ -]?failed|schema[_ -]?error)\b/iu.test(value);
 }
 
 function mergeVerificationFailures(

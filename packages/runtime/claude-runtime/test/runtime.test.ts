@@ -4875,6 +4875,44 @@ test("shell wrapper failures do not replace semantic verification debt", () => {
   );
   assert.equal(progressive.failedVerificationScopeAwaitingRepair("shell:afctl:build"), false);
   assert.match(observed.progressReasons.join(" "), /verification_invocation_failed_before_behavioral_result/);
+
+  progressive.observeToolResult({
+    toolCallId: "blocked-typecheck-working-directory",
+    toolName: "shell",
+    arguments: { command: "npm run typecheck", cwd: "/workspace/services/release-worker" },
+    turnIndex: 1,
+    stepIndex: 0,
+    batchId: "blocked-typecheck-working-directory",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:npm:typecheck",
+    },
+  }, {
+    tool_call_id: "blocked-typecheck-working-directory",
+    ok: false,
+    summary: "shell was blocked by SandboxGateway",
+    output: {
+      code: "ValueError",
+      reason: "absolute, drive and UNC paths are denied",
+    },
+    artifacts: [],
+    error: "ValueError",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const afterGatewayRejection = progressive.snapshot();
+  assert.deepEqual(afterGatewayRejection.unresolvedVerificationScopes, [integrationScope]);
+  assert.deepEqual(
+    afterGatewayRejection.unresolvedVerificationFailures.map((failure) => failure.scope),
+    [integrationScope],
+  );
+  assert.equal(
+    progressive.failedVerificationScopeAwaitingRepair("shell:npm:typecheck"),
+    false,
+  );
 });
 
 test("restore drops invocation-only verification debt", () => {
@@ -4887,6 +4925,7 @@ test("restore drops invocation-only verification debt", () => {
       repairMutationCount: 4,
       unresolvedVerificationScopes: [
         "shell:afctl:build",
+        "shell:npm:typecheck",
         "shell:afctl:test:integration",
       ],
       unresolvedVerificationFailures: [{
@@ -4897,6 +4936,13 @@ test("restore drops invocation-only verification debt", () => {
         attemptCount: 1,
         lastObservedWorkspaceMutationCount: 4,
         diagnosticSummary: "sh: syntax error: bad substitution",
+      }, {
+        scope: "shell:npm:typecheck",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "transport_failure",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 4,
       }, {
         scope: "shell:afctl:test:integration",
         failedChecks: ["hidden-cross-language"],
