@@ -3688,6 +3688,34 @@ test("legacy checkpoints migrate failed checks without polluted diagnostics", ()
     ["contract-security", "cross-language"],
   );
   assert.equal(migrated.unresolvedVerificationFailures[0].diagnosticSummary, undefined);
+
+  const handoffMigrated = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 6,
+      repairMutationCount: 6,
+      targetedRepairReserveVersion: 4,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["contract-security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 5,
+        lastObservedWorkspaceMutationCount: 6,
+        diagnosticSummary: "old implementation | new implementation",
+      }],
+    },
+  }).snapshot();
+  assert.deepEqual(
+    handoffMigrated.unresolvedVerificationFailures[0].failedChecks,
+    ["contract-security", "cross-language"],
+  );
+  assert.equal(
+    handoffMigrated.unresolvedVerificationFailures[0].diagnosticSummary,
+    undefined,
+  );
 });
 
 test("a new verification result supersedes stale environment diagnostics", () => {

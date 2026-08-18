@@ -250,6 +250,9 @@ export class ProgressiveExecutionRuntime {
       }
       : initial;
     const continuity = asObject(options.continuityProgress);
+    const continuityDiagnosticMigrationRequired = nonnegativeInteger(
+      continuity.targetedRepairReserveVersion,
+    ) >= 4 && nonnegativeInteger(continuity.verificationDiagnosticVersion) < 1;
     this.state.repairMutationCount = Math.max(
       this.state.repairMutationCount,
       continuity.repairMutationCount === undefined
@@ -306,7 +309,7 @@ export class ProgressiveExecutionRuntime {
       : [];
     const continuityFailures = restoreVerificationFailures(
       continuity.unresolvedVerificationFailures,
-      !legacyDiagnosticMigrationRequired,
+      !legacyDiagnosticMigrationRequired && !continuityDiagnosticMigrationRequired,
     );
     if (continuityScopes.length > 0 || continuityFailures.length > 0) {
       this.state.unresolvedVerificationScopes = [...new Set([
