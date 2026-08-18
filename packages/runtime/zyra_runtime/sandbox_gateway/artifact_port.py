@@ -367,6 +367,13 @@ class GatewayFileArtifactPort:
             logical_path,
             mount_kind=self._mount(mount_kind),
         )
+        if not bool(getattr(result, "exists", True)):
+            raise SandboxGatewayError(
+                GatewayErrorCode.FILE_NOT_FOUND,
+                f"workspace file does not exist: {logical_path}",
+                operation="file_read",
+                metadata={"logical_path": logical_path},
+            )
         return bytes(result.content)
 
     def export(

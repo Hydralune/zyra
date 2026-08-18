@@ -11,6 +11,7 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     ArchivePolicy,
     ArtifactProvenance,
     FileArtifactRequest,
+    GatewayErrorCode,
     GatewayFileArtifactPort,
     GatewayFilePolicy,
     GatewayEventPort,
@@ -219,6 +220,13 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
         self.assertEqual(self.port.read_text("existing.txt").text(), "after\n")
         self.assertEqual(self.port.read_text("created.txt").text(), "created\n")
         self.assertEqual(len(receipt.transaction_ids), 2)
+
+    def test_missing_artifact_read_reports_not_found_instead_of_empty_content(self) -> None:
+        with self.assertRaises(SandboxGatewayError) as raised:
+            self.artifact_port.read("missing/source.py")
+
+        self.assertEqual(raised.exception.code, GatewayErrorCode.FILE_NOT_FOUND)
+        self.assertIn("workspace file does not exist", str(raised.exception))
 
     def test_stale_patch_epoch_and_disabled_ports_fail_without_raw_fallback(self) -> None:
         current = self.port.current_access()

@@ -38,6 +38,7 @@ class GatewayErrorCode(str, Enum):
     ARCHIVE_INVALID = "archive_invalid"
     ARCHIVE_TRAVERSAL = "archive_traversal"
     ARCHIVE_BOMB = "archive_bomb"
+    FILE_NOT_FOUND = "file_not_found"
     FILE_TOO_LARGE = "file_too_large"
     CONTENT_MISMATCH = "content_mismatch"
     HASHLINE_MISMATCH = "hashline_mismatch"
