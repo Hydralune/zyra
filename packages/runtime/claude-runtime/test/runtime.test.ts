@@ -4610,6 +4610,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose ps")), false);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py bootstrap")), true);
+  assert.equal(isClearlyEnvironmentRecoveryTool(shell("python tools/afctl.py up 2>&1 | tail -60")), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl https://service.invalid/status"), false), true);
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);

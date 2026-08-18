@@ -3109,7 +3109,7 @@ export function isClearlyEnvironmentRecoveryTool(
     || /\bdocker(?:\.exe)?\s+(?:start|restart)\b/iu.test(command)
     || /\bsystemctl\s+(?:start|restart|reload)\s+\S+/iu.test(command)
     || /\bservice\s+\S+\s+(?:start|restart|reload)\b/iu.test(command)
-    || /\b(?:python(?:3)?\s+)?\S*afctl\.py\s+bootstrap\b/iu.test(command);
+    || /\b(?:python(?:3)?\s+)?\S*afctl\.py\s+(?:bootstrap|up|start|restart)\b/iu.test(command);
 }
 
 export function isEnvironmentRecoveryToolResult(
