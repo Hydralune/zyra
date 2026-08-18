@@ -5474,6 +5474,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   const repairGuidance = preDeliveryInspectionGuidance(2).join(" ");
   assert.match(repairGuidance, /empty\/zero\/null\/default/);
   assert.match(repairGuidance, /normative operators/);
+  assert.match(repairGuidance, /Do not invent an exception/);
+  assert.match(repairGuidance, /free-form reason, message, error, and payload/);
   assert.match(repairGuidance, /trace every externally supplied field/);
   assert.match(repairGuidance, /do not use unrelated dependency-download/);
   assert.match(repairGuidance, /build-freshness hypothesis already disproved/);
