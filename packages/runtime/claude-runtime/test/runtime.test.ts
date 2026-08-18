@@ -3612,7 +3612,10 @@ test("a successful environment recovery permits the failed scope to rerun", () =
   } = progressive.snapshot();
   const restoredLegacyRecovery = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
-    restored: legacyRecoverySnapshot as unknown as JsonObject,
+    restored: {
+      ...legacyRecoverySnapshot,
+      progressReasons: [],
+    } as unknown as JsonObject,
   });
   assert.equal(
     restoredLegacyRecovery.verificationEnvironmentRecoveryAwaitingVerification(),

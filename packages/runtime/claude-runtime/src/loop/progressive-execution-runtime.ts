@@ -374,10 +374,11 @@ export class ProgressiveExecutionRuntime {
       !this.state.environmentRecoveryAwaitingVerification
       && priorityFailure
       && priorityFailure.lastObservedWorkspaceMutationCount < this.state.repairMutationCount
-      && this.state.progressReasons.includes("verification_environment_recovery_committed")
     ) {
-      // Snapshots written before this field existed still carry the monotonic
-      // recovery mutation and reason. Recover the pending-rerun state once.
+      // Snapshots written before this field existed still carry monotonic
+      // repair counters even when bounded reason history was compacted. Any
+      // repair newer than the priority failure must be verified before more
+      // inspection, whether the repair changed source or recovered services.
       this.state.environmentRecoveryAwaitingVerification = true;
     }
     this.constrainActionableDiagnosticInspection();
