@@ -1390,6 +1390,35 @@ export class ClaudeRuntimeCore {
               },
             });
           } else if (
+            progressive.verificationEnvironmentRecoveryRequired()
+            && registry.readOnly(step.tool_name)
+            && ["read", "file_read"].includes(step.tool_name)
+          ) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "The priority verification failure is an unresolved connectivity or service-availability fault; source inspection was deferred.",
+              output: {
+                guidance: [
+                  "Inspect the relevant service state or execute the task-provided bootstrap/start/restart command now.",
+                  "Do not audit unrelated source while the priority endpoint is unreachable.",
+                  "After services report healthy, rerun the same priority verification scope before returning to older failures.",
+                ],
+                priority_verification_failure: progressive.verificationDebtSummary(),
+                side_effect_executed: false,
+              },
+              artifacts: [],
+              error: "verification_environment_recovery_required",
+              metadata: {
+                canonical_owner: "typescript",
+                pre_delivery_inspection_blocked: "true",
+                verification_environment_recovery_required: "true",
+                physical_effect_executed: "false",
+                model_recovery_allowed: "true",
+                termination: "exited",
+              },
+            });
+          } else if (
             progressive.failedVerificationScopeAwaitingRepair(
               verificationScopeForTool(step),
             )

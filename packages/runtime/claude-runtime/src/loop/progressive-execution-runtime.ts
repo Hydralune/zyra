@@ -831,6 +831,11 @@ export class ProgressiveExecutionRuntime {
       : "";
   }
 
+  verificationEnvironmentRecoveryRequired(): boolean {
+    const diagnostic = this.state.unresolvedVerificationFailures[0]?.diagnosticSummary ?? "";
+    return /(?:network (?:is )?unreachable|connection (?:refused|reset)|name or service not known|temporary failure in name resolution|no route to host|service unavailable|ECONNREFUSED|ENETUNREACH)/iu.test(diagnostic);
+  }
+
   failedVerificationScopeAwaitingRepair(scope: string): boolean {
     const normalized = scope.trim();
     if (!normalized) return false;

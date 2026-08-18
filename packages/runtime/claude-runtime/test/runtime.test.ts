@@ -3521,6 +3521,7 @@ test("a successful environment recovery permits the failed scope to rerun", () =
     },
   });
   assert.equal(progressive.failedVerificationScopeAwaitingRepair("simulation-suite"), true);
+  assert.equal(progressive.verificationEnvironmentRecoveryRequired(), true);
   const recovered: ToolExecutionRequest = {
     toolCallId: "services-up",
     toolName: "shell_wait",
