@@ -3512,6 +3512,32 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   assert.equal(restored.snapshot().targetedRepairInspectionAllowance, 2);
 });
 
+test("repeated opaque verification debt rejects invented diagnostics and redirects repair", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 6,
+      repairMutationCount: 6,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["opaque-contract", "opaque-cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 3,
+        lastObservedWorkspaceMutationCount: 6,
+      }],
+    },
+  });
+
+  const summary = progressive.verificationDebtSummary();
+  assert.match(summary, /repeated verifier result is intentionally opaque/);
+  assert.match(summary, /Do not invent or search for hidden error detail/);
+  assert.match(summary, /treat that hypothesis as insufficient and pivot/);
+  assert.doesNotMatch(summary, /first-seen regression/);
+});
+
 test("stale actionable fragments do not collapse a later opaque repair context", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -5256,7 +5282,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   );
   assert.match(
     preDeliveryInspectionGuidance(12).join(" "),
-    /compare actual predicates clause-by-clause; verify every qualifier/,
+    /compare actual predicates clause-by-clause; include persistence lookup\/update scope and state-transition semantics.*verify every qualifier/,
   );
   assert.match(
     preDeliveryInspectionGuidance(12).join(" "),

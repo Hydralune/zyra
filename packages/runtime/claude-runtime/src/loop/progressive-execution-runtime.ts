@@ -1284,11 +1284,12 @@ function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
     ? ` Older unresolved failures: ${details.slice(1).join("; ")}.`
     : "";
   const priorityFailure = state.unresolvedVerificationFailures[0];
-  const freshFailureGuidance = priorityFailure?.attemptCount === 1
-    && !priorityFailure.diagnosticSummary
-    ? " This first-seen regression has no retained root-cause detail yet; reproduce or inspect this priority failure before auditing older scopes."
+  const opaqueFailureGuidance = priorityFailure && !priorityFailure.diagnosticSummary
+    ? priorityFailure.attemptCount === 1
+      ? " This first-seen regression has no retained root-cause detail yet; reproduce or inspect this priority failure before auditing older scopes."
+      : " This repeated verifier result is intentionally opaque: its retained labels are not a line-level diagnostic. Do not invent or search for hidden error detail. If a repair rerun preserves the same labels, treat that hypothesis as insufficient and pivot to a distinct public contract or implementation boundary not already inspected."
     : "";
-  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining}${freshFailureGuidance} Repair and rerun the priority scope before returning to older or less concrete failures`;
+  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining}${opaqueFailureGuidance} Repair and rerun the priority scope before returning to older or less concrete failures`;
 }
 
 function finitePositive(value: unknown): number | null {
