@@ -3682,7 +3682,7 @@ test("legacy checkpoints migrate failed checks without polluted diagnostics", ()
     },
   }).snapshot();
 
-  assert.equal(migrated.verificationDiagnosticVersion, 1);
+  assert.equal(migrated.verificationDiagnosticVersion, 2);
   assert.deepEqual(
     migrated.unresolvedVerificationFailures[0].failedChecks,
     ["contract-security", "cross-language"],
@@ -3696,6 +3696,7 @@ test("legacy checkpoints migrate failed checks without polluted diagnostics", ()
       workspaceMutationCount: 6,
       repairMutationCount: 6,
       targetedRepairReserveVersion: 4,
+      verificationDiagnosticVersion: 1,
       unresolvedVerificationScopes: ["integration-suite"],
       unresolvedVerificationFailures: [{
         scope: "integration-suite",

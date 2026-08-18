@@ -99,7 +99,7 @@ export class ProgressiveExecutionRuntime {
     );
     const legacyDiagnosticMigrationRequired = restored.version
       === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION
-      && restoredVerificationDiagnosticVersion < 1;
+      && restoredVerificationDiagnosticVersion < 2;
     const restoredHasVerificationDebt = (
       Array.isArray(restored.unresolvedVerificationScopes)
       && restored.unresolvedVerificationScopes.length > 0
@@ -152,7 +152,7 @@ export class ProgressiveExecutionRuntime {
         recoveryInspectionAllowance: 0,
         targetedRepairInspectionAllowance: 0,
         targetedRepairReserveVersion: 4,
-        verificationDiagnosticVersion: 1,
+        verificationDiagnosticVersion: 2,
         environmentRecoveryAwaitingVerification: false,
         repairContextId,
         activeBackgroundCount: 0,
@@ -217,7 +217,7 @@ export class ProgressiveExecutionRuntime {
               : 0,
         ),
         targetedRepairReserveVersion: 4,
-        verificationDiagnosticVersion: 1,
+        verificationDiagnosticVersion: 2,
         environmentRecoveryAwaitingVerification: asBoolean(
           restored.environmentRecoveryAwaitingVerification,
         ),
@@ -252,7 +252,7 @@ export class ProgressiveExecutionRuntime {
     const continuity = asObject(options.continuityProgress);
     const continuityDiagnosticMigrationRequired = nonnegativeInteger(
       continuity.targetedRepairReserveVersion,
-    ) >= 4 && nonnegativeInteger(continuity.verificationDiagnosticVersion) < 1;
+    ) >= 4 && nonnegativeInteger(continuity.verificationDiagnosticVersion) < 2;
     this.state.repairMutationCount = Math.max(
       this.state.repairMutationCount,
       continuity.repairMutationCount === undefined
