@@ -4475,6 +4475,101 @@ test("progressive execution rejects a compound verification that crashes after t
   assert.equal(progressive.snapshot().verificationCount, 1);
 });
 
+test("shell wrapper failures do not replace semantic verification debt", () => {
+  const integrationScope = "shell:afctl:test:integration";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: [integrationScope],
+      unresolvedVerificationFailures: [{
+        scope: integrationScope,
+        failedChecks: ["hidden-contract-security"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+      }],
+    },
+  });
+  progressive.observeToolResult({
+    toolCallId: "bad-build-wrapper",
+    toolName: "shell_wait",
+    arguments: { job_id: "job-build" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "bad-build-wrapper",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:build",
+    },
+  }, {
+    tool_call_id: "bad-build-wrapper",
+    ok: false,
+    summary: "Sandbox command failed",
+    output: {
+      stdout: "release-worker build completed\n",
+      stderr: "sh: syntax error: bad substitution\n",
+      return_code: 2,
+    },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.deepEqual(observed.unresolvedVerificationScopes, [integrationScope]);
+  assert.deepEqual(
+    observed.unresolvedVerificationFailures.map((failure) => failure.scope),
+    [integrationScope],
+  );
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair("shell:afctl:build"), false);
+  assert.match(observed.progressReasons.join(" "), /verification_invocation_failed_before_behavioral_result/);
+});
+
+test("restore drops invocation-only verification debt", () => {
+  const restored = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: {
+      version: PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+      unresolvedVerificationScopes: [
+        "shell:afctl:build",
+        "shell:afctl:test:integration",
+      ],
+      unresolvedVerificationFailures: [{
+        scope: "shell:afctl:build",
+        failedChecks: [],
+        failedCount: null,
+        failureKind: "transport_failure",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 4,
+        diagnosticSummary: "sh: syntax error: bad substitution",
+      }, {
+        scope: "shell:afctl:test:integration",
+        failedChecks: ["hidden-cross-language"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 4,
+      }],
+    },
+  }).snapshot();
+
+  assert.deepEqual(restored.unresolvedVerificationScopes, ["shell:afctl:test:integration"]);
+  assert.deepEqual(
+    restored.unresolvedVerificationFailures.map((failure) => failure.scope),
+    ["shell:afctl:test:integration"],
+  );
+});
+
 test("repeated successful verification does not reopen stalled inspection", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

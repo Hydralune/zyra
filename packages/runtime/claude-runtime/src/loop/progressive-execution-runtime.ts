@@ -361,14 +361,25 @@ export class ProgressiveExecutionRuntime {
     } else if (repairContextId) {
       this.state.repairContextId = repairContextId;
     }
+    const retryableInvocationScopes = new Set([
+      ...retryableVerificationInvocationFailureScopes(
+        restored.unresolvedVerificationFailures,
+      ),
+      ...retryableVerificationInvocationFailureScopes(
+        continuity.unresolvedVerificationFailures,
+      ),
+    ]);
     this.state.unresolvedVerificationFailures = mergeVerificationFailures(
       [],
       this.state.unresolvedVerificationFailures,
-    );
+    ).filter((failure) => !isRetryableStoredVerificationInvocationFailure(failure));
     this.state.unresolvedVerificationScopes = prioritizeVerificationScopes(
       this.state.unresolvedVerificationScopes,
       this.state.unresolvedVerificationFailures,
-    );
+    ).filter((scope) => (
+      !retryableInvocationScopes.has(scope)
+      || this.state.unresolvedVerificationFailures.some((failure) => failure.scope === scope)
+    ));
     const priorityFailure = this.state.unresolvedVerificationFailures[0];
     if (
       !this.state.environmentRecoveryAwaitingVerification
@@ -461,7 +472,11 @@ export class ProgressiveExecutionRuntime {
     ).toLowerCase();
     const backgroundRunning = ["running", "pending", "queued"].includes(background);
     const backgroundTerminal = ["completed", "failed", "cancelled", "stopped"].includes(background);
+    const verificationInvocationFailed = verificationDriving
+      && !backgroundRunning
+      && isRetryableVerificationInvocationFailure(response);
     const verificationPassed = verificationDriving
+      && !verificationInvocationFailed
       && verificationResultPassed(response, background);
     const verificationScope = String(
       request.metadata.progressive_verification_scope ?? "",
@@ -569,6 +584,19 @@ export class ProgressiveExecutionRuntime {
         // loop without another workspace mutation.
         this.record("post_delivery_verification_repeated_without_delivery");
       }
+    } else if (
+      verificationInvocationFailed
+      && !this.state.requiredDeliveryMissing
+    ) {
+      // Shell-dialect and command-wrapper failures happen before a build or
+      // test can produce trustworthy behavioral evidence. They should prompt
+      // an immediate corrected invocation, not become a semantic regression
+      // that requires an unrelated workspace edit before the same scope can
+      // run again. Preserve any older business verification debt unchanged.
+      this.state.verificationCount = 0;
+      this.state.verificationNudgeCount = 0;
+      this.state.lastVerificationNudgeProviderRound = 0;
+      this.record("verification_invocation_failed_before_behavioral_result");
     } else if (
       verificationDriving
       && !backgroundRunning
@@ -1011,6 +1039,44 @@ function restoreVerificationFailures(value: unknown): UnresolvedVerificationFail
     });
   }
   return mergeVerificationFailures([], restored);
+}
+
+function retryableVerificationInvocationFailureScopes(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => asObject(item))
+    .filter((failure) => (
+      String(failure.failureKind ?? "") === "transport_failure"
+      && isRetryableVerificationInvocationDiagnostic(
+        String(failure.diagnosticSummary ?? ""),
+      )
+    ))
+    .map((failure) => String(failure.scope ?? "").trim())
+    .filter(Boolean);
+}
+
+function isRetryableStoredVerificationInvocationFailure(
+  failure: UnresolvedVerificationFailure,
+): boolean {
+  return failure.failureKind === "transport_failure"
+    && isRetryableVerificationInvocationDiagnostic(failure.diagnosticSummary ?? "");
+}
+
+function isRetryableVerificationInvocationFailure(
+  response: ToolExecutionResponse,
+): boolean {
+  const text = [
+    response.output.stderr,
+    response.output.stdout,
+    response.summary,
+    response.error,
+  ].filter((value): value is string => typeof value === "string").join("\n");
+  return isRetryableVerificationInvocationDiagnostic(text);
+}
+
+function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
+  return /(?:^|\n)(?:sh|dash|ash|bash):[^\n]*\bbad substitution\b/iu.test(value)
+    || /\bPIPESTATUS(?:\[[^\]]+\])?:\s*(?:parameter not set|unbound variable)\b/iu.test(value);
 }
 
 function mergeVerificationFailures(
