@@ -364,6 +364,7 @@ export class ProgressiveExecutionRuntime {
       this.state.unresolvedVerificationScopes,
       this.state.unresolvedVerificationFailures,
     );
+    this.constrainActionableDiagnosticInspection();
     this.state.targetedRepairReserveVersion = 4;
     // The current task contract is authoritative after a checkpoint restore.
     // A stale or formerly unbound snapshot must not erase an outstanding
@@ -387,6 +388,29 @@ export class ProgressiveExecutionRuntime {
     }
     this.state.lastAnalysisDigest = digest;
     return this.snapshot();
+  }
+
+  private constrainActionableDiagnosticInspection(): void {
+    const diagnostic = this.state.unresolvedVerificationFailures[0]?.diagnosticSummary ?? "";
+    if (!isActionableVerificationDiagnostic(diagnostic)) return;
+    const previousRecoveryAllowance = this.state.recoveryInspectionAllowance;
+    const previousTargetedAllowance = this.state.targetedRepairInspectionAllowance;
+    // Once the verifier has produced a concrete exception, missing object, or
+    // source location, broad diagnosis is complete. Keep two exact reads for
+    // the implicated implementation and its contract/configuration boundary,
+    // then require a repair. This prevents a precise root cause from reopening
+    // a second broad exploration loop while preserving cross-file validation.
+    this.state.recoveryInspectionAllowance = 0;
+    this.state.targetedRepairInspectionAllowance = Math.min(
+      this.state.targetedRepairInspectionAllowance,
+      2,
+    );
+    if (
+      previousRecoveryAllowance !== this.state.recoveryInspectionAllowance
+      || previousTargetedAllowance !== this.state.targetedRepairInspectionAllowance
+    ) {
+      this.record("actionable_verification_diagnostic_bounded");
+    }
   }
 
   observeToolResult(
@@ -621,6 +645,7 @@ export class ProgressiveExecutionRuntime {
         this.record("verification_diagnostic_summary_retained");
       }
     }
+    this.constrainActionableDiagnosticInspection();
     if (backgroundRunning && request.toolName !== "shell_wait") {
       this.state.activeBackgroundCount += 1;
     } else if (backgroundTerminal) {
@@ -1075,6 +1100,11 @@ function mergeDiagnosticSummaries(current: string | undefined, incoming: string)
 function safeDiagnosticSummary(value: unknown): string {
   const selected = String(value ?? "").replace(/\s+/gu, " ").trim();
   return selected.slice(Math.max(0, selected.length - 1_600));
+}
+
+function isActionableVerificationDiagnostic(value: string): boolean {
+  const diagnostic = safeDiagnosticSummary(value);
+  return /(?:\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:undefined column|unknown column|does not exist|no such (?:file|column|table)|cannot find module|module not found|constraint\s+\S+\s+violated)\b|\b[^\s:]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs):\d+(?::\d+)?\b)/u.test(diagnostic);
 }
 
 function safeCheckName(value: string): string {

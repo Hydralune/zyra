@@ -3491,6 +3491,12 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
     observed.unresolvedVerificationFailures[0].diagnosticSummary ?? "",
     /UndefinedColumn.*tenant_id.*outbox_events/,
   );
+  assert.equal(observed.recoveryInspectionAllowance, 0);
+  assert.equal(observed.targetedRepairInspectionAllowance, 2);
+  assert.match(
+    observed.progressReasons.join(" "),
+    /actionable_verification_diagnostic_bounded/,
+  );
   const restored = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     restored: observed,
@@ -3499,6 +3505,8 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
     restored.verificationDebtSummary(),
     /diagnostic=.*UndefinedColumn.*tenant_id.*outbox_events/,
   );
+  assert.equal(restored.snapshot().recoveryInspectionAllowance, 0);
+  assert.equal(restored.snapshot().targetedRepairInspectionAllowance, 2);
 });
 
 test("a new verification result supersedes stale environment diagnostics", () => {
