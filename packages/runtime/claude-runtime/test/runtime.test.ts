@@ -3415,7 +3415,7 @@ test("a fresh failure outranks repeated debt when restored mutation counts tie",
       lastObservedWorkspaceMutationCount: 9,
     },
   ];
-  const restored = new ProgressiveExecutionRuntime({
+  const restoredRuntime = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     restored: {
       version: PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
@@ -3425,7 +3425,8 @@ test("a fresh failure outranks repeated debt when restored mutation counts tie",
       unresolvedVerificationScopes: prioritizedFailures.map((failure) => failure.scope),
       unresolvedVerificationFailures: prioritizedFailures,
     },
-  }).snapshot();
+  });
+  const restored = restoredRuntime.snapshot();
 
   assert.deepEqual(
     restored.unresolvedVerificationFailures.map((failure) => failure.scope),
@@ -3435,6 +3436,10 @@ test("a fresh failure outranks repeated debt when restored mutation counts tie",
     "simulation-suite",
     "integration-suite",
   ]);
+  assert.match(
+    restoredRuntime.verificationDebtSummary(),
+    /first-seen regression.*reproduce or inspect this priority failure/,
+  );
 });
 
 test("runtime diagnostics enrich and preserve the priority verification failure", () => {
@@ -3489,7 +3494,7 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
     restored: observed,
   });
   assert.match(
-    restored.decide(1_000, 10_000).reason,
+    restored.verificationDebtSummary(),
     /diagnostic=.*UndefinedColumn.*tenant_id.*outbox_events/,
   );
 });

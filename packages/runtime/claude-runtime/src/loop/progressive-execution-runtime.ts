@@ -811,6 +811,12 @@ export class ProgressiveExecutionRuntime {
     return this.state.unresolvedVerificationScopes.length > 0;
   }
 
+  verificationDebtSummary(): string {
+    return this.state.unresolvedVerificationScopes.length > 0
+      ? verificationDebtReason(this.state)
+      : "";
+  }
+
   failedVerificationScopeAwaitingRepair(scope: string): boolean {
     const normalized = scope.trim();
     if (!normalized) return false;

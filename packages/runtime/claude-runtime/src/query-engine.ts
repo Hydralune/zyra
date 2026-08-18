@@ -553,6 +553,20 @@ export class ClaudeRuntimeCore {
       continuityProgress: asObject(asObject(input.metadata).task_handoff_progress),
       repairContextId: input.sessionId,
     });
+    const restoredVerificationDebt = progressive.verificationDebtSummary();
+    if (restoredVerificationDebt) {
+      providerMessages = [
+        ...providerMessages,
+        {
+          role: "user",
+          content: [
+            `Authoritative recovery verification state: ${restoredVerificationDebt}.`,
+            "Use the priority failure from the first action of this resumed context.",
+            "Do not return to an older opaque scope or broad contract audit until the fresh concrete regression has been diagnosed, repaired, and rerun.",
+          ].join(" "),
+        },
+      ];
+    }
 
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
       eventSequence += 1;
