@@ -4121,6 +4121,68 @@ test("a successful environment recovery permits the failed scope to rerun", () =
   assert.equal(progressive.verificationEnvironmentRecoveryAwaitingVerification(), false);
 });
 
+test("a failed build cannot impersonate successful environment recovery", () => {
+  const integrationScope = "shell:afctl:test:integration";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 3,
+      repairMutationCount: 3,
+      unresolvedVerificationScopes: [integrationScope],
+      unresolvedVerificationFailures: [{
+        scope: integrationScope,
+        failedChecks: ["contract-security", "cross-language"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 2,
+        lastObservedWorkspaceMutationCount: 3,
+      }],
+    },
+  });
+  const build: ToolExecutionRequest = {
+    toolCallId: "failed-build-recovery",
+    toolName: "shell_wait",
+    arguments: { job_id: "build-job" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "failed-build-recovery",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:build",
+      progressive_environment_recovery_driving: true,
+    },
+  };
+  progressive.observeToolResult(build, {
+    tool_call_id: build.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: { stderr: "ERROR: build failed", return_code: 1 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().repairMutationCount, 3);
+  assert.equal(progressive.verificationEnvironmentRecoveryAwaitingVerification(), false);
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair(integrationScope), true);
+
+  progressive.observeToolResult({ ...build, toolCallId: "successful-build-recovery" }, {
+    tool_call_id: "successful-build-recovery",
+    ok: true,
+    summary: "command completed",
+    output: { stdout: "build complete", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.equal(progressive.snapshot().repairMutationCount, 4);
+  assert.equal(progressive.verificationEnvironmentRecoveryAwaitingVerification(), true);
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair(integrationScope), false);
+});
+
 test("repeating the same failed verification without an edit does not refill diagnostics", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -4954,6 +5016,34 @@ test("shell wrapper failures do not replace semantic verification debt", () => {
     progressive.failedVerificationScopeAwaitingRepair("shell:afctl:build"),
     false,
   );
+
+  progressive.observeToolResult({
+    toolCallId: "empty-package-index",
+    toolName: "shell_wait",
+    arguments: { job_id: "job-empty-package-index" },
+    turnIndex: 3,
+    stepIndex: 0,
+    batchId: "empty-package-index",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:afctl:build",
+    },
+  }, {
+    tool_call_id: "empty-package-index",
+    ok: false,
+    summary: "Sandbox command failed",
+    output: {
+      stderr: "Could not find a version that satisfies the requirement fastapi==0.116.1 (from versions: none)",
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, [integrationScope]);
 });
 
 test("restore drops invocation-only verification debt", () => {
@@ -5381,6 +5471,9 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["tools/afctl.py", "bootstrap"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "read", arguments: { path: "src/app.ts" } }, true), true);
   assert.equal(isClearlyPreDeliveryInspection({ tool_name: "write", arguments: { path: "src/app.ts" } }, false), false);
+  const repairGuidance = preDeliveryInspectionGuidance(2).join(" ");
+  assert.match(repairGuidance, /empty\/zero\/null\/default/);
+  assert.match(repairGuidance, /do not use unrelated dependency-download/);
   assert.equal(
     isFailedVerificationHarnessMutation(
       { tool_name: "file_edit", arguments: { path: "tools/afctl.py" } },

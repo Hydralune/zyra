@@ -495,14 +495,16 @@ export class ProgressiveExecutionRuntime {
     const verificationScope = String(
       request.metadata.progressive_verification_scope ?? "",
     ).trim();
+    const environmentRecoverySucceeded = response.ok
+      && environmentRecoveryDriving
+      && !backgroundRunning
+      && !repairMutated
+      && (!verificationDriving || verificationPassed);
     if (response.ok) this.state.realActionCount += 1;
     if (mutated) this.state.workspaceMutationCount += 1;
     if (repairMutated) this.state.repairMutationCount += 1;
     if (
-      response.ok
-      && environmentRecoveryDriving
-      && !backgroundRunning
-      && !repairMutated
+      environmentRecoverySucceeded
     ) {
       this.state.repairMutationCount += 1;
       this.state.verificationNudgeCount = 0;
@@ -510,7 +512,11 @@ export class ProgressiveExecutionRuntime {
       this.state.environmentRecoveryAwaitingVerification = true;
       this.progress("verification_environment_recovery_committed");
     }
-    if (verificationDriving && !backgroundRunning) {
+    if (
+      verificationDriving
+      && !backgroundRunning
+      && !environmentRecoverySucceeded
+    ) {
       this.state.environmentRecoveryAwaitingVerification = false;
     }
     if (artifacts > 0) this.state.artifactCount += artifacts;
@@ -1128,7 +1134,8 @@ function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
     // test receiving HTTP 500), which still require environment recovery.
     || /\b(?:ReadTimeoutError|ConnectTimeoutError|ConnectionResetError|Temporary failure in name resolution)\b/iu.test(value)
     || /\b(?:files\.pythonhosted\.org|pypi\.org|registry\.npmjs\.org|registry-1\.docker\.io)\b[^\n]*(?:timed?\s*out|timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN)/iu.test(value)
-    || /\b(?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b[^\n]*(?:npm|pnpm|yarn|registry|package|download|fetch)/iu.test(value);
+    || /\b(?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b[^\n]*(?:npm|pnpm|yarn|registry|package|download|fetch)/iu.test(value)
+    || /\bCould not find a version that satisfies the requirement\b[^\n]*\(from versions:\s*none\)/iu.test(value);
 }
 
 function mergeVerificationFailures(

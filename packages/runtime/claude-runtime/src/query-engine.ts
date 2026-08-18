@@ -72,7 +72,7 @@ const DEFAULT_CONFIG: RuntimeConfig = {
 };
 
 const CONTRACT_PARITY_REPAIR_GUIDANCE =
-  "For contract, security, or cross-language failures, map each public contract clause to every enforcement path and compare actual predicates clause-by-clause; include persistence lookup/update scope and state-transition semantics in that comparison, and verify every qualifier (such as tenant, operation kind, approval, role, and state) is enforced, because matching comments or constants do not prove semantic parity.";
+  "For contract, security, or cross-language failures, map each public contract clause to every enforcement path and compare actual predicates clause-by-clause; include persistence lookup/update scope and state-transition semantics, compare boundary behavior for empty/zero/null/default and exact threshold cases, and verify every qualifier (such as tenant, operation kind, approval, role, and state) is enforced, because matching comments, constants, or mainline formulas do not prove semantic parity. If the named semantic suite already executes and returns stable check results, do not use unrelated dependency-download, package-mirror, Docker-build, retry, timeout, or verifier-availability changes as the business repair.";
 
 // Runtime events remain in the event/journal evidence, but only semantic
 // recovery boundaries warrant serializing the complete durable session. A
@@ -568,7 +568,7 @@ export class ClaudeRuntimeCore {
               ? "This verifier is intentionally opaque: the retained check labels are the complete available diagnostic, so do not claim that it exposed a line, source fragment, or hidden report and do not search private verification infrastructure."
               : "Use the priority failure from the first action of this resumed context.",
             restoredFailureIsOpaque
-              ? "Compare the public contract with distinct implementation boundaries not already falsified by an unchanged rerun, make one evidence-based repair, and rerun the same scope."
+              ? "Compare the public contract with distinct implementation boundaries and their empty/default/threshold cases not already falsified by an unchanged rerun, make one evidence-based business repair, and rerun the same scope; a stable semantic result must not be answered by unrelated dependency or Docker reliability changes."
               : "Do not return to an older opaque scope or broad contract audit until the fresh concrete regression has been diagnosed, repaired, and rerun.",
           ].join(" "),
         },
