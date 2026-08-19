@@ -5475,7 +5475,10 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.match(repairGuidance, /empty\/zero\/null\/default/);
   assert.match(repairGuidance, /normative operators/);
   assert.match(repairGuidance, /Do not invent an exception/);
+  assert.match(repairGuidance, /older or duplicate inputs have no side effect/);
+  assert.match(repairGuidance, /less-than and equality branches/);
   assert.match(repairGuidance, /free-form reason, message, error, and payload/);
+  assert.match(repairGuidance, /sanitize prohibited material before durable storage/);
   assert.match(repairGuidance, /trace every externally supplied field/);
   assert.match(repairGuidance, /record that hypothesis and its repair files as rejected/);
   assert.match(repairGuidance, /revert the just-falsified changes/);
