@@ -98,7 +98,7 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             content_digest_value="",
         )
 
-    def test_provenance_retry_ignores_observation_timestamp(self) -> None:
+    def test_provenance_retry_ignores_non_identity_observations(self) -> None:
         first = ArtifactProvenance.build(
             kind=ProvenanceKind.GENERATED,
             trust=TrustLevel.CONSTRAINED,
@@ -107,7 +107,11 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             metadata={"logical_path": "retry.txt"},
         )
         retried = ArtifactProvenance.from_dict(
-            {**first.to_dict(), "received_at": first.received_at + 60}
+            {
+                **first.to_dict(),
+                "received_at": first.received_at + 60,
+                "metadata": {"logical_path": "same-content-another-path.txt"},
+            }
         )
         registry = ProvenanceRegistry()
 
@@ -116,6 +120,13 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
 
         self.assertIs(replayed, registered)
         self.assertEqual(replayed.received_at, first.received_at)
+        self.assertEqual(replayed.metadata, first.metadata)
+
+        conflicting = ArtifactProvenance.from_dict(
+            {**first.to_dict(), "untrusted_instructions": True}
+        )
+        with self.assertRaises(SandboxGatewayError):
+            registry.register(conflicting)
 
     def test_trusted_artifact_commits_through_workspace_transaction(self) -> None:
         request = FileArtifactRequest.build(

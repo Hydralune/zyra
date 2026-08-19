@@ -46,16 +46,28 @@ class ProvenanceRegistry:
         with self._lock:
             existing = self._records.get(provenance.provenance_id)
             if existing is not None:
+                # Observation time and metadata annotations are deliberately
+                # not part of ``provenance_id``. A retry may therefore rebuild
+                # the same semantic lineage with a later timestamp or a
+                # different path annotation. Compare the identity and security
+                # fields only; in particular, never allow a colliding record to
+                # change trust or its untrusted-instruction classification.
+                identity_fields = (
+                    "schema",
+                    "kind",
+                    "trust",
+                    "source_id",
+                    "source_uri_digest",
+                    "parent_refs",
+                    "content_digest",
+                    "untrusted_instructions",
+                )
                 existing_value = existing.to_dict()
                 incoming_value = provenance.to_dict()
-                # ``received_at`` records when this process observed a lineage
-                # record; it is deliberately not part of ``provenance_id``.
-                # A retry can therefore rebuild the same semantic provenance
-                # at a later instant. Treating that observational timestamp as
-                # identity made otherwise-idempotent patch retries collide.
-                existing_value.pop("received_at", None)
-                incoming_value.pop("received_at", None)
-                if existing_value != incoming_value:
+                if any(
+                    existing_value[field] != incoming_value[field]
+                    for field in identity_fields
+                ):
                     raise SandboxGatewayError(
                         GatewayErrorCode.STATE_CONFLICT,
                         "provenance identity collision",
