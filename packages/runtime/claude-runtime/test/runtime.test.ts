@@ -3362,6 +3362,9 @@ test("a newly observed regression takes priority over older verification debt", 
     artifacts: [],
     metadata: { workspace_mutation_committed: "true" },
   }, false);
+  assert.equal(progressive.snapshot().targetedRepairInspectionAllowance, 4);
+  assert.equal(progressive.consumeRecoveryInspectionAllowance(true), true);
+  assert.equal(progressive.snapshot().targetedRepairInspectionAllowance, 3);
   const publicFailure: ToolExecutionRequest = {
     toolCallId: "public-failed",
     toolName: "shell",

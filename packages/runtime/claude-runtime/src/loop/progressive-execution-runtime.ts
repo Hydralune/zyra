@@ -536,7 +536,23 @@ export class ProgressiveExecutionRuntime {
       this.state.lastActionNudgeNoDeliveryObservationCount = 0;
       this.state.postDeliveryActionNudgeCount = 0;
       this.state.recoveryInspectionAllowance = 0;
-      if (repairMutated) this.state.targetedRepairInspectionAllowance = 0;
+      if (repairMutated) {
+        // A repair often changes the exact source facts the model must use for
+        // its next decision.  Keep a small, named-source validation window so
+        // it can inspect the edited implementation and an adjacent contract or
+        // state-machine boundary before rerunning the failing suite.  Clearing
+        // this reserve forced blind follow-up edits merely to reopen reads,
+        // which increased repair churn instead of encouraging verification.
+        this.state.targetedRepairInspectionAllowance =
+          this.state.unresolvedVerificationScopes.length > 0
+            ? boundedInteger(
+              this.constraints.post_repair_targeted_inspection_limit,
+              4,
+              2,
+              12,
+            )
+            : 0;
+      }
       this.progress("workspace_mutation_committed");
     } else if (response.ok && !backgroundRunning) {
       this.state.noDeliveryObservationCount += 1;
