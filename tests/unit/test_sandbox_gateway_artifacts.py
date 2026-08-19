@@ -98,6 +98,25 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             content_digest_value="",
         )
 
+    def test_provenance_retry_ignores_observation_timestamp(self) -> None:
+        first = ArtifactProvenance.build(
+            kind=ProvenanceKind.GENERATED,
+            trust=TrustLevel.CONSTRAINED,
+            source_id="retry-generator",
+            content_digest_value="content-digest",
+            metadata={"logical_path": "retry.txt"},
+        )
+        retried = ArtifactProvenance.from_dict(
+            {**first.to_dict(), "received_at": first.received_at + 60}
+        )
+        registry = ProvenanceRegistry()
+
+        registered = registry.register(first)
+        replayed = registry.register(retried)
+
+        self.assertIs(replayed, registered)
+        self.assertEqual(replayed.received_at, first.received_at)
+
     def test_trusted_artifact_commits_through_workspace_transaction(self) -> None:
         request = FileArtifactRequest.build(
             session_id="session-artifact",

@@ -46,7 +46,16 @@ class ProvenanceRegistry:
         with self._lock:
             existing = self._records.get(provenance.provenance_id)
             if existing is not None:
-                if existing.to_dict() != provenance.to_dict():
+                existing_value = existing.to_dict()
+                incoming_value = provenance.to_dict()
+                # ``received_at`` records when this process observed a lineage
+                # record; it is deliberately not part of ``provenance_id``.
+                # A retry can therefore rebuild the same semantic provenance
+                # at a later instant. Treating that observational timestamp as
+                # identity made otherwise-idempotent patch retries collide.
+                existing_value.pop("received_at", None)
+                incoming_value.pop("received_at", None)
+                if existing_value != incoming_value:
                     raise SandboxGatewayError(
                         GatewayErrorCode.STATE_CONFLICT,
                         "provenance identity collision",
