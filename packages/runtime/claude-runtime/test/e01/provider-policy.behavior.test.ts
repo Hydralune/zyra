@@ -630,6 +630,42 @@ describe("provider routing policy", () => {
     ).toBe("route-primary");
   });
 
+  test("settles the exact in-flight request once after its lease expires", () => {
+    const clock = new ManualClock(1_000);
+    const runtime = new ProviderRoutingRuntime({
+      clock,
+      leaseMilliseconds: 10,
+    });
+    runtime.register(routeDefinition({ concurrencyLimit: 1 }));
+    runtime.acquire(runtime.decide(routeRequest()));
+    clock.advance(10);
+    expect(runtime.getState("route-primary").inFlight).toBe(0);
+
+    const second = runtime.decide(routeRequest({ requestId: "request-2" }));
+    runtime.acquire(second);
+    expect(runtime.recordSuccess("request-1", 15).successes).toBe(1);
+    expect(runtime.getState("route-primary").inFlight).toBe(1);
+    expect(() => runtime.recordSuccess("request-1", 15)).toThrow(
+      "unknown_provider_route_lease",
+    );
+  });
+
+  test("rejects a late response after an expired lease is abandoned", () => {
+    const clock = new ManualClock(1_000);
+    const runtime = new ProviderRoutingRuntime({
+      clock,
+      leaseMilliseconds: 10,
+    });
+    runtime.register(routeDefinition());
+    runtime.acquire(runtime.decide(routeRequest()));
+    clock.advance(10);
+    expect(runtime.getState("route-primary").inFlight).toBe(0);
+    runtime.abandon("request-1");
+    expect(() => runtime.recordSuccess("request-1", 15)).toThrow(
+      "unknown_provider_route_lease",
+    );
+  });
+
   test("extends a live lease to the request-scoped provider timeout", () => {
     const clock = new ManualClock(1_000);
     const runtime = new ProviderRoutingRuntime({
@@ -798,6 +834,35 @@ describe("provider rate limit reservations", () => {
       )?.status,
     ).toBe("expired");
     expect(runtime.getBucket("limit-requests").available).toBe(2);
+  });
+
+  test("commits exact usage once after a reservation expires", () => {
+    const clock = new ManualClock(1_000);
+    const runtime = new ProviderRateLimitRuntime({
+      clock,
+      ids: ids("rate-late-commit"),
+      reservationTtlMilliseconds: 10,
+    });
+    runtime.register(rateDefinition({ capacity: 5, burstCapacity: 5 }));
+    const reservation = runtime.reserve(
+      rateDemand({ requests: 2, deadlineAt: 10_000 }),
+    );
+    clock.advance(10);
+    expect(runtime.snapshot().reservations[0]?.status).toBe("expired");
+
+    const committed = runtime.commit(reservation.reservationId, { requests: 2 });
+    expect(committed.status).toBe("committed");
+    expect(runtime.getBucket("limit-requests")).toMatchObject({
+      available: 3,
+      reserved: 0,
+      consumed: 2,
+    });
+    expect(
+      runtime.commit(reservation.reservationId, { requests: 2 }).status,
+    ).toBe("committed");
+    expect(() =>
+      runtime.commit(reservation.reservationId, { requests: 1 }),
+    ).toThrow("rate_limit_commit_conflict");
   });
 
   test("uses provider remaining and retry-after headers as hard ceilings", () => {

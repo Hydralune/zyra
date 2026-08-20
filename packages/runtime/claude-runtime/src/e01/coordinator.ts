@@ -2246,7 +2246,9 @@ export class E01RuntimeCoordinator {
     const attempt = this.providerRequests.getAttempt(attemptId);
     const response = this.providerResponseForAttempt(attemptId);
     const reservation = this.providerRateLimits.snapshot().reservations.find(
-      (item) => item.requestId === requestId && item.status === "held",
+      (item) =>
+        item.requestId === requestId &&
+        (item.status === "held" || item.status === "expired"),
     );
     const usage = providerUsage(asRuntimeObject(report.usage));
     const providerId = attempt.providerId;

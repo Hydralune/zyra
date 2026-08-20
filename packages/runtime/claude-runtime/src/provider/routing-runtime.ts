@@ -108,6 +108,9 @@ export interface ProviderRouteLease {
   acquiredAt: number;
   expiresAt: number;
   releasedAt: number | null;
+  // Optional so v1 snapshots written before release reasons were introduced
+  // remain restorable. A released legacy lease is never considered settleable.
+  releaseReason?: "succeeded" | "failed" | "abandoned" | "expired" | null;
 }
 
 export interface ProviderRouteWeights {
@@ -434,6 +437,7 @@ export class ProviderRoutingRuntime {
       acquiredAt,
       expiresAt: acquiredAt + validityMilliseconds,
       releasedAt: null,
+      releaseReason: null,
     };
     this.leases.set(decision.requestId, lease);
     this.states.set(decision.routeId, {
@@ -452,13 +456,16 @@ export class ProviderRoutingRuntime {
     sessionId?: string,
   ): ProviderRouteState {
     assertNonNegativeInteger(latencyMilliseconds, "latencyMilliseconds");
-    const lease = this.requireActiveLease(requestId);
+    const lease = this.requireSettleableLease(requestId);
     const state = this.requireState(lease.routeId);
     const now = this.clock.now();
+    const concurrencyAlreadyReleased = lease.releaseReason === "expired";
     const next = {
       ...state,
       status: "available" as const,
-      inFlight: Math.max(0, state.inFlight - 1),
+      inFlight: concurrencyAlreadyReleased
+        ? state.inFlight
+        : Math.max(0, state.inFlight - 1),
       consecutiveFailures: 0,
       successes: state.successes + 1,
       latencyEwmaMilliseconds: ewma(
@@ -477,7 +484,7 @@ export class ProviderRoutingRuntime {
       revision: state.revision + 1,
     };
     this.states.set(lease.routeId, next);
-    this.releaseLease(lease, now);
+    this.releaseLease(lease, now, "succeeded");
     if (sessionId !== undefined) {
       this.sessionAffinity.set(sessionId, lease.routeId);
     }
@@ -489,8 +496,9 @@ export class ProviderRoutingRuntime {
     requestId: string,
     failureClass: ProviderFailureClass,
   ): ProviderRouteState {
-    const lease = this.requireActiveLease(requestId);
+    const lease = this.requireSettleableLease(requestId);
     const state = this.requireState(lease.routeId);
+    const concurrencyAlreadyReleased = lease.releaseReason === "expired";
     const failures = state.consecutiveFailures + 1;
     const opensCircuit =
       failures >= this.circuitFailureThreshold ||
@@ -502,7 +510,9 @@ export class ProviderRoutingRuntime {
     const next: ProviderRouteState = {
       ...state,
       status: opensCircuit ? "open" : "degraded",
-      inFlight: Math.max(0, state.inFlight - 1),
+      inFlight: concurrencyAlreadyReleased
+        ? state.inFlight
+        : Math.max(0, state.inFlight - 1),
       consecutiveFailures: failures,
       failures: state.failures + 1,
       availabilityEwma: ewma(
@@ -516,23 +526,28 @@ export class ProviderRoutingRuntime {
       revision: state.revision + 1,
     };
     this.states.set(lease.routeId, next);
-    this.releaseLease(lease, now);
+    this.releaseLease(lease, now, "failed");
     this.revision += 1;
     return deepClone(next);
   }
 
   abandon(requestId: string): void {
     const lease = this.leases.get(requestId);
-    if (lease === undefined || lease.releasedAt !== null) {
+    if (
+      lease === undefined ||
+      (lease.releasedAt !== null && lease.releaseReason !== "expired")
+    ) {
       return;
     }
-    const state = this.requireState(lease.routeId);
-    this.states.set(lease.routeId, {
-      ...state,
-      inFlight: Math.max(0, state.inFlight - 1),
-      revision: state.revision + 1,
-    });
-    this.releaseLease(lease, this.clock.now());
+    if (lease.releasedAt === null) {
+      const state = this.requireState(lease.routeId);
+      this.states.set(lease.routeId, {
+        ...state,
+        inFlight: Math.max(0, state.inFlight - 1),
+        revision: state.revision + 1,
+      });
+    }
+    this.releaseLease(lease, this.clock.now(), "abandoned");
     this.revision += 1;
   }
 
@@ -658,10 +673,16 @@ export class ProviderRoutingRuntime {
     return state;
   }
 
-  private requireActiveLease(requestId: string): ProviderRouteLease {
+  private requireSettleableLease(requestId: string): ProviderRouteLease {
     this.expireCircuitsAndLeases();
     const lease = this.leases.get(requestId);
-    if (lease === undefined || lease.releasedAt !== null) {
+    // Expiry frees route concurrency; it does not revoke the authentic response
+    // from the request that acquired the lease. Terminal settlement and explicit
+    // abandonment still fence duplicate or cancelled responses.
+    if (
+      lease === undefined ||
+      (lease.releasedAt !== null && lease.releaseReason !== "expired")
+    ) {
       throw new RuntimeInvariantError("unknown_provider_route_lease", {
         requestId,
       });
@@ -669,10 +690,15 @@ export class ProviderRoutingRuntime {
     return lease;
   }
 
-  private releaseLease(lease: ProviderRouteLease, releasedAt: number): void {
+  private releaseLease(
+    lease: ProviderRouteLease,
+    releasedAt: number,
+    releaseReason: Exclude<ProviderRouteLease["releaseReason"], null | undefined>,
+  ): void {
     this.leases.set(lease.requestId, {
       ...lease,
       releasedAt,
+      releaseReason,
     });
   }
 
@@ -699,7 +725,11 @@ export class ProviderRoutingRuntime {
             revision: state.revision + 1,
           });
         }
-        this.leases.set(lease.requestId, { ...lease, releasedAt: now });
+        this.leases.set(lease.requestId, {
+          ...lease,
+          releasedAt: now,
+          releaseReason: "expired",
+        });
         this.revision += 1;
       }
     }

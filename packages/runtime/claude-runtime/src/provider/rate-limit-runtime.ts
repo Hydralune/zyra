@@ -332,12 +332,33 @@ export class ProviderRateLimitRuntime {
       }
       return deepClone(reservation);
     }
-    this.assertHeld(reservation);
+    if (reservation.status !== "held" && reservation.status !== "expired") {
+      throw new RuntimeInvariantError("rate_limit_reservation_not_settleable", {
+        reservationId: reservation.reservationId,
+        status: reservation.status,
+      });
+    }
     validateActual(actual);
-    for (const allocation of reservation.allocations) {
+    const expiredBeforeCommit = reservation.status === "expired";
+    // Expiry returned the estimate to the bucket. A late successful response
+    // therefore consumes its actual usage from currently available capacity,
+    // while the preflight keeps multi-scope settlement atomic and fail-closed.
+    const settlements = reservation.allocations.map((allocation) => {
       const bucket = this.requireBucket(allocation.limitId);
       const consumed = actual[allocation.dimension] ?? allocation.amount;
-      if (consumed > allocation.amount) {
+      if (expiredBeforeCommit) {
+        if (consumed > bucket.available) {
+          throw new RuntimeInvariantError(
+            "rate_limit_late_commit_capacity_conflict",
+            {
+              reservationId,
+              limitId: allocation.limitId,
+              actual: consumed,
+              available: bucket.available,
+            },
+          );
+        }
+      } else if (consumed > allocation.amount) {
         const extra = consumed - allocation.amount;
         if (extra > bucket.available) {
           throw new RuntimeInvariantError("rate_limit_actual_exceeds_capacity", {
@@ -348,11 +369,16 @@ export class ProviderRateLimitRuntime {
             available: bucket.available,
           });
         }
-        bucket.available -= extra;
-      } else {
-        bucket.available += allocation.amount - consumed;
       }
-      bucket.reserved = Math.max(0, bucket.reserved - allocation.amount);
+      return { allocation, bucket, consumed };
+    });
+    for (const { allocation, bucket, consumed } of settlements) {
+      bucket.available += expiredBeforeCommit
+        ? -consumed
+        : allocation.amount - consumed;
+      if (!expiredBeforeCommit) {
+        bucket.reserved = Math.max(0, bucket.reserved - allocation.amount);
+      }
       bucket.consumed += consumed;
       bucket.revision += 1;
     }
