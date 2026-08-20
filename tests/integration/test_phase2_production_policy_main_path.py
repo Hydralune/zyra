@@ -351,6 +351,79 @@ def test_topology_refreshes_physical_workers_before_each_projection() -> None:
     assert len(receipts) == 2
 
 
+def test_adaptive_depth_continuation_refreshes_permission_before_projection() -> None:
+    state, _ = api.make_task_created_event(
+        "Continue a long-running task into its next physical layer."
+    )
+    stale = {
+        "schema": "zyra.phase2-policy-permission-receipt/v1",
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "decision_id": "decision-stale-first-layer",
+        "canonical_owner": "typescript.PermissionCoordinator",
+        "effect": "allow",
+        "allowed_permissions": ["graph.write", "worker.dispatch"],
+        "valid_until": "2000-01-01T00:00:00Z",
+    }
+    stale["receipt_digest"] = canonical_digest(stale)
+    state.metadata["phase2_policy_permission_receipt"] = dict(stale)
+
+    bridge = object.__new__(Phase2StrongestProductionBridge)
+    bridge.worker_pool_refresher = None
+    bridge.worker_pool_api = SimpleNamespace(
+        ensure_default_local_worker=lambda: None,
+        ensure_task_graph=lambda _state: "graph-continuation",
+        graph_custody=SimpleNamespace(
+            current=lambda _graph_id: SimpleNamespace()
+        ),
+    )
+    bridge._loopx_pre_control_input = lambda _state: {}
+    permission_calls = []
+
+    def refresh_permission(
+        target_state: object,
+        requested: tuple[str, ...],
+        cause_event: EventRecord | None,
+    ) -> dict[str, object]:
+        del cause_event
+        permission_calls.append(requested)
+        fresh = {
+            "schema": "zyra.phase2-policy-permission-receipt/v1",
+            "run_id": target_state.run_id,
+            "task_id": target_state.task_id,
+            "decision_id": "decision-fresh-second-layer",
+            "canonical_owner": "typescript.PermissionCoordinator",
+            "effect": "allow",
+            "allowed_permissions": sorted(requested),
+            "valid_until": "2999-01-01T00:00:00Z",
+        }
+        fresh["receipt_digest"] = canonical_digest(fresh)
+        target_state.metadata["phase2_policy_permission_receipt"] = dict(fresh)
+        return fresh
+
+    bridge.permission_decision_provider = refresh_permission
+    projected = []
+
+    def continuation_projection(**kwargs: object) -> dict[str, object]:
+        projected.append(kwargs)
+        return {
+            "adaptive_depth_continuation": True,
+            "permission_receipt": dict(kwargs["permission_receipt"]),
+        }
+
+    bridge._adaptive_depth_continuation_projection = continuation_projection
+
+    result = bridge(state, None, None)
+
+    assert permission_calls == [("graph.write", "worker.dispatch")]
+    assert len(projected) == 1
+    fresh = projected[0]["permission_receipt"]
+    assert fresh["decision_id"] == "decision-fresh-second-layer"
+    assert fresh["receipt_digest"] != stale["receipt_digest"]
+    assert result["permission_receipt"] == fresh
+    assert state.metadata["phase2_policy_permission_receipt"] == fresh
+
+
 def test_completion_failures_exclude_adaptive_depth_only_diagnostics() -> None:
     conditions = {
         "final_verifier_passed": True,

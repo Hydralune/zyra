@@ -542,27 +542,28 @@ class Phase2StrongestProductionBridge:
         loopx_pre_control = self._loopx_pre_control_input(state)
         graph_id = self.worker_pool_api.ensure_task_graph(state)
         current = self.worker_pool_api.graph_custody.current(graph_id)
-        continuation = self._adaptive_depth_continuation_projection(
-            state=state,
-            source_event_id=(
-                cause_event.event_id
-                if cause_event is not None
-                else f"task-route:{state.run_id}:{state.task_id}"
-            ),
-        )
-        if continuation is not None:
-            return continuation
         source_event_id = (
             cause_event.event_id
             if cause_event is not None
             else f"task-route:{state.run_id}:{state.task_id}"
         )
-        projection = self.worker_pool_api.pool.api_projection()
+        # A continuation is a new privileged physical placement, even though
+        # it reuses the canonical topology and operator proposal.  Resolve a
+        # new permission decision before projecting that next layer so a long
+        # first layer cannot lend an expired receipt to the next dispatch.
         permission_receipt = self._permission_receipt(
             state=state,
             requested=("graph.write", "worker.dispatch"),
             cause_event=cause_event,
         )
+        continuation = self._adaptive_depth_continuation_projection(
+            state=state,
+            source_event_id=source_event_id,
+            permission_receipt=permission_receipt,
+        )
+        if continuation is not None:
+            return continuation
+        projection = self.worker_pool_api.pool.api_projection()
         allowed_permissions = tuple(
             str(item)
             for item in permission_receipt.get("allowed_permissions") or ()
@@ -998,6 +999,7 @@ class Phase2StrongestProductionBridge:
         *,
         state: TaskState,
         source_event_id: str,
+        permission_receipt: Mapping[str, Any],
     ) -> Mapping[str, Any] | None:
         executed_refs = {
             str(item)
@@ -1064,6 +1066,7 @@ class Phase2StrongestProductionBridge:
                     item.artifact_id for item in state.artifacts if item.artifact_id
                 ),
                 "source_event_id": source_event_id,
+                "permission_receipt": dict(permission_receipt),
             }
         )
         context.pop("physical_execution_receipt", None)

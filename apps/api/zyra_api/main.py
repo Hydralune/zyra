@@ -7939,7 +7939,8 @@ def _phase2_permission_decision(
         # bounds a task.  Five minutes was shorter than a single live-provider
         # physical layer, so a later layer of a successful long-horizon run
         # arrived with an expired receipt and failed a task nothing had denied.
-        # A topology change still mints a new receipt and rebinds placement.
+        # Every new physical placement, including an adaptive-depth
+        # continuation, mints a new receipt and rebinds the lease to it.
         "valid_until": (
             datetime.now(UTC) + PHASE2_PERMISSION_RECEIPT_VALIDITY
         ).isoformat().replace("+00:00", "Z"),
