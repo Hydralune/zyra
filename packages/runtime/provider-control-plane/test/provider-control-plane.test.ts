@@ -1269,6 +1269,56 @@ test("a disconnected half-JSON tool call regenerates once without changing route
   assert.equal((persistedCall.attempt_history as unknown[]).length, 1);
 });
 
+test("a stalled half-JSON tool call regenerates before any tool dispatch", async (t) => {
+  let requests = 0;
+  const capture = await captureServer((_request, response) => {
+    requests += 1;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    if (requests === 1) {
+      response.write('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-stalled","function":{"name":"write_file","arguments":"{\\"path\\":\\"result.txt\\""}}]},"finish_reason":null}]}\n\n');
+      const keepalive = setInterval(() => response.write(": keepalive\n\n"), 5);
+      const stop = setTimeout(() => response.end(), 150);
+      response.on("close", () => {
+        clearInterval(keepalive);
+        clearTimeout(stop);
+      });
+      return;
+    }
+    response.end('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-stalled","function":{"name":"write_file","arguments":"{\\"path\\":\\"result.txt\\",\\"content\\":\\"ready\\"}"}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "stalled-tool-provider",
+    modelId: "stalled-tool-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("stalled-tool-provider", "stalled-tool-model"),
+  );
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(route.routeId),
+    tools: [{ name: "write_file", description: "Write a file", inputSchema: { type: "object" } }],
+    timeoutMilliseconds: 500,
+    chunkTimeoutMilliseconds: 25,
+  });
+
+  assert.equal(requests, 2);
+  assert.equal(result.routeId, route.routeId);
+  assert.equal(result.attempts.length, 2);
+  assert.equal(result.attempts[0]?.failureKind, "tool_arguments_incomplete");
+  assert.equal(result.attempts[0]?.recoveryIntent, "retry_same_route");
+  assert.equal(result.attempts[0]?.outputObserved, true);
+  assert.equal(result.attempts[0]?.metadata.streamReplaySafe, true);
+  const lifecycle = controlPlane.dispatches.require("dispatch-turn-1");
+  assert.equal(lifecycle.state, "succeeded");
+  assert.equal(lifecycle.recoveryCount, 1);
+  const persistedCall = lifecycle.toolArgumentStreams["call-stalled"] as Record<string, unknown>;
+  assert.equal(persistedCall.transaction_state, "arguments_complete");
+  assert.equal((persistedCall.attempt_history as unknown[]).length, 1);
+});
+
 test("rate limit performs a second real request on a new provider route", async (t) => {
   const primary = await captureServer((_request, response) => {
     response.writeHead(429, { "content-type": "application/json", "retry-after": "0" });

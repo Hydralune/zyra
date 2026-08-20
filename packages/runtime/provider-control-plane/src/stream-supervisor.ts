@@ -669,11 +669,22 @@ export class ProviderStreamSupervisor {
   ): ProviderControlPlaneError {
     this.phaseValue = "failed";
     this.completedAtValue = this.now();
-    const toolArgumentsIncomplete = kind === "tool_arguments_incomplete";
+    const toolCalls = [...this.toolCalls.values()].map((call) => toolSnapshot(call));
+    // A chunk watchdog can fire while a tool call is still receiving JSON.
+    // No physical tool dispatch is possible before arguments are complete, so
+    // this has the same bounded same-route recovery semantics as an SSE stream
+    // that ends with incomplete arguments. Treating it as generic partial
+    // output would incorrectly fence a safe regeneration attempt.
+    const stalledIncompleteToolArguments = kind === "stream_timeout"
+      && toolCalls.some((call) => call.transactionState === "receiving_arguments");
+    const toolArgumentsIncomplete = kind === "tool_arguments_incomplete"
+      || stalledIncompleteToolArguments;
     const outputObserved = this.outputObservedValue || this.sideEffectCandidateObservedValue;
-    const effectiveKind = outputObserved && !toolArgumentsIncomplete && kind !== "partial_response_observed"
-      ? "partial_response_observed"
-      : kind;
+    const effectiveKind = toolArgumentsIncomplete
+      ? "tool_arguments_incomplete"
+      : outputObserved && kind !== "partial_response_observed"
+        ? "partial_response_observed"
+        : kind;
     const recoveryExhausted = toolArgumentsIncomplete
       && this.recoveryAttempt >= this.maximumRecoveryAttempts;
     const error = new ProviderControlPlaneError({
@@ -701,7 +712,7 @@ export class ProviderStreamSupervisor {
         recoveryAttempt: this.recoveryAttempt,
         maximumRecoveryAttempts: this.maximumRecoveryAttempts,
         recoveryExhausted,
-        toolCalls: canonicalize([...this.toolCalls.values()].map((call) => toolSnapshot(call))),
+        toolCalls: canonicalize(toolCalls),
       },
     });
     this.failureValue = error;
