@@ -1163,6 +1163,12 @@ def _provider_evidence(
                     "prompt_goal_bound": (
                         prompt_binding.get("goal_present") is True
                     ),
+                    "prompt_goal_binding": str(
+                        prompt_binding.get("goal_binding") or "unbound"
+                    ),
+                    "runtime_identity_verified": (
+                        prompt_binding.get("runtime_identity_verified") is True
+                    ),
                     "output_token_budget": dict(
                         prompt_binding.get("output_token_budget")
                         if isinstance(
@@ -1232,6 +1238,7 @@ def _provider_prompt_bindings(
     expected_initial_prompt_digest: str,
 ) -> dict[str, dict[str, Any]]:
     bindings: dict[str, dict[str, Any]] = {}
+    bound_runtime_identity: tuple[str, str, str, str] | None = None
     for event in runtime_events:
         if not isinstance(event, Mapping):
             continue
@@ -1253,13 +1260,45 @@ def _provider_prompt_bindings(
             ).strip()
             if not request_id or not messages_digest or not initial_prompt_digest:
                 continue
+            runtime_identity = tuple(
+                str(query.get(name) or "").strip()
+                for name in ("run_id", "task_id", "session_id", "worker_request_id")
+            )
+            identity_complete = all(runtime_identity)
+            initial_goal_match = bool(
+                expected_initial_prompt_digest
+                and initial_prompt_digest == expected_initial_prompt_digest
+            )
+            if (
+                bound_runtime_identity is None
+                and identity_complete
+                and initial_goal_match
+            ):
+                bound_runtime_identity = runtime_identity
+            task_chain_bound = bool(
+                identity_complete
+                and bound_runtime_identity is not None
+                and runtime_identity == bound_runtime_identity
+            )
             bindings.setdefault(request_id, {}).update(
                 {
                     "messages_digest": messages_digest,
-                    "goal_present": bool(
-                        expected_initial_prompt_digest
-                        and initial_prompt_digest == expected_initial_prompt_digest
+                    # A long-running CodeWorker replaces its first user message
+                    # with a compaction/restore summary. The summary has a new
+                    # digest by design, but remains part of the same canonical
+                    # runtime identity. Bind the identity at the first exact
+                    # task prompt, then carry that binding across later requests
+                    # from that identity instead of requiring the original text
+                    # to survive every compaction boundary.
+                    "goal_present": task_chain_bound,
+                    "goal_binding": (
+                        "initial_prompt"
+                        if task_chain_bound and initial_goal_match
+                        else "runtime_continuation"
+                        if task_chain_bound
+                        else "unbound"
                     ),
+                    "runtime_identity_verified": task_chain_bound,
                     "output_token_budget": dict(
                         request.get("output_token_budget")
                         if isinstance(request.get("output_token_budget"), Mapping)

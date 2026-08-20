@@ -15,6 +15,7 @@ from zyra_orchestration.deployment.code_worker_adapter import (
     _governed_final_response,
     _physical_permission_session_id,
     _provider_failure_summary,
+    _provider_prompt_bindings,
     execute_code_worker_operator,
 )
 from zyra_orchestration.goal_contracts import (
@@ -35,6 +36,106 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _provider_runtime_event(
+    *,
+    phase: str,
+    request_id: str,
+    initial_prompt_digest: str = "",
+    messages_digest: str = "",
+    provider_request_digest: str = "",
+    session_id: str = "provider-session",
+) -> dict[str, object]:
+    query: dict[str, object] = {
+        "phase": phase,
+        "run_id": "run-provider-binding",
+        "task_id": "task-provider-binding",
+        "session_id": session_id,
+        "worker_request_id": "worker-provider-binding",
+    }
+    if phase == "model_request_prepared":
+        query["provider_request"] = {
+            "request_id": request_id,
+            "messages_digest": messages_digest,
+            "initial_user_message_digest": initial_prompt_digest,
+        }
+    else:
+        query["model_stream"] = {
+            "request_id": request_id,
+            "ok": True,
+            "provider_request_digest": provider_request_digest,
+        }
+    return {"payload": {"query_session": query}}
+
+
+def test_provider_prompt_binding_survives_same_runtime_context_compaction() -> None:
+    expected = "sha256:original-task-prompt"
+    events = [
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-0",
+            initial_prompt_digest=expected,
+            messages_digest="sha256:messages-0",
+        ),
+        _provider_runtime_event(
+            phase="model_stream_report",
+            request_id="request-0",
+            provider_request_digest="sha256:provider-request-0",
+        ),
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-1",
+            initial_prompt_digest="sha256:compaction-or-restore-prompt",
+            messages_digest="sha256:messages-1",
+        ),
+        _provider_runtime_event(
+            phase="model_stream_report",
+            request_id="request-1",
+            provider_request_digest="sha256:provider-request-1",
+        ),
+    ]
+
+    bindings = _provider_prompt_bindings(
+        runtime_events=events,
+        expected_initial_prompt_digest=expected,
+    )
+
+    assert bindings["request-0"]["goal_present"] is True
+    assert bindings["request-0"]["goal_binding"] == "initial_prompt"
+    assert bindings["request-1"]["goal_present"] is True
+    assert bindings["request-1"]["goal_binding"] == "runtime_continuation"
+    assert bindings["request-1"]["provider_request_digest"] == (
+        "sha256:provider-request-1"
+    )
+
+
+def test_provider_prompt_binding_rejects_different_runtime_identity() -> None:
+    expected = "sha256:original-task-prompt"
+    events = [
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-0",
+            initial_prompt_digest=expected,
+            messages_digest="sha256:messages-0",
+        ),
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-foreign",
+            initial_prompt_digest="sha256:foreign-prompt",
+            messages_digest="sha256:foreign-messages",
+            session_id="foreign-session",
+        ),
+    ]
+
+    bindings = _provider_prompt_bindings(
+        runtime_events=events,
+        expected_initial_prompt_digest=expected,
+    )
+
+    assert bindings["request-0"]["goal_present"] is True
+    assert bindings["request-foreign"]["goal_present"] is False
+    assert bindings["request-foreign"]["goal_binding"] == "unbound"
 
 
 def test_workspace_lease_heartbeat_keeps_long_worker_access_alive(
