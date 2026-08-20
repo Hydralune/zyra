@@ -5452,6 +5452,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("python -c \"from pathlib import Path; Path('src/app.ts').write_text('changed')\""), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python tools/afctl.py simulate"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python -m pytest tests"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python reproduce/build.py"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("cd /workspace && python reproduce/build.py 2>&1 | tail -80"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose up -d --build --wait")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
@@ -5465,6 +5467,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("curl -X POST https://service.invalid/runs -d '{}'"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; Path('src/app.ts').write_text('changed')"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["-c", "from pathlib import Path; print(Path('src/app.ts').read_text())"]), false), true);
+  assert.equal(isClearlyPreDeliveryInspection(structuredShell("python", ["reproduce/build.py"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "cat /app/dist/worker.js"]), false), true);
   assert.equal(isClearlyPreDeliveryInspection(structuredShell("docker", ["exec", "worker", "sh", "-c", "sed -i 's/a/b/' /app/config"]), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose exec -T postgres psql -c '\\d audit_events'"), false), true);

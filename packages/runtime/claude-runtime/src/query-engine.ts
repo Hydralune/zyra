@@ -3023,12 +3023,19 @@ export function isClearlyPreDeliveryInspection(
   if (step.tool_name === "shell_wait") return false;
   if (readOnly) return true;
   if (step.tool_name !== "shell") return false;
+  const command = shellInvocationText(step.arguments);
   // Once repeated inspection has opened the circuit, an opaque shell command
   // is not evidence of delivery merely because the registry classifies the
-  // shell tool itself as mutating.  Only commands whose arguments clearly
-  // drive an edit, build, test, migration, service, or external state change
-  // cross this boundary.  This also closes interpreter-wrapped read bypasses.
-  return !isClearlyDeliveryDrivingShellCommand(shellInvocationText(step.arguments));
+  // shell tool itself as mutating.  Verification commands are nevertheless
+  // executable evidence, including interpreter-wrapped build scripts whose
+  // path names the entry point.  Keep their classification aligned with the
+  // failed-verification circuit so a repaired implementation can rerun its
+  // exact scope instead of deadlocking behind the inspection circuit.
+  if (isClearlyVerificationDrivingShellCommand(command)) return false;
+  // Other commands must clearly drive an edit, migration, service, or
+  // external state change.  This still closes interpreter-wrapped read
+  // bypasses.
+  return !isClearlyDeliveryDrivingShellCommand(command);
 }
 
 export function isPrivateVerificationInfrastructureInspection(
