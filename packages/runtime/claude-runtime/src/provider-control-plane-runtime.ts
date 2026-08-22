@@ -183,6 +183,10 @@ export async function resolveProviderControlPlaneTurns(
       messages,
       tools: providerTools,
       maximumOutputTokens: effectiveOutputTokens,
+      maximumAttempts: boundedPositiveInteger(
+        constraints.api_retry_max_attempts,
+        route.retryPolicy.maximumAttempts,
+      ),
       temperature: optionalTemperature(constraints.model_temperature),
       stream: true,
       timeoutMilliseconds: providerTimeoutMilliseconds,

@@ -1312,6 +1312,37 @@ test("a disconnected half-JSON tool call regenerates once without changing route
   assert.equal((persistedCall.attempt_history as unknown[]).length, 1);
 });
 
+test("a dispatch-scoped attempt bound caps route retries", async (t) => {
+  let requests = 0;
+  const capture = await captureServer((_request, response) => {
+    requests += 1;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-bounded","function":{"name":"write_file","arguments":"{\\"path\\":\\"result.txt\\""}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "bounded-attempt-provider",
+    modelId: "bounded-attempt-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("bounded-attempt-provider", "bounded-attempt-model"),
+  );
+
+  await assert.rejects(
+    controlPlane.dispatch({
+      ...dispatchRequest(route.routeId),
+      maximumAttempts: 2,
+      tools: [{ name: "write_file", description: "Write a file", inputSchema: { type: "object" } }],
+    }),
+    (error: unknown) => error instanceof ProviderControlPlaneError
+      && error.kind === "tool_arguments_incomplete",
+  );
+  assert.equal(requests, 2);
+});
+
 test("a stalled half-JSON tool call regenerates before any tool dispatch", async (t) => {
   let requests = 0;
   const capture = await captureServer((_request, response) => {

@@ -85,8 +85,12 @@ export class ProviderTransportRuntime {
     assertDispatchIdentity(request, lease);
     const allAttempts: ProviderDispatchAttempt[] = [];
     let lastError: ProviderControlPlaneError | null = null;
+    const maximumAttempts = Math.min(
+      request.maximumAttempts ?? lease.retryPolicy.maximumAttempts,
+      lease.retryPolicy.maximumAttempts,
+    );
 
-    for (let attemptNumber = 1; attemptNumber <= lease.retryPolicy.maximumAttempts; attemptNumber += 1) {
+    for (let attemptNumber = 1; attemptNumber <= maximumAttempts; attemptNumber += 1) {
       let result: ProviderDispatchResult | null = null;
       try {
         result = await this.dispatchOnce(request, lease, attemptNumber, allAttempts, signal, lifecycleOwnerToken);
@@ -177,7 +181,10 @@ export class ProviderTransportRuntime {
       {
         now: () => this.clock.now(),
         recoveryAttempt: attemptNumber,
-        maximumRecoveryAttempts: lease.retryPolicy.maximumAttempts,
+        maximumRecoveryAttempts: Math.min(
+          request.maximumAttempts ?? lease.retryPolicy.maximumAttempts,
+          lease.retryPolicy.maximumAttempts,
+        ),
       },
     );
     let streamCompletion: ProviderStreamCompletion | null = null;
@@ -406,6 +413,9 @@ function validateDispatchRequest(request: ProviderDispatchRequest): void {
     throw new TypeError("routeFallbackPolicy must be allow_route_change or pin_initial_route");
   }
   assertPositiveInteger(request.maximumOutputTokens, "maximumOutputTokens");
+  if (request.maximumAttempts !== undefined) {
+    assertPositiveInteger(request.maximumAttempts, "maximumAttempts");
+  }
   assertPositiveInteger(request.timeoutMilliseconds, "timeoutMilliseconds");
   if (request.streamTotalTimeoutMilliseconds !== undefined) {
     assertPositiveInteger(

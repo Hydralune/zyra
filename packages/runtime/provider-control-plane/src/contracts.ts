@@ -212,6 +212,7 @@ export interface ProviderDispatchRequest {
   readonly maximumOutputTokens: number;
   readonly temperature: number | null;
   readonly stream: boolean;
+  readonly maximumAttempts?: number;
   readonly timeoutMilliseconds: number;
   readonly streamTotalTimeoutMilliseconds?: number;
   readonly chunkTimeoutMilliseconds: number;
