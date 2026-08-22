@@ -3592,6 +3592,11 @@ export function isGeneratedDeliveryInspection(
   }
   if (step.tool_name !== "shell") return false;
   const command = shellInvocationText(step.arguments).replaceAll("\\", "/");
+  // Executing a delivery generator is a mutation-producing repair action, not
+  // another read of stale generated evidence.  The generator source itself
+  // may have just been repaired after a concrete acceptance failure, so the
+  // failed-verification gate must allow it to rebuild the named deliverables.
+  if (isDeliveryEvidenceGeneratorCommand(command)) return false;
   if (isClearlyVerificationDrivingTool(step) || shellMutationTargets(command).length > 0) return false;
   return /(?:^|[\s"'=])(?:\.\/)?(?:submission|evidence|\.runtime)\//iu.test(command)
     || /(?:^|\/)\b(?:regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(command);
