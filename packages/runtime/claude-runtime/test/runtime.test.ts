@@ -2668,6 +2668,63 @@ test("progressive execution requests action after analysis-only loops and record
   assert.equal(delivered.snapshot.artifactCount, 1);
 });
 
+test("progressive execution closes broad inspection sooner after a delivery stalls", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: {},
+    deliveryContract: {
+      workspace_mutation_required: true,
+      verification_required: false,
+    },
+  });
+  const request = (index: number): ToolExecutionRequest => ({
+    toolCallId: `read-${index}`,
+    toolName: "file_read",
+    arguments: { path: `source-${index}.ts` },
+    turnIndex: index,
+    stepIndex: 0,
+    batchId: `batch-${index}`,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "concurrent_read_only",
+    metadata: {},
+  });
+  const response = (toolCallId: string): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "source inspected",
+    output: {},
+    artifacts: [],
+    metadata: {},
+  });
+
+  progressive.observeToolResult({
+    ...request(0),
+    toolCallId: "delivery",
+    toolName: "write",
+    arguments: { path: "result.ts" },
+    executionMode: "serial_non_read_only",
+  }, {
+    ...response("delivery"),
+    summary: "result committed",
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+
+  for (let index = 1; index <= 4; index += 1) {
+    progressive.observeToolResult(request(index), response(`read-${index}`), true);
+  }
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
+  progressive.recordActionNudge();
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+
+  for (let index = 5; index <= 8; index += 1) {
+    progressive.observeToolResult(request(index), response(`read-${index}`), true);
+  }
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
+  const blocked = progressive.recordActionNudge();
+  assert.equal(blocked.postDeliveryActionNudgeCount, 2);
+  assert.equal(progressive.inspectionCircuitOpen(), true);
+});
+
 test("progressive execution keeps verification debt until a behavioral command passes", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

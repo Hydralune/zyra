@@ -804,6 +804,12 @@ export class ProgressiveExecutionRuntime {
       2,
       64,
     );
+    const postDeliveryObservationNudgeAfter = boundedInteger(
+      this.constraints.post_delivery_observation_nudge_after,
+      Math.min(4, observationNudgeAfter),
+      2,
+      64,
+    );
     const noProgressPressure = Math.min(1, this.state.analysisOnlyRounds / 4)
       + Math.min(1, this.state.repeatedAnalysisRounds / 2)
       + Math.min(
@@ -864,11 +870,14 @@ export class ProgressiveExecutionRuntime {
     const observationNudgeDue = this.state.consecutivePreDeliveryObservations >= observationNudgeAfter
       && this.state.consecutivePreDeliveryObservations - this.state.lastActionNudgeObservationCount
         >= observationNudgeAfter;
+    const noDeliveryObservationNudgeAfter = this.state.requiredDeliveryMissing
+      ? observationNudgeAfter
+      : postDeliveryObservationNudgeAfter;
     const noDeliveryObservationNudgeDue = this.state.consecutiveNoDeliveryObservations
-      >= observationNudgeAfter
+      >= noDeliveryObservationNudgeAfter
       && this.state.consecutiveNoDeliveryObservations
         - this.state.lastActionNudgeNoDeliveryObservationCount
-        >= observationNudgeAfter;
+        >= noDeliveryObservationNudgeAfter;
     const providerNudgeDue = this.state.actionNudgeCount === 0
       ? this.state.providerRounds >= 1
       : this.state.providerRounds - this.state.lastActionNudgeProviderRound >= 2;
