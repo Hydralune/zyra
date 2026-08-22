@@ -1160,7 +1160,13 @@ function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
     || /\b(?:ReadTimeoutError|ConnectTimeoutError|ConnectionResetError|Temporary failure in name resolution)\b/iu.test(value)
     || /\b(?:files\.pythonhosted\.org|pypi\.org|registry\.npmjs\.org|registry-1\.docker\.io)\b[^\n]*(?:timed?\s*out|timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN)/iu.test(value)
     || /\b(?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b[^\n]*(?:npm|pnpm|yarn|registry|package|download|fetch)/iu.test(value)
-    || /\bCould not find a version that satisfies the requirement\b[^\n]*\(from versions:\s*none\)/iu.test(value);
+    || /\bCould not find a version that satisfies the requirement\b[^\n]*\(from versions:\s*none\)/iu.test(value)
+    // Acceptance entry points may fail before they inspect any delivered
+    // behavior because their generated input does not exist yet.  Treat that
+    // as an invocation prerequisite, not semantic debt: otherwise the failed
+    // verification guard blocks the very manifest/report generator named by
+    // the diagnostic and creates a deterministic recovery deadlock.
+    || /\b(?:manifest|submission|deliverables?|artifacts?|reports?)\b[^\n]{0,160}\bmissing\b[^\n]{0,240}\b(?:create|generate|produce|write|provide)\b[^\n]{0,160}\bbefore\b[^\n]{0,80}\b(?:verification|validation|acceptance)\b/iu.test(value);
 }
 
 function mergeVerificationFailures(

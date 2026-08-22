@@ -5552,6 +5552,53 @@ test("shell wrapper failures do not replace semantic verification debt", () => {
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, [integrationScope]);
 });
 
+test("missing generated verification prerequisites do not create semantic debt", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 4,
+      repairMutationCount: 4,
+    },
+  });
+  const scope = "shell:acceptance:verify";
+  progressive.observeToolResult({
+    toolCallId: "missing-manifest",
+    toolName: "shell",
+    arguments: { command: "python tools/control.py verify" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "missing-manifest",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  }, {
+    tool_call_id: "missing-manifest",
+    ok: false,
+    summary: "Sandbox command failed",
+    output: {
+      stdout: "RuntimeError: submission/manifest.json is missing; create all deliverables before verification",
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.deepEqual(observed.unresolvedVerificationScopes, []);
+  assert.deepEqual(observed.unresolvedVerificationFailures, []);
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair(scope), false);
+  assert.match(
+    observed.progressReasons.join(" "),
+    /verification_invocation_failed_before_behavioral_result/,
+  );
+});
+
 test("restore drops invocation-only verification debt", () => {
   const restored = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -6131,6 +6178,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/smoke_closure.py")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/e2e_full_lifecycle.py")), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python3 work/build_submission.py")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python tools/generate_manifest.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);

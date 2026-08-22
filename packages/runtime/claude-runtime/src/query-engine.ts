@@ -3637,7 +3637,14 @@ function isValidationOnlyDeliveryPath(value: string): boolean {
 function isDeliveryEvidenceGeneratorPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/");
   const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
-  return /^(?:regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(basename);
+  return /^(?:build|regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(basename);
+}
+
+function isDeliveryEvidenceGeneratorCommand(value: string): boolean {
+  const script = value.match(
+    /(?:^|\s)(?:python(?:3)?|node|bun|deno|ruby)\s+(["']?[^\s"';&|]+["']?)/iu,
+  )?.[1]?.replace(/^["']|["']$/gu, "") ?? "";
+  return Boolean(script) && isDeliveryEvidenceGeneratorPath(script);
 }
 
 export function isClearlyVerificationDrivingTool(
@@ -3862,6 +3869,10 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     .filter(Boolean);
   return segments.some((segment) => {
     if (/^(?:cat|grep|rg|sed\s+-n|head|tail|find|ls|tree|type|select-string)\b/i.test(segment)) return false;
+    // Generators named for their submission/evidence output perform the
+    // delivery itself.  Words such as `build` in their executable path must
+    // not turn them into an alternate verification scope.
+    if (isDeliveryEvidenceGeneratorCommand(segment)) return false;
     if (/\bpython(?:3)?\b[^;&|]*\s-(?:c|e)\b/i.test(segment)) return false;
     if (/\bpython(?:3)?\s+-m\s+(?:pytest|unittest|compileall)\b/i.test(segment)) return true;
     if (/\b(?:pytest|py\.test)\b/i.test(segment)) return true;
