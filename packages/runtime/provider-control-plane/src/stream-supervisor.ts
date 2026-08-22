@@ -137,6 +137,7 @@ export class ProviderStreamSupervisor {
   private readonly budget: ProviderStreamBudget;
   private readonly now: () => number;
   private readonly startedAt: number;
+  private readonly totalWatchdogEnabled: boolean;
   private readonly recoveryAttempt: number;
   private readonly maximumRecoveryAttempts: number;
   private phaseValue: ProviderStreamPhase = "created";
@@ -171,6 +172,8 @@ export class ProviderStreamSupervisor {
     this.lease = lease;
     this.now = options.now ?? Date.now;
     this.startedAt = this.now();
+    this.totalWatchdogEnabled = request.streamTotalTimeoutMilliseconds !== undefined
+      || options.budget?.totalMilliseconds !== undefined;
     this.recoveryAttempt = Math.max(0, Math.trunc(options.recoveryAttempt ?? 0));
     this.maximumRecoveryAttempts = Math.max(1, Math.trunc(options.maximumRecoveryAttempts ?? 1));
     this.budget = normalizeBudget(request, options.budget ?? {});
@@ -205,6 +208,13 @@ export class ProviderStreamSupervisor {
   checkWatchdog(now = this.now()): void {
     this.assertActive();
     const totalElapsed = now - this.startedAt;
+    if (this.totalWatchdogEnabled && totalElapsed > this.budget.totalMilliseconds) {
+      throw this.fail("stream_timeout", "provider stream exceeded its total lifetime", {
+        watchdog: "total",
+        elapsedMilliseconds: totalElapsed,
+        limitMilliseconds: this.budget.totalMilliseconds,
+      });
+    }
     if (this.lastFrameAtValue === null) {
       if (totalElapsed > this.budget.firstByteMilliseconds) {
         throw this.fail("stream_timeout", "provider stream did not produce a first frame", {
@@ -847,8 +857,13 @@ function normalizeBudget(
   override: Partial<ProviderStreamBudget>,
 ): ProviderStreamBudget {
   const totalMilliseconds = Math.min(
-    positiveInteger(override.totalMilliseconds ?? request.timeoutMilliseconds, "totalMilliseconds"),
-    request.timeoutMilliseconds,
+    positiveInteger(
+      override.totalMilliseconds
+        ?? request.streamTotalTimeoutMilliseconds
+        ?? request.timeoutMilliseconds,
+      "totalMilliseconds",
+    ),
+    request.streamTotalTimeoutMilliseconds ?? Number.MAX_SAFE_INTEGER,
   );
   const firstByteMilliseconds = Math.min(
     positiveInteger(override.firstByteMilliseconds ?? request.chunkTimeoutMilliseconds, "firstByteMilliseconds"),

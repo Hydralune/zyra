@@ -213,6 +213,7 @@ export interface ProviderDispatchRequest {
   readonly temperature: number | null;
   readonly stream: boolean;
   readonly timeoutMilliseconds: number;
+  readonly streamTotalTimeoutMilliseconds?: number;
   readonly chunkTimeoutMilliseconds: number;
   readonly idempotencyKey: string;
   readonly extraBody: JsonRecord;

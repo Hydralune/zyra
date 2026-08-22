@@ -781,6 +781,49 @@ test("active SSE progress may outlive the request-header timeout", async (t) => 
   assert.equal(capture.requests.length, 1);
 });
 
+test("an explicit stream-total watchdog bounds active SSE progress", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.flushHeaders();
+    let sequence = 0;
+    const interval = setInterval(() => {
+      sequence += 1;
+      response.write(
+        `data: {"choices":[{"delta":{"content":"${sequence}"},"finish_reason":null}]}\n\n`,
+      );
+      if (sequence < 20) return;
+      clearInterval(interval);
+      response.end("data: [DONE]\n\n");
+    }, 40);
+    response.on("close", () => clearInterval(interval));
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "bounded-long-stream",
+    modelId: "bounded-long-stream-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("bounded-long-stream", "bounded-long-stream-model"),
+  );
+
+  await assert.rejects(
+    controlPlane.dispatch({
+      ...dispatchRequest(route.routeId),
+      timeoutMilliseconds: 125,
+      streamTotalTimeoutMilliseconds: 125,
+      chunkTimeoutMilliseconds: 100,
+    }),
+    (error: unknown) => error instanceof ProviderControlPlaneError
+      && error.kind === "partial_response_observed"
+      && error.recoveryIntent === "reconcile_partial_response"
+      && error.message.includes("total lifetime"),
+  );
+  assert.equal(capture.requests.length, 1);
+});
+
 test("large output windows admit valid normalized streams beyond the fixed legacy frame cap", (t) => {
   const { controlPlane, secrets } = makeControlPlane(t);
   installProvider(controlPlane, secrets, {

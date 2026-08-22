@@ -703,6 +703,25 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
                 "model_api_timeout_milliseconds": int(timeout_seconds * 1_000),
             }
         )
+        raw_stream_total = context.get("model_stream_total_timeout_seconds")
+        if raw_stream_total in (None, "", 0, 0.0):
+            raw_stream_total = os.environ.get(
+                "ZYRA_MODEL_STREAM_TOTAL_TIMEOUT_SECONDS"
+            )
+        if raw_stream_total not in (None, "", 0, 0.0):
+            stream_total_seconds = float(raw_stream_total)
+            if not 30.0 <= stream_total_seconds <= 1_800.0:
+                raise ValueError(
+                    "long-horizon model stream total timeout must be between 30 and 1800 seconds"
+                )
+            constraints.update(
+                {
+                    "model_stream_total_timeout_seconds": stream_total_seconds,
+                    "model_stream_total_timeout_milliseconds": int(
+                        stream_total_seconds * 1_000
+                    ),
+                }
+            )
         raw_attempts = context.get("api_retry_max_attempts")
         if raw_attempts in (None, "", 0):
             raw_attempts = os.environ.get("ZYRA_API_RETRY_MAX_ATTEMPTS")

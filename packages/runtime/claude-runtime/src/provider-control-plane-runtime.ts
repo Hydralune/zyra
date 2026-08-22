@@ -95,6 +95,9 @@ export async function resolveProviderControlPlaneTurns(
       120_000,
       numberValue(constraints.model_api_timeout_seconds) * 1_000,
     );
+    const configuredStreamTotalTimeoutMilliseconds = numberValue(
+      constraints.model_stream_total_timeout_milliseconds,
+    ) || numberValue(constraints.model_stream_total_timeout_seconds) * 1_000;
     // Route lookup happens before the durable model-request checkpoint is
     // written.  Large long-horizon checkpoints can take tens of seconds, so
     // accepting a route that is technically live but nearly expired races the
@@ -183,6 +186,14 @@ export async function resolveProviderControlPlaneTurns(
       temperature: optionalTemperature(constraints.model_temperature),
       stream: true,
       timeoutMilliseconds: providerTimeoutMilliseconds,
+      ...(configuredStreamTotalTimeoutMilliseconds > 0
+        ? {
+          streamTotalTimeoutMilliseconds: boundedPositiveInteger(
+            configuredStreamTotalTimeoutMilliseconds,
+            providerTimeoutMilliseconds,
+          ),
+        }
+        : {}),
       chunkTimeoutMilliseconds: boundedPositiveInteger(
         constraints.model_chunk_timeout_milliseconds,
         30_000,

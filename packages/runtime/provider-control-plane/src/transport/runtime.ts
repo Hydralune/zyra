@@ -407,6 +407,12 @@ function validateDispatchRequest(request: ProviderDispatchRequest): void {
   }
   assertPositiveInteger(request.maximumOutputTokens, "maximumOutputTokens");
   assertPositiveInteger(request.timeoutMilliseconds, "timeoutMilliseconds");
+  if (request.streamTotalTimeoutMilliseconds !== undefined) {
+    assertPositiveInteger(
+      request.streamTotalTimeoutMilliseconds,
+      "streamTotalTimeoutMilliseconds",
+    );
+  }
   assertPositiveInteger(request.chunkTimeoutMilliseconds, "chunkTimeoutMilliseconds");
   if (request.temperature !== null && (!Number.isFinite(request.temperature) || request.temperature < 0 || request.temperature > 2)) {
     throw new TypeError("temperature must be null or between 0 and 2");

@@ -311,6 +311,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             code_worker_adapter.os.environ,
             {
                 "ZYRA_MODEL_API_TIMEOUT_SECONDS": "210",
+                "ZYRA_MODEL_STREAM_TOTAL_TIMEOUT_SECONDS": "240",
                 "ZYRA_API_RETRY_MAX_ATTEMPTS": "2",
             },
             clear=False,
@@ -321,6 +322,11 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
 
         self.assertEqual(constraints["model_api_timeout_seconds"], 210.0)
         self.assertEqual(constraints["model_api_timeout_milliseconds"], 210_000)
+        self.assertEqual(constraints["model_stream_total_timeout_seconds"], 240.0)
+        self.assertEqual(
+            constraints["model_stream_total_timeout_milliseconds"],
+            240_000,
+        )
         self.assertEqual(constraints["api_retry_max_attempts"], 2)
 
     def test_benchmark_command_budget_preserves_agent_closeout_time(self) -> None:
