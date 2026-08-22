@@ -37,6 +37,7 @@ from .errors import DispatchRejected
 
 
 DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS = 400_000
+DEFAULT_LONG_HORIZON_MODEL_API_TIMEOUT_SECONDS = 300.0
 
 
 class _WorkspaceLeaseHeartbeat:
@@ -683,13 +684,35 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
             }
         )
     if context.get("benchmark_long_horizon") is True:
+        raw_timeout = context.get("model_api_timeout_seconds")
+        if raw_timeout in (None, "", 0, 0.0):
+            raw_timeout = os.environ.get("ZYRA_MODEL_API_TIMEOUT_SECONDS")
+        timeout_seconds = (
+            DEFAULT_LONG_HORIZON_MODEL_API_TIMEOUT_SECONDS
+            if raw_timeout in (None, "", 0, 0.0)
+            else float(raw_timeout)
+        )
+        if not 30.0 <= timeout_seconds <= 600.0:
+            raise ValueError(
+                "long-horizon model API timeout must be between 30 and 600 seconds"
+            )
         constraints.update(
             {
                 "benchmark_long_horizon": True,
-                "model_api_timeout_seconds": 300.0,
-                "model_api_timeout_milliseconds": 300_000,
+                "model_api_timeout_seconds": timeout_seconds,
+                "model_api_timeout_milliseconds": int(timeout_seconds * 1_000),
             }
         )
+        raw_attempts = context.get("api_retry_max_attempts")
+        if raw_attempts in (None, "", 0):
+            raw_attempts = os.environ.get("ZYRA_API_RETRY_MAX_ATTEMPTS")
+        if raw_attempts not in (None, "", 0):
+            retry_attempts = int(raw_attempts)
+            if not 1 <= retry_attempts <= 8:
+                raise ValueError(
+                    "long-horizon API retry attempts must be between 1 and 8"
+                )
+            constraints["api_retry_max_attempts"] = retry_attempts
     return constraints
 
 

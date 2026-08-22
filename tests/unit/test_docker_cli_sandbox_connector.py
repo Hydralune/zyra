@@ -306,6 +306,23 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             )
         )
 
+    def test_long_horizon_provider_retry_bounds_are_configurable(self) -> None:
+        with patch.dict(
+            code_worker_adapter.os.environ,
+            {
+                "ZYRA_MODEL_API_TIMEOUT_SECONDS": "210",
+                "ZYRA_API_RETRY_MAX_ATTEMPTS": "2",
+            },
+            clear=False,
+        ):
+            constraints = code_worker_adapter._benchmark_runtime_constraints(
+                {"benchmark_long_horizon": True}
+            )
+
+        self.assertEqual(constraints["model_api_timeout_seconds"], 210.0)
+        self.assertEqual(constraints["model_api_timeout_milliseconds"], 210_000)
+        self.assertEqual(constraints["api_retry_max_attempts"], 2)
+
     def test_benchmark_command_budget_preserves_agent_closeout_time(self) -> None:
         self.assertEqual(
             code_worker_adapter._benchmark_command_timeout_budget({}),
