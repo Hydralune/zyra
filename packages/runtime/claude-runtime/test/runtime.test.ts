@@ -28,6 +28,10 @@ import {
   ProgressiveExecutionRuntime,
 } from "../src/loop/progressive-execution-runtime.ts";
 import {
+  detectReasoningStall,
+  SemanticStallRuntime,
+} from "../src/loop/semantic-stall-runtime.ts";
+import {
   durableCompactionSummary,
   e01RuntimeEventPayload,
   isAlternativeVerificationInspection,
@@ -277,6 +281,7 @@ test("runtime checkpoints durable recovery boundaries instead of observations", 
     "turn_end",
     "context_compacted",
     "completion_stop_blocked",
+    "semantic_stall_redirected",
     "session_suspended",
     "query_session_snapshot",
   ]) {
@@ -295,6 +300,267 @@ test("runtime checkpoints durable recovery boundaries instead of observations", 
     "progressive_verification_requested",
   ]) {
     assert.equal(shouldCheckpointRuntimePhase(phase), false, phase);
+  }
+});
+
+test("semantic stall detector catches rewording-free reasoning loops", () => {
+  const paragraph = [
+    "We should continue carefully by checking the same general situation",
+    "and maintaining steady progress without naming a concrete implementation",
+    "detail or performing the required action in the governed workspace.",
+  ].join(" ");
+  const detection = detectReasoningStall(
+    Array.from({ length: 8 }, () => paragraph).join("\n\n"),
+  );
+  assert.equal(detection?.kind, "reasoning_loop");
+  assert.match(detection?.reason ?? "", /near-identical|low-information/u);
+});
+
+test("semantic stall detector fingerprints Chinese reasoning loops", () => {
+  const variants = [
+    "继续谨慎评估当前方案，反复确认总体方向，但没有执行任何工具或完成工作区中的具体修改。",
+    "仍然谨慎评估这个方案，持续确认整体方向，却没有调用工具，也没有完成工作区里的具体修改。",
+  ];
+  const detection = detectReasoningStall(
+    Array.from({ length: 8 }, (_, index) => variants[index % variants.length]).join("\n\n"),
+  );
+  assert.equal(detection?.kind, "reasoning_loop");
+  assert.match(detection?.reason ?? "", /near-identical|low-information/u);
+});
+
+test("semantic stall tool guard canonicalizes arguments and restores its sequence", () => {
+  const first = new SemanticStallRuntime({
+    modelName: "other-model",
+    constraints: { semantic_stall_tool_call_threshold: 3 },
+  });
+  const proposal = (argumentsValue: JsonObject) => first.inspectProviderRound("", [{
+    tool_name: "read",
+    arguments: argumentsValue,
+  }]);
+  assert.equal(proposal({ path: "a", intent: "first" }), null);
+  assert.equal(proposal({ intent: "second", path: "a" }), null);
+
+  const restored = new SemanticStallRuntime({
+    modelName: "other-model",
+    constraints: { semantic_stall_tool_call_threshold: 3 },
+    restored: first.snapshot(),
+  });
+  const detection = restored.inspectProviderRound("", [{
+    tool_name: "read",
+    arguments: { path: "a", __intent: "restored" },
+  }]);
+  assert.equal(detection?.kind, "repeated_tool_call");
+  assert.equal(detection?.consecutiveCount, 3);
+  assert.equal(restored.snapshot().lastToolName, "read");
+  assert.ok(restored.snapshot().lastToolSignature.length > 0);
+});
+
+test("semantic stall tool guard exempts polling tools", () => {
+  const supervisor = new SemanticStallRuntime({
+    modelName: "deepseek-v4-flash",
+    constraints: { semantic_stall_tool_call_threshold: 2 },
+  });
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(supervisor.inspectProviderRound("", [{
+      tool_name: "shell_wait",
+      arguments: { job_id: "job-1" },
+    }]), null);
+  }
+  assert.equal(supervisor.snapshot().consecutiveIdenticalToolCalls, 0);
+});
+
+test("runtime discards a DeepSeek reasoning loop and resumes with a concrete action", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  const requestBodies: JsonObject[] = [];
+  const paragraph = [
+    "We should keep reviewing the same broad situation with steady caution",
+    "while preserving momentum without naming a concrete implementation",
+    "detail or performing the required workspace action at this time.",
+  ].join(" ");
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          reasoning_content: Array.from({ length: 8 }, () => paragraph).join("\n\n"),
+        },
+        finish_reason: "stop",
+      }
+      : requestCount === 2
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "semantic-recovery-write",
+              type: "function",
+              function: {
+                name: "write",
+                arguments: JSON.stringify({ path: "result.txt", content: "done" }),
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : {
+          index: 0,
+          delta: { content: "The concrete delivery is complete." },
+          finish_reason: "stop",
+        };
+    const payload = {
+      id: `semantic-reasoning-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "deepseek-v4-flash",
+      choices: [choice],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        maxTurns: 8,
+        modelName: "deepseek-v4-flash",
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(result.toolCallCount, 1);
+    assert.equal(host.batches.length, 1);
+    assert.ok(host.events.some((event) =>
+      event.phase === "semantic_stall_redirected"
+      && event.kind === "reasoning_loop"
+      && event.discarded_provider_output === true
+    ));
+    assert.ok((requestBodies[1].messages as JsonObject[]).some((message) =>
+      /semantic stall supervisor discarded.*concrete next action/iu.test(
+        String(message.content ?? ""),
+      )
+    ));
+    assert.equal(result.metadata.semantic_stall_reasoning_detections, "1");
+    assert.ok(host.checkpoints.some((checkpoint) =>
+      checkpoint.semanticStall !== undefined
+      && checkpoint.checkpointPhase === "semantic_stall_redirected"
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("runtime blocks an equivalent cross-turn tool loop before another side effect", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestCount += 1;
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const choice = requestCount <= 3
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `repeated-read-${requestCount}`,
+            type: "function",
+            function: {
+              name: "read",
+              arguments: requestCount % 2 === 0
+                ? JSON.stringify({ intent: "inspect again", path: "a" })
+                : JSON.stringify({ path: "a", intent: "inspect" }),
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : requestCount === 4
+        ? {
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "redirected-write",
+              type: "function",
+              function: {
+                name: "write",
+                arguments: JSON.stringify({ path: "result.txt", content: "progress" }),
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }
+        : {
+          index: 0,
+          delta: { content: "Completed after changing strategy." },
+          finish_reason: "stop",
+        };
+    const payload = {
+      id: `semantic-tool-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "other-model",
+      choices: [choice],
+      usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        maxTurns: 8,
+        modelName: "other-model",
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          semantic_stall_tool_call_threshold: 3,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 5);
+    assert.equal(result.toolCallCount, 3);
+    assert.equal(host.batches.length, 3);
+    assert.deepEqual(host.batches.map((batch) => batch.steps[0].tool_name), [
+      "read",
+      "read",
+      "write",
+    ]);
+    assert.ok(host.events.some((event) =>
+      event.phase === "semantic_stall_redirected"
+      && event.kind === "repeated_tool_call"
+      && event.tool_execution_blocked === true
+    ));
+    assert.ok((requestBodies[3].messages as JsonObject[]).some((message) =>
+      /same read call.*Do not repeat that call/iu.test(String(message.content ?? ""))
+    ));
+    assert.equal(result.metadata.semantic_stall_tool_loop_detections, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 

@@ -129,6 +129,7 @@ export interface ProviderOwnedExecution {
   model: string;
   providerRequestId: string | null;
   finalText: string;
+  reasoningText: string;
   stopReason: string;
 }
 

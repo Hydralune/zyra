@@ -548,6 +548,15 @@ def execute_code_worker_operator(
             )
             if task_handoff is not None
             else {},
+            # Metadata-only semantic continuity: hashes and counters, never
+            # raw reasoning, tool arguments, results, custody, or authority.
+            "task_handoff_semantic_stall": dict(
+                task_handoff.get("semantic_stall_continuity")
+                or task_handoff.get("semantic_stall")
+                or {}
+            )
+            if task_handoff is not None
+            else {},
         },
     )
     sandbox_gateway_state_root = (

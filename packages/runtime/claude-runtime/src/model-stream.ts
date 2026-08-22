@@ -25,6 +25,7 @@ export interface OwnedProviderExecution {
   model: string;
   providerRequestId: string | null;
   finalText: string;
+  reasoningText?: string;
   stopReason: string;
 }
 
@@ -66,6 +67,7 @@ export interface ModelStreamResolution {
   metadata: Record<string, string>;
   error: string | null;
   finalText: string;
+  reasoningText?: string;
   stopReason: string;
   providerRequestId: string | null;
 }
@@ -432,6 +434,7 @@ export async function resolveModelTurns(
           turns: owned.steps.length > 0 ? [owned.steps] : [],
           error: null,
           finalText: owned.finalText,
+          reasoningText: owned.reasoningText ?? "",
           stopReason: owned.stopReason,
           providerRequestId: owned.providerRequestId,
           metadata: {
@@ -565,9 +568,11 @@ export async function resolveModelTurns(
         ok: true,
         turns: parsed.steps.length > 0 ? [parsed.steps] : [],
         error: null,
-        finalText: "",
-        stopReason: parsed.steps.length > 0 ? "tool_use" : "end_turn",
-        providerRequestId: null,
+        finalText: parsed.finalText,
+        reasoningText: parsed.reasoningText,
+        stopReason: parsed.stopReason
+          || (parsed.steps.length > 0 ? "tool_use" : "end_turn"),
+        providerRequestId: parsed.providerRequestId,
         metadata: {
           ...modelMetadata({
             ok: true,
@@ -728,10 +733,22 @@ async function parseSseToolCalls(
   attempt: number,
   model: string,
   emit: EmitRuntimeEvent,
-): Promise<{ steps: ToolStep[]; frameCount: number; usage: JsonObject }> {
+): Promise<{
+  steps: ToolStep[];
+  frameCount: number;
+  usage: JsonObject;
+  finalText: string;
+  reasoningText: string;
+  stopReason: string;
+  providerRequestId: string | null;
+}> {
   const text = await response.text();
   const calls = new Map<number, { id: string; name: string; arguments: string }>();
   let frameCount = 0;
+  let finalText = "";
+  let reasoningText = "";
+  let stopReason = "";
+  let providerRequestId: string | null = null;
   const usage = emptyUsage();
   for (const rawLine of text.split(/\r?\n/u)) {
     const line = rawLine.trim();
@@ -743,6 +760,7 @@ async function parseSseToolCalls(
       continue;
     }
     const chunk = asObject(JSON.parse(data));
+    providerRequestId = asString(chunk.id) || providerRequestId;
     const chunkUsage = asObject(chunk.usage);
     if (Object.keys(chunkUsage).length > 0) {
       const promptDetails = asObject(chunkUsage.prompt_tokens_details);
@@ -764,7 +782,13 @@ async function parseSseToolCalls(
     });
     const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
     for (const choiceValue of choices) {
-      const delta = asObject(asObject(choiceValue).delta);
+      const choice = asObject(choiceValue);
+      const delta = asObject(choice.delta);
+      finalText += asString(delta.content);
+      reasoningText += asString(
+        delta.reasoning_content || delta.reasoning || delta.thinking,
+      );
+      stopReason = asString(choice.finish_reason) || stopReason;
       const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
       for (const rawCall of toolCalls) {
         const call = asObject(rawCall);
@@ -800,7 +824,15 @@ async function parseSseToolCalls(
       },
     });
   }
-  return { steps, frameCount, usage };
+  return {
+    steps,
+    frameCount,
+    usage,
+    finalText,
+    reasoningText,
+    stopReason,
+    providerRequestId,
+  };
 }
 
 function emptyUsage(): JsonObject {

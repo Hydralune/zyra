@@ -51,6 +51,7 @@ export interface CompatibleResponse {
   protocol: typeof COMPATIBLE_PROTOCOL_VERSION;
   id: string;
   model: string;
+  reasoningText: string;
   finalText: string;
   toolCalls: CompatibleToolCall[];
   finishReason: string | null;
@@ -88,6 +89,7 @@ interface MutableToolCall {
 interface MutableResponseState {
   id: string;
   model: string;
+  reasoning: string;
   text: string;
   finishReason: string | null;
   usage: CompatibleUsage;
@@ -499,6 +501,7 @@ function initialState(): MutableResponseState {
   return {
     id: "",
     model: "",
+    reasoning: "",
     text: "",
     finishReason: null,
     usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -519,6 +522,16 @@ function applyCompatibleChoice(state: MutableResponseState, choiceValue: unknown
   const choice = objectValue(choiceValue);
   const message = objectValue(choice.message);
   const delta = objectValue(choice.delta);
+  const reasoning =
+    stringValue(message.reasoning_content)
+    || stringValue(message.reasoning)
+    || stringValue(message.thinking)
+    || stringValue(delta.reasoning_content)
+    || stringValue(delta.reasoning)
+    || stringValue(delta.thinking);
+  if (reasoning) {
+    state.reasoning += reasoning;
+  }
   const content = typeof message.content === "string" ? message.content : stringValue(delta.content);
   if (content) {
     state.text += content;
@@ -572,6 +585,9 @@ function applyAnthropicEvent(state: MutableResponseState, event: Record<string, 
     if (block.type === "text") {
       state.text += stringValue(block.text);
     }
+    if (block.type === "thinking" || block.type === "redacted_thinking") {
+      state.reasoning += stringValue(block.thinking, stringValue(block.data));
+    }
     if (block.type === "tool_use") {
       state.toolCalls.set(index, {
         id: stringValue(block.id),
@@ -587,6 +603,9 @@ function applyAnthropicEvent(state: MutableResponseState, event: Record<string, 
     const delta = objectValue(event.delta);
     if (delta.type === "text_delta") {
       state.text += stringValue(delta.text);
+    }
+    if (delta.type === "thinking_delta") {
+      state.reasoning += stringValue(delta.thinking);
     }
     if (delta.type === "input_json_delta") {
       const existing = state.toolCalls.get(index) ?? { id: "", name: "", arguments: "", index };
@@ -645,6 +664,9 @@ function finalizeResponse(state: MutableResponseState): CompatibleResponse {
       };
     });
   const content: JsonObject[] = [];
+  if (state.reasoning) {
+    content.push({ type: "thinking", thinking: state.reasoning, signature: null });
+  }
   if (state.text) {
     content.push({ type: "text", text: state.text });
   }
@@ -669,6 +691,7 @@ function finalizeResponse(state: MutableResponseState): CompatibleResponse {
     protocol: COMPATIBLE_PROTOCOL_VERSION,
     id: asString(normalized.id) ?? "",
     model: state.model,
+    reasoningText: state.reasoning,
     finalText: state.text,
     toolCalls,
     finishReason,
@@ -828,6 +851,9 @@ export function compatibleResponseFromAnthropic(payload: JsonObject): Compatible
     const block = objectValue(value);
     if (block.type === "text") {
       state.text += stringValue(block.text);
+    }
+    if (block.type === "thinking" || block.type === "redacted_thinking") {
+      state.reasoning += stringValue(block.thinking, stringValue(block.data));
     }
     if (block.type === "tool_use") {
       state.toolCalls.set(index, {

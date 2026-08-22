@@ -45,6 +45,11 @@ import {
   type ProgressiveExecutionSnapshot,
 } from "./loop/progressive-execution-runtime.ts";
 import {
+  SEMANTIC_STALL_SNAPSHOT_VERSION,
+  SemanticStallRuntime,
+  type SemanticStallSnapshot,
+} from "./loop/semantic-stall-runtime.ts";
+import {
   compactBlocksFromMessages,
   digest as skillMemoryDigest,
   type CurrentSkillAuthority,
@@ -92,6 +97,7 @@ const DURABLE_CHECKPOINT_PHASES = new Set([
   "next_turn_restore_contract",
   "execution_closeout_completed",
   "completion_stop_blocked",
+  "semantic_stall_redirected",
   "error",
   "session_suspended",
   "session_completed",
@@ -402,6 +408,7 @@ interface SettledProviderResolution {
   round: ModelRoundRecord;
   truncationExhausted: boolean;
   completionStopExhausted: boolean;
+  semanticStallExhausted: boolean;
 }
 
 export class ClaudeRuntimeCore {
@@ -570,6 +577,12 @@ export class ClaudeRuntimeCore {
       continuityProgress: asObject(asObject(input.metadata).task_handoff_progress),
       repairContextId: input.sessionId,
     });
+    const semanticStall = new SemanticStallRuntime({
+      modelName: config.modelName,
+      constraints: config.runtimeConstraints,
+      restored: selectRestoredSemanticStallSnapshot(input.restoredState) ?? undefined,
+      continuity: asObject(asObject(input.metadata).task_handoff_semantic_stall),
+    });
     const restoredVerificationDebt = progressive.verificationDebtSummary();
     if (restoredVerificationDebt) {
       const restoredPriorityFailure = progressive.snapshot().unresolvedVerificationFailures[0];
@@ -625,6 +638,7 @@ export class ClaudeRuntimeCore {
           e01Runtime: e01.snapshot() as unknown as JsonObject,
           modelIteration: iteration.snapshot() as unknown as JsonObject,
           progressiveExecution: progressive.snapshot() as unknown as JsonObject,
+          semanticStall: semanticStall.snapshot() as unknown as JsonObject,
           completionStop: {
             continuationCount: completionStopCount,
             blockedAttempts: completionStopBlockedCount,
@@ -665,10 +679,94 @@ export class ClaudeRuntimeCore {
           ),
         ),
       );
+      const maximumSemanticStallRedirects = Math.max(
+        1,
+        Math.min(
+          8,
+          positiveInteger(
+            config.runtimeConstraints.max_semantic_stall_redirects,
+            3,
+          ),
+        ),
+      );
       const providerRoundLimit = config.maxTurns === null
         ? null
         : config.maxTurns + (modelTransport === "http_sse" ? 1 : 0);
       while (model.ok) {
+        const semanticDetection = continuationTools.length > 0
+          ? semanticStall.inspectProviderRound(
+            model.reasoningText?.trim() || model.finalText,
+            model.turns.flat(),
+          )
+          : null;
+        if (semanticDetection) {
+          const semanticState = semanticStall.snapshot();
+          const canContinue = semanticState.consecutiveRedirects
+              < maximumSemanticStallRedirects
+            && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit);
+          if (!canContinue) {
+            iteration.failProviderRound(round.roundId, "semantic_stall_exhausted");
+            await emit("semantic_stall_exhausted", {
+              kind: semanticDetection.kind,
+              reason: semanticDetection.reason,
+              tool_name: semanticDetection.toolName,
+              consecutive_count: semanticDetection.consecutiveCount,
+              signature_digest: semanticDetection.signatureDigest,
+              redirect_count: semanticState.consecutiveRedirects,
+              maximum_redirects: maximumSemanticStallRedirects,
+            });
+            return {
+              model,
+              round,
+              truncationExhausted: false,
+              completionStopExhausted: false,
+              semanticStallExhausted: true,
+            };
+          }
+          const redirected = semanticStall.recordRedirect();
+          iteration.rejectProviderRoundForRetry(
+            round.roundId,
+            "semantic_stall_redirected",
+          );
+          providerMessages = [
+            ...iteration.currentMessages(),
+            {
+              role: "user",
+              content: semanticStall.recoveryMessage(semanticDetection),
+            },
+          ];
+          round = iteration.beginProviderRound({
+            requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+            model: config.modelName,
+            messages: providerMessages,
+          });
+          await emit("semantic_stall_redirected", {
+            kind: semanticDetection.kind,
+            reason: semanticDetection.reason,
+            tool_name: semanticDetection.toolName,
+            consecutive_count: semanticDetection.consecutiveCount,
+            signature_digest: semanticDetection.signatureDigest,
+            redirect_count: redirected.consecutiveRedirects,
+            maximum_redirects: maximumSemanticStallRedirects,
+            discarded_provider_output: true,
+            tool_execution_blocked: semanticDetection.kind === "repeated_tool_call",
+          });
+          model = await resolveModelTurns(
+            input,
+            config,
+            [],
+            continuationTools,
+            emit,
+            (observation) => e01.decideProviderRecovery(observation),
+            e01.journal.restartEpoch,
+            (observation) => e01.completeProviderRecovery(observation),
+            (requestId) => e01.executePreparedProvider(requestId),
+            providerRoundIndex,
+            providerMessages,
+          );
+          providerRoundIndex += 1;
+          continue;
+        }
         const progress = progressive.observeProviderRound(model.finalText, model.turns.flat().length);
         const progressDecision = progressive.decide(session.contextChars(), config.maxQueryContextChars);
         if (
@@ -812,6 +910,7 @@ export class ClaudeRuntimeCore {
                 round,
                 truncationExhausted: false,
                 completionStopExhausted: true,
+                semanticStallExhausted: false,
               };
             }
             completionStopCount += 1;
@@ -876,14 +975,26 @@ export class ClaudeRuntimeCore {
           steps: model.turns.flat(),
         });
         if (!providerOutputWasLengthTruncated(model)) {
-          return { model, round, truncationExhausted: false, completionStopExhausted: false };
+          return {
+            model,
+            round,
+            truncationExhausted: false,
+            completionStopExhausted: false,
+            semanticStallExhausted: false,
+          };
         }
         if (
           !allowLengthContinuation
           || continuationCount >= maximumLengthContinuations
           || (providerRoundLimit !== null && providerRoundIndex >= providerRoundLimit)
         ) {
-          return { model, round, truncationExhausted: true, completionStopExhausted: false };
+          return {
+            model,
+            round,
+            truncationExhausted: true,
+            completionStopExhausted: false,
+            semanticStallExhausted: false,
+          };
         }
         continuationCount += 1;
         providerMessages = [
@@ -929,7 +1040,13 @@ export class ClaudeRuntimeCore {
           model_provider_rounds: String(providerRoundIndex),
         };
       }
-      return { model, round, truncationExhausted: false, completionStopExhausted: false };
+      return {
+        model,
+        round,
+        truncationExhausted: false,
+        completionStopExhausted: false,
+        semanticStallExhausted: false,
+      };
     };
 
     const requestCloseoutFinalResponse = async (
@@ -1036,6 +1153,16 @@ export class ClaudeRuntimeCore {
           false,
           [],
         );
+        if (settled.semanticStallExhausted) {
+          ok = false;
+          stoppedReason = "semantic_stall_exhausted";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "semantic stall correction remained exhausted at the closeout boundary",
+            source: "semantic_stall_supervisor",
+          });
+          return;
+        }
         if (settled.completionStopExhausted) {
           ok = false;
           stoppedReason = "completion_stop_exhausted";
@@ -1237,7 +1364,15 @@ export class ClaudeRuntimeCore {
           true,
           registry.list(),
         );
-        if (settled.completionStopExhausted) {
+        if (settled.semanticStallExhausted) {
+          ok = false;
+          stoppedReason = "semantic_stall_exhausted";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "provider exhausted bounded semantic-stall redirects",
+            source: "semantic_stall_supervisor",
+          });
+        } else if (settled.completionStopExhausted) {
           ok = false;
           stoppedReason = "completion_stop_exhausted";
           await emit("error", {
@@ -2950,7 +3085,15 @@ export class ClaudeRuntimeCore {
             !finalResponseOnly,
             finalResponseOnly ? [] : registry.list(),
           );
-          if (settled.completionStopExhausted) {
+          if (settled.semanticStallExhausted) {
+            ok = false;
+            stoppedReason = "semantic_stall_exhausted";
+            await emit("error", {
+              error: stoppedReason,
+              detail: "provider exhausted bounded semantic-stall redirects",
+              source: "semantic_stall_supervisor",
+            });
+          } else if (settled.completionStopExhausted) {
             ok = false;
             stoppedReason = "completion_stop_exhausted";
             await emit("error", {
@@ -3057,6 +3200,7 @@ export class ClaudeRuntimeCore {
       e01Runtime: e01.snapshot() as unknown as JsonObject,
       modelIteration: iteration.snapshot() as unknown as JsonObject,
       progressiveExecution: progressive.snapshot() as unknown as JsonObject,
+      semanticStall: semanticStall.snapshot() as unknown as JsonObject,
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
@@ -3064,6 +3208,7 @@ export class ClaudeRuntimeCore {
       snapshot_revision: snapshot.revision,
     });
     const progressiveState = progressive.snapshot();
+    const semanticStallState = semanticStall.snapshot();
     sourceResult = {
       ok,
       stoppedReason,
@@ -3124,6 +3269,14 @@ export class ClaudeRuntimeCore {
         progressive_verification_nudges: String(
           progressiveState.verificationNudgeCount,
         ),
+        semantic_stall_reasoning_detections: String(
+          semanticStallState.reasoningLoopDetections,
+        ),
+        semantic_stall_tool_loop_detections: String(
+          semanticStallState.toolLoopDetections,
+        ),
+        semantic_stall_redirects: String(semanticStallState.redirectCount),
+        semantic_stall_last_kind: semanticStallState.lastDetectionKind,
         compact_restore_ok: String(compactRestoreOk),
         runtime_budget_state_ok: String(runtimeBudgetStateOk),
         codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
@@ -4046,6 +4199,26 @@ function selectRestoredProgressiveExecutionSnapshot(
     const snapshot = asObject(candidate.progressiveExecution);
     if (snapshot.version === PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION) {
       return snapshot as unknown as ProgressiveExecutionSnapshot;
+    }
+  }
+  return null;
+}
+
+function selectRestoredSemanticStallSnapshot(
+  value: JsonObject | null | undefined,
+): SemanticStallSnapshot | null {
+  const root = asObject(value);
+  const candidates = [
+    root,
+    asObject(root.typescript_runtime),
+    asObject(root.typescript_runtime_snapshot),
+    asObject(root.query_engine),
+    asObject(asObject(root.metadata).typescript_runtime_snapshot),
+  ];
+  for (const candidate of candidates) {
+    const snapshot = asObject(candidate.semanticStall);
+    if (snapshot.version === SEMANTIC_STALL_SNAPSHOT_VERSION) {
+      return snapshot as unknown as SemanticStallSnapshot;
     }
   }
   return null;

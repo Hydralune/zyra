@@ -29,6 +29,7 @@ export interface ProviderControlPlaneModelResolution {
   metadata: Record<string, string>;
   error: string | null;
   finalText: string;
+  reasoningText?: string;
   stopReason: string;
   providerRequestId: string | null;
 }
@@ -335,6 +336,10 @@ export async function resolveProviderControlPlaneTurns(
       },
       error: null,
       finalText: result.text,
+      reasoningText: result.frames
+        .filter((frame) => frame.kind === "thinking_delta")
+        .map((frame) => frame.text ?? "")
+        .join(""),
       stopReason: result.stopReason,
       providerRequestId: result.dispatchId,
     };

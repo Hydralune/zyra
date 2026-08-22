@@ -177,6 +177,43 @@ def _handoff_tool_observation(message: Mapping[str, Any]) -> dict[str, Any] | No
     }
 
 
+def _semantic_stall_handoff_state(checkpoint: Mapping[str, Any]) -> dict[str, Any]:
+    """Project only metadata needed to continue a semantic stall sequence."""
+
+    raw = checkpoint.get("semanticStall")
+    if not isinstance(raw, Mapping):
+        return {}
+    signature = str(raw.get("lastToolSignature") or "").lower()
+    if re.fullmatch(r"[0-9a-f]{64}", signature) is None:
+        signature = ""
+    detection_kind = str(raw.get("lastDetectionKind") or "")
+    if detection_kind not in {
+        "",
+        "reasoning_loop",
+        "reasoning_header_runaway",
+        "repeated_tool_call",
+    }:
+        detection_kind = ""
+    return {
+        "version": "zyra.semantic-stall-supervisor/v1",
+        "reasoningLoopDetections": _nonnegative_count(
+            raw.get("reasoningLoopDetections")
+        ),
+        "toolLoopDetections": _nonnegative_count(raw.get("toolLoopDetections")),
+        "redirectCount": _nonnegative_count(raw.get("redirectCount")),
+        "consecutiveRedirects": _nonnegative_count(raw.get("consecutiveRedirects")),
+        "lastToolSignature": signature,
+        "consecutiveIdenticalToolCalls": _nonnegative_count(
+            raw.get("consecutiveIdenticalToolCalls")
+        ),
+        "lastToolName": _bounded_handoff_text(raw.get("lastToolName"), 160),
+        "lastDetectionKind": detection_kind,
+        "lastDetectionReason": _bounded_handoff_text(
+            raw.get("lastDetectionReason"), 500
+        ),
+    }
+
+
 def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, Any]:
     """Project a bounded, non-authoritative task handoff from a checkpoint.
 
@@ -301,6 +338,9 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
             for field in progress_fields
             if progressive.get(field) is not None
         },
+        # Only hashes, counters and detector labels cross a session fence.
+        # Raw reasoning, tool arguments and tool results are deliberately absent.
+        "semantic_stall": _semantic_stall_handoff_state(checkpoint),
         "latest_compact_summary": compact_summary,
         "recent_reasoning": reasoning,
         "recent_tool_observations": observations,
@@ -619,6 +659,15 @@ def load_task_handoff_projection(
         )
         newest["execution_continuity"] = _execution_continuity_progress(
             matched_sidecars
+        )
+        newest["semantic_stall_continuity"] = next(
+            (
+                dict(item.get("semantic_stall") or {})
+                for item in matched_sidecars
+                if isinstance(item.get("semantic_stall"), Mapping)
+                and item.get("semantic_stall")
+            ),
+            {},
         )
         newest["continuity_segments_merged"] = len(matched_sidecars)
         newest["authority_transfer"] = False

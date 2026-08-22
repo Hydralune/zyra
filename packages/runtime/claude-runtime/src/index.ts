@@ -13,6 +13,7 @@ export * from "./protocol.ts";
 export * from "./productization/runtime-config.ts";
 export * from "./query-engine.ts";
 export * from "./loop/model-iteration-runtime.ts";
+export * from "./loop/semantic-stall-runtime.ts";
 export * from "./omp-worker-control/index.ts";
 export * from "./provider/compatible-runtime.ts";
 export * from "./tools/execution-settlement-runtime.ts";

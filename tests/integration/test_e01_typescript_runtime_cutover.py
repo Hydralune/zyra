@@ -909,6 +909,20 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
                 "verificationDiagnosticVersion": 2,
                 "repairContextId": "spent-permission-session",
             },
+            "semanticStall": {
+                "version": "zyra.semantic-stall-supervisor/v1",
+                "reasoningLoopDetections": 1,
+                "toolLoopDetections": 2,
+                "redirectCount": 3,
+                "consecutiveRedirects": 1,
+                "lastToolSignature": "a" * 64,
+                "consecutiveIdenticalToolCalls": 4,
+                "lastToolName": "file_read",
+                "lastDetectionKind": "repeated_tool_call",
+                "lastDetectionReason": "4 consecutive equivalent tool proposals",
+                "rawArguments": "semantic-private-argument",
+                "rawReasoning": "semantic-private-reasoning",
+            },
             "modelIteration": {
                 "rounds": [
                     {
@@ -943,6 +957,8 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
     encoded = sidecar.read_text(encoding="utf-8")
     assert "should-never-cross-session" not in encoded
     assert "database-password" not in encoded
+    assert "semantic-private-argument" not in encoded
+    assert "semantic-private-reasoning" not in encoded
     assert "[REDACTED]" in encoded
     handoff = load_task_handoff_projection(
         runtime.execution_context.artifact_store.root,
@@ -962,6 +978,18 @@ def test_host_checkpoint_writes_bounded_cross_session_task_handoff(
     assert handoff["progress"]["actionNudgeCount"] == 3
     assert handoff["progress"]["lastActionNudgeProviderRound"] == 18
     assert handoff["progress"]["repairContextId"] == "spent-permission-session"
+    assert handoff["semantic_stall_continuity"] == {
+        "version": "zyra.semantic-stall-supervisor/v1",
+        "reasoningLoopDetections": 1,
+        "toolLoopDetections": 2,
+        "redirectCount": 3,
+        "consecutiveRedirects": 1,
+        "lastToolSignature": "a" * 64,
+        "consecutiveIdenticalToolCalls": 4,
+        "lastToolName": "file_read",
+        "lastDetectionKind": "repeated_tool_call",
+        "lastDetectionReason": "4 consecutive equivalent tool proposals",
+    }
     assert handoff["inspection_continuity"] == {}
     assert handoff["execution_continuity"] == {
         "requiredDeliveryMissing": False,

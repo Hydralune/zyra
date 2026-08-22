@@ -17,6 +17,7 @@ export interface ProviderExecutionProjection {
   model: string;
   providerRequestId: string | null;
   finalText: string;
+  reasoningText: string;
   stopReason: string;
 }
 
@@ -120,9 +121,14 @@ export function providerExecutionSuccess(
 ): ProviderExecutionProjection {
   const steps: ToolStep[] = [];
   const text: string[] = [];
+  const reasoning: string[] = [];
   for (const block of response.content) {
     if (block.type === "text") {
       text.push(block.text);
+      continue;
+    }
+    if (block.type === "thinking") {
+      reasoning.push(block.thinking);
       continue;
     }
     if (block.type !== "tool_use") continue;
@@ -154,6 +160,7 @@ export function providerExecutionSuccess(
     model: response.model,
     providerRequestId: response.providerRequestId,
     finalText: text.join(""),
+    reasoningText: reasoning.join(""),
     stopReason: response.stopReason,
   };
 }
@@ -176,6 +183,7 @@ export function providerExecutionFailure(
     model,
     providerRequestId: nullableString(details.provider_request_id),
     finalText: "",
+    reasoningText: "",
     stopReason: "unknown",
   };
 }
