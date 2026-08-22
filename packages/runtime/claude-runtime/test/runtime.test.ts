@@ -6,6 +6,8 @@ import {
   RuntimeSession,
   type ArtifactReceipt,
   type ArtifactRequest,
+  type CompletionGateRequest,
+  type CompletionGateResult,
   type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
@@ -274,6 +276,7 @@ test("runtime checkpoints durable recovery boundaries instead of observations", 
     "tool_batch_completed",
     "turn_end",
     "context_compacted",
+    "completion_stop_blocked",
     "session_suspended",
     "query_session_snapshot",
   ]) {
@@ -2081,6 +2084,183 @@ test("required delivery turns an analysis-only final into an incremental tool ac
     );
     assert.equal(result.metadata.progressive_real_actions, "1");
     assert.equal(result.metadata.progressive_action_nudges, "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("objective completion stop hook continues the same provider session", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "completion-stop-write",
+            type: "function",
+            function: {
+              name: "write",
+              arguments: '{"path":"result.txt","content":"partial"}',
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : {
+        index: 0,
+        delta: {
+          content: requestCount === 2
+            ? "I am done after the first partial artifact."
+            : "The required delivery is now complete.",
+        },
+        finish_reason: "stop",
+      };
+    return new Response(`data: ${JSON.stringify({
+      id: `completion-stop-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  class CompletionStopHost extends MemoryHost {
+    completionChecks = 0;
+
+    async evaluateCompletion(
+      request: CompletionGateRequest,
+    ): Promise<CompletionGateResult> {
+      this.completionChecks += 1;
+      if (this.completionChecks === 1) {
+        assert.equal(request.finalText, "I am done after the first partial artifact.");
+        return {
+          passed: false,
+          reason: "required output is still missing",
+          failedChecks: ["required_paths_present"],
+          continuationMessage: "Continue and finish result.txt before stopping.",
+        };
+      }
+      return {
+        passed: true,
+        reason: "objective delivery checks passed",
+        failedChecks: [],
+        continuationMessage: "",
+      };
+    }
+  }
+  try {
+    const host = new CompletionStopHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+          required_paths: ["result.txt"],
+        },
+      },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 3);
+    assert.equal(host.completionChecks, 2);
+    assert.equal(result.metadata.completion_stop_continuations, "1");
+    assert.ok(host.events.some((event) => event.phase === "completion_stop_blocked"));
+    assert.ok(host.events.some((event) => event.phase === "completion_stop_released"));
+    const stopCheckpoint = host.checkpoints.find(
+      (checkpoint) => checkpoint.checkpointPhase === "completion_stop_blocked",
+    );
+    assert.equal(
+      (stopCheckpoint?.completionStop as JsonObject | undefined)?.continuationCount,
+      1,
+    );
+    assert.match(
+      JSON.stringify(stopCheckpoint?.modelIteration),
+      /Continue and finish result\.txt before stopping\./,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("objective completion stop hook fails closed after its bounded retries", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    const choice = requestCount === 1
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "completion-stop-partial",
+            type: "function",
+            function: {
+              name: "write",
+              arguments: '{"path":"partial.txt","content":"partial"}',
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : { index: 0, delta: { content: "Stopping early." }, finish_reason: "stop" };
+    return new Response(`data: ${JSON.stringify({
+      id: `completion-stop-exhaustion-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: "zyra-local-code-model",
+      choices: [choice],
+    })}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  class RejectingCompletionHost extends MemoryHost {
+    async evaluateCompletion(): Promise<CompletionGateResult> {
+      return {
+        passed: false,
+        reason: "required output is missing",
+        failedChecks: ["required_paths_present"],
+        continuationMessage: "Continue the task and create the missing output.",
+      };
+    }
+  }
+  try {
+    const host = new RejectingCompletionHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      metadata: {
+        delivery_contract: {
+          workspace_mutation_required: true,
+          verification_required: false,
+          required_paths: ["complete.txt"],
+        },
+      },
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          max_completion_stop_continuations: 1,
+        },
+      },
+    }), host);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.stoppedReason, "completion_stop_exhausted");
+    assert.equal(requestCount, 3);
+    assert.equal(result.metadata.completion_stop_continuations, "1");
+    assert.ok(host.events.some((event) => event.phase === "completion_stop_exhausted"));
   } finally {
     globalThis.fetch = originalFetch;
   }

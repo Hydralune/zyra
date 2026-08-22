@@ -76,6 +76,21 @@ export interface CapabilitySettlement {
   metadata: JsonObject;
 }
 
+export interface CompletionGateRequest {
+  finalText: string;
+  deliveryContract: JsonObject;
+  progressiveExecution: JsonObject;
+  attempt: number;
+}
+
+export interface CompletionGateResult {
+  passed: boolean;
+  reason: string;
+  failedChecks: string[];
+  continuationMessage: string;
+  evidence?: JsonObject;
+}
+
 export interface AgentMutationRequest extends JsonObject {
   action: string;
   task_id: string;
@@ -117,6 +132,7 @@ export interface RuntimeHost {
   emitEvent(event: RuntimeEvent): Promise<void>;
   checkpointState?(snapshot: JsonObject): Promise<void>;
   executeBatch(batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]>;
+  evaluateCompletion?(request: CompletionGateRequest): Promise<CompletionGateResult>;
   externalize(request: ArtifactRequest): Promise<ArtifactReceipt>;
   settleCapability?(settlement: CapabilitySettlement): Promise<void>;
   superviseCapability?<T>(

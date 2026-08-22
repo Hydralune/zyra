@@ -140,6 +140,61 @@ def test_physical_code_worker_uses_typescript_provider_tool_loop(
     ]
 
 
+def test_physical_adapter_does_not_promote_incomplete_code_worker(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+
+    def execute(**_kwargs):
+        return {
+            "provider_call": {
+                "provider_called": True,
+                "task_execution_verified": True,
+                "prompt_goal_bound": True,
+                "synthetic_usage": False,
+                "usage": {},
+                "calls": [{"request_id": "provider-request-partial"}],
+            },
+            "execution_evidence": {"tool_call_count": 1},
+            "workspace_delta": {
+                "created": ["partial.txt"],
+                "modified": [],
+                "deleted": [],
+                "changed": ["partial.txt"],
+            },
+            "final_text": "",
+            "execution_outcome": "needs_verification",
+            "runtime_terminal_error": {"worker_error": "completion_stop_exhausted"},
+            "workspace_effect_observed": True,
+            "runtime_events": [],
+            "runtime_artifacts": [],
+        }
+
+    monkeypatch.setattr(
+        "zyra_orchestration.deployment.code_worker_adapter.execute_code_worker_operator",
+        execute,
+    )
+    result = runtime._phase2_operator_adapter(
+        payload={"run_id": "run_direct_response"},
+        operator_ref="worker:provider-code-worker@1",
+        operator={
+            "operator_type": "worker",
+            "output_contract": ["artifact_refs", "verification", "worker_result"],
+        },
+        operator_runtime="CodeWorkerRuntime",
+        goal="Create partial.txt and finish the requested package.",
+        goal_contract=None,
+        layer_index=1,
+        workload=_workload(),
+    )
+
+    assert result["execution_outcome"] == "needs_verification"
+    assert result["workspace_effect_observed"] is True
+    assert result["contract_outputs"]["worker_result"]["ok"] is False
+    assert result["contract_outputs"]["verification"]["passed"] is False
+
+
 def test_delivery_contract_verifies_requested_file_and_real_provider(tmp_path) -> None:
     goal = '创建 smoke.txt 文件，内容是一行“ZYRA_SMOKE_OK”。'
     contract = goal_delivery_contract(goal)
@@ -203,7 +258,6 @@ def test_delivery_contract_preserves_declared_directory_scope_for_file_list() ->
     )
 
     assert contract.required_paths == (
-        "task-contract.json",
         "submission/manifest.json",
         "submission/architecture.md",
         "submission/release-notes.md",
@@ -257,7 +311,7 @@ def test_delivery_contract_uses_objective_workspace_evidence_over_model_wording(
         provider_evidence=provider,
     )
 
-    assert contract.required_paths == ("video.mp4", "solution.txt")
+    assert contract.required_paths == ("solution.txt",)
     assert incomplete["passed"] is False
     assert incomplete["checks"]["required_paths_present"] is False
     assert incomplete["schema"] == "zyra.goal-delivery-verification/v2"
@@ -284,6 +338,26 @@ def test_delivery_contract_uses_objective_workspace_evidence_over_model_wording(
         "passed": True,
         "decisive": True,
     }
+
+
+def test_delivery_contract_ignores_commands_inputs_and_schema_references() -> None:
+    contract = goal_delivery_contract(
+        "工作区根目录的 `task-contract.json` 给出约束。\n"
+        "请创建 `work/build_submission.py`，并通过 `python tools/hailanctl.py` 验收。\n"
+        "按 `schemas/plan.v1.schema.json` 保存 "
+        "`submission/normalized/operational/plan-initial.json`。\n"
+        "请在 `submission/` 中交付：\n"
+        "- manifest.json\n"
+        "- report.md"
+    )
+
+    assert contract.required_paths == (
+        "work/build_submission.py",
+        "submission/normalized/operational/plan-initial.json",
+        "submission/manifest.json",
+        "submission/report.md",
+    )
+    assert contract.expected_file_contents == ()
 
 
 def test_delivery_contract_rejects_model_claim_without_artifact(tmp_path) -> None:

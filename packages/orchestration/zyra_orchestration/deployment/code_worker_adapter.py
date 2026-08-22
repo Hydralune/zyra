@@ -127,6 +127,131 @@ def _workspace_execution_outcome(
     return "failed", False
 
 
+def _evaluate_delivery_completion(
+    request: Mapping[str, Any],
+    *,
+    delivery_contract: Mapping[str, Any],
+    workspace_root: Path,
+) -> dict[str, Any]:
+    """Fail closed on objective delivery evidence before a model may stop."""
+
+    progressive = (
+        dict(request.get("progressive_execution") or {})
+        if isinstance(request.get("progressive_execution"), Mapping)
+        else {}
+    )
+    final_text = str(request.get("final_text") or "").strip()
+    failed: list[str] = []
+    missing_paths: list[str] = []
+    content_mismatches: list[str] = []
+    contract_bound = bool(
+        isinstance(request.get("delivery_contract"), Mapping)
+        and dict(request["delivery_contract"]) == dict(delivery_contract)
+    )
+    if not contract_bound:
+        failed.append("delivery_contract_bound")
+
+    root = workspace_root.resolve()
+    for raw_path in delivery_contract.get("required_paths") or ():
+        relative = str(raw_path or "").strip().replace("\\", "/")
+        if not relative:
+            continue
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            missing_paths.append(relative)
+            continue
+        if not candidate.is_file():
+            missing_paths.append(relative)
+    if missing_paths:
+        failed.append("required_paths_present")
+
+    expected_contents = delivery_contract.get("expected_file_contents")
+    if isinstance(expected_contents, Mapping):
+        for raw_path, raw_specification in expected_contents.items():
+            specification = (
+                dict(raw_specification)
+                if isinstance(raw_specification, Mapping)
+                else {}
+            )
+            expected = str(specification.get("expected_text") or "")
+            relative = str(raw_path or "").strip().replace("\\", "/")
+            candidate = (root / relative).resolve()
+            matches = False
+            try:
+                candidate.relative_to(root)
+                if (
+                    candidate.is_file()
+                    and candidate.stat().st_size <= 4 * 1024 * 1024
+                ):
+                    observed = candidate.read_text(encoding="utf-8")
+                    matches = observed in (
+                        expected,
+                        expected + "\n",
+                        expected + "\r\n",
+                    )
+            except (OSError, UnicodeDecodeError, ValueError):
+                matches = False
+            if not matches:
+                content_mismatches.append(relative)
+    if content_mismatches:
+        failed.append("expected_file_contents_match")
+
+    mutation_required = delivery_contract.get("workspace_mutation_required") is True
+    workspace_mutations = max(0, int(progressive.get("workspaceMutationCount") or 0))
+    if mutation_required and workspace_mutations == 0:
+        failed.append("workspace_mutation_observed")
+    final_required = delivery_contract.get("final_response_required") is not False
+    if final_required and not final_text:
+        failed.append("final_response_present")
+    verification_required = (
+        delivery_contract.get("verification_required") is True
+        if "verification_required" in delivery_contract
+        else mutation_required
+    )
+    unresolved = list(progressive.get("unresolvedVerificationScopes") or ())
+    verification_count = max(0, int(progressive.get("verificationCount") or 0))
+    if verification_required and (verification_count == 0 or unresolved):
+        failed.append("behavioral_verification_passed")
+
+    failed = list(dict.fromkeys(failed))
+    missing_summary = ", ".join(missing_paths[:20])
+    continuation = [
+        "The objective completion gate rejected this attempted final response.",
+        f"Failed checks: {', '.join(failed)}." if failed else "",
+        f"Missing required files: {missing_summary}." if missing_summary else "",
+        (
+            "Continue the same task from current workspace state. Create or repair the "
+            "missing deliverables, run the task-provided acceptance command or a real "
+            "behavioral verification after the latest mutation, and only then provide "
+            "a concise final response. Do not restart broad analysis."
+        ),
+    ]
+    return {
+        "passed": not failed,
+        "reason": (
+            "all objective delivery checks passed"
+            if not failed
+            else "objective delivery evidence is incomplete"
+        ),
+        "failed_checks": failed,
+        "continuation_message": " ".join(item for item in continuation if item)[:4000],
+        "evidence": {
+            "schema": "zyra.delivery-completion-stop-evidence/v1",
+            "contract_bound": contract_bound,
+            "required_path_count": len(delivery_contract.get("required_paths") or ()),
+            "missing_path_count": len(missing_paths),
+            "content_mismatch_count": len(content_mismatches),
+            "workspace_mutation_count": workspace_mutations,
+            "verification_count": verification_count,
+            "unresolved_verification_count": len(unresolved),
+            "final_response_present": bool(final_text),
+            "physical_location_redacted": True,
+        },
+    }
+
+
 def _physical_permission_session_id(
     payload: Mapping[str, Any],
     task_id: str,
@@ -435,6 +560,18 @@ def execute_code_worker_operator(
         "workspace_gateway_required": True,
         "sandbox_gateway_state_root": sandbox_gateway_state_root,
     }
+
+    def completion_gate(request_payload: Mapping[str, Any]) -> dict[str, Any]:
+        if benchmark_mirror is not None:
+            benchmark_mirror.pull_from_container()
+        current_root = manager.internal_task_root(edit_port.current_access())
+        return _evaluate_delivery_completion(
+            request_payload,
+            delivery_contract=delivery_contract,
+            workspace_root=current_root,
+        )
+
+    runtime_services["completion_gate"] = completion_gate
     if benchmark_binding is not None:
         assert benchmark_mirror is not None
         (

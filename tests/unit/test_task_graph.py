@@ -5,6 +5,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
@@ -32,6 +33,7 @@ from zyra_orchestration.task_graph import (
     _consume_execution_retry_request,
     _plan_runtime_recovery,
     _run_route_node,
+    _run_execute_node,
     _worker_request_metadata,
 )
 
@@ -88,6 +90,48 @@ def _formal_route_context():
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_incomplete_physical_delivery_requests_bounded_replan(self) -> None:
+        from zyra_runtime import WorkerResult
+
+        state = create_task_state("Continue an incomplete physical delivery.")
+        ensure_default_graph(state)
+        execute_node = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "execute"
+        )
+        partial = WorkerResult(
+            request_id="partial-call",
+            ok=False,
+            summary="partial delivery preserved",
+            error="code_worker_delivery_incomplete",
+            metadata={
+                "execution_outcome": "needs_verification",
+                "physical_execution_replan_requested": "true",
+                "checkpointed_side_effect_recovery_requested": "true",
+            },
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = GraphExecutionContext(
+                project_root=root,
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                physical_execution_runner=lambda *_args: (
+                    SimpleNamespace(worker_result=partial, event_records=[]),
+                    "physical-worker",
+                ),
+            )
+
+            _run_execute_node(state, execute_node, context)
+
+        request = state.metadata["physical_execution_retry_requested"]
+        self.assertEqual(request["node_id"], execute_node.node_id)
+        self.assertEqual(
+            request["error_code"], "code_worker_delivery_incomplete"
+        )
+        self.assertTrue(request["checkpointed_side_effect_recovery_requested"])
+
     def test_failed_stage_start_constraint_blocks_canonical_task(self) -> None:
         state = create_task_state("Keep task status aligned with a blocked graph.")
         ensure_default_graph(state)

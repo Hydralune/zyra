@@ -219,6 +219,78 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             ("failed", False),
         )
 
+    def test_delivery_completion_gate_blocks_partial_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / "submission").mkdir()
+            (workspace / "submission" / "manifest.json").write_text(
+                "{}\n", encoding="utf-8"
+            )
+            contract = {
+                "workspace_mutation_required": True,
+                "required_paths": [
+                    "submission/manifest.json",
+                    "submission/report.md",
+                ],
+                "expected_file_contents": {},
+                "final_response_required": True,
+            }
+
+            blocked = code_worker_adapter._evaluate_delivery_completion(
+                {
+                    "final_text": "",
+                    "delivery_contract": contract,
+                    "progressive_execution": {
+                        "workspaceMutationCount": 1,
+                        "verificationCount": 0,
+                    },
+                },
+                delivery_contract=contract,
+                workspace_root=workspace,
+            )
+
+            self.assertFalse(blocked["passed"])
+            self.assertEqual(
+                blocked["failed_checks"],
+                [
+                    "required_paths_present",
+                    "final_response_present",
+                    "behavioral_verification_passed",
+                ],
+            )
+            self.assertIn("submission/report.md", blocked["continuation_message"])
+
+    def test_delivery_completion_gate_releases_verified_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            target = workspace / "result.txt"
+            target.write_text("ready\n", encoding="utf-8")
+            contract = {
+                "workspace_mutation_required": True,
+                "required_paths": ["result.txt"],
+                "expected_file_contents": {
+                    "result.txt": {"expected_text": "ready"}
+                },
+                "final_response_required": True,
+            }
+
+            released = code_worker_adapter._evaluate_delivery_completion(
+                {
+                    "final_text": "Completed.",
+                    "delivery_contract": contract,
+                    "progressive_execution": {
+                        "workspaceMutationCount": 1,
+                        "verificationCount": 1,
+                        "unresolvedVerificationScopes": [],
+                    },
+                },
+                delivery_contract=contract,
+                workspace_root=workspace,
+            )
+
+            self.assertTrue(released["passed"])
+            self.assertEqual(released["failed_checks"], [])
+
     def test_explicit_benchmark_reasoning_budget_propagates_without_hidden_caps(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(

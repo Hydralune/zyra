@@ -50,7 +50,7 @@ _NON_LITERAL_BARE_PREFIXES = (
 )
 
 _WORKSPACE_CHANGE = re.compile(
-    r"(?:创建|新建|建立|建一个|建一份|制作|添加|编辑|写入|生成|保存|修改|更新|删除|移除|修复|实现|开发|重构|替换|"
+    r"(?:创建|新建|建立|建一个|建一份|制作|添加|编辑|写入|生成|形成|同步|保存|修改|更新|删除|移除|修复|实现|开发|重构|替换|"
     r"安装|配置|构建|搭建|补充|交付|提交|提供|放置|create|write|generate|save|deliver|place|modify|update|delete|"
     r"remove|fix|implement|develop|refactor|replace|install|configure|build|make|patch|add)",
     re.IGNORECASE,
@@ -96,16 +96,14 @@ _FILE_CONTENT_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:写入|write(?:\s+exactly)?)\s*[`\"'“‘]"
-        r"([^`\"'”’\r\n]{1,4000})[`\"'”’]",
-        re.IGNORECASE,
-    ),
-    re.compile(
         r"(?:文件)?\s*内容\s*(?:是|为|：|:)\s*(?:一行\s*)?"
         r"([^，,。.!！?？\r\n]{1,500})",
         re.IGNORECASE,
     ),
 )
+
+_PATH_CONTEXT_BOUNDARY = re.compile(r"[。.!！?？;；\r\n]")
+
 
 def _normalized(value: str) -> str:
     return unicodedata.normalize("NFKC", str(value or "")).strip()
@@ -220,15 +218,21 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
             path_candidates,
             key=lambda item: item[0],
         ):
+            active_scope = next(
+                (
+                    directory
+                    for scope_position, directory in reversed(directory_scopes)
+                    if scope_position < position
+                ),
+                "",
+            )
+            if not active_scope and not _path_has_delivery_context(
+                goal,
+                position,
+                normalized_path,
+            ):
+                continue
             if "/" not in normalized_path:
-                active_scope = next(
-                    (
-                        directory
-                        for scope_position, directory in reversed(directory_scopes)
-                        if scope_position < position
-                    ),
-                    "",
-                )
                 if active_scope:
                     normalized_path = str(
                         PurePosixPath(active_scope) / normalized_path
@@ -437,6 +441,7 @@ def _safe_relative_path(value: str) -> str:
         not rendered
         or rendered.startswith("/")
         or rendered.startswith("//")
+        or any(character.isspace() for character in rendered)
         or "@" in rendered
         or re.match(r"^[A-Za-z]:/", rendered)
         or re.fullmatch(r"\d+(?:\.\d+)+", rendered)
@@ -446,6 +451,36 @@ def _safe_relative_path(value: str) -> str:
     if candidate.is_absolute() or ".." in candidate.parts:
         return ""
     return candidate.as_posix()
+
+
+def _path_has_delivery_context(goal: str, position: int, path: str) -> bool:
+    """Distinguish requested outputs from inputs, commands and schema references."""
+
+    normalized = path.casefold()
+    if normalized.startswith(("submission/", "work/")):
+        return True
+    start = 0
+    end = len(goal)
+    preceding = list(_PATH_CONTEXT_BOUNDARY.finditer(goal, 0, position))
+    if preceding:
+        start = preceding[-1].end()
+    following = _PATH_CONTEXT_BOUNDARY.search(goal, position)
+    if following is not None:
+        end = following.start()
+    clause = goal[start:end]
+    if not _WORKSPACE_CHANGE.search(clause):
+        return False
+    if normalized.startswith(("schemas/", "inputs/")):
+        before_path = goal[start:position]
+        return bool(
+            re.search(
+                r"(?:修改|更新|编辑|写入|生成|创建|replace|modify|update|edit|write|generate|create)"
+                r"[^。.!！?？;；\r\n]{0,80}$",
+                before_path,
+                re.IGNORECASE,
+            )
+        )
+    return True
 
 
 def _evidence(

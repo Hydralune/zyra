@@ -4,6 +4,8 @@ import type {
   ArtifactReceipt,
   ArtifactRequest,
   CapabilitySupervisionIdentity,
+  CompletionGateRequest,
+  CompletionGateResult,
   JsonObject,
   RuntimeEvent,
   RuntimeHost,
@@ -60,6 +62,15 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       ...snapshot,
       typescriptCapabilities: this.snapshot(),
     }) ?? Promise.resolve();
+  }
+
+  evaluateCompletion(request: CompletionGateRequest): Promise<CompletionGateResult> {
+    return this.delegate.evaluateCompletion?.(request) ?? Promise.resolve({
+      passed: true,
+      reason: "completion gate is not configured",
+      failedChecks: [],
+      continuationMessage: "",
+    });
   }
 
   superviseCapability<T>(

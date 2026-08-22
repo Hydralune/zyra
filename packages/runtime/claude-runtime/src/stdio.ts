@@ -14,6 +14,8 @@ import {
   type ArtifactRequest,
   type CapabilitySettlement,
   type CapabilitySupervisionIdentity,
+  type CompletionGateRequest,
+  type CompletionGateResult,
   type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
@@ -352,6 +354,27 @@ class JsonlRuntimeHost implements RuntimeHost {
     if (frame.payload.accepted !== true) {
       throw new RuntimeProtocolError("runtime_checkpoint_rejected", asString(frame.payload.error) || "runtime checkpoint rejected");
     }
+  }
+
+  async evaluateCompletion(request: CompletionGateRequest): Promise<CompletionGateResult> {
+    const correlationId = `completion:${request.attempt}`;
+    this.send("completion.check.request", {
+      final_text: request.finalText,
+      delivery_contract: request.deliveryContract,
+      progressive_execution: request.progressiveExecution,
+      attempt: request.attempt,
+    }, correlationId);
+    const frame = await this.read("completion.check.result", correlationId);
+    const failedChecks = Array.isArray(frame.payload.failed_checks)
+      ? frame.payload.failed_checks.map((value) => String(value)).slice(0, 64)
+      : [];
+    return {
+      passed: frame.payload.passed === true,
+      reason: asString(frame.payload.reason),
+      failedChecks,
+      continuationMessage: asString(frame.payload.continuation_message),
+      evidence: asObject(frame.payload.evidence),
+    };
   }
 
   async externalize(request: ArtifactRequest): Promise<ArtifactReceipt> {

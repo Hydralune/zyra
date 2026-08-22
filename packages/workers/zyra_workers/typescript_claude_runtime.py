@@ -1236,6 +1236,76 @@ class TypeScriptClaudeQueryEngine:
                     except Exception as error:  # noqa: BLE001 - noncanonical compatibility projection.
                         projection_error = f"{type(error).__name__}: {error}"
                 continue
+            if kind == "completion.check.request":
+                completion_gate = self.context.runtime_services.get(
+                    "completion_gate"
+                )
+                if completion_gate is None:
+                    completion = {
+                        "passed": True,
+                        "reason": "completion gate is not configured",
+                        "failed_checks": [],
+                        "continuation_message": "",
+                        "evidence": {},
+                    }
+                elif not callable(completion_gate):
+                    completion = {
+                        "passed": False,
+                        "reason": "completion gate service is invalid",
+                        "failed_checks": ["completion_gate_available"],
+                        "continuation_message": (
+                            "The completion verifier is unavailable. Preserve current "
+                            "workspace state and do not claim successful completion."
+                        ),
+                        "evidence": {},
+                    }
+                else:
+                    try:
+                        raw_completion = completion_gate(payload)
+                        completion = (
+                            dict(raw_completion)
+                            if isinstance(raw_completion, Mapping)
+                            else {}
+                        )
+                    except Exception as error:  # noqa: BLE001 - stop hooks fail closed.
+                        completion = {
+                            "passed": False,
+                            "reason": f"completion gate failed: {type(error).__name__}",
+                            "failed_checks": ["completion_gate_evaluated"],
+                            "continuation_message": (
+                                "The objective completion check could not be evaluated. "
+                                "Preserve current workspace state and do not claim success."
+                            ),
+                            "evidence": {"error_type": type(error).__name__},
+                        }
+                failed_checks = [
+                    str(item)[:200]
+                    for item in completion.get("failed_checks") or ()
+                    if str(item)
+                ][:64]
+                response = {
+                    "passed": completion.get("passed") is True,
+                    "reason": str(completion.get("reason") or "")[:1000],
+                    "failed_checks": failed_checks,
+                    "continuation_message": str(
+                        completion.get("continuation_message") or ""
+                    )[:4000],
+                    "evidence": to_jsonable(
+                        dict(completion.get("evidence") or {})
+                        if isinstance(completion.get("evidence"), Mapping)
+                        else {}
+                    ),
+                }
+                self._write_frame(
+                    process,
+                    run_id=run_id,
+                    sequence=outbound_sequence,
+                    kind="completion.check.result",
+                    payload=response,
+                    correlation_id=correlation_id,
+                )
+                outbound_sequence += 1
+                continue
             if kind == "runtime.checkpoint":
                 checkpoint = dict(payload.get("snapshot") or {})
                 if "e02" in checkpoint and self._latest_runtime_checkpoint:

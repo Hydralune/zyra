@@ -2546,10 +2546,15 @@ class Phase2StrongestProductionBridge:
 
         worker_result = WorkerResult(
             request_id=str(call_result.call_ref),
-            ok=True,
+            ok=not code_worker_execution or settlement_outcome == "completed",
             summary=str(
                 execution_output.get("summary")
                 or call_result.summary
+            ),
+            error=(
+                None
+                if not code_worker_execution or settlement_outcome == "completed"
+                else "code_worker_delivery_incomplete"
             ),
             artifacts=[artifact],
             events=[to_jsonable(event)],
@@ -2574,6 +2579,13 @@ class Phase2StrongestProductionBridge:
                 ),
                 "domain_output_digest": observed_domain_digest,
                 "output_contract_fulfilled": "true",
+                "execution_outcome": settlement_outcome,
+                "physical_execution_replan_requested": str(
+                    verifiable_interrupted_delivery
+                ).lower(),
+                "checkpointed_side_effect_recovery_requested": str(
+                    verifiable_interrupted_delivery
+                ).lower(),
             },
         )
         route_context["physical_dispatch_receipt"] = physical_dispatch

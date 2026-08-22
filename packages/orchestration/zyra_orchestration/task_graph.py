@@ -308,7 +308,11 @@ def _reset_stage_for_recovery(
             payload={
                 "schema": "zyra.execution-recovery-replan/v1",
                 "summary": (
-                    "Dispatch crossed a lost node after a durable workspace "
+                    "The CodeWorker completion stop preserved a partial workspace; "
+                    "continuing the same task on fresh placement."
+                    if str(request.get("error_code") or "")
+                    == "code_worker_delivery_incomplete"
+                    else "Dispatch crossed a lost node after a durable workspace "
                     "checkpoint; continuing on fresh placement."
                     if request.get(
                         "checkpointed_side_effect_recovery_requested"
@@ -1063,6 +1067,31 @@ def _run_execute_node(
     node.status = PlanNodeStatus.COMPLETED if worker_run.worker_result.ok else PlanNodeStatus.FAILED
     node.updated_at = now_iso()
     if not worker_run.worker_result.ok:
+        retry_metadata = dict(worker_run.worker_result.metadata or {})
+        if str(
+            retry_metadata.get("physical_execution_replan_requested") or ""
+        ).casefold() == "true":
+            state.metadata["physical_execution_retry_requested"] = {
+                "node_id": node.node_id,
+                "error_code": str(
+                    worker_run.worker_result.error
+                    or "code_worker_delivery_incomplete"
+                ),
+                "error_message": str(worker_run.worker_result.summary)[:500],
+                "reconciliations": [],
+                "dispatch_error": {
+                    "execution_outcome": str(
+                        retry_metadata.get("execution_outcome") or ""
+                    )
+                },
+                "checkpointed_side_effect_recovery_requested": str(
+                    retry_metadata.get(
+                        "checkpointed_side_effect_recovery_requested"
+                    )
+                    or ""
+                ).casefold()
+                == "true",
+            }
         state.status = PlanNodeStatus.FAILED
         state.updated_at = node.updated_at
         events.extend(_plan_runtime_recovery(state, node, worker_result=worker_run.worker_result))

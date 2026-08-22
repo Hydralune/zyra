@@ -1328,6 +1328,7 @@ class DeploymentNodeRuntime:
                 )
             )
         )
+        adapter_completed = True
         if is_code_worker:
             # Lazy import keeps deployment package initialization acyclic:
             # CodeWorker also consumes scheduler deployment contracts.
@@ -1345,6 +1346,10 @@ class DeploymentNodeRuntime:
             execution_evidence = dict(
                 execution.get("execution_evidence") or {}
             )
+            execution_outcome = str(
+                execution.get("execution_outcome") or "completed"
+            )
+            adapter_completed = execution_outcome == "completed"
             domain_result = {
                 "kind": "code_worker_execution",
                 "runtime_worker": "CodeWorkerRuntime",
@@ -1361,9 +1366,7 @@ class DeploymentNodeRuntime:
                 ),
                 "workspace_delta": workspace_delta,
                 "final_answer_digest": digest(final_text),
-                "execution_outcome": str(
-                    execution.get("execution_outcome") or "completed"
-                ),
+                "execution_outcome": execution_outcome,
                 "runtime_terminal_error": dict(
                     execution.get("runtime_terminal_error") or {}
                 ),
@@ -1501,9 +1504,17 @@ class DeploymentNodeRuntime:
 
         artifact_ref = "content://" + str(artifact["content_digest"])
         worker_result = {
-            "ok": True,
-            "summary": f"{adapter_id} completed physical layer {layer_index}.",
+            "ok": adapter_completed,
+            "summary": (
+                f"{adapter_id} completed physical layer {layer_index}."
+                if adapter_completed
+                else (
+                    f"{adapter_id} preserved an incomplete physical layer "
+                    f"{layer_index} for recovery."
+                )
+            ),
             "domain_kind": domain_result["kind"],
+            "error": "" if adapter_completed else "code_worker_delivery_incomplete",
         }
         supported_outputs = {
             "worker_result": worker_result,
@@ -1512,7 +1523,10 @@ class DeploymentNodeRuntime:
             "usage": usage,
             "tool_result": domain_result,
             "artifact": artifact_ref,
-            "verification": {"passed": True, "adapter_id": adapter_id},
+            "verification": {
+                "passed": adapter_completed,
+                "adapter_id": adapter_id,
+            },
         }
         output_contract = tuple(
             str(item) for item in operator.get("output_contract") or () if str(item)
@@ -1539,6 +1553,13 @@ class DeploymentNodeRuntime:
                     "workspace": execution.get("workspace") or {},
                     "workspace_delta": workspace_delta,
                     "final_text": final_text,
+                    "execution_outcome": execution_outcome,
+                    "runtime_terminal_error": execution.get(
+                        "runtime_terminal_error"
+                    ) or {},
+                    "workspace_effect_observed": execution.get(
+                        "workspace_effect_observed"
+                    ) is True,
                 }
             )
         return result

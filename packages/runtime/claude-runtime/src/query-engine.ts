@@ -91,6 +91,7 @@ const DURABLE_CHECKPOINT_PHASES = new Set([
   "context_compacted",
   "next_turn_restore_contract",
   "execution_closeout_completed",
+  "completion_stop_blocked",
   "error",
   "session_suspended",
   "session_completed",
@@ -400,6 +401,7 @@ interface SettledProviderResolution {
   model: ModelStreamResolution;
   round: ModelRoundRecord;
   truncationExhausted: boolean;
+  completionStopExhausted: boolean;
 }
 
 export class ClaudeRuntimeCore {
@@ -546,9 +548,24 @@ export class ClaudeRuntimeCore {
     };
     const resourceBudget = resourceCloseoutBudget(config);
     let closeoutRequested = false;
+    const restoredCompletionStop = asObject(
+      asObject(input.restoredState).completionStop,
+    );
+    let completionStopCount = Math.max(
+      0,
+      Math.floor(Number(restoredCompletionStop.continuationCount) || 0),
+    );
+    let completionStopBlockedCount = Math.max(
+      0,
+      Math.floor(Number(restoredCompletionStop.blockedAttempts) || 0),
+    );
+    let completionStopLastFailedChecks = asString(
+      restoredCompletionStop.lastFailedChecks,
+    );
+    const deliveryContract = asObject(asObject(input.metadata).delivery_contract);
     const progressive = new ProgressiveExecutionRuntime({
       constraints: config.runtimeConstraints,
-      deliveryContract: asObject(asObject(input.metadata).delivery_contract),
+      deliveryContract,
       restored: selectRestoredProgressiveExecutionSnapshot(input.restoredState) ?? undefined,
       continuityProgress: asObject(asObject(input.metadata).task_handoff_progress),
       repairContextId: input.sessionId,
@@ -608,6 +625,11 @@ export class ClaudeRuntimeCore {
           e01Runtime: e01.snapshot() as unknown as JsonObject,
           modelIteration: iteration.snapshot() as unknown as JsonObject,
           progressiveExecution: progressive.snapshot() as unknown as JsonObject,
+          completionStop: {
+            continuationCount: completionStopCount,
+            blockedAttempts: completionStopBlockedCount,
+            lastFailedChecks: completionStopLastFailedChecks,
+          },
           checkpointPhase: phase,
           checkpointEventSequence: eventSequence,
         });
@@ -630,6 +652,16 @@ export class ClaudeRuntimeCore {
           positiveInteger(
             config.runtimeConstraints.max_length_continuations,
             DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS,
+          ),
+        ),
+      );
+      const maximumCompletionStopContinuations = Math.max(
+        1,
+        Math.min(
+          12,
+          positiveInteger(
+            config.runtimeConstraints.max_completion_stop_continuations,
+            6,
           ),
         ),
       );
@@ -748,6 +780,93 @@ export class ClaudeRuntimeCore {
           providerRoundIndex += 1;
           continue;
         }
+        if (
+          model.turns.flat().length === 0
+          && !providerOutputWasLengthTruncated(model)
+          && host.evaluateCompletion !== undefined
+          && Object.keys(deliveryContract).length > 0
+        ) {
+          const completion = await host.evaluateCompletion({
+            finalText: model.finalText,
+            deliveryContract,
+            progressiveExecution: progressive.snapshot() as unknown as JsonObject,
+            attempt: completionStopCount + 1,
+          });
+          if (!completion.passed) {
+            completionStopBlockedCount += 1;
+            completionStopLastFailedChecks = completion.failedChecks.join(",");
+            const canContinue = completionStopCount < maximumCompletionStopContinuations
+              && continuationTools.length > 0
+              && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit);
+            if (!canContinue) {
+              iteration.failProviderRound(round.roundId, "completion_stop_exhausted");
+              await emit("completion_stop_exhausted", {
+                reason: completion.reason,
+                failed_checks: completion.failedChecks,
+                continuation_count: completionStopCount,
+                maximum_continuations: maximumCompletionStopContinuations,
+                tools_advertised: continuationTools.length,
+              });
+              return {
+                model,
+                round,
+                truncationExhausted: false,
+                completionStopExhausted: true,
+              };
+            }
+            completionStopCount += 1;
+            iteration.rejectProviderRoundForRetry(round.roundId, "completion_stop_blocked");
+            const continuationMessage = completion.continuationMessage.trim().slice(0, 4_000)
+              || [
+                "The task completion gate rejected this attempted final response.",
+                completion.reason,
+                completion.failedChecks.length > 0
+                  ? `Failed checks: ${completion.failedChecks.join(", ")}.`
+                  : "",
+                "Continue the same task now: complete the missing deliverables, run the task-provided acceptance or proportionate behavioral verification, and only then return the final answer.",
+              ].filter(Boolean).join(" ");
+            providerMessages = [
+              ...iteration.currentMessages(),
+              ...(model.finalText.trim()
+                ? [{ role: "assistant", content: model.finalText }]
+                : []),
+              { role: "user", content: continuationMessage },
+            ];
+            round = iteration.beginProviderRound({
+              requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+              model: config.modelName,
+              messages: providerMessages,
+            });
+            await emit("completion_stop_blocked", {
+              reason: completion.reason,
+              failed_checks: completion.failedChecks,
+              continuation_count: completionStopCount,
+              maximum_continuations: maximumCompletionStopContinuations,
+              previous_final_text_present: model.finalText.trim().length > 0,
+              tools_advertised: continuationTools.length,
+            });
+            model = await resolveModelTurns(
+              input,
+              config,
+              [],
+              continuationTools,
+              emit,
+              (observation) => e01.decideProviderRecovery(observation),
+              e01.journal.restartEpoch,
+              (observation) => e01.completeProviderRecovery(observation),
+              (requestId) => e01.executePreparedProvider(requestId),
+              providerRoundIndex,
+              providerMessages,
+            );
+            providerRoundIndex += 1;
+            continue;
+          }
+          await emit("completion_stop_released", {
+            reason: completion.reason,
+            continuation_count: completionStopCount,
+            blocked_attempts: completionStopBlockedCount,
+          });
+        }
         iteration.acceptProviderResult({
           roundId: round.roundId,
           providerRequestId: model.providerRequestId,
@@ -757,14 +876,14 @@ export class ClaudeRuntimeCore {
           steps: model.turns.flat(),
         });
         if (!providerOutputWasLengthTruncated(model)) {
-          return { model, round, truncationExhausted: false };
+          return { model, round, truncationExhausted: false, completionStopExhausted: false };
         }
         if (
           !allowLengthContinuation
           || continuationCount >= maximumLengthContinuations
           || (providerRoundLimit !== null && providerRoundIndex >= providerRoundLimit)
         ) {
-          return { model, round, truncationExhausted: true };
+          return { model, round, truncationExhausted: true, completionStopExhausted: false };
         }
         continuationCount += 1;
         providerMessages = [
@@ -810,7 +929,7 @@ export class ClaudeRuntimeCore {
           model_provider_rounds: String(providerRoundIndex),
         };
       }
-      return { model, round, truncationExhausted: false };
+      return { model, round, truncationExhausted: false, completionStopExhausted: false };
     };
 
     const requestCloseoutFinalResponse = async (
@@ -917,6 +1036,16 @@ export class ClaudeRuntimeCore {
           false,
           [],
         );
+        if (settled.completionStopExhausted) {
+          ok = false;
+          stoppedReason = "completion_stop_exhausted";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "task completion evidence remained incomplete at the closeout boundary",
+            source: "completion_stop_hook",
+          });
+          return;
+        }
         if (!settled.model.ok || settled.truncationExhausted) {
           iteration.failProviderRound(
             settled.round.roundId,
@@ -1108,7 +1237,15 @@ export class ClaudeRuntimeCore {
           true,
           registry.list(),
         );
-        if (!settled.model.ok) {
+        if (settled.completionStopExhausted) {
+          ok = false;
+          stoppedReason = "completion_stop_exhausted";
+          await emit("error", {
+            error: stoppedReason,
+            detail: "provider exhausted bounded completion-stop continuations",
+            source: "completion_stop_hook",
+          });
+        } else if (!settled.model.ok) {
           iteration.failProviderRound(
             settled.round.roundId,
             settled.model.error ?? "model_stream_failed",
@@ -2813,7 +2950,15 @@ export class ClaudeRuntimeCore {
             !finalResponseOnly,
             finalResponseOnly ? [] : registry.list(),
           );
-          if (!settled.model.ok) {
+          if (settled.completionStopExhausted) {
+            ok = false;
+            stoppedReason = "completion_stop_exhausted";
+            await emit("error", {
+              error: stoppedReason,
+              detail: "provider exhausted bounded completion-stop continuations",
+              source: "completion_stop_hook",
+            });
+          } else if (!settled.model.ok) {
             iteration.failProviderRound(
               settled.round.roundId,
               settled.model.error ?? "model_stream_failed",
@@ -2963,6 +3108,9 @@ export class ClaudeRuntimeCore {
         repeated_tool_failure_trips: String(repeatedToolFailureTrips),
         invalid_argument_retry_trips: String(invalidArgumentRetryTrips),
         execution_closeout_requested: String(closeoutRequested),
+        completion_stop_continuations: String(completionStopCount),
+        completion_stop_blocked_attempts: String(completionStopBlockedCount),
+        completion_stop_last_failed_checks: completionStopLastFailedChecks,
         progressive_execution_phase: progressiveState.phase,
         progressive_real_actions: String(progressiveState.realActionCount),
         progressive_artifacts: String(progressiveState.artifactCount),
