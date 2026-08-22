@@ -732,6 +732,18 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
                     "long-horizon API retry attempts must be between 1 and 8"
                 )
             constraints["api_retry_max_attempts"] = retry_attempts
+        raw_length_continuations = context.get("max_length_continuations")
+        if raw_length_continuations in (None, "", 0):
+            raw_length_continuations = os.environ.get(
+                "ZYRA_MAX_LENGTH_CONTINUATIONS"
+            )
+        if raw_length_continuations not in (None, "", 0):
+            length_continuations = int(raw_length_continuations)
+            if not 1 <= length_continuations <= 32:
+                raise ValueError(
+                    "long-horizon length continuations must be between 1 and 32"
+                )
+            constraints["max_length_continuations"] = length_continuations
     return constraints
 
 
