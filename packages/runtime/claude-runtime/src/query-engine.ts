@@ -3914,6 +3914,7 @@ function isClearlyDeliveryDrivingShellCommand(value: string): boolean {
   // Inline interpreters are opaque by default.  Admit them only when their
   // program text contains an explicit durable-write primitive or a test run.
   if (/\b(?:python(?:3)?|node|bun|deno|ruby|perl|pwsh|powershell|cmd(?:\.exe)?)\b/i.test(normalized)) {
+    if (isDeliveryEvidenceGeneratorCommand(normalized)) return true;
     if (/\b(?:write_text|write_bytes|writeFile|writeFileSync|appendFile|appendFileSync|rename|replace|unlink|mkdir|makedirs)\s*\(/i.test(normalized)) return true;
     if (/\bopen\s*\([^)]*,\s*["'][wax+][^"']*["']/i.test(normalized)) return true;
     if (/\b(?:pytest|unittest|compileall|pip|uv|poetry)\b/i.test(normalized)) return true;

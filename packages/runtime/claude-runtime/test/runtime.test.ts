@@ -6004,6 +6004,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("python -m pytest tests"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python reproduce/build.py"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("cd /workspace && python reproduce/build.py 2>&1 | tail -80"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python work/build_deliverables.py"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("cd /workspace && python3 work/build_deliverables.py"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose up -d --build --wait")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
