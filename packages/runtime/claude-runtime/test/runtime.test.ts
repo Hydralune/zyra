@@ -6172,6 +6172,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isGeneratedDeliveryInspection(shell("cat tools/regenerate_submission.py"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("python3 work/build_submission.py"), false), false);
   assert.equal(isGeneratedDeliveryInspection(shell("python tools/generate_manifest.py"), false), false);
+  assert.equal(isGeneratedDeliveryInspection(shell("python work/gen_deliverables.py"), false), false);
   assert.equal(isGeneratedDeliveryInspection(shell("cat task-contract.json"), false), false);
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "services/worker/state.py" } }, true), false);
   assert.equal(isClearlyRepairDrivingTool(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null")), false);
@@ -6182,6 +6183,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/e2e_full_lifecycle.py")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python3 work/build_submission.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/generate_manifest.py")), false);
+  assert.equal(isClearlyVerificationDrivingTool(shell("python work/gen_deliverables.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);

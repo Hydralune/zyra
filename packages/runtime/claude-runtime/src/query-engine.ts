@@ -3642,7 +3642,7 @@ function isValidationOnlyDeliveryPath(value: string): boolean {
 function isDeliveryEvidenceGeneratorPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/");
   const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
-  return /^(?:build|regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(basename);
+  return /^(?:build|regenerate|generate|gen|update)[-_]?(?:submission|deliverables?|evidence|manifest|report)\b/iu.test(basename);
 }
 
 function isDeliveryEvidenceGeneratorCommand(value: string): boolean {
