@@ -946,6 +946,11 @@ export class ProgressiveExecutionRuntime {
     return this.state.unresolvedVerificationScopes.length > 0;
   }
 
+  verificationFailureTargetsGeneratedDelivery(): boolean {
+    const priority = this.state.unresolvedVerificationFailures[0];
+    return priority !== undefined && verificationFailureTargetsGeneratedDelivery(priority);
+  }
+
   verificationDebtSummary(): string {
     return this.state.unresolvedVerificationScopes.length > 0
       ? verificationDebtReason(this.state)
@@ -1374,12 +1379,26 @@ function verificationDebtReason(state: ProgressiveExecutionSnapshot): string {
     ? ` Older unresolved failures: ${details.slice(1).join("; ")}.`
     : "";
   const priorityFailure = state.unresolvedVerificationFailures[0];
+  const generatedDeliveryGuidance = priorityFailure
+    && verificationFailureTargetsGeneratedDelivery(priorityFailure)
+    ? " The verifier explicitly identified generated-delivery consistency failures. Inspect and repair only the named submission, manifest, dashboard, decision-journal, or delivery-generator files; regenerate them, then immediately rerun this same verification scope. Do not search for private evaluator implementation."
+    : "";
   const opaqueFailureGuidance = priorityFailure && !priorityFailure.diagnosticSummary
     ? priorityFailure.attemptCount === 1
       ? " This first-seen regression has no retained root-cause detail yet; reproduce or inspect this priority failure before auditing older scopes."
       : " This repeated verifier result is intentionally opaque: its retained labels are not a line-level diagnostic. Do not invent or search for hidden error detail. If a repair rerun preserves the same labels, treat that hypothesis as insufficient and pivot to a distinct public contract or implementation boundary not already inspected."
     : "";
-  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining}${opaqueFailureGuidance} Repair and rerun the priority scope before returning to older or less concrete failures`;
+  return `${state.unresolvedVerificationScopes.length} failed verification scope(s) remain unresolved.${priority}${remaining}${generatedDeliveryGuidance}${opaqueFailureGuidance} Repair and rerun the priority scope before returning to older or less concrete failures`;
+}
+
+function verificationFailureTargetsGeneratedDelivery(
+  failure: UnresolvedVerificationFailure,
+): boolean {
+  const evidence = [
+    ...failure.failedChecks,
+    failure.diagnosticSummary ?? "",
+  ].join(" ");
+  return /(?:\bG8[-_ ]DELIVERY[-_ ]CONSISTENCY\b|\bDELIVERY[-_ ]CONSISTENCY\b|\bmanifest (?:omits|artifact|task contract|path|hash)|\bartifact hash mismatch\b|\bdashboard marker mismatch\b|\bdecision action digest mismatch\b|\bdecision journal (?:omits|mismatch))/iu.test(evidence);
 }
 
 function finitePositive(value: unknown): number | null {

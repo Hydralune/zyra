@@ -1679,6 +1679,7 @@ export class ClaudeRuntimeCore {
             });
           } else if (
             progressive.hasUnresolvedVerificationFailures()
+            && !progressive.verificationFailureTargetsGeneratedDelivery()
             && isGeneratedDeliveryInspection(step, registry.readOnly(step.tool_name))
           ) {
             immediateResults.set(toolCallId, {
@@ -1705,6 +1706,7 @@ export class ClaudeRuntimeCore {
             });
           } else if (
             progressive.hasUnresolvedVerificationFailures()
+            && !progressive.verificationFailureTargetsGeneratedDelivery()
             && isGeneratedDeliveryMutation(step)
           ) {
             immediateResults.set(toolCallId, {
@@ -1876,7 +1878,11 @@ export class ClaudeRuntimeCore {
             progressive.inspectionCircuitOpen()
             && isClearlyPreDeliveryInspection(step, registry.readOnly(step.tool_name))
             && !progressive.consumeRecoveryInspectionAllowance(
-              isTargetedRepairInspection(step, registry.readOnly(step.tool_name)),
+              isTargetedRepairInspection(step, registry.readOnly(step.tool_name))
+                || (
+                  progressive.verificationFailureTargetsGeneratedDelivery()
+                  && isGeneratedDeliveryInspection(step, registry.readOnly(step.tool_name))
+                ),
             )
           ) {
             immediateResults.set(toolCallId, {
@@ -1925,7 +1931,11 @@ export class ClaudeRuntimeCore {
                 progressive_verification_scope:
                   verificationScopeForTool(step),
                 progressive_repair_driving:
-                  isClearlyRepairDrivingTool(step),
+                  isClearlyRepairDrivingTool(step)
+                  || (
+                    progressive.verificationFailureTargetsGeneratedDelivery()
+                    && isGeneratedDeliveryRepairDrivingTool(step)
+                  ),
                 progressive_environment_recovery_driving:
                   isClearlyEnvironmentRecoveryTool(step),
               },
@@ -3642,7 +3652,7 @@ function isValidationOnlyDeliveryPath(value: string): boolean {
 function isDeliveryEvidenceGeneratorPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/");
   const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
-  return /^(?:build|regenerate|generate|gen|update)[-_]?(?:submission|deliverables?|evidence|manifest|report)\b/iu.test(basename);
+  return /^(?:(?:build|regenerate|generate|gen|update)[-_]?(?:submission|deliverables?|evidence|manifest|report)|finali[sz]e(?:[-_](?:submission|deliverables?|evidence|manifest|report))?)\b/iu.test(basename);
 }
 
 function isDeliveryEvidenceGeneratorCommand(value: string): boolean {
@@ -3650,6 +3660,14 @@ function isDeliveryEvidenceGeneratorCommand(value: string): boolean {
     /(?:^|\s)(?:python(?:3)?|node|bun|deno|ruby)\s+(["']?[^\s"';&|]+["']?)/iu,
   )?.[1]?.replace(/^["']|["']$/gu, "") ?? "";
   return Boolean(script) && isDeliveryEvidenceGeneratorPath(script);
+}
+
+function isGeneratedDeliveryRepairDrivingTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (isGeneratedDeliveryMutation(step)) return true;
+  return step.tool_name === "shell"
+    && isDeliveryEvidenceGeneratorCommand(shellInvocationText(step.arguments));
 }
 
 export function isClearlyVerificationDrivingTool(

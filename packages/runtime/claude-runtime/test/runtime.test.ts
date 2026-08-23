@@ -4018,6 +4018,51 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   assert.equal(restored.snapshot().targetedRepairInspectionAllowance, 2);
 });
 
+test("explicit delivery-consistency verification debt targets generated evidence", () => {
+  const deliveryFailure = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 7,
+      repairMutationCount: 7,
+      unresolvedVerificationScopes: ["shell:starweavectl:verify"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:starweavectl:verify",
+        failedChecks: ["G8-DELIVERY-CONSISTENCY", "G9-AUTONOMOUS-CONTROL"],
+        failedCount: 2,
+        failureKind: "reported_checks",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 7,
+        diagnosticSummary: "manifest omits dashboard.html; decision action digest mismatch for EVENT-1",
+      }],
+    },
+  });
+  assert.equal(deliveryFailure.verificationFailureTargetsGeneratedDelivery(), true);
+  assert.match(deliveryFailure.verificationDebtSummary(), /regenerate them.*immediately rerun/iu);
+  assert.match(deliveryFailure.verificationDebtSummary(), /Do not search for private evaluator/iu);
+
+  const behavioralFailure = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 7,
+      repairMutationCount: 7,
+      unresolvedVerificationScopes: ["integration-suite"],
+      unresolvedVerificationFailures: [{
+        scope: "integration-suite",
+        failedChecks: ["G5-BUSINESS-BEHAVIOR"],
+        failedCount: 1,
+        failureKind: "reported_checks",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 7,
+        diagnosticSummary: "service response mismatch",
+      }],
+    },
+  });
+  assert.equal(behavioralFailure.verificationFailureTargetsGeneratedDelivery(), false);
+  assert.doesNotMatch(behavioralFailure.verificationDebtSummary(), /generated-delivery consistency/iu);
+});
+
 test("repeated opaque verification debt rejects invented diagnostics and redirects repair", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -6006,6 +6051,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyPreDeliveryInspection(shell("cd /workspace && python reproduce/build.py 2>&1 | tail -80"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("python work/build_deliverables.py"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("cd /workspace && python3 work/build_deliverables.py"), false), false);
+  assert.equal(isClearlyPreDeliveryInspection(shell("python work/finalize.py"), false), false);
   assert.equal(isClearlyPreDeliveryInspection(shell("docker compose up -d --build"), false), false);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose up -d --build --wait")), true);
   assert.equal(isClearlyEnvironmentRecoveryTool(shell("docker compose restart control-api")), true);
@@ -6175,6 +6221,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isGeneratedDeliveryInspection(shell("python3 work/build_submission.py"), false), false);
   assert.equal(isGeneratedDeliveryInspection(shell("python tools/generate_manifest.py"), false), false);
   assert.equal(isGeneratedDeliveryInspection(shell("python work/gen_deliverables.py"), false), false);
+  assert.equal(isGeneratedDeliveryInspection(shell("python work/finalize.py"), false), false);
   assert.equal(isGeneratedDeliveryInspection(shell("cat task-contract.json"), false), false);
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "services/worker/state.py" } }, true), false);
   assert.equal(isClearlyRepairDrivingTool(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null")), false);
